@@ -13,20 +13,20 @@ Feature: Onboarding and sign in
 
   Rule: The first passkey comes from a break-glass link made on the server box (AC-2)
 
-    @v1 @cli @browser @I-1 @AC-2 @unimplemented
+    @v1 @cli @browser @I-1 @AC-2
     Scenario: A bootstrap link registers the first passkey and makes the owner
       When "convoz admin bootstrap-link" runs on the server box
       Then it prints a link of the form "https://convoz.<tailnet>.ts.net/bootstrap#cvz_b_…"
       And opening the link registers a virtual passkey for owner "drew"
       And the app shows Now
 
-    @v1 @api @AC-2 @unimplemented
+    @v1 @api @AC-2
     Scenario: A bootstrap link works once
       Given a bootstrap link was used to register a passkey
       When the link is opened again
       Then the page says the link was already used and registers nothing
 
-    @v1 @api @AC-2 @unimplemented
+    @v1 @api @AC-2
     Scenario: A bootstrap link expires after 10 minutes
       Given a bootstrap link made 10 minutes and 1 second ago
       When the link is opened
@@ -34,7 +34,7 @@ Feature: Onboarding and sign in
 
   Rule: Onboarding sets up a second way in
 
-    @v1 @browser @I-26 @unimplemented
+    @v1 @browser @I-26
     Scenario: Onboarding asks for a second passkey and shows recovery codes once
       Given the owner registered the first passkey
       When onboarding continues
@@ -49,7 +49,7 @@ Feature: Onboarding and sign in
       Then the app offers only "Add a passkey"
       And every other device gets the push "Recovery code used" and an offer to sign out all other devices
 
-    @v1 @api @I-26 @unimplemented
+    @v1 @api @I-26
     Scenario: A recovery code works once
       Given the owner used a recovery code
       When the same code is entered again
@@ -62,7 +62,7 @@ Feature: Onboarding and sign in
       Then the app refuses and says the passkey is too new for this action
       And the same action works with that passkey after the test clock passes 24 hours
 
-    @v1 @browser @I-26 @unimplemented
+    @v1 @browser @I-26
     Scenario: The owner cannot remove the last passkey
       Given the owner has one active passkey
       When the owner tries to remove it
@@ -70,7 +70,7 @@ Feature: Onboarding and sign in
 
   Rule: Signing in is a passkey and a strict cookie
 
-    @v1 @browser @unimplemented
+    @v1 @browser
     Scenario: A device session slides for 30 days and ends at 90
       Given the owner signed in 29 days ago and used the app yesterday
       When the test clock reaches day 91 with daily use

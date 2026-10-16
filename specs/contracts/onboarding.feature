@@ -12,12 +12,12 @@ Feature: Onboarding and sign in (contracts)
 
   Rule: The first passkey comes from a break-glass link made on the server box (AC-2)
 
-    @v1 @api @AC-2 @unimplemented
+    @v1 @api @AC-2
     Scenario: No HTTP route can make a bootstrap link
       When every route in the API contract is called with the owner's cookie
       Then none of them returns a "cvz_b_" token
 
-    @v1 @api @invariant @I-1 @unimplemented
+    @v1 @api @invariant @I-1
     Scenario: There is only ever one owner
       Given the owner "drew" exists
       When a second bootstrap link registers a passkey
@@ -26,7 +26,7 @@ Feature: Onboarding and sign in (contracts)
 
   Rule: Onboarding sets up a second way in
 
-    @v1 @api @I-26 @unimplemented
+    @v1 @api @I-26
     Scenario: Recovery attempts are limited for everyone
       Given 10 wrong recovery codes were posted in the last hour from different devices
       When a correct code is posted
@@ -34,14 +34,14 @@ Feature: Onboarding and sign in (contracts)
 
   Rule: Signing in is a passkey and a strict cookie
 
-    @v1 @browser @unimplemented
+    @v1 @browser
     Scenario: Sign in sets a strict device cookie
       Given owner "drew" has a passkey
       When the owner signs in with the passkey
       Then the response sets "__Host-convoz_sid" with Secure, HttpOnly and SameSite=Strict
       And the cookie value is not the passkey id
 
-    @v1 @api @unimplemented
+    @v1 @api
     Scenario: Logout revokes the device and clears site data
       When the owner calls POST /api/auth/logout
       Then the response carries "Clear-Site-Data"

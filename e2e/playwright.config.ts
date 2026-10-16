@@ -1,6 +1,6 @@
 import os from "node:os";
 import path from "node:path";
-import { defineConfig } from "@playwright/test";
+import { defineConfig, devices } from "@playwright/test";
 
 const here = import.meta.dirname;
 
@@ -16,6 +16,12 @@ export default defineConfig({
   timeout: 30_000,
   expect: { timeout: 5_000 },
   globalTimeout: 45 * 60_000,
+  // @browser scenarios run in chromium (CDP virtual authenticator, S1a plan §4.2); everything else needs no browser.
+  // The two greps split the suite, so every scenario runs exactly once. @phone (chromium 390x844) is unused in S1a.
+  projects: [
+    { name: "headless", grepInvert: /@browser/ },
+    { name: "chromium", grep: /@browser/, use: { ...devices["Desktop Chrome"] } },
+  ],
   reporter: [
     ["list"],
     ["json", { outputFile: path.join(here, "report", "results.json") }],

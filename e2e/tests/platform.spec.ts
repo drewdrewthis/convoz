@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { expect, goBin, repoRoot, run, baseEnv, scenario } from "../lib/scenario.ts";
+import { expect, goBin, repoRoot, run, baseEnv, scenario, serveDefaults } from "../lib/scenario.ts";
 
 const SEED = { "seed-1": "TESTONLY one", "seed-2": "TESTONLY two", "seed-3": "TESTONLY three" };
 
@@ -13,7 +13,7 @@ scenario("The server refuses a database from a newer version", { tag: ["@cli"] }
   await first.stop();
 
   // When this build runs "convoz serve"
-  const res = await convoz(["serve", "--data-dir", dataDir, "--kek-file", kekFile, "--listen", "127.0.0.1:0"]);
+  const res = await convoz(["serve", "--data-dir", dataDir, "--kek-file", kekFile, "--listen", "127.0.0.1:0", ...serveDefaults()]);
 
   // Then it exits non-zero with a message naming both versions (exit 11)
   expect(res.code).toBe(11);
@@ -21,7 +21,7 @@ scenario("The server refuses a database from a newer version", { tag: ["@cli"] }
 
   // And a relative --data-dir reaches the same answer (it is made absolute before the database opens).
   // The binary runs from repoRoot, so the path is relative to repoRoot.
-  const rel = await convoz(["serve", "--data-dir", path.relative(repoRoot, dataDir), "--kek-file", kekFile, "--listen", "127.0.0.1:0"]);
+  const rel = await convoz(["serve", "--data-dir", path.relative(repoRoot, dataDir), "--kek-file", kekFile, "--listen", "127.0.0.1:0", ...serveDefaults()]);
   expect(rel.code).toBe(11);
 });
 

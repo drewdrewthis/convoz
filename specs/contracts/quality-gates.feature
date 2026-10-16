@@ -11,7 +11,7 @@ Feature: Build and quality gates (contracts)
 
   Rule: Every invariant and AC has a bound scenario that failed before its code and passes after (AC-1)
 
-    @v1 @cli @AC-1 @unimplemented
+    @v1 @cli @AC-1
     Scenario: A slice PR shows its scenarios red first and green at head
       Given a slice PR with a test-only commit followed by code commits
       When CI runs the slice's tagged scenarios on the test-only commit and on head
@@ -39,8 +39,20 @@ Feature: Build and quality gates (contracts)
 
   Rule: Module boundaries are enforced (AC-16)
 
-    @v1 @cli @AC-16 @unimplemented
+    @v1 @cli @AC-16
     Scenario Outline: CI fails a boundary break
+      Given a branch that <breaks>
+      When CI runs
+      Then the "<check>" check fails and names the file
+
+      Examples:
+        | breaks                                                          | check            |
+        | queries a table that its Go module does not own                  | table-ownership  |
+        | imports internal/server from internal/cli or internal/mcp        | go-imports       |
+
+    # Split out of "CI fails a boundary break": the web and contract rows belong to S-U1.
+    @v1 @cli @AC-16 @unimplemented
+    Scenario Outline: CI fails a web or contract boundary break
       Given a branch that <breaks>
       When CI runs
       Then the "<check>" check fails and names the file
@@ -49,8 +61,6 @@ Feature: Build and quality gates (contracts)
         | breaks                                                          | check            |
         | imports an internal file of another web feature                  | boundaries       |
         | imports app code from packages/ui                                | boundaries       |
-        | queries a table that its Go module does not own                  | table-ownership  |
-        | imports internal/server from internal/cli or internal/mcp        | go-arch-lint     |
         | changes generated contract code without changing the contract    | contract-drift   |
 
   Rule: The UI library meets the accessibility and look bar (AC-17)

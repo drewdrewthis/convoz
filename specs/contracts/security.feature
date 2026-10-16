@@ -7,35 +7,40 @@ Feature: Security walls (contracts)
   Protocol, security and invariant rules behind security walls.
   Status codes, headers, races and data-file checks live here, not in the user-facing file.
 
-  Background:
-    Given a fresh Convoz server with owner "drew" signed in with a virtual passkey
-    And machine "box-2" is logged in with allow-list "devtool"
-    And machine "laptop-1" is logged in with allow-list "devtool"
-
   Rule: The tailnet is a real wall
 
-    @v1 @api @I-41 @AC-24 @unimplemented
+  Background:
+    Given a fresh Convoz server
+
+    @v1 @api @I-41 @AC-24
     Scenario: An unknown Host is refused before auth
       When a request with Host "evil.example:7788" and a valid device cookie arrives
       Then the server answers 421
 
-    @v1 @api @I-41 @AC-24 @unimplemented
+    @v1 @api @I-41 @AC-24
     Scenario: Tailscale headers from a non-serve peer change nothing
       When a request without credentials carries "Tailscale-User-Login: drew@example.com"
       Then the server answers 401
+      And forged "X-Forwarded-For" values over TCP do not move the per-source rate-limit bucket
+      And a request carrying "Tailscale-Funnel-Request" is refused with 403
 
-    @v1 @api @I-41 @AC-24 @unimplemented
+    @v1 @api @I-41 @AC-24
     Scenario: A credential in a query string is refused and never logged
       When a request asks for "/api/me?key=cvz_m_TESTONLY0000000000000000"
       Then the server answers 400
       And the server log contains no "cvz_" string
 
-    @v1 @api @I-41 @unimplemented
+    @v1 @api @I-41
     Scenario: The Authorization header is never logged
       When 10 agent requests with fake leases are served
       Then the server log contains no "Authorization" value and no "cvz_s_" string
 
   Rule: Every route needs the right credential
+
+  Background:
+    Given a fresh Convoz server with owner "drew" signed in with a virtual passkey
+    And machine "box-2" is logged in with allow-list "devtool"
+    And machine "laptop-1" is logged in with allow-list "devtool"
 
     @v1 @api @I-6 @unimplemented
     Scenario Outline: API routes answer 401 without credentials
@@ -60,9 +65,9 @@ Feature: Security walls (contracts)
       When every route is called with no credential, with a lease that lacks its scope and with a non-owner role
       Then each call answers 401 or 403 exactly as the contract declares
 
-    @v1 @api @unimplemented
+    @v1 @api
     Scenario Outline: Cookie writes need the exact Origin and the Convoz header
-      When the owner's device cookie sends POST /api/conversations with <headers>
+      When the owner's device cookie sends POST /api/auth/step-up/options with <headers>
       Then the server answers 403
 
       Examples:
@@ -71,9 +76,9 @@ Feature: Security walls (contracts)
         | no Origin header                                   |
         | the right Origin but no "X-Convoz: 1" header       |
 
-    @v1 @api @I-25 @unimplemented
+    @v1 @api @I-25
     Scenario: Unknown request fields are refused
-      When the owner posts a message with an extra field "admin": true
+      When the owner sends POST /api/auth/step-up/options with an extra field "admin": true
       Then the server answers 400
 
     @v1 @api @I-25 @AC-14 @unimplemented
@@ -90,6 +95,11 @@ Feature: Security walls (contracts)
       And the machine key copy cannot be decrypted after it is copied to another machine's record
 
   Rule: Destructive actions need a fresh single-use passkey step-up
+
+  Background:
+    Given a fresh Convoz server with owner "drew" signed in with a virtual passkey
+    And machine "box-2" is logged in with allow-list "devtool"
+    And machine "laptop-1" is logged in with allow-list "devtool"
 
     @v1 @api @I-26 @unimplemented
     Scenario Outline: Step-up is required for destructive actions
@@ -131,6 +141,11 @@ Feature: Security walls (contracts)
 
   Rule: Reveal is a careful, audited, owner-only action (SEC-1)
 
+  Background:
+    Given a fresh Convoz server with owner "drew" signed in with a virtual passkey
+    And machine "box-2" is logged in with allow-list "devtool"
+    And machine "laptop-1" is logged in with allow-list "devtool"
+
     @v1 @api @I-39 @AC-14 @unimplemented
     Scenario: A used step-up cannot reveal again
       Given the owner revealed the key of "box-2" with step-up "su_1"
@@ -151,6 +166,11 @@ Feature: Security walls (contracts)
 
   Rule: Regenerate, revoke and disable take effect on the next request (SEC-4)
 
+  Background:
+    Given a fresh Convoz server with owner "drew" signed in with a virtual passkey
+    And machine "box-2" is logged in with allow-list "devtool"
+    And machine "laptop-1" is logged in with allow-list "devtool"
+
     @v1 @cli @api @I-38 @AC-14 @unimplemented
     Scenario: Regenerating a key stops the old key and its leases at once
       Given a "devtool" session on "box-2" waits with "convoz inbox --wait 60" and holds 2 claimed items
@@ -163,6 +183,11 @@ Feature: Security walls (contracts)
       And the "laptop-1" session answers 200
 
   Rule: Files are served so that they cannot run (SEC-7)
+
+  Background:
+    Given a fresh Convoz server with owner "drew" signed in with a virtual passkey
+    And machine "box-2" is logged in with allow-list "devtool"
+    And machine "laptop-1" is logged in with allow-list "devtool"
 
     @v1 @api @I-44 @AC-25 @unimplemented
     Scenario Outline: Only safe images and audio are shown inline
@@ -216,6 +241,11 @@ Feature: Security walls (contracts)
 
   Rule: Markdown cannot run code or leak reads (SEC-8)
 
+  Background:
+    Given a fresh Convoz server with owner "drew" signed in with a virtual passkey
+    And machine "box-2" is logged in with allow-list "devtool"
+    And machine "laptop-1" is logged in with allow-list "devtool"
+
     @v1 @browser @I-45 @AC-25 @unimplemented
     Scenario: A remote image never loads
       When "devtool" posts "![](https://remote.example/p.png)"
@@ -223,6 +253,11 @@ Feature: Security walls (contracts)
       And the browser request log has 0 requests to "remote.example"
 
   Rule: Apps and agents cannot act as the owner (SEC-5, SEC-6)
+
+  Background:
+    Given a fresh Convoz server with owner "drew" signed in with a virtual passkey
+    And machine "box-2" is logged in with allow-list "devtool"
+    And machine "laptop-1" is logged in with allow-list "devtool"
 
     @v1 @api @I-17 @AC-26 @unimplemented
     Scenario: People an agent lists in a new conversation are pending
