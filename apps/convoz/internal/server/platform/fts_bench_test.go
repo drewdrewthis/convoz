@@ -1,6 +1,8 @@
 package platform_test
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"math/rand/v2"
 	"os"
@@ -10,9 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ncruces/go-sqlite3"
-
-	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
 
 const (
@@ -45,13 +45,19 @@ func p95ms(d []time.Duration) float64 {
 
 // buildFixture fills a contentless_delete FTS5 table with benchRows rows in batched
 // transactions. It writes a marker last, so a half-built file is never reused.
-func buildFixture(tb testing.TB, db *platform.DB) {
-	must(tb, db.Exec("CREATE VIRTUAL TABLE docs USING fts5(body, content='', contentless_delete=1)"))
-	must(tb, db.Exec("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT) STRICT"))
+func buildFixture(tb testing.TB, store *db.Store) {
+	ctx := context.Background()
+	must(tb, store.Writer.SQLTx(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, "CREATE VIRTUAL TABLE docs USING fts5(body, content='', contentless_delete=1)"); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT) STRICT")
+		return err
+	}))
 	r := rand.New(rand.NewPCG(1, 2))
 	const perTx = 50_000
 	for start := 0; start < benchRows; start += perTx {
-		must(tb, db.Tx(func(exec func(string, ...any) error) error {
+		must(tb, store.Writer.SQLTx(ctx, func(tx *sql.Tx) error {
 			for i := start; i < start+perTx; i += benchBatch {
 				var sb strings.Builder
 				sb.WriteString("INSERT INTO docs(rowid, body) VALUES ")
@@ -61,14 +67,29 @@ func buildFixture(tb testing.TB, db *platform.DB) {
 					}
 					fmt.Fprintf(&sb, "(%d,'%s')", j+1, sentence(r))
 				}
-				if err := exec(sb.String()); err != nil {
+				if _, err := tx.ExecContext(ctx, sb.String()); err != nil {
 					return err
 				}
 			}
 			return nil
 		}))
 	}
-	must(tb, db.Exec("INSERT INTO meta VALUES(?, ?)", fixtureMarker, fmt.Sprint(benchRows)))
+	must(tb, store.Writer.SQLTx(ctx, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, "INSERT INTO meta VALUES(?, ?)", fixtureMarker, fmt.Sprint(benchRows))
+		return err
+	}))
+}
+
+// search runs one MATCH query on the read pool and drains the rows.
+func search(ctx context.Context, store *db.Store, q string) error {
+	rows, err := store.Reader.SQL().QueryContext(ctx, "SELECT rowid FROM docs WHERE docs MATCH ? ORDER BY rank LIMIT 20", q)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+	}
+	return rows.Err()
 }
 
 func must(tb testing.TB, err error) {
@@ -92,16 +113,18 @@ func BenchmarkFTS1M(b *testing.B) {
 
 	key := make([]byte, 32)
 	copy(key, "TESTONLY-bench-key")
-	db, err := platform.Open(path, key)
+	store, err := db.Open(path, key)
 	must(b, err)
-	defer db.Close()
+	defer store.Close()
+	ctx := context.Background()
 
-	if v, ok, _ := db.QueryString("SELECT value FROM meta WHERE key=?", fixtureMarker); ok && v == fmt.Sprint(benchRows) {
+	var marker string
+	if err := store.Reader.SQL().QueryRowContext(ctx, "SELECT value FROM meta WHERE key=?", fixtureMarker).Scan(&marker); err == nil && marker == fmt.Sprint(benchRows) {
 		b.Log("reusing fixture")
 	} else if existed {
 		b.Fatalf("%s exists but holds no complete fixture", path)
 	} else {
-		buildFixture(b, db)
+		buildFixture(b, store)
 	}
 
 	r := rand.New(rand.NewPCG(3, 4))
@@ -109,7 +132,10 @@ func BenchmarkFTS1M(b *testing.B) {
 		inserts := make([]time.Duration, benchSamples)
 		for i := range inserts {
 			t := time.Now()
-			must(b, db.Exec("INSERT INTO docs(rowid, body) VALUES(?, ?)", int64(benchRows+1+i), sentence(r)))
+			must(b, store.Writer.SQLTx(ctx, func(tx *sql.Tx) error {
+				_, err := tx.ExecContext(ctx, "INSERT INTO docs(rowid, body) VALUES(?, ?)", int64(benchRows+1+i), sentence(r))
+				return err
+			}))
 			inserts[i] = time.Since(t)
 		}
 		searches := make([]time.Duration, benchSamples)
@@ -119,8 +145,7 @@ func BenchmarkFTS1M(b *testing.B) {
 				q += " AND " + word(r.IntN(benchVocab))
 			}
 			t := time.Now()
-			hits := 0
-			must(b, db.Query("SELECT rowid FROM docs WHERE docs MATCH ? ORDER BY rank LIMIT 20", []any{q}, func(*sqlite3.Stmt) { hits++ }))
+			must(b, search(ctx, store, q))
 			searches[i] = time.Since(t)
 		}
 		ip, sp := p95ms(inserts), p95ms(searches)

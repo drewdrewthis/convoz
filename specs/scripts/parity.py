@@ -12,6 +12,8 @@ Rules (docs/testing.md §3, the S0 plan "Parity"):
      Playwright JSON report, so a skip, an expected failure, test.fail() or a flaky
      retry is a failure. A bound test missing from the report did not run: a failure.
   4. A scenario that is bound and still tagged @unimplemented fails (stale tag).
+     A scenario with neither @v1 nor @later fails, so a missing tag cannot hide it.
+     A binding whose body has no `expect(` call asserts nothing and fails.
   5. One binding per Scenario Outline; its Examples rows run inside that one test.
   6. The count of @unimplemented scenarios is always printed.
 Bindings are read from the report (title and tags) and from the test sources
@@ -27,6 +29,7 @@ import tempfile
 
 DRIVERS = {"@browser", "@cli", "@mcp", "@api"}
 BIND_RE = re.compile(r'\bscenario\(\s*("(?:[^"\\]|\\.)*")')
+EXPECT_RE = re.compile(r"\bexpect\s*\(")
 
 
 def load_checker():
@@ -38,22 +41,65 @@ def load_checker():
     return mod
 
 
+def code_only(text):
+    """`text` with comments and the insides of string literals blanked, same length."""
+    blank = lambda t: re.sub(r"[^\n]", " ", t)
+    out, i, n = [], 0, len(text)
+    while i < n:
+        c = text[i]
+        if text.startswith("//", i):
+            end = text.find("\n", i)
+            end = n if end < 0 else end
+            out.append(blank(text[i:end]))
+            i = end
+        elif text.startswith("/*", i):
+            end = text.find("*/", i)
+            end = n if end < 0 else end + 2
+            out.append(blank(text[i:end]))
+            i = end
+        elif c in "'\"`":
+            j = i + 1
+            while j < n and text[j] != c:
+                j += 2 if text[j] == "\\" else 1
+            out.append(c + blank(text[i + 1:j]) + c)
+            i = j + 1
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
+
+
+def call_body(code, open_paren):
+    """The text of the balanced (...) that starts at `open_paren` in comment-free code."""
+    depth = 0
+    for i in range(open_paren, len(code)):
+        depth += {"(": 1, ")": -1}.get(code[i], 0)
+        if depth == 0:
+            return code[open_paren:i + 1]
+    return code[open_paren:]
+
+
 def source_bindings(tests_dir):
-    """title -> [files] for every scenario("...") call under tests_dir."""
-    found = {}
+    """(title -> [files] for every scenario("...") call under tests_dir,
+    title -> [files] for the calls whose body has no expect( call)."""
+    found, no_expect = {}, {}
     for root, _, files in os.walk(tests_dir):
         for fn in sorted(files):
             if not fn.endswith((".ts", ".tsx", ".js", ".mjs")):
                 continue
             path = os.path.join(root, fn)
             with open(path, encoding="utf-8") as fh:
-                for m in BIND_RE.finditer(fh.read()):
-                    try:
-                        title = json.loads(m.group(1))
-                    except ValueError:
-                        continue
-                    found.setdefault(title, []).append(path)
-    return found
+                text = fh.read()
+            code = code_only(text)
+            for m in BIND_RE.finditer(text):
+                try:
+                    title = json.loads(m.group(1))
+                except ValueError:
+                    continue
+                found.setdefault(title, []).append(path)
+                if not EXPECT_RE.search(call_body(code, text.index("(", m.start()))):
+                    no_expect.setdefault(title, []).append(path)
+    return found, no_expect
 
 
 def report_bindings(report_path):
@@ -92,7 +138,7 @@ def check(specs_dir, tests_dir, report_path):
     by_title = {}
     for sc in scenarios:
         by_title.setdefault(sc.name, sc)
-    src = source_bindings(tests_dir)
+    src, no_expect = source_bindings(tests_dir)
     rep = report_bindings(report_path)
     unimpl = 0
     bound = 0
@@ -108,6 +154,7 @@ def check(specs_dir, tests_dir, report_path):
                 problems.append(f"{where}: {sc.name!r} is bound but still tagged @unimplemented")
             continue
         if "@v1" not in tags:
+            problems.append(f"{where}: {sc.name!r} has neither @v1 nor @later; tag it")
             continue
         runs = rep.get(sc.name, [])
         n = max(len(runs), len(src.get(sc.name, [])))
@@ -117,6 +164,8 @@ def check(specs_dir, tests_dir, report_path):
         if n > 1:
             problems.append(f"{where}: {sc.name!r} has {n} bindings, expected exactly one (one binding per outline)")
         bound += 1
+        for f in no_expect.get(sc.name, []):
+            problems.append(f"{f}: binding {sc.name!r} has no expect( call, so it asserts nothing")
         if not runs:
             problems.append(f"{where}: {sc.name!r} is bound but did not run (not in the report)")
             continue
@@ -155,6 +204,12 @@ FEATURE = """Feature: Demo
     Then b
 """
 
+UNTAGGED = """Feature: Extra
+  Scenario: Untagged
+    When a
+    Then b
+"""
+
 
 def _report(*specs):
     return {"suites": [{"file": "t.spec.ts", "specs": [
@@ -178,9 +233,11 @@ def self_test():
         with open(os.path.join(d, "specs", "features", "demo.feature"), "w") as fh:
             fh.write(FEATURE)
 
-        def run_case(sources, rep):
+        def run_case(sources, rep, body="expect(1).toBe(1);", extra="Feature: Extra\n"):
+            with open(os.path.join(d, "specs", "features", "extra.feature"), "w") as fh:
+                fh.write(extra)
             with open(os.path.join(d, "tests", "a.spec.ts"), "w") as fh:
-                fh.write("\n".join(f'scenario({json.dumps(t)}, {{ tag: ["@cli"] }}, async () => {{}});' for t in sources))
+                fh.write("\n".join(f'scenario({json.dumps(t)}, {{ tag: ["@cli"] }}, async () => {{ {body} }});' for t in sources))
             rp = os.path.join(d, "r.json")
             with open(rp, "w") as fh:
                 json.dump(rep, fh)
@@ -191,6 +248,23 @@ def self_test():
         p, u, _ = run_case(["Alpha", "Beta"], good)
         expect("clean run has no problems", p == [])
         expect("counts @unimplemented", u == 1)
+
+        p, _, _ = run_case(["Alpha", "Beta"], good, extra=UNTAGGED)
+        expect("catches a scenario with neither @v1 nor @later", any("'Untagged' has neither @v1 nor @later" in x for x in p))
+
+        p, _, _ = run_case(["Alpha", "Beta"], good, body="")
+        expect("catches a binding with an empty body", any("binding 'Alpha' has no expect( call" in x for x in p))
+
+        p, _, _ = run_case(["Alpha", "Beta"], good, body='// expect(1).toBe(1);\nconst s = "expect(1)";')
+        expect("a commented or quoted expect( does not count", any("binding 'Beta' has no expect( call" in x for x in p))
+
+        p, _, _ = run_case(["Alpha", "Beta", "Gamma"], _report(
+            ("Alpha", ["@cli"], "passed", "expected", "passed"), ("Beta", ["@cli"], "passed", "expected", "passed"),
+            ("Gamma", ["@api"], "passed", "expected", "passed")))
+        expect("catches a stale @unimplemented tag", any("'Gamma' is bound but still tagged @unimplemented" in x for x in p))
+
+        p, _, _ = run_case(["Alpha", "Beta"], _report(("Alpha", ["@cli"], "passed", "expected", "passed")))
+        expect("catches a binding missing from the report", any("'Beta' is bound but did not run" in x for x in p))
 
         p, _, _ = run_case(["Alpha"], _report(("Alpha", ["@cli"], "passed", "expected", "passed")))
         expect("catches an unbound scenario", any("'Beta' has no binding" in x for x in p))

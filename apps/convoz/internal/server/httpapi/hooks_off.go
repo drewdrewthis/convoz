@@ -5,10 +5,7 @@ package httpapi
 import (
 	"net/http"
 
-	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
 
-func registerTestHooks(*http.ServeMux, *platform.DB) {}
-
-// TestMaxMigration is 0 (no cap) in a release build.
-func TestMaxMigration() int { return 0 }
+func registerTestHooks(*http.ServeMux, *db.Store) {}

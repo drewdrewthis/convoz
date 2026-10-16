@@ -17,6 +17,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/crypto"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/httpapi"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
 
 // serve runs the server and returns the process exit code.
@@ -30,17 +31,19 @@ func serve(args []string) int {
 		usage()
 	}
 
-	db, code := openStore(*dataDir, *kekFile)
-	if db == nil {
+	// SQLite creates -wal and -shm with the umask, not the mode of the main file.
+	syscall.Umask(0o077)
+	store, code := openStore(*dataDir, *kekFile)
+	if store == nil {
 		return code
 	}
-	defer db.Close()
+	defer store.Close()
 
 	ln, err := net.Listen("tcp", *listen)
 	if err != nil {
 		return fail(1, err)
 	}
-	srv := &http.Server{Handler: httpapi.NewMux(db), ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{Handler: httpapi.NewMux(store), ReadHeaderTimeout: 10 * time.Second}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 	go func() {
@@ -63,7 +66,7 @@ func serve(args []string) int {
 
 // openStore unlocks the key hierarchy, opens the database and migrates it.
 // It returns a nil DB and the exit code on failure.
-func openStore(dataDir, kekFlag string) (*platform.DB, int) {
+func openStore(dataDir, kekFlag string) (*db.Store, int) {
 	kekPath, err := crypto.ResolveKEKPath(kekFlag, os.Getenv("CREDENTIALS_DIRECTORY"))
 	if err != nil {
 		return nil, fail(exitKey, err)
@@ -75,26 +78,36 @@ func openStore(dataDir, kekFlag string) (*platform.DB, int) {
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		return nil, fail(1, err)
 	}
-	ring, err := crypto.OpenKeyring(dataDir, kek)
+	if err := os.Chmod(dataDir, 0o700); err != nil { // tighten a dir that already existed
+		return nil, fail(1, err)
+	}
+	dbPath := filepath.Join(dataDir, "convoz.db")
+	ring, err := crypto.OpenKeyring(dataDir, kek, dbPath)
 	if err != nil {
 		return nil, fail(exitKey, err)
 	}
-	dek, _ := ring.DEK(crypto.PurposeDB)
-	db, err := platform.Open(filepath.Join(dataDir, "convoz.db"), dek)
+	dek, ok := ring.DEK(crypto.PurposeDB)
+	if !ok {
+		return nil, fail(exitKey, errors.New("keyring has no database key"))
+	}
+	store, err := db.Open(dbPath, dek)
+	if errors.Is(err, db.ErrWrongKey) {
+		return nil, fail(exitKey, err)
+	}
 	if err != nil {
 		return nil, fail(1, err)
 	}
-	err = db.Migrate(platform.MigrateOptions{DataDir: dataDir, Clock: platform.SystemClock{}, MaxVersion: httpapi.TestMaxMigration()})
+	err = platform.Migrate(context.Background(), store, platform.MigrateOptions{DataDir: dataDir, Clock: platform.SystemClock{}, MaxVersion: platform.MaxMigrationCap()})
 	var newer *platform.NewerSchemaError
 	switch {
 	case errors.As(err, &newer):
-		db.Close()
+		store.Close()
 		return nil, fail(exitSchema, err)
 	case err != nil:
-		db.Close()
+		store.Close()
 		return nil, fail(1, err)
 	}
-	return db, 0
+	return store, 0
 }
 
 // writeReady publishes the address atomically so a watcher never reads half a file.
@@ -108,15 +121,6 @@ func writeReady(path, addr string) error {
 }
 
 func fail(code int, err error) int {
-	fmt.Fprintf(os.Stderr, "convoz: %s\n", trimPrefix(err))
+	fmt.Fprintf(os.Stderr, "convoz: %s\n", err)
 	return code
-}
-
-// trimPrefix drops the internal "key: " marker so messages read as one sentence.
-func trimPrefix(err error) string {
-	msg := err.Error()
-	if errors.Is(err, crypto.ErrKey) {
-		msg = msg[len(crypto.ErrKey.Error())+2:]
-	}
-	return msg
 }

@@ -1,6 +1,8 @@
 package platform
 
 import (
+	"context"
+	"database/sql"
 	"embed"
 	"fmt"
 	"io"
@@ -9,6 +11,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
 
 //go:embed migrations/*.sql
@@ -57,49 +61,23 @@ func (e *NewerSchemaError) Error() string {
 	return fmt.Sprintf("data dir schema version %d is newer than this build supports (%d)", e.Found, e.Supported)
 }
 
-// SchemaVersion reads the stored schema version; 0 means a fresh database.
-func (d *DB) SchemaVersion() (int, error) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	return d.schemaVersion()
-}
-
-func (d *DB) schemaVersion() (int, error) {
-	_, has, err := d.queryString("SELECT 1 FROM sqlite_master WHERE type='table' AND name='system_kv'")
-	if err != nil || !has {
-		return 0, err
-	}
-	v, has, err := d.queryString("SELECT value FROM system_kv WHERE key='schema_version'")
-	if err != nil || !has {
-		return 0, err
-	}
-	return strconv.Atoi(v)
-}
-
-// SetSchemaVersion overwrites the stored version. Only the test hooks and the runner call it.
-func (d *DB) SetSchemaVersion(v int) error {
-	return d.Exec(setVersionSQL, strconv.Itoa(v))
-}
-
-const setVersionSQL = "INSERT INTO system_kv(key, value) VALUES('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value"
-
 // MigrateOptions tune Migrate.
 type MigrateOptions struct {
 	DataDir string
 	Clock   Clock
-	// MaxVersion stops migrating at this version when above 0 (test hooks simulate the previous release).
+	// MaxVersion stops migrating at this version when above 0 (MaxMigrationCap in a testhooks build).
 	MaxVersion int
 }
 
 // Migrate brings the schema up to date. A database newer than this build fails with
 // *NewerSchemaError. Before any pending migration on a database that already holds
 // data, an encrypted backup and a copy of the keyring land in <data>/backups.
-func (d *DB) Migrate(opts MigrateOptions) error {
+func Migrate(ctx context.Context, s *db.Store, opts MigrateOptions) error {
 	ms, err := loadMigrations()
 	if err != nil {
 		return err
 	}
-	cur, err := d.SchemaVersion()
+	cur, err := SchemaVersion(ctx, s)
 	if err != nil {
 		return err
 	}
@@ -116,16 +94,16 @@ func (d *DB) Migrate(opts MigrateOptions) error {
 		return nil
 	}
 	if cur > 0 {
-		if err := d.backupBeforeMigration(opts, cur); err != nil {
+		if err := backupBeforeMigration(ctx, s, opts, cur); err != nil {
 			return err
 		}
 	}
 	for _, m := range pending {
-		err := d.Tx(func(exec func(string, ...any) error) error {
-			if err := exec(m.sql); err != nil {
+		err := s.Writer.SQLTx(ctx, func(tx *sql.Tx) error {
+			if _, err := tx.ExecContext(ctx, m.sql); err != nil {
 				return err
 			}
-			return exec(setVersionSQL, strconv.Itoa(m.version))
+			return setSchemaVersion(ctx, db.New(tx), m.version)
 		})
 		if err != nil {
 			return fmt.Errorf("migration %04d: %w", m.version, err)
@@ -134,13 +112,13 @@ func (d *DB) Migrate(opts MigrateOptions) error {
 	return nil
 }
 
-func (d *DB) backupBeforeMigration(opts MigrateOptions, from int) error {
+func backupBeforeMigration(ctx context.Context, s *db.Store, opts MigrateOptions, from int) error {
 	dir := filepath.Join(opts.DataDir, "backups")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
 	stem := filepath.Join(dir, fmt.Sprintf("pre-migrate-v%d-%d", from, opts.Clock.Now().UnixMilli()))
-	if err := d.backupTo(stem + ".db"); err != nil {
+	if err := s.Writer.Backup(ctx, stem+".db"); err != nil {
 		return err
 	}
 	return copyFile(filepath.Join(opts.DataDir, "keyring.json"), stem+".keyring.json")

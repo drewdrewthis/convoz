@@ -8,9 +8,9 @@ const srcDir = path.join(here, "src");
 const distDir = path.join(here, "dist");
 const MIN_RATIO = 4.5;
 
-// Text token on the surfaces it lands on. Absent tokens (a palette without `tg`) are skipped.
+// Each palette lists its own text tokens in `$textTokens`; each is checked on every surface.
+// A listed token that a theme lacks is a failure, never a silent skip.
 const SURFACES = ["bg", "surface", "raised"];
-const TEXT_ON_SURFACES = ["text", "muted", "accentText", "danger", "warning", "success", "info", "tg"];
 const EXTRA_PAIRS = [["onAccent", "accent"]];
 
 const hexToRgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
@@ -24,10 +24,10 @@ const contrast = (a, b) => {
   return (hi + 0.05) / (lo + 0.05);
 };
 
-const pairsFor = (colors) => [
-  ...TEXT_ON_SURFACES.flatMap((t) => SURFACES.map((s) => [t, s])),
+const pairsFor = (textTokens) => [
+  ...textTokens.flatMap((t) => SURFACES.map((s) => [t, s])),
   ...EXTRA_PAIRS,
-].filter(([fg, bg]) => colors[fg] && colors[bg]);
+];
 
 let failures = 0;
 const css = [];
@@ -35,13 +35,25 @@ const files = fs.readdirSync(srcDir).filter((f) => f.endsWith(".tokens.json")).s
 for (const file of files) {
   const palette = file.replace(".tokens.json", "");
   const doc = JSON.parse(fs.readFileSync(path.join(srcDir, file), "utf8"));
+  const textTokens = doc.$textTokens;
+  if (!Array.isArray(textTokens) || textTokens.length === 0) {
+    failures++;
+    console.log(`  FAIL ${palette}: no $textTokens list`);
+    continue;
+  }
   for (const mode of ["light", "dark"]) {
     const colors = Object.fromEntries(Object.entries(doc[mode].color).map(([k, v]) => [k, v.$value]));
     css.push(`[data-palette="${palette}"][data-theme="${mode}"] {`);
     for (const [k, v] of Object.entries(colors)) css.push(`  --cv-${k}: ${v};`);
     css.push("}");
     console.log(`contrast ${palette} ${mode}`);
-    for (const [fg, bg] of pairsFor(colors)) {
+    for (const [fg, bg] of pairsFor(textTokens)) {
+      const missing = [fg, bg].filter((t) => !colors[t]);
+      if (missing.length) {
+        failures++;
+        console.log(`  FAIL ${fg} on ${bg}: missing token ${missing.join(", ")}`);
+        continue;
+      }
       const ratio = contrast(colors[fg], colors[bg]);
       const ok = ratio >= MIN_RATIO;
       if (!ok) failures++;

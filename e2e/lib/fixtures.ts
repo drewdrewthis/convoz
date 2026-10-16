@@ -18,6 +18,8 @@ export interface ConvozOptions {
 export type ConvozRun = (argv: string[], opts?: ConvozOptions) => Promise<RunResult>;
 
 export interface ServerOptions {
+  /** Data dir to serve; default: the dataDir fixture. */
+  dataDir?: string;
   /** KEK file to pass; `null` passes none. Default: the kekFile fixture. */
   kek?: string | null;
   /** Extra env (after CONVOZ_TEST_ADMIN=1). */
@@ -39,6 +41,7 @@ export interface TestApi {
   setKv(key: string, value: string): Promise<void>;
   getKv(key: string): Promise<string | undefined>;
   setSchemaVersion(version: number): Promise<void>;
+  getSchemaVersion(): Promise<number>;
 }
 export type TestApiFactory = (server: ServerHandle) => TestApi;
 
@@ -125,7 +128,7 @@ export const test = base.extend<Fixtures>({
       const kek = opts.kek === undefined ? kekFile : opts.kek;
       const args = [
         "serve",
-        "--data-dir", dataDir,
+        "--data-dir", opts.dataDir ?? dataDir,
         ...(kek ? ["--kek-file", kek] : []),
         "--listen", "127.0.0.1:0",
         "--ready-file", readyFile,
@@ -193,6 +196,11 @@ export const test = base.extend<Fixtures>({
         },
         setSchemaVersion: async (version) =>
           must(await call("POST", "/__test/schema-version", { version }), "POST /__test/schema-version"),
+        getSchemaVersion: async () => {
+          const res = await call("GET", "/__test/schema-version");
+          await must(res, "GET /__test/schema-version");
+          return (await res.json()).version as number;
+        },
       };
     });
   },

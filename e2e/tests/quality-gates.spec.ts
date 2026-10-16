@@ -72,7 +72,7 @@ scenario("The build uses only pinned inputs", { tag: ["@cli"] }, async ({}, info
   info.setTimeout(60_000);
   // When scripts/check_pins.py runs (pins on Actions, pnpm and Go flags, go mod verify, SQLite module checksum)
   const res = await py(path.join(repoRoot, "scripts/check_pins.py"), [], {
-    env: { PATH: `${process.env.PATH ?? ""}:/usr/local/go/bin`, GOFLAGS: "-mod=readonly" },
+    env: { GOFLAGS: "-mod=readonly", ...(process.env.GO_BIN ? { GO_BIN: process.env.GO_BIN } : {}) },
     timeoutMs: 55_000,
   });
   // Then it exits 0

@@ -20,7 +20,7 @@ scenario("The server refuses a database from a newer version", { tag: ["@cli"] }
   expect(res.stderr).toMatch(/convoz: data dir schema version 999 is newer than this build supports \(\d+\)/);
 });
 
-scenario("A migration starts with a backup", { tag: ["@cli"] }, async ({ dataDir, server, testApi }) => {
+scenario("A migration starts with a backup", { tag: ["@cli"] }, async ({ dataDir, server, testApi, convoz }) => {
   // Given a data dir from the previous release (migrations stop at 1) with seeded data
   const old = await server({ env: { CONVOZ_TEST_MAX_MIGRATION: "1" } });
   for (const [k, v] of Object.entries(SEED)) await testApi(old).setKv(k, v);
@@ -50,8 +50,21 @@ scenario("A migration starts with a backup", { tag: ["@cli"] }, async ({ dataDir
   };
   expect(plainOpen).toThrow(/file is not a database/);
 
-  // And the seeded data is intact
+  // And the seeded data is intact, and the schema is the newest this build knows (from "convoz version")
   for (const [k, v] of Object.entries(SEED)) expect(await testApi(cur).getKv(k)).toBe(v);
+  const ver = await convoz(["version"]);
+  const latest = Number(ver.stdout.match(/\(schema (\d+)\)/)?.[1]);
+  expect(latest).toBeGreaterThan(1);
+  expect(await testApi(cur).getSchemaVersion()).toBe(latest);
+  await cur.stop();
+
+  // The backup restores: its file and keyring copy, in a fresh data dir, start at the old schema with the seed rows
+  const restored = fs.mkdtempSync(path.join(os.tmpdir(), "convoz-restore-"));
+  fs.copyFileSync(path.join(backups, names[0]!), path.join(restored, "convoz.db"));
+  fs.copyFileSync(path.join(backups, names[0]!.replace(/\.db$/, ".keyring.json")), path.join(restored, "keyring.json"));
+  const back = await server({ dataDir: restored, env: { CONVOZ_TEST_MAX_MIGRATION: "1" } });
+  expect(await testApi(back).getSchemaVersion()).toBe(1);
+  for (const [k, v] of Object.entries(SEED)) expect(await testApi(back).getKv(k)).toBe(v);
 });
 
 scenario("The storage engine meets the search budget on 1M rows", { tag: ["@cli", "@bench"] }, async ({}, info) => {

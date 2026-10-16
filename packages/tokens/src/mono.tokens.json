@@ -1,5 +1,14 @@
 {
   "$description": "Palette mono, from the prototype PAL.",
+  "$textTokens": [
+    "text",
+    "muted",
+    "accentText",
+    "danger",
+    "warning",
+    "success",
+    "info"
+  ],
   "light": {
     "color": {
       "bg": {

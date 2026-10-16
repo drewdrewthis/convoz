@@ -9,10 +9,10 @@ Fails (exit 1) if the binary
 The route list comes from the one Go constant (apps/convoz/internal/server/testroutes).
 """
 import base64
+import importlib.util
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -22,7 +22,17 @@ import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GO_DIR = os.path.join(ROOT, "apps", "convoz")
-GO = shutil.which("go") or "/usr/local/go/bin/go"
+
+
+def _go_bin():
+    # python -I drops the script directory from sys.path, so load the sibling by path.
+    spec = importlib.util.spec_from_file_location("gotool", os.path.join(ROOT, "scripts", "gotool.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.go_bin()
+
+
+GO = _go_bin()
 
 
 def test_routes():
@@ -69,10 +79,14 @@ def boot_and_probe(binary, routes, problems):
             return
         base = "http://" + listen.removeprefix("tcp://")
         for route in routes:
-            for method in ("GET", "POST"):
-                status = probe(base + route, method)
-                if status != 404:
-                    problems.append(f"{method} {route} answered {status}, must be 404")
+            # GET alone could pass for a route that only takes POST, so POST follows every 404.
+            status = probe(base + route, "GET")
+            if status != 404:
+                problems.append(f"GET {route} answered {status}, must be 404")
+                continue
+            status = probe(base + route, "POST")
+            if status != 404:
+                problems.append(f"POST {route} answered {status}, must be 404")
     finally:
         if proc.poll() is None:
             proc.terminate()  # our own child handle

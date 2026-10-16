@@ -10,7 +10,22 @@ One place to talk with your agents and make their decisions.
 
 ## Status
 
-Design stage. Nothing is built yet.
+S0 (the skeleton) is built: the `convoz` binary with `serve` and `version`, the encrypted SQLite store with migrations and a pre-migration backup, the key hierarchy (KEK file, wrapped DEK keyring), the 10 end-to-end scenarios and the CI gates. The rest of the product is design only.
+
+### Build and test
+
+Needs Go (see `apps/convoz/go.mod`), Node 24+, pnpm and Python 3.
+
+```sh
+pnpm install --frozen-lockfile
+pnpm build:go    # apps/convoz/bin/convoz (release) and bin/convoz-test (-tags testhooks)
+pnpm e2e         # every Gherkin scenario against the real binary
+pnpm parity      # every v1 scenario has one passing binding
+```
+
+- `CONVOZ_BIN` picks the binary under test (default `apps/convoz/bin/convoz-test`, the testhooks build).
+- `GO_BIN` picks the Go tool for the e2e suite and the scripts (default: `go` on `PATH`).
+- SQL lives in `apps/convoz/internal/server/platform/queries/*.sql`. After a change run `make -C apps/convoz sqlc`; the generated code is committed and CI checks it with `go tool sqlc diff`. sqlc is pinned by the `tool` line in `apps/convoz/go.mod`.
 
 - Design: [docs/design.md](docs/design.md) (draft 9). Open questions with default answers are in §17; build slices are in §16.
 - Testing: [docs/testing.md](docs/testing.md). The Gherkin scenarios are the spec, and every scenario runs end to end against a real `convoz serve`. Unit and component tests are optional aids for regressions and debugging.
