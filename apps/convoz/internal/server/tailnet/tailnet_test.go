@@ -45,3 +45,16 @@ func TestParseWhois(t *testing.T) {
 		t.Fatalf("got %+v, %v", n, err)
 	}
 }
+
+func TestWhoisArgsEndOptionsBeforeTheAddress(t *testing.T) {
+	got := whoisArgs("--help")
+	want := []string{"whois", "--json", "--", "--help"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v", got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	}
+}

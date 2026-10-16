@@ -135,9 +135,13 @@ type Node struct {
 	Tags []string
 }
 
+// whoisArgs puts "--" before the address, so a hostile address such as "--help" is never read as a flag.
+func whoisArgs(addr string) []string { return []string{"whois", "--json", "--", addr} }
+
 // Whois asks tailscale who owns addr ("100.64.0.5" or "100.64.0.5:1234").
+// Unused until S1b: the approve card and the machine wall are its callers.
 func Whois(ctx context.Context, bin, addr string) (Node, error) {
-	out, err := run(ctx, bin, "whois", "--json", addr)
+	out, err := run(ctx, bin, whoisArgs(addr)...)
 	if err != nil {
 		return Node{}, err
 	}

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth/db"
+	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
 
 // StepUpTTL is how long a step-up can be used after the passkey assertion.
@@ -23,7 +24,8 @@ var StepUpActions = map[string]bool{
 var ErrStepUp = errors.New("step-up is not valid for this action")
 
 // IssueStepUp records a verified passkey assertion for one action on one target.
-func IssueStepUp(ctx context.Context, q *db.Queries, deviceID, passkeyID int64, action string, target *int64, now time.Time) (int64, error) {
+func IssueStepUp(ctx context.Context, d pdb.DBTX, deviceID, passkeyID int64, action string, target *int64, now time.Time) (int64, error) {
+	q := db.New(d)
 	return q.InsertStepUp(ctx, db.InsertStepUpParams{
 		DeviceID:  deviceID,
 		PasskeyID: passkeyID,
@@ -36,7 +38,8 @@ func IssueStepUp(ctx context.Context, q *db.Queries, deviceID, passkeyID int64, 
 
 // ConsumeStepUp spends a step-up. Call it inside the transaction of the action: if the action
 // fails, the transaction rolls back and the step-up is still good.
-func ConsumeStepUp(ctx context.Context, q *db.Queries, id, deviceID int64, action string, target *int64, now time.Time) error {
+func ConsumeStepUp(ctx context.Context, d pdb.DBTX, id, deviceID int64, action string, target *int64, now time.Time) error {
+	q := db.New(d)
 	n, err := q.ConsumeStepUp(ctx, db.ConsumeStepUpParams{
 		Now:      sql.NullInt64{Int64: now.UnixMilli(), Valid: true},
 		ID:       id,

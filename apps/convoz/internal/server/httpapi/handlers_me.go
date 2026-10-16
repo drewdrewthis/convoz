@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/audit"
-	auditdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/audit/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/event"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity"
@@ -22,7 +21,7 @@ func (s *Server) me(w http.ResponseWriter, _ *http.Request, c *call) {
 }
 
 func (s *Server) identities(w http.ResponseWriter, r *http.Request, _ *call) {
-	list, err := identity.List(r.Context(), s.readIdentity())
+	list, err := identity.List(r.Context(), s.reader())
 	if err != nil {
 		s.internalError(w, r, err)
 		return
@@ -36,7 +35,7 @@ type deviceJSON struct {
 }
 
 func (s *Server) devices(w http.ResponseWriter, r *http.Request, c *call) {
-	list, err := auth.ListDevices(r.Context(), s.readAuth(), c.human.ID, s.Clock.Now())
+	list, err := auth.ListDevices(r.Context(), s.reader(), c.human.ID, s.Clock.Now())
 	if err != nil {
 		s.internalError(w, r, err)
 		return
@@ -66,12 +65,12 @@ func (s *Server) deleteDevice(w http.ResponseWriter, r *http.Request, c *call) {
 	now := s.Clock.Now()
 	var revoked bool
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
-		m := inTx(tx)
+		d := tx.DBTX()
 		var err error
-		if revoked, err = auth.RevokeDevice(ctx, m.auth, c.human.ID, id, "user", now); err != nil || !revoked {
+		if revoked, err = auth.RevokeDevice(ctx, d, c.human.ID, id, "user", now); err != nil || !revoked {
 			return err
 		}
-		return audit.Write(ctx, m.audit, now, audit.Entry{Actor: c.human.ID, Device: c.dev.ID, Action: "device.revoked", TargetKind: "device", TargetID: id})
+		return audit.Write(ctx, d, now, audit.Entry{Actor: c.human.ID, Device: c.dev.ID, Action: "device.revoked", TargetKind: "device", TargetID: id})
 	})
 	switch {
 	case err != nil:
@@ -95,7 +94,7 @@ type passkeyJSON struct {
 }
 
 func (s *Server) passkeys(w http.ResponseWriter, r *http.Request, c *call) {
-	keys, err := auth.ListPasskeys(r.Context(), s.readAuth(), c.human.ID)
+	keys, err := auth.ListPasskeys(r.Context(), s.reader(), c.human.ID)
 	if err != nil {
 		s.internalError(w, r, err)
 		return
@@ -114,18 +113,18 @@ func (s *Server) deletePasskey(w http.ResponseWriter, r *http.Request, c *call) 
 	}
 	now := s.Clock.Now()
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
-		m := inTx(tx)
+		d := tx.DBTX()
 		// The step-up is spent first; an error below rolls it back, so a refused removal costs no new check.
-		if err := auth.ConsumeStepUp(ctx, m.auth, c.stepUp, c.dev.ID, "passkey.remove", &id, now); err != nil {
+		if err := auth.ConsumeStepUp(ctx, d, c.stepUp, c.dev.ID, "passkey.remove", &id, now); err != nil {
 			return err
 		}
-		if err := auth.RemovePasskey(ctx, m.auth, c.human.ID, id, now); err != nil {
+		if err := auth.RemovePasskey(ctx, d, c.human.ID, id, now); err != nil {
 			return err
 		}
-		if err := audit.Write(ctx, m.audit, now, audit.Entry{Actor: c.human.ID, Device: c.dev.ID, Action: "passkey.removed", TargetKind: "passkey", TargetID: id}); err != nil {
+		if err := audit.Write(ctx, d, now, audit.Entry{Actor: c.human.ID, Device: c.dev.ID, Action: "passkey.removed", TargetKind: "passkey", TargetID: id}); err != nil {
 			return err
 		}
-		_, err := event.Append(ctx, m.event, now, "passkey.removed", map[string]any{"identity_id": c.human.ID, "passkey_id": id})
+		_, err := event.Append(ctx, d, now, "passkey.removed", map[string]any{"identity_id": c.human.ID, "passkey_id": id})
 		return err
 	})
 	switch {
@@ -150,15 +149,15 @@ func (s *Server) regenerateRecoveryCodes(w http.ResponseWriter, r *http.Request,
 	now := s.Clock.Now()
 	var codes []string
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
-		m := inTx(tx)
-		if err := auth.ConsumeStepUp(ctx, m.auth, c.stepUp, c.dev.ID, "recovery.regenerate", nil, now); err != nil {
+		d := tx.DBTX()
+		if err := auth.ConsumeStepUp(ctx, d, c.stepUp, c.dev.ID, "recovery.regenerate", nil, now); err != nil {
 			return err
 		}
 		var err error
-		if codes, err = auth.NewRecoveryCodes(ctx, m.auth, c.human.ID, now); err != nil {
+		if codes, err = auth.NewRecoveryCodes(ctx, d, c.human.ID, now); err != nil {
 			return err
 		}
-		return audit.Write(ctx, m.audit, now, audit.Entry{Actor: c.human.ID, Device: c.dev.ID, Action: "recovery.regenerated"})
+		return audit.Write(ctx, d, now, audit.Entry{Actor: c.human.ID, Device: c.dev.ID, Action: "recovery.regenerated"})
 	})
 	switch {
 	case errors.Is(err, auth.ErrStepUp):
@@ -171,7 +170,7 @@ func (s *Server) regenerateRecoveryCodes(w http.ResponseWriter, r *http.Request,
 }
 
 func (s *Server) auditList(w http.ResponseWriter, r *http.Request, _ *call) {
-	rows, err := audit.List(r.Context(), auditdb.New(s.Store.Reader.SQL()), 100)
+	rows, err := audit.List(r.Context(), s.reader(), 100)
 	if err != nil {
 		s.internalError(w, r, err)
 		return

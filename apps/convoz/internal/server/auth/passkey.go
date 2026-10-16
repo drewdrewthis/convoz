@@ -11,6 +11,7 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth/db"
+	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
 
 // Human is the part of a person that auth needs. The composition root fills it from the identity module.
@@ -23,6 +24,20 @@ type Human struct {
 
 // RecoveryPasskeyDelay is how long a passkey added by recovery cannot do destructive things (I-26).
 const RecoveryPasskeyDelay = 24 * time.Hour
+
+// DestructiveActions are the step-up actions a passkey must be old enough for (I-26).
+var DestructiveActions = map[string]bool{"passkey.remove": true, "recovery.regenerate": true}
+
+// ErrPasskeyTooNew means the passkey was added by recovery less than RecoveryPasskeyDelay ago.
+var ErrPasskeyTooNew = errors.New("passkey is too new for this action")
+
+// CheckDestructive refuses a step-up for a destructive action with a passkey that is still inside its delay.
+func CheckDestructive(pk Passkey, action string, now time.Time) error {
+	if DestructiveActions[action] && now.UnixMilli() < pk.DestructiveAt {
+		return ErrPasskeyTooNew
+	}
+	return nil
+}
 
 // Passkey is a stored credential of a human.
 type Passkey struct {
@@ -175,7 +190,8 @@ func fromRow(id, humanID int64, credID, pub, aaguid []byte, signCount int64, bac
 }
 
 // ListPasskeys returns h's active passkeys, oldest first.
-func ListPasskeys(ctx context.Context, q *db.Queries, humanID int64) ([]Passkey, error) {
+func ListPasskeys(ctx context.Context, d pdb.DBTX, humanID int64) ([]Passkey, error) {
+	q := db.New(d)
 	rows, err := q.ListActivePasskeys(ctx, humanID)
 	if err != nil {
 		return nil, err
@@ -188,7 +204,8 @@ func ListPasskeys(ctx context.Context, q *db.Queries, humanID int64) ([]Passkey,
 }
 
 // PasskeyByCredential finds an active passkey by credential id; ok is false when there is none.
-func PasskeyByCredential(ctx context.Context, q *db.Queries, credentialID []byte) (Passkey, bool, error) {
+func PasskeyByCredential(ctx context.Context, d pdb.DBTX, credentialID []byte) (Passkey, bool, error) {
+	q := db.New(d)
 	r, err := q.GetActivePasskeyByCredential(ctx, credentialID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Passkey{}, false, nil
@@ -201,7 +218,8 @@ func PasskeyByCredential(ctx context.Context, q *db.Queries, credentialID []byte
 
 // AddPasskey stores a new passkey. via is "bootstrap", "session" or "recovery"; a recovery passkey
 // cannot do destructive things for 24 hours.
-func AddPasskey(ctx context.Context, q *db.Queries, humanID int64, cred *webauthn.Credential, label, via string, now time.Time) (int64, error) {
+func AddPasskey(ctx context.Context, d pdb.DBTX, humanID int64, cred *webauthn.Credential, label, via string, now time.Time) (int64, error) {
+	q := db.New(d)
 	after := now
 	if via == "recovery" {
 		after = now.Add(RecoveryPasskeyDelay)
@@ -225,7 +243,8 @@ func AddPasskey(ctx context.Context, q *db.Queries, humanID int64, cred *webauth
 }
 
 // UsePasskey records a successful assertion: the new counter and the time.
-func UsePasskey(ctx context.Context, q *db.Queries, id int64, signCount uint32, now time.Time) error {
+func UsePasskey(ctx context.Context, d pdb.DBTX, id int64, signCount uint32, now time.Time) error {
+	q := db.New(d)
 	return q.TouchPasskey(ctx, db.TouchPasskeyParams{SignCount: int64(signCount), LastUsedAt: sql.NullInt64{Int64: now.UnixMilli(), Valid: true}, ID: id})
 }
 
@@ -237,14 +256,15 @@ var ErrNoPasskey = errors.New("passkey not found")
 
 // RemovePasskey revokes a passkey and signs out the devices that came from it.
 // The last active passkey is refused.
-func RemovePasskey(ctx context.Context, q *db.Queries, humanID, passkeyID int64, now time.Time) error {
+func RemovePasskey(ctx context.Context, d pdb.DBTX, humanID, passkeyID int64, now time.Time) error {
+	q := db.New(d)
 	n, err := q.CountActivePasskeys(ctx, humanID)
 	if err != nil {
 		return err
 	}
 	if n <= 1 {
 		// Distinguish "no such passkey" from "the only one" so a wrong id is not told "last passkey".
-		keys, err := ListPasskeys(ctx, q, humanID)
+		keys, err := ListPasskeys(ctx, d, humanID)
 		if err != nil {
 			return err
 		}

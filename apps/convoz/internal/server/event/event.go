@@ -7,10 +7,12 @@ import (
 	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/event/db"
+	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
 
 // Append writes one event with a JSON payload of ids and enums, inside the caller's transaction.
-func Append(ctx context.Context, q *db.Queries, now time.Time, typ string, payload any) (int64, error) {
+func Append(ctx context.Context, d pdb.DBTX, now time.Time, typ string, payload any) (int64, error) {
+	q := db.New(d)
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		return 0, err

@@ -8,34 +8,14 @@ import (
 	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/audit"
-	auditdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/audit/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
-	authdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/event"
-	eventdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/event/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity"
-	identitydb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity/db"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
 
-// modules is one transaction's view of every module the auth handlers touch.
-type modules struct {
-	auth     *authdb.Queries
-	identity *identitydb.Queries
-	audit    *auditdb.Queries
-	event    *eventdb.Queries
-}
-
-func inTx(tx *pdb.Tx) modules {
-	d := tx.DBTX()
-	return modules{authdb.New(d), identitydb.New(d), auditdb.New(d), eventdb.New(d)}
-}
-
-func authQueries(s *pdb.Store) *authdb.Queries         { return authdb.New(s.Reader.SQL()) }
-func identityQueries(s *pdb.Store) *identitydb.Queries { return identitydb.New(s.Reader.SQL()) }
-
-func (s *Server) readAuth() *authdb.Queries         { return authQueries(s.Store) }
-func (s *Server) readIdentity() *identitydb.Queries { return identityQueries(s.Store) }
+// reader is the read-only handle every module wraps with its own sqlc New.
+func (s *Server) reader() pdb.DBTX { return s.Store.Reader.SQL() }
 
 func humanOf(h identity.Human) auth.Human {
 	return auth.Human{ID: h.ID, Handle: h.Handle, DisplayName: h.DisplayName, Role: h.Role}
@@ -49,8 +29,6 @@ type ownerJSON struct {
 }
 
 func ownerOf(h auth.Human) ownerJSON { return ownerJSON{h.ID, h.Handle, h.DisplayName} }
-
-func passkeyLabel(now time.Time) string { return "Passkey " + now.UTC().Format("2006-01-02") }
 
 func (s *Server) version(w http.ResponseWriter, _ *http.Request, _ *call) {
 	writeJSON(w, http.StatusOK, map[string]any{"version": s.Cfg.Version})
@@ -106,7 +84,7 @@ func (s *Server) bootstrapOptions(w http.ResponseWriter, r *http.Request, _ *cal
 		return
 	}
 	ctx, now := r.Context(), s.Clock.Now()
-	_, state, err := auth.CheckBootstrapLink(ctx, s.readAuth(), in.Token, now)
+	_, state, err := auth.CheckBootstrapLink(ctx, s.reader(), in.Token, now)
 	if err != nil {
 		s.internalError(w, r, err)
 		return
@@ -117,11 +95,11 @@ func (s *Server) bootstrapOptions(w http.ResponseWriter, r *http.Request, _ *cal
 	// Once an owner exists the link only adds a passkey to that owner; the typed name is ignored (I-1).
 	var existing []auth.Passkey
 	human := auth.Human{Handle: in.Handle, DisplayName: in.DisplayName, Role: "owner"}
-	owner, err := identity.Owner(ctx, s.readIdentity())
+	owner, err := identity.Owner(ctx, s.reader())
 	switch {
 	case err == nil:
 		human = humanOf(owner)
-		if existing, err = auth.ListPasskeys(ctx, s.readAuth(), owner.ID); err != nil {
+		if existing, err = auth.ListPasskeys(ctx, s.reader(), owner.ID); err != nil {
 			s.internalError(w, r, err)
 			return
 		}
@@ -155,9 +133,9 @@ func (s *Server) bootstrapVerify(w http.ResponseWriter, r *http.Request, _ *call
 	}
 	human := auth.Human{Handle: cer.Handle, DisplayName: cer.Display, Role: "owner"}
 	var existing []auth.Passkey
-	if owner, err := identity.Owner(ctx, s.readIdentity()); err == nil {
+	if owner, err := identity.Owner(ctx, s.reader()); err == nil {
 		human = humanOf(owner)
-		existing, err = auth.ListPasskeys(ctx, s.readAuth(), owner.ID)
+		existing, err = auth.ListPasskeys(ctx, s.reader(), owner.ID)
 		if err != nil {
 			s.internalError(w, r, err)
 			return
@@ -169,53 +147,12 @@ func (s *Server) bootstrapVerify(w http.ResponseWriter, r *http.Request, _ *call
 		return
 	}
 
-	var (
-		owner   identity.Human
-		codes   []string
-		token   string
-		state   = auth.LinkOK
-		created bool
-	)
+	var res auth.BootstrapResult
 	err = s.Store.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) error {
-		m := inTx(tx)
-		linkID, st, err := auth.CheckBootstrapLink(ctx, m.auth, cer.Token, now)
-		if err != nil || st != auth.LinkOK {
-			state = st
-			return err
-		}
-		owner, err = identity.Owner(ctx, m.identity)
-		if errors.Is(err, identity.ErrNotFound) {
-			created = true
-			owner, err = identity.CreateOwner(ctx, m.identity, cer.Handle, cer.Display, now)
-		}
-		if err != nil {
-			return err
-		}
-		passkeyID, err := auth.AddPasskey(ctx, m.auth, owner.ID, cred, passkeyLabel(now), "bootstrap", now)
-		if err != nil {
-			return err
-		}
-		if err := auth.UseBootstrapLink(ctx, m.auth, linkID, passkeyID, now); err != nil {
-			return err
-		}
-		if created {
-			if codes, err = auth.NewRecoveryCodes(ctx, m.auth, owner.ID, now); err != nil {
-				return err
-			}
-		}
-		var deviceID int64
-		if token, deviceID, err = auth.StartDevice(ctx, m.auth, owner.ID, passkeyID, r.UserAgent(), false, now); err != nil {
-			return err
-		}
-		if err := audit.Write(ctx, m.audit, now, audit.Entry{Actor: owner.ID, Device: deviceID, Action: "bootstrap.used", TargetKind: "passkey", TargetID: passkeyID}); err != nil {
-			return err
-		}
-		if created {
-			if _, err := event.Append(ctx, m.event, now, "owner.created", map[string]any{"identity_id": owner.ID}); err != nil {
-				return err
-			}
-		}
-		_, err = event.Append(ctx, m.event, now, "passkey.added", map[string]any{"identity_id": owner.ID, "passkey_id": passkeyID, "via": "bootstrap"})
+		var err error
+		res, err = auth.Bootstrap(ctx, tx.DBTX(), bootstrapPorts, auth.BootstrapInput{
+			Token: cer.Token, Handle: cer.Handle, DisplayName: cer.Display, UserAgent: r.UserAgent(), Credential: cred,
+		}, now)
 		return err
 	})
 	switch {
@@ -225,13 +162,13 @@ func (s *Server) bootstrapVerify(w http.ResponseWriter, r *http.Request, _ *call
 	case err != nil:
 		s.internalError(w, r, err)
 		return
-	case linkError(w, state):
+	case linkError(w, res.State):
 		return
 	}
-	setDeviceCookie(w, token, int(auth.DeviceIdle/time.Second))
-	out := map[string]any{"owner": ownerOf(humanOf(owner))}
-	if created {
-		out["recovery_codes"] = codes
+	setDeviceCookie(w, res.DeviceToken, int(auth.DeviceIdle/time.Second))
+	out := map[string]any{"owner": ownerOf(res.Owner)}
+	if res.Created {
+		out["recovery_codes"] = res.RecoveryCodes
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -263,11 +200,11 @@ func (s *Server) loginVerify(w http.ResponseWriter, r *http.Request, _ *call) {
 		return
 	}
 	lookup := func(ctx context.Context, userHandle []byte) (auth.Human, []auth.Passkey, error) {
-		h, err := identity.ByHandle(ctx, s.readIdentity(), string(userHandle))
+		h, err := identity.ByHandle(ctx, s.reader(), string(userHandle))
 		if err != nil {
 			return auth.Human{}, nil, err
 		}
-		keys, err := auth.ListPasskeys(ctx, s.readAuth(), h.ID)
+		keys, err := auth.ListPasskeys(ctx, s.reader(), h.ID)
 		return humanOf(h), keys, err
 	}
 	human, cred, err := auth.FinishDiscoverableLogin(ctx, s.WA, cer.Session, in.Credential, lookup)
@@ -277,22 +214,22 @@ func (s *Server) loginVerify(w http.ResponseWriter, r *http.Request, _ *call) {
 	}
 	var token string
 	err = s.Store.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) error {
-		m := inTx(tx)
-		pk, found, err := auth.PasskeyByCredential(ctx, m.auth, cred.ID)
+		d := tx.DBTX()
+		pk, found, err := auth.PasskeyByCredential(ctx, d, cred.ID)
 		if err != nil {
 			return err
 		}
 		if !found {
 			return errNoPasskey
 		}
-		if err := auth.UsePasskey(ctx, m.auth, pk.ID, cred.Authenticator.SignCount, now); err != nil {
+		if err := auth.UsePasskey(ctx, d, pk.ID, cred.Authenticator.SignCount, now); err != nil {
 			return err
 		}
 		var deviceID int64
-		if token, deviceID, err = auth.StartDevice(ctx, m.auth, human.ID, pk.ID, r.UserAgent(), false, now); err != nil {
+		if token, deviceID, err = auth.StartDevice(ctx, d, human.ID, pk.ID, r.UserAgent(), false, now); err != nil {
 			return err
 		}
-		return audit.Write(ctx, m.audit, now, audit.Entry{Actor: human.ID, Device: deviceID, Action: "device.login", TargetKind: "passkey", TargetID: pk.ID})
+		return audit.Write(ctx, d, now, audit.Entry{Actor: human.ID, Device: deviceID, Action: "device.login", TargetKind: "passkey", TargetID: pk.ID})
 	})
 	if errors.Is(err, errNoPasskey) {
 		badCredential(w, http.StatusUnauthorized)
@@ -330,8 +267,8 @@ func (s *Server) recovery(w http.ResponseWriter, r *http.Request, _ *call) {
 	}
 	var token string
 	err := s.Store.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) error {
-		m := inTx(tx)
-		humanID, ok, err := auth.UseRecoveryCode(ctx, m.auth, in.Code, now)
+		d := tx.DBTX()
+		humanID, ok, err := auth.UseRecoveryCode(ctx, d, in.Code, now)
 		if err != nil {
 			return err
 		}
@@ -339,13 +276,13 @@ func (s *Server) recovery(w http.ResponseWriter, r *http.Request, _ *call) {
 			return errBadCode
 		}
 		var deviceID int64
-		if token, deviceID, err = auth.StartDevice(ctx, m.auth, humanID, 0, r.UserAgent(), true, now); err != nil {
+		if token, deviceID, err = auth.StartDevice(ctx, d, humanID, 0, r.UserAgent(), true, now); err != nil {
 			return err
 		}
-		if err := audit.Write(ctx, m.audit, now, audit.Entry{Actor: humanID, Device: deviceID, Action: "recovery.used"}); err != nil {
+		if err := audit.Write(ctx, d, now, audit.Entry{Actor: humanID, Device: deviceID, Action: "recovery.used"}); err != nil {
 			return err
 		}
-		_, err = event.Append(ctx, m.event, now, "recovery.used", map[string]any{"identity_id": humanID})
+		_, err = event.Append(ctx, d, now, "recovery.used", map[string]any{"identity_id": humanID})
 		return err
 	})
 	if errors.Is(err, errBadCode) {
@@ -356,7 +293,7 @@ func (s *Server) recovery(w http.ResponseWriter, r *http.Request, _ *call) {
 		s.internalError(w, r, err)
 		return
 	}
-	setDeviceCookie(w, token, int(auth.DeviceIdle/time.Second))
+	setDeviceCookie(w, token, int(auth.RecoveryDeviceTTL/time.Second))
 	writeJSON(w, http.StatusOK, map[string]any{"limited": true})
 }
 
@@ -369,7 +306,7 @@ func (s *Server) registerOptions(w http.ResponseWriter, r *http.Request, c *call
 	if !decode(w, r, &in) {
 		return
 	}
-	existing, err := auth.ListPasskeys(r.Context(), s.readAuth(), c.human.ID)
+	existing, err := auth.ListPasskeys(r.Context(), s.reader(), c.human.ID)
 	if err != nil {
 		s.internalError(w, r, err)
 		return
@@ -393,7 +330,7 @@ func (s *Server) registerVerify(w http.ResponseWriter, r *http.Request, c *call)
 		badCeremony(w)
 		return
 	}
-	existing, err := auth.ListPasskeys(ctx, s.readAuth(), c.human.ID)
+	existing, err := auth.ListPasskeys(ctx, s.reader(), c.human.ID)
 	if err != nil {
 		s.internalError(w, r, err)
 		return
@@ -403,27 +340,8 @@ func (s *Server) registerVerify(w http.ResponseWriter, r *http.Request, c *call)
 		badCredential(w, http.StatusBadRequest)
 		return
 	}
-	via := "session"
-	if c.p.Limited {
-		via = "recovery"
-	}
 	err = s.Store.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) error {
-		m := inTx(tx)
-		// A recovery device has no passkey to step up with; every other device must.
-		if !c.p.Limited {
-			if err := auth.ConsumeStepUp(ctx, m.auth, c.stepUp, c.dev.ID, "passkey.add", nil, now); err != nil {
-				return err
-			}
-		}
-		passkeyID, err := auth.AddPasskey(ctx, m.auth, c.human.ID, cred, passkeyLabel(now), via, now)
-		if err != nil {
-			return err
-		}
-		if err := audit.Write(ctx, m.audit, now, audit.Entry{Actor: c.human.ID, Device: c.dev.ID, Action: "passkey.added", TargetKind: "passkey", TargetID: passkeyID, Detail: map[string]any{"via": via}}); err != nil {
-			return err
-		}
-		_, err = event.Append(ctx, m.event, now, "passkey.added", map[string]any{"identity_id": c.human.ID, "passkey_id": passkeyID, "via": via})
-		return err
+		return registerPasskey(ctx, tx.DBTX(), c, cred, now)
 	})
 	switch {
 	case errors.Is(err, auth.ErrStepUp):
@@ -431,6 +349,9 @@ func (s *Server) registerVerify(w http.ResponseWriter, r *http.Request, c *call)
 	case err != nil:
 		s.internalError(w, r, err)
 	default:
+		if c.p.Limited {
+			clearDeviceCookie(w) // the recovery device ended with this registration
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	}
 }
@@ -449,7 +370,7 @@ func (s *Server) stepUpOptions(w http.ResponseWriter, r *http.Request, c *call) 
 		writeErr(w, http.StatusBadRequest, "invalid_request", "Unknown action.")
 		return
 	}
-	passkeys, err := auth.ListPasskeys(r.Context(), s.readAuth(), c.human.ID)
+	passkeys, err := auth.ListPasskeys(r.Context(), s.reader(), c.human.ID)
 	if err != nil {
 		s.internalError(w, r, err)
 		return
@@ -473,7 +394,7 @@ func (s *Server) stepUpVerify(w http.ResponseWriter, r *http.Request, c *call) {
 		badCeremony(w)
 		return
 	}
-	passkeys, err := auth.ListPasskeys(ctx, s.readAuth(), c.human.ID)
+	passkeys, err := auth.ListPasskeys(ctx, s.reader(), c.human.ID)
 	if err != nil {
 		s.internalError(w, r, err)
 		return
@@ -488,14 +409,18 @@ func (s *Server) stepUpVerify(w http.ResponseWriter, r *http.Request, c *call) {
 		badCredential(w, http.StatusUnauthorized)
 		return
 	}
+	if err := auth.CheckDestructive(pk, cer.Action, now); err != nil {
+		writeErr(w, http.StatusForbidden, "passkey_too_new", "That passkey is too new for this action. Try again later or use an older passkey.")
+		return
+	}
 	var id int64
 	err = s.Store.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) error {
-		m := inTx(tx)
-		if err := auth.UsePasskey(ctx, m.auth, pk.ID, cred.Authenticator.SignCount, now); err != nil {
+		d := tx.DBTX()
+		if err := auth.UsePasskey(ctx, d, pk.ID, cred.Authenticator.SignCount, now); err != nil {
 			return err
 		}
 		var err error
-		id, err = auth.IssueStepUp(ctx, m.auth, c.dev.ID, pk.ID, cer.Action, cer.TargetID, now)
+		id, err = auth.IssueStepUp(ctx, d, c.dev.ID, pk.ID, cer.Action, cer.TargetID, now)
 		return err
 	})
 	if err != nil {
@@ -514,11 +439,11 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request, c *call) {
 	}
 	now := s.Clock.Now()
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
-		m := inTx(tx)
-		if _, err := auth.RevokeDevice(ctx, m.auth, c.human.ID, c.dev.ID, "logout", now); err != nil {
+		d := tx.DBTX()
+		if _, err := auth.RevokeDevice(ctx, d, c.human.ID, c.dev.ID, "logout", now); err != nil {
 			return err
 		}
-		return audit.Write(ctx, m.audit, now, audit.Entry{Actor: c.human.ID, Device: c.dev.ID, Action: "device.logout"})
+		return audit.Write(ctx, d, now, audit.Entry{Actor: c.human.ID, Device: c.dev.ID, Action: "device.logout"})
 	})
 	if err != nil {
 		s.internalError(w, r, err)

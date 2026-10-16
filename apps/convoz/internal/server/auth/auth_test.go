@@ -64,3 +64,31 @@ func TestCeremonyIsSingleUseAndExpires(t *testing.T) {
 		t.Fatal("a ceremony works once")
 	}
 }
+
+func TestRecoveryDeviceNeverSlides(t *testing.T) {
+	t0 := time.Unix(1_000_000, 0)
+	normal := Device{LastSeen: t0}
+	if !normal.NeedsSlide(t0.Add(SlideEvery)) {
+		t.Fatal("a normal device slides after a minute")
+	}
+	recovery := Device{LastSeen: t0, Limited: true}
+	if recovery.NeedsSlide(t0.Add(time.Hour)) {
+		t.Fatal("a recovery device must never slide")
+	}
+}
+
+func TestDestructiveActionsWaitForARecoveryPasskey(t *testing.T) {
+	t0 := time.Unix(1_000_000, 0)
+	young := Passkey{DestructiveAt: t0.Add(RecoveryPasskeyDelay).UnixMilli()}
+	for _, action := range []string{"passkey.remove", "recovery.regenerate"} {
+		if err := CheckDestructive(young, action, t0.Add(2*time.Hour)); err != ErrPasskeyTooNew {
+			t.Fatalf("%s inside the window: %v", action, err)
+		}
+		if err := CheckDestructive(young, action, t0.Add(RecoveryPasskeyDelay)); err != nil {
+			t.Fatalf("%s after the window: %v", action, err)
+		}
+	}
+	if err := CheckDestructive(young, "passkey.add", t0); err != nil {
+		t.Fatalf("adding a passkey is not destructive: %v", err)
+	}
+}

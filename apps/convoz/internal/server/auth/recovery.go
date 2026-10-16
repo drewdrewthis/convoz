@@ -9,6 +9,7 @@ import (
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform"
+	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
 
 // RecoveryCodeCount is how many codes a batch holds.
@@ -16,7 +17,8 @@ const RecoveryCodeCount = 10
 
 // NewRecoveryCodes makes a fresh batch of codes for a human and revokes the unused codes of older
 // batches. The codes are returned once; only their SHA-256 is stored.
-func NewRecoveryCodes(ctx context.Context, q *db.Queries, humanID int64, now time.Time) ([]string, error) {
+func NewRecoveryCodes(ctx context.Context, d pdb.DBTX, humanID int64, now time.Time) ([]string, error) {
+	q := db.New(d)
 	last, err := q.MaxRecoveryBatch(ctx, humanID)
 	if err != nil {
 		return nil, err
@@ -37,7 +39,8 @@ func NewRecoveryCodes(ctx context.Context, q *db.Queries, humanID int64, now tim
 }
 
 // UseRecoveryCode spends a code and returns whose it was; ok is false for an unknown, used or revoked code.
-func UseRecoveryCode(ctx context.Context, q *db.Queries, code string, now time.Time) (int64, bool, error) {
+func UseRecoveryCode(ctx context.Context, d pdb.DBTX, code string, now time.Time) (int64, bool, error) {
+	q := db.New(d)
 	humanID, err := q.UseRecoveryCode(ctx, db.UseRecoveryCodeParams{UsedAt: sql.NullInt64{Int64: now.UnixMilli(), Valid: true}, CodeHash: hashToken(strings.TrimSpace(code))})
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, false, nil

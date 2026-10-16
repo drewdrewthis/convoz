@@ -30,12 +30,12 @@ func migratedStore(t *testing.T) *pdb.Store {
 // present reads, outside any transaction, whether the owner row and the bootstrap link made in a test exist.
 func present(t *testing.T, s *pdb.Store, token string) (owner, link bool) {
 	t.Helper()
-	m := modules{auth: authQueries(s), identity: identityQueries(s)}
-	list, err := identity.List(context.Background(), m.identity)
+	d := s.Reader.SQL()
+	list, err := identity.List(context.Background(), d)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, state, err := auth.CheckBootstrapLink(context.Background(), m.auth, token, platform.SystemClock{}.Now())
+	_, state, err := auth.CheckBootstrapLink(context.Background(), d, token, platform.SystemClock{}.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,12 +53,12 @@ func TestIdentityAndAuthShareOneTransaction(t *testing.T) {
 
 	var token string
 	err := s.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) error {
-		m := inTx(tx)
-		if _, err := identity.CreateOwner(ctx, m.identity, "drew", "Drew", now); err != nil {
+		d := tx.DBTX()
+		if _, err := identity.CreateOwner(ctx, d, "drew", "Drew", now); err != nil {
 			return err
 		}
 		var err error
-		token, _, err = auth.MintBootstrapLink(ctx, m.auth, now)
+		token, _, err = auth.MintBootstrapLink(ctx, d, now)
 		if err != nil {
 			return err
 		}
@@ -72,7 +72,7 @@ func TestIdentityAndAuthShareOneTransaction(t *testing.T) {
 	}
 
 	err = s.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) error {
-		if _, err := identity.CreateOwner(ctx, inTx(tx).identity, "drew", "Drew", now); err != nil {
+		if _, err := identity.CreateOwner(ctx, tx.DBTX(), "drew", "Drew", now); err != nil {
 			return err
 		}
 		// The nested call must reuse the transaction; the one writer connection would deadlock otherwise.
@@ -81,7 +81,7 @@ func TestIdentityAndAuthShareOneTransaction(t *testing.T) {
 				t.Error("nested call opened a second transaction")
 			}
 			var err error
-			token, _, err = auth.MintBootstrapLink(ctx, inTx(inner).auth, now)
+			token, _, err = auth.MintBootstrapLink(ctx, inner.DBTX(), now)
 			return err
 		}); err != nil {
 			return err
@@ -99,12 +99,12 @@ func TestIdentityAndAuthShareOneTransaction(t *testing.T) {
 	}
 
 	err = s.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) error {
-		m := inTx(tx)
-		if _, err := identity.CreateOwner(ctx, m.identity, "drew", "Drew", now); err != nil {
+		d := tx.DBTX()
+		if _, err := identity.CreateOwner(ctx, d, "drew", "Drew", now); err != nil {
 			return err
 		}
 		var err error
-		token, _, err = auth.MintBootstrapLink(ctx, m.auth, now)
+		token, _, err = auth.MintBootstrapLink(ctx, d, now)
 		return err
 	})
 	if err != nil {

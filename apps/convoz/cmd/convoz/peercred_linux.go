@@ -8,6 +8,9 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// peerCredRequired: on Linux SO_PEERCRED exists, so a connection whose peer cannot be read is refused.
+const peerCredRequired = true
+
 // peerUID reads the uid of the process on the other end of a unix connection.
 func peerUID(c *net.UnixConn) (uint32, bool) {
 	raw, err := c.SyscallConn()

@@ -182,6 +182,9 @@ func run(ctx context.Context, servers []*http.Server, listeners []net.Listener) 
 // bindPublic opens the public listener. It returns nil and the exit code on failure.
 func bindPublic(spec listenSpec) (net.Listener, int) {
 	if spec.unix {
+		if err := checkSocketDir(spec.addr); err != nil {
+			return nil, fail(exitWall, err)
+		}
 		ln, err := bindUnix(spec.addr)
 		switch {
 		case errors.Is(err, errSocketLive):

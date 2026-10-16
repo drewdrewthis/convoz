@@ -16,13 +16,45 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
 
-// Exit codes (design §13.2).
+// Exit codes (design §13.2). Admin returns exactly these.
 const (
-	ExitOK      = 0
-	ExitUsage   = 2
-	ExitAuth    = 3
-	ExitNetwork = 6
+	ExitOK          = 0
+	ExitFailure     = 1 // any other failure (a 5xx, an unreadable answer)
+	ExitUsage       = 2
+	ExitAuth        = 3 // HTTP 401 or 403
+	ExitConflict    = 4 // HTTP 409
+	ExitRateLimited = 5 // HTTP 429
+	ExitNetwork     = 6 // the socket cannot be reached
 )
+
+// errUnreachable marks a failure to talk to the server at all (no socket, refused, timed out).
+var errUnreachable = errors.New("server unreachable")
+
+// statusError is an HTTP answer that was not 200.
+type statusError struct {
+	status int
+	msg    string
+}
+
+func (e *statusError) Error() string { return e.msg }
+
+// exitCode maps an error to its §13.2 exit code.
+func exitCode(err error) int {
+	var se *statusError
+	switch {
+	case errors.Is(err, errUnreachable):
+		return ExitNetwork
+	case !errors.As(err, &se):
+		return ExitFailure
+	case se.status == http.StatusUnauthorized || se.status == http.StatusForbidden:
+		return ExitAuth
+	case se.status == http.StatusConflict:
+		return ExitConflict
+	case se.status == http.StatusTooManyRequests:
+		return ExitRateLimited
+	}
+	return ExitFailure
+}
 
 // DefaultAdminSocket is where the service creates its admin socket.
 const DefaultAdminSocket = "/run/convoz/admin.sock"
@@ -44,11 +76,7 @@ func Admin(args []string, stdout, stderr io.Writer) int {
 	link, err := BootstrapLink(ctx, *socket)
 	if err != nil {
 		fmt.Fprintf(stderr, "convoz: %s\n", err)
-		var netErr *net.OpError
-		if errors.As(err, &netErr) {
-			return ExitNetwork
-		}
-		return 1
+		return exitCode(err)
 	}
 	fmt.Fprintln(stdout, link.URL)
 	return ExitOK
@@ -68,16 +96,16 @@ func BootstrapLink(ctx context.Context, socket string) (wire.BootstrapLink, erro
 	req.Header.Set("Content-Type", "application/json")
 	res, err := client.Do(req)
 	if err != nil {
-		return wire.BootstrapLink{}, fmt.Errorf("cannot reach the admin socket %s: %w", socket, err)
+		return wire.BootstrapLink{}, fmt.Errorf("%w: cannot reach the admin socket %s: %v", errUnreachable, socket, err)
 	}
 	defer res.Body.Close()
 	body, _ := io.ReadAll(io.LimitReader(res.Body, 1<<16))
 	if res.StatusCode != http.StatusOK {
 		var e wire.Error
 		if json.Unmarshal(body, &e) == nil && e.Error.Message != "" {
-			return wire.BootstrapLink{}, fmt.Errorf("server refused: %s", e.Error.Message)
+			return wire.BootstrapLink{}, &statusError{res.StatusCode, "server refused: " + e.Error.Message}
 		}
-		return wire.BootstrapLink{}, fmt.Errorf("server answered %d", res.StatusCode)
+		return wire.BootstrapLink{}, &statusError{res.StatusCode, fmt.Sprintf("server answered %d", res.StatusCode)}
 	}
 	var link wire.BootstrapLink
 	if err := json.Unmarshal(body, &link); err != nil || link.URL == "" {

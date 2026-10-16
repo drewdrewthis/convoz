@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/audit/db"
+	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
 
 // Entry is one thing to record. Detail holds ids and enums only, never a secret.
@@ -35,7 +36,8 @@ type Row struct {
 func nullInt(v int64) sql.NullInt64 { return sql.NullInt64{Int64: v, Valid: v != 0} }
 
 // Write records e. Call it inside the transaction of the action it describes.
-func Write(ctx context.Context, q *db.Queries, now time.Time, e Entry) error {
+func Write(ctx context.Context, d pdb.DBTX, now time.Time, e Entry) error {
+	q := db.New(d)
 	p := db.InsertAuditParams{
 		At:         now.UnixMilli(),
 		ActorID:    nullInt(e.Actor),
@@ -55,7 +57,8 @@ func Write(ctx context.Context, q *db.Queries, now time.Time, e Entry) error {
 }
 
 // List returns the newest rows first, at most max.
-func List(ctx context.Context, q *db.Queries, max int) ([]Row, error) {
+func List(ctx context.Context, d pdb.DBTX, max int) ([]Row, error) {
+	q := db.New(d)
 	rows, err := q.ListAudit(ctx, int64(max))
 	if err != nil {
 		return nil, err

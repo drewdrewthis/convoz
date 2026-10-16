@@ -9,10 +9,8 @@ import (
 	"strings"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
-	authdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity"
-	identitydb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity/db"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
 
@@ -106,11 +104,11 @@ func (s *Server) authenticate(w http.ResponseWriter, r *http.Request) (*call, er
 	}
 	ctx := r.Context()
 	now := s.Clock.Now()
-	dev, ok, err := auth.LookupDevice(ctx, authdb.New(s.Store.Reader.SQL()), cookie.Value, now)
+	dev, ok, err := auth.LookupDevice(ctx, s.reader(), cookie.Value, now)
 	if err != nil || !ok {
 		return c, err
 	}
-	h, err := identity.Get(ctx, identitydb.New(s.Store.Reader.SQL()), dev.HumanID)
+	h, err := identity.Get(ctx, s.reader(), dev.HumanID)
 	if err != nil {
 		return c, err
 	}
@@ -118,7 +116,7 @@ func (s *Server) authenticate(w http.ResponseWriter, r *http.Request) (*call, er
 		var left int
 		err := s.Store.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) error {
 			var err error
-			left, err = auth.SlideDevice(ctx, authdb.New(tx.DBTX()), dev, now)
+			left, err = auth.SlideDevice(ctx, tx.DBTX(), dev, now)
 			return err
 		})
 		if err != nil {

@@ -6,6 +6,7 @@ Exit 1 if any transcript is empty (EMPTY) or looks like it leaks a credential (L
 """
 import base64
 import contextlib
+import hashlib
 import html
 import io
 import json
@@ -19,15 +20,18 @@ MARKER = "TESTONLY"
 TOKEN = re.compile(r"cvz_[a-z]_[A-Za-z0-9_-]{8,}")
 HEX_RUN = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{64,}(?![0-9A-Fa-f])")
 # Hex split by spaces, colons or one line break (fingerprints, xxd, openssl); counted after the separators go.
-# A group is at most 32 hex chars: a longer line is not a split value (stacked 40-char git SHAs are not a key),
-# and a 64-char line is HEX_RUN's. Two 32-char halves over a line break are still one value.
-HEX_SPLIT = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{2,32}(?:[ :]+|[ :]*\r?\n[ :]*)(?:[0-9A-Fa-f]{2,32}(?:[ :]+|[ :]*\r?\n[ :]*))*[0-9A-Fa-f]{2,32}(?![0-9A-Fa-f])")
+# Groups have no upper length: a 64-char value wrapped 40+24 or 33+31 is still one value. The one shape
+# that is skipped is a stack of lines that are each exactly 40 hex (git SHAs), see is_sha_stack.
+HEX_SPLIT = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{2,}(?:[ :]+|[ :]*\r?\n[ :]*)(?:[0-9A-Fa-f]{2,}(?:[ :]+|[ :]*\r?\n[ :]*))*[0-9A-Fa-f]{2,}(?![0-9A-Fa-f])")
+HEX_GROUP = re.compile(r"[0-9A-Fa-f]+")
 # go.sum digest: 32 bytes of sha256 as exactly 43 base64 chars plus one "=".
 GO_SUM_DIGEST = re.compile(r"[A-Za-z0-9+/]{43}=")
 # 43 chars is the shortest base64 of 32 bytes; both alphabets, optional padding.
 B64_RUN = re.compile(r"(?<![A-Za-z0-9+/_-])[A-Za-z0-9+/_-]{43,}={0,2}")
 # WebAuthn ceremony fields are public protocol data (a one-time challenge, what the browser signed and sent back).
-WEBAUTHN_FIELD = re.compile(r'"(?:challenge|clientDataJSON|attestationObject|authenticatorData|signature)"\s*:\s*"$')
+# Each field has a ceiling on its base64url length, so a longer secret that follows the field name is still found.
+WEBAUTHN_FIELD = re.compile(r'"(challenge|clientDataJSON|attestationObject|authenticatorData|signature)"\s*:\s*"$')
+WEBAUTHN_MAX = {"challenge": 64, "signature": 100, "authenticatorData": 256, "clientDataJSON": 512, "attestationObject": 2048}
 # A fake Convoz token: its marker says so, and it is shown in full on purpose.
 TEST_TOKEN = re.compile(r"cvz_[a-z]_TESTONLY[A-Za-z0-9]*")
 PEM = re.compile(r"-----BEGIN [A-Z ]*(PRIVATE KEY|CERTIFICATE|PUBLIC KEY)?-----")
@@ -64,9 +68,17 @@ def is_benign_b64(text, m):
         return True
     if HEX_RUN.fullmatch(run):
         return True  # hex is reported at 64+ only (HEX_RUN); shorter hex such as SHAs is not a key
-    if TEST_TOKEN.fullmatch(run) or WEBAUTHN_FIELD.search(text[max(0, start - 40):start]):
+    if TEST_TOKEN.fullmatch(run):
+        return True
+    field = WEBAUTHN_FIELD.search(text[max(0, start - 40):start])
+    if field and len(run.rstrip("=")) <= WEBAUTHN_MAX[field.group(1)]:
         return True
     return "/" in run and run == run.lower()
+
+
+def is_sha_stack(groups):
+    """Stacked git SHAs: every group is exactly 40 hex chars."""
+    return all(len(g) == 40 for g in groups)
 
 
 def specs(suite):
@@ -114,8 +126,9 @@ def leaks(scens):
         found += [(title, "token", len(m.group(0))) for m in TOKEN.finditer(text) if MARKER not in m.group(0)]
         found += [(title, "hex", len(m.group(0))) for m in HEX_RUN.finditer(text) if not is_filler(m.group(0))]
         for m in HEX_SPLIT.finditer(text):
-            digits = len(re.sub(r"[\s:]", "", m.group(0)))
-            if digits >= 64:
+            groups = HEX_GROUP.findall(m.group(0))
+            digits = sum(len(g) for g in groups)
+            if digits >= 64 and not is_sha_stack(groups):
                 found.append((title, "split hex", digits))
         found += [
             (title, "base64", len(m.group(0)))
@@ -185,6 +198,8 @@ def self_test():
     long_test = base64.b64encode(MARKER.encode() + bytes(40)).decode()
     dump = "".join(f"{i:02x}:" for i in range(16)) + "\n" + ":".join(f"{i:02x}" for i in range(16, 32)) + "\n"
     hex16 = "0123456789abcdef"
+    hex64 = hashlib.sha256(b"self-test").hexdigest()
+    long_secret = base64.urlsafe_b64encode(bytes((i * 53 + 7) % 256 for i in range(80))).decode().rstrip("=")
     benign = (
         "go: github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db\n"
         "h1:" + plain_kek + "\ncommit 7cb8d65" + "0" * 33 + "\n"
@@ -208,7 +223,11 @@ def self_test():
         ("a key that merely contains a filler stretch", "kek " + mixed[:20] + "A" * 16 + mixed[20:] + "\n", {"base64"}),
         ("split hex, spaces", " ".join([hex16] * 4) + "\n", {"split hex"}),
         ("split hex, colons", ":".join([hex16] * 4) + "\n", {"split hex"}),
-        ("stacked 40-char git SHAs", "7cb8d65" + "0" * 33 + "\n" + "a1b2c3d" + "e" * 33 + "\n" + "0123456" + "f" * 33 + "\n", set()),
+        ("stacked 40-char git SHAs", "".join(hashlib.sha1(n).hexdigest() + "\n" for n in (b"alpha", b"beta", b"gamma")), set()),
+        ("64 hex wrapped 40+24", hex64[:40] + "\n" + hex64[40:] + "\n", {"split hex"}),
+        ("64 hex wrapped 33+31", hex64[:33] + "\n" + hex64[33:] + "\n", {"split hex"}),
+        ("over-length secret after challenge", '{"challenge":"' + long_secret + '"}\n', {"base64"}),
+        ("over-length secret after signature", '{"signature":"' + long_secret + long_secret + '"}\n', {"base64"}),
         ("64 hex split 32/32 over a line break", hex16 * 2 + "\n" + hex16 * 2 + "\n", {"split hex"}),
         ("WebAuthn challenge field", '{"publicKey":{"challenge":"' + plain_kek.rstrip("=").replace("+", "-").replace("/", "_") + '"}}\n', set()),
         ("the same bytes outside a WebAuthn field", 'kek ' + plain_kek.rstrip("=").replace("+", "-").replace("/", "_") + "\n", {"base64"}),

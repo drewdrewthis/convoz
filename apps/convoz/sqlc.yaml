@@ -10,6 +10,7 @@ sql:
     gen:
       go:
         package: db
+        omit_unused_structs: true
         out: internal/server/platform/db
   - engine: sqlite
     schema: internal/server/platform/migrations
@@ -17,6 +18,7 @@ sql:
     gen:
       go:
         package: db
+        omit_unused_structs: true
         out: internal/server/identity/db
   - engine: sqlite
     schema: internal/server/platform/migrations
@@ -24,6 +26,7 @@ sql:
     gen:
       go:
         package: db
+        omit_unused_structs: true
         out: internal/server/auth/db
   - engine: sqlite
     schema: internal/server/platform/migrations
@@ -31,6 +34,7 @@ sql:
     gen:
       go:
         package: db
+        omit_unused_structs: true
         out: internal/server/audit/db
   - engine: sqlite
     schema: internal/server/platform/migrations
@@ -38,4 +42,5 @@ sql:
     gen:
       go:
         package: db
+        omit_unused_structs: true
         out: internal/server/event/db

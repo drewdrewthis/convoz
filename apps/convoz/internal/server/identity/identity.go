@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity/db"
+	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
 
 // Human is a person with an account.
@@ -56,7 +57,8 @@ func ValidDisplayName(s string) bool {
 
 // CreateOwner inserts the one owner (I-1). The unique owner index refuses a second.
 // The skeleton is the lowercased name for now; the confusables table arrives with crew.
-func CreateOwner(ctx context.Context, q *db.Queries, handle, displayName string, now time.Time) (Human, error) {
+func CreateOwner(ctx context.Context, d pdb.DBTX, handle, displayName string, now time.Time) (Human, error) {
+	q := db.New(d)
 	if !ValidHandle(handle) || !ValidDisplayName(displayName) {
 		return Human{}, ErrInvalid
 	}
@@ -82,7 +84,8 @@ func CreateOwner(ctx context.Context, q *db.Queries, handle, displayName string,
 }
 
 // Owner returns the owner, or ErrNotFound before the first bootstrap.
-func Owner(ctx context.Context, q *db.Queries) (Human, error) {
+func Owner(ctx context.Context, d pdb.DBTX) (Human, error) {
+	q := db.New(d)
 	r, err := q.GetOwner(ctx)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Human{}, ErrNotFound
@@ -91,7 +94,8 @@ func Owner(ctx context.Context, q *db.Queries) (Human, error) {
 }
 
 // Get returns one human by id.
-func Get(ctx context.Context, q *db.Queries, id int64) (Human, error) {
+func Get(ctx context.Context, d pdb.DBTX, id int64) (Human, error) {
+	q := db.New(d)
 	r, err := q.GetHuman(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Human{}, ErrNotFound
@@ -100,7 +104,8 @@ func Get(ctx context.Context, q *db.Queries, id int64) (Human, error) {
 }
 
 // ByHandle returns one human by handle.
-func ByHandle(ctx context.Context, q *db.Queries, handle string) (Human, error) {
+func ByHandle(ctx context.Context, d pdb.DBTX, handle string) (Human, error) {
+	q := db.New(d)
 	r, err := q.GetHumanByHandle(ctx, handle)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Human{}, ErrNotFound
@@ -109,7 +114,8 @@ func ByHandle(ctx context.Context, q *db.Queries, handle string) (Human, error) 
 }
 
 // List returns every identity, oldest first.
-func List(ctx context.Context, q *db.Queries) ([]Entry, error) {
+func List(ctx context.Context, d pdb.DBTX) ([]Entry, error) {
+	q := db.New(d)
 	rows, err := q.ListIdentities(ctx)
 	if err != nil {
 		return nil, err

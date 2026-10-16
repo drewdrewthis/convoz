@@ -16,11 +16,13 @@ const maxUnixPath = 107
 
 // Errors serve maps to exit codes.
 var (
-	errNotLoopback    = errors.New("not loopback")
-	errBadListen      = errors.New("bad listen address")
-	errSocketLive     = errors.New("a live server already listens there")
-	errAdminInsecure  = errors.New("admin socket cannot be secured")
-	errUnixPathLength = fmt.Errorf("socket path is longer than %d bytes", maxUnixPath)
+	errNotLoopback   = errors.New("not loopback")
+	errBadListen     = errors.New("bad listen address")
+	errSocketLive    = errors.New("a live server already listens there")
+	errAdminInsecure = errors.New("admin socket cannot be secured")
+	// errSocketDirInsecure is a socket directory that someone else could write to.
+	errSocketDirInsecure = errors.New("socket directory is not private")
+	errUnixPathLength    = fmt.Errorf("socket path is longer than %d bytes", maxUnixPath)
 )
 
 // listenSpec is a parsed --listen value.
@@ -80,23 +82,31 @@ func bindUnix(path string) (*net.UnixListener, error) {
 	return ln, nil
 }
 
-// bindAdmin makes the admin socket: its parent directory must belong to us and not be writable by group or
-// others (else someone could swap the socket), and a live socket at the path is refused. The peer uid check
-// on each connection is in peerCheckListener.
-func bindAdmin(path string) (net.Listener, error) {
+// checkSocketDir makes sure a unix socket's parent directory belongs to us and is not writable by group or
+// others (else someone could swap the socket for their own). It creates a missing directory with mode 0700.
+func checkSocketDir(path string) error {
 	parent := filepath.Dir(path)
 	if err := os.MkdirAll(parent, 0o700); err != nil {
-		return nil, fmt.Errorf("%w: %v", errAdminInsecure, err)
+		return fmt.Errorf("%w: %v", errSocketDirInsecure, err)
 	}
 	info, err := os.Stat(parent)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", errAdminInsecure, err)
+		return fmt.Errorf("%w: %v", errSocketDirInsecure, err)
 	}
 	if st, ok := info.Sys().(*syscall.Stat_t); !ok || int(st.Uid) != os.Getuid() {
-		return nil, fmt.Errorf("%w: directory %s is not owned by the user running convoz", errAdminInsecure, parent)
+		return fmt.Errorf("%w: directory %s is not owned by the user running convoz", errSocketDirInsecure, parent)
 	}
 	if mode := info.Mode().Perm(); mode&0o022 != 0 {
-		return nil, fmt.Errorf("%w: directory %s has mode %04o and must not be writable by group or others", errAdminInsecure, parent, mode)
+		return fmt.Errorf("%w: directory %s has mode %04o and must not be writable by group or others", errSocketDirInsecure, parent, mode)
+	}
+	return nil
+}
+
+// bindAdmin makes the admin socket: its parent directory passes checkSocketDir, and a live socket at the
+// path is refused. The peer uid check on each connection is in peerCheckListener.
+func bindAdmin(path string) (net.Listener, error) {
+	if err := checkSocketDir(path); err != nil {
+		return nil, fmt.Errorf("%w: %v", errAdminInsecure, err)
 	}
 	ln, err := bindUnix(path)
 	if errors.Is(err, errSocketLive) || errors.Is(err, errUnixPathLength) {
@@ -105,20 +115,29 @@ func bindAdmin(path string) (net.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
-	return peerCheckListener{ln}, nil
+	return peerCheckListener{UnixListener: ln}, nil
 }
 
-// peerCheckListener drops any connection whose peer uid is not ours (SO_PEERCRED).
-type peerCheckListener struct{ *net.UnixListener }
+// peerCheckListener drops any connection whose peer uid is not ours (SO_PEERCRED). On Linux a peer whose
+// uid cannot be read is dropped too; elsewhere the mode-0600 socket and the owner-only directory are the gate.
+type peerCheckListener struct {
+	*net.UnixListener
+	peer func(*net.UnixConn) (uint32, bool) // peerUID unless a test replaces it
+}
 
 // Accept implements net.Listener.
 func (l peerCheckListener) Accept() (net.Conn, error) {
+	peer := l.peer
+	if peer == nil {
+		peer = peerUID
+	}
 	for {
 		c, err := l.UnixListener.AcceptUnix()
 		if err != nil {
 			return nil, err
 		}
-		if uid, known := peerUID(c); known && int(uid) != os.Getuid() {
+		uid, known := peer(c)
+		if (known && int(uid) != os.Getuid()) || (!known && peerCredRequired) {
 			c.Close()
 			continue
 		}

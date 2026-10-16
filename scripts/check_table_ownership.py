@@ -5,7 +5,8 @@ Usage: python3 -I scripts/check_table_ownership.py
 Every CREATE TABLE in the migrations has an "-- owner: <module>" line above it. Each server module's own SQL
 (queries/*.sql, and the SQL string literals in its .go files) may name only tables that module owns. A table
 named in another module's SQL fails as "<file>:<line>: module <m> uses table <t> owned by <o>".
-httpapi and testroutes (composition roots) hold no SQL. Dynamic SQL is not seen: this is a guard rail,
+httpapi and testroutes (composition roots) hold no SQL: any SQL-shaped literal or .sql file there fails as
+"<file>:<line>: composition root <r> holds SQL". Dynamic SQL is not seen: this is a guard rail,
 not a proof.
 Exit 0 when clean, 1 on a break.
 """
@@ -19,7 +20,11 @@ MIGRATIONS = os.path.join(SERVER_DIR, "platform", "migrations")
 ROOTS = {"httpapi", "testroutes"}
 OWNER = re.compile(r"^--\s*owner:\s*(\w+)\s*$")
 CREATE = re.compile(r"^CREATE\s+(?:VIRTUAL\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)", re.I)
-USE = re.compile(r"\b(?:FROM|JOIN|INTO|UPDATE)\s+(\w+)", re.I)
+USE = re.compile(r"\b(?:JOIN|INTO|UPDATE)\s+(\w+)", re.I)
+# "FROM a, b x, c": the whole list up to the next clause keyword, so a comma join names every table.
+FROM_LIST = re.compile(r"\bFROM\s+(.*?)(?=\b(?:WHERE|GROUP|ORDER|LIMIT|HAVING|UNION|JOIN|LEFT|RIGHT|INNER|CROSS|NATURAL|ON|SET)\b|[;)]|$)", re.I | re.S)
+# What counts as SQL in a composition root (which must hold none).
+SQL_SHAPE = re.compile(r"\bSELECT\s[\w*,\s.()]+?\sFROM\s+\w|\bINSERT\s+(?:OR\s+\w+\s+)?INTO\s+\w|\bDELETE\s+FROM\s+\w|\bUPDATE\s+\w+\s+SET\b", re.I)
 
 
 def owners(problems):
@@ -81,12 +86,25 @@ def sql_chunks(path):
     return text, []
 
 
+def tables_in(chunk):
+    """(offset, lowercase table name) for each table a piece of SQL reads or writes."""
+    found = [(m.start(1), m.group(1).lower()) for m in USE.finditer(chunk)]
+    for m in FROM_LIST.finditer(chunk):
+        pos = m.start(1)
+        for item in m.group(1).split(","):
+            word = re.match(r"\s*(\w+)", item)
+            if word and not item.lstrip().startswith("("):
+                found.append((pos + word.start(1), word.group(1).lower()))
+            pos += len(item) + 1
+    return found
+
+
 def main():
     problems = []
     table_owner = owners(problems)
     for module in sorted(os.listdir(SERVER_DIR)):
         mdir = os.path.join(SERVER_DIR, module)
-        if not os.path.isdir(mdir) or module in ROOTS:
+        if not os.path.isdir(mdir):
             continue
         for base, _, files in os.walk(mdir):
             if os.sep + "migrations" in base:
@@ -94,12 +112,17 @@ def main():
             for fn in sorted(files):
                 path = os.path.join(base, fn)
                 text, chunks = sql_chunks(path)
+                rel = os.path.relpath(path, os.path.join(ROOT, "apps", "convoz")).replace(os.sep, "/")
                 for offset, chunk in chunks:
-                    for m in USE.finditer(chunk):
-                        table = m.group(1).lower()
-                        if table in table_owner and table_owner[table] != module:
+                    if module in ROOTS:
+                        m = SQL_SHAPE.search(chunk)
+                        if m:
                             line = text.count("\n", 0, offset + m.start()) + 1
-                            rel = os.path.relpath(path, os.path.join(ROOT, "apps", "convoz")).replace(os.sep, "/")
+                            problems.append(f"{rel}:{line}: composition root {module} holds SQL (move it into a module)")
+                        continue
+                    for start, table in tables_in(chunk):
+                        if table in table_owner and table_owner[table] != module:
+                            line = text.count("\n", 0, offset + start) + 1
                             problems.append(f"{rel}:{line}: module {module} uses table {table} owned by {table_owner[table]}")
     for p in problems:
         print(p)

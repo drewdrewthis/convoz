@@ -205,6 +205,30 @@ scenario("CI fails a boundary break", { tag: ["@cli"] }, async ({}, info) => {
       file: "zz_clock.go",
       write: (r) => put(r, "internal/server/identity/zz_clock.go", 'package identity\n\nimport "time"\n\nfunc zzNow() time.Time { return time.Now() }\n'),
     },
+    {
+      breaks: "calls time.Now through an aliased time import",
+      check: "go-imports",
+      file: "zz_alias.go",
+      write: (r) => put(r, "internal/server/identity/zz_alias.go", 'package identity\n\nimport tm "time"\n\nfunc zzAlias() tm.Time { return tm.Now() }\n'),
+    },
+    {
+      breaks: "reads another module's table through a comma join",
+      check: "table-ownership",
+      file: "zz_comma.sql",
+      write: (r) => put(r, "internal/server/auth/queries/zz_comma.sql", "-- name: ZzComma :many\nSELECT p.id FROM passkeys p, identities i;\n"),
+    },
+    {
+      breaks: "imports a module sqlc package from a composition root",
+      check: "go-imports",
+      file: "zz_dbimport.go",
+      write: (r) => put(r, "internal/server/httpapi/zz_dbimport.go", `package httpapi\n\nimport _ "${GOMOD}/internal/server/auth/db"\n`),
+    },
+    {
+      breaks: "holds SQL in a composition root",
+      check: "table-ownership",
+      file: "zz_sql.go",
+      write: (r) => put(r, "internal/server/httpapi/zz_sql.go", 'package httpapi\n\nconst zzSQL = "SELECT id FROM passkeys"\n'),
+    },
   ];
   for (const row of rows) {
     const root = copyBranch();

@@ -28,12 +28,12 @@ func NewAdminHandler(store *pdb.Store, clock platform.Clock, origin string, logg
 			expires time.Time
 		)
 		err := store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
-			m := inTx(tx)
+			d := tx.DBTX()
 			var err error
-			if token, expires, err = auth.MintBootstrapLink(ctx, m.auth, now); err != nil {
+			if token, expires, err = auth.MintBootstrapLink(ctx, d, now); err != nil {
 				return err
 			}
-			return audit.Write(ctx, m.audit, now, audit.Entry{Action: "bootstrap.created"})
+			return audit.Write(ctx, d, now, audit.Entry{Action: "bootstrap.created"})
 		})
 		if err != nil {
 			logger.Printf("admin: bootstrap link failed: %v", err)

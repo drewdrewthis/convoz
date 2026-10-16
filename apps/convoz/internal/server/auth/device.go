@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth/db"
+	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
 
 // Device session rules (design §2.1): 30 days sliding, 90 days absolute, a write at most once a minute.
@@ -14,6 +15,9 @@ const (
 	DeviceIdle     = 30 * 24 * time.Hour
 	DeviceAbsolute = 90 * 24 * time.Hour
 	SlideEvery     = time.Minute
+	// RecoveryDeviceTTL is the whole life of a recovery (limited) device: it never slides and ends
+	// after one passkey registration.
+	RecoveryDeviceTTL = 15 * time.Minute
 )
 
 // Device is a live device session.
@@ -27,14 +31,15 @@ type Device struct {
 
 // StartDevice opens a device session and returns the cookie token (shown once, only its hash is stored).
 // passkeyID is 0 for a recovery (limited) session.
-func StartDevice(ctx context.Context, q *db.Queries, humanID, passkeyID int64, userAgent string, limited bool, now time.Time) (string, int64, error) {
+func StartDevice(ctx context.Context, d pdb.DBTX, humanID, passkeyID int64, userAgent string, limited bool, now time.Time) (string, int64, error) {
+	q := db.New(d)
 	token := newToken(PrefixDevice)
 	if len(userAgent) > 300 {
 		userAgent = userAgent[:300]
 	}
-	lim := int64(0)
+	lim, idle, absolute := int64(0), DeviceIdle, DeviceAbsolute
 	if limited {
-		lim = 1
+		lim, idle, absolute = 1, RecoveryDeviceTTL, RecoveryDeviceTTL
 	}
 	id, err := q.InsertDevice(ctx, db.InsertDeviceParams{
 		HumanID:           humanID,
@@ -44,15 +49,16 @@ func StartDevice(ctx context.Context, q *db.Queries, humanID, passkeyID int64, u
 		UserAgent:         sql.NullString{String: userAgent, Valid: userAgent != ""},
 		Limited:           lim,
 		CreatedAt:         now.UnixMilli(),
-		ExpiresAt:         now.Add(DeviceIdle).UnixMilli(),
-		AbsoluteExpiresAt: now.Add(DeviceAbsolute).UnixMilli(),
+		ExpiresAt:         now.Add(idle).UnixMilli(),
+		AbsoluteExpiresAt: now.Add(absolute).UnixMilli(),
 	})
 	return token, id, err
 }
 
 // LookupDevice finds the live device session for a cookie token; ok is false for an unknown, revoked or
 // expired one. It reads only: Slide is the separate write.
-func LookupDevice(ctx context.Context, q *db.Queries, token string, now time.Time) (Device, bool, error) {
+func LookupDevice(ctx context.Context, d pdb.DBTX, token string, now time.Time) (Device, bool, error) {
+	q := db.New(d)
 	row, err := q.GetDeviceByTokenHash(ctx, hashToken(token))
 	if errors.Is(err, sql.ErrNoRows) {
 		return Device{}, false, nil
@@ -68,11 +74,15 @@ func LookupDevice(ctx context.Context, q *db.Queries, token string, now time.Tim
 }
 
 // NeedsSlide reports whether use of d at now should be written (at most once a minute).
-func (d Device) NeedsSlide(now time.Time) bool { return now.Sub(d.LastSeen) >= SlideEvery }
+// A recovery device never slides.
+func (d Device) NeedsSlide(now time.Time) bool {
+	return !d.Limited && now.Sub(d.LastSeen) >= SlideEvery
+}
 
 // SlideDevice pushes the idle expiry out to 30 days from now, never past the 90-day end.
 // It returns the seconds the cookie has left, for a refreshed Max-Age.
-func SlideDevice(ctx context.Context, q *db.Queries, d Device, now time.Time) (int, error) {
+func SlideDevice(ctx context.Context, conn pdb.DBTX, d Device, now time.Time) (int, error) {
+	q := db.New(conn)
 	expires := now.Add(DeviceIdle)
 	if expires.After(d.Absolute) {
 		expires = d.Absolute
@@ -84,7 +94,8 @@ func SlideDevice(ctx context.Context, q *db.Queries, d Device, now time.Time) (i
 }
 
 // RevokeDevice ends one of the human's device sessions. It reports whether one was live.
-func RevokeDevice(ctx context.Context, q *db.Queries, humanID, deviceID int64, reason string, now time.Time) (bool, error) {
+func RevokeDevice(ctx context.Context, d pdb.DBTX, humanID, deviceID int64, reason string, now time.Time) (bool, error) {
+	q := db.New(d)
 	n, err := q.RevokeDevice(ctx, db.RevokeDeviceParams{
 		RevokedAt: sql.NullInt64{Int64: now.UnixMilli(), Valid: true},
 		Reason:    sql.NullString{String: reason, Valid: true},
@@ -104,7 +115,8 @@ type DeviceInfo struct {
 }
 
 // ListDevices returns the human's live device sessions.
-func ListDevices(ctx context.Context, q *db.Queries, humanID int64, now time.Time) ([]DeviceInfo, error) {
+func ListDevices(ctx context.Context, d pdb.DBTX, humanID int64, now time.Time) ([]DeviceInfo, error) {
+	q := db.New(d)
 	rows, err := q.ListDevices(ctx, db.ListDevicesParams{HumanID: humanID, Now: now.UnixMilli()})
 	if err != nil {
 		return nil, err

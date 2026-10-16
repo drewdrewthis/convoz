@@ -58,9 +58,18 @@ func (s *Server) hostOK(r *http.Request) bool {
 	host := strings.ToLower(r.Host)
 	name := strings.ToLower(s.Cfg.Host)
 	if s.Cfg.Unix {
-		return host == "localhost" && strings.ToLower(r.Header.Get("X-Forwarded-Host")) == name
+		// serve forwards the name the client typed, which carries a port when serve listens on a non-443 port.
+		return host == "localhost" && stripPort(strings.ToLower(r.Header.Get("X-Forwarded-Host"))) == name
 	}
 	return host == name || host == net.JoinHostPort(name, strconv.Itoa(s.Cfg.Port))
+}
+
+// stripPort drops a ":port" suffix from a host name; a name without a port is returned as is.
+func stripPort(hostport string) string {
+	if h, _, err := net.SplitHostPort(hostport); err == nil {
+		return h
+	}
+	return hostport
 }
 
 // rejectFunnel refuses anything Tailscale marks as coming through funnel, whatever the start check said.

@@ -2,10 +2,13 @@ package main
 
 import (
 	"errors"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestParseListen(t *testing.T) {
@@ -58,4 +61,110 @@ func TestBindUnixReplacesStaleAndRefusesLive(t *testing.T) {
 		t.Fatalf("stale socket must be replaced: %v", err)
 	}
 	again.Close()
+}
+
+// shortTempDir is a private directory with a path short enough for a unix socket.
+func shortTempDir(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "convoz-sock-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func TestPeerCheckListenerDeniesAnUnreadablePeerOnLinux(t *testing.T) {
+	if !peerCredRequired {
+		t.Skip("SO_PEERCRED is Linux only")
+	}
+	path := filepath.Join(shortTempDir(t), "p.sock")
+	ln, err := bindUnix(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unreadable := peerCheckListener{UnixListener: ln, peer: func(*net.UnixConn) (uint32, bool) { return 0, false }}
+	accepted := make(chan net.Conn, 1)
+	go func() {
+		if c, err := unreadable.Accept(); err == nil {
+			accepted <- c
+		}
+	}()
+	c, err := net.Dial("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	_ = c.SetReadDeadline(time.Now().Add(5 * time.Second))
+	if _, err := c.Read(make([]byte, 1)); err == nil || errors.Is(err, os.ErrDeadlineExceeded) {
+		t.Fatalf("the server must close a peer it cannot identify, got %v", err)
+	}
+	select {
+	case <-accepted:
+		t.Fatal("an unidentified peer was accepted")
+	default:
+	}
+	ln.Close()
+}
+
+func TestPeerCheckListenerAcceptsOurUidAndDeniesOthers(t *testing.T) {
+	path := filepath.Join(shortTempDir(t), "q.sock")
+	ln, err := bindUnix(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	uid := uint32(os.Getuid())
+	var answer atomic.Uint32
+	pl := peerCheckListener{UnixListener: ln, peer: func(*net.UnixConn) (uint32, bool) { return answer.Load(), true }}
+
+	answer.Store(uid + 1)
+	other, err := net.Dial("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer other.Close()
+	result := make(chan error, 1)
+	go func() { _, err := pl.Accept(); result <- err }()
+	_ = other.SetReadDeadline(time.Now().Add(5 * time.Second))
+	if _, err := other.Read(make([]byte, 1)); err == nil || errors.Is(err, os.ErrDeadlineExceeded) {
+		t.Fatalf("a foreign uid must be closed, got %v", err)
+	}
+
+	answer.Store(uid)
+	mine, err := net.Dial("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mine.Close()
+	select {
+	case err := <-result:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("our own uid was not accepted")
+	}
+}
+
+func TestSocketDirMustBePrivate(t *testing.T) {
+	dir := shortTempDir(t)
+	if err := checkSocketDir(filepath.Join(dir, "s.sock")); err != nil {
+		t.Fatalf("a private directory passes: %v", err)
+	}
+	loose := filepath.Join(dir, "loose")
+	if err := os.Mkdir(loose, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(loose, 0o777); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkSocketDir(filepath.Join(loose, "s.sock")); !errors.Is(err, errSocketDirInsecure) {
+		t.Fatalf("a world-writable directory must fail, got %v", err)
+	}
+	if _, code := bindPublic(listenSpec{unix: true, addr: filepath.Join(loose, "s.sock")}); code != exitWall {
+		t.Fatalf("the public socket in a loose directory exits %d, want %d", code, exitWall)
+	}
+	if _, err := bindAdmin(filepath.Join(loose, "a.sock")); !errors.Is(err, errAdminInsecure) {
+		t.Fatalf("the admin socket in a loose directory: %v", err)
+	}
 }
