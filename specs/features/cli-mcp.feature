@@ -75,23 +75,51 @@ Feature: The convoz CLI and MCP server for agents
 
   Rule: The watch stream prints one JSON line per inbox item
 
-    @v1 @cli @unimplemented
+    @v1 @cli
     Scenario: The owner's reply is one line in the watch stream
       Given "convoz watch --json" runs as "devtool"
       When the owner posts "@devtool yes" in conversation 41
       Then the stream prints exactly one JSON line for that message within 3 seconds
 
-    @v1 @cli @I-24 @unimplemented
+    @v1 @cli @I-24
     Scenario: A double submit gives one watch line
       Given "convoz watch --json" runs as "devtool"
       When the owner's client sends "@devtool yes" twice with the same client id
       Then the stream prints one line for it
 
-    @v1 @cli @unimplemented
+    @v1 @cli
     Scenario: A two-line message stays on one watch line
       Given "convoz watch --json" runs as "devtool"
       When the owner posts a two-line message mentioning "@devtool"
       Then the stream line holds an escaped newline and the output has no extra line
+
+    @v1 @cli
+    Scenario: Watch leaves the item in the inbox until the agent acks it
+      Given "convoz watch --json" runs as "devtool"
+      And the owner posts "Is the build green?" in conversation 41
+      And the stream printed one line for it
+      Then "convoz inbox --peek" still shows the item for conversation 41
+      When "devtool" runs "convoz post 41 'Yes, all 11 checks pass'" and then "convoz ack" with the item from the stream line
+      Then "convoz inbox --peek" shows no item for conversation 41
+
+    @v1 @cli
+    Scenario: Watch stops with exit 3 when its session ends
+      Given "convoz watch --json" runs as "devtool"
+      When the session ends
+      Then "convoz watch" exits 3 and says the session ended
+
+  Rule: An agent posts, reads and acks
+
+    @v1 @cli
+    Scenario: Post prints only the message id
+      When "devtool" runs "convoz post 41 'Build is green'"
+      Then the CLI prints one line holding the message id and exits 0
+
+    @v1 @cli
+    Scenario: Ack removes an item and refuses a stale claim
+      Given "devtool" claimed an item for conversation 41 and acked it
+      When "devtool" acks the same item again
+      Then the CLI exits 4 with "claim_lost"
 
     @later @cli
     Scenario: Watch can start a command per item

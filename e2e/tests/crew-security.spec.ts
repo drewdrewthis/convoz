@@ -354,7 +354,7 @@ scenario("The key never appears outside the reveal response", { tag: ["@api"] },
   const db = plainDb(dataDir);
   let events: unknown[];
   try {
-    events = db.prepare("SELECT type, payload FROM events").all();
+    events = db.prepare("SELECT type, payload_json AS payload FROM events").all();
   } finally {
     db.close();
   }
@@ -383,7 +383,7 @@ scenario("A reveal response is never stored and its event holds no key", { tag: 
   // And the stored events hold one "machine.key_revealed" event without the key
   const db = plainDb(dataDir);
   try {
-    const rows = db.prepare("SELECT type, payload FROM events WHERE type LIKE 'machine.key_revealed%'").all() as { type: string; payload: string }[];
+    const rows = db.prepare("SELECT type, payload_json AS payload FROM events WHERE type LIKE 'machine.key_revealed%'").all() as { type: string; payload: string }[];
     expect(rows).toHaveLength(1);
     expect(rows[0]!.payload).not.toContain(box2.key);
   } finally {

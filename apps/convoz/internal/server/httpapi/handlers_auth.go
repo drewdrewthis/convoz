@@ -282,7 +282,7 @@ func (s *Server) recovery(w http.ResponseWriter, r *http.Request, _ *call) {
 		if err := audit.Write(ctx, d, now, audit.Entry{Actor: humanID, Device: deviceID, Action: "recovery.used"}); err != nil {
 			return err
 		}
-		_, err = event.Append(ctx, d, now, "recovery.used", map[string]any{"identity_id": humanID})
+		_, err = event.Append(ctx, d, now, "recovery.used.v1", map[string]any{"identity_id": humanID})
 		return err
 	})
 	if errors.Is(err, errBadCode) {
@@ -451,6 +451,7 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request, c *call) {
 		s.internalError(w, r, err)
 		return
 	}
+	s.streams.cancelDevice(c.dev.ID) // its event streams end now, not at the next heartbeat
 	clearDeviceCookie(w)
 	w.Header().Set("Clear-Site-Data", `"cache","cookies","storage"`)
 	w.WriteHeader(http.StatusNoContent)

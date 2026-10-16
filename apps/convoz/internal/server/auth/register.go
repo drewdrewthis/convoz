@@ -50,5 +50,5 @@ func RegisterPasskey(ctx context.Context, d pdb.DBTX, j JournalPort, in Register
 	if err := j.Audit(ctx, d, now, AuditEntry{Actor: in.Human.ID, Device: in.DeviceID, Action: "passkey.added", TargetKind: "passkey", TargetID: passkeyID, Detail: map[string]any{"via": via}}); err != nil {
 		return err
 	}
-	return j.Event(ctx, d, now, "passkey.added", map[string]any{"identity_id": in.Human.ID, "passkey_id": passkeyID, "via": via})
+	return j.Event(ctx, d, now, "passkey.added.v1", map[string]any{"identity_id": in.Human.ID, "passkey_id": passkeyID, "via": via})
 }

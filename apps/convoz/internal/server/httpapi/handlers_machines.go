@@ -240,7 +240,7 @@ func (s *Server) revealKey(w http.ResponseWriter, r *http.Request, c *call) {
 		if err := audit.Write(ctx, d, now, audit.Entry{Actor: c.human.ID, Device: c.dev.ID, Machine: id, Action: "machine.key_revealed", TargetKind: "machine", TargetID: id}); err != nil {
 			return err
 		}
-		_, err = event.Append(ctx, d, now, "machine.key_revealed", map[string]any{"machine_id": id})
+		_, err = event.Append(ctx, d, now, "machine.key_revealed.v1", map[string]any{"machine_id": id})
 		return err
 	})
 	s.keyAnswer(w, r, err, func() map[string]any { return map[string]any{"machine_key": key} })
@@ -270,7 +270,7 @@ func (s *Server) regenerateKey(w http.ResponseWriter, r *http.Request, c *call) 
 		if err := audit.Write(ctx, d, now, audit.Entry{Actor: c.human.ID, Device: c.dev.ID, Machine: id, Action: "machine.key_regenerated", TargetKind: "machine", TargetID: id, Detail: map[string]any{"key_version": version}}); err != nil {
 			return err
 		}
-		_, err = event.Append(ctx, d, now, "machine.key_regenerated", map[string]any{"machine_id": id, "key_version": version})
+		_, err = event.Append(ctx, d, now, "machine.key_regenerated.v1", map[string]any{"machine_id": id, "key_version": version})
 		return err
 	})
 	s.keyAnswer(w, r, err, func() map[string]any { return map[string]any{"machine_key": key, "key_version": version} })
@@ -315,7 +315,7 @@ func (s *Server) revokeMachine(w http.ResponseWriter, r *http.Request, c *call) 
 		if err := audit.Write(ctx, d, now, audit.Entry{Actor: c.human.ID, Device: c.dev.ID, Machine: id, Action: "machine.revoked", TargetKind: "machine", TargetID: id}); err != nil {
 			return err
 		}
-		_, err = event.Append(ctx, d, now, "machine.revoked", map[string]any{"machine_id": id})
+		_, err = event.Append(ctx, d, now, "machine.revoked.v1", map[string]any{"machine_id": id})
 		return err
 	})
 	s.keyAnswer(w, r, err, func() map[string]any { return map[string]any{} })

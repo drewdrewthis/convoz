@@ -88,20 +88,27 @@ Feature: Platform rules every module relies on (contracts)
 
   Rule: Every command can be retried safely
 
-    @v1 @api @I-24 @unimplemented
+    @v1 @api @I-24
     Scenario: The same client id returns the first result
       Given the owner posted "ship it" with client id "c-0001-aaaa"
       When the owner posts "ship it" again with client id "c-0001-aaaa"
       Then the server returns the first message's id
       And conversation 41 shows "ship it" once
 
-    @v1 @api @I-24 @unimplemented
+    @v1 @api @I-24
     Scenario: The same client id with a different body is a conflict
       Given the owner posted "ship it" with client id "c-0002-aaaa"
       When the owner posts "hold it" with client id "c-0002-aaaa"
       Then the server answers 409
 
   Rule: Upgrades are forward only and safe
+
+    @v1 @cli
+    Scenario: The events table is rebuilt in its final shape and keeps every row
+      Given a data dir at the previous release's schema with events from sign-up and Crew
+      When this build starts and migrates it
+      Then every old event keeps its id, payload and time, and its type ends in ".v1"
+      And the events table has the final columns, an autoincrement id and no update path
 
     @v1 @cli @unimplemented
     Scenario: The server is serving within 500 ms of start

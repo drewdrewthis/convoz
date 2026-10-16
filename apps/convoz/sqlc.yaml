@@ -44,3 +44,35 @@ sql:
         package: db
         omit_unused_structs: true
         out: internal/server/event/db
+  - engine: sqlite
+    schema: internal/server/platform/migrations
+    queries: internal/server/conversation/queries
+    gen:
+      go:
+        package: db
+        omit_unused_structs: true
+        out: internal/server/conversation/db
+  - engine: sqlite
+    schema: internal/server/platform/migrations
+    queries: internal/server/message/queries
+    gen:
+      go:
+        package: db
+        omit_unused_structs: true
+        out: internal/server/message/db
+  - engine: sqlite
+    schema: internal/server/platform/migrations
+    queries: internal/server/inbox/queries
+    gen:
+      go:
+        package: db
+        omit_unused_structs: true
+        out: internal/server/inbox/db
+  - engine: sqlite
+    schema: internal/server/platform/migrations
+    queries: internal/server/readstate/queries
+    gen:
+      go:
+        package: db
+        omit_unused_structs: true
+        out: internal/server/readstate/db

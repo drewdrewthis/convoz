@@ -51,13 +51,13 @@ Feature: Messages and their types (contracts)
 
   Rule: The server decides who wrote a message
 
-    @v1 @api @I-40 @unimplemented
+    @v1 @api @I-40
     Scenario: An agent cannot post under another name
       When "devtool" posts with an extra body field "author" set to "drew"
       Then the server answers 400 for the unknown field
       And conversation 41 shows no message from "drew"
 
-    @v1 @api @unimplemented
+    @v1 @api
     Scenario: An agent cannot post where it is not a participant
       When "devtool" posts in conversation 52 where it is not a participant
       Then the server answers 403
