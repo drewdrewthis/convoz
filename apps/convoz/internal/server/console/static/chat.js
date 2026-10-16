@@ -174,10 +174,17 @@
   // started at one "[" ends at the next one: O(1) work per start, linear overall.
   const INLINE = /`([^`\n]{1,500})`|\[([^[\]\n]{1,200})\]\(([^()[\]\s]{1,2048})\)|\*\*([^*\n]{1,500}?)\*\*|(https?:\/\/[^\s<>]{1,2048})/g;
 
-  /** safeUrl returns u when it is an absolute http, https or mailto URL, else null. */
-  function safeUrl(u) {
+  // Links past this many in one message stay plain text: it bounds the work a link flood can cost.
+  const MAX_LINKS = 200;
+
+  /** parseUrl returns the URL object of u when it is an absolute http, https or mailto URL, else null. It charges one link
+   *  from the budget per attempt, so a flood of URLs that fail to parse costs no more than a flood of good ones. */
+  function parseUrl(u, budget) {
+    if (budget.links <= 0) return null;
+    budget.links--;
     try {
-      return ["http:", "https:", "mailto:"].includes(new URL(u).protocol) ? u : null;
+      const url = new URL(u);
+      return ["http:", "https:", "mailto:"].includes(url.protocol) ? url : null;
     } catch {
       return null;
     }
@@ -195,8 +202,14 @@
     ["thai", /\p{Script_Extensions=Thai}/u], ["armenian", /\p{Script_Extensions=Armenian}/u], ["georgian", /\p{Script_Extensions=Georgian}/u],
   ];
   // Hangul fillers and the braille blank look empty; they are Lo or So, so they are named here and never trusted.
-  const FILLERS = /[ᅟᅠㅤﾠ⠀]/;
-  const NOT_BLANK = /[^\p{Cf}\p{M}\p{Z}\p{Cc}ᅟᅠㅤﾠ⠀]/u;
+  // Hangul and Braille blank letters: they count as letters but draw nothing
+  const FILLER_CHARS = "\u115F\u1160\u3164\uFFA0\u2800";
+  const FILLERS = new RegExp("[" + FILLER_CHARS + "]");
+  // Lookalike punctuation (ꞏ 丶 ᆞ ...) comes from the server, which owns the table (/assets/lookalikes.js, loaded first).
+  const LOOKALIKES = new Set(Array.from(globalThis.CONVOZ_LOOKALIKES || ""));
+  // Scripts whose "Lo" letters include lookalikes of dots and bars (ꞏ ǀ ǃ ʔ ª º): only their cased letters are trusted.
+  const CASED_ONLY = ["latin", "cyrillic", "greek", "armenian", "georgian"];
+  const NOT_BLANK = new RegExp("[^\\p{Cf}\\p{M}\\p{Z}\\p{Cc}" + FILLER_CHARS + "]", "u");
 
   /** plainWords is true when text is words of ONE script: after NFC every character is a letter (Lu, Ll, Lt or Lo, never
    *  Lm), a space (Zs), or a combining mark right after a letter. Dots, colons, slashes, digits, symbols, spacing accents
@@ -204,16 +217,21 @@
   function plainWords(text) {
     if (/^[A-Za-z ]*$/.test(text)) return true;
     let script = null;
+    let letterScript = null;
     let afterLetter = false;
     for (const ch of text.normalize("NFC")) {
+      if (LOOKALIKES.has(ch)) return false;
       if (/\p{Zs}/u.test(ch)) {
         afterLetter = false;
       } else if (/\p{M}/u.test(ch)) {
-        if (!afterLetter) return false;
+        // a mark belongs to the script of its letter (Devanagari visarga after a Latin letter is a colon in disguise)
+        if (!afterLetter || !(letterScript.test(ch) || /\p{Script_Extensions=Inherited}/u.test(ch))) return false;
       } else if (/[\p{Lu}\p{Ll}\p{Lt}\p{Lo}]/u.test(ch) && !FILLERS.test(ch)) {
         const own = SCRIPTS.find(([, re]) => re.test(ch));
         if (!own || (script && script !== own[0])) return false;
+        if (CASED_ONLY.includes(own[0]) && /\p{Lo}/u.test(ch)) return false;
         script = own[0];
+        letterScript = own[1];
         afterLetter = true;
       } else {
         return false;
@@ -226,9 +244,8 @@
    *  A label made only of plainWords is shown as it is. Any other label could build a host name, so the real host is
    *  appended, unless the label equals the real host (scheme, "www." and case ignored) or is plainWords followed by a
    *  space and the real host. */
-  function honestLabel(label, href) {
+  function honestLabel(label, target) {
     const shown = label.trim();
-    const target = new URL(href);
     const host = target.protocol === "mailto:" ? target.pathname : target.host;
     if (!NOT_BLANK.test(shown)) return host;
     if (plainWords(shown)) return shown;
@@ -259,13 +276,15 @@
     return url.slice(0, end);
   }
 
-  // Links past this many in one message stay plain text: it bounds the work a link flood can cost.
-  const MAX_LINKS = 200;
-
-  /** bareLabel shows a bare URL as written, except that a non-ASCII host shows as its punycode form. */
-  function bareLabel(url, href) {
-    const authority = url.replace(/^https?:\/\//i, "").split(/[/?#]/, 1)[0];
-    return /[^\x00-\x7f]/.test(authority) ? new URL(href).host : url;
+  /** bareLabel shows a bare URL as written, except that a non-ASCII host shows as its punycode form (the rest of the URL
+   *  stays as typed) and a URL with "@" or "\" in its authority shows only the host it really opens. */
+  function bareLabel(text, target) {
+    const authority = text.replace(/^https?:\/\//i, "").split(/[/?#]/, 1)[0];
+    // "@" and "\" can make the typed host differ from the real one (paypal.com@evil.test)
+    if (/[@\\]/.test(authority)) return target.host;
+    if (!/[^\x00-\x7f]/.test(authority)) return text;
+    const scheme = text.match(/^https?:\/\//i)[0];
+    return scheme + target.host + text.slice(scheme.length + authority.length);
   }
 
   function inline(parent, text, budget) {
@@ -276,16 +295,14 @@
       if (m[1] != null) {
         parent.append(el("code", null, m[1]));
       } else if (m[2] != null) {
-        const href = budget.links > 0 ? safeUrl(m[3]) : null;
-        if (href) budget.links--;
-        parent.append(href ? link(href, honestLabel(m[2], href)) : m[0]);
+        const target = parseUrl(m[3], budget);
+        parent.append(target ? link(m[3], honestLabel(m[2], target)) : m[0]);
       } else if (m[4] != null) {
         parent.append(el("strong", null, m[4]));
       } else {
         const url = trimTrailingPunctuation(m[5]);
-        const href = budget.links > 0 ? safeUrl(url) : null;
-        if (href) budget.links--;
-        parent.append(href ? link(href, bareLabel(url, href)) : url, m[5].slice(url.length));
+        const target = parseUrl(url, budget);
+        parent.append(target ? link(url, bareLabel(url, target)) : url, m[5].slice(url.length));
       }
     }
     parent.append(text.slice(last));

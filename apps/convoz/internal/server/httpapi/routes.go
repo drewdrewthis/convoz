@@ -1,10 +1,12 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/console"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity"
 )
 
 // handler is one route's code. c carries the caller already authenticated for the route's Auth class.
@@ -53,6 +55,7 @@ var Routes = []Route{
 	{Method: "GET", Pattern: "/assets/console.js", Auth: authz.Pub, handle: asset("console.js", "text/javascript; charset=utf-8")},
 	{Method: "GET", Pattern: "/assets/console.css", Auth: authz.Pub, handle: asset("console.css", "text/css; charset=utf-8")},
 	{Method: "GET", Pattern: "/assets/chat.js", Auth: authz.Pub, handle: asset("chat.js", "text/javascript; charset=utf-8")},
+	{Method: "GET", Pattern: "/assets/lookalikes.js", Auth: authz.Pub, handle: lookalikesAsset},
 	{Method: "GET", Pattern: "/assets/icon-192.png", Auth: authz.Pub, handle: asset("icon-192.png", "image/png")},
 	{Method: "GET", Pattern: "/assets/icon-512.png", Auth: authz.Pub, handle: asset("icon-512.png", "image/png")},
 	{Method: "GET", Pattern: "/favicon.ico", Auth: authz.Pub, handle: asset("favicon.ico", "image/vnd.microsoft.icon")},
@@ -124,6 +127,15 @@ func page(name string) handler {
 func asset(name, contentType string) handler {
 	serve := console.Asset(name, contentType)
 	return func(_ *Server, w http.ResponseWriter, r *http.Request, _ *call) { serve(w, r) }
+}
+
+// lookalikesAsset hands the confusable-punctuation set to chat.js, so the identity table stays its only owner.
+func lookalikesAsset(_ *Server, w http.ResponseWriter, _ *http.Request, _ *call) {
+	set, _ := json.Marshal(identity.PunctuationLookalikes())
+	h := w.Header()
+	h.Set("Content-Type", "text/javascript; charset=utf-8")
+	h.Set("Cache-Control", "no-cache")
+	_, _ = w.Write(append([]byte("globalThis.CONVOZ_LOOKALIKES="), append(set, ';')...))
 }
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request, _ *call) {

@@ -48,6 +48,7 @@
 <a href="/account"{{if eq .Tab "account"}} aria-current="page"{{end}}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.6"/><path d="M4.6 20c.7-3.7 3.9-5.6 7.4-5.6s6.7 1.9 7.4 5.6"/></svg><span>Account</span></a>
 </nav>{{end}}
 <script src="/assets/console.js" defer></script>
+{{if eq .Script "chat.js"}}<script src="/assets/lookalikes.js" defer></script>{{end}}
 {{if .Script}}<script src="/assets/{{.Script}}" defer></script>{{end}}
 </body>
 </html>
