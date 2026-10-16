@@ -13,14 +13,14 @@ Feature: Machine login with a device flow (contracts)
 
   Rule: A machine asks for access with a short code, and the owner approves it
 
-    @v1 @api @I-36 @AC-8
+    @v1 @api @I-36 @AC-8 @unimplemented
     Scenario: The token poll waits while the request is pending
       Given "convoz login --name box-2" is waiting for approval
       When the machine polls POST /api/device/token after 5 seconds
       Then the answer is "authorization_pending"
       And GET /api/machines does not list "box-2"
 
-    @v1 @api @I-26 @I-36 @AC-8
+    @v1 @api @I-26 @I-36 @AC-8 @unimplemented
     Scenario: Approval without a single-use step-up is refused
       Given a pending machine request "box-2"
       When the owner approves it with no X-Convoz-Step-Up header
@@ -29,13 +29,13 @@ Feature: Machine login with a device flow (contracts)
 
   Rule: The key reaches the CLI safely and can be fetched again until it is used (M6)
 
-    @v1 @api @I-36 @M6 @C-8 @AC-8
+    @v1 @api @I-36 @M6 @C-8 @AC-8 @unimplemented
     Scenario: The first request made with the key marks it delivered
       Given the machine "box-2" fetched its key
       When the machine mints a session lease with that key
       Then a later token poll with the same device code answers "expired_token"
 
-    @v1 @api @I-36 @M6 @AC-8
+    @v1 @api @I-36 @M6 @AC-8 @unimplemented
     Scenario: An approved key cannot be fetched after the request expires
       Given the owner approved the machine request "box-2"
       And the machine never fetched the key
@@ -44,7 +44,7 @@ Feature: Machine login with a device flow (contracts)
 
   Rule: Device-flow limits stop floods and name clashes
 
-    @v1 @api @I-33 @I-36
+    @v1 @api @I-33 @I-36 @unimplemented
     Scenario: A fourth pending request is refused
       Given 3 machine requests are pending
       When a fourth machine starts "convoz login --name box-4"
@@ -52,19 +52,19 @@ Feature: Machine login with a device flow (contracts)
       And the CLI says to deny the waiting requests in Convoz
       And Now still shows 3 machine requests
 
-    @v1 @api @I-36
+    @v1 @api @I-36 @unimplemented
     Scenario: One source is limited to 10 requests per hour
       Given one source started 10 device-flow requests in the last hour
       When it starts an eleventh
       Then the server answers 429 with a Retry-After header
 
-    @v1 @api @I-33
+    @v1 @api @I-33 @unimplemented
     Scenario: At most 10 machines are active
       Given 10 active machines
       When the owner approves an eleventh machine
       Then the server answers 409 with the code "machine_cap"
 
-    @v1 @api @I-33 @I-36
+    @v1 @api @I-33 @I-36 @unimplemented
     Scenario: A request cannot take an active machine's name
       Given an active machine "box-2"
       When the owner approves a new request named "box-2"

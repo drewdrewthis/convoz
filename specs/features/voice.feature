@@ -17,25 +17,25 @@ Feature: Voice notes
 
   Rule: Recording, sending and cancelling
 
-    @v1 @browser @I-31
+    @v1 @browser @I-31 @unimplemented
     Scenario: A voice note uploads while it records
       When the owner records for 20 seconds
       Then the server's upload offset grows before the recording stops
       And sending posts one voice message with a 0:20 duration
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario: Cancelling a recording sends nothing
       When the owner records for 5 seconds and cancels
       Then conversation 41 shows no new message
       And the partial upload is gone after 24 hours
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario: A voice note plays back
       Given the owner sent a voice note
       When the owner taps play
       Then the audio plays and the waveform shows progress
 
-    @v1 @browser @lossy @I-31 @AC-20
+    @v1 @browser @lossy @I-31 @AC-20 @unimplemented
     Scenario: A voice note upload resumes after a drop
       Given the network drops during the upload of a 5 MB voice note at about 50%
       When the network returns
@@ -44,20 +44,20 @@ Feature: Voice notes
 
   Rule: Agents get the words
 
-    @v1 @browser @cli
+    @v1 @browser @cli @unimplemented
     Scenario: A transcript appears when transcription is on
       Given the workspace transcription engine is set
       When the owner sends a voice note that says "ship the filters on Thursday"
       Then the voice message shows the transcript
       And "devtool" reads the transcript with "convoz read 41"
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario: With no transcription engine the note has no transcript
       Given the workspace transcription engine is "none"
       When the owner sends a voice note
       Then the voice message shows no transcript and no error
 
-    @v1 @browser @cli @AC-M11
+    @v1 @browser @cli @AC-M11 @unimplemented
     Scenario: Search finds words that are only in the transcript
       Given the owner sent a voice note that says "ZQX-thursday-filters"
       When the transcript is done
@@ -66,7 +66,7 @@ Feature: Voice notes
 
   Rule: Audio is stored and served safely
 
-    @v1 @api @I-49
+    @v1 @api @I-49 @unimplemented
     Scenario: Purging a voice note removes its transcript
       Given a voice note whose transcript says "ZQX-voice-secret"
       When the owner purges the message with a passkey

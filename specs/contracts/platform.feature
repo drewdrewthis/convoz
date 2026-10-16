@@ -14,14 +14,14 @@ Feature: Platform rules every module relies on (contracts)
 
   Rule: A change is one transaction with its event
 
-    @v1 @api @invariant @I-4
+    @v1 @api @invariant @I-4 @unimplemented
     Scenario: A failed write leaves no event behind
       Given the owner's event cursor is at the newest event
       When the owner posts a message that the server refuses with 400
       Then GET /api/sync from that cursor returns no new event
       And conversation 41 shows no new message
 
-    @v1 @api @invariant @I-4
+    @v1 @api @invariant @I-4 @unimplemented
     Scenario: A write and its event, inbox item, search entry and audit row appear together
       When the owner posts "@devtool rotate the deploy key" in conversation 41
       Then in the same response sequence the event stream has the message event
@@ -29,7 +29,7 @@ Feature: Platform rules every module relies on (contracts)
       And search finds "rotate" in conversation 41
       And the audit view lists the post with no lag
 
-    @v1 @api @invariant @I-5 @I-48
+    @v1 @api @invariant @I-5 @I-48 @unimplemented
     Scenario Outline: Cross-record rules hold when a client tries to break them
       When a client tries <attempt>
       Then the server answers 400 or 409
@@ -42,7 +42,7 @@ Feature: Platform rules every module relies on (contracts)
         | to attach an app message of conversation 52 to a via_app message in 41 |
         | to start a lease as an identity the machine's allow-list lacks  |
 
-    @v1 @api @invariant @I-9
+    @v1 @api @invariant @I-9 @unimplemented
     Scenario: Counters match the messages after any sequence of actions
       Given a random sequence of 1000 posts, replies, deletes, asks, answers and removals across 5 conversations
       When the rail and each conversation are loaded
@@ -50,7 +50,7 @@ Feature: Platform rules every module relies on (contracts)
 
   Rule: Events are thin, immutable and replayable
 
-    @v1 @api @I-23 @AC-22
+    @v1 @api @I-23 @AC-22 @unimplemented
     Scenario: Events never carry content
       Given seeded strings "body-ZQX1", "title-ZQX2", "question-ZQX3", "option-ZQX4" and "file-ZQX5.png"
       When the owner and "devtool" create a conversation, a 16 KB message, an ask and an upload that use them
@@ -58,7 +58,7 @@ Feature: Platform rules every module relies on (contracts)
       And no event payload contains any seeded string
       And the hydrated frames on the event stream do show the content
 
-    @v1 @api @invariant @I-23 @AC-22
+    @v1 @api @invariant @I-23 @AC-22 @unimplemented
     Scenario: Stored events cannot be changed
       Given the server runs as the encryption-off test build
       When the test tries to update a stored event row in the data file
@@ -73,13 +73,13 @@ Feature: Platform rules every module relies on (contracts)
       Then she gets no event from conversation 52
       And the returned cursor is the highest sequence scanned, past those 30 events
 
-    @v1 @api @I-23
+    @v1 @api @I-23 @unimplemented
     Scenario: A cursor from another epoch gets a reset
       Given a client holds a cursor from an earlier epoch
       When it syncs with that cursor
       Then the server answers with a "reset" and the client loads a fresh snapshot
 
-    @v1 @browser @I-23
+    @v1 @browser @I-23 @unimplemented
     Scenario: A slow client gets a reset and resyncs
       Given a browser that stops reading the event stream
       When more than 256 frames queue for it
@@ -88,14 +88,14 @@ Feature: Platform rules every module relies on (contracts)
 
   Rule: Every command can be retried safely
 
-    @v1 @api @I-24
+    @v1 @api @I-24 @unimplemented
     Scenario: The same client id returns the first result
       Given the owner posted "ship it" with client id "c-0001-aaaa"
       When the owner posts "ship it" again with client id "c-0001-aaaa"
       Then the server returns the first message's id
       And conversation 41 shows "ship it" once
 
-    @v1 @api @I-24
+    @v1 @api @I-24 @unimplemented
     Scenario: The same client id with a different body is a conflict
       Given the owner posted "ship it" with client id "c-0002-aaaa"
       When the owner posts "hold it" with client id "c-0002-aaaa"
@@ -103,8 +103,16 @@ Feature: Platform rules every module relies on (contracts)
 
   Rule: Upgrades are forward only and safe
 
-    @v1 @cli
+    @v1 @cli @unimplemented
     Scenario: The server is serving within 500 ms of start
       Given a data dir with the 1M-message fixture
       When "convoz serve" starts
       Then GET /healthz answers "ok" within 500 ms
+
+  Rule: The storage engine is fast enough
+
+    @v1 @cli @bench
+    Scenario: The storage engine meets the search budget on 1M rows
+      Given an encrypted data dir with a synthetic 1M-row full-text table
+      When the storage benchmark runs
+      Then inserts have p95 at most 10 ms and searches p95 at most 50 ms

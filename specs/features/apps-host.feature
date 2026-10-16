@@ -19,7 +19,7 @@ Feature: Apps inside messages
 
   Rule: Tier-1 apps are our own components fed with data
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario Outline: A Tier-1 app renders from its data
       When "devtool" posts a Tier-1 "<kit>" app with the fixture data
       Then the owner sees <shown> in conversation 41
@@ -34,7 +34,7 @@ Feature: Apps inside messages
         | progress  | a progress bar with its steps                            |
         | checklist | a read-only checklist                                    |
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario: Apps start collapsed and expand on request
       Given "devtool" posted a Tier-1 table app
       When the owner opens conversation 41
@@ -43,41 +43,41 @@ Feature: Apps inside messages
 
   Rule: An app result reaches the conversation only by the owner's tap (SEC-5)
 
-    @v1 @browser @I-46 @AC-25
+    @v1 @browser @I-46 @AC-25 @unimplemented
     Scenario: The owner confirms an app result on a sheet drawn by the host
       Given a Tier-2 booking app from "devtool" offers "Book it" for "Thursday 10:00"
       When the owner taps "Book it" inside the app
       Then a host sheet outside the frame shows the message it will send
       And only the owner's tap on that sheet posts it, marked "via app by @devtool"
 
-    @v1 @browser @I-16 @I-46
+    @v1 @browser @I-16 @I-46 @unimplemented
     Scenario: An app result does not count as the owner speaking
       Given conversation 41 is paused after 20 agent messages
       When the owner confirms an app result
       Then the conversation stays paused
 
-    @v1 @browser @cli @I-46 @AC-M6
+    @v1 @browser @cli @I-46 @AC-M6 @unimplemented
     Scenario: One tap on a picker answers the agent
       Given "devtool" replied in a thread with a picker "Which runner should I compare first?" offering "Built-in", "vitest" and "jest"
       When the owner taps "vitest"
       Then the thread shows "Picked vitest" marked "via app by @devtool"
       And "devtool" gets one "app_result" item whose result selected "vitest"
 
-    @v1 @browser @I-46
+    @v1 @browser @I-46 @unimplemented
     Scenario: A form result is checked on a host sheet before it is sent
       Given "devtool" posted a form "Schedule the run" with a start time and lanes
       When the owner fills it and taps Submit
       Then a host sheet shows every value with Send and Cancel
       And Cancel sends nothing
 
-    @v1 @browser @I-46 @AC-M7 @AC-25
+    @v1 @browser @I-46 @AC-M7 @AC-25 @unimplemented
     Scenario: An app that tries to leave is closed
       Given an open Tier-2 app from "devtool" whose script sends its page to an outside address
       When the app navigates away
       Then the app is closed with "This app tried to leave and was closed"
       And nothing was sent as the owner
 
-    @v1 @browser @I-50 @AC-M5
+    @v1 @browser @I-50 @AC-M5 @unimplemented
     Scenario: A chart on an ask helps the owner decide but never answers
       Given "devtool" asked "Which lane first?" with a chart of the lanes
       When the owner clicks a bar of the chart
@@ -86,14 +86,14 @@ Feature: Apps inside messages
 
   Rule: App previews respect a slow link
 
-    @v1 @browser @lossy @AC-M10
+    @v1 @browser @lossy @AC-M10 @unimplemented
     Scenario: App previews wait for a tap on a slow network
       Given the browser reports Save-Data on
       When the owner opens a conversation with a gallery, a chart with large data and a Tier-2 app
       Then each shows a placeholder with its size and "tap to load"
       And nothing of them loads until the owner taps it
 
-    @v1 @browser @I-46
+    @v1 @browser @I-46 @unimplemented
     Scenario: A Tier-2 app opens only when the owner taps it, on any network
       Given "devtool" posted the Tier-2 app "Deploy report" of 61 KB that can send a reply
       When the owner opens conversation 41 on a fast network
@@ -102,32 +102,32 @@ Feature: Apps inside messages
 
   Rule: Agents build and check apps before they post them
 
-    @v1 @cli @I-50 @AC-M2
+    @v1 @cli @I-50 @AC-M2 @unimplemented
     Scenario: An agent checks an app before posting it
       When "devtool" runs "convoz app validate pick.json" on a picker with one option
       Then the CLI exits 2 and prints "/props/options: must have at least 2 items"
       And nothing is posted
 
-    @v1 @cli @I-50 @AC-M3
+    @v1 @cli @I-50 @AC-M3 @unimplemented
     Scenario: A typo in an app is caught at post time
       When "devtool" runs "convoz post 41 --app chart.json Tokens" with the key "colour" in the props
       Then the CLI exits 2 naming "/props/colour"
       And conversation 41 shows no new message
 
-    @v1 @cli @mcp @I-50
+    @v1 @cli @mcp @I-50 @unimplemented
     Scenario: An agent builds a Tier-2 app without npm
       Given the source folder "deploy-report" with "convoz.app.json" and "index.html"
       When "devtool" runs "convoz app build ./deploy-report"
       Then it writes "dist/app.html" and "dist/app.json" and prints the size and SHA-256
       And "convoz post 41 --app deploy-report/dist/app.json --app-fallback 'Deploy report for box-3' Report" posts it
 
-    @v1 @cli @I-50
+    @v1 @cli @I-50 @unimplemented
     Scenario: A Tier-2 build refuses outside links
       Given "deploy-report/index.html" loads "https://cdn.example/x.js"
       When "devtool" runs "convoz app build ./deploy-report"
       Then the CLI exits 2 with "app_bundle_external_ref" and the file and line
 
-    @v1 @browser @AC-M9
+    @v1 @browser @AC-M9 @unimplemented
     Scenario: An app this version cannot show falls back to its text
       Given messages with an app of a newer version, an app of an unknown type and a frame that needs bridge 2
       When an older build of the web app shows the conversation

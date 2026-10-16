@@ -143,6 +143,8 @@ def parse(path, where, errors):
                     pending_tags = []
                 if not name:
                     err(i, "Rule without a name")
+                if isinstance(cur, Scn):
+                    finish(cur, err)  # the last scenario of the previous Rule was never linted
                 rule = name
                 section = "feature"
                 cur = None

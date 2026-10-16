@@ -15,20 +15,20 @@ Feature: Composer
 
   Rule: Sending is instant and safe to repeat
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario: A sent message shows at once and then confirms
       When the owner sends "on it" in conversation 41
       Then the bubble shows at once as "sending"
       And it shows as sent when the server confirms
 
-    @v1 @browser @I-24
+    @v1 @browser @I-24 @unimplemented
     Scenario: An offline send is replayed once when back online
       Given the browser is offline
       When the owner sends "first" and then "second"
       And the browser comes back online
       Then conversation 41 shows "first" and then "second", each once, on a second browser
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario Outline: Enter sends or adds a new line
       Given the device setting "enter to send" is "<setting>" and the device <keyboard>
       When the owner presses Enter in the composer
@@ -43,40 +43,40 @@ Feature: Composer
 
   Rule: Mentions bring agents in (I-18)
 
-    @v1 @browser @I-18 @AC-13
+    @v1 @browser @I-18 @AC-13 @unimplemented
     Scenario: Picking an agent from the mention list adds it
       When the owner types "@do" in conversation 41 and picks "docs" from the list
       And sends "@docs please write the release note"
       Then "docs" is a participant of conversation 41 from that message
       And "docs" gets a mention item
 
-    @v1 @browser @I-18
+    @v1 @browser @I-18 @unimplemented
     Scenario: A disabled agent is not offered and not added
       Given the owner disabled "release-bot"
       When the owner sends "@release-bot ship it" in conversation 41
       Then the mention list did not offer "release-bot"
       And "release-bot" is not a participant
 
-    @v1 @browser @I-18
+    @v1 @browser @I-18 @unimplemented
     Scenario: A mention inside code does not add an agent
       When the owner sends "run `@docs build`" in conversation 41
       Then "docs" is not a participant
 
   Rule: Files attach by button or drop and bind once (I-31)
 
-    @v1 @browser @I-31
+    @v1 @browser @I-31 @unimplemented
     Scenario: Dropping files attaches them to the next message
       When the owner drops "chart.png" and "deploy.log" on conversation 41
       Then the composer shows both under "Files to send"
       And sending posts one message with both files
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario: The owner removes a file before sending
       Given "chart.png" and "deploy.log" wait under "Files to send"
       When the owner removes "deploy.log"
       Then sending posts one message with only "chart.png"
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario: More than 10 attachments are refused in the composer
       When the owner drops 11 files on conversation 41
       Then the composer keeps 10 and says that 10 is the most per message

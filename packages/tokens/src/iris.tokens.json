@@ -1,0 +1,341 @@
+{
+  "$description": "Palette iris, from the prototype PAL.",
+  "$textTokens": [
+    "text",
+    "muted",
+    "accentText",
+    "danger",
+    "warning",
+    "success",
+    "info",
+    "tg"
+  ],
+  "light": {
+    "color": {
+      "bg": {
+        "$type": "color",
+        "$value": "#F1EFFB"
+      },
+      "surface": {
+        "$type": "color",
+        "$value": "#FAF9FE"
+      },
+      "raised": {
+        "$type": "color",
+        "$value": "#FEFEFF"
+      },
+      "border": {
+        "$type": "color",
+        "$value": "#E2E0ED"
+      },
+      "text": {
+        "$type": "color",
+        "$value": "#1A1727"
+      },
+      "edge": {
+        "$type": "color",
+        "$value": "#87839E"
+      },
+      "onAccent": {
+        "$type": "color",
+        "$value": "#FFFFFF"
+      },
+      "accent": {
+        "$type": "color",
+        "$value": "#7758EE"
+      },
+      "grad-1": {
+        "$type": "color",
+        "$value": "#394FD8"
+      },
+      "grad-2": {
+        "$type": "color",
+        "$value": "#7B2BCF"
+      },
+      "grad-3": {
+        "$type": "color",
+        "$value": "#C11A8E"
+      },
+      "gradFull-1": {
+        "$type": "color",
+        "$value": "#5D6BF3"
+      },
+      "gradFull-2": {
+        "$type": "color",
+        "$value": "#A481F5"
+      },
+      "gradFull-3": {
+        "$type": "color",
+        "$value": "#E58BE6"
+      },
+      "gradFull-4": {
+        "$type": "color",
+        "$value": "#FBC8A6"
+      },
+      "logo-1": {
+        "$type": "color",
+        "$value": "#6F8FFD"
+      },
+      "logo-2": {
+        "$type": "color",
+        "$value": "#4C5BF5"
+      },
+      "logo-3": {
+        "$type": "color",
+        "$value": "#9393FB"
+      },
+      "logo-4": {
+        "$type": "color",
+        "$value": "#CB8BF7"
+      },
+      "logo-5": {
+        "$type": "color",
+        "$value": "#F18FDC"
+      },
+      "logo-6": {
+        "$type": "color",
+        "$value": "#FBA0BE"
+      },
+      "logo-7": {
+        "$type": "color",
+        "$value": "#FBC7A2"
+      },
+      "wm": {
+        "$type": "color",
+        "$value": "#15123A"
+      },
+      "tg": {
+        "$type": "color",
+        "$value": "#58566E"
+      },
+      "m1": {
+        "$type": "color",
+        "$value": "#E2CCFD"
+      },
+      "m2": {
+        "$type": "color",
+        "$value": "#FCCFE7"
+      },
+      "m3": {
+        "$type": "color",
+        "$value": "#C9E0FE"
+      },
+      "muted": {
+        "$type": "color",
+        "$value": "#59566C"
+      },
+      "accentText": {
+        "$type": "color",
+        "$value": "#5E3EC7"
+      },
+      "danger": {
+        "$type": "color",
+        "$value": "#B3023D"
+      },
+      "warning": {
+        "$type": "color",
+        "$value": "#7C4F00"
+      },
+      "success": {
+        "$type": "color",
+        "$value": "#046541"
+      },
+      "info": {
+        "$type": "color",
+        "$value": "#005C94"
+      },
+      "accent2": {
+        "$type": "color",
+        "$value": "#C82186"
+      },
+      "gradRing-1": {
+        "$type": "color",
+        "$value": "#4D68EB"
+      },
+      "gradRing-2": {
+        "$type": "color",
+        "$value": "#914EE5"
+      },
+      "gradRing-3": {
+        "$type": "color",
+        "$value": "#C93296"
+      },
+      "ring": {
+        "$type": "color",
+        "$value": "#4D68EB"
+      },
+      "idle": {
+        "$type": "color",
+        "$value": "#747285"
+      },
+      "amber": {
+        "$type": "color",
+        "$value": "#A26900"
+      }
+    }
+  },
+  "dark": {
+    "color": {
+      "bg": {
+        "$type": "color",
+        "$value": "#0A0F23"
+      },
+      "surface": {
+        "$type": "color",
+        "$value": "#12172B"
+      },
+      "raised": {
+        "$type": "color",
+        "$value": "#1A2035"
+      },
+      "border": {
+        "$type": "color",
+        "$value": "#282F48"
+      },
+      "text": {
+        "$type": "color",
+        "$value": "#EBEEF7"
+      },
+      "edge": {
+        "$type": "color",
+        "$value": "#636C8B"
+      },
+      "onAccent": {
+        "$type": "color",
+        "$value": "#FFFFFF"
+      },
+      "accent": {
+        "$type": "color",
+        "$value": "#7758EE"
+      },
+      "grad-1": {
+        "$type": "color",
+        "$value": "#3E55DF"
+      },
+      "grad-2": {
+        "$type": "color",
+        "$value": "#8133D6"
+      },
+      "grad-3": {
+        "$type": "color",
+        "$value": "#C82594"
+      },
+      "gradFull-1": {
+        "$type": "color",
+        "$value": "#5D6BF3"
+      },
+      "gradFull-2": {
+        "$type": "color",
+        "$value": "#A481F5"
+      },
+      "gradFull-3": {
+        "$type": "color",
+        "$value": "#E58BE6"
+      },
+      "gradFull-4": {
+        "$type": "color",
+        "$value": "#FBC8A6"
+      },
+      "logo-1": {
+        "$type": "color",
+        "$value": "#6F8FFD"
+      },
+      "logo-2": {
+        "$type": "color",
+        "$value": "#4C5BF5"
+      },
+      "logo-3": {
+        "$type": "color",
+        "$value": "#9393FB"
+      },
+      "logo-4": {
+        "$type": "color",
+        "$value": "#CB8BF7"
+      },
+      "logo-5": {
+        "$type": "color",
+        "$value": "#F18FDC"
+      },
+      "logo-6": {
+        "$type": "color",
+        "$value": "#FBA0BE"
+      },
+      "logo-7": {
+        "$type": "color",
+        "$value": "#FBC7A2"
+      },
+      "wm": {
+        "$type": "color",
+        "$value": "#F2F0FF"
+      },
+      "tg": {
+        "$type": "color",
+        "$value": "#BDBAD6"
+      },
+      "m1": {
+        "$type": "color",
+        "$value": "#4D2F77"
+      },
+      "m2": {
+        "$type": "color",
+        "$value": "#5C1D3F"
+      },
+      "m3": {
+        "$type": "color",
+        "$value": "#28467D"
+      },
+      "muted": {
+        "$type": "color",
+        "$value": "#ACB5D0"
+      },
+      "accentText": {
+        "$type": "color",
+        "$value": "#BFBBFE"
+      },
+      "danger": {
+        "$type": "color",
+        "$value": "#FFA9B0"
+      },
+      "warning": {
+        "$type": "color",
+        "$value": "#FCB452"
+      },
+      "success": {
+        "$type": "color",
+        "$value": "#6FDEA7"
+      },
+      "info": {
+        "$type": "color",
+        "$value": "#8ECBFF"
+      },
+      "accent2": {
+        "$type": "color",
+        "$value": "#FF8CC5"
+      },
+      "gradRing-1": {
+        "$type": "color",
+        "$value": "#6C8BFE"
+      },
+      "gradRing-2": {
+        "$type": "color",
+        "$value": "#AE76FF"
+      },
+      "gradRing-3": {
+        "$type": "color",
+        "$value": "#F05AB9"
+      },
+      "ring": {
+        "$type": "color",
+        "$value": "#6C8BFE"
+      },
+      "idle": {
+        "$type": "color",
+        "$value": "#8A92AC"
+      },
+      "amber": {
+        "$type": "color",
+        "$value": "#FFBC64"
+      }
+    }
+  }
+}

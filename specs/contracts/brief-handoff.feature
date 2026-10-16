@@ -15,7 +15,7 @@ Feature: Brief, handoff, read and search for agents (contracts)
 
   Rule: A handoff note carries context to the next session
 
-    @v1 @api
+    @v1 @api @unimplemented
     Scenario: Another agent cannot read the handoff notes of devtool
       Given an agent session as "docs"
       When it calls GET /api/handoffs for identity "devtool"

@@ -1,0 +1,8 @@
+packages:
+  - e2e
+  - packages/*
+
+# Supply chain: a package version must be at least a day old before it installs.
+minimumReleaseAge: 1440
+# No dependency runs an install script unless it is listed here.
+onlyBuiltDependencies: []

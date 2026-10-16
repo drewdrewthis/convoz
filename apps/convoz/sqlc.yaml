@@ -1,0 +1,12 @@
+# One entry per module. A module adds its own entry (its own queries dir and Go package)
+# with ALL migrations as the schema, so its queries see every table; the schema is read
+# for structure only and no module owns a migration file.
+version: "2"
+sql:
+  - engine: sqlite
+    schema: internal/server/platform/migrations
+    queries: internal/server/platform/queries
+    gen:
+      go:
+        package: db
+        out: internal/server/platform/db

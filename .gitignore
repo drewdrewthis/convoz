@@ -1,0 +1,8 @@
+node_modules/
+e2e/report/
+e2e/test-results/
+test-results/
+apps/convoz/bin/
+*.log
+__pycache__/
+dist/

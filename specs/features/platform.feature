@@ -8,11 +8,6 @@ Feature: Platform rules every module relies on
   I want every change to be all-or-nothing, replayable and small on the wire
   So that clients and agents can trust what they sync
 
-  Background:
-    Given a fresh Convoz server with owner "drew" signed in with a virtual passkey
-    And machine "box-2" is logged in with allow-list "devtool"
-    And "devtool" is an active participant of conversation 41 "Ship search filters"
-
   Rule: Upgrades are forward only and safe
 
     @v1 @cli @I-34

@@ -15,7 +15,7 @@ Feature: Agent sessions as one identity
 
   Rule: A lease is minted only for an identity the machine may use
 
-    @v1 @cli @I-37 @I-42
+    @v1 @cli @I-37 @I-42 @unimplemented
     Scenario: Session start prints only a local session id
       When "convoz session start --as devtool" runs on "box-2"
       Then the CLI prints one line "CONVOZ_SID=a1b2c3"
@@ -25,7 +25,7 @@ Feature: Agent sessions as one identity
 
   Rule: Many sessions may share one identity, within caps
 
-    @v1 @api @I-37
+    @v1 @api @I-37 @unimplemented
     Scenario: Two machines run the same identity at once
       Given machine "laptop-1" is logged in with allow-list "devtool"
       When both "box-2" and "laptop-1" start a session as "devtool"
@@ -34,27 +34,27 @@ Feature: Agent sessions as one identity
 
   Rule: A lease lives 12 hours, renews while used, and ends cleanly
 
-    @v1 @cli @I-37
+    @v1 @cli @I-37 @unimplemented
     Scenario: A lease renews while the session works
       Given a session of "devtool" started 11 hours ago and posted 1 minute ago
       When the test clock moves forward 2 hours with one CLI call every 10 minutes
       Then every call works
 
-    @v1 @cli @I-37
+    @v1 @cli @I-37 @unimplemented
     Scenario: An idle lease expires after 12 hours
       Given a session of "devtool" that made no call for 12 hours and 1 minute
       When it calls "convoz inbox --wait 1"
       Then the CLI exits 3 with the message that the session ended
       And "convoz session start --as devtool" gives a working session
 
-    @v1 @cli
+    @v1 @cli @unimplemented
     Scenario: Ending a session ends its lease
       Given a session of "devtool" with session id "a1b2c3"
       When "convoz session end --sid a1b2c3" runs
       Then "convoz inbox --sid a1b2c3 --wait 1" exits 3
       And Crew → Sessions shows the session as ended
 
-    @v1 @cli @I-42
+    @v1 @cli @I-42 @unimplemented
     Scenario: The CLI refuses a session file with loose permissions
       Given the session file of "a1b2c3" has mode 0644
       When "convoz post 41 --sid a1b2c3 hello" runs
@@ -62,14 +62,14 @@ Feature: Agent sessions as one identity
 
   Rule: A machine may create identities only when the owner allowed it
 
-    @v1 @cli @I-3
+    @v1 @cli @I-3 @unimplemented
     Scenario: A machine with create_identity makes a new identity
       Given "box-2" has the create_identity scope
       When "convoz session start --as dev-ci --create --name 'CI helper'" runs on "box-2"
       Then the session works as "dev-ci"
       And Crew shows "CI helper @dev-ci" marked "created by box-2"
 
-    @v1 @mcp
+    @v1 @mcp @unimplemented
     Scenario: Calls inside one Claude session share one lease
       Given a Claude session whose environment has CLAUDE_CODE_SESSION_ID
       And "convoz mcp --as devtool" runs inside that Claude session
@@ -77,7 +77,7 @@ Feature: Agent sessions as one identity
       Then the message is attributed to the same session label as the MCP calls
       And Crew → Sessions shows one live session for that Claude session
 
-    @v1 @cli @mcp
+    @v1 @cli @mcp @unimplemented
     Scenario: A subagent shares its Claude session's lease and claims
       Given "convoz mcp --as devtool" runs in a Claude session that holds a claimed mention item
       When a subagent of that Claude session runs "convoz ack" for that item with its token
@@ -86,7 +86,7 @@ Feature: Agent sessions as one identity
 
   Rule: A retry with the same client id gives a working lease and never two (M5)
 
-    @v1 @mcp @I-37 @M5 @AC-27
+    @v1 @mcp @I-37 @M5 @AC-27 @unimplemented
     Scenario: A restarted MCP server in the same Claude session keeps working
       Given "convoz mcp --as devtool" runs in a Claude session and holds a claimed mention item
       When the MCP server process restarts in that Claude session

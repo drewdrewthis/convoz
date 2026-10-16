@@ -14,38 +14,38 @@ Feature: Settings
 
   Rule: Appearance applies at once and without a flash
 
-    @v1 @browser @AC-11
+    @v1 @browser @AC-11 @unimplemented
     Scenario: The system theme switches live
       Given the theme setting is "system" and the system is light
       When the system switches to dark
       Then the app turns dark with no reload
       And the screenshots before and after show no unstyled frame
 
-    @v1 @browser @AC-11
+    @v1 @browser @AC-11 @unimplemented
     Scenario: A reload in dark mode paints dark from the first frame
       Given the theme setting is "dark"
       When the owner reloads the app
       Then the first painted frame is dark
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario: Device settings stay on the device
       Given the owner sets text size "xl" on the laptop
       When the owner opens the app on the phone
       Then the phone still uses text size "m"
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario: The palette follows the owner across devices
       When the owner picks a different palette on the laptop
       Then the phone uses the same palette after its next sync
 
   Rule: The server checks every setting (I-29)
 
-    @v1 @api @I-29
+    @v1 @api @I-29 @unimplemented
     Scenario: A setting never changed reads as its default
       When the owner reads the settings
       Then "notify.previews" is "full", "notify.machine_requests" is true, "notify.urgent_bypass" is true and "brief.max_bytes" is 12288
 
-    @v1 @api
+    @v1 @api @unimplemented
     Scenario: The owner sets the workspace inbox and brief defaults
       When the owner sets "inbox.visibility_default" to "10m" and "brief.max_bytes" to 12000
       Then a new agent claim without a visibility holds its items for 10 minutes
@@ -53,7 +53,7 @@ Feature: Settings
 
   Rule: Media auto-load follows the network unless the owner says otherwise
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario Outline: Media auto-load decides when images load
       Given the device setting "media auto-load" is "<setting>" and the network is <network>
       When the owner opens a conversation with an image
@@ -69,13 +69,13 @@ Feature: Settings
 
   Rule: Privacy and security are in one place
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario: Privacy and security lists what the owner controls
       When the owner opens Settings → Privacy & security
       Then it lists devices, passkeys, machines, sessions, sign out all, export and delete
       And it does not list personal access tokens
 
-    @v1 @browser @I-26
+    @v1 @browser @I-26 @unimplemented
     Scenario: Signing out all other devices needs a passkey
       Given the owner is signed in on a laptop and a phone
       When the owner signs out all other devices from the laptop with a passkey

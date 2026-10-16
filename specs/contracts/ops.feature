@@ -13,7 +13,7 @@ Feature: Data at rest, backups and deletion (contracts)
 
   Rule: The database, its backups and its blobs are encrypted
 
-    @v1 @cli @I-27 @AC-3
+    @v1 @cli @I-27 @AC-3 @unimplemented
     Scenario: The data file cannot be read without the key
       Given "devtool" posted the seeded body "ZQX-secret-plan" in conversation 41
       When the data file and a fresh backup snapshot are opened with a plain SQLite reader
@@ -22,7 +22,7 @@ Feature: Data at rest, backups and deletion (contracts)
 
   Rule: Deleting a conversation is soft for 30 days, then a purge
 
-    @v1 @cli @invariant @I-49
+    @v1 @cli @invariant @I-49 @unimplemented
     Scenario: The trash empties itself after 30 days
       Given the owner deleted conversation 41 with the seeded body "ZQX-old-plan"
       When the test clock moves 30 days and 1 hour and the nightly maintenance runs
@@ -31,7 +31,7 @@ Feature: Data at rest, backups and deletion (contracts)
 
   Rule: Purge and delete-my-data leave no readable trace
 
-    @v1 @browser @api @invariant @I-5 @I-49 @C-7
+    @v1 @browser @api @invariant @I-5 @I-49 @C-7 @unimplemented
     Scenario: Purging a message scrubs every copy of its content
       Given "devtool" posted "ZQX-purge-me", edited it to "ZQX-purge-edit", and asked "ZQX-purge-question" with a custom answer "ZQX-purge-answer"
       And "devtool" posted an app holding "ZQX-purge-app" that the owner answered through with "ZQX-purge-result"

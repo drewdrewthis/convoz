@@ -24,19 +24,19 @@ Feature: Agent inbox
 
   Rule: Items are written with the event that causes them
 
-    @v1 @cli @I-43
+    @v1 @cli @I-43 @unimplemented
     Scenario: A mention reaches the inbox at once
       Given session "s1" waits with "convoz inbox --wait 60"
       When the owner posts "@devtool can you check the flaky test?" in conversation 41
       Then "s1" returns 1 item with reason "mention", conversation 41 and the message id within 1 second
 
-    @v1 @cli @I-43
+    @v1 @cli @I-43 @unimplemented
     Scenario: An agent's own messages create no item for itself
       When session "s1" posts "Starting on it" in conversation 41
       Then "convoz inbox --peek --sid s2" shows no item for that message
       And "convoz inbox --peek" as "docs" shows 1 "activity" item for conversation 41
 
-    @v1 @cli @I-43
+    @v1 @cli @I-43 @unimplemented
     Scenario Outline: Each kind of event makes an item with its reason
       When <event>
       Then "convoz inbox --peek --sid s1" shows an item with reason "<reason>"
@@ -52,13 +52,13 @@ Feature: Agent inbox
         | the owner declines an add that "devtool" requested in conversation 52  | membership   |
         | the owner sends a result through an app of "devtool"                    | app_result   |
 
-    @v1 @cli @I-43
+    @v1 @cli @I-43 @unimplemented
     Scenario: Snoozing an ask makes no inbox item
       Given "devtool" has an open ask in conversation 41
       When the owner snoozes it for 1 hour
       Then "convoz inbox --peek --sid s1" shows no new item
 
-    @v1 @cli @I-43 @AC-M11
+    @v1 @cli @I-43 @AC-M11 @unimplemented
     Scenario: A voice message reaches the agent as words
       Given the transcription engine takes 30 seconds
       When the owner sends a voice note that says "ship the filters on Thursday" in conversation 41
@@ -67,32 +67,32 @@ Feature: Agent inbox
 
   Rule: Mentions, thread replies and activity make one item per conversation (M4, C-10)
 
-    @v1 @cli @I-43 @M4 @AC-18
+    @v1 @cli @I-43 @M4 @AC-18 @unimplemented
     Scenario: Thirty messages make one activity item
       When the owner posts 30 messages in conversation 41
       Then "convoz inbox --peek --sid s1" shows 1 "activity" item for conversation 41 with count 30
       And the item points at the newest of the 30 messages
 
-    @v1 @cli @I-43 @C-10
+    @v1 @cli @I-43 @C-10 @unimplemented
     Scenario: Thread replies join the conversation item
       Given "devtool" started thread 900 in conversation 41
       When the owner posts 5 replies in thread 900 and 2 messages in the main list
       Then "convoz inbox --peek --sid s1" shows 1 item for conversation 41 with reason "thread" and count 7
 
-    @v1 @cli @I-43 @C-10 @AC-18
+    @v1 @cli @I-43 @C-10 @AC-18 @unimplemented
     Scenario: A mention raises the conversation item to a mention
       Given the owner posted 3 messages in conversation 41
       When the owner posts "@devtool can you take this?" in conversation 41
       Then "convoz inbox --peek --sid s1" shows 1 item for conversation 41 with reason "mention" and count 4
       And the item says 1 of the 4 messages mentions "devtool"
 
-    @v1 @cli @I-43 @C-10
+    @v1 @cli @I-43 @C-10 @unimplemented
     Scenario: Answers, membership changes and app results stay separate items
       Given the owner posted 2 messages in conversation 41
       When the owner answers an ask of "devtool" there and sends a result through an app of "devtool" there
       Then "convoz inbox --peek --sid s1" shows 3 items for conversation 41: the conversation item, one "ask_resolved" and one "app_result"
 
-    @v1 @cli @I-43
+    @v1 @cli @I-43 @unimplemented
     Scenario: One message makes one item and the strongest reason wins
       Given "devtool" asked a question in conversation 41
       When the owner answers it with the custom text "@devtool merge it after lunch"
@@ -100,14 +100,14 @@ Feature: Agent inbox
 
   Rule: A claim belongs to one session, and only that session acks it (M1, M3, M8)
 
-    @v1 @cli @I-43 @AC-18
+    @v1 @cli @I-43 @AC-18 @unimplemented
     Scenario: A new mention goes to exactly one of two waiting sessions
       Given sessions "s1" and "s2" both wait with "convoz inbox --wait 60"
       When the owner posts "@devtool status?" in conversation 41
       Then exactly one of "s1" and "s2" returns the mention item
       And the other is still waiting
 
-    @v1 @cli @M3 @AC-18
+    @v1 @cli @M3 @AC-18 @unimplemented
     Scenario: An ack with an old claim token is refused
       Given session "s1" claimed a mention item with a 2-second visibility
       And the item returned to session "s2" after the claim expired
@@ -115,27 +115,27 @@ Feature: Agent inbox
       Then the CLI exits 4 with the code "claim_lost"
       And the item is still held by "s2"
 
-    @v1 @cli @I-43 @AC-18
+    @v1 @cli @I-43 @AC-18 @unimplemented
     Scenario: An unacked item comes back to another session
       Given session "s1" claimed a mention item with a 2-second visibility
       When "s1" does not ack and "s2" waits with "convoz inbox --wait 10"
       Then "s2" returns the same item within 3 seconds
 
-    @v1 @cli @lossy @M1 @AC-27
+    @v1 @cli @lossy @M1 @AC-27 @unimplemented
     Scenario: A lost long-poll response loses nothing
       Given a fault proxy drops the response that delivers a mention to session "s1"
       When "s1" polls again
       Then "s1" gets the same item with the same claim token
       And "convoz inbox --peek" shows its delivery count unchanged
 
-    @v1 @cli @M8
+    @v1 @cli @M8 @unimplemented
     Scenario: Any call from the claiming session extends its claims
       Given session "s1" claimed 2 items with a 1-minute visibility
       When "s1" posts a message after 50 seconds
       And "s2" polls 30 seconds later
       Then "s2" gets neither of the 2 items
 
-    @v1 @cli @I-12 @I-43
+    @v1 @cli @I-12 @I-43 @unimplemented
     Scenario: Acking an answer item marks the ask as acked
       Given the owner answered the ask of "devtool" in conversation 41
       When session "s1" claims and acks the "ask_resolved" item
@@ -143,7 +143,7 @@ Feature: Agent inbox
 
   Rule: One bad item never blocks the batch (M2)
 
-    @v1 @cli @M2 @AC-18
+    @v1 @cli @M2 @AC-18 @unimplemented
     Scenario: An item delivered 5 times is expired before the next claim
       Given a mention item that was delivered 5 times and never acked
       And 3 other ready items
@@ -153,14 +153,14 @@ Feature: Agent inbox
 
   Rule: Several sessions of one identity share the work sensibly
 
-    @v1 @cli @AC-28
+    @v1 @cli @AC-28 @unimplemented
     Scenario: An item goes to the session that posted last in that conversation
       Given session "s2" posted in conversation 41 after session "s1"
       And both sessions wait with "convoz inbox --wait 60"
       When the owner posts "@devtool and the follow-up?" in conversation 41
       Then "s2" returns the mention item
 
-    @v1 @cli @AC-28
+    @v1 @cli @AC-28 @unimplemented
     Scenario: A session can wait on one conversation only
       Given ready items for conversations 41 and 52
       When session "s1" runs "convoz inbox --conv 41 --wait 5"
@@ -169,7 +169,7 @@ Feature: Agent inbox
 
   Rule: Items expire on schedule and never outlive what the agent may see
 
-    @v1 @cli @I-43
+    @v1 @cli @I-43 @unimplemented
     Scenario: Old items are cleaned up on schedule
       Given an acked item 7 days and 1 hour old and an unacked item 30 days and 1 hour old
       When the nightly maintenance runs
@@ -177,7 +177,7 @@ Feature: Agent inbox
       And "convoz brief" lists the unacked one as expired unread
       And "convoz read 41" still shows the message the expired item pointed at
 
-    @v1 @cli @I-19 @AC-6 @C-1
+    @v1 @cli @I-19 @AC-6 @C-1 @unimplemented
     Scenario: Removal leaves one notice and then nothing more
       Given "devtool" has 2 ready items for conversation 41
       When the owner removes "devtool" from conversation 41
@@ -185,7 +185,7 @@ Feature: Agent inbox
       And no other item for conversation 41 arrives, even when the owner posts there again
       And items for "devtool" in conversation 52 still arrive
 
-    @v1 @cli @I-6
+    @v1 @cli @I-6 @unimplemented
     Scenario: Delivery checks visibility again
       Given "devtool" has a ready mention item for conversation 41
       When the owner soft-deletes conversation 41
@@ -193,7 +193,7 @@ Feature: Agent inbox
 
   Rule: Long poll is the transport (no WebSockets, no SSE follow in v1)
 
-    @v1 @cli @lossy @AC-20
+    @v1 @cli @lossy @AC-20 @unimplemented
     Scenario: The long poll survives forced connection resets
       Given the link is the lossy profile through the stall proxy
       When session "s1" runs "convoz inbox --wait 60" and the proxy resets the connection 3 times
