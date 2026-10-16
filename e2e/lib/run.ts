@@ -1,8 +1,8 @@
 import { spawn } from "node:child_process";
-import path from "node:path";
+import { repoRoot } from "./paths.ts";
+import { record } from "./transcript.ts";
 
-/** Absolute path of the repo root (e2e/lib -> repo). */
-export const repoRoot = path.resolve(import.meta.dirname, "..", "..");
+export { repoRoot };
 
 export interface RunResult {
   code: number | null;
@@ -56,10 +56,12 @@ export function run(file: string, args: string[], opts: RunOptions = {}): Promis
     }, timeoutMs);
     child.once("error", (err: NodeJS.ErrnoException) => {
       clearTimeout(timer);
+      record([file, ...args].join(" "), "", err.message, "exit=spawn-error");
       reject(new Error(`cannot run ${file}: ${err.code ?? ""} ${err.message}`));
     });
     child.once("close", (code, signal) => {
       clearTimeout(timer);
+      record([file, ...args].join(" "), stdout, stderr, `exit=${code}${signal ? ` signal=${signal}` : ""}${timedOut ? " timedOut" : ""}`);
       resolve({ code, signal, stdout, stderr, timedOut });
     });
   });

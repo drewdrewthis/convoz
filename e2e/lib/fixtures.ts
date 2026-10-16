@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { test as base, type TestInfo } from "@playwright/test";
 import { baseEnv, repoRoot, run, type RunResult } from "./run.ts";
+import { beginTranscript, endTranscript, record } from "./transcript.ts";
 
 /** The binary under test. The default is the `-tags testhooks` build. */
 export const convozBin = path.resolve(
@@ -98,7 +99,15 @@ function waitForReady(readyFile: string, child: ChildProcess, log: () => string,
   });
 }
 
-export const test = base.extend<Fixtures>({
+export const test = base.extend<Fixtures & { transcript: void }>({
+  // Auto fixture; server depends on it so its teardown (server stop, which records) runs first.
+  // eslint-disable-next-line no-empty-pattern
+  transcript: [async ({}, use, testInfo: TestInfo) => {
+    beginTranscript();
+    await use();
+    await testInfo.attach("cli-transcript", { body: endTranscript(), contentType: "text/plain" });
+  }, { auto: true }],
+
   // eslint-disable-next-line no-empty-pattern
   dataDir: async ({}, use) => {
     // Scratch comes from mkdtemp under the OS temp dir; the OS reaps it.
@@ -120,7 +129,7 @@ export const test = base.extend<Fixtures>({
     );
   },
 
-  server: async ({ dataDir, kekFile }, use, testInfo: TestInfo) => {
+  server: async ({ dataDir, kekFile, transcript }, use, testInfo: TestInfo) => {
     const started: { handle: ServerHandle; child: ChildProcess; exited: Promise<void>; isDown: () => boolean }[] = [];
     const start = async (opts: ServerOptions = {}): Promise<ServerHandle> => {
       const readyDir = fs.mkdtempSync(path.join(os.tmpdir(), "convoz-ready-"));
@@ -146,6 +155,8 @@ export const test = base.extend<Fixtures>({
       const exited = new Promise<void>((res) => child.once("close", () => { down = true; res(); }));
       const log = () => buf;
       const ready = await waitForReady(readyFile, child, log, 15_000);
+      let code: number | null = null;
+      child.once("close", (c) => (code = c));
       const stop = async () => {
         if (down) return;
         child.kill("SIGTERM");
@@ -153,6 +164,8 @@ export const test = base.extend<Fixtures>({
         await exited;
         clearTimeout(t);
       };
+      // Recorded when the child exits, whoever stopped it.
+      void exited.then(() => record([convozBin, ...args].join(" "), buf, "", `exit=${code}`));
       const handle: ServerHandle = {
         url: "http://" + ready.listen.replace(/^tcp:\/\//, ""),
         pid: child.pid ?? ready.pid,
@@ -181,6 +194,7 @@ export const test = base.extend<Fixtures>({
           body: body === undefined ? undefined : JSON.stringify(body),
           signal: AbortSignal.timeout(10_000),
         });
+        record(`HTTP ${method} ${route}${body === undefined ? "" : " " + JSON.stringify(body)}`, await res.clone().text(), "", `status=${res.status}`);
         return res;
       };
       const must = async (res: Response, what: string) => {
