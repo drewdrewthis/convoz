@@ -15,24 +15,24 @@ Feature: Conversations
 
   Rule: The owner starts and names conversations
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario: A new conversation starts blank and takes a title from its first message
       When the owner starts a new conversation with Cmd+J and sends "Plan the search filters launch"
       Then the rail shows the conversation at the top titled "Plan the search filters launch"
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario: The details sidebar shows who is here and how the conversation is set
       Given conversation 41 with "devtool" and "docs"
       When the owner presses "I"
       Then the details show the participants, "Started by", "Created", "Muted" and the linked pull request
 
-    @v1 @browser @I-20
+    @v1 @browser @I-20 @unimplemented
     Scenario: An empty untitled conversation is cleaned up after 24 hours
       Given the owner started a conversation and sent nothing
       When the test clock moves 24 hours and 1 minute
       Then the rail no longer shows it
 
-    @v1 @browser @I-20
+    @v1 @browser @I-20 @unimplemented
     Scenario: A starred or renamed empty conversation is kept
       Given the owner started two conversations, starred one, renamed the other and sent nothing
       When the test clock moves 25 hours
@@ -40,14 +40,14 @@ Feature: Conversations
 
   Rule: Agents join only through a human, and see only from their join
 
-    @v1 @browser @I-18
+    @v1 @browser @I-18 @unimplemented
     Scenario: Mentioning an agent adds it at once
       Given conversation 41 with only the owner
       When the owner sends "@devtool please look at #412"
       Then the participants show "devtool"
       And "devtool" gets a mention item
 
-    @v1 @browser @I-15
+    @v1 @browser @I-15 @unimplemented
     Scenario Outline: Adding an agent sets what history it sees
       Given conversation 41 with 20 messages
       When the owner adds "docs" with history "<history>"
@@ -59,20 +59,20 @@ Feature: Conversations
         | since now | only messages after the add         |
         | full      | all 20 messages                     |
 
-    @v1 @cli @I-7
+    @v1 @cli @I-7 @unimplemented
     Scenario: An agent sees a reply under a hidden root as a stub
       Given "docs" was added to conversation 41 after thread root 900 was posted
       And the owner replies in thread 900 after the add
       When "docs" runs "convoz read 41 --thread 900"
       Then it sees the reply and a stub "earlier message not shown" for the root
 
-    @v1 @api @I-7
+    @v1 @api @I-7 @unimplemented
     Scenario: Events from before an agent joined are not replayed to it
       Given "docs" joined conversation 41 after 10 events in it
       When "docs" reads the conversation and its inbox
       Then it receives nothing from those 10 events
 
-    @v1 @api @I-17 @AC-26
+    @v1 @api @I-17 @AC-26 @unimplemented
     Scenario: An agent that creates a conversation cannot pull others in
       When "devtool" creates conversation "Release prep" listing "@docs" and "@release-bot"
       Then the owner sees 2 pending adds in Now for "Release prep"
@@ -80,7 +80,7 @@ Feature: Conversations
 
   Rule: Removing an agent cuts it off in one step (AC-6)
 
-    @v1 @browser @cli @I-19 @AC-6 @C-1
+    @v1 @browser @cli @I-19 @AC-6 @C-1 @unimplemented
     Scenario: A removed agent gets nothing more from that conversation
       Given "devtool" is in conversations 41 and 52 and waits with "convoz inbox --wait 60"
       And "devtool" has an open ask and a dismissed ask in conversation 41
@@ -90,13 +90,13 @@ Feature: Conversations
       And "devtool" gets one notice that it was removed, then nothing from conversation 41: no item, no read and no search result
       And new messages in conversation 52 still reach "devtool"
 
-    @v1 @cli @I-7 @I-19
+    @v1 @cli @I-7 @I-19 @unimplemented
     Scenario: A removed agent sees nothing of the conversation
       Given the owner removed "devtool" from conversation 41
       When "devtool" runs "convoz read 41"
       Then the CLI exits 3
 
-    @v1 @browser @I-19
+    @v1 @browser @I-19 @unimplemented
     Scenario: Adding an agent back offers the original history
       Given the owner removed "devtool" from conversation 41
       When the owner adds "devtool" again
@@ -104,7 +104,7 @@ Feature: Conversations
 
   Rule: Read position is honest (DA-2, DA-4)
 
-    @v1 @browser @I-15
+    @v1 @browser @I-15 @unimplemented
     Scenario: Mark all read clears the conversation
       Given conversation 41 has 7 unread main messages and 2 unread replies in an involved thread
       When the owner marks the conversation read
@@ -112,7 +112,7 @@ Feature: Conversations
 
   Rule: A loop pause is visible and the owner resumes it
 
-    @v1 @browser @I-16
+    @v1 @browser @I-16 @unimplemented
     Scenario: A paused conversation shows a banner with Resume
       Given "devtool" and "docs" posted 20 messages in a row in conversation 41
       When the owner opens conversation 41
@@ -121,7 +121,7 @@ Feature: Conversations
 
   Rule: A conversation can be offered to any agent for pickup (SEC-6)
 
-    @v1 @browser @cli @I-47
+    @v1 @browser @cli @I-47 @unimplemented
     Scenario: The owner opens a conversation for pickup and one agent takes it
       Given machine "box-2" has the pickup scope
       And the owner opened conversation 60 for pickup
@@ -132,14 +132,14 @@ Feature: Conversations
 
   Rule: Messages arrive live
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario: An agent message reaches the owner's open browser fast
       Given the owner has conversation 41 open
       When "devtool" runs "convoz post 41 'Build is green'"
       Then the message shows within 3 seconds with no reload
       And "convoz post" printed the message id
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario: The message details show who and where
       Given "devtool" posted from session "claude-7f3a" on "box-2"
       When the owner opens that message's details

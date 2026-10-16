@@ -1,0 +1,244 @@
+#!/usr/bin/env python3
+"""Parity gate: every Gherkin scenario is bound to one passing end-to-end test.
+
+Usage: python3 -I parity.py <specs-dir> <tests-dir> <playwright-results.json>
+       python3 -I parity.py --self-test
+
+Rules (docs/testing.md §3, the S0 plan "Parity"):
+  1. Every @v1 scenario that is not @unimplemented has exactly one binding, and the
+     binding carries the same driver tag(s) (@browser/@cli/@mcp/@api) as the scenario.
+  2. A binding that names no scenario fails.
+  3. Every binding ran and ended with status == expectedStatus == "passed" in the
+     Playwright JSON report, so a skip, an expected failure, test.fail() or a flaky
+     retry is a failure. A bound test missing from the report did not run: a failure.
+  4. A scenario that is bound and still tagged @unimplemented fails (stale tag).
+  5. One binding per Scenario Outline; its Examples rows run inside that one test.
+  6. The count of @unimplemented scenarios is always printed.
+Bindings are read from the report (title and tags) and from the test sources
+(`scenario("<title>", ...)`, double-quoted, so a test that never ran is still seen).
+Output: one line per problem. Exit 1 if any problem, else 0.
+"""
+import importlib.util
+import json
+import os
+import re
+import sys
+import tempfile
+
+DRIVERS = {"@browser", "@cli", "@mcp", "@api"}
+BIND_RE = re.compile(r'\bscenario\(\s*("(?:[^"\\]|\\.)*")')
+
+
+def load_checker():
+    # python -I drops the script directory from sys.path, so load the sibling by path.
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "check_specs.py")
+    spec = importlib.util.spec_from_file_location("check_specs", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def source_bindings(tests_dir):
+    """title -> [files] for every scenario("...") call under tests_dir."""
+    found = {}
+    for root, _, files in os.walk(tests_dir):
+        for fn in sorted(files):
+            if not fn.endswith((".ts", ".tsx", ".js", ".mjs")):
+                continue
+            path = os.path.join(root, fn)
+            with open(path, encoding="utf-8") as fh:
+                for m in BIND_RE.finditer(fh.read()):
+                    try:
+                        title = json.loads(m.group(1))
+                    except ValueError:
+                        continue
+                    found.setdefault(title, []).append(path)
+    return found
+
+
+def report_bindings(report_path):
+    """title -> [ {tags, expected, status, results, file} ] from Playwright's JSON report."""
+    with open(report_path, encoding="utf-8") as fh:
+        doc = json.load(fh)
+    out = {}
+
+    def walk(suite):
+        for sp in suite.get("specs", []):
+            tags = {t if t.startswith("@") else "@" + t for t in sp.get("tags", [])}
+            for t in sp.get("tests", []):
+                tags |= {x if x.startswith("@") else "@" + x for x in t.get("tags", [])}
+                out.setdefault(sp["title"], []).append({
+                    "tags": tags,
+                    "expected": t.get("expectedStatus"),
+                    "status": t.get("status"),
+                    "results": [r.get("status") for r in t.get("results", [])],
+                    "file": sp.get("file", suite.get("file", "")),
+                })
+        for s in suite.get("suites", []):
+            walk(s)
+
+    for s in doc.get("suites", []):
+        walk(s)
+    return out
+
+
+def check(specs_dir, tests_dir, report_path):
+    """Return (problems, unimplemented_count, bound_count)."""
+    cs = load_checker()
+    problems = []
+    parse_errors = []
+    scenarios, _ = cs.collect(specs_dir, parse_errors)
+    problems += [f"spec parse error: {e}" for e in parse_errors]
+    by_title = {}
+    for sc in scenarios:
+        by_title.setdefault(sc.name, sc)
+    src = source_bindings(tests_dir)
+    rep = report_bindings(report_path)
+    unimpl = 0
+    bound = 0
+
+    for sc in scenarios:
+        tags = set(sc.tags)
+        where = f"{sc.ref}:{sc.line}"
+        if "@later" in tags and "@v1" not in tags:
+            continue
+        if "@unimplemented" in tags:
+            unimpl += 1
+            if sc.name in rep or sc.name in src:
+                problems.append(f"{where}: {sc.name!r} is bound but still tagged @unimplemented")
+            continue
+        if "@v1" not in tags:
+            continue
+        runs = rep.get(sc.name, [])
+        n = max(len(runs), len(src.get(sc.name, [])))
+        if n == 0:
+            problems.append(f"{where}: {sc.name!r} has no binding")
+            continue
+        if n > 1:
+            problems.append(f"{where}: {sc.name!r} has {n} bindings, expected exactly one (one binding per outline)")
+        bound += 1
+        if not runs:
+            problems.append(f"{where}: {sc.name!r} is bound but did not run (not in the report)")
+            continue
+        want = tags & DRIVERS
+        for r in runs:
+            got = r["tags"] & DRIVERS
+            if want != got:
+                problems.append(f"{where}: {sc.name!r} driver tags differ: scenario {sorted(want)}, binding {sorted(got)}")
+            if r["expected"] != "passed":
+                problems.append(f"{where}: {sc.name!r} expected status is {r['expected']!r} (test.fail or skip), must be 'passed'")
+            elif r["status"] != "expected" or not r["results"] or r["results"][-1] != "passed":
+                last = r["results"][-1] if r["results"] else "no result"
+                problems.append(f"{where}: {sc.name!r} did not pass (status {r['status']!r}, last result {last!r})")
+
+    for title in sorted(set(rep) | set(src)):
+        if title not in by_title:
+            files = ", ".join(sorted({r["file"] for r in rep.get(title, [])} | set(src.get(title, []))))
+            problems.append(f"{files}: binding {title!r} names no scenario")
+    return problems, unimpl, bound
+
+
+FEATURE = """Feature: Demo
+  @v1 @cli
+  Scenario: Alpha
+    When a
+    Then b
+
+  @v1 @cli
+  Scenario: Beta
+    When a
+    Then b
+
+  @v1 @api @unimplemented
+  Scenario: Gamma
+    When a
+    Then b
+"""
+
+
+def _report(*specs):
+    return {"suites": [{"file": "t.spec.ts", "specs": [
+        {"title": t, "file": "t.spec.ts", "tags": tags, "tests": [
+            {"expectedStatus": exp, "status": st, "results": [{"status": res}]}]}
+        for t, tags, exp, st, res in specs]}]}
+
+
+def self_test():
+    ok = True
+
+    def expect(label, cond):
+        nonlocal ok
+        print(f"self-test {'ok  ' if cond else 'FAIL'} {label}")
+        ok = ok and cond
+
+    with tempfile.TemporaryDirectory(prefix="parity-selftest-") as d:
+        os.makedirs(os.path.join(d, "specs", "features"))
+        os.makedirs(os.path.join(d, "specs", "contracts"))
+        os.makedirs(os.path.join(d, "tests"))
+        with open(os.path.join(d, "specs", "features", "demo.feature"), "w") as fh:
+            fh.write(FEATURE)
+
+        def run_case(sources, rep):
+            with open(os.path.join(d, "tests", "a.spec.ts"), "w") as fh:
+                fh.write("\n".join(f'scenario({json.dumps(t)}, {{ tag: ["@cli"] }}, async () => {{}});' for t in sources))
+            rp = os.path.join(d, "r.json")
+            with open(rp, "w") as fh:
+                json.dump(rep, fh)
+            return check(os.path.join(d, "specs"), os.path.join(d, "tests"), rp)
+
+        good = _report(("Alpha", ["@cli"], "passed", "expected", "passed"),
+                       ("Beta", ["@cli"], "passed", "expected", "passed"))
+        p, u, _ = run_case(["Alpha", "Beta"], good)
+        expect("clean run has no problems", p == [])
+        expect("counts @unimplemented", u == 1)
+
+        p, _, _ = run_case(["Alpha"], _report(("Alpha", ["@cli"], "passed", "expected", "passed")))
+        expect("catches an unbound scenario", any("'Beta' has no binding" in x for x in p))
+
+        p, _, _ = run_case(["Alpha", "Beta", "Nope"], _report(
+            ("Alpha", ["@cli"], "passed", "expected", "passed"), ("Beta", ["@cli"], "passed", "expected", "passed"),
+            ("Nope", ["@cli"], "passed", "expected", "passed")))
+        expect("catches an unknown binding", any("'Nope' names no scenario" in x for x in p))
+
+        p, _, _ = run_case(["Alpha", "Beta"], _report(
+            ("Alpha", ["@cli"], "passed", "skipped", "skipped"), ("Beta", ["@cli"], "passed", "expected", "passed")))
+        expect("catches a skipped test", any("'Alpha' did not pass" in x for x in p))
+
+        p, _, _ = run_case(["Alpha", "Beta"], _report(
+            ("Alpha", ["@cli"], "failed", "expected", "failed"), ("Beta", ["@cli"], "passed", "expected", "passed")))
+        expect("catches an expected-fail test", any("'Alpha' expected status" in x for x in p))
+
+        p, _, _ = run_case(["Alpha", "Beta"], _report(
+            ("Alpha", ["@api"], "passed", "expected", "passed"), ("Beta", ["@cli"], "passed", "expected", "passed")))
+        expect("catches a driver tag mismatch", any("driver tags differ" in x for x in p))
+
+        p, _, _ = run_case(["Alpha", "Beta"], _report(
+            ("Alpha", ["@cli"], "passed", "expected", "passed"), ("Beta", ["@cli"], "passed", "unexpected", "failed")))
+        expect("catches a failing test", any("'Beta' did not pass" in x for x in p))
+
+        p, _, _ = run_case(["Alpha", "Beta", "Alpha"], good)
+        expect("catches a double binding", any("'Alpha' has 2 bindings" in x for x in p))
+    return 0 if ok else 1
+
+
+def main(argv):
+    if argv[1:] == ["--self-test"]:
+        return self_test()
+    if len(argv) != 4:
+        print(__doc__)
+        return 2
+    specs_dir, tests_dir, report = argv[1:]
+    if not os.path.exists(report):
+        print(f"{report}: no Playwright JSON report (run the e2e suite first)")
+        print("unimplemented scenarios: unknown")
+        return 1
+    problems, unimpl, bound = check(specs_dir, tests_dir, report)
+    for p in problems:
+        print(p)
+    print(f"unimplemented scenarios: {unimpl}")
+    print(f"bound scenarios: {bound}; problems: {len(problems)}")
+    return 1 if problems else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

@@ -13,7 +13,7 @@ Feature: Crew: identities, machines and sessions (contracts)
 
   Rule: The owner creates identities; names are unique and never reused
 
-    @v1 @api @I-3
+    @v1 @api @I-3 @unimplemented
     Scenario Outline: Handle rules
       When the owner creates an agent with the handle "<handle>"
       Then the server answers <status>
@@ -28,12 +28,12 @@ Feature: Crew: identities, machines and sessions (contracts)
         | a           | 400    |
         | dev_tool    | 400    |
 
-    @v1 @api @I-3
+    @v1 @api @I-3 @unimplemented
     Scenario: A display name that looks like another identity is refused
       When the owner creates an agent named "devtooI" with the handle "helper"
       Then the server answers 400 naming "display_name"
 
-    @v1 @api @invariant @I-2
+    @v1 @api @invariant @I-2 @unimplemented
     Scenario: No request can delete an identity or change its kind
       When a client tries every identity route to delete "devtool" or change it from agent to human
       And the test tries the same writes on the data file of the encryption-off test build

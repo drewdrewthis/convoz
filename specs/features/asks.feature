@@ -19,7 +19,7 @@ Feature: Asks and their state machine
 
   Rule: An ask has a question, a recommendation and at least one alternative, each with a reason
 
-    @v1 @cli @I-11 @I-16
+    @v1 @cli @I-11 @I-16 @unimplemented
     Scenario: A complete ask opens
       When "devtool" runs "convoz ask 41 --question 'Merge #415 on its own?' --recommend 'Merge it' --why 'All 11 checks pass' --alt 'Hold it' --alt-why 'Wait for #412'"
       Then the owner sees the ask in Now with "Merge it" marked recommended
@@ -27,14 +27,14 @@ Feature: Asks and their state machine
 
   Rule: Every transition follows the state table; anything else is a conflict
 
-    @v1 @browser @I-15
+    @v1 @browser @I-15 @unimplemented
     Scenario: The answer is posted where the ask was asked
       Given an ask of "devtool" posted as a reply in thread 900
       When the owner answers "Hold it" from Now
       Then thread 900 shows the answer message "Hold it"
       And the main list of conversation 41 does not
 
-    @v1 @cli @I-12
+    @v1 @cli @I-12 @unimplemented
     Scenario: Undismiss clears the agent's ack
       Given "devtool" acked the dismissal of its ask
       When the owner undismisses the ask and then answers "Merge it"
@@ -43,27 +43,27 @@ Feature: Asks and their state machine
 
   Rule: Asks close when their asker or their message goes away
 
-    @v1 @api @I-19
+    @v1 @api @I-19 @unimplemented
     Scenario: Removing the asker closes its open and dismissed asks
       Given "devtool" has an open ask and a dismissed ask in conversation 41
       When the owner removes "devtool" from conversation 41
       Then both asks are "closed (removed)"
       And Now no longer shows them
 
-    @v1 @api @I-38
+    @v1 @api @I-38 @unimplemented
     Scenario: Disabling the asker closes its asks everywhere
       Given "devtool" has open asks in conversations 41 and 52
       When the owner disables "devtool" with a passkey
       Then both asks are "closed (agent_revoked)"
 
-    @v1 @api
+    @v1 @api @unimplemented
     Scenario: Deleting an open ask message closes the ask
       Given an open ask of "devtool"
       When "devtool" deletes the ask message
       Then the ask is "closed (deleted)"
       And "devtool" gets an "ask_resolved" item
 
-    @v1 @api
+    @v1 @api @unimplemented
     Scenario: Deleting an answered ask keeps the decision
       Given an ask of "devtool" answered with "Merge it"
       When the owner deletes the ask message
@@ -72,27 +72,27 @@ Feature: Asks and their state machine
 
   Rule: Answers are explicit and idempotent
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario: A quick reply answers with custom text
       Given an open ask of "devtool"
       When the owner opens Quick reply on the ask and sends "Split it in two"
       Then the ask shows "Replied · Split it in two"
       And "devtool" gets an "ask_resolved" item with the custom text
 
-    @v1 @browser @I-24 @C-4
+    @v1 @browser @I-24 @C-4 @unimplemented
     Scenario: A double tap on an option answers once
       Given an open ask of "devtool"
       When the owner taps "Merge it" twice quickly
       Then conversation 41 shows one answer message
       And the second request returns the first result
 
-    @v1 @api
+    @v1 @api @unimplemented
     Scenario: A plain message does not answer an ask
       Given an open ask of "devtool"
       When the owner posts "thinking about it" in conversation 41
       Then the ask is still "open" in Now
 
-    @v1 @browser @I-12 @C-6 @AC-29
+    @v1 @browser @I-12 @C-6 @AC-29 @unimplemented
     Scenario: The ask history shows who dismissed it
       Given an open ask of "devtool"
       When the owner dismisses it, undismisses it and then answers "Merge it"
@@ -101,7 +101,7 @@ Feature: Asks and their state machine
 
   Rule: Snooze is a personal overlay that never changes the ask
 
-    @v1 @api @I-13
+    @v1 @api @I-13 @unimplemented
     Scenario: Answering removes the snooze
       Given an open ask of "devtool" snoozed by the owner until tomorrow
       When the owner answers it
@@ -113,7 +113,7 @@ Feature: Asks and their state machine
       And an open ask of "devtool" snoozed by the owner
       Then member "mia" still sees the ask as open in Now
 
-    @v1 @browser @I-13 @C-5
+    @v1 @browser @I-13 @C-5 @unimplemented
     Scenario: Only an open ask can be snoozed
       Given an ask of "devtool" that the owner dismissed
       When the owner opens the ask's menu

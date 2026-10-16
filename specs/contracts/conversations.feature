@@ -13,14 +13,14 @@ Feature: Conversations (contracts)
 
   Rule: The owner starts and names conversations
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario: The owner renames a conversation
       Given conversation 41 "Plan the search filters launch"
       When the owner renames it to "Ship search filters"
       Then the rail and the header show "Ship search filters"
       And later messages never change the title
 
-    @v1 @api @invariant @I-20
+    @v1 @api @invariant @I-20 @unimplemented
     Scenario: A send that races the cleanup keeps the conversation
       Given an empty conversation that is 24 hours old
       When the owner sends "wait" at the moment the cleanup runs
@@ -28,7 +28,7 @@ Feature: Conversations (contracts)
 
   Rule: Agents join only through a human, and see only from their join
 
-    @v1 @api
+    @v1 @api @unimplemented
     Scenario: An agent creates at most 20 conversations a day
       Given "devtool" created 20 conversations today
       When it creates another
@@ -36,27 +36,27 @@ Feature: Conversations (contracts)
 
   Rule: Read position is honest (DA-2, DA-4)
 
-    @v1 @api @I-15
+    @v1 @api @I-15 @unimplemented
     Scenario: My post marks the conversation read only when I was caught up
       Given the owner read conversation 41 up to message 100
       And "devtool" posted messages 101, 102 and 103
       When the owner posts "on my way" through the API without reading them
       Then GET /api/conversations shows 3 unread for conversation 41
 
-    @v1 @api @I-15
+    @v1 @api @I-15 @unimplemented
     Scenario: My post marks the conversation read when I was caught up
       Given the owner read conversation 41 up to its newest message
       When the owner posts "on my way"
       Then GET /api/conversations shows 0 unread for conversation 41
 
-    @v1 @api @I-15
+    @v1 @api @I-15 @unimplemented
     Scenario: An agent post keeps an earlier human message unread for that agent
       Given "devtool" read conversation 41 up to message 100
       And the owner posted message 101
       When "devtool" posts message 102
       Then GET /api/conversations as "devtool" shows 1 unread for conversation 41
 
-    @v1 @api @invariant @I-15
+    @v1 @api @invariant @I-15 @unimplemented
     Scenario: A read position never moves backward
       Given the owner read conversation 41 up to message 120
       When an old tab reports a read position of message 90
@@ -64,13 +64,13 @@ Feature: Conversations (contracts)
 
   Rule: A conversation can be offered to any agent for pickup (SEC-6)
 
-    @v1 @api @I-47
+    @v1 @api @I-47 @unimplemented
     Scenario: An agent without the pickup scope cannot pick up
       Given the owner opened conversation 60 for pickup
       When "devtool" on a machine without the pickup scope picks it up
       Then the server answers 403
 
-    @v1 @api @invariant @I-47
+    @v1 @api @invariant @I-47 @unimplemented
     Scenario: A stale pickup holder cannot act after a release
       Given "devtool" picked up conversation 60 and the pickup was released when its machine was revoked
       And "docs" picked it up next

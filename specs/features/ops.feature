@@ -8,10 +8,6 @@ Feature: Data at rest, backups and deletion
   I want the data encrypted on disk, backed up in a form I can restore, and truly gone when I delete it
   So that a stolen disk or backup leaks nothing and a deletion means what it says
 
-  Background:
-    Given a fresh Convoz server with owner "drew" signed in with a virtual passkey
-    And machine "box-2" is logged in with allow-list "devtool"
-
   Rule: The database, its backups and its blobs are encrypted
 
     @v1 @cli @I-27
@@ -28,13 +24,17 @@ Feature: Data at rest, backups and deletion
 
   Rule: A signed backup restores, and a tampered one does not
 
-    @v1 @cli @AC-12
+  Background:
+    Given a fresh Convoz server with owner "drew" signed in with a virtual passkey
+    And machine "box-2" is logged in with allow-list "devtool"
+
+    @v1 @cli @AC-12 @unimplemented
     Scenario: A signed backup restores with the key and the age identity
       Given a nightly backup of a data dir with seeded conversations
       When it is restored into a new `mktemp -d` dir with the KEK and the age identity
       Then the restored server shows the same conversations, messages and files
 
-    @v1 @cli @AC-12
+    @v1 @cli @AC-12 @unimplemented
     Scenario Outline: A restore fails clearly when something is wrong
       Given a nightly backup of a data dir with seeded conversations
       When it is restored with <fault>
@@ -46,7 +46,7 @@ Feature: Data at rest, backups and deletion
         | the wrong KEK                 | cannot unwrap the keyring  |
         | the wrong age identity        | cannot decrypt the backup  |
 
-    @v1 @cli
+    @v1 @cli @unimplemented
     Scenario: A backup made before a KEK rotation still restores
       Given a backup made with KEK 1
       When the owner runs "convoz keys rotate-kek" and later restores that backup
@@ -54,14 +54,18 @@ Feature: Data at rest, backups and deletion
 
   Rule: Deleting a conversation is soft for 30 days, then a purge
 
-    @v1 @browser @I-49
+  Background:
+    Given a fresh Convoz server with owner "drew" signed in with a virtual passkey
+    And machine "box-2" is logged in with allow-list "devtool"
+
+    @v1 @browser @I-49 @unimplemented
     Scenario: A deleted conversation goes to the trash and can come back
       Given conversation 41 with 12 messages
       When the owner deletes conversation 41
       Then it is gone from the rail and appears in Trash with "deleted forever in 30 days"
       And the owner restores it with all 12 messages
 
-    @v1 @api @I-49
+    @v1 @api @I-49 @unimplemented
     Scenario: An agent cannot see a conversation in the trash
       Given "devtool" is in conversation 41 and the owner deleted it
       When "devtool" runs "convoz read 41"
@@ -69,21 +73,29 @@ Feature: Data at rest, backups and deletion
 
   Rule: Purge and delete-my-data leave no readable trace
 
-    @v1 @cli
+  Background:
+    Given a fresh Convoz server with owner "drew" signed in with a virtual passkey
+    And machine "box-2" is logged in with allow-list "devtool"
+
+    @v1 @cli @unimplemented
     Scenario: Destroying the workspace shreds the keys
       Given a workspace with seeded conversations
       When the owner runs "convoz workspace destroy" with the KEK
       Then the KEK and the keyring are gone
       And "convoz serve" on that data dir exits non-zero because the data cannot be opened
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario: The privacy screen states what cannot be recalled
       When the owner opens Settings → Privacy & security → Delete
       Then the screen states the 24 hour index window, the 35 day backup window and that shown notifications cannot be recalled
 
   Rule: The owner can take the data out
 
-    @v1 @browser
+  Background:
+    Given a fresh Convoz server with owner "drew" signed in with a virtual passkey
+    And machine "box-2" is logged in with allow-list "devtool"
+
+    @v1 @browser @unimplemented
     Scenario: The owner exports the workspace with a passkey
       When the owner starts an export with a passkey
       Then a download is offered when the job is done

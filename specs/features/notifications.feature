@@ -16,7 +16,7 @@ Feature: Notifications
 
   Rule: Each trigger sends one push
 
-    @v1 @api @I-28 @C-2 @AC-7
+    @v1 @api @I-28 @C-2 @AC-7 @unimplemented
     Scenario Outline: Triggers that push the owner
       When <event>
       Then the fake push service receives one push with the reason "<reason>"
@@ -35,7 +35,7 @@ Feature: Notifications
 
   Rule: The decision pipeline suppresses pushes for a reason (AC-7)
 
-    @v1 @api @AC-7
+    @v1 @api @AC-7 @unimplemented
     Scenario Outline: Suppression reasons
       Given <condition>
       When "devtool" asks a question in conversation 41
@@ -49,7 +49,7 @@ Feature: Notifications
         | it is inside the owner's quiet hours                                   | quiet_hours |
         | the owner's only device has conversation 41 open and focused           | active_here |
 
-    @v1 @api @AC-7
+    @v1 @api @AC-7 @unimplemented
     Scenario Outline: An urgent ask in quiet hours follows the bypass setting
       Given it is inside the owner's quiet hours and "urgent bypass" is <bypass>
       When "devtool" asks an urgent question
@@ -60,27 +60,27 @@ Feature: Notifications
         | on     | the fake push service receives one push                       |
         | off    | no push is received and the log shows "quiet_hours"           |
 
-    @v1 @api @I-28
+    @v1 @api @I-28 @unimplemented
     Scenario: A notification is not sent for what the owner can no longer see
       Given "devtool" asked a question in conversation 41
       When the owner deletes conversation 41 before the push is sent
       Then no push is received and the log shows "not_visible"
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario: Security pushes cannot be turned off
       When the owner opens the notification settings
       Then the security reason shows as always on with no switch
 
   Rule: Delivery is private and well-behaved (I-28)
 
-    @v1 @api @AC-7
+    @v1 @api @AC-7 @unimplemented
     Scenario: A gone subscription is disabled
       Given the push service says the owner's subscription is gone
       When "devtool" asks a question
       Then the subscription is listed as disabled in Settings
       And the next ask sends nothing to it
 
-    @v1 @api
+    @v1 @api @unimplemented
     Scenario Outline: The preview setting decides what the lock screen shows
       Given the preview setting is "<previews>"
       When "devtool" posts "@drew the deploy failed" in conversation 41
@@ -92,7 +92,7 @@ Feature: Notifications
         | sender   | Dev Tool @devtool          | New message                |
         | none     | Convoz                     | New activity               |
 
-    @v1 @browser @phone @needs-owner
+    @v1 @browser @phone @needs-owner @unimplemented
     Scenario: Push works on an iPhone Home Screen app
       Given the owner added Convoz to the iPhone Home Screen
       When the owner turns push on with a tap

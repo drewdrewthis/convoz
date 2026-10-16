@@ -1,0 +1,10 @@
+{
+  "name": "convoz",
+  "private": true,
+  "packageManager": "pnpm@12.9.1",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "e2e": "pnpm --filter @convoz/e2e test",
+    "parity": "python3 -I specs/scripts/parity.py specs e2e/tests e2e/report/results.json"
+  }
+}

@@ -11,7 +11,7 @@ Feature: Build and quality gates (contracts)
 
   Rule: Every invariant and AC has a bound scenario that failed before its code and passes after (AC-1)
 
-    @v1 @cli @AC-1
+    @v1 @cli @AC-1 @unimplemented
     Scenario: A slice PR shows its scenarios red first and green at head
       Given a slice PR with a test-only commit followed by code commits
       When CI runs the slice's tagged scenarios on the test-only commit and on head
@@ -39,7 +39,7 @@ Feature: Build and quality gates (contracts)
 
   Rule: Module boundaries are enforced (AC-16)
 
-    @v1 @cli @AC-16
+    @v1 @cli @AC-16 @unimplemented
     Scenario Outline: CI fails a boundary break
       Given a branch that <breaks>
       When CI runs
@@ -55,7 +55,7 @@ Feature: Build and quality gates (contracts)
 
   Rule: The UI library meets the accessibility and look bar (AC-17)
 
-    @v1 @browser @AC-17
+    @v1 @browser @AC-17 @unimplemented
     Scenario: Every ui story passes axe in every theme and size
       When the Ladle stories run in Playwright in light and dark, for each palette, at 390x844 and 1280x940
       Then axe reports 0 violations for every story
@@ -68,7 +68,7 @@ Feature: Build and quality gates (contracts)
 
   Rule: Server speed is measured, not hoped for (AC-9)
 
-    @v1 @cli @AC-9
+    @v1 @cli @AC-9 @unimplemented
     Scenario Outline: Server paths meet their p95 budget on the 1M fixture
       Given the encrypted 1M-message fixture on the target VM
       When the benchmark "<bench>" runs
@@ -89,7 +89,7 @@ Feature: Build and quality gates (contracts)
         | BenchmarkFanout             | 25 ms  |
         | BenchmarkDeltaSync          | 20 ms  |
 
-    @v1 @cli @AC-9
+    @v1 @cli @AC-9 @unimplemented
     Scenario: A budget miss or a 20 percent regression blocks the slice
       Given a benchmark result over budget or 20 percent slower than main
       When CI compares it with benchstat
@@ -101,5 +101,5 @@ Feature: Build and quality gates (contracts)
     Scenario: The build uses only pinned inputs
       When CI installs and builds from a clean checkout
       Then pnpm runs with a frozen lockfile and Go with -mod=readonly
-      And the SHA-256 of the embedded SQLite Wasm matches the recorded value
+      And go mod verify passes and the SQLite module checksum matches the recorded value
       And every GitHub Action is pinned by SHA

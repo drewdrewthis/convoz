@@ -14,7 +14,7 @@ Feature: Poor connections (contracts)
 
   Rule: Nothing sent is lost or doubled (AC-20)
 
-    @v1 @browser @lossy @I-23 @AC-20
+    @v1 @browser @lossy @I-23 @AC-20 @unimplemented
     Scenario: A dropped event stream resumes with no gap
       Given the owner's browser follows the event stream on the lossy profile
       When the stream is cut and "devtool" posts 5 messages before it reconnects
@@ -23,24 +23,24 @@ Feature: Poor connections (contracts)
 
   Rule: The live link degrades gracefully
 
-    @v1 @browser @lossy
+    @v1 @browser @lossy @unimplemented
     Scenario: Two stream failures in a minute switch to long polling
       Given the event stream fails twice within 60 seconds
       When "devtool" posts "still there?"
       Then the browser shows the message through GET /api/sync with wait 25
       And the browser returns to the event stream once it works again
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario: The stream sends a heartbeat every 15 seconds
       When the owner's browser holds the event stream open for 50 seconds with no events
       Then the browser received at least 3 heartbeat comments
 
-    @v1 @api
+    @v1 @api @unimplemented
     Scenario: Responses over 1 KB are compressed
       When a client that accepts brotli loads a page of 50 typical text messages
       Then the response is brotli-compressed and at most 12 KB on the wire
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario Outline: Only a revoking 401 clears the offline cache
       Given the installed app has cached conversation 41
       When the next request gets <response>
@@ -55,7 +55,7 @@ Feature: Poor connections (contracts)
 
   Rule: The app is fast on a mid-range phone (AC-10)
 
-    @v1 @browser @phone @lossy @AC-10
+    @v1 @browser @phone @lossy @AC-10 @unimplemented
     Scenario Outline: The first useful screen appears in budget
       Given a mid-range phone profile with CPU slowed 4 times on the <network> profile
       When the app starts <start>
@@ -68,12 +68,12 @@ Feature: Poor connections (contracts)
         | Fast-3G | cold with an empty cache   | 1.5 s   |
         | lossy   | cold with an empty cache   | 4 s     |
 
-    @v1 @browser @AC-10
+    @v1 @browser @AC-10 @unimplemented
     Scenario: The initial download stays small
       When the production build is measured
       Then the initial JavaScript is at most 150 KB and the CSS at most 20 KB with brotli
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario: My own message shows at once
       When the owner sends "on it" in conversation 41
       Then the bubble shows within 16 ms of the send
