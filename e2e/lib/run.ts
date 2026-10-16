@@ -72,5 +72,5 @@ export function pnpmCommand(): { file: string; prefix: string[] } {
   return { file: "pnpm", prefix: [] };
 }
 
-/** The Go tool: GO_BIN, else /usr/local/go/bin/go. */
-export const goBin = process.env.GO_BIN ?? "/usr/local/go/bin/go";
+/** The Go tool: GO_BIN, else `go` from PATH. */
+export const goBin = process.env.GO_BIN ?? "go";
