@@ -129,7 +129,7 @@ export const test = base.extend<Fixtures & { transcript: void }>({
     );
   },
 
-  server: async ({ dataDir, kekFile, transcript }, use, testInfo: TestInfo) => {
+  server: async ({ dataDir, kekFile }, use, testInfo: TestInfo) => {
     const started: { handle: ServerHandle; child: ChildProcess; exited: Promise<void>; isDown: () => boolean }[] = [];
     const start = async (opts: ServerOptions = {}): Promise<ServerHandle> => {
       const readyDir = fs.mkdtempSync(path.join(os.tmpdir(), "convoz-ready-"));

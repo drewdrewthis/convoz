@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Render the e2e JSON report into one HTML page of use-proof (stdout and exit code per scenario).
+"""Render the e2e JSON report into one HTML page of use-proof (commands, HTTP calls, output and exit status per scenario).
 
 Usage: proof_report.py <results.json> <out.html> | --self-test
-Exit 1 if any transcript is empty or looks like it leaks a credential; no page is left then.
+Exit 1 if any transcript is empty (EMPTY) or looks like it leaks a credential (LEAK); no page is left then.
 """
 import base64
 import contextlib
@@ -18,18 +18,21 @@ from pathlib import Path
 MARKER = "TESTONLY"
 TOKEN = re.compile(r"cvz_[a-z]_[A-Za-z0-9_-]{8,}")
 HEX_RUN = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{64,}(?![0-9A-Fa-f])")
-# Hex split by single spaces or colons (fingerprints, hexdumps); counted after the separators go.
-HEX_SPLIT = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{2,}(?:[ :][0-9A-Fa-f]{2,})+(?![0-9A-Fa-f])")
+# Hex split by spaces, colons or one line break (fingerprints, xxd, openssl); counted after the separators go.
+HEX_SPLIT = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{2,}(?:[ :]+|[ :]*\r?\n[ :]*)(?:[0-9A-Fa-f]{2,}(?:[ :]+|[ :]*\r?\n[ :]*))*[0-9A-Fa-f]{2,}(?![0-9A-Fa-f])")
+# go.sum digest: 32 bytes of sha256 as exactly 43 base64 chars plus one "=".
+GO_SUM_DIGEST = re.compile(r"[A-Za-z0-9+/]{43}=")
 # 43 chars is the shortest base64 of 32 bytes; both alphabets, optional padding.
 B64_RUN = re.compile(r"(?<![A-Za-z0-9+/_-])[A-Za-z0-9+/_-]{43,}={0,2}")
 PEM = re.compile(r"-----BEGIN [A-Z ]*(PRIVATE KEY|CERTIFICATE|PUBLIC KEY)?-----")
 
 
 def is_test_b64(run):
-    """True when the run decodes to bytes that start with the TESTONLY marker."""
+    """True when the run decodes to exactly 32 bytes that start with the TESTONLY marker."""
     body = run.rstrip("=").replace("-", "+").replace("_", "/")
     try:
-        return base64.b64decode(body + "=" * (-len(body) % 4), validate=True).startswith(MARKER.encode())
+        raw = base64.b64decode(body + "=" * (-len(body) % 4), validate=True)
+        return len(raw) == 32 and raw.startswith(MARKER.encode())
     except ValueError:
         return False
 
@@ -37,10 +40,12 @@ def is_test_b64(run):
 def is_benign_b64(text, m):
     """Shapes that are long base64-alphabet runs but not secrets: go.sum `h1:` digests, lowercase paths."""
     run = m.group(0)
-    if text[max(0, m.start() - 3):m.start()] == "h1:":
-        return True
+    start = m.start()
+    if text[max(0, start - 3):start] == "h1:" and (start < 4 or not text[start - 4].isalnum()):
+        if GO_SUM_DIGEST.fullmatch(run):
+            return True
     if HEX_RUN.fullmatch(run):
-        return True  # already reported as hex
+        return True  # hex is reported at 64+ only (HEX_RUN); shorter hex such as SHAs is not a key
     return "/" in run and run == run.lower()
 
 
@@ -83,7 +88,7 @@ def leaks(scens):
         found += [(title, "token", len(m.group(0))) for m in TOKEN.finditer(text) if MARKER not in m.group(0)]
         found += [(title, "hex", len(m.group(0))) for m in HEX_RUN.finditer(text)]
         for m in HEX_SPLIT.finditer(text):
-            digits = len(re.sub("[ :]", "", m.group(0)))
+            digits = len(re.sub(r"[\s:]", "", m.group(0)))
             if digits >= 64:
                 found.append((title, "split hex", digits))
         found += [
@@ -135,7 +140,8 @@ def main(argv):
     bad = leaks(scens) if scens else [("(report)", "no scenarios", 0)]
     if bad:
         for title, kind, length in bad:
-            print(f"LEAK ({kind}, {length} chars) in '{title}'", file=sys.stderr)
+            label = "EMPTY" if kind in ("empty transcript", "no scenarios") else "LEAK"
+            print(f"{label} ({kind}, {length} chars) in '{title}'", file=sys.stderr)
         return 1
     out.write_text(render(scens, commit()))
     return 0
@@ -146,6 +152,10 @@ def self_test():
     key = bytes(range(32))
     plain_kek = base64.b64encode(key).decode()
     test_kek = base64.b64encode(MARKER.encode() + key[: 32 - len(MARKER)]).decode()
+    mixed = base64.b64encode(bytes((i * 37 + 11) % 256 for i in range(32))).decode()  # has "/" and mixed case
+    key33 = base64.b64encode(bytes(range(33))).decode()  # 44 chars, no "="
+    long_test = base64.b64encode(MARKER.encode() + bytes(40)).decode()
+    dump = "".join(f"{i:02x}:" for i in range(16)) + "\n" + ":".join(f"{i:02x}" for i in range(16, 32)) + "\n"
     hex16 = "0123456789abcdef"
     benign = (
         "go: github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db\n"
@@ -155,6 +165,13 @@ def self_test():
         ("base64 KEK, not TESTONLY", f"kek {plain_kek}\n", {"base64"}),
         ("base64 KEK, url-safe alphabet", f"kek {plain_kek.replace('+', '-').replace('/', '_')}\n", {"base64"}),
         ("TESTONLY KEK", f"kek {test_kek}\n", set()),
+        ("base64 with slash and mixed case", f"kek {mixed}\n", {"base64"}),
+        ("lowercase path with slashes", "see internal/server/platform/db/migrations/0001_init_schema_up\n", set()),
+        ("h1: without padding", "h1:" + key33 + "\n", {"base64"}),
+        ("xh1: digest", "xh1:" + plain_kek + "\n", {"base64"}),
+        ("spaced h1: digest", " h1:" + plain_kek + "\n", set()),
+        ("TESTONLY plus 40 bytes", f"kek {long_test}\n", {"base64"}),
+        ("split hex across lines", dump, {"split hex"}),
         ("dashed token", "tok cvz_a_abc-def_ghi0123\n", {"token"}),
         ("TESTONLY token", "tok cvz_a_TESTONLY_abcd\n", set()),
         ("96 hex", hex16 * 6 + "\n", {"hex"}),
@@ -177,7 +194,11 @@ def self_test():
 
 def self_test_run(plain_kek):
     """End to end through main(): a leak exits 1, prints no value and removes a stale page."""
-    work = Path(tempfile.mkdtemp(prefix="proof-self-test-"))
+    with tempfile.TemporaryDirectory(prefix="proof-self-test-") as tmp:
+        return self_test_leak_exit(Path(tmp), plain_kek)
+
+
+def self_test_leak_exit(work, plain_kek):
     results, page = work / "results.json", work / "proof.html"
     body = base64.b64encode(f"kek {plain_kek}\n".encode()).decode()
     report = {"suites": [{"specs": [{"title": "t", "tags": [], "tests": [{"status": "expected", "results": [
@@ -194,9 +215,6 @@ def self_test_run(plain_kek):
         problems.append("stale proof.html survived a failed scan")
     if plain_kek[:8] in err.getvalue():
         problems.append("a leaked value was printed")
-    for f in (results, page):
-        f.unlink(missing_ok=True)
-    work.rmdir()
     for p in problems:
         print(f"FAIL end-to-end: {p}", file=sys.stderr)
     return len(problems)

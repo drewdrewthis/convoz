@@ -19,8 +19,9 @@ scenario("The server refuses a database from a newer version", { tag: ["@cli"] }
   expect(res.code).toBe(11);
   expect(res.stderr).toMatch(/convoz: data dir schema version 999 is newer than this build supports \(\d+\)/);
 
-  // And a relative --data-dir reaches the same answer (it is made absolute before the database opens)
-  const rel = await convoz(["serve", "--data-dir", path.relative(process.cwd(), dataDir), "--kek-file", kekFile, "--listen", "127.0.0.1:0"]);
+  // And a relative --data-dir reaches the same answer (it is made absolute before the database opens).
+  // The binary runs from repoRoot, so the path is relative to repoRoot.
+  const rel = await convoz(["serve", "--data-dir", path.relative(repoRoot, dataDir), "--kek-file", kekFile, "--listen", "127.0.0.1:0"]);
   expect(rel.code).toBe(11);
 });
 
