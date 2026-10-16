@@ -24,6 +24,8 @@ export interface Running {
   readonly done: Promise<RunResult>;
   stdout(): string;
   stderr(): string;
+  /** SIGTERM this child (its own handle). Safe after exit. */
+  stop(): void;
   /** Resolve with the match once stdout shows `re`; reject if the child exits first or `ms` pass. */
   waitForStdout(re: RegExp, ms?: number): Promise<RegExpMatchArray>;
 }
@@ -70,6 +72,9 @@ function spawnCli(argv: string[], env: Record<string, string>, cwd: string, stdi
     done,
     stdout: () => stdout,
     stderr: () => stderr,
+    stop: () => {
+      if (!exited) child.kill("SIGTERM");
+    },
     waitForStdout: (re, ms = 15_000) =>
       new Promise((resolve, reject) => {
         const timeout = setTimeout(() => settle(new Error(`no ${re} on stdout after ${ms} ms\n--- stdout ---\n${stdout}\n--- stderr ---\n${stderr}`)), ms);

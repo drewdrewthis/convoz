@@ -132,6 +132,46 @@ Feature: Conversations
 
   Rule: Messages arrive live
 
+    @v1 @browser @phone @unimplemented
+    Scenario: On a phone the bottom bar leads to Chats, Now and Account
+      Given the owner opens Convoz on a phone
+      Then a bottom bar shows "Chats", "Now" and "Account"
+      When the owner taps "Chats"
+      Then the Chats list shows with a "New chat" button
+      And "Chats" is marked as the current tab
+
+    @v1 @browser @phone @unimplemented
+    Scenario: On a phone the owner starts a chat with an agent and sees its reply
+      Given "devtool" runs "convoz watch --json"
+      When the owner taps "New chat", picks "devtool" and sends "Is the build green?"
+      Then the message shows in a bubble on the right
+      And the watch stream prints one JSON line with "Is the build green?" within 3 seconds
+      When "devtool" runs "convoz post" in that conversation with "Yes, all 11 checks pass"
+      Then the reply shows on the left within 3 seconds with no reload
+      And the Chats list shows the conversation with no unread dot
+
+    @v1 @browser @phone @unimplemented
+    Scenario: On a phone an unread chat shows a dot until opened
+      Given the owner is on the Chats list on a phone
+      When "devtool" posts "Done" in conversation 41
+      Then conversation 41 shows an unread dot and "Done" as its preview within 3 seconds
+      When the owner opens conversation 41 and goes back to Chats
+      Then conversation 41 has no unread dot
+
+    @v1 @browser @phone @unimplemented
+    Scenario: On a phone a chat catches up after the connection comes back
+      Given the owner has conversation 41 open on a phone
+      And the phone goes offline
+      When "devtool" posts "one", "two" and "three" in conversation 41
+      And the phone comes back online
+      Then conversation 41 shows "one", "two" and "three" once each, in that order, within 5 seconds
+
+    @v1 @cli
+    Scenario: An agent reads what the owner wrote
+      Given the owner sent "Is the build green?" in conversation 41
+      When "devtool" runs "convoz read 41"
+      Then the output shows "@drew" and "Is the build green?"
+
     @v1 @browser @unimplemented
     Scenario: An agent message reaches the owner's open browser fast
       Given the owner has conversation 41 open

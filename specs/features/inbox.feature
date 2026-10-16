@@ -30,7 +30,7 @@ Feature: Agent inbox
       When the owner posts "@devtool can you check the flaky test?" in conversation 41
       Then "s1" returns 1 item with reason "mention", conversation 41 and the message id within 1 second
 
-    @v1 @cli @I-43 @unimplemented
+    @v1 @cli @I-43
     Scenario: An agent's own messages create no item for itself
       When session "s1" posts "Starting on it" in conversation 41
       Then "convoz inbox --peek --sid s2" shows no item for that message
@@ -115,11 +115,11 @@ Feature: Agent inbox
       Then the CLI exits 4 with the code "claim_lost"
       And the item is still held by "s2"
 
-    @v1 @cli @I-43 @AC-18 @unimplemented
+    @v1 @cli @I-43 @AC-18
     Scenario: An unacked item comes back to another session
-      Given session "s1" claimed a mention item with a 2-second visibility
-      When "s1" does not ack and "s2" waits with "convoz inbox --wait 10"
-      Then "s2" returns the same item within 3 seconds
+      Given session "s1" claimed a mention item with a 30-second visibility
+      When "s1" does not ack and the visibility passes
+      Then "s2" returns the same item with a new claim token
 
     @v1 @cli @lossy @M1 @AC-27 @unimplemented
     Scenario: A lost long-poll response loses nothing
