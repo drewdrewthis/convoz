@@ -310,7 +310,7 @@ Feature: Conversations
       And the owner's own message with an image tag shows as text too
       And a link whose label names another site shows the real site
       And hidden text-direction marks in a title or a message are not shown
-      And a hundred messages of 16384 characters each of "[", "[a](", "[a](x" or "[a]([a](" render in under half a second
+      And a hundred messages of 16384 characters each of "[", "[a](", "[a](x", "[a]([a](", "**", a backtick or "http://" and 2040 dots and "a", and ten of "[a](http://a.b) ", render, each shape in under half a second
 
     @v1 @browser @phone
     Scenario: On a phone the chat pages fit a 320 px screen with large tap targets

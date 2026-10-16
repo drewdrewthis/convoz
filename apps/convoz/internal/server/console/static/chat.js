@@ -185,30 +185,32 @@
 
   const link = (href, label) => el("a", { href, target: "_blank", rel: "noopener noreferrer" }, label);
 
-  // A host-like or email-like token inside a label: "paypal.com", "https://x.test/a", "me@x.test".
-  const NAMED = /(?:[\p{L}\p{N}._%+-]{1,64}@)?(?:https?:\/\/)?(?:[\p{L}\p{N}-]{1,63}\.){1,8}\p{L}{2,24}(?::\d{1,5})?/giu;
-  // A label that is only an IPv4 address, "localhost" or a dotless host ("intranet"), with an optional scheme and port.
-  const PLAIN_HOST = /^(?:https?:\/\/)?(?:\d{1,3}(?:\.\d{1,3}){3}|localhost|[\p{L}\p{N}-]{1,63})(?::\d{1,5})?$/iu;
   const bare = (host) => host.toLowerCase().replace(/^www\./, "");
+  // Blank-looking fillers that are letters or symbols, not spaces: Hangul fillers and the braille blank.
+  const FILLERS = /[\u115f\u1160\u3164\uffa0\u2800]/g;
 
-  /** honestLabel stops a link from naming one site and opening another: when the label holds any host or email that is
-   *  not the href's host, the real host is appended. The label is checked after NFKC and with ideographic dots read as dots,
-   *  so full-width and no-break-space tricks do not hide a name. Combining marks (even invisible ones such as U+034F) are
-   *  removed from the copy that is checked; the original is what is shown. */
+  /** honestLabel stops a link from naming one site and opening another. Allowlist rule: the label is normalised (NFKC,
+   *  format characters and combining marks removed, fillers and runs of spaces collapsed); if it then holds only letters
+   *  and spaces it is shown as it is. Any other character (digit, dot or dot look-alike, slash, colon, @, #, punctuation,
+   *  symbol) could build a host name, so the real host is appended, unless the label equals the real host or ends with it
+   *  after a space (scheme, "www." and case ignored). */
   function honestLabel(label, href) {
     const shown = label.trim();
+    if (/^[A-Za-z ]*$/.test(shown)) return shown; // plain ASCII words: nothing to normalise
+    const seen = shown.normalize("NFKC").replace(/[\p{Cf}\p{M}]/gu, "").replace(FILLERS, " ").replace(/\s+/g, " ").trim();
+    if (/^[\p{L}\p{Zs}]*$/u.test(seen)) return shown;
     const target = new URL(href);
-    const mail = target.protocol === "mailto:";
-    const real = mail ? target.pathname : target.host;
-    const seen = shown.normalize("NFKC").replace(/[\u3002\uff61]/g, ".").replace(/\p{M}/gu, "");
-    const plain = seen.trim();
-    if (!mail && PLAIN_HOST.test(plain) && bare(plain.replace(/^https?:\/\//i, "")) !== bare(real)) return `${shown} (${real})`;
-    for (const token of seen.match(NAMED) || []) {
-      let named = token.replace(/^https?:\/\//i, "");
-      if (token.includes("@")) named = mail ? token : token.split("@").pop();
-      if (bare(named) !== bare(real)) return `${shown} (${real})`;
-    }
-    return shown;
+    const real = bare(target.protocol === "mailto:" ? target.pathname : target.host);
+    const name = bare(seen.replace(/^https?:\/\//i, ""));
+    if (name === real || name.endsWith(` ${real}`)) return shown;
+    return `${shown} (${target.protocol === "mailto:" ? target.pathname : target.host})`;
+  }
+
+  /** trimTrailingPunctuation drops sentence punctuation from the end of a URL with one linear scan (a regex here was quadratic). */
+  function trimTrailingPunctuation(url) {
+    let end = url.length;
+    while (end > 0 && ".,;:!?)]".includes(url[end - 1])) end--;
+    return url.slice(0, end);
   }
 
   function inline(parent, text) {
@@ -224,7 +226,7 @@
       } else if (m[4] != null) {
         parent.append(el("strong", null, m[4]));
       } else {
-        const url = m[5].replace(/[.,;:!?)\]]+$/, "");
+        const url = trimTrailingPunctuation(m[5]);
         const href = safeUrl(url);
         parent.append(href ? link(href, url) : url, m[5].slice(url.length));
       }

@@ -791,18 +791,6 @@ scenario("On a phone an agent reply shows paragraphs, code and links safely", { 
   await expect(messageLog(page).locator("[onerror]")).toHaveCount(0);
   expect(await page.evaluate(() => (window as any).__pwned)).toBeUndefined();
 
-  // And a link whose label names another site shows the real site
-  await expect(reply.getByRole("link", { name: /bank\.example\.com/ })).toHaveText("bank.example.com (evil.example)");
-  await expect(reply.getByRole("link", { name: "our site" })).toHaveText("our site");
-  await agentPosts(u, "devtool", conv, ["Probes", ...["paypal.com ", "paypal.com\u00a0", "paypal\u3002com", "paypal\uff0ecom", "support@paypal.com", "Sign in to paypal.com", "paypal.c\u034fom", "10.0.0.1", "localhost", "intranet", "evil.example", "Sign in"].map((l) => `[${l}](https://evil.example/x)`)].join("\n"));
-  await expect(message(page, "Probes").locator("a")).toHaveText(["paypal.com (evil.example)", "paypal.com (evil.example)", "paypal\u3002com (evil.example)", "paypal\uff0ecom (evil.example)", "support@paypal.com (evil.example)", "Sign in to paypal.com (evil.example)", "paypal.c\u034fom (evil.example)", "10.0.0.1 (evil.example)", "localhost (evil.example)", "intranet (evil.example)", "evil.example", "Sign in"], { timeout: 3_000 });
-
-  // And hidden text-direction marks in a title or a message are not shown
-  await expect(reply).toContainText("not exetxt.");
-  expect(await reply.textContent()).not.toMatch(/[\u202e\u200b]/);
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Ship search filters");
-  await expect(page).toHaveTitle("Ship search filters - Convoz");
-
   // And the owner's own message with an image tag shows as text too
   await composer(page).fill(`${tag} **plain**`);
   await sendButton(page).click();
@@ -811,15 +799,30 @@ scenario("On a phone an agent reply shows paragraphs, code and links safely", { 
   await expect(messageLog(page).locator("img")).toHaveCount(0);
   await expect(mine.locator("strong")).toHaveCount(0);
 
-  // And a hundred messages of 16384 characters each of "[", "[a](", "[a](x" or "[a]([a](" render in under half a second
+  // And a link whose label names another site shows the real site
+  await expect(reply.getByRole("link", { name: /bank\.example\.com/ })).toHaveText("bank.example.com (evil.example)");
+  await expect(reply.getByRole("link", { name: "our site" })).toHaveText("our site");
+  await agentPosts(u, "devtool", conv, ["Probes", ...["paypal.com ", "paypal.com\u00a0", "paypal\u3002com", "paypal\uff0ecom", "support@paypal.com", "Sign in to paypal.com", "paypal.c\u034fom", "10.0.0.1", "localhost", "intranet", "evil.example", "Sign in", "here", "192.168.1.1/login", "localhost/x", "intranet/login", "Go to 192.168.1.1 now", "paypal. com", "paypal\u200a.\u200acom", "paypal\u2009.\u2009com", "paypal\u00b7com", "paypal\u06d4com", "paypal\u0589com", "paypal\u30fbcom", "paypal.c\u2800om", "PR #23"].map((l) => `[${l}](https://evil.example/x)`), "[docs](https://github.com/a/b)"].join("\n"));
+  await expect(message(page, "Probes").locator("a")).toHaveText(["paypal.com (evil.example)", "paypal.com (evil.example)", "paypal\u3002com (evil.example)", "paypal\uff0ecom (evil.example)", "support@paypal.com (evil.example)", "Sign in to paypal.com (evil.example)", "paypal.c\u034fom (evil.example)", "10.0.0.1 (evil.example)", "localhost", "intranet", "evil.example", "Sign in", "here", "192.168.1.1/login (evil.example)", "localhost/x (evil.example)", "intranet/login (evil.example)", "Go to 192.168.1.1 now (evil.example)", "paypal. com (evil.example)", "paypal\u200a.\u200acom (evil.example)", "paypal\u2009.\u2009com (evil.example)", "paypal\u00b7com (evil.example)", "paypal\u06d4com (evil.example)", "paypal\u0589com (evil.example)", "paypal\u30fbcom (evil.example)", "paypal.c\u2800om (evil.example)", "PR #23 (evil.example)", "docs"], { timeout: 3_000 });
+
+  // And hidden text-direction marks in a title or a message are not shown
+  await expect(reply).toContainText("not exetxt.");
+  expect(await reply.textContent()).not.toMatch(/[\u202e\u200b]/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Ship search filters");
+  await expect(page).toHaveTitle("Ship search filters - Convoz");
+
+  // And a hundred messages of 16384 characters each of "[", "[a](", "[a](x", "[a]([a](", "**", a backtick or "http://" and 2040 dots and "a", and ten of "[a](http://a.b) ", render, each shape in under half a second
   // (timed in Node on the real chat.js code: Chromium's regex engine falls back to a linear one, so a browser timing cannot fail)
   const render = loadRenderMarkdown();
-  const began = performance.now();
-  for (const unit of ["[", "[a](", "[a](x", "[a]([a]("]) {
+  const shapes = ["[", "[a](", "[a](x", "[a]([a](", "**".repeat(8192), "`".repeat(16384), "[a](http://a.b) ", "http://" + ".".repeat(2040) + "a"];
+  for (const unit of shapes) {
     const body = unit.repeat(Math.ceil(16384 / unit.length)).slice(0, 16384);
-    for (let i = 0; i < 100; i++) render(body);
+    const began = performance.now();
+    // a link flood is over a thousand real links per message: linear but heavy, so ten messages
+    const count = unit === "[a](http://a.b) " ? 10 : 100;
+    for (let i = 0; i < count; i++) render(body);
+    expect(performance.now() - began, JSON.stringify(unit.slice(0, 12))).toBeLessThan(500);
   }
-  expect(performance.now() - began).toBeLessThan(500);
 });
 
 scenario("On a phone the chat pages fit a 320 px screen with large tap targets", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
