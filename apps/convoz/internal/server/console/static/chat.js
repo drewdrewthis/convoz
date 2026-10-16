@@ -186,34 +186,89 @@
   const link = (href, label) => el("a", { href, target: "_blank", rel: "noopener noreferrer" }, label);
 
   const bare = (host) => host.toLowerCase().replace(/^www\./, "");
-  // Blank-looking fillers that are letters or symbols, not spaces: Hangul fillers and the braille blank.
-  const FILLERS = /[\u115f\u1160\u3164\uffa0\u2800]/g;
+  // Scripts a label may be written in. Han, kana and Hangul count as one group (Japanese and Korean mix them); every
+  // other script stands alone, and a letter from a script not listed here is never trusted.
+  const SCRIPTS = [
+    ["latin", /\p{Script_Extensions=Latin}/u], ["cyrillic", /\p{Script_Extensions=Cyrillic}/u], ["greek", /\p{Script_Extensions=Greek}/u],
+    ["cjk", /[\p{Script_Extensions=Han}\p{Script_Extensions=Hiragana}\p{Script_Extensions=Katakana}\p{Script_Extensions=Hangul}\p{Script_Extensions=Bopomofo}]/u],
+    ["arabic", /\p{Script_Extensions=Arabic}/u], ["hebrew", /\p{Script_Extensions=Hebrew}/u], ["devanagari", /\p{Script_Extensions=Devanagari}/u],
+    ["thai", /\p{Script_Extensions=Thai}/u], ["armenian", /\p{Script_Extensions=Armenian}/u], ["georgian", /\p{Script_Extensions=Georgian}/u],
+  ];
+  // Hangul fillers and the braille blank look empty; they are Lo or So, so they are named here and never trusted.
+  const FILLERS = /[ᅟᅠㅤﾠ⠀]/;
+  const NOT_BLANK = /[^\p{Cf}\p{M}\p{Z}\p{Cc}ᅟᅠㅤﾠ⠀]/u;
 
-  /** honestLabel stops a link from naming one site and opening another. Allowlist rule: the label is normalised (NFKC,
-   *  format characters and combining marks removed, fillers and runs of spaces collapsed); if it then holds only letters
-   *  and spaces it is shown as it is. Any other character (digit, dot or dot look-alike, slash, colon, @, #, punctuation,
-   *  symbol) could build a host name, so the real host is appended, unless the label equals the real host or ends with it
-   *  after a space (scheme, "www." and case ignored). */
-  function honestLabel(label, href) {
-    const shown = label.trim();
-    if (/^[A-Za-z ]*$/.test(shown)) return shown; // plain ASCII words: nothing to normalise
-    const seen = shown.normalize("NFKC").replace(/[\p{Cf}\p{M}]/gu, "").replace(FILLERS, " ").replace(/\s+/g, " ").trim();
-    if (/^[\p{L}\p{Zs}]*$/u.test(seen)) return shown;
-    const target = new URL(href);
-    const real = bare(target.protocol === "mailto:" ? target.pathname : target.host);
-    const name = bare(seen.replace(/^https?:\/\//i, ""));
-    if (name === real || name.endsWith(` ${real}`)) return shown;
-    return `${shown} (${target.protocol === "mailto:" ? target.pathname : target.host})`;
+  /** plainWords is true when text is words of ONE script: after NFC every character is a letter (Lu, Ll, Lt or Lo, never
+   *  Lm), a space (Zs), or a combining mark right after a letter. Dots, colons, slashes, digits, symbols, spacing accents
+   *  (Sk), modifier letters (Lm), format characters and fillers all fail, and so does a label that mixes scripts. */
+  function plainWords(text) {
+    if (/^[A-Za-z ]*$/.test(text)) return true;
+    let script = null;
+    let afterLetter = false;
+    for (const ch of text.normalize("NFC")) {
+      if (/\p{Zs}/u.test(ch)) {
+        afterLetter = false;
+      } else if (/\p{M}/u.test(ch)) {
+        if (!afterLetter) return false;
+      } else if (/[\p{Lu}\p{Ll}\p{Lt}\p{Lo}]/u.test(ch) && !FILLERS.test(ch)) {
+        const own = SCRIPTS.find(([, re]) => re.test(ch));
+        if (!own || (script && script !== own[0])) return false;
+        script = own[0];
+        afterLetter = true;
+      } else {
+        return false;
+      }
+    }
+    return true;
   }
 
-  /** trimTrailingPunctuation drops sentence punctuation from the end of a URL with one linear scan (a regex here was quadratic). */
+  /** honestLabel stops a link from naming one site and opening another. A blank or invisible label shows the real host.
+   *  A label made only of plainWords is shown as it is. Any other label could build a host name, so the real host is
+   *  appended, unless the label equals the real host (scheme, "www." and case ignored) or is plainWords followed by a
+   *  space and the real host. */
+  function honestLabel(label, href) {
+    const shown = label.trim();
+    const target = new URL(href);
+    const host = target.protocol === "mailto:" ? target.pathname : target.host;
+    if (!NOT_BLANK.test(shown)) return host;
+    if (plainWords(shown)) return shown;
+    const real = bare(host);
+    const name = shown.toLowerCase().replace(/^https?:\/\//, "");
+    if (bare(name) === real) return shown;
+    if (name.endsWith(` ${real}`) && plainWords(name.slice(0, -real.length - 1))) return shown;
+    return `${shown} (${host})`;
+  }
+
+  /** trimTrailingPunctuation drops sentence punctuation from the end of a URL with one linear scan (a regex here was
+   *  quadratic). A final ")" stays when the URL has a "(" for it. */
   function trimTrailingPunctuation(url) {
+    let open = 0;
+    let close = 0;
+    for (const ch of url) {
+      if (ch === "(") open++;
+      else if (ch === ")") close++;
+    }
     let end = url.length;
-    while (end > 0 && ".,;:!?)]".includes(url[end - 1])) end--;
+    while (end > 0 && ".,;:!?)]".includes(url[end - 1])) {
+      if (url[end - 1] === ")") {
+        if (open >= close) break;
+        close--;
+      }
+      end--;
+    }
     return url.slice(0, end);
   }
 
-  function inline(parent, text) {
+  // Links past this many in one message stay plain text: it bounds the work a link flood can cost.
+  const MAX_LINKS = 200;
+
+  /** bareLabel shows a bare URL as written, except that a non-ASCII host shows as its punycode form. */
+  function bareLabel(url, href) {
+    const authority = url.replace(/^https?:\/\//i, "").split(/[/?#]/, 1)[0];
+    return /[^\x00-\x7f]/.test(authority) ? new URL(href).host : url;
+  }
+
+  function inline(parent, text, budget) {
     let last = 0;
     for (const m of text.matchAll(INLINE)) {
       parent.append(text.slice(last, m.index));
@@ -221,14 +276,16 @@
       if (m[1] != null) {
         parent.append(el("code", null, m[1]));
       } else if (m[2] != null) {
-        const href = safeUrl(m[3]);
+        const href = budget.links > 0 ? safeUrl(m[3]) : null;
+        if (href) budget.links--;
         parent.append(href ? link(href, honestLabel(m[2], href)) : m[0]);
       } else if (m[4] != null) {
         parent.append(el("strong", null, m[4]));
       } else {
         const url = trimTrailingPunctuation(m[5]);
-        const href = safeUrl(url);
-        parent.append(href ? link(href, url) : url, m[5].slice(url.length));
+        const href = budget.links > 0 ? safeUrl(url) : null;
+        if (href) budget.links--;
+        parent.append(href ? link(href, bareLabel(url, href)) : url, m[5].slice(url.length));
       }
     }
     parent.append(text.slice(last));
@@ -238,11 +295,12 @@
   function renderMarkdown(source) {
     const root = el("div", { class: "text" });
     const lines = source.replace(/\r\n?/g, "\n").split("\n");
+    const budget = { links: MAX_LINKS };
     let para = [];
     const flush = () => {
       if (!para.length) return;
       const p = el("p");
-      inline(p, para.join("\n"));
+      inline(p, para.join("\n"), budget);
       root.append(p);
       para = [];
     };
