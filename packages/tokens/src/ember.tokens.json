@@ -1,0 +1,227 @@
+{
+  "$description": "Palette ember, from the prototype PAL.",
+  "light": {
+    "color": {
+      "bg": {
+        "$type": "color",
+        "$value": "#FAF1E9"
+      },
+      "surface": {
+        "$type": "color",
+        "$value": "#FEF9F5"
+      },
+      "raised": {
+        "$type": "color",
+        "$value": "#FEFEFE"
+      },
+      "border": {
+        "$type": "color",
+        "$value": "#EADDD3"
+      },
+      "text": {
+        "$type": "color",
+        "$value": "#24180D"
+      },
+      "edge": {
+        "$type": "color",
+        "$value": "#9A826F"
+      },
+      "onAccent": {
+        "$type": "color",
+        "$value": "#1B1410"
+      },
+      "accent": {
+        "$type": "color",
+        "$value": "#DE5C39"
+      },
+      "grad-1": {
+        "$type": "color",
+        "$value": "#F56F57"
+      },
+      "grad-2": {
+        "$type": "color",
+        "$value": "#FFA752"
+      },
+      "grad-3": {
+        "$type": "color",
+        "$value": "#EB6CA9"
+      },
+      "m1": {
+        "$type": "color",
+        "$value": "#FFD3C4"
+      },
+      "m2": {
+        "$type": "color",
+        "$value": "#FEE3BF"
+      },
+      "m3": {
+        "$type": "color",
+        "$value": "#F9D1E3"
+      },
+      "muted": {
+        "$type": "color",
+        "$value": "#6C594A"
+      },
+      "accentText": {
+        "$type": "color",
+        "$value": "#AD2E00"
+      },
+      "danger": {
+        "$type": "color",
+        "$value": "#BA0135"
+      },
+      "warning": {
+        "$type": "color",
+        "$value": "#785600"
+      },
+      "success": {
+        "$type": "color",
+        "$value": "#026A2E"
+      },
+      "info": {
+        "$type": "color",
+        "$value": "#006291"
+      },
+      "accent2": {
+        "$type": "color",
+        "$value": "#AD459B"
+      },
+      "gradRing-1": {
+        "$type": "color",
+        "$value": "#C84C37"
+      },
+      "gradRing-2": {
+        "$type": "color",
+        "$value": "#B06503"
+      },
+      "gradRing-3": {
+        "$type": "color",
+        "$value": "#BE4A84"
+      },
+      "ring": {
+        "$type": "color",
+        "$value": "#B06503"
+      },
+      "idle": {
+        "$type": "color",
+        "$value": "#857466"
+      },
+      "amber": {
+        "$type": "color",
+        "$value": "#9C7103"
+      }
+    }
+  },
+  "dark": {
+    "color": {
+      "bg": {
+        "$type": "color",
+        "$value": "#160C07"
+      },
+      "surface": {
+        "$type": "color",
+        "$value": "#1E130E"
+      },
+      "raised": {
+        "$type": "color",
+        "$value": "#271B15"
+      },
+      "border": {
+        "$type": "color",
+        "$value": "#372821"
+      },
+      "text": {
+        "$type": "color",
+        "$value": "#F4EBE6"
+      },
+      "edge": {
+        "$type": "color",
+        "$value": "#846352"
+      },
+      "onAccent": {
+        "$type": "color",
+        "$value": "#1B1410"
+      },
+      "accent": {
+        "$type": "color",
+        "$value": "#FF9477"
+      },
+      "grad-1": {
+        "$type": "color",
+        "$value": "#FD765D"
+      },
+      "grad-2": {
+        "$type": "color",
+        "$value": "#FFA752"
+      },
+      "grad-3": {
+        "$type": "color",
+        "$value": "#EB6CA9"
+      },
+      "m1": {
+        "$type": "color",
+        "$value": "#6F3421"
+      },
+      "m2": {
+        "$type": "color",
+        "$value": "#54360B"
+      },
+      "m3": {
+        "$type": "color",
+        "$value": "#5D2748"
+      },
+      "muted": {
+        "$type": "color",
+        "$value": "#C4A798"
+      },
+      "accentText": {
+        "$type": "color",
+        "$value": "#FBAE99"
+      },
+      "danger": {
+        "$type": "color",
+        "$value": "#FEAAAC"
+      },
+      "warning": {
+        "$type": "color",
+        "$value": "#EEBB58"
+      },
+      "success": {
+        "$type": "color",
+        "$value": "#83DC97"
+      },
+      "info": {
+        "$type": "color",
+        "$value": "#86CDFF"
+      },
+      "accent2": {
+        "$type": "color",
+        "$value": "#F88AE2"
+      },
+      "gradRing-1": {
+        "$type": "color",
+        "$value": "#D75A44"
+      },
+      "gradRing-2": {
+        "$type": "color",
+        "$value": "#BF6E05"
+      },
+      "gradRing-3": {
+        "$type": "color",
+        "$value": "#CE5993"
+      },
+      "ring": {
+        "$type": "color",
+        "$value": "#BF6E05"
+      },
+      "idle": {
+        "$type": "color",
+        "$value": "#987C6F"
+      },
+      "amber": {
+        "$type": "color",
+        "$value": "#FBC044"
+      }
+    }
+  }
+}

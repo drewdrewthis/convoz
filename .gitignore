@@ -5,3 +5,4 @@ test-results/
 apps/convoz/bin/
 *.log
 __pycache__/
+dist/

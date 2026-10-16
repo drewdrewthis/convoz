@@ -584,7 +584,7 @@ Unchanged from draft 7 §5.5 (`epoch:seq`, `reset`, snapshot with `as_of_seq`, `
 |---|---|---|---|
 | KEK (32 B) | systemd `LoadCredential` (DEFAULT, owner deploy step), read from `$CREDENTIALS_DIRECTORY`; boot refuses a missing or group/world-readable file | Wraps DEKs (AES-256-GCM, AAD = `dek_id‖purpose`) | `convoz keys rotate-kek`: rewrap the keyring, fsync, rename. Old KEKs kept until the last backup that uses them expires (35 d), then deleted. |
 | Keyring | `data/keyring.json` (wrapped DEKs only) | — | — |
-| DB DEK | purpose `db` | SQLite file, WAL, temp (Adiantum). `PRAGMA hexkey` right after open, never in a URI. | `convoz keys rotate-db`: maintenance mode, write a new file under the new key, verify, swap. |
+| DB DEK | purpose `db` | SQLite file, WAL, temp (Adiantum). `PRAGMA hexkey` right after open, never in a URI. One narrow exception: the pre-migration backup (Backups, §13) opens its destination with `hexkey` in the URI, because the online backup API takes a URI. That URI is built for that one target, is never logged, and errors are scrubbed of the key. | `convoz keys rotate-db`: maintenance mode, write a new file under the new key, verify, swap. |
 | Blob DEK | purpose `blob` | Wraps a random per-file key | New DEK for new uploads; background rewrap. |
 | Machine-key DEK | purpose `machine_key` | AES-256-GCM copy of each machine key; AAD = `convoz-machine-key-v1‖machine_id‖key_version`. Not Adiantum: GCM gives integrity, and the AAD stops a copy being moved to another row. | New DEK → rewrap all copies (≤10 rows). |
 | Push-topic key | purpose `push_topic` | HMAC key for Web Push `Topic` values (§10.3) | Rotate with the keyring; old topics expire within 24 h. |
@@ -1669,13 +1669,13 @@ One binary `convoz` (alias `cvz`). Credentials: `~/.config/convoz/credentials` (
 | `convoz setup [--as H] [--scope project\|user]` | register `convoz mcp` with Claude Code; print the one-line prompt | — |
 | `convoz serve [--config f]` · `convoz admin bootstrap-link` · `convoz keys rotate-kek\|rotate-db` · `convoz workspace destroy` | server · break-glass (admin socket) · key ops · crypto-shred | — |
 
-Exit codes: 0 ok, 2 usage, 3 auth (401/403), 4 conflict (409), 5 rate limited after retries, 6 network after retries. `--json` output is one object (or one line per item for `watch`). There is no `answer` command: humans answer in the app (C-3).
+Exit codes: 0 ok, 2 usage, 3 auth (401/403), 4 conflict (409), 5 rate limited after retries, 6 network after retries. `convoz serve` adds 10 (key: KEK missing, unreadable, or its file mode is not 0600/0400) and 11 (schema: the data dir is newer than this build). `--json` output is one object (or one line per item for `watch`). There is no `answer` command: humans answer in the app (C-3).
 
 ## 14. Migrations, versioning, backups, export, delete
 
 - **Migrations, event types, API versioning:** as draft 7 (clients send `X-Convoz-Client: web/<build>` or `convoz/<semver>`).
 - **Backups** (nightly and before each migration):
-  1. snapshot the DB. The S0 spike must **prove the snapshot is encrypted** (open it with a plain VFS → "file is not a database"). DEFAULT: the SQLite online backup API into a destination opened through the encrypted VFS with `PRAGMA hexkey` (no URI keys); if the driver cannot do that, `VACUUM INTO` through the same VFS, and if neither is provable, that is a D1 gate failure (SQLCipher);
+  1. snapshot the DB. The S0 spike must **prove the snapshot is encrypted** (open it with a plain VFS → "file is not a database"). DEFAULT: the SQLite online backup API into a destination opened through the encrypted VFS with `PRAGMA hexkey` (no URI keys, except the narrow backup-target exception in §6.2: the Go driver's `Backup` takes a destination URI); if the driver cannot do that, `VACUUM INTO` through the same VFS, and if neither is provable, that is a D1 gate failure (SQLCipher);
   2. tar it with `blobs/` and `keyring.json`; 3. `age`-encrypt to the pinned recipient; 4. sign with the pinned ed25519 key; 5. ship offsite to **append-only** storage (owner step: object lock or a write-only bucket key).
   - The verification key is also kept offline by the owner. Restore checks the signature first. Retention 7 daily + 4 weekly. A monthly restore drill runs in CI on a fixture.
 - **Export:** as draft 7.
