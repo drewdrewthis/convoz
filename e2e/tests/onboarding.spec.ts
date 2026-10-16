@@ -8,8 +8,11 @@ const DAY = 86_400_000;
 
 // Console pages these scenarios drive (role and text locators, so the S-U screens can pass the same bindings):
 //   /bootstrap#cvz_b_...  textbox "Handle", textbox "Display name", button "Register passkey"; errors in role=alert
-//   /onboarding           heading "Set up a second way in", text "Add a passkey on another device or a hardware key",
-//                         button "Add a passkey", list "Recovery codes" (10 items), button "Copy codes", button "Continue"
+//   after "Register passkey" (S-U0 order: codes first, then the second way in, see console-mobile.spec.ts)
+//                         heading "Save your recovery codes" (step 2 of 3): list "Recovery codes" (10 items), button "Copy codes",
+//                         button "Download codes", checkbox "I saved them", button "Continue" (disabled until the box is ticked)
+//   /onboarding           heading "Set up a second way in" (step 3 of 3), text "Add a passkey on another device or a hardware key",
+//                         button "Add a passkey", button "Skip for now" (goes to Now)
 //   /                     heading "Now"
 //   /signin               heading "Sign in", button "Sign in with a passkey"
 //   /settings/passkeys    heading "Passkeys", one listitem per passkey with button "Remove passkey", button "Add a passkey",
@@ -36,11 +39,16 @@ scenario("A bootstrap link registers the first passkey and makes the owner", { t
   await page.getByRole("textbox", { name: "Handle" }).fill("drew");
   await page.getByRole("textbox", { name: "Display name" }).fill("Drew");
   await page.getByRole("button", { name: "Register passkey" }).click();
-  await expect(page.getByRole("heading", { name: "Set up a second way in" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Save your recovery codes" })).toBeVisible();
   expect(await device.credentials()).toHaveLength(1);
 
-  // And the app shows Now
+  // And the owner saves the recovery codes and skips the second passkey for now
+  await page.getByRole("checkbox", { name: "I saved them" }).check();
   await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("heading", { name: "Set up a second way in" })).toBeVisible();
+  await page.getByRole("button", { name: "Skip for now" }).click();
+
+  // And the app shows Now
   await expect(page.getByRole("heading", { name: "Now", exact: true })).toBeVisible();
   const me = await page.request.get(`${local.origin}/api/me`);
   expect(me.status()).toBe(200);
@@ -97,18 +105,23 @@ scenario("Onboarding asks for a second passkey and shows recovery codes once", {
   await page.getByRole("textbox", { name: "Display name" }).fill("Drew");
   await page.getByRole("button", { name: "Register passkey" }).click();
 
-  // When onboarding continues, Then it asks for a passkey on another device or a hardware key
-  await expect(page.getByRole("heading", { name: "Set up a second way in" })).toBeVisible();
-  await expect(page.getByText("Add a passkey on another device or a hardware key")).toBeVisible();
-
-  // And it shows 10 recovery codes once with a copy button
+  // When onboarding continues, Then it first shows 10 recovery codes once with a copy button, and Continue waits for "I saved them"
+  await expect(page.getByRole("heading", { name: "Save your recovery codes" })).toBeVisible();
   const items = page.getByRole("list", { name: "Recovery codes" }).getByRole("listitem");
   await expect(items).toHaveCount(10);
   const codes = (await items.allInnerTexts()).map((t) => t.trim());
   expect(new Set(codes).size).toBe(10);
   expect(codes.every((c) => c.length > 0)).toBe(true);
   await expect(page.getByRole("button", { name: "Copy codes" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
+  await page.getByRole("checkbox", { name: "I saved them" }).check();
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  // And it then asks for a passkey on another device or a hardware key and lets the owner skip it for now
+  await expect(page.getByRole("heading", { name: "Set up a second way in" })).toBeVisible();
+  await expect(page.getByText("Add a passkey on another device or a hardware key")).toBeVisible();
   await expect(page.getByRole("button", { name: "Add a passkey" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Skip for now" })).toBeVisible();
 
   // And the codes are not shown again anywhere in the app
   const seen: string[] = [];

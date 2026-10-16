@@ -18,6 +18,7 @@ Feature: Onboarding and sign in
       When "convoz admin bootstrap-link" runs on the server box
       Then it prints a link of the form "https://convoz.<tailnet>.ts.net/bootstrap#cvz_b_…"
       And opening the link registers a virtual passkey for owner "drew"
+      And the owner saves the recovery codes and skips the second passkey for now
       And the app shows Now
 
     @v1 @api @AC-2
@@ -38,8 +39,8 @@ Feature: Onboarding and sign in
     Scenario: Onboarding asks for a second passkey and shows recovery codes once
       Given the owner registered the first passkey
       When onboarding continues
-      Then it asks for a passkey on another device or a hardware key
-      And it shows 10 recovery codes once with a copy button
+      Then it first shows 10 recovery codes once with a copy button, and Continue waits for "I saved them"
+      And it then asks for a passkey on another device or a hardware key and lets the owner skip it for now
       And the codes are not shown again anywhere in the app
 
     @v1 @browser @I-26 @unimplemented

@@ -127,6 +127,7 @@ def report_bindings(report_path):
                     "status": t.get("status"),
                     "results": [r.get("status") for r in t.get("results", [])],
                     "file": sp.get("file", suite.get("file", "")),
+                    "project": t.get("projectName", ""),
                 })
         for s in suite.get("suites", []):
             walk(s)
@@ -174,7 +175,10 @@ def check(specs_dir, tests_dir, report_path):
             if sc.name in rep or sc.name in src:
                 problems.append(f"{where}: {sc.name!r} is @needs-owner: run by hand, so it must have no binding")
             continue
-        runs = rep.get(sc.name, [])
+        # The "mobile" project (S-U0) runs every @browser scenario again as a phone. A @phone scenario runs only there, so its
+        # mobile run is its binding; for the others the desktop run is, and the mobile run is checked by the proof report.
+        phone = "@phone" in tags
+        runs = [r for r in rep.get(sc.name, []) if (r.get("project") == "mobile") == phone]
         n = max(len(runs), len(src.get(sc.name, [])))
         if n == 0:
             problems.append(f"{where}: {sc.name!r} has no binding")

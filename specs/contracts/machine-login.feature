@@ -70,3 +70,11 @@ Feature: Machine login with a device flow (contracts)
       When the owner approves a new request named "box-2"
       Then the server answers 409 with the code "machine_name_taken"
       And the key of the active "box-2" still works
+
+  Rule: Host info never breaks a login request
+
+    @v1 @api
+    Scenario: Host info made of markup characters never makes the server fail
+      When POST /api/device/code is sent with a host name of 200 characters from < > & " and \
+      Then it answers 200 or 400 and never 500
+      And when it answers 200 the stored host info holds none of those characters
