@@ -104,7 +104,8 @@
   }
 
   /** stripCf drops format characters (bidi controls, zero-width) so text cannot reorder or hide what the owner reads.
-   *  The server strips them from previews and rejects them in display names; titles and bodies are stored as sent, so they are stripped here. */
+   *  The server strips them from previews and rejects them in display names; titles and bodies are stored as sent, so they are stripped here.
+   *  Display names are stripped too, as a guard for rows saved before ValidDisplayName rejected Cf. */
   const stripCf = (text) => String(text).replace(/\p{Cf}/gu, "");
 
   // ---- Chats ------------------------------------------------------------------------------------------
@@ -169,8 +170,9 @@
 
   // ---- safe markdown ----------------------------------------------------------------------------------
 
-  // Every quantifier is bounded and the label class excludes "[", so a run of "[" fails each attempt at once: linear time.
-  const INLINE = /`([^`\n]{1,500})`|\[([^[\]\n]{1,200})\]\(([^)\s]{1,2048})\)|\*\*([^*\n]{1,500}?)\*\*|(https?:\/\/[^\s<>]{1,2048})/g;
+  // Every quantifier is bounded. The label class excludes "[" and the URL class excludes "(", "[" and whitespace, so a scan
+  // started at one "[" ends at the next one: O(1) work per start, linear overall.
+  const INLINE = /`([^`\n]{1,500})`|\[([^[\]\n]{1,200})\]\(([^()[\]\s]{1,2048})\)|\*\*([^*\n]{1,500}?)\*\*|(https?:\/\/[^\s<>]{1,2048})/g;
 
   /** safeUrl returns u when it is an absolute http, https or mailto URL, else null. */
   function safeUrl(u) {
@@ -185,17 +187,22 @@
 
   // A host-like or email-like token inside a label: "paypal.com", "https://x.test/a", "me@x.test".
   const NAMED = /(?:[\p{L}\p{N}._%+-]{1,64}@)?(?:https?:\/\/)?(?:[\p{L}\p{N}-]{1,63}\.){1,8}\p{L}{2,24}(?::\d{1,5})?/giu;
+  // A label that is only an IPv4 address, "localhost" or a dotless host ("intranet"), with an optional scheme and port.
+  const PLAIN_HOST = /^(?:https?:\/\/)?(?:\d{1,3}(?:\.\d{1,3}){3}|localhost|[\p{L}\p{N}-]{1,63})(?::\d{1,5})?$/iu;
   const bare = (host) => host.toLowerCase().replace(/^www\./, "");
 
   /** honestLabel stops a link from naming one site and opening another: when the label holds any host or email that is
    *  not the href's host, the real host is appended. The label is checked after NFKC and with ideographic dots read as dots,
-   *  so full-width and no-break-space tricks do not hide a name. */
+   *  so full-width and no-break-space tricks do not hide a name. Combining marks (even invisible ones such as U+034F) are
+   *  removed from the copy that is checked; the original is what is shown. */
   function honestLabel(label, href) {
     const shown = label.trim();
     const target = new URL(href);
     const mail = target.protocol === "mailto:";
     const real = mail ? target.pathname : target.host;
-    const seen = shown.normalize("NFKC").replace(/[\u3002\uff61]/g, ".");
+    const seen = shown.normalize("NFKC").replace(/[\u3002\uff61]/g, ".").replace(/\p{M}/gu, "");
+    const plain = seen.trim();
+    if (!mail && PLAIN_HOST.test(plain) && bare(plain.replace(/^https?:\/\//i, "")) !== bare(real)) return `${shown} (${real})`;
     for (const token of seen.match(NAMED) || []) {
       let named = token.replace(/^https?:\/\//i, "");
       if (token.includes("@")) named = mail ? token : token.split("@").pop();

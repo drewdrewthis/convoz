@@ -114,7 +114,7 @@ Unchanged from v1 section 5: `docs/owner-checks/<id>.md`, evidence in `evidence/
 2. **Red.** Scenarios land with a failing bound test in a test-only commit. CI runs the slice's scenarios on it (must fail) and on head (must pass). This is v1 AC-1.
 3. **Implement** until the bound scenario passes. Inner loop: `just e2e "<title>"` runs one scenario.
 4. **Parity gate** on the PR: bindings, no unknowns, zero `@unimplemented` in the slice, JUnit green.
-5. **Use-proof is automatic.** Each run saves a final screenshot per `@browser` scenario and a transcript (commands, HTTP calls, output and exit status) per `@cli` and `@mcp` scenario. The proof is `pnpm proof <base>` (the branch the PR targets, as for red-green), which writes `e2e/report/proof.html` after a leak scan; it is published as a screenshot in the PR.
+5. **Use-proof is automatic.** Each run saves a final screenshot per `@browser` scenario and a transcript (commands, HTTP calls, output and exit status) per `@cli` and `@mcp` scenario. The proof is `pnpm proof <base>` (the branch the PR targets, as for red-green), which writes `e2e/report/proof.html` after a leak scan; CI builds it on every PR, and the PR author attaches screenshots to the PR.
 6. **Bug fixes** land with a `@regression` scenario that fails without the fix.
 
 ## 11. Slice to scenarios-that-must-pass

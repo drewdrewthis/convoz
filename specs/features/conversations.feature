@@ -47,6 +47,7 @@ Feature: Conversations
       Given the owner has chats "Ship search filters" and "Deploy alerts runbook" on a phone
       When the owner taps "New chat", picks "devtool" and sends "Plan the search filters launch"
       Then the chat is titled "Plan the search filters launch" and names "@devtool"
+      And a reload shows the same chat with the message
       And Chats lists "Plan the search filters launch" above the other two
 
     @v1 @browser @phone
@@ -309,6 +310,7 @@ Feature: Conversations
       And the owner's own message with an image tag shows as text too
       And a link whose label names another site shows the real site
       And hidden text-direction marks in a title or a message are not shown
+      And a hundred messages of 16384 characters each of "[", "[a](", "[a](x" or "[a]([a](" render in under half a second
 
     @v1 @browser @phone
     Scenario: On a phone the chat pages fit a 320 px screen with large tap targets

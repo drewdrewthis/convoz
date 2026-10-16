@@ -33,7 +33,7 @@ pnpm --filter @convoz/e2e exec playwright install chromium   # once; the browser
 pnpm build:go    # apps/convoz/bin/convoz (release) and bin/convoz-test (-tags testhooks)
 pnpm e2e         # every Gherkin scenario against the real binary
 pnpm parity      # every v1 scenario has one passing binding
-pnpm proof <base> # (e.g. origin/master) after pnpm e2e: e2e/report/proof.html, each scenario's commands, HTTP calls, output and exit status, leak-scanned
+pnpm proof origin/master # after pnpm e2e: e2e/report/proof.html, each scenario's commands, HTTP calls, output and exit status, leak-scanned
 ```
 
 - `CONVOZ_BIN` picks the binary under test (default `apps/convoz/bin/convoz-test`, the testhooks build).

@@ -1,5 +1,6 @@
 import { agentPosts, appReturns, agentChoice, backButton, chatList, chatRow, chatsHeading, composer, dropStreams, fromBottom, hasBubble, isBold, mainNav, message, messageLog, newChat, newMessagePill, pushFrame, rowTitles, sendButton, smallChatTargets, uiWorld, unreadDot, workingNote } from "../lib/chat-ui.ts";
 import { convoz, createConversation, listConversations, messagesOf, ownerSays, startWatch, unreadOf, watchLines, chatWorld } from "../lib/chat.ts";
+import { loadRenderMarkdown } from "../lib/chat-markdown.ts";
 import { backgroundLuminance, box, overflowX } from "../lib/mobile.ts";
 import { expect, scenario } from "../lib/scenario.ts";
 import { webauthn } from "../lib/webauthn-browser.ts";
@@ -793,8 +794,8 @@ scenario("On a phone an agent reply shows paragraphs, code and links safely", { 
   // And a link whose label names another site shows the real site
   await expect(reply.getByRole("link", { name: /bank\.example\.com/ })).toHaveText("bank.example.com (evil.example)");
   await expect(reply.getByRole("link", { name: "our site" })).toHaveText("our site");
-  await agentPosts(u, "devtool", conv, ["Probes", ...["paypal.com ", "paypal.com\u00a0", "paypal\u3002com", "paypal\uff0ecom", "support@paypal.com", "Sign in to paypal.com", "evil.example", "Sign in"].map((l) => `[${l}](https://evil.example/x)`)].join("\n"));
-  await expect(message(page, "Probes").locator("a")).toHaveText(["paypal.com (evil.example)", "paypal.com (evil.example)", "paypal\u3002com (evil.example)", "paypal\uff0ecom (evil.example)", "support@paypal.com (evil.example)", "Sign in to paypal.com (evil.example)", "evil.example", "Sign in"], { timeout: 3_000 });
+  await agentPosts(u, "devtool", conv, ["Probes", ...["paypal.com ", "paypal.com\u00a0", "paypal\u3002com", "paypal\uff0ecom", "support@paypal.com", "Sign in to paypal.com", "paypal.c\u034fom", "10.0.0.1", "localhost", "intranet", "evil.example", "Sign in"].map((l) => `[${l}](https://evil.example/x)`)].join("\n"));
+  await expect(message(page, "Probes").locator("a")).toHaveText(["paypal.com (evil.example)", "paypal.com (evil.example)", "paypal\u3002com (evil.example)", "paypal\uff0ecom (evil.example)", "support@paypal.com (evil.example)", "Sign in to paypal.com (evil.example)", "paypal.c\u034fom (evil.example)", "10.0.0.1 (evil.example)", "localhost (evil.example)", "intranet (evil.example)", "evil.example", "Sign in"], { timeout: 3_000 });
 
   // And hidden text-direction marks in a title or a message are not shown
   await expect(reply).toContainText("not exetxt.");
@@ -810,19 +811,15 @@ scenario("On a phone an agent reply shows paragraphs, code and links safely", { 
   await expect(messageLog(page).locator("img")).toHaveCount(0);
   await expect(mine.locator("strong")).toHaveCount(0);
 
-  // And a hundred messages of 16384 opening brackets still open quickly
-  // (the agent rate limit stops a hundred real posts, so the list answer is widened to a hundred copies of one real message)
-  const heavy = await createConversation(u.w.owner, { participants: ["devtool"], title: "Brackets" });
-  await agentPosts(u, "devtool", heavy, "[".repeat(16384));
-  await page.route(new RegExp(`/api/conversations/${heavy}/messages\\?`), async (route) => {
-    const body = await (await route.fetch()).json();
-    const one = body.messages[0];
-    await route.fulfill({ json: { ...body, messages: Array.from({ length: 100 }, (_, i) => ({ ...one, id: one.id + i })) } });
-  });
-  const began = Date.now();
-  await page.goto(`${u.w.srv.origin}/chats/${heavy}`);
-  await expect(messageLog(page).locator("article")).toHaveCount(100, { timeout: 15_000 });
-  expect(Date.now() - began).toBeLessThan(8_000);
+  // And a hundred messages of 16384 characters each of "[", "[a](", "[a](x" or "[a]([a](" render in under half a second
+  // (timed in Node on the real chat.js code: Chromium's regex engine falls back to a linear one, so a browser timing cannot fail)
+  const render = loadRenderMarkdown();
+  const began = performance.now();
+  for (const unit of ["[", "[a](", "[a](x", "[a]([a]("]) {
+    const body = unit.repeat(Math.ceil(16384 / unit.length)).slice(0, 16384);
+    for (let i = 0; i < 100; i++) render(body);
+  }
+  expect(performance.now() - began).toBeLessThan(500);
 });
 
 scenario("On a phone the chat pages fit a 320 px screen with large tap targets", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
