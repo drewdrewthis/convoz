@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -34,7 +33,7 @@ func serve(args []string) int {
 	dataDir := fs.String("data-dir", "", "data directory")
 	kekFile := fs.String("kek-file", "", "KEK credential file")
 	listen := fs.String("listen", "127.0.0.1:0", "listen address: a loopback IP with a port, or unix:///path.sock (the socket behind `tailscale serve`)")
-	host := fs.String("host", "", "the name clients reach this server by, e.g. convoz.<tailnet>.ts.net (required)")
+	host := fs.String("host", "", "the name clients reach this server by, NAME or NAME:PORT when `tailscale serve` listens on a non-443 HTTPS port, e.g. convoz.<tailnet>.ts.net:8473 (required)")
 	adminSocket := fs.String("admin-socket", "", "unix socket for break-glass admin commands (mode 0600)")
 	tailscaleBin := fs.String("tailscale-bin", "tailscale", "the tailscale command")
 	tailscaleMode := fs.String("tailscale", "check", "check: read tailscale status at start and refuse if funnel is on; off: skip (development)")
@@ -60,9 +59,9 @@ func serve(args []string) int {
 	if *host == "" {
 		return fail(exitWall, errors.New("--host is required: the name clients reach this server by (convoz.<tailnet>.ts.net)"))
 	}
-	name := strings.ToLower(*host)
-	if !hostRE.MatchString(name) {
-		return fail(exitUsage, fmt.Errorf("--host %q is not a host name", *host))
+	name, publicPort, err := parseHost(*host)
+	if err != nil {
+		return fail(exitUsage, err)
 	}
 	if *adminSocket != "" && len(*adminSocket) > maxUnixPath {
 		return fail(exitUsage, errUnixPathLength)
@@ -118,7 +117,7 @@ func serve(args []string) int {
 	if !spec.unix {
 		cfg.Port = pub.Addr().(*net.TCPAddr).Port
 	}
-	cfg.Origin = originFor(name, cfg)
+	cfg.Origin = originFor(name, publicPort, cfg)
 	wa, err := auth.NewRelyingParty(name, cfg.Origin)
 	if err != nil {
 		return fail(1, err)
@@ -211,9 +210,13 @@ func (s listenSpec) target(ln net.Listener) string {
 	return ln.Addr().String()
 }
 
-// originFor is the exact Origin a browser sends: https://NAME, or plain http for a local NAME.
-func originFor(name string, cfg httpapi.Config) string {
+// originFor is the exact Origin a browser sends: https://NAME[:PORT], or plain http for a local NAME.
+// publicPort is the port clients type (0 for 443); the WebAuthn RP ID stays the bare name.
+func originFor(name string, publicPort int, cfg httpapi.Config) string {
 	if name != "localhost" {
+		if publicPort != 0 {
+			return "https://" + net.JoinHostPort(name, strconv.Itoa(publicPort))
+		}
 		return "https://" + name
 	}
 	if cfg.Unix {

@@ -39,7 +39,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: convoz serve --data-dir D --host NAME [--kek-file F] [--listen ADDR] [--admin-socket P] [--ready-file F] [--tailscale check|off] [--tailscale-bin B]\n"+
+	fmt.Fprintln(os.Stderr, "usage: convoz serve --data-dir D --host NAME[:PORT] [--kek-file F] [--listen ADDR] [--admin-socket P] [--ready-file F] [--tailscale check|off] [--tailscale-bin B]\n"+
 		"       convoz admin bootstrap-link [--admin-socket P]\n"+
 		"       convoz version")
 	os.Exit(exitUsage)
