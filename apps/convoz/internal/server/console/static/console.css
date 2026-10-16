@@ -1,0 +1,8 @@
+body { font: 16px/1.5 system-ui, sans-serif; margin: 0; background: #fff; color: #111; }
+@media (prefers-color-scheme: dark) { body { background: #111; color: #eee; } a { color: #8ab4ff; } }
+main { max-width: 36rem; margin: 2rem auto; padding: 0 1rem; }
+input { font: inherit; padding: .4rem; }
+button { font: inherit; padding: .4rem .9rem; }
+[role="alert"] { color: #b00020; font-weight: 600; }
+ul, ol { padding-left: 1.2rem; }
+ol[aria-label="Recovery codes"] { font-family: ui-monospace, monospace; }

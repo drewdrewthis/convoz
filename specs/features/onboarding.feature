@@ -97,7 +97,7 @@ Feature: Onboarding and sign in
       Then the app shows "Update ready · Reload"
       And the new version runs only after the owner taps Reload
 
-    @v1 @browser @phone @needs-owner @unimplemented
+    @v1 @browser @phone @needs-owner
     Scenario: The owner sets up Convoz on a real phone
       Given a bootstrap link made on the server box
       When the owner opens it on the phone over Tailscale and registers the phone's passkey

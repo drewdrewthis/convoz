@@ -2,10 +2,6 @@
 
 package httpapi
 
-import (
-	"net/http"
+import "net/http"
 
-	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
-)
-
-func registerTestHooks(*http.ServeMux, *db.Store) {}
+func registerTestHooks(*http.ServeMux, *Server) {}

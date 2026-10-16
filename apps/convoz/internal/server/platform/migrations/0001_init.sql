@@ -1,8 +1,10 @@
+-- owner: platform
 CREATE TABLE system_kv (
   key   TEXT NOT NULL PRIMARY KEY,
   value TEXT
 ) STRICT;
 
+-- owner: event
 CREATE TABLE events (
   id         INTEGER PRIMARY KEY,
   type       TEXT    NOT NULL,

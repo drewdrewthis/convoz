@@ -28,7 +28,7 @@ Feature: Security walls
       When "convoz serve" starts
       Then it exits non-zero with a message that funnel must be off
 
-    @v1 @browser @needs-owner @unimplemented
+    @v1 @browser @needs-owner
     Scenario: A device off the tailnet cannot connect
       When a phone with Tailscale off opens the server address
       Then the connection fails before any page loads

@@ -20,7 +20,8 @@ export default defineConfig({
   // The two greps split the suite, so every scenario runs exactly once. @phone (chromium 390x844) is unused in S1a.
   projects: [
     { name: "headless", grepInvert: /@browser/ },
-    { name: "chromium", grep: /@browser/, use: { ...devices["Desktop Chrome"] } },
+    // screenshot "on": the final screenshot of each browser scenario goes into the use-proof page (pnpm proof).
+    { name: "chromium", grep: /@browser/, use: { ...devices["Desktop Chrome"], screenshot: "on" } },
   ],
   reporter: [
     ["list"],

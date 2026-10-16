@@ -5,10 +5,13 @@ Checks (exit 1 on any failure, one line per problem):
   1. every `uses:` in .github/workflows is pinned to a 40-hex commit SHA;
   2. CI installs with `pnpm install --frozen-lockfile` and builds Go with -mod=readonly;
   3. `go mod verify` passes in apps/convoz;
-  4. the SQLite module's go.sum line equals apps/convoz/sqlite-module.sum.
+  4. the SQLite module's go.sum line equals apps/convoz/sqlite-module.sum;
+  5. the WebAuthn library is required at the pinned version and go.sum has its checksum;
+  6. Playwright is pinned to an exact version and CI installs its chromium.
 There is no Wasm file to hash: the engine ships inside the Go module, so its go.sum hash is the pin.
 """
 import importlib.util
+import json
 import os
 import re
 import subprocess
@@ -27,6 +30,8 @@ def _go_bin():
 
 GO_DIR = os.path.join(ROOT, "apps", "convoz")
 SQLITE_MODULE = "github.com/ncruces/go-sqlite3-wasm/v6"
+WEBAUTHN_MODULE = "github.com/go-webauthn/webauthn"
+WEBAUTHN_VERSION = "v0.18.2"  # the newest release at least 14 days old when S1a was built
 USES_RE = re.compile(r"^\s*-?\s*uses:\s*(\S+)")
 RUN_RE = re.compile(r"^(\s*)(?:-\s+)?run:\s*(.*)$")
 GOFLAGS_RE = re.compile(r"^\s*GOFLAGS:\s*(.*)$")
@@ -111,11 +116,35 @@ def check_sqlite_sum(problems):
         problems.append(f"SQLite module checksum differs: go.sum {lines} vs sqlite-module.sum {recorded}")
 
 
+def check_webauthn_pin(problems):
+    with open(os.path.join(GO_DIR, "go.mod"), encoding="utf-8") as fh:
+        required = re.findall(rf"^\s*{re.escape(WEBAUTHN_MODULE)}\s+(\S+)", fh.read(), re.M)
+    if required != [WEBAUTHN_VERSION]:
+        problems.append(f"go.mod must require {WEBAUTHN_MODULE} {WEBAUTHN_VERSION}, found {required}")
+    with open(os.path.join(GO_DIR, "go.sum"), encoding="utf-8") as fh:
+        sums = [l for l in fh if l.startswith(f"{WEBAUTHN_MODULE} {WEBAUTHN_VERSION} h1:")]
+    if not sums:
+        problems.append(f"go.sum has no checksum for {WEBAUTHN_MODULE} {WEBAUTHN_VERSION}")
+
+
+def check_playwright_pin(problems):
+    with open(os.path.join(ROOT, "e2e", "package.json"), encoding="utf-8") as fh:
+        version = json.load(fh).get("devDependencies", {}).get("@playwright/test", "")
+    if not re.fullmatch(r"\d+\.\d+\.\d+", version):
+        problems.append(f"e2e/package.json: @playwright/test must be an exact version, found {version!r}")
+    wf = os.path.join(ROOT, ".github", "workflows", "ci.yml")
+    with open(wf, encoding="utf-8") as fh:
+        if not re.search(r"playwright install\b.*\bchromium\b", fh.read()):
+            problems.append(".github/workflows/ci.yml: no step installs the pinned chromium (playwright install ... chromium)")
+
+
 def main():
     problems = []
     check_actions(problems)
     check_go_verify(problems)
     check_sqlite_sum(problems)
+    check_webauthn_pin(problems)
+    check_playwright_pin(problems)
     for p in problems:
         print(p)
     if not problems:

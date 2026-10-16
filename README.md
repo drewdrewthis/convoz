@@ -10,7 +10,7 @@ One place to talk with your agents and make their decisions.
 
 ## Status
 
-S0 (the skeleton) is built: the `convoz` binary with `serve` and `version`, the encrypted SQLite store with migrations and a pre-migration backup, the key hierarchy (KEK file, wrapped DEK keyring), the 10 end-to-end scenarios and the CI gates. The rest of the product is design only.
+S0 (the skeleton) and S1a (owner auth and the tailnet wall) are built: the `convoz` binary with `serve`, `admin bootstrap-link` and `version`; the encrypted SQLite store with migrations and a pre-migration backup; the key hierarchy (KEK file, wrapped DEK keyring); the owner's passkeys, recovery codes, device sessions and step-up; the wall (`--host`, loopback or unix socket only, funnel check, admin socket); a bare owner console for sign-in and onboarding; 32 end-to-end scenarios and the CI gates (module boundaries, red first / green at head). Machines, sessions and crew (S1b) and the rest of the product are design only.
 
 ### Build and test
 
@@ -18,6 +18,7 @@ Needs Go (see `apps/convoz/go.mod`), Node 24+, pnpm and Python 3.
 
 ```sh
 pnpm install --frozen-lockfile
+pnpm --filter @convoz/e2e exec playwright install chromium   # once; the browser scenarios use it
 pnpm build:go    # apps/convoz/bin/convoz (release) and bin/convoz-test (-tags testhooks)
 pnpm e2e         # every Gherkin scenario against the real binary
 pnpm parity      # every v1 scenario has one passing binding
@@ -26,7 +27,9 @@ pnpm proof       # after pnpm e2e: e2e/report/proof.html, each scenario's comman
 
 - `CONVOZ_BIN` picks the binary under test (default `apps/convoz/bin/convoz-test`, the testhooks build).
 - `GO_BIN` picks the Go tool for the e2e suite and the scripts (default: `go` on `PATH`).
-- SQL lives in `apps/convoz/internal/server/platform/queries/*.sql`. After a change run `make -C apps/convoz sqlc`; the generated code is committed and CI checks it with `go tool sqlc diff`. sqlc is pinned by the `tool` line in `apps/convoz/go.mod`.
+- SQL lives in `apps/convoz/internal/server/<module>/queries/*.sql`, one sqlc package per module. After a change run `make -C apps/convoz sqlc`; the generated code is committed and CI checks it with `go tool sqlc diff`. sqlc is pinned by the `tool` line in `apps/convoz/go.mod`.
+- `make -C apps/convoz lint-boundaries` checks the module boundaries: Go imports and table ownership (design §4.3).
+- Run a local server: `convoz serve --data-dir D --kek-file F --host localhost --tailscale off --admin-socket D/admin.sock`, then `convoz admin bootstrap-link --admin-socket D/admin.sock` and open the link it prints.
 
 - Design: [docs/design.md](docs/design.md) (draft 9). Open questions with default answers are in §17; build slices are in §16.
 - Testing: [docs/testing.md](docs/testing.md). The Gherkin scenarios are the spec, and every scenario runs end to end against a real `convoz serve`. Unit and component tests are optional aids for regressions and debugging.

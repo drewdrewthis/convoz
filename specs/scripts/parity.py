@@ -15,7 +15,10 @@ Rules (docs/testing.md §3, the S0 plan "Parity"):
      A scenario with neither @v1 nor @later fails, so a missing tag cannot hide it.
      A binding whose body has no `expect(` call asserts nothing and fails.
   5. One binding per Scenario Outline; its Examples rows run inside that one test.
-  6. The count of @unimplemented scenarios is always printed.
+  6. A @needs-owner scenario that is not @unimplemented is run by hand: it needs its runbook
+     `docs/owner-checks/<slug>.md` (next to the specs dir; slug = the title in lowercase, runs of
+     other characters as "-") and must have no binding. It is counted as "needs owner", never as passed.
+  7. The counts of @unimplemented and needs-owner scenarios are always printed.
 Bindings are read from the report (title and tags) and from the test sources
 (`scenario("<title>", ...)`, double-quoted, so a test that never ran is still seen).
 Output: one line per problem. Exit 1 if any problem, else 0.
@@ -28,6 +31,11 @@ import sys
 import tempfile
 
 DRIVERS = {"@browser", "@cli", "@mcp", "@api"}
+
+
+def runbook_slug(title):
+    """File stem of a scenario's owner runbook."""
+    return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
 BIND_RE = re.compile(r'\bscenario\(\s*("(?:[^"\\]|\\.)*")')
 EXPECT_RE = re.compile(r"\bexpect\s*\(")
 
@@ -129,7 +137,7 @@ def report_bindings(report_path):
 
 
 def check(specs_dir, tests_dir, report_path):
-    """Return (problems, unimplemented_count, bound_count)."""
+    """Return (problems, unimplemented_count, bound_count, needs_owner_count)."""
     cs = load_checker()
     problems = []
     parse_errors = []
@@ -142,6 +150,8 @@ def check(specs_dir, tests_dir, report_path):
     rep = report_bindings(report_path)
     unimpl = 0
     bound = 0
+    needs_owner = 0
+    runbooks = os.path.join(os.path.dirname(os.path.abspath(specs_dir)), "docs", "owner-checks")
 
     for sc in scenarios:
         tags = set(sc.tags)
@@ -155,6 +165,14 @@ def check(specs_dir, tests_dir, report_path):
             continue
         if "@v1" not in tags:
             problems.append(f"{where}: {sc.name!r} has neither @v1 nor @later; tag it")
+            continue
+        if "@needs-owner" in tags:
+            needs_owner += 1
+            slug = runbook_slug(sc.name)
+            if not os.path.isfile(os.path.join(runbooks, slug + ".md")):
+                problems.append(f"{where}: {sc.name!r} is @needs-owner and needs the runbook docs/owner-checks/{slug}.md")
+            if sc.name in rep or sc.name in src:
+                problems.append(f"{where}: {sc.name!r} is @needs-owner: run by hand, so it must have no binding")
             continue
         runs = rep.get(sc.name, [])
         n = max(len(runs), len(src.get(sc.name, [])))
@@ -184,7 +202,7 @@ def check(specs_dir, tests_dir, report_path):
         if title not in by_title:
             files = ", ".join(sorted({r["file"] for r in rep.get(title, [])} | set(src.get(title, []))))
             problems.append(f"{files}: binding {title!r} names no scenario")
-    return problems, unimpl, bound
+    return problems, unimpl, bound, needs_owner
 
 
 FEATURE = """Feature: Demo
@@ -245,53 +263,67 @@ def self_test():
 
         good = _report(("Alpha", ["@cli"], "passed", "expected", "passed"),
                        ("Beta", ["@cli"], "passed", "expected", "passed"))
-        p, u, _ = run_case(["Alpha", "Beta"], good)
+        p, u, _, _ = run_case(["Alpha", "Beta"], good)
         expect("clean run has no problems", p == [])
         expect("counts @unimplemented", u == 1)
 
-        p, _, _ = run_case(["Alpha", "Beta"], good, extra=UNTAGGED)
+        p, _, _, _ = run_case(["Alpha", "Beta"], good, extra=UNTAGGED)
         expect("catches a scenario with neither @v1 nor @later", any("'Untagged' has neither @v1 nor @later" in x for x in p))
 
-        p, _, _ = run_case(["Alpha", "Beta"], good, body="")
+        p, _, _, _ = run_case(["Alpha", "Beta"], good, body="")
         expect("catches a binding with an empty body", any("binding 'Alpha' has no expect( call" in x for x in p))
 
-        p, _, _ = run_case(["Alpha", "Beta"], good, body='// expect(1).toBe(1);\nconst s = "expect(1)";')
+        p, _, _, _ = run_case(["Alpha", "Beta"], good, body='// expect(1).toBe(1);\nconst s = "expect(1)";')
         expect("a commented or quoted expect( does not count", any("binding 'Beta' has no expect( call" in x for x in p))
 
-        p, _, _ = run_case(["Alpha", "Beta", "Gamma"], _report(
+        p, _, _, _ = run_case(["Alpha", "Beta", "Gamma"], _report(
             ("Alpha", ["@cli"], "passed", "expected", "passed"), ("Beta", ["@cli"], "passed", "expected", "passed"),
             ("Gamma", ["@api"], "passed", "expected", "passed")))
         expect("catches a stale @unimplemented tag", any("'Gamma' is bound but still tagged @unimplemented" in x for x in p))
 
-        p, _, _ = run_case(["Alpha", "Beta"], _report(("Alpha", ["@cli"], "passed", "expected", "passed")))
+        p, _, _, _ = run_case(["Alpha", "Beta"], _report(("Alpha", ["@cli"], "passed", "expected", "passed")))
         expect("catches a binding missing from the report", any("'Beta' is bound but did not run" in x for x in p))
 
-        p, _, _ = run_case(["Alpha"], _report(("Alpha", ["@cli"], "passed", "expected", "passed")))
+        p, _, _, _ = run_case(["Alpha"], _report(("Alpha", ["@cli"], "passed", "expected", "passed")))
         expect("catches an unbound scenario", any("'Beta' has no binding" in x for x in p))
 
-        p, _, _ = run_case(["Alpha", "Beta", "Nope"], _report(
+        p, _, _, _ = run_case(["Alpha", "Beta", "Nope"], _report(
             ("Alpha", ["@cli"], "passed", "expected", "passed"), ("Beta", ["@cli"], "passed", "expected", "passed"),
             ("Nope", ["@cli"], "passed", "expected", "passed")))
         expect("catches an unknown binding", any("'Nope' names no scenario" in x for x in p))
 
-        p, _, _ = run_case(["Alpha", "Beta"], _report(
+        p, _, _, _ = run_case(["Alpha", "Beta"], _report(
             ("Alpha", ["@cli"], "passed", "skipped", "skipped"), ("Beta", ["@cli"], "passed", "expected", "passed")))
         expect("catches a skipped test", any("'Alpha' did not pass" in x for x in p))
 
-        p, _, _ = run_case(["Alpha", "Beta"], _report(
+        p, _, _, _ = run_case(["Alpha", "Beta"], _report(
             ("Alpha", ["@cli"], "failed", "expected", "failed"), ("Beta", ["@cli"], "passed", "expected", "passed")))
         expect("catches an expected-fail test", any("'Alpha' expected status" in x for x in p))
 
-        p, _, _ = run_case(["Alpha", "Beta"], _report(
+        p, _, _, _ = run_case(["Alpha", "Beta"], _report(
             ("Alpha", ["@api"], "passed", "expected", "passed"), ("Beta", ["@cli"], "passed", "expected", "passed")))
         expect("catches a driver tag mismatch", any("driver tags differ" in x for x in p))
 
-        p, _, _ = run_case(["Alpha", "Beta"], _report(
+        p, _, _, _ = run_case(["Alpha", "Beta"], _report(
             ("Alpha", ["@cli"], "passed", "expected", "passed"), ("Beta", ["@cli"], "passed", "unexpected", "failed")))
         expect("catches a failing test", any("'Beta' did not pass" in x for x in p))
 
-        p, _, _ = run_case(["Alpha", "Beta", "Alpha"], good)
+        p, _, _, _ = run_case(["Alpha", "Beta", "Alpha"], good)
         expect("catches a double binding", any("'Alpha' has 2 bindings" in x for x in p))
+
+        owner_feature = "Feature: Phone\n  @v1 @browser @needs-owner\n  Scenario: On a real phone\n    When a\n    Then b\n"
+        runbook = os.path.join(d, "docs", "owner-checks", "on-a-real-phone.md")
+        p, _, _, n = run_case(["Alpha", "Beta"], good, extra=owner_feature)
+        expect("a @needs-owner scenario without its runbook fails", any("needs the runbook docs/owner-checks/on-a-real-phone.md" in x for x in p))
+        os.makedirs(os.path.dirname(runbook))
+        with open(runbook, "w") as fh:
+            fh.write("steps\n")
+        p, _, _, n = run_case(["Alpha", "Beta"], good, extra=owner_feature)
+        expect("a @needs-owner scenario with its runbook passes and is counted", p == [] and n == 1)
+        p, _, _, _ = run_case(["Alpha", "Beta", "On a real phone"], _report(
+            ("Alpha", ["@cli"], "passed", "expected", "passed"), ("Beta", ["@cli"], "passed", "expected", "passed"),
+            ("On a real phone", ["@browser"], "passed", "expected", "passed")), extra=owner_feature)
+        expect("a bound @needs-owner scenario fails", any("run by hand" in x for x in p))
     return 0 if ok else 1
 
 
@@ -306,10 +338,11 @@ def main(argv):
         print(f"{report}: no Playwright JSON report (run the e2e suite first)")
         print("unimplemented scenarios: unknown")
         return 1
-    problems, unimpl, bound = check(specs_dir, tests_dir, report)
+    problems, unimpl, bound, needs_owner = check(specs_dir, tests_dir, report)
     for p in problems:
         print(p)
     print(f"unimplemented scenarios: {unimpl}")
+    print(f"needs owner (run by hand, not passed): {needs_owner}")
     print(f"bound scenarios: {bound}; problems: {len(problems)}")
     return 1 if problems else 0
 

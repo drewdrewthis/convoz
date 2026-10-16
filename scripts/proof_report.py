@@ -19,12 +19,27 @@ MARKER = "TESTONLY"
 TOKEN = re.compile(r"cvz_[a-z]_[A-Za-z0-9_-]{8,}")
 HEX_RUN = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{64,}(?![0-9A-Fa-f])")
 # Hex split by spaces, colons or one line break (fingerprints, xxd, openssl); counted after the separators go.
-HEX_SPLIT = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{2,}(?:[ :]+|[ :]*\r?\n[ :]*)(?:[0-9A-Fa-f]{2,}(?:[ :]+|[ :]*\r?\n[ :]*))*[0-9A-Fa-f]{2,}(?![0-9A-Fa-f])")
+# A group is at most 32 hex chars: a longer line is not a split value (stacked 40-char git SHAs are not a key),
+# and a 64-char line is HEX_RUN's. Two 32-char halves over a line break are still one value.
+HEX_SPLIT = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{2,32}(?:[ :]+|[ :]*\r?\n[ :]*)(?:[0-9A-Fa-f]{2,32}(?:[ :]+|[ :]*\r?\n[ :]*))*[0-9A-Fa-f]{2,32}(?![0-9A-Fa-f])")
 # go.sum digest: 32 bytes of sha256 as exactly 43 base64 chars plus one "=".
 GO_SUM_DIGEST = re.compile(r"[A-Za-z0-9+/]{43}=")
 # 43 chars is the shortest base64 of 32 bytes; both alphabets, optional padding.
 B64_RUN = re.compile(r"(?<![A-Za-z0-9+/_-])[A-Za-z0-9+/_-]{43,}={0,2}")
+# WebAuthn ceremony fields are public protocol data (a one-time challenge, what the browser signed and sent back).
+WEBAUTHN_FIELD = re.compile(r'"(?:challenge|clientDataJSON|attestationObject|authenticatorData|signature)"\s*:\s*"$')
+# A fake Convoz token: its marker says so, and it is shown in full on purpose.
+TEST_TOKEN = re.compile(r"cvz_[a-z]_TESTONLY[A-Za-z0-9]*")
 PEM = re.compile(r"-----BEGIN [A-Z ]*(PRIVATE KEY|CERTIFICATE|PUBLIC KEY)?-----")
+
+
+FILLER = re.compile(r"(.)\1{15,}")
+
+
+def is_filler(run):
+    """Padding, not key material: one or two distinct characters, or a path (it has a "/") that is under
+    43 characters once every stretch of 16 or more equal characters ("aaaa...") is taken out."""
+    return len(set(run.lower())) <= 2 or ("/" in run and len(FILLER.sub("", run)) < 43)
 
 
 def is_test_b64(run):
@@ -38,14 +53,19 @@ def is_test_b64(run):
 
 
 def is_benign_b64(text, m):
-    """Shapes that are long base64-alphabet runs but not secrets: go.sum `h1:` digests, lowercase paths."""
+    """Shapes that are long base64-alphabet runs but not secrets: go.sum `h1:` digests, lowercase paths,
+    fake (TESTONLY) tokens and the public fields of a WebAuthn ceremony."""
     run = m.group(0)
     start = m.start()
     if text[max(0, start - 3):start] == "h1:" and (start < 4 or not text[start - 4].isalnum()):
         if GO_SUM_DIGEST.fullmatch(run):
             return True
+    if is_filler(run):
+        return True
     if HEX_RUN.fullmatch(run):
         return True  # hex is reported at 64+ only (HEX_RUN); shorter hex such as SHAs is not a key
+    if TEST_TOKEN.fullmatch(run) or WEBAUTHN_FIELD.search(text[max(0, start - 40):start]):
+        return True
     return "/" in run and run == run.lower()
 
 
@@ -65,7 +85,13 @@ def scenarios(report):
                 for a in result.get("attachments", [])
                 if a["name"] == "transcript" and "body" in a
             )
+            shots = [
+                base64.b64encode(Path(a["path"]).read_bytes()).decode()
+                for a in result.get("attachments", [])
+                if a.get("contentType") == "image/png" and a.get("path") and Path(a["path"]).is_file()
+            ]
             yield {
+                "shots": shots,
                 "title": spec["title"],
                 "tags": spec.get("tags", []),
                 "status": test["status"],
@@ -86,7 +112,7 @@ def leaks(scens):
         if not text.strip():
             found.append((title, "empty transcript", 0))
         found += [(title, "token", len(m.group(0))) for m in TOKEN.finditer(text) if MARKER not in m.group(0)]
-        found += [(title, "hex", len(m.group(0))) for m in HEX_RUN.finditer(text)]
+        found += [(title, "hex", len(m.group(0))) for m in HEX_RUN.finditer(text) if not is_filler(m.group(0))]
         for m in HEX_SPLIT.finditer(text):
             digits = len(re.sub(r"[\s:]", "", m.group(0)))
             if digits >= 64:
@@ -121,9 +147,11 @@ def render(scens, rev):
     for s in scens:
         cls = "ok" if s["status"] == "expected" else "bad"
         tags = "".join(f"<span class=tag>@{html.escape(t.lstrip('@'))}</span>" for t in s["tags"])
+        # The last screenshot is the final state of the page. Screenshots are pixels: the leak scan reads text only.
+        shot = f"<img alt='final screenshot' style='max-width:100%;margin-top:8px' src='data:image/png;base64,{s['shots'][-1]}'>" if s.get("shots") else ""
         parts.append(
             f"<section><h2>{html.escape(s['title'])}</h2><div>{tags}<span class={cls}>{html.escape(s['status'])}</span>"
-            f" &middot; {s['ms']} ms</div><pre>{html.escape(s['transcript'])}</pre></section>"
+            f" &middot; {s['ms']} ms</div>{shot}<pre>{html.escape(s['transcript'])}</pre></section>"
         )
     return "\n".join(parts)
 
@@ -175,8 +203,17 @@ def self_test():
         ("dashed token", "tok cvz_a_abc-def_ghi0123\n", {"token"}),
         ("TESTONLY token", "tok cvz_a_TESTONLY_abcd\n", set()),
         ("96 hex", hex16 * 6 + "\n", {"hex"}),
+        ("filler: one character repeated", "path /tmp/" + "a" * 110 + ".sock\n", set()),
+        ("a path with a filler segment", "stderr: path $TMP/convoz-s1a-RIOaag/" + "a" * 110 + ".sock\n", set()),
+        ("a key that merely contains a filler stretch", "kek " + mixed[:20] + "A" * 16 + mixed[20:] + "\n", {"base64"}),
         ("split hex, spaces", " ".join([hex16] * 4) + "\n", {"split hex"}),
         ("split hex, colons", ":".join([hex16] * 4) + "\n", {"split hex"}),
+        ("stacked 40-char git SHAs", "7cb8d65" + "0" * 33 + "\n" + "a1b2c3d" + "e" * 33 + "\n" + "0123456" + "f" * 33 + "\n", set()),
+        ("64 hex split 32/32 over a line break", hex16 * 2 + "\n" + hex16 * 2 + "\n", {"split hex"}),
+        ("WebAuthn challenge field", '{"publicKey":{"challenge":"' + plain_kek.rstrip("=").replace("+", "-").replace("/", "_") + '"}}\n', set()),
+        ("the same bytes outside a WebAuthn field", 'kek ' + plain_kek.rstrip("=").replace("+", "-").replace("/", "_") + "\n", {"base64"}),
+        ("TESTONLY token in a URL", "open https://convoz.testonly.ts.net/bootstrap#cvz_b_TESTONLY" + "aB3" * 14 + "\n", set()),
+        ("long real-looking token", "tok cvz_b_" + "aB3" * 15 + "\n", {"token", "base64"}),
         ("PEM", "-----BEGIN PRIVATE KEY-----\n", {"PEM header"}),
         ("empty transcript", "\n", {"empty transcript"}),
         ("benign output", benign, set()),

@@ -148,7 +148,9 @@ func (t *Tx) DBTX() DBTX { return t.tx }
 // SQL is the underlying transaction, for plain SQL (migrations, FTS maintenance).
 func (t *Tx) SQL() *sql.Tx { return t.tx }
 
-type txKey struct{}
+// txKey is per Writer: a ctx that carries writer A's transaction must never be
+// reused as a transaction of writer B (another database).
+type txKey struct{ w *Writer }
 
 // Tx runs fn in one write transaction (BEGIN IMMEDIATE). fn may read and write; an
 // error or panic rolls back. The ctx given to fn carries the transaction: a nested
@@ -156,7 +158,7 @@ type txKey struct{}
 // deadlock waiting for itself), and the outer commit or rollback covers it. A nested
 // call with a ctx that does not carry the transaction still blocks.
 func (w *Writer) Tx(ctx context.Context, fn func(ctx context.Context, tx *Tx) error) error {
-	if open, ok := ctx.Value(txKey{}).(*Tx); ok {
+	if open, ok := ctx.Value(txKey{w}).(*Tx); ok {
 		return fn(ctx, open)
 	}
 	sqlTx, err := w.sql.BeginTx(ctx, nil)
@@ -165,7 +167,7 @@ func (w *Writer) Tx(ctx context.Context, fn func(ctx context.Context, tx *Tx) er
 	}
 	defer func() { _ = sqlTx.Rollback() }() // harmless after Commit
 	tx := &Tx{tx: sqlTx}
-	if err := fn(context.WithValue(ctx, txKey{}, tx), tx); err != nil {
+	if err := fn(context.WithValue(ctx, txKey{w}, tx), tx); err != nil {
 		return err
 	}
 	return sqlTx.Commit()

@@ -223,10 +223,10 @@ Messages show the **identity**. The message details sheet shows the **session la
 
 The tailnet is the perimeter, so it must be real:
 - The server listens only on a Unix socket for `tailscale serve` (DEFAULT, if the S1 spike shows `serve` can proxy to `unix:`), else on `127.0.0.1` only. It never binds a tailnet or public address.
-- `Host` must be the configured name (`convoz.<tailnet>.ts.net`); anything else → 421, before auth.
-- Tailscale identity headers and `X-Forwarded-For` are **never an auth input**. They are used only to show "source", only when the peer is the serve socket (or loopback), and are stripped from every other request.
+- `Host` must be the configured name (`--host`, `convoz.<tailnet>.ts.net`; over loopback TCP also with the bound port); anything else → 421, before auth. On the unix socket `Host` stays `localhost` and `X-Forwarded-Host` must be the configured name.
+- Tailscale identity headers and `X-Forwarded-For` are **never an auth input**. They are trusted only on the unix socket (mode 0600, so only `tailscaled` reaches it), where they give the rate-limit source and the display of "source"; on loopback TCP they are stripped from every request. A request that carries `Tailscale-Funnel-Request` is refused with 403 whatever the start check said.
 - `Authorization`, cookies and request bodies of auth routes are never logged. A credential in a query string → 400 (and the URL is not logged).
-- At boot, the server reads `tailscale funnel status` (read-only). If funnel is on for its port, it refuses to start.
+- At boot, the server reads `tailscale serve status --json` (read-only): the top-level `AllowFunnel` map, every `Foreground` session and every `Services` entry. If funnel is on for a host:port that leads to its listen address (a web proxy or a TCP forward), it refuses to start (exit 13). Funnel on for another port does not stop it. A missing binary or an unreadable status also stops it unless `--tailscale off`.
 - Owner step (not done by this design): a tailnet ACL that limits which nodes reach the server.
 - Admin actions that must not be HTTP (break-glass) use a second Unix socket, `/run/convoz/admin.sock`, mode 0600, owned by the service user.
 - **Needs verification (S1 spike, read-only):** `serve` → Unix socket support; that `serve` passes the original node identity; that the service user can call LocalAPI `whois` and `funnel status`. Until the whois part passes, "source" shows "unknown" (every request behind `serve` looks like loopback).
@@ -457,15 +457,16 @@ Server — `apps/convoz/internal/server/<m>/` = `tables.sql`, `queries.sql` (sql
 | `ops` | — (backup, restore, export, delete, purge, rotate, nightly maintenance) | — |
 
 - The owner's `rail`, `star` and `pin` stay merged into `prefs` (one row per user and conversation).
-- **One tx across modules:** a command handler in module A calls `b.DoX(w *db.Writer, …)` through an interface that **A defines** (ports). Examples: `message.Post` calls `search.Index`, `agentrt.FanOut`, `audit.Write`; `conversation.Remove` calls `ask.CloseForRemoval`, `agentrt.ExpireFor`, `conversation.ReleasePickup`. Async side effects go only through events (C1, C2).
+- **One tx across modules:** a command handler in module A calls `b.DoX(ctx, tx *db.Tx, …)` through an interface that **A defines** (ports). `db.Tx` is the open write transaction of `Writer.Tx`; `ctx` is the context that `Writer.Tx` gave the callback, and it must be the one passed on: it carries the transaction, so a nested `Writer.Tx(ctx, …)` joins it instead of waiting for the one writer connection (a deadlock). The key is per `Writer`, so a ctx never joins a transaction of another database. Each module wraps the handle with its own sqlc `New(tx.DBTX())`, so every module writes in the same transaction and one error rolls all of it back. Examples: `message.Post` calls `search.Index`, `agentrt.FanOut`, `audit.Write`; `conversation.Remove` calls `ask.CloseForRemoval`, `agentrt.ExpireFor`, `conversation.ReleasePickup`. Async side effects go only through events (C1, C2).
+- **Composition roots:** `httpapi` and `cmd/convoz` are the only packages that import several modules. They open the `Writer.Tx` and call the modules inside it (for example `auth.ConsumeStepUp`, then `identity.CreateOwner`, then `audit.Write`). A module reads another module's data only through a port it declares itself (`auth.Human` is filled from `identity` by the root). Reads outside a transaction use `Reader.SQL()` as the sqlc handle.
 
 ### 4.3 Boundary rules (CI)
 
 | Rule | Tool |
 |---|---|
 | TS direction: `apps → features → packages`. A feature imports another feature only via its `index.ts`. `packages/*` never import `apps/*`. `ui` imports only `tokens`. | `eslint-plugin-boundaries` |
-| Go: `internal/server/<m>` may import `platform`, `authz`, `crypto` and the generated contracts, plus only the interfaces it declares. `internal/cli` and `internal/mcp` never import `internal/server/*`. | `go-arch-lint` + `depguard` |
-| Table ownership: every table named in `<m>/queries.sql` is in `<m>/tables.sql` | a CI script over the sqlc catalog |
+| Go: `internal/server/<m>` may import `platform`, `authz`, `crypto`, `internal/wire` and its own subpackages, plus only the interfaces it declares. `internal/cli` and `internal/mcp` never import `internal/server/*`. `time.Now`, `time.Since`, `time.Until` and `time.Sleep` appear in `internal/server` only in `platform/clock.go` (code takes a `platform.Clock`). | `scripts/check_go_imports.py` over `go list -json` (both tag sets); CI step `go-imports` (`make lint-boundaries` runs both checks) |
+| Table ownership: every `CREATE TABLE` has an `-- owner: <module>` line, and a module's `queries/*.sql` and SQL string literals name only tables it owns | `scripts/check_table_ownership.py`; CI step `table-ownership` |
 | Contract drift: generated code equals the committed code | `turbo run gen` + a diff check |
 
 ### 4.4 Testing (summary; the full strategy is `docs/testing.md`)
@@ -1669,7 +1670,9 @@ One binary `convoz` (alias `cvz`). Credentials: `~/.config/convoz/credentials` (
 | `convoz setup [--as H] [--scope project\|user]` | register `convoz mcp` with Claude Code; print the one-line prompt | — |
 | `convoz serve [--config f]` · `convoz admin bootstrap-link` · `convoz keys rotate-kek\|rotate-db` · `convoz workspace destroy` | server · break-glass (admin socket) · key ops · crypto-shred | — |
 
-Exit codes: 0 ok, 2 usage, 3 auth (401/403), 4 conflict (409), 5 rate limited after retries, 6 network after retries. `convoz serve` adds 10 (key: KEK missing, unreadable, or its file mode is not 0600/0400) 11 (schema: the data dir is newer than this build) and 12 (the data dir is in use by another process: it is locked with `flock` on `<data>/convoz.lock`). `--json` output is one object (or one line per item for `watch`). There is no `answer` command: humans answer in the app (C-3).
+`convoz serve --data-dir D --host NAME [--kek-file F] [--listen 127.0.0.1:PORT | unix:///abs/path.sock] [--admin-socket P] [--tailscale check|off] [--tailscale-bin B] [--ready-file F]`. `--host` is required: it is the only name the server answers to (and the WebAuthn RP ID). `--listen` takes a loopback IP or a unix socket (mode 0600) and nothing else. `--admin-socket` (mode 0600; the peer uid must be the server's) serves `POST /admin/bootstrap-link` for `convoz admin bootstrap-link [--admin-socket P]`, which prints the link. `--tailscale check` (the default) reads `tailscale serve status --json` at start and refuses to run if funnel is on for the listen address; `off` skips it (development). The ready file holds `{"listen":"tcp://127.0.0.1:N"|"unix:///…","admin":"unix:///…","pid":N}`.
+
+Exit codes: 0 ok, 2 usage (a unix socket path over 107 bytes included), 3 auth (401/403), 4 conflict (409), 5 rate limited after retries, 6 network after retries (the admin socket unreachable included). `convoz serve` adds 10 (key: KEK missing, unreadable, or its file mode is not 0600/0400) 11 (schema: the data dir is newer than this build) 12 (the data dir, or the `--listen` socket, is in use by another process: the data dir is locked with `flock` on `<data>/convoz.lock`) 13 (the wall: a listen address that is not loopback, `--host` missing, funnel on for this server, or the tailscale status unreadable or the binary missing under `--tailscale check`) and 14 (the admin socket cannot be created or secured: its parent directory is not ours or is writable by group or others, or a live socket is already there). `--json` output is one object (or one line per item for `watch`). There is no `answer` command: humans answer in the app (C-3).
 
 ## 14. Migrations, versioning, backups, export, delete
 

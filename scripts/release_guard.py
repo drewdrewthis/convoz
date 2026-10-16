@@ -4,9 +4,10 @@
 Usage: python3 scripts/release_guard.py <binary>
 Fails (exit 1) if the binary
   1. was built with -tags=testhooks (read from `go version -m`),
-  2. contains the string "/__test/", or
+  2. contains the string "/__test/", "TESTONLY" (the fake-token marker) or "CONVOZ_TEST_PLAINTEXT", or
   3. answers anything but 404 on a /__test/ route when booted with CONVOZ_TEST_ADMIN=1.
-The route list comes from the one Go constant (apps/convoz/internal/server/testroutes).
+The route list comes from the one Go constant (apps/convoz/internal/server/testroutes), so a new test
+route is probed without editing this script.
 """
 import base64
 import importlib.util
@@ -43,9 +44,10 @@ def test_routes():
     return res.stdout.split()
 
 
-def probe(url, method):
+def probe(url, method, host):
+    # The wall answers 421 to any Host but the one it serves, so the probe must send that one.
     req = urllib.request.Request(url, method=method, data=b"{}" if method == "POST" else None,
-                                 headers={"content-type": "application/json"})
+                                 headers={"content-type": "application/json", "Host": host})
     try:
         return urllib.request.urlopen(req, timeout=5).status
     except urllib.error.HTTPError as e:
@@ -61,7 +63,7 @@ def boot_and_probe(binary, routes, problems):
     ready = os.path.join(work, "ready.json")
     env = {"PATH": os.environ.get("PATH", ""), "CONVOZ_TEST_ADMIN": "1"}
     proc = subprocess.Popen([binary, "serve", "--data-dir", os.path.join(work, "data"), "--kek-file", kek,
-                             "--listen", "127.0.0.1:0", "--ready-file", ready],
+                             "--listen", "127.0.0.1:0", "--host", "localhost", "--tailscale", "off", "--ready-file", ready],
                             env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         deadline = time.time() + 15
@@ -78,13 +80,14 @@ def boot_and_probe(binary, routes, problems):
             problems.append("binary did not become ready, so its test routes could not be probed")
             return
         base = "http://" + listen.removeprefix("tcp://")
+        host = "localhost:" + listen.rsplit(":", 1)[1]
         for route in routes:
             # GET alone could pass for a route that only takes POST, so POST follows every 404.
-            status = probe(base + route, "GET")
+            status = probe(base + route, "GET", host)
             if status != 404:
                 problems.append(f"GET {route} answered {status}, must be 404")
                 continue
-            status = probe(base + route, "POST")
+            status = probe(base + route, "POST", host)
             if status != 404:
                 problems.append(f"POST {route} answered {status}, must be 404")
     finally:
@@ -108,8 +111,10 @@ def main():
     elif re.search(r"-tags=\S*testhooks", info.stdout):
         problems.append("binary was built with -tags=testhooks")
     with open(binary, "rb") as fh:
-        if b"/__test/" in fh.read():
-            problems.append('binary contains the string "/__test/"')
+        content = fh.read()
+    for marker in (b"/__test/", b"TESTONLY", b"CONVOZ_TEST_PLAINTEXT"):
+        if marker in content:
+            problems.append(f'binary contains the string "{marker.decode()}"')
     boot_and_probe(binary, test_routes(), problems)
     for p in problems:
         print("release_guard:", p)
