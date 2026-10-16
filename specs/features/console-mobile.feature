@@ -218,7 +218,7 @@ Feature: Console on a phone
         | Second way in      |
 
     @v1 @browser @phone
-    Scenario: The console is dark by default and has a light look
+    Scenario: The console follows the phone's dark or light setting
       Given the owner is on a phone
       When the owner opens each page with the phone set to dark and to light
       Then the pages are dark when the phone is dark

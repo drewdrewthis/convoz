@@ -81,6 +81,7 @@ def is_benign_b64(text, m):
 # metacharacter ($ ` ( ) < > ; | & quotes, braces) can chain or expand into a command that
 # prints one 80-hex value. The one `$` allowed is the literal $TMP/ the transcript writer puts in for a scratch path.
 REVISION_LINE = re.compile(r"\$ (?:git [a-z][a-z-]*|python3 -I \./scripts/red_green\.py)(?: (?:[\w@%+=:,./^~-]+|\$TMP/[\w./-]+))*")
+ALL_HEX_WORD = re.compile(r"[0-9A-Fa-f:]+")
 LONE_SHA = re.compile(r"[0-9A-Fa-f]{40}")
 
 
@@ -93,8 +94,9 @@ def is_sha_stack(text, m):
     end = text.find("\n", m.end())
     lines = text[start:len(text) if end < 0 else end].splitlines()
     if len(lines) == 1 and REVISION_LINE.fullmatch(lines[0]):
-        words = [w for w in lines[0].split() if HEX_GROUP.fullmatch(w)]
-        return len(words) >= 2 and all(len(w) == 40 for w in words)
+        # Every hex group of every all-hex word (space- or colon-joined: "sha:hex", "ab:cd:...") must be a whole SHA.
+        groups = [g for w in lines[0].split() if ALL_HEX_WORD.fullmatch(w) for g in HEX_GROUP.findall(w)]
+        return len(groups) >= 2 and all(len(g) == 40 for g in groups)
     return len(lines) >= 2 and all(LONE_SHA.fullmatch(line.strip()) for line in lines)
 
 
@@ -266,6 +268,8 @@ def self_test():
         ("SHAs inside a command substitution", "$ git diff $(echo " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + ")\n", {"split hex"}),
         ("SHAs inside backticks", "$ git diff `echo " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + "`\n", {"split hex"}),
         ("SHAs after a redirect", "$ git diff " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + " > out\n", {"split hex"}),
+        ("SHAs then a colon-joined hex tail on a git log line", "$ git log " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + " " + ":".join(hashlib.sha1(b"c").hexdigest()[i:i + 2] for i in range(0, 40, 2)) + "\n", {"split hex"}),
+        ("a SHA then a colon-joined hex tail on a git show line", "$ git show " + hashlib.sha1(b"a").hexdigest() + ":" + hashlib.sha1(b"b").hexdigest()[:30] + "\n", {"split hex"}),
         ("SHAs piped after a git command", "$ git log | echo " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + "\n", {"split hex"}),
     ]
     failed = 0

@@ -75,7 +75,7 @@
  *
  * STEP-UP (S1a routes) actions added: machine.approve, machine.reveal, machine.regenerate, machine.revoke, machine.allow,
  *   identity.create, identity.disable. A passkey added by a recovery code is refused at POST /api/auth/step-up/verify with
- *   403 passkey_too_new ("too new") for 24 hours for machine.reveal, machine.regenerate and machine.revoke (plus S1a's passkey.remove,
+ *   403 passkey_too_new ("too new") for 24 hours for machine.approve, machine.reveal, machine.regenerate, machine.revoke and machine.allow (plus S1a's passkey.remove,
  *   recovery.regenerate). A step-up is single use, for one action and target, 5 minutes.
  *
  * AUDIT AND EVENTS  Audit rows (GET /api/admin/audit -> {audit:[{action,target_kind,target_id,...}]}) for machine.approved,

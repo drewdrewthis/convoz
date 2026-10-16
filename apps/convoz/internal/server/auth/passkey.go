@@ -211,6 +211,20 @@ func ListPasskeys(ctx context.Context, d pdb.DBTX, humanID int64) ([]Passkey, er
 	return out, nil
 }
 
+// ActivePasskey finds h's active passkey by id; ok is false when h has no such passkey.
+func ActivePasskey(ctx context.Context, d pdb.DBTX, humanID, passkeyID int64) (Passkey, bool, error) {
+	keys, err := ListPasskeys(ctx, d, humanID)
+	if err != nil {
+		return Passkey{}, false, err
+	}
+	for _, k := range keys {
+		if k.ID == passkeyID {
+			return k, true, nil
+		}
+	}
+	return Passkey{}, false, nil
+}
+
 // PasskeyByCredential finds an active passkey by credential id; ok is false when there is none.
 func PasskeyByCredential(ctx context.Context, d pdb.DBTX, credentialID []byte) (Passkey, bool, error) {
 	q := db.New(d)

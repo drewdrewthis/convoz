@@ -92,3 +92,11 @@ func TestDestructiveActionsWaitForARecoveryPasskey(t *testing.T) {
 		t.Fatalf("adding a passkey is not destructive: %v", err)
 	}
 }
+
+func TestDestructiveActionsNeedStepUp(t *testing.T) {
+	for action := range DestructiveActions {
+		if !StepUpActions[action] {
+			t.Errorf("%s is destructive but cannot be asked for as a step-up", action)
+		}
+	}
+}

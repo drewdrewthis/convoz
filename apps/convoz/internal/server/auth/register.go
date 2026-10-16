@@ -79,14 +79,12 @@ func callerHold(ctx context.Context, d pdb.DBTX, in RegisterInput, now time.Time
 	if in.Limited || in.PasskeyID == 0 {
 		return 0, nil
 	}
-	keys, err := ListPasskeys(ctx, d, in.Human.ID)
+	k, ok, err := ActivePasskey(ctx, d, in.Human.ID, in.PasskeyID)
 	if err != nil {
 		return 0, err
 	}
-	for _, k := range keys {
-		if k.ID == in.PasskeyID && k.DestructiveAt > now.UnixMilli() {
-			return k.DestructiveAt, nil
-		}
+	if ok && k.DestructiveAt > now.UnixMilli() {
+		return k.DestructiveAt, nil
 	}
 	return 0, nil
 }

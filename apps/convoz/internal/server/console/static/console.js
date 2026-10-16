@@ -107,6 +107,11 @@ function humanError(err) {
         return "This passkey was added less than 24 hours ago. Actions like this need an older passkey, so try again later or sign in with an older one.";
       case "invalid_credential": return "That passkey did not work. Try again.";
       case "machine_cap": return "Ten machines are active. Revoke one before approving another.";
+      case "bootstrap_used": return "This setup link was already used.";
+      case "bootstrap_expired": return "This setup link expired.";
+      case "bootstrap_invalid": return "This setup link is not valid.";
+      case "not_found": return "That is gone. Reload the page.";
+      case "limited_device": return "This device may only add a passkey.";
     }
     // These server messages are written for the owner and name what to fix (a machine name, a field); every other
     // code gets the generic line, so an internal or unexpected message never reaches the page.
@@ -114,7 +119,7 @@ function humanError(err) {
     return "Something went wrong. Try again.";
   }
   if (name === "TypeError") return "Could not reach Convoz. Check your connection and try again.";
-  return (err && err.message) || "Something went wrong. Try again.";
+  return "Something went wrong. Try again.";
 }
 
 // ---- WebAuthn tickets --------------------------------------------------------------------------------

@@ -84,22 +84,16 @@ func RecoveryNote(ctx context.Context, d pdb.DBTX, humanID, passkeyID int64, now
 	if passkeyID == 0 {
 		return nil, nil
 	}
-	keys, err := ListPasskeys(ctx, d, humanID)
-	if err != nil {
+	k, ok, err := ActivePasskey(ctx, d, humanID, passkeyID)
+	if err != nil || !ok || k.RegisteredVia != "recovery" {
 		return nil, err
 	}
-	for _, k := range keys {
-		if k.ID != passkeyID || k.RegisteredVia != "recovery" {
-			continue
-		}
-		note := &RecoveryNoteInfo{}
-		if now.UnixMilli() < k.DestructiveAt {
-			note.HoldUntil = &k.DestructiveAt
-		}
-		if note.CodesLeft, err = RecoveryCodesLeft(ctx, d, humanID); err != nil {
-			return nil, err
-		}
-		return note, nil
+	note := &RecoveryNoteInfo{}
+	if now.UnixMilli() < k.DestructiveAt {
+		note.HoldUntil = &k.DestructiveAt
 	}
-	return nil, nil
+	if note.CodesLeft, err = RecoveryCodesLeft(ctx, d, humanID); err != nil {
+		return nil, err
+	}
+	return note, nil
 }

@@ -1,0 +1,4 @@
+# One line per exception. See scripts/red_green.py.
+# title at the test-only commit | reason          (skipped in the overlay run)
+# old title | new title | reason                  (red from old, green from new; old skipped in the overlay run)
+The console is dark by default and has a light look | The console follows the phone's dark or light setting | Chromium cannot emulate no colour preference (it matches light); the dark fallback is tested in console_test.go

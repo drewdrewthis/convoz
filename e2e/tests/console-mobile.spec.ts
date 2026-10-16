@@ -298,7 +298,7 @@ scenario("Recovery codes are shown once with Copy and Download", { tag: ["@brows
   expect(codes.filter((c) => !file.includes(c))).toEqual([]);
 });
 
-scenario("A used, expired or missing setup link says what happened and how to get a new one", { tag: ["@browser"] }, async ({ server, testApi, page }) => {
+scenario("A used, expired or missing setup link says what happened and how to get a new one", { tag: ["@browser"] }, async ({ server, testApi, page, context }) => {
   const srv = await server(local);
   const expired = await makeBootstrapLink(srv.adminSocket!);
   await testApi(srv).advanceClock(601_000);
@@ -317,6 +317,16 @@ scenario("A used, expired or missing setup link says what happened and how to ge
     await expect(page.getByText("convoz admin bootstrap-link"), c.state).toBeVisible();
     await expect(page.getByRole("textbox"), c.state).toHaveCount(0);
   }
+
+  // A link used between the check and the tap shows the plain "already used" line, not a raw server message
+  const raced = await makeBootstrapLink(srv.adminSocket!);
+  await (await webauthn(context, page)).add();
+  await page.goto(`${srv.origin}/bootstrap#${raced.token}`);
+  await expect(page.getByRole("heading", { name: "Welcome to Convoz" })).toBeVisible();
+  await bootstrapOwner(srv, { link: raced, handle: "other", displayName: "Other" });
+  await page.getByRole("textbox", { name: "Handle" }).fill("drew");
+  await page.getByRole("textbox", { name: "Display name" }).fill("Drew");
+  await expect(page.getByText("This setup link was already used.")).toBeVisible();
 });
 
 scenario("A used setup link opened while signed in offers Go to Convoz", { tag: ["@browser"] }, async ({ server, page, context }) => {
@@ -682,7 +692,7 @@ scenario("No page scrolls sideways on a phone", { tag: ["@browser", "@phone"] },
   expect(wide).toEqual([]);
 });
 
-scenario("The console is dark by default and has a light look", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {
+scenario("The console follows the phone's dark or light setting", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {
   // Given the owner is on a phone
   const srv = await server(local);
   const owner = await bootstrapOwner(srv);
