@@ -8,7 +8,9 @@ import base64
 import contextlib
 import hashlib
 import html
+import importlib.util
 import io
+import os
 import json
 import re
 import subprocess
@@ -38,12 +40,14 @@ PEM = re.compile(r"-----BEGIN [A-Z ]*(PRIVATE KEY|CERTIFICATE|PUBLIC KEY)?-----"
 
 
 FILLER = re.compile(r"(.)\1{15,}")
+# A short unit repeated three or more times with nothing else ("wide_code_line_" x 20): test text, never key material.
+PERIODIC = re.compile(r"(.{1,16})\1{2,}")
 
 
 def is_filler(run):
-    """Padding, not key material: one or two distinct characters, or a path (it has a "/") that is under
+    """Padding, not key material: one or two distinct characters, a short unit repeated, or a path (it has a "/") that is under
     43 characters once every stretch of 16 or more equal characters ("aaaa...") is taken out."""
-    return len(set(run.lower())) <= 2 or ("/" in run and len(FILLER.sub("", run)) < 43)
+    return len(set(run.lower())) <= 2 or (PERIODIC.fullmatch(run) is not None and not HEX_RUN.fullmatch(run)) or ("/" in run and len(FILLER.sub("", run)) < 43)
 
 
 def is_test_b64(run):
@@ -89,16 +93,18 @@ SHORT_HEX_BUDGET = 32
 
 def is_sha_stack(text, m):
     """Git SHAs, not one long value. Either every line the match touches is one 40-hex token and nothing else
-    (stacked lines), or the match sits on a recorded revision command line (REVISION_LINE) where every hex run of 8+
-    digits anywhere in any word is exactly a 40-hex SHA (so "zz<24 hex>", "v1.<24 hex>" and "sha:hex" leak) and the
-    short runs (under 8) add up to at most SHORT_HEX_BUDGET digits (so colon-joined "ab:cd:..." leaks).
+    (stacked lines), or the match sits on a recorded revision command line (REVISION_LINE) and the hex runs of the
+    match itself are all exactly 40-hex SHAs (at least two) or short (under 8) words that add up to at most
+    SHORT_HEX_BUDGET digits. The rules read the match's own groups, not the whole line: a long hex word elsewhere on
+    the line must not excuse a hidden 40-hex value inside the match, nor the other way round. So "zz<24 hex>",
+    "v1.<24 hex>" and "sha:hex" inside the match leak, and so does colon-joined "ab:cd:...".
     Two 40-hex groups on any other command (echo, printf), any other line, or on lines with other text, are one
     80-hex value, not two SHAs."""
     start = text.rfind("\n", 0, m.start()) + 1
     end = text.find("\n", m.end())
     lines = text[start:len(text) if end < 0 else end].splitlines()
     if len(lines) == 1 and REVISION_LINE.fullmatch(lines[0]):
-        runs = HEX_ANY.findall(lines[0])
+        runs = HEX_ANY.findall(m.group(0))
         long_runs = [r for r in runs if len(r) >= 8]
         short_digits = sum(len(r) for r in runs if len(r) < 8)
         return (len(long_runs) >= 2 and all(LONE_SHA.fullmatch(r) for r in long_runs)
@@ -181,16 +187,28 @@ pre{background:#010409;border-radius:4px;padding:10px;margin:8px 0 0;overflow-x:
 """
 
 
-EXCEPTIONS = Path(__file__).resolve().parent.parent / "specs" / "red-green-exceptions.txt"
+EXCEPTIONS_PATH = "specs/red-green-exceptions.txt"
+BASE_REF = os.environ.get("PROOF_BASE", "origin/master")
 
 
-def exception_lines():
-    """The active lines of specs/red-green-exceptions.txt, so a reviewer of the page sees what red_green may skip."""
-    try:
-        lines = EXCEPTIONS.read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return []
-    return [ln.strip() for ln in lines if ln.strip() and not ln.lstrip().startswith("#")]
+def added_exception_lines(base=None):
+    """The exception lines this branch added: the same source as red_green.py (diff merge-base(base, HEAD)..HEAD, added
+    lines only), so the page lists what red_green may skip and not older lines it ignores. None when git cannot say:
+    an empty list would read as "no exceptions", so the caller must fail instead."""
+    def git(*args):
+        r = subprocess.run(["git", *args], capture_output=True, text=True, timeout=60)
+        return r.stdout if r.returncode == 0 else None
+    merge_base = git("merge-base", base or BASE_REF, "HEAD")
+    diff = git("diff", "--unified=0", merge_base.strip(), "HEAD", "--", EXCEPTIONS_PATH) if merge_base else None
+    return exceptions_in_diff(diff) if diff is not None else None
+
+
+def exceptions_in_diff(diff):
+    """The active exception lines a unified diff adds; comments and blank lines are not exceptions."""
+    spec = importlib.util.spec_from_file_location("red_green", Path(__file__).resolve().with_name("red_green.py"))
+    red_green = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(red_green)  # python -I drops the script directory from sys.path, so load it by path
+    return [ln.strip() for ln in red_green.added_lines(diff).splitlines() if ln.strip() and not ln.lstrip().startswith("#")]
 
 
 def render(scens, rev, exceptions=()):
@@ -198,7 +216,7 @@ def render(scens, rev, exceptions=()):
              f"<h1>Convoz use-proof</h1><div class=meta>commit {html.escape(rev)} &middot; {len(scens)} scenarios &middot; leak scan clean</div>"]
     if exceptions:
         items = "".join(f"<li>{html.escape(e)}</li>" for e in exceptions)
-        parts.append(f"<section><h2>Red/green exceptions in specs/red-green-exceptions.txt</h2>"
+        parts.append(f"<section><h2>Red/green exceptions this branch added</h2>"
                      f"<div class=meta>red_green.py applies only the lines this PR added.</div><ul>{items}</ul></section>")
     for s in scens:
         cls = "ok" if s["status"] == "expected" else "bad"
@@ -227,7 +245,11 @@ def main(argv):
             label = "EMPTY" if kind in ("empty transcript", "no scenarios") else "LEAK"
             print(f"{label} ({kind}, {length} chars) in '{title}'", file=sys.stderr)
         return 1
-    out.write_text(render(scens, commit(), exception_lines()))
+    exceptions = added_exception_lines()
+    if exceptions is None:
+        print(f"unknown: cannot tell which red/green exceptions this branch added (no merge-base with {BASE_REF})", file=sys.stderr)
+        return 1
+    out.write_text(render(scens, commit(), exceptions))
     return 0
 
 
@@ -264,16 +286,18 @@ def self_test():
         ("96 hex", hex16 * 6 + "\n", {"hex"}),
         ("filler: one character repeated", "path /tmp/" + "a" * 110 + ".sock\n", set()),
         ("a path with a filler segment", "stderr: path $TMP/convoz-s1a-RIOaag/" + "a" * 110 + ".sock\n", set()),
+        ("a short unit repeated is test text", "code " + "wide_code_line_" * 20 + "\n", set()),
+        ("a key that ends in a repeated unit", "kek " + mixed + "abcabcabc" + "\n", {"base64"}),
         ("a key that merely contains a filler stretch", "kek " + mixed[:20] + "A" * 16 + mixed[20:] + "\n", {"base64"}),
         ("split hex, spaces", " ".join([hex16] * 4) + "\n", {"split hex"}),
         ("split hex, colons", ":".join([hex16] * 4) + "\n", {"split hex"}),
         ("stacked 40-char git SHAs", "".join(hashlib.sha1(n).hexdigest() + "\n" for n in (b"alpha", b"beta", b"gamma")), set()),
-        ("two SHA arguments on a recorded command line", "$ git diff " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + " --stat\n", set()),
-        ("two SHA arguments to the red/green checker", "$ python3 -I ./scripts/red_green.py " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + " --runner r\n", set()),
-        ("two 40-hex words on a recorded command that is not git", "$ echo " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + "\n", {"split hex"}),
-        ("80 hex as two 40-hex groups on one line", hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + "\n", {"split hex"}),
-        ("80 hex as two 40-hex lines with text before the first", "key " + hashlib.sha1(b"a").hexdigest() + "\n" + hashlib.sha1(b"b").hexdigest() + "\n", {"split hex"}),
-        ("80 hex in one run", hashlib.sha1(b"a").hexdigest() + hashlib.sha1(b"b").hexdigest() + "\n", {"hex"}),
+        ("two SHA arguments on a recorded command line", "$ git diff " + sha_a + " " + sha_b + " --stat\n", set()),
+        ("two SHA arguments to the red/green checker", "$ python3 -I ./scripts/red_green.py " + sha_a + " " + sha_b + " --runner r\n", set()),
+        ("two 40-hex words on a recorded command that is not git", "$ echo " + sha_a + " " + sha_b + "\n", {"split hex"}),
+        ("80 hex as two 40-hex groups on one line", sha_a + " " + sha_b + "\n", {"split hex"}),
+        ("80 hex as two 40-hex lines with text before the first", "key " + sha_a + "\n" + sha_b + "\n", {"split hex"}),
+        ("80 hex in one run", sha_a + sha_b + "\n", {"hex"}),
         ("64 hex wrapped 40+24", hex64[:40] + "\n" + hex64[40:] + "\n", {"split hex"}),
         ("64 hex wrapped 33+31", hex64[:33] + "\n" + hex64[33:] + "\n", {"split hex"}),
         ("over-length secret after challenge", '{"challenge":"' + long_secret + '"}\n', {"base64"}),
@@ -286,17 +310,19 @@ def self_test():
         ("PEM", "-----BEGIN PRIVATE KEY-----\n", {"PEM header"}),
         ("empty transcript", "\n", {"empty transcript"}),
         ("benign output", benign, set()),
-        ("SHAs chained after a git command with a semicolon", "$ git status; echo " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + "\n", {"split hex"}),
-        ("a $TMP scratch path on the red/green line", "$ python3 -I ./scripts/red_green.py " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + " --runner $TMP/x-1/runner\n", set()),
-        ("SHAs inside a command substitution", "$ git diff $(echo " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + ")\n", {"split hex"}),
-        ("SHAs inside backticks", "$ git diff `echo " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + "`\n", {"split hex"}),
-        ("SHAs after a redirect", "$ git diff " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + " > out\n", {"split hex"}),
-        ("SHAs then a colon-joined hex tail on a git log line", "$ git log " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + " " + ":".join(hashlib.sha1(b"c").hexdigest()[i:i + 2] for i in range(0, 40, 2)) + "\n", {"split hex"}),
-        ("a SHA then a colon-joined hex tail on a git show line", "$ git show " + hashlib.sha1(b"a").hexdigest() + ":" + hashlib.sha1(b"b").hexdigest()[:30] + "\n", {"split hex"}),
-        ("SHAs piped after a git command", "$ git log | echo " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + "\n", {"split hex"}),
+        ("SHAs chained after a git command with a semicolon", "$ git status; echo " + sha_a + " " + sha_b + "\n", {"split hex"}),
+        ("a $TMP scratch path on the red/green line", "$ python3 -I ./scripts/red_green.py " + sha_a + " " + sha_b + " --runner $TMP/x-1/runner\n", set()),
+        ("SHAs inside a command substitution", "$ git diff $(echo " + sha_a + " " + sha_b + ")\n", {"split hex"}),
+        ("SHAs inside backticks", "$ git diff `echo " + sha_a + " " + sha_b + "`\n", {"split hex"}),
+        ("SHAs after a redirect", "$ git diff " + sha_a + " " + sha_b + " > out\n", {"split hex"}),
+        ("SHAs then a colon-joined hex tail on a git log line", "$ git log " + sha_a + " " + sha_b + " " + ":".join(hashlib.sha1(b"c").hexdigest()[i:i + 2] for i in range(0, 40, 2)) + "\n", {"split hex"}),
+        ("a SHA then a colon-joined hex tail on a git show line", "$ git show " + sha_a + ":" + sha_b[:30] + "\n", {"split hex"}),
+        ("SHAs piped after a git command", "$ git log | echo " + sha_a + " " + sha_b + "\n", {"split hex"}),
         ("a prefix word glued to hex between two SHAs", "$ git log " + sha_a + " zz" + hex64[:24] + " " + sha_b + "\n", {"split hex"}),
         ("a dotted v1 prefix on hex between two SHAs", "$ git log " + sha_a + " v1." + hex64[:24] + " " + sha_b + "\n", {"split hex"}),
         ("a range of two SHAs", "$ git log " + sha_a + ".." + sha_b + "\n", set()),
+        ("a long SHA is not hidden by a SHA elsewhere on the line", "$ git log " + sha_a + " " + " ".join([hex16[:7]] * 3) + " abc x " + sha_b + "\n", {"split hex"}),
+        ("short words between two SHAs on a git line", "$ git log " + sha_a + " cafe " + sha_b + "\n", set()),
     ]
     failed = 0
     for title, text, want in cases:
@@ -305,6 +331,8 @@ def self_test():
             failed += 1
             print(f"FAIL {title}: want {sorted(want)}, got {sorted(got)}", file=sys.stderr)
     failed += self_test_multi_test()
+    failed += self_test_exceptions()
+    failed += self_test_unknown_exceptions()
     failed += self_test_run(plain_kek)
     print("self-test failed" if failed else "self-test ok", file=sys.stderr if failed else sys.stdout)
     return 1 if failed else 0
@@ -331,6 +359,40 @@ def self_test_multi_test():
         for p in problems:
             print(f"FAIL multi-test: {p}", file=sys.stderr)
         return len(problems)
+
+
+def self_test_exceptions():
+    """The page lists only the exception lines the branch added, the same lines red_green.py applies."""
+    diff = ("--- a/specs/red-green-exceptions.txt\n+++ b/specs/red-green-exceptions.txt\n@@ -1,2 +1,4 @@\n"
+            " kept | an older line\n-gone | removed line\n+new | added line\n+# a comment\n+\n+old | new2 | renamed\n")
+    want = ["new | added line", "old | new2 | renamed"]
+    if exceptions_in_diff(diff) != want:
+        print(f"FAIL exceptions: got {exceptions_in_diff(diff)}, want {want}", file=sys.stderr)
+        return 1
+    return 0
+
+
+def self_test_unknown_exceptions():
+    """No merge-base with the base ref: the answer is unknown and the run fails, never an empty exceptions list."""
+    global BASE_REF
+    if added_exception_lines("refs/heads/no-such-base-for-self-test") is not None:
+        print("FAIL unknown exceptions: a missing base returned a list", file=sys.stderr)
+        return 1
+    with tempfile.TemporaryDirectory(prefix="proof-self-test-") as tmp:
+        results, page = Path(tmp) / "results.json", Path(tmp) / "proof.html"
+        results.write_text(json.dumps({"suites": [{"specs": [{"title": "t", "tags": [], "tests": [{"status": "expected", "results": [
+            {"duration": 1, "attachments": [{"name": "transcript", "body": base64.b64encode(b"ok\n").decode()}]}]}]}]}]}))
+        saved, BASE_REF = BASE_REF, "refs/heads/no-such-base-for-self-test"
+        err = io.StringIO()
+        try:
+            with contextlib.redirect_stderr(err):
+                code = main(["proof_report.py", str(results), str(page)])
+        finally:
+            BASE_REF = saved
+        if code != 1 or "unknown" not in err.getvalue() or page.exists():
+            print(f"FAIL unknown exceptions: exit {code}, page {page.exists()}, stderr {err.getvalue()!r}", file=sys.stderr)
+            return 1
+    return 0
 
 
 def self_test_run(plain_kek):

@@ -180,7 +180,8 @@ func Extend(ctx context.Context, d pdb.DBTX, now time.Time, sessionID, leaseExpi
 type Released struct{ Identity, Conversation int64 }
 
 // ReleaseSessions lets the claims of ending sessions run out at once; the next claim of the identity merges them
-// back. Every path that ends a lease calls it with the ended ids, in the same transaction.
+// back. Every path that ends a lease, a re-mint of the same client included, calls it with the ended ids, in the
+// same transaction.
 func ReleaseSessions(ctx context.Context, d pdb.DBTX, now time.Time, sessionIDs []int64) ([]Released, error) {
 	q := db.New(d)
 	var out []Released

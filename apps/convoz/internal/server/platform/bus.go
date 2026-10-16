@@ -6,8 +6,9 @@ import "sync"
 type Frame struct {
 	Event string
 	Data  []byte
-	// Conversation is the conversation the frame is about, 0 for none. A stream writes a frame only to a reader who
-	// may see that conversation, as it does for a stored event.
+	// Conversation is the conversation the frame is about. A stream writes a frame only to a reader who may see
+	// that conversation, as it does for a stored event. A frame with Conversation 0 is refused, so a publisher that
+	// forgets the conversation leaks to nobody.
 	Conversation int64
 }
 

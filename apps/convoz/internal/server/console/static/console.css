@@ -8,6 +8,8 @@
   --text: #f3f4f6;
   --muted: #9ba0aa;
   --accent: #4c8dff;
+  --bubble: #2c2e33;
+  --pulse: #55d68f;
   --accent-ink: #04112b;
   --danger: #ff7b7b;
   --ok: #55d68f;
@@ -27,6 +29,8 @@
     --text: #14151a;
     --muted: #5e636e;
     --accent: #1f64e0;
+    --bubble: #e4e5ea;
+    --pulse: #1a8a4d;
     --accent-ink: #ffffff;
     --danger: #c42828;
     --ok: #1a8a4d;
@@ -185,3 +189,87 @@ dialog .sheet-actions { position: sticky; bottom: 0; display: flex; flex-directi
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* ---- app bar actions ---- */
+.bar-actions { display: flex; align-items: center; gap: 4px; }
+.iconbtn { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; color: var(--text); text-decoration: none; flex: none; }
+.iconbtn:active { background: var(--raised); }
+.iconbtn svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---- Chats list ---- */
+body[data-page="chats"] h1 { margin-bottom: 4px; }
+.chatlist { list-style: none; margin: 0 -16px; padding: 0; }
+.chatlist li + li { border-top: 1px solid var(--line); margin-left: 76px; }
+.chatlist li + li .chatrow { margin-left: -76px; padding-left: 16px; }
+.chatrow { display: flex; align-items: center; gap: 14px; min-height: 76px; padding: 12px 16px; color: var(--text); text-decoration: none; }
+.chatrow:active { background: var(--surface); }
+.ava { flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: var(--raised); color: var(--muted); font-weight: 700; font-size: 1.1rem; text-transform: uppercase; }
+.rowbody { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.rowtop, .rowbot { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; min-width: 0; }
+.rowtitle { font-size: 1.05rem; font-weight: 500; margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.when { flex: none; color: var(--muted); font-size: .8rem; }
+.preview { color: var(--muted); font-size: .95rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.unread .rowtitle { font-weight: 700; }
+.unread .preview { color: var(--text); }
+.unread .when { color: var(--accent); }
+.flag { flex: none; display: inline-flex; align-items: center; gap: 6px; color: var(--accent); font-size: .8rem; font-weight: 700; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+.emptystate { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 8px; flex: 1; padding: 48px 16px; }
+.emptystate svg { width: 56px; height: 56px; fill: none; stroke: var(--muted); stroke-width: 1.4; stroke-linejoin: round; }
+.emptystate .btn { width: auto; min-width: 12rem; margin-top: 8px; }
+
+/* ---- conversation: the frame fills the visible screen, the log scrolls, the composer is pinned ---- */
+body[data-chat] { overflow: hidden; overscroll-behavior: none; }
+.chatframe { position: fixed; left: 0; right: 0; top: var(--vv-top, 0px); height: var(--vv-h, 100dvh); display: flex; flex-direction: column; background: var(--bg); }
+.chatbar { position: static; justify-content: flex-start; gap: 4px; flex: none; padding-left: max(6px, env(safe-area-inset-left)); }
+.titles { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; padding: 6px 8px; }
+.titles h1 { font-size: 1.05rem; line-height: 1.25; font-weight: 650; letter-spacing: -.01em; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.subtitle { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--muted); font-size: .8rem; line-height: 1.25; white-space: nowrap; }
+.subtitle .presence::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 50%; background: var(--muted); vertical-align: 1px; }
+.subtitle .presence.on::before { background: var(--ok); }
+.subtitle .presence.busy::before { background: var(--pulse); animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .25; } }
+.chatmain { flex: 1; min-height: 0; width: 100%; max-width: 44rem; margin: 0 auto; padding: 0; display: flex; flex-direction: column; }
+.picker { padding: 16px max(16px, env(safe-area-inset-right)) calc(16px + var(--bottom)) max(16px, env(safe-area-inset-left)); overflow-y: auto; }
+.picker h2 { margin-bottom: 12px; color: var(--muted); font-size: .85rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+.agents { list-style: none; margin: 0; padding: 0; background: var(--surface); border-radius: var(--radius); overflow: hidden; }
+.agents li + li { border-top: 1px solid var(--line); }
+.agentbtn { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 68px; padding: 10px 16px; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.agentbtn:active { background: var(--raised); }
+.agentbtn .who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.agentbtn .handle { font-weight: 600; }
+.agentbtn .name { color: var(--muted); font-size: .9rem; }
+.agentbtn .state { flex: none; color: var(--muted); font-size: .85rem; }
+.agentbtn .state.on { color: var(--ok); }
+.convo { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.convo[hidden], .picker[hidden] { display: none; }
+.logwrap { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.log { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 12px max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left)); }
+.items { display: flex; flex-direction: column; gap: 4px; min-height: 100%; justify-content: flex-end; }
+.earlier { display: flex; justify-content: center; }
+.msg { display: block; font-size: 1.02rem; line-height: 1.4; }
+.msg .text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg.mine { align-self: flex-end; max-width: 80%; padding: 9px 14px; border-radius: 20px; background: var(--bubble); }
+.msg.theirs { align-self: stretch; padding: 2px 0; }
+.msg.theirs.first { margin-top: 10px; }
+.msg .byline { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; color: var(--muted); font-size: .85rem; font-weight: 600; }
+.msg .byline .ava { width: 22px; height: 22px; font-size: .7rem; }
+.msg .text p { margin: 0 0 10px; white-space: pre-wrap; }
+.msg .text p:last-child { margin-bottom: 0; }
+.msg .text pre { margin: 0 0 10px; padding: 10px 12px; overflow-x: auto; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); font-size: .86rem; line-height: 1.4; white-space: pre; overflow-wrap: normal; }
+.msg .text pre code { padding: 0; background: none; border-radius: 0; font-size: inherit; }
+.msg .text pre:last-child { margin-bottom: 0; }
+.msg .sendstate { margin-top: 2px; text-align: right; color: var(--muted); font-size: .75rem; }
+.msg .sendstate.bad { color: var(--danger); font-weight: 600; }
+.msg .retry { min-height: 32px; margin-left: 8px; padding: 0 12px; border: 0; border-radius: 999px; background: var(--surface); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; }
+.working { display: flex; align-items: center; gap: 8px; margin: 10px 0 2px; color: var(--muted); font-size: .9rem; }
+.working::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--pulse); animation: pulse 1.2s ease-in-out infinite; }
+.pill { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); min-height: 44px; padding: 0 18px; border: 0; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font: inherit; font-weight: 600; box-shadow: 0 6px 20px rgba(0, 0, 0, .35); cursor: pointer; z-index: 2; }
+.composer { flex: none; display: flex; align-items: flex-end; gap: 8px; padding: 8px max(12px, env(safe-area-inset-right)) calc(8px + var(--bottom)) max(12px, env(safe-area-inset-left)); border-top: 1px solid var(--line); background: var(--bg); }
+.kbd .composer { padding-bottom: 8px; }
+.composer textarea { flex: 1; min-width: 0; min-height: 44px; max-height: 180px; padding: 10px 16px; border: 1px solid var(--line); border-radius: 22px; background: var(--surface); color: var(--text); font: inherit; line-height: 22px; resize: none; display: block; }
+.composer textarea:focus-visible { outline-offset: 0; }
+.sendbtn { flex: none; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: var(--accent); color: var(--accent-ink); cursor: pointer; }
+.sendbtn:disabled { background: var(--raised); color: var(--muted); cursor: default; }
+.sendbtn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.chat-error { margin: 16px; }

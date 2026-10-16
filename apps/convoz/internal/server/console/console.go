@@ -22,8 +22,11 @@ const CSP = "default-src 'self'; script-src 'self'; style-src 'self'; connect-sr
 type page struct {
 	Name, Title, Heading string
 	Shell                bool
-	Public               bool // reachable without a session, so a 401 must not send the browser to sign in
-	HideHeading          bool // the script names the page once it knows (a setup link says what it is worth)
+	Chat                 bool   // a conversation page: it fills the screen, with Back and the agent in the top bar and no bottom navigation
+	NewChat              bool   // the top bar offers "New chat"
+	Public               bool   // reachable without a session, so a 401 must not send the browser to sign in
+	HideHeading          bool   // the script names the page once it knows (a setup link says what it is worth)
+	Script               string // a page script served from /assets, loaded after console.js
 	Tab                  string
 	tmpl                 *template.Template
 }
@@ -35,6 +38,9 @@ func init() {
 		{Name: "bootstrap", Title: "Set up Convoz", Heading: "Welcome to Convoz", Public: true, HideHeading: true},
 		{Name: "signin", Title: "Sign in", Heading: "Sign in", Public: true},
 		{Name: "recover", Title: "Use a recovery code", Heading: "Use a recovery code", Public: true},
+		{Name: "chats", Title: "Chats", Heading: "Chats", Shell: true, Tab: "chats", NewChat: true, Script: "chat.js"},
+		{Name: "chat", Title: "Chat", Heading: "Chat", Chat: true, Script: "chat.js"},
+		{Name: "notfound", Title: "Chat not found", Heading: "Chat not found", Shell: true, Tab: "chats"},
 		{Name: "now", Title: "Now", Heading: "Now", Shell: true, Tab: "now"},
 		{Name: "machines", Title: "Machines", Heading: "Machines", Shell: true, Tab: "account"},
 		{Name: "onboarding", Title: "Set up a second way in", Heading: "Set up a second way in"},
@@ -48,21 +54,35 @@ func init() {
 	}
 }
 
-// Page serves the named page.
-func Page(name string) http.HandlerFunc {
+// render builds the page once; a template that cannot render is a build defect.
+func render(name string) []byte {
 	p := pages[name]
 	var buf bytes.Buffer
 	if err := p.tmpl.ExecuteTemplate(&buf, "layout", p); err != nil {
-		panic(err) // a template that cannot render is a build defect
+		panic(err)
 	}
-	body := buf.Bytes()
-	return func(w http.ResponseWriter, _ *http.Request) {
-		h := w.Header()
-		h.Set("Content-Type", "text/html; charset=utf-8")
-		h.Set("Content-Security-Policy", CSP)
-		h.Set("Cache-Control", "no-store")
-		_, _ = w.Write(body)
-	}
+	return buf.Bytes()
+}
+
+func write(w http.ResponseWriter, status int, body []byte) {
+	h := w.Header()
+	h.Set("Content-Type", "text/html; charset=utf-8")
+	h.Set("Content-Security-Policy", CSP)
+	h.Set("Cache-Control", "no-store")
+	w.WriteHeader(status)
+	_, _ = w.Write(body)
+}
+
+// Page serves the named page.
+func Page(name string) http.HandlerFunc {
+	body := render(name)
+	return func(w http.ResponseWriter, _ *http.Request) { write(w, http.StatusOK, body) }
+}
+
+// NotFound answers 404 with the console's own page and a link back to Chats.
+func NotFound() http.HandlerFunc {
+	body := render("notfound")
+	return func(w http.ResponseWriter, _ *http.Request) { write(w, http.StatusNotFound, body) }
 }
 
 // Asset serves a file from static/, e.g. "console.js".

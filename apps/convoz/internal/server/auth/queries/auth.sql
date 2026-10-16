@@ -219,9 +219,10 @@ UPDATE sessions SET ended_at = sqlc.arg(now), end_reason = 'expired'
 WHERE identity_id = sqlc.arg(identity_id) AND machine_id = sqlc.arg(machine_id) AND client_id = sqlc.arg(client_id)
   AND ended_at IS NULL AND expires_at <= sqlc.arg(now);
 
--- name: EndOpenSessionsOfClient :exec
+-- name: EndOpenSessionsOfClient :many
 UPDATE sessions SET ended_at = sqlc.arg(now), end_reason = 'replaced'
-WHERE identity_id = sqlc.arg(identity_id) AND machine_id = sqlc.arg(machine_id) AND client_id = sqlc.arg(client_id) AND ended_at IS NULL;
+WHERE identity_id = sqlc.arg(identity_id) AND machine_id = sqlc.arg(machine_id) AND client_id = sqlc.arg(client_id) AND ended_at IS NULL
+RETURNING id;
 
 -- name: CountLiveSessionsOfIdentity :one
 SELECT COUNT(*) FROM sessions WHERE identity_id = sqlc.arg(identity_id) AND ended_at IS NULL AND expires_at > sqlc.arg(now);

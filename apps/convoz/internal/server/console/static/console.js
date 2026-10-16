@@ -549,7 +549,7 @@ const pages = {
   // ---- sign in ----------------------------------------------------------------------------------------
   async signin() {
     const params = new URLSearchParams(location.search);
-    const next = safeNext(params.get("next"));
+    const next = params.has("next") ? safeNext(params.get("next")) : "/chats"; // the app opens on Chats
     if (params.has("signed_out")) say("Signed out");
     api("GET", "/api/me").then((me) => {
       if (!me.device.limited) location.replace(next);
@@ -847,6 +847,15 @@ function wireMenu() {
   });
   $("#signout").addEventListener("click", signOut);
 }
+
+// Cmd+J / Ctrl+J starts a new chat from anywhere in the signed-in console.
+document.addEventListener("keydown", (event) => {
+  if (!("shell" in body.dataset || "chat" in body.dataset)) return;
+  if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "j") {
+    event.preventDefault();
+    if (location.pathname !== "/chats/new") location.assign("/chats/new");
+  }
+});
 
 wireMenu();
 const start = pages[PAGE];

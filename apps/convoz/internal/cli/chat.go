@@ -318,11 +318,12 @@ func itemLine(it wire.InboxItem) string {
 	return fmt.Sprintf("%s conv %d %q %s x%d #%d @%s: %s", ref, it.Conversation.ID, title, it.Reason, it.Count, it.Message.ID, it.Message.Author.Handle, plain(first))
 }
 
-// plain drops control characters except newline and tab, so a message cannot move the cursor, recolour or retitle
-// the terminal of the person reading it. JSON output needs none of this: the encoder escapes them.
+// plain drops control characters except newline and tab, and format characters (Unicode Cf: bidi overrides such as
+// U+202E, zero-width marks), so a message cannot move the cursor, recolour or retitle the terminal of the person
+// reading it, nor flip or hide text. JSON output needs none of this: the encoder escapes them.
 func plain(s string) string {
 	return strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) && r != '\n' && r != '\t' {
+		if unicode.IsControl(r) && r != '\n' && r != '\t' || unicode.Is(unicode.Cf, r) {
 			return -1
 		}
 		return r

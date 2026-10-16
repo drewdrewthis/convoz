@@ -8,7 +8,6 @@ import (
 	"errors"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message/db"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
@@ -165,16 +164,4 @@ func After(ctx context.Context, d pdb.DBTX, conv, after, floor int64, limit int)
 // The caller passes max(cursor, floor) as after.
 func CountUnread(ctx context.Context, d pdb.DBTX, conv, after, reader int64) (int64, error) {
 	return db.New(d).CountUnread(ctx, db.CountUnreadParams{ConversationID: conv, After: after, ReaderID: nullInt(reader), MaxRows: MaxUnread})
-}
-
-// PreviewRunes is how much of a message the conversation list shows.
-const PreviewRunes = 140
-
-// Preview is body on one line, cut to PreviewRunes runes.
-func Preview(body string) string {
-	line := strings.Join(strings.Fields(body), " ")
-	if utf8.RuneCountInString(line) > PreviewRunes {
-		return string([]rune(line)[:PreviewRunes])
-	}
-	return line
 }

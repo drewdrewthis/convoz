@@ -131,7 +131,7 @@ func writeAllow(ctx context.Context, q *db.Queries, machineID int64, a Allow) er
 }
 
 // ReplaceAllow swaps the allow-list of an active machine. It does not end leases: the caller decides which
-// identities lost cover (it knows their handles) and calls EndMachineSessionsOf for each.
+// identities lost cover (it knows their handles) and calls EndMachineIdentitySessions for each.
 func ReplaceAllow(ctx context.Context, d pdb.DBTX, machineID int64, a Allow) error {
 	q := db.New(d)
 	if _, err := q.GetActiveMachine(ctx, machineID); errors.Is(err, sql.ErrNoRows) {

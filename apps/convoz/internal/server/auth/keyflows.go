@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
 
 // MachineAction is an owner action on one machine: who does it, the step-up that allows it and the machine.
@@ -100,18 +101,12 @@ func ValidateMint(p Ports, in MintRequest) error {
 	switch {
 	case !p.Agents.ValidHandle(strings.ToLower(in.As)):
 		return &FieldError{Field: "as", Message: "The identity must be a handle."}
-	case !ValidClientID(in.ClientID):
+	case !wire.ValidClientID(in.ClientID):
 		return &FieldError{Field: "client_id", Message: "The client id must be 8 to 64 characters without spaces."}
 	case !validLabel(in.Label):
 		return &FieldError{Field: "label", Message: "The label can have at most 80 characters."}
 	}
 	return nil
-}
-
-// ValidClientID is 8 to 64 printable characters.
-func ValidClientID(s string) bool {
-	n := utf8.RuneCountInString(s)
-	return n >= 8 && n <= 64 && !strings.ContainsFunc(s, func(r rune) bool { return unicode.IsControl(r) || unicode.IsSpace(r) })
 }
 
 func validLabel(s string) bool {
