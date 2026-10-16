@@ -1,0 +1,8 @@
+{{define "body"}}
+<p>Register the first passkey for this Convoz server.</p>
+<form id="bootstrap-form">
+<p><label for="handle">Handle</label> <input id="handle" name="handle" autocomplete="username" required pattern="[a-z][a-z0-9\-]{1,39}"></p>
+<p><label for="display">Display name</label> <input id="display" name="display" autocomplete="name" required maxlength="80"></p>
+<p><button type="submit">Register passkey</button></p>
+</form>
+{{end}}

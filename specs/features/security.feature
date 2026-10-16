@@ -12,30 +12,33 @@ Feature: Security walls
   I want the tailnet wall, credentials and untrusted content handled so that one mistake cannot leak or forge anything
   So that I can let many agents in without fear
 
-  Background:
-    Given a fresh Convoz server with owner "drew" signed in with a virtual passkey
-    And machine "box-2" is logged in with allow-list "devtool"
-    And machine "laptop-1" is logged in with allow-list "devtool"
-
   Rule: The tailnet is a real wall
 
-    @v1 @api @I-41 @AC-24 @unimplemented
+  Background:
+    Given a fresh Convoz server
+
+    @v1 @api @I-41 @AC-24
     Scenario: The server listens only on its socket or loopback
       When the server has started
       Then the only listening addresses of the server process are its Unix socket or 127.0.0.1
 
-    @v1 @cli @I-41 @AC-24 @unimplemented
+    @v1 @cli @I-41 @AC-24
     Scenario: The server refuses to start when funnel is on
       Given a fake tailscale command that reports funnel on for the server port
       When "convoz serve" starts
       Then it exits non-zero with a message that funnel must be off
 
-    @v1 @browser @needs-owner @unimplemented
+    @v1 @browser @needs-owner
     Scenario: A device off the tailnet cannot connect
       When a phone with Tailscale off opens the server address
       Then the connection fails before any page loads
 
   Rule: Reveal is a careful, audited, owner-only action (SEC-1)
+
+  Background:
+    Given a fresh Convoz server with owner "drew" signed in with a virtual passkey
+    And machine "box-2" is logged in with allow-list "devtool"
+    And machine "laptop-1" is logged in with allow-list "devtool"
 
     @v1 @browser @api @I-39 @AC-14 @C-2 @unimplemented
     Scenario: A valid reveal shows the key once and leaves a trail
@@ -51,6 +54,11 @@ Feature: Security walls
       Then no key is shown and the Cache Storage holds no machine response
 
   Rule: Regenerate, revoke and disable take effect on the next request (SEC-4)
+
+  Background:
+    Given a fresh Convoz server with owner "drew" signed in with a virtual passkey
+    And machine "box-2" is logged in with allow-list "devtool"
+    And machine "laptop-1" is logged in with allow-list "devtool"
 
     @v1 @api @I-38 @unimplemented
     Scenario: Revoking one machine leaves the others working
@@ -72,6 +80,11 @@ Feature: Security walls
       And other identities on "box-2" still work
 
   Rule: Markdown cannot run code or leak reads (SEC-8)
+
+  Background:
+    Given a fresh Convoz server with owner "drew" signed in with a virtual passkey
+    And machine "box-2" is logged in with allow-list "devtool"
+    And machine "laptop-1" is logged in with allow-list "devtool"
 
     @v1 @browser @I-45 @AC-25 @unimplemented
     Scenario Outline: Dangerous link schemes render as text
@@ -98,6 +111,11 @@ Feature: Security walls
       Then the owner sees the image in the conversation
 
   Rule: Apps and agents cannot act as the owner (SEC-5, SEC-6)
+
+  Background:
+    Given a fresh Convoz server with owner "drew" signed in with a virtual passkey
+    And machine "box-2" is logged in with allow-list "devtool"
+    And machine "laptop-1" is logged in with allow-list "devtool"
 
     @v1 @browser @I-46 @AC-25 @unimplemented
     Scenario: An app cannot send without the owner's tap

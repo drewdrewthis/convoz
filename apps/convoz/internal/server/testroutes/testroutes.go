@@ -6,7 +6,9 @@ package testroutes
 const (
 	KV            = "/__test/kv"
 	SchemaVersion = "/__test/schema-version"
+	Clock         = "/__test/clock"
+	Routes        = "/__test/routes"
 )
 
 // All lists every test route; scripts/release_guard.py probes each one.
-var All = []string{KV, SchemaVersion}
+var All = []string{KV, SchemaVersion, Clock, Routes}

@@ -12,6 +12,9 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
+	"syscall"
+	"time"
 )
 
 // PurposeDB is the purpose of the DEK that keys the SQLite file.
@@ -67,10 +70,18 @@ func aad(dekID, purpose string) []byte {
 // keyringVersion is the only keyring format this build reads or writes.
 const keyringVersion = 1
 
+// tempPrefix names the temp files publishNew writes; a crash can leave one behind.
+const tempPrefix = ".keyring-"
+
+// staleTempAge is how old a leftover temp file must be before OpenKeyring deletes it.
+const staleTempAge = time.Hour
+
 // OpenKeyring loads <dataDir>/keyring.json, or creates it with a fresh DB DEK. It
 // refuses to create one when dbPath already exists: a new DEK could never open that
-// file, and the old keyring is lost. Every failure here is ErrKey (exit 10).
-func OpenKeyring(dataDir string, kek []byte, dbPath string) (*Keyring, error) {
+// file, and the old keyring is lost. Leftover temp files older than an hour are
+// deleted first. Every failure here is ErrKey (exit 10).
+func OpenKeyring(dataDir string, kek []byte, dbPath string, now time.Time) (*Keyring, error) {
+	sweepTemps(dataDir, now.Add(-staleTempAge))
 	path := filepath.Join(dataDir, KeyringFile)
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -144,14 +155,24 @@ func createKeyring(dataDir, path string, kek []byte) (*Keyring, error) {
 	return &Keyring{deks: map[string][]byte{PurposeDB: dek}}, nil
 }
 
+// Seams for the tests: a file system without hard links is not available in CI.
+var (
+	linkFile   = os.Link
+	renameFile = renameNoReplace
+)
+
 // publishNew writes data to a temp file in dir, syncs it, then link(2)s it to path: link
 // fails if path exists (O_EXCL semantics), and path never shows a half-written file.
+// A file system that refuses hard links (EPERM, ENOTSUP, EXDEV) falls back to
+// renameat2(RENAME_NOREPLACE), which has the same two properties; a kernel or file
+// system without that falls back to an O_EXCL create (never replaces, but a crash
+// during the write can leave a short file, which OpenKeyring then rejects as invalid).
 func publishNew(dir, path string, data []byte) error {
-	tmp, err := os.CreateTemp(dir, ".keyring-*") // mode 0600
+	tmp, err := os.CreateTemp(dir, tempPrefix+"*") // mode 0600
 	if err != nil {
 		return err
 	}
-	defer os.Remove(tmp.Name()) // the link, not the temp name, is the keyring
+	defer os.Remove(tmp.Name()) // the published name, not the temp name, is the keyring
 	if _, err := tmp.Write(data); err != nil {
 		tmp.Close()
 		return err
@@ -163,10 +184,59 @@ func publishNew(dir, path string, data []byte) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	if err := os.Link(tmp.Name(), path); err != nil {
+	err = linkFile(tmp.Name(), path)
+	if isLinkUnsupported(err) {
+		err = renameFile(tmp.Name(), path)
+		if isRenameUnsupported(err) {
+			err = createExclusive(path, data)
+		}
+	}
+	if err != nil {
 		return err
 	}
 	return syncDir(dir)
+}
+
+func isLinkUnsupported(err error) bool {
+	return errors.Is(err, syscall.EPERM) || errors.Is(err, syscall.ENOTSUP) || errors.Is(err, syscall.EXDEV)
+}
+
+func isRenameUnsupported(err error) bool {
+	return errors.Is(err, syscall.ENOSYS) || errors.Is(err, syscall.EINVAL) || errors.Is(err, syscall.ENOTSUP)
+}
+
+// createExclusive is the last resort: O_EXCL create, write, fsync.
+func createExclusive(path string, data []byte) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
+}
+
+// sweepTemps deletes temp files older than cutoff. Errors are ignored: a leftover file is
+// harmless, and a failed sweep must not stop the server from starting.
+func sweepTemps(dir string, cutoff time.Time) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if !strings.HasPrefix(e.Name(), tempPrefix) || e.IsDir() {
+			continue
+		}
+		if info, err := e.Info(); err == nil && info.ModTime().Before(cutoff) {
+			_ = os.Remove(filepath.Join(dir, e.Name()))
+		}
+	}
 }
 
 func syncDir(dir string) error {

@@ -103,3 +103,31 @@ func TestNestedTxReusesOpenTransaction(t *testing.T) {
 		t.Fatal("the outer rollback must cover the nested write")
 	}
 }
+
+// A ctx that carries writer A's transaction must not be taken as a transaction of writer B.
+func TestTxKeyIsPerWriter(t *testing.T) {
+	a, b := openTest(t), openTest(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	boom := errors.New("boom")
+	err := a.Writer.Tx(ctx, func(ctxA context.Context, txA *Tx) error {
+		if err := b.Writer.Tx(ctxA, func(ctxB context.Context, txB *Tx) error {
+			if txB == txA {
+				t.Error("writer B reused writer A's transaction")
+			}
+			return set(ctxB, New(txB.DBTX()), "in-b")
+		}); err != nil {
+			return err
+		}
+		return boom // rolls back A only
+	})
+	if !errors.Is(err, boom) {
+		t.Fatalf("got %v", err)
+	}
+	if !has(t, b, "in-b") {
+		t.Fatal("B's own commit was lost with A's rollback")
+	}
+	if has(t, a, "in-b") {
+		t.Fatal("B's write landed in A")
+	}
+}

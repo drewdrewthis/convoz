@@ -1,6 +1,7 @@
 # One entry per module. A module adds its own entry (its own queries dir and Go package)
 # with ALL migrations as the schema, so its queries see every table; the schema is read
-# for structure only and no module owns a migration file.
+# for structure only and no module owns a migration file. Table ownership (which module
+# may name which table) is enforced by scripts/check_table_ownership.py, not by sqlc.
 version: "2"
 sql:
   - engine: sqlite
@@ -9,4 +10,37 @@ sql:
     gen:
       go:
         package: db
+        omit_unused_structs: true
         out: internal/server/platform/db
+  - engine: sqlite
+    schema: internal/server/platform/migrations
+    queries: internal/server/identity/queries
+    gen:
+      go:
+        package: db
+        omit_unused_structs: true
+        out: internal/server/identity/db
+  - engine: sqlite
+    schema: internal/server/platform/migrations
+    queries: internal/server/auth/queries
+    gen:
+      go:
+        package: db
+        omit_unused_structs: true
+        out: internal/server/auth/db
+  - engine: sqlite
+    schema: internal/server/platform/migrations
+    queries: internal/server/audit/queries
+    gen:
+      go:
+        package: db
+        omit_unused_structs: true
+        out: internal/server/audit/db
+  - engine: sqlite
+    schema: internal/server/platform/migrations
+    queries: internal/server/event/queries
+    gen:
+      go:
+        package: db
+        omit_unused_structs: true
+        out: internal/server/event/db

@@ -5,6 +5,8 @@ package platform
 import (
 	"os"
 	"strconv"
+	"sync"
+	"time"
 )
 
 // HooksEnabled reports whether the testhooks build was also switched on at run time.
@@ -17,4 +19,71 @@ func MaxMigrationCap() int {
 	}
 	n, _ := strconv.Atoi(os.Getenv("CONVOZ_TEST_MAX_MIGRATION"))
 	return n
+}
+
+// TestClock is the wall clock plus an offset the tests can move, or a frozen instant.
+// Real time keeps flowing unless frozen, so a CLI that polls in real time still works.
+type TestClock struct {
+	base   SystemClock
+	mu     sync.Mutex
+	offset time.Duration
+	frozen *time.Time
+}
+
+// Now implements Clock.
+func (c *TestClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.frozen != nil {
+		return *c.frozen
+	}
+	return c.base.Now().Add(c.offset)
+}
+
+// Advance moves the clock forward (a frozen clock moves its frozen instant).
+func (c *TestClock) Advance(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.frozen != nil {
+		t := c.frozen.Add(d)
+		c.frozen = &t
+		return
+	}
+	c.offset += d
+}
+
+// Freeze stops the clock at the current instant.
+func (c *TestClock) Freeze() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.frozen == nil {
+		t := c.base.Now().Add(c.offset)
+		c.frozen = &t
+	}
+}
+
+// Unfreeze lets the clock run again from the frozen instant.
+func (c *TestClock) Unfreeze() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.frozen != nil {
+		c.offset = c.frozen.Sub(c.base.Now())
+		c.frozen = nil
+	}
+}
+
+// NewClock is a *TestClock when the hooks are switched on, else the wall clock.
+func NewClock() Clock {
+	if HooksEnabled() {
+		return &TestClock{}
+	}
+	return SystemClock{}
+}
+
+// TokenMarker makes every minted token start with TESTONLY, so a leaked fake is recognisable.
+func TokenMarker() string {
+	if HooksEnabled() {
+		return "TESTONLY"
+	}
+	return ""
 }
