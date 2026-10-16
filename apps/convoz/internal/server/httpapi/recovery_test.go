@@ -46,7 +46,8 @@ func TestRecoveryDeviceLifeAndItsPasskey(t *testing.T) {
 
 	c := &call{p: authzLimited(human, devID), dev: auth.Device{ID: devID, HumanID: human.ID, Limited: true}, human: human}
 	err = s.Writer.Tx(context.Background(), func(ctx context.Context, tx *pdb.Tx) error {
-		return registerPasskey(ctx, tx.DBTX(), c, fakeCred("recovered"), now.Add(time.Minute))
+		_, err := registerPasskey(ctx, tx.DBTX(), c, "test", fakeCred("recovered"), now.Add(time.Minute))
+		return err
 	})
 	if err != nil {
 		t.Fatalf("a recovery device registers a passkey with no step-up: %v", err)
@@ -96,7 +97,8 @@ func TestRecoveryDeviceRegistersOnlyOnePasskey(t *testing.T) {
 	c := &call{p: authzLimited(human, devID), dev: auth.Device{ID: devID, HumanID: human.ID, Limited: true}, human: human}
 	register := func(id string) error {
 		return s.Writer.Tx(context.Background(), func(ctx context.Context, tx *pdb.Tx) error {
-			return registerPasskey(ctx, tx.DBTX(), c, fakeCred(id), now.Add(time.Minute))
+			_, err := registerPasskey(ctx, tx.DBTX(), c, "test", fakeCred(id), now.Add(time.Minute))
+			return err
 		})
 	}
 	if err := register("one"); err != nil {

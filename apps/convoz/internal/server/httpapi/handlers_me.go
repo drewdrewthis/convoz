@@ -18,10 +18,46 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request, c *call) {
 		s.leaseMe(w, r, c)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+	out := map[string]any{
 		"identity": map[string]any{"id": c.human.ID, "handle": c.human.Handle, "display_name": c.human.DisplayName, "role": c.human.Role, "kind": "human"},
 		"device":   map[string]any{"id": c.dev.ID, "limited": c.dev.Limited},
-	})
+	}
+	note, err := s.recoveryNote(r.Context(), c)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	if note != nil {
+		out["recovery"] = note
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// recoveryNote is what the console tells a device that signed in through a recovery code: the codes left and when
+// the 24-hour hold on destructive actions ends (null once it has). Other devices get nothing.
+func (s *Server) recoveryNote(ctx context.Context, c *call) (map[string]any, error) {
+	if c.dev.PasskeyID == 0 {
+		return nil, nil
+	}
+	keys, err := auth.ListPasskeys(ctx, s.reader(), c.human.ID)
+	if err != nil {
+		return nil, err
+	}
+	var hold any
+	for _, k := range keys {
+		if k.ID != c.dev.PasskeyID {
+			continue
+		}
+		if k.RegisteredVia != "recovery" {
+			return nil, nil
+		}
+		if now := s.Clock.Now(); now.UnixMilli() < k.DestructiveAt {
+			hold = k.DestructiveAt
+		}
+		left, err := auth.RecoveryCodesLeft(ctx, s.reader(), c.human.ID)
+		return map[string]any{"codes_left": left, "hold_until": hold}, err
+	}
+	return nil, nil
 }
 
 // identityJSON is an identity in the list. An agent says who made it: the owner, or a machine by name.
@@ -126,6 +162,7 @@ type passkeyJSON struct {
 	RegisteredVia string `json:"registered_via"`
 	CreatedAt     int64  `json:"created_at"`
 	LastUsedAt    *int64 `json:"last_used_at"`
+	ThisDevice    bool   `json:"this_device"` // the passkey the calling device signed in with
 }
 
 func (s *Server) passkeys(w http.ResponseWriter, r *http.Request, c *call) {
@@ -136,7 +173,7 @@ func (s *Server) passkeys(w http.ResponseWriter, r *http.Request, c *call) {
 	}
 	out := make([]passkeyJSON, 0, len(keys))
 	for _, k := range keys {
-		out = append(out, passkeyJSON{k.ID, k.Label, k.RegisteredVia, k.CreatedAt, k.LastUsedAt})
+		out = append(out, passkeyJSON{k.ID, k.Label, k.RegisteredVia, k.CreatedAt, k.LastUsedAt, k.ID == c.dev.PasskeyID})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"passkeys": out})
 }
@@ -176,27 +213,30 @@ func (s *Server) deletePasskey(w http.ResponseWriter, r *http.Request, c *call) 
 	}
 }
 
+// recoveryCount is GET /api/me/recovery-codes: how many codes can still be used.
+func (s *Server) recoveryCount(w http.ResponseWriter, r *http.Request, c *call) {
+	n, err := auth.RecoveryCodesLeft(r.Context(), s.reader(), c.human.ID)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"remaining": n})
+}
+
 func (s *Server) regenerateRecoveryCodes(w http.ResponseWriter, r *http.Request, c *call) {
 	var in struct{}
 	if !decode(w, r, &in) {
 		return
 	}
-	now := s.Clock.Now()
 	var codes []string
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
-		d := tx.DBTX()
-		if err := auth.ConsumeStepUp(ctx, d, c.stepUp, c.dev.ID, "recovery.regenerate", nil, now); err != nil {
-			return err
-		}
 		var err error
-		if codes, err = auth.NewRecoveryCodes(ctx, d, c.human.ID, now); err != nil {
-			return err
-		}
-		return audit.Write(ctx, d, now, audit.Entry{Actor: c.human.ID, Device: c.dev.ID, Action: "recovery.regenerated"})
+		codes, err = auth.RegenerateRecoveryCodes(ctx, tx.DBTX(), journalPort{}, auth.CrewInput{Human: c.human, DeviceID: c.dev.ID, StepUpID: c.stepUp}, s.Clock.Now())
+		return err
 	})
 	switch {
 	case errors.Is(err, auth.ErrStepUp):
-		writeErr(w, http.StatusForbidden, "step_up_invalid", "That passkey check is used up or expired. Check again.")
+		stepUpInvalid(w)
 	case err != nil:
 		s.internalError(w, r, err)
 	default:

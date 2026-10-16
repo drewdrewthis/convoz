@@ -218,11 +218,11 @@ Feature: Console on a phone
         | Second way in      |
 
     @v1 @browser @phone
-    Scenario: The console is dark by default and has a light look
+    Scenario: The console follows the phone's dark or light setting
       Given the owner is on a phone
-      When the owner opens each page with no colour preference, with dark and with light
-      Then the pages are dark with no preference and with dark
-      And the pages are light with light
+      When the owner opens each page with the phone set to dark and to light
+      Then the pages are dark when the phone is dark
+      And the pages are light when the phone is light
       And a screenshot of each page in dark and in light is attached
 
   Rule: Real iPhone checks are run by the owner

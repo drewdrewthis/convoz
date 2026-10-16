@@ -27,6 +27,9 @@ type CreateIdentity struct{ DisplayName string }
 // key here: a revoke or a new allow-list may have landed since the request began. It finds the agent, or
 // makes it when the machine may, enforces the caps and budgets, and writes the audit line and the event.
 func MintSession(ctx context.Context, d pdb.DBTX, p Ports, in MintRequest, now time.Time) (MintedSession, error) {
+	if err := ValidateMint(p, in); err != nil {
+		return MintedSession{}, err
+	}
 	machine, ok, err := MachineByKey(ctx, d, in.MachineKey)
 	if err != nil {
 		return MintedSession{}, err

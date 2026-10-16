@@ -682,15 +682,15 @@ scenario("No page scrolls sideways on a phone", { tag: ["@browser", "@phone"] },
   expect(wide).toEqual([]);
 });
 
-scenario("The console is dark by default and has a light look", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {
+scenario("The console follows the phone's dark or light setting", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {
   // Given the owner is on a phone
   const srv = await server(local);
   const owner = await bootstrapOwner(srv);
   const seen: Record<string, Record<string, number>> = {};
   const look = async (name: string) => {
-    // When the owner opens each page with no colour preference, with dark and with light
+    // When the owner opens each page with the phone set to dark and to light
     seen[name] = {};
-    for (const scheme of ["no-preference", "dark", "light"] as const) {
+    for (const scheme of ["dark", "light"] as const) {
       await page.emulateMedia({ colorScheme: scheme });
       seen[name]![scheme] = await backgroundLuminance(page);
     }
@@ -704,11 +704,11 @@ scenario("The console is dark by default and has a light look", { tag: ["@browse
     await look(name);
   }
 
-  // Then the pages are dark with no preference and with dark
-  const notDark = Object.entries(seen).filter(([, s]) => s["no-preference"]! >= 0.25 || s["dark"]! >= 0.25).map(([n]) => n);
+  // Then the pages are dark when the phone is dark
+  const notDark = Object.entries(seen).filter(([, s]) => s["dark"]! >= 0.25).map(([n]) => n);
   expect(notDark).toEqual([]);
 
-  // And the pages are light with light, and a screenshot of each page in dark and in light is attached
+  // And the pages are light when the phone is light, and a screenshot of each page in dark and in light is attached
   const notLight = Object.entries(seen).filter(([, s]) => s["light"]! <= 0.75).map(([n]) => n);
   expect(notLight).toEqual([]);
   expect(info.attachments.filter((a) => a.contentType === "image/png")).toHaveLength(8);

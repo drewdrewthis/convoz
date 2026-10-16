@@ -171,6 +171,17 @@ func (q *Queries) CountPendingRequestsFromSource(ctx context.Context, arg CountP
 	return count, err
 }
 
+const countRecoveryCodesLeft = `-- name: CountRecoveryCodesLeft :one
+SELECT COUNT(*) FROM recovery_codes WHERE human_id = ?1 AND used_at IS NULL AND revoked_at IS NULL
+`
+
+func (q *Queries) CountRecoveryCodesLeft(ctx context.Context, humanID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countRecoveryCodesLeft, humanID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deleteMachineAllow = `-- name: DeleteMachineAllow :exec
 DELETE FROM machine_allow WHERE machine_id = ?1
 `

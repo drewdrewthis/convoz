@@ -94,7 +94,7 @@
  *       A loose file or directory: exit 3, stderr names the path and the mode it needs ("0600" for the file, "0700" for the directory).
  *   convoz whoami [--sid S | --as H] [--json]
  *       With a session (--sid S, or --as H / CONVOZ_AS=H, which uses or mints the lease for H and the client id): stdout lines
- *         identity: <handle>   machine: <name>   session: <sid>   live sessions: <N>
+ *         identity: <handle>   machine: <name>   session: <sid>   live sessions: <N>   scopes: <comma-separated names>
  *       Without one: only the local file is read; stdout lines `machine: <name>` and `server: <url>`.
  *   convoz session start --as H [--create --name "Display Name"] [--label L] [--client-id C]
  *       stdout is exactly one line `CONVOZ_SID=<hex, 6 or more>`. Client id: --client-id, else CLAUDE_CODE_SESSION_ID, else random.
@@ -103,7 +103,7 @@
  *   A session file with a mode other than 0600: exit 3, stderr names the file and "0600". A dead lease: exit 3, stderr says the session ended.
  *   An unknown --sid: exit 3. Exit codes: 0 ok, 2 usage, 3 auth, 4 conflict, 5 rate limited, 6 network.
  *
- * ENVIRONMENT  CLI: HOME, XDG_CONFIG_HOME, CONVOZ_AS, CLAUDE_CODE_SESSION_ID.
+ * ENVIRONMENT  CLI: HOME, XDG_CONFIG_HOME, CONVOZ_AS, CONVOZ_SID, CLAUDE_CODE_SESSION_ID.
  *   Server (testhooks build, CONVOZ_TEST_ADMIN=1): CONVOZ_TEST_POLL_MS=<ms> sets the interval of new device-flow requests
  *   (interval_ms; CLI scenarios use it so a login takes milliseconds; the clock is never frozen, S1 plan amendment 4).
  *   CONVOZ_TEST_PLAINTEXT=1 opens the data file unencrypted (convoz.db in the data dir) for byte scans and probes (S1 plan §4.5).

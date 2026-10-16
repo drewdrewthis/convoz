@@ -2,17 +2,41 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0e0f11" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f4f4f6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e0f11">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Convoz">
 <title>{{.Title}} - Convoz</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
 <link rel="stylesheet" href="/assets/console.css">
 </head>
-<body data-page="{{.Name}}">
+<body data-page="{{.Name}}"{{if .Public}} data-public{{end}}{{if .Shell}} data-shell{{end}}>
+<header class="appbar">
+<a class="brand" href="/">Convoz</a>
+{{if .Shell}}<button id="account-button" class="avatar" type="button" aria-label="Account menu" aria-haspopup="menu" aria-expanded="false" aria-controls="account-menu"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.6"/><path d="M4.6 20c.7-3.7 3.9-5.6 7.4-5.6s6.7 1.9 7.4 5.6"/></svg></button>
+<div id="account-menu" class="menu" role="menu" aria-label="Account" hidden>
+<a role="menuitem" href="/settings/passkeys">Passkeys</a>
+<a role="menuitem" href="/settings/recovery">Recovery codes</a>
+<button role="menuitem" type="button" id="signout">Sign out</button>
+</div>{{end}}
+</header>
 <main>
-<h1 id="heading">{{.Heading}}</h1>
+<h1 id="heading"{{if .HideHeading}} hidden{{end}}>{{.Heading}}</h1>
+<p id="status" class="banner" role="status" hidden></p>
 <div id="view">
 {{template "body" .}}
 </div>
 </main>
+{{if .Shell}}<!-- Bottom navigation. Chats joins here as the first link when the Chat MVP lands. -->
+<nav class="tabbar" aria-label="Main">
+<a href="/"{{if eq .Tab "now"}} aria-current="page"{{end}}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg><span>Now</span></a>
+<a href="/account"{{if eq .Tab "account"}} aria-current="page"{{end}}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.6"/><path d="M4.6 20c.7-3.7 3.9-5.6 7.4-5.6s6.7 1.9 7.4 5.6"/></svg><span>Account</span></a>
+</nav>{{end}}
 <script src="/assets/console.js" defer></script>
 </body>
 </html>

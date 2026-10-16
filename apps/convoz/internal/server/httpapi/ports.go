@@ -50,6 +50,8 @@ func agentOf(p identity.Principal) auth.Agent {
 	return auth.Agent{ID: p.ID, Kind: p.Kind, Handle: p.Handle, DisplayName: p.DisplayName, Disabled: p.Disabled}
 }
 
+func (agentPort) ValidHandle(s string) bool { return identity.ValidHandle(s) }
+
 func (agentPort) Lookup(ctx context.Context, d pdb.DBTX, handle string) (auth.Agent, bool, error) {
 	p, found, err := identity.Lookup(ctx, d, handle)
 	return agentOf(p), found, err

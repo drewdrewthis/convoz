@@ -4,26 +4,12 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strings"
-	"unicode"
-	"unicode/utf8"
 
-	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/audit"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
-
-// validClientID is 8 to 64 printable characters.
-func validClientID(s string) bool {
-	n := utf8.RuneCountInString(s)
-	return n >= 8 && n <= 64 && !strings.ContainsFunc(s, func(r rune) bool { return unicode.IsControl(r) || unicode.IsSpace(r) })
-}
-
-func validLabel(s string) bool {
-	return utf8.RuneCountInString(s) <= 80 && !strings.ContainsFunc(s, unicode.IsControl)
-}
 
 // mintSession is POST /api/sessions: the one route a machine key opens.
 func (s *Server) mintSession(w http.ResponseWriter, r *http.Request, c *call) {
@@ -31,15 +17,10 @@ func (s *Server) mintSession(w http.ResponseWriter, r *http.Request, c *call) {
 	if !decode(w, r, &in) {
 		return
 	}
-	switch {
-	case !identity.ValidHandle(strings.ToLower(in.As)):
-		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "as", "The identity must be a handle.")
-		return
-	case !validClientID(in.ClientID):
-		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "client_id", "The client id must be 8 to 64 characters without spaces.")
-		return
-	case !validLabel(in.Label):
-		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "label", "The label can have at most 80 characters.")
+	if err := auth.ValidateMint(flowPorts, auth.MintRequest{As: in.As, ClientID: in.ClientID, Label: in.Label}); err != nil {
+		var f *auth.FieldError
+		errors.As(err, &f)
+		writeFieldErr(w, http.StatusBadRequest, "invalid_request", f.Field, f.Message)
 		return
 	}
 	req := auth.MintRequest{MachineKey: c.token, As: in.As, ClientID: in.ClientID, Label: in.Label}
@@ -120,13 +101,8 @@ func (s *Server) renewSession(w http.ResponseWriter, r *http.Request, c *call) {
 }
 
 func (s *Server) endSession(w http.ResponseWriter, r *http.Request, c *call) {
-	now := s.Clock.Now()
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
-		d := tx.DBTX()
-		if _, err := auth.EndLease(ctx, d, c.lease.SessionID, "logout", now); err != nil {
-			return err
-		}
-		return audit.Write(ctx, d, now, audit.Entry{Actor: c.lease.IdentityID, Machine: c.lease.MachineID, Session: c.lease.SessionID, Action: "session.ended", TargetKind: "session", TargetID: c.lease.SessionID, Detail: map[string]any{"reason": "logout"}})
+		return auth.EndOwnLease(ctx, tx.DBTX(), journalPort{}, c.lease, s.Clock.Now())
 	})
 	if err != nil {
 		s.internalError(w, r, err)

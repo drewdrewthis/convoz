@@ -89,6 +89,8 @@ def is_sha_stack(text, m):
     start = text.rfind("\n", 0, m.start()) + 1
     end = text.find("\n", m.end())
     lines = text[start:len(text) if end < 0 else end].splitlines()
+    if any(c in line for line in lines for c in ";|&"):
+        return False  # a shell separator can chain a command that prints one 80-hex value
     if len(lines) == 1 and lines[0].startswith(REVISION_COMMANDS):
         words = [w for w in lines[0].split() if HEX_GROUP.fullmatch(w)]
         return len(words) >= 2 and all(len(w) == 40 for w in words)
@@ -102,28 +104,30 @@ def specs(suite):
 
 
 def scenarios(report):
+    """One entry per test of each spec: a spec run in several projects (desktop and mobile) shows each run, labelled."""
     for suite in report["suites"]:
         for spec in specs(suite):
-            test = spec["tests"][0]
-            result = test["results"][-1]
-            transcript = "".join(
-                base64.b64decode(a["body"]).decode("utf-8", "replace")
-                for a in result.get("attachments", [])
-                if a["name"] == "transcript" and "body" in a
-            )
-            shots = [
-                base64.b64encode(Path(a["path"]).read_bytes()).decode()
-                for a in result.get("attachments", [])
-                if a.get("contentType") == "image/png" and a.get("path") and Path(a["path"]).is_file()
-            ]
-            yield {
-                "shots": shots,
-                "title": spec["title"],
-                "tags": spec.get("tags", []),
-                "status": test["status"],
-                "ms": result["duration"],
-                "transcript": transcript,
-            }
+            for test in spec["tests"]:
+                result = test["results"][-1]
+                transcript = "".join(
+                    base64.b64decode(a["body"]).decode("utf-8", "replace")
+                    for a in result.get("attachments", [])
+                    if a["name"] == "transcript" and "body" in a
+                )
+                shots = [
+                    base64.b64encode(Path(a["path"]).read_bytes()).decode()
+                    for a in result.get("attachments", [])
+                    if a.get("contentType") == "image/png" and a.get("path") and Path(a["path"]).is_file()
+                ]
+                project = test.get("projectName", "")
+                yield {
+                    "shots": shots,
+                    "title": spec["title"] + (f" [{project}]" if len(spec["tests"]) > 1 and project else ""),
+                    "tags": spec.get("tags", []),
+                    "status": test["status"],
+                    "ms": result["duration"],
+                    "transcript": transcript,
+                }
 
 
 def leaks(scens):
@@ -174,8 +178,8 @@ def render(scens, rev):
     for s in scens:
         cls = "ok" if s["status"] == "expected" else "bad"
         tags = "".join(f"<span class=tag>@{html.escape(t.lstrip('@'))}</span>" for t in s["tags"])
-        # The last screenshot is the final state of the page. Screenshots are pixels: the leak scan reads text only.
-        shot = f"<img alt='final screenshot' style='max-width:100%;margin-top:8px' src='data:image/png;base64,{s['shots'][-1]}'>" if s.get("shots") else ""
+        # Every screenshot of the run (mobile attaches dark and light). Screenshots are pixels: the leak scan reads text only.
+        shot = "".join(f"<img alt='screenshot' style='max-width:48%;margin:8px 8px 0 0;vertical-align:top' src='data:image/png;base64,{b}'>" for b in s.get("shots", []))
         parts.append(
             f"<section><h2>{html.escape(s['title'])}</h2><div>{tags}<span class={cls}>{html.escape(s['status'])}</span>"
             f" &middot; {s['ms']} ms</div>{shot}<pre>{html.escape(s['transcript'])}</pre></section>"
@@ -256,6 +260,8 @@ def self_test():
         ("PEM", "-----BEGIN PRIVATE KEY-----\n", {"PEM header"}),
         ("empty transcript", "\n", {"empty transcript"}),
         ("benign output", benign, set()),
+        ("SHAs chained after a git command with a semicolon", "$ git status; echo " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + "\n", {"split hex"}),
+        ("SHAs piped after a git command", "$ git log | echo " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + "\n", {"split hex"}),
     ]
     failed = 0
     for title, text, want in cases:
@@ -263,9 +269,31 @@ def self_test():
         if got != want:
             failed += 1
             print(f"FAIL {title}: want {sorted(want)}, got {sorted(got)}", file=sys.stderr)
+    failed += self_test_multi_test()
     failed += self_test_run(plain_kek)
     print("self-test failed" if failed else "self-test ok", file=sys.stderr if failed else sys.stdout)
     return 1 if failed else 0
+
+
+def self_test_multi_test():
+    """A spec run in two projects renders two labelled sections, each with its screenshots."""
+    with tempfile.TemporaryDirectory(prefix="proof-self-test-") as tmp:
+        shot = Path(tmp) / "a.png"
+        shot.write_bytes(b"\x89PNG")
+        body = base64.b64encode(b"ok\n").decode()
+        att = [{"name": "transcript", "body": body}, {"name": "screenshot", "contentType": "image/png", "path": str(shot)}]
+        tests = [{"projectName": n, "status": "expected", "results": [{"duration": 1, "attachments": att}]} for n in ("chromium", "mobile")]
+        report = {"suites": [{"specs": [{"title": "t", "tags": [], "tests": tests}]}]}
+        scens = list(scenarios(report))
+        page = render(scens, "x")
+        problems = []
+        if [s["title"] for s in scens] != ["t [chromium]", "t [mobile]"]:
+            problems.append(f"titles {[s['title'] for s in scens]}")
+        if page.count("data:image/png") != 2:
+            problems.append("each run must show its screenshot")
+        for p in problems:
+            print(f"FAIL multi-test: {p}", file=sys.stderr)
+        return len(problems)
 
 
 def self_test_run(plain_kek):

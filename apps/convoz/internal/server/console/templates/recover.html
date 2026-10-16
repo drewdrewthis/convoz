@@ -1,6 +1,8 @@
 {{define "body"}}
-<form id="recover-form">
-<p><label for="code">Recovery code</label> <input id="code" name="code" autocomplete="off" required></p>
-<p><button type="submit">Use code</button></p>
+<p class="lead">Type one of the recovery codes you saved. It works once.</p>
+<form id="recover-form" class="stack" novalidate>
+<div class="field"><label for="code">Recovery code</label>
+<input id="code" name="code" class="code-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" required></div>
+<div class="actions"><button class="btn primary" type="submit">Use code</button></div>
 </form>
 {{end}}

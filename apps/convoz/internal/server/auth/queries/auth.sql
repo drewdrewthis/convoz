@@ -88,6 +88,9 @@ SELECT CAST(COALESCE(MAX(batch), 0) AS INTEGER) FROM recovery_codes WHERE human_
 UPDATE recovery_codes SET revoked_at = sqlc.arg(revoked_at)
 WHERE human_id = sqlc.arg(human_id) AND used_at IS NULL AND revoked_at IS NULL;
 
+-- name: CountRecoveryCodesLeft :one
+SELECT COUNT(*) FROM recovery_codes WHERE human_id = sqlc.arg(human_id) AND used_at IS NULL AND revoked_at IS NULL;
+
 -- name: UseRecoveryCode :one
 UPDATE recovery_codes SET used_at = sqlc.arg(used_at)
 WHERE code_hash = sqlc.arg(code_hash) AND used_at IS NULL AND revoked_at IS NULL
