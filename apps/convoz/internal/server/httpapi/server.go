@@ -37,7 +37,8 @@ type Server struct {
 	Cfg   Config
 	Log   *log.Logger
 
-	Keys *auth.KeyBox // seals and opens the stored copy of each machine key
+	Keys *auth.KeyBox  // seals and opens the stored copy of each machine key
+	Bus  *platform.Bus // wakes streams and long polls after a commit; never carries data
 
 	csrfExempt map[string]bool // "METHOD /path" of the NoCSRF routes
 	userCodes  func() string   // the next device-flow user code; random unless the test hooks seed some
@@ -48,7 +49,20 @@ type Server struct {
 	// tokenMissLimit counts device-token polls with a code that is not live, per source. A real client stops
 	// at its first expired_token, so 30 a minute is loose.
 	tokenMissLimit auth.Limiter
+	// postLimit is 1 message a second per agent identity with a burst of 20: at most 20 in any 20 seconds (design §13.1).
+	postLimit auth.Limiter
+	// dayIdentityLimit and dayMachineLimit are the daily message caps of an agent identity and of a machine (design §13.1).
+	dayIdentityLimit auth.Limiter
+	dayMachineLimit  auth.Limiter
+	streams          streamSet
+	heartbeat        time.Duration // how often a quiet stream sends ": hb" and checks its device; heartbeatEvery unless a test shortens it
 }
+
+// Daily message caps (design §13.1).
+const (
+	dayMessagesIdentity = 5_000
+	dayMessagesMachine  = 20_000
+)
 
 // NewServer returns the public server state.
 func NewServer(store *db.Store, clock platform.Clock, wa *webauthn.WebAuthn, keys *auth.KeyBox, cfg Config, logger *log.Logger) *Server {
@@ -60,9 +74,14 @@ func NewServer(store *db.Store, clock platform.Clock, wa *webauthn.WebAuthn, key
 	}
 	return &Server{
 		Store: store, Clock: clock, WA: wa, Keys: keys, Cfg: cfg, Log: logger, csrfExempt: exempt, userCodes: auth.NewUserCode,
-		publicLimit:    auth.Limiter{Window: time.Minute, Max: 20},
-		recoveryLimit:  auth.Limiter{Window: time.Hour, Max: 10},
-		tokenMissLimit: auth.Limiter{Window: time.Minute, Max: 30},
+		publicLimit:      auth.Limiter{Window: time.Minute, Max: 20},
+		recoveryLimit:    auth.Limiter{Window: time.Hour, Max: 10},
+		tokenMissLimit:   auth.Limiter{Window: time.Minute, Max: 30},
+		postLimit:        auth.Limiter{Window: 20 * time.Second, Max: 20},
+		Bus:              platform.NewBus(),
+		heartbeat:        heartbeatEvery,
+		dayIdentityLimit: auth.Limiter{Window: 24 * time.Hour, Max: dayMessagesIdentity},
+		dayMachineLimit:  auth.Limiter{Window: 24 * time.Hour, Max: dayMessagesMachine},
 	}
 }
 

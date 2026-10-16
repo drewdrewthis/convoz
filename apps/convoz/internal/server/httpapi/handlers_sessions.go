@@ -7,6 +7,7 @@ import (
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/inbox"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
@@ -81,27 +82,48 @@ func (s *Server) renewSession(w http.ResponseWriter, r *http.Request, c *call) {
 	if !decode(w, r, &in) {
 		return
 	}
-	var expires int64
+	var (
+		expires int64
+		holds   []inbox.Hold
+	)
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
 		var err error
-		expires, err = auth.SlideLease(ctx, tx.DBTX(), c.lease, s.Clock.Now())
+		now := s.Clock.Now()
+		if expires, err = auth.SlideLease(ctx, tx.DBTX(), c.lease, now); err != nil {
+			return err
+		}
+		holds, err = inbox.Extend(ctx, tx.DBTX(), now, c.lease.SessionID, expires)
 		return err
 	})
 	if err != nil {
 		s.internalError(w, r, err)
 		return
 	}
+	for _, h := range holds { // the claims now run longer, so the "working" of each ends later
+		s.publishWorking(r.Context(), c.lease.IdentityID, h.Conversation, true, h.Until)
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"expires_at": expires})
 }
 
 func (s *Server) endSession(w http.ResponseWriter, r *http.Request, c *call) {
+	now := s.Clock.Now()
+	var released []int64
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
-		return auth.EndOwnLease(ctx, tx.DBTX(), journalPort{}, c.lease, s.Clock.Now())
+		if err := auth.EndOwnLease(ctx, tx.DBTX(), journalPort{}, c.lease, now); err != nil {
+			return err
+		}
+		var err error
+		released, err = inbox.Release(ctx, tx.DBTX(), now, c.lease.SessionID)
+		return err
 	})
 	if err != nil {
 		s.internalError(w, r, err)
 		return
 	}
+	for _, conv := range released {
+		s.publishWorking(r.Context(), c.lease.IdentityID, conv, false, 0)
+	}
+	s.Bus.Notify(c.lease.IdentityID) // a poll held for this lease answers "session ended" at once
 	w.WriteHeader(http.StatusNoContent)
 }
 

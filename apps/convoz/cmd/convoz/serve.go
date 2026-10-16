@@ -126,9 +126,11 @@ func serve(args []string) int {
 	servers := []*http.Server{{
 		Handler:           httpapi.NewServer(store, clock, wa, keys, cfg, logger).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
-		IdleTimeout:       2 * time.Minute,
-		MaxHeaderBytes:    1 << 16,
-		ErrorLog:          logger,
+		// No WriteTimeout: event streams and long polls write for as long as they live. The signal context ends them at shutdown.
+		BaseContext:    func(net.Listener) context.Context { return ctx },
+		IdleTimeout:    2 * time.Minute,
+		MaxHeaderBytes: 1 << 16,
+		ErrorLog:       logger,
 	}}
 	listeners := []net.Listener{pub}
 	if admin != nil {

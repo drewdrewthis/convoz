@@ -15,6 +15,29 @@ type Limiter struct {
 	hits map[string][]time.Time
 }
 
+// RetryAfter is how long until key may hit again: zero when it may now, else until its oldest hit leaves the window.
+func (l *Limiter) RetryAfter(key string, now time.Time) time.Duration {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	hits := l.hits[key]
+	cutoff := now.Add(-l.Window)
+	live := 0
+	for _, t := range hits {
+		if t.After(cutoff) {
+			live++
+		}
+	}
+	if live < l.Max {
+		return 0
+	}
+	for _, t := range hits {
+		if t.After(cutoff) {
+			return t.Add(l.Window).Sub(now)
+		}
+	}
+	return 0
+}
+
 // maxKeys bounds memory: past it, keys with no hit in the window are dropped.
 const maxKeys = 10_000
 

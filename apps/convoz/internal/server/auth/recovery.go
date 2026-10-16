@@ -66,7 +66,7 @@ func RegenerateRecoveryCodes(ctx context.Context, d pdb.DBTX, j JournalPort, in 
 	if err := j.Audit(ctx, d, now, AuditEntry{Actor: in.Human.ID, Device: in.DeviceID, Action: "recovery.regenerated"}); err != nil {
 		return nil, err
 	}
-	return codes, j.Event(ctx, d, now, "recovery.regenerated", map[string]any{"identity_id": in.Human.ID})
+	return codes, j.Event(ctx, d, now, "recovery.regenerated.v1", map[string]any{"identity_id": in.Human.ID})
 }
 
 // RecoveryNoteInfo is what the console tells a device that signed in through recovery: the codes left and when

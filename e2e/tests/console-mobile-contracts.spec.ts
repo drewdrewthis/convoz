@@ -11,7 +11,7 @@ import { SoftAuthenticator } from "../lib/soft-authenticator.ts";
 //   Every console page's <head>: <link rel="icon">, <link rel="apple-touch-icon">, <link rel="manifest">, <meta name="theme-color">,
 //     and a viewport meta that contains viewport-fit=cover.
 //   GET /api/me/recovery-codes (owner device) -> 200 {remaining:N}; no cookie -> 401. POST /api/me/recovery-codes keeps S1a's contract and
-//     also appends the event "recovery.regenerated" ({identity_id}) next to the audit line.
+//     also appends the event "recovery.regenerated.v1" ({identity_id}) next to the audit line.
 //   GET /api/me/passkeys items: {id,label,registered_via,created_at,last_used_at,this_device:boolean}. this_device is true only for the
 //     passkey the calling device session signed in with.
 //   POST /api/auth/passkey/register/verify from a recovery (limited) device sets a FULL device cookie for the new passkey, and
@@ -92,7 +92,7 @@ scenario("Making new recovery codes records an event as well as the audit line",
   const db = plainDb(dataDir);
   let events: { type: string; payload: string }[];
   try {
-    events = db.prepare("SELECT type, payload FROM events WHERE type = 'recovery.regenerated'").all() as { type: string; payload: string }[];
+    events = db.prepare("SELECT type, payload_json AS payload FROM events WHERE type = 'recovery.regenerated.v1'").all() as { type: string; payload: string }[];
   } finally {
     db.close();
   }

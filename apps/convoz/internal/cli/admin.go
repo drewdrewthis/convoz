@@ -63,13 +63,14 @@ const DefaultAdminSocket = "/run/convoz/admin.sock"
 // Admin runs `convoz admin <command>`. It returns the process exit code.
 func Admin(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 || args[0] != "bootstrap-link" {
-		fmt.Fprintln(stderr, "usage: convoz admin bootstrap-link [--admin-socket PATH]")
+		fmt.Fprintln(stderr, "convoz: usage: convoz admin bootstrap-link [--admin-socket PATH]")
 		return ExitUsage
 	}
 	fs := flag.NewFlagSet("admin bootstrap-link", flag.ContinueOnError)
-	fs.SetOutput(stderr)
 	socket := fs.String("admin-socket", DefaultAdminSocket, "admin socket of the running server")
+	fs.SetOutput(io.Discard)
 	if err := fs.Parse(args[1:]); err != nil {
+		fmt.Fprintf(stderr, "convoz: %s\n", err)
 		return ExitUsage
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

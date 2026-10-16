@@ -20,7 +20,7 @@ func Whoami(args []string, io IO) int {
 	sid := fs.String("sid", io.Getenv("CONVOZ_SID"), "the local session id")
 	as := fs.String("as", io.Getenv("CONVOZ_AS"), "the agent handle; uses or starts the session of the client id")
 	asJSON := fs.Bool("json", false, "print JSON")
-	if err := fs.Parse(args); err != nil || fs.NArg() != 0 {
+	if !parseNoArgs(fs, args, io) {
 		return ExitUsage
 	}
 	dir, err := configDir(io.Getenv)

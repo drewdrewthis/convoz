@@ -22,6 +22,8 @@ type ErrorDetail struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 	Field   string `json:"field,omitempty"` // the request field a 400 is about
+	// RetryAfter is how many seconds until a 429 may pass; the Retry-After header says the same.
+	RetryAfter int `json:"retry_after,omitempty"`
 }
 
 // Error codes the CLI acts on.
@@ -128,3 +130,7 @@ type MeResponse struct {
 	Scopes       []string `json:"scopes"`
 	LiveSessions int64    `json:"live_sessions"`
 }
+
+// MaxHoldSeconds is the longest the server holds one inbox poll: short enough for proxies, mobile NAT and
+// `tailscale serve` (design §3.8). The CLI asks for no more, and a longer --wait is several polls.
+const MaxHoldSeconds = 25

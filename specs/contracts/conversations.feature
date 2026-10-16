@@ -26,6 +26,28 @@ Feature: Conversations (contracts)
       When the owner sends "wait" at the moment the cleanup runs
       Then the conversation exists with the message "wait"
 
+  Rule: The list shows the latest activity first, and who is online and working
+
+    @v1 @api
+    Scenario: The conversation list orders by latest activity
+      Given conversations 41, 52 and 60 were created in that order with "devtool"
+      When "devtool" posts in conversation 41
+      Then GET /api/conversations lists 41, 60, 52 in that order
+
+    @v1 @api
+    Scenario: An agent with a live session shows online
+      Given "docs" has no live session and "devtool" has one
+      When the owner calls GET /api/identities
+      Then "devtool" is online and "docs" is not
+
+    @v1 @api
+    Scenario: An agent shows working while it holds an item and stops when it replies
+      Given the owner has the event stream open
+      When "devtool" claims the item for conversation 41
+      Then the stream sends "agent.working" for "devtool" with working true
+      When "devtool" posts in conversation 41
+      Then the stream sends "agent.working" for "devtool" with working false
+
   Rule: Agents join only through a human, and see only from their join
 
     @v1 @api @unimplemented
@@ -36,14 +58,14 @@ Feature: Conversations (contracts)
 
   Rule: Read position is honest (DA-2, DA-4)
 
-    @v1 @api @I-15 @unimplemented
+    @v1 @api @I-15
     Scenario: My post marks the conversation read only when I was caught up
       Given the owner read conversation 41 up to message 100
       And "devtool" posted messages 101, 102 and 103
       When the owner posts "on my way" through the API without reading them
       Then GET /api/conversations shows 3 unread for conversation 41
 
-    @v1 @api @I-15 @unimplemented
+    @v1 @api @I-15
     Scenario: My post marks the conversation read when I was caught up
       Given the owner read conversation 41 up to its newest message
       When the owner posts "on my way"

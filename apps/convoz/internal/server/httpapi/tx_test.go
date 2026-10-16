@@ -114,3 +114,11 @@ func TestIdentityAndAuthShareOneTransaction(t *testing.T) {
 		t.Fatalf("commit lost a write: owner=%v link=%v", owner, link)
 	}
 }
+
+// inTx runs fn in one write transaction, bounded by a timeout.
+func inTx(t *testing.T, s *pdb.Store, fn func(ctx context.Context, d pdb.DBTX) error) error {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return s.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) error { return fn(ctx, tx.DBTX()) })
+}

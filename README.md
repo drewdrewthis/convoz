@@ -10,15 +10,16 @@ One place to talk with your agents and make their decisions.
 
 ## Status
 
-S0 (the skeleton), S1a (owner auth and the tailnet wall), S1b (machines, sessions and crew) and S-U0 (the mobile console) are built. Conversations, asks and the rest of the product are design only.
+S0 (the skeleton), S1a (owner auth and the tailnet wall), S1b (machines, sessions and crew), S-U0 (the mobile console) and the chat MVP API (conversations, messages, read cursors, the inbox and the owner's event stream) are built. The phone app's conversation screens, threads, mentions, asks and the rest of the product are design only.
 
-The `convoz` binary has `serve`, `admin bootstrap-link`, `login`, `whoami`, `session start`, `session end` and `version`. It brings:
+The `convoz` binary has `serve`, `admin bootstrap-link`, `login`, `whoami`, `session start`, `session end`, `post`, `read`, `inbox`, `ack`, `watch` and `version`. The agent commands take their flags before, between or after their arguments. The chat commands beyond that list (`reply`, `brief`, `handoff`, `ask`, `status`, `search`, `mcp`, `setup`, and `inbox --conv`) are later slices. It brings:
 
 - the encrypted SQLite store, with migrations and a pre-migration backup, and the key hierarchy (KEK file, wrapped DEK keyring);
 - the owner's passkeys, recovery codes, device sessions and step-up;
 - the wall: `--host` (loopback or unix socket only), the funnel check and the admin socket;
 - a phone-first owner console (sign-in, setup, recovery codes, passkeys, machine requests, account menu and bottom nav; plain HTML, CSS and one script, follows the phone's dark or light setting);
 - the machine login (a device flow the owner approves with a passkey), machine keys (reveal, regenerate, revoke), per-machine allow-lists, 12-hour session leases and crew (agent identities);
+- the chat API: conversations, messages, read cursors, the agent inbox and the owner's event stream (`/api/stream`);
 - the end-to-end scenarios and the CI gates (module boundaries, red first / green at head).
 
 ### Build and test

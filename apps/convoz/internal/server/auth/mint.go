@@ -49,7 +49,7 @@ func MintSession(ctx context.Context, d pdb.DBTX, p Ports, in MintRequest, now t
 	if err := p.Journal.Audit(ctx, d, now, AuditEntry{Actor: who.ID, Machine: machine.ID, Session: minted.ID, Action: "session.started", TargetKind: "session", TargetID: minted.ID}); err != nil {
 		return MintedSession{}, err
 	}
-	err = p.Journal.Event(ctx, d, now, "session.started", map[string]any{"session_id": minted.ID, "machine_id": machine.ID, "identity_id": who.ID})
+	err = p.Journal.Event(ctx, d, now, "session.started.v1", map[string]any{"session_id": minted.ID, "machine_id": machine.ID, "identity_id": who.ID})
 	return minted, err
 }
 
@@ -91,5 +91,5 @@ func createForMachine(ctx context.Context, d pdb.DBTX, p Ports, m Machine, handl
 	if err := p.Journal.Audit(ctx, d, now, AuditEntry{Machine: m.ID, Action: "identity.created", TargetKind: "identity", TargetID: who.ID}); err != nil {
 		return Agent{}, err
 	}
-	return who, p.Journal.Event(ctx, d, now, "identity.created", map[string]any{"identity_id": who.ID, "machine_id": m.ID})
+	return who, p.Journal.Event(ctx, d, now, "identity.created.v1", map[string]any{"identity_id": who.ID, "machine_id": m.ID})
 }

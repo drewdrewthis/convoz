@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"slices"
 	"strconv"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/audit"
@@ -37,6 +38,8 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request, c *call) {
 type identityJSON struct {
 	identity.Entry
 	CreatedBy *createdByJSON `json:"created_by,omitempty"`
+	// Online is set on agents: true while the agent has a live session on any machine.
+	Online *bool `json:"online,omitempty"`
 }
 
 type createdByJSON struct {
@@ -62,6 +65,15 @@ func (s *Server) identities(w http.ResponseWriter, r *http.Request, _ *call) {
 	out := make([]identityJSON, 0, len(list))
 	for _, e := range list {
 		row := identityJSON{Entry: e}
+		if e.Kind == "agent" {
+			live, err := auth.LiveSessionCount(r.Context(), s.reader(), e.ID, s.Clock.Now())
+			if err != nil {
+				s.internalError(w, r, err)
+				return
+			}
+			online := live > 0
+			row.Online = &online
+		}
 		switch {
 		case e.CreatedByHuman != 0:
 			row.CreatedBy = &createdByJSON{"human", names[e.CreatedByHuman]}
@@ -122,6 +134,7 @@ func (s *Server) deleteDevice(w http.ResponseWriter, r *http.Request, c *call) {
 	case !revoked:
 		writeErr(w, http.StatusNotFound, "not_found", "No such device.")
 	default:
+		s.streams.cancelDevice(id)
 		if id == c.dev.ID {
 			clearDeviceCookie(w)
 		}
@@ -157,19 +170,34 @@ func (s *Server) deletePasskey(w http.ResponseWriter, r *http.Request, c *call) 
 		return
 	}
 	now := s.Clock.Now()
+	var signedOut []int64
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
 		d := tx.DBTX()
 		// The step-up is spent first; an error below rolls it back, so a refused removal costs no new check.
 		if err := auth.ConsumeStepUp(ctx, d, c.stepUp, c.dev.ID, "passkey.remove", &id, now); err != nil {
 			return err
 		}
+		before, err := auth.ListDevices(ctx, d, c.human.ID, now)
+		if err != nil {
+			return err
+		}
 		if err := auth.RemovePasskey(ctx, d, c.human.ID, id, now); err != nil {
 			return err
+		}
+		after, err := auth.ListDevices(ctx, d, c.human.ID, now)
+		if err != nil {
+			return err
+		}
+		signedOut = signedOut[:0]
+		for _, b := range before {
+			if !slices.ContainsFunc(after, func(a auth.DeviceInfo) bool { return a.ID == b.ID }) {
+				signedOut = append(signedOut, b.ID)
+			}
 		}
 		if err := audit.Write(ctx, d, now, audit.Entry{Actor: c.human.ID, Device: c.dev.ID, Action: "passkey.removed", TargetKind: "passkey", TargetID: id}); err != nil {
 			return err
 		}
-		_, err := event.Append(ctx, d, now, "passkey.removed", map[string]any{"identity_id": c.human.ID, "passkey_id": id})
+		_, err = event.Append(ctx, d, now, "passkey.removed.v1", map[string]any{"identity_id": c.human.ID, "passkey_id": id})
 		return err
 	})
 	switch {
@@ -182,6 +210,9 @@ func (s *Server) deletePasskey(w http.ResponseWriter, r *http.Request, c *call) 
 	case err != nil:
 		s.internalError(w, r, err)
 	default:
+		for _, dev := range signedOut { // their event streams end now, not at the next heartbeat
+			s.streams.cancelDevice(dev)
+		}
 		w.WriteHeader(http.StatusNoContent)
 	}
 }

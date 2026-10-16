@@ -33,7 +33,7 @@ func (r Route) check(p authz.Principal) error {
 	return r.Auth.Check(p)
 }
 
-// Routes is the whole public API of S1: the owner's, the machines' and the agents'. Conversations join it in S2.
+// Routes is the whole public API: the owner's, the machines', the agents', and the chat routes both people and agents use.
 var Routes = []Route{
 	{Method: "GET", Pattern: "/healthz", Auth: authz.Pub, handle: (*Server).health},
 	{Method: "GET", Pattern: "/api/version", Auth: authz.Pub, handle: (*Server).version},
@@ -97,6 +97,16 @@ var Routes = []Route{
 	{Method: "POST", Pattern: "/api/sessions/renew", Auth: authz.Lease, handle: (*Server).renewSession},
 	{Method: "DELETE", Pattern: "/api/sessions/me", Auth: authz.Lease, handle: (*Server).endSession},
 	{Method: "GET", Pattern: "/api/sessions", Auth: authz.Owner, handle: (*Server).sessions},
+
+	{Method: "GET", Pattern: "/api/conversations", Auth: authz.Human, Lease: true, handle: (*Server).listConversations},
+	{Method: "POST", Pattern: "/api/conversations", Auth: authz.Human, RefuseLease: true, handle: (*Server).createConversation},
+	{Method: "GET", Pattern: "/api/conversations/:id", Auth: authz.Human, Lease: true, handle: (*Server).getConversation},
+	{Method: "GET", Pattern: "/api/conversations/:id/messages", Auth: authz.Human, Lease: true, handle: (*Server).listMessages},
+	{Method: "POST", Pattern: "/api/conversations/:id/messages", Auth: authz.Human, Lease: true, handle: (*Server).postMessage},
+	{Method: "POST", Pattern: "/api/conversations/:id/read", Auth: authz.Human, Lease: true, handle: (*Server).markRead},
+	{Method: "GET", Pattern: "/api/stream", Auth: authz.Human, RefuseLease: true, handle: (*Server).stream},
+	{Method: "GET", Pattern: "/api/inbox", Auth: authz.Lease, handle: (*Server).inboxPoll},
+	{Method: "POST", Pattern: "/api/inbox/ack", Auth: authz.Lease, handle: (*Server).ackInbox},
 
 	{Method: "POST", Pattern: "/api/crew/agents", Auth: authz.Owner, StepUp: "identity.create", handle: (*Server).createAgent},
 	{Method: "POST", Pattern: "/api/identities/:id/disable", Auth: authz.Owner, StepUp: "identity.disable", handle: (*Server).disableIdentity},

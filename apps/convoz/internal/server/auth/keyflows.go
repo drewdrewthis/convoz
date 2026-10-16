@@ -30,7 +30,7 @@ func RevealMachineKey(ctx context.Context, d pdb.DBTX, box *KeyBox, j JournalPor
 	if err := j.Audit(ctx, d, now, AuditEntry{Actor: in.Human.ID, Device: in.DeviceID, Machine: id, Action: "machine.key_revealed", TargetKind: "machine", TargetID: id}); err != nil {
 		return "", err
 	}
-	return key, j.Event(ctx, d, now, "machine.key_revealed", map[string]any{"machine_id": id})
+	return key, j.Event(ctx, d, now, "machine.key_revealed.v1", map[string]any{"machine_id": id})
 }
 
 // RegenerateMachineKey spends a machine.regenerate step-up and replaces the key; its leases end at once.
@@ -45,7 +45,7 @@ func RegenerateMachineKey(ctx context.Context, d pdb.DBTX, box *KeyBox, j Journa
 	if err = j.Audit(ctx, d, now, AuditEntry{Actor: in.Human.ID, Device: in.DeviceID, Machine: id, Action: "machine.key_regenerated", TargetKind: "machine", TargetID: id, Detail: map[string]any{"key_version": version}}); err != nil {
 		return "", 0, err
 	}
-	return key, version, j.Event(ctx, d, now, "machine.key_regenerated", map[string]any{"machine_id": id, "key_version": version})
+	return key, version, j.Event(ctx, d, now, "machine.key_regenerated.v1", map[string]any{"machine_id": id, "key_version": version})
 }
 
 // RevokeMachineByOwner spends a machine.revoke step-up and ends the machine; ErrNoMachine when it was not active.
@@ -64,7 +64,7 @@ func RevokeMachineByOwner(ctx context.Context, d pdb.DBTX, j JournalPort, in Mac
 	if err := j.Audit(ctx, d, now, AuditEntry{Actor: in.Human.ID, Device: in.DeviceID, Machine: id, Action: "machine.revoked", TargetKind: "machine", TargetID: id}); err != nil {
 		return err
 	}
-	return j.Event(ctx, d, now, "machine.revoked", map[string]any{"machine_id": id})
+	return j.Event(ctx, d, now, "machine.revoked.v1", map[string]any{"machine_id": id})
 }
 
 // DenyMachineRequest denies one pending request and writes the audit line; ok is false when it was not pending.
@@ -98,7 +98,7 @@ func ValidateMint(p Ports, in MintRequest) error {
 	switch {
 	case !p.Agents.ValidHandle(strings.ToLower(in.As)):
 		return &FieldError{Field: "as", Message: "The identity must be a handle."}
-	case !validClientID(in.ClientID):
+	case !ValidClientID(in.ClientID):
 		return &FieldError{Field: "client_id", Message: "The client id must be 8 to 64 characters without spaces."}
 	case !validLabel(in.Label):
 		return &FieldError{Field: "label", Message: "The label can have at most 80 characters."}
@@ -106,8 +106,8 @@ func ValidateMint(p Ports, in MintRequest) error {
 	return nil
 }
 
-// validClientID is 8 to 64 printable characters.
-func validClientID(s string) bool {
+// ValidClientID is 8 to 64 printable characters.
+func ValidClientID(s string) bool {
 	n := utf8.RuneCountInString(s)
 	return n >= 8 && n <= 64 && !strings.ContainsFunc(s, func(r rune) bool { return unicode.IsControl(r) || unicode.IsSpace(r) })
 }

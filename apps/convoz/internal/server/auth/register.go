@@ -71,7 +71,7 @@ func RegisterPasskey(ctx context.Context, d pdb.DBTX, j JournalPort, in Register
 	if err := j.Audit(ctx, d, now, AuditEntry{Actor: in.Human.ID, Device: in.DeviceID, Action: "passkey.added", TargetKind: "passkey", TargetID: res.PasskeyID, Detail: map[string]any{"via": via}}); err != nil {
 		return res, err
 	}
-	return res, j.Event(ctx, d, now, "passkey.added", map[string]any{"identity_id": in.Human.ID, "passkey_id": res.PasskeyID, "via": via})
+	return res, j.Event(ctx, d, now, "passkey.added.v1", map[string]any{"identity_id": in.Human.ID, "passkey_id": res.PasskeyID, "via": via})
 }
 
 // callerHold is when the calling device's passkey may first do destructive things (unix ms); 0 when it may now.
