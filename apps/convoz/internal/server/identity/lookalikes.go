@@ -13,7 +13,8 @@ const handLookalikes = "" +
 	"\u119e" + // ᆞ Hangul Jungseong Arae-a, drawn as a middle dot; absent from the table
 	"\u4e36" + // 丶 Han dot stroke, drawn as a dot; the table maps it to a backslash
 	"\u3002" + // 。 ideographic full stop; the table maps it to a spacing ring
-	"\uff61" // ｡ halfwidth ideographic full stop; same
+	"\uff61" + // ｡ halfwidth ideographic full stop; same
+	"\u0887" // ࢇ Arabic baseline round dot, newer than the pinned table
 
 // PunctuationLookalikes returns, sorted and without repeats, every character that can pass for a dot, slash, colon,
 // at sign or middle dot inside a word: the table's sources for those targets plus handLookalikes. The chat page gets

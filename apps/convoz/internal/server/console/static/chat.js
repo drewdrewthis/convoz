@@ -212,15 +212,16 @@
   // NFKC cannot replace it because it keeps ǃ and ʔ as they are and turns ª into a plain "a".
   const CASED_ONLY = ["latin", "cyrillic", "greek", "armenian", "georgian"];
   const NOT_BLANK = new RegExp("[^\\p{Cf}\\p{M}\\p{Z}\\p{Cc}" + FILLER_CHARS + "]", "u");
-  // Marks that strike through or enclose the letter before them (a slash drawn over it): never part of a word.
-  const OVERLAY_MARKS = /[\u0334-\u0338\u20D0-\u20F0]/;
+  // overlay, enclosing and symbol-combining marks: they draw a slash, ring or bar over the letter before them (this
+  // also covers the above-marks U+20D0-20F0), so they are never part of a word.
+  const OVERLAY_MARKS = /[\p{Me}\u0334-\u0338\u20D0-\u20F0\u{101FD}\u{1ABE}\u{1CF37}\u{1CF3E}]/u;
 
   /** plainWords is true when text is plain ASCII letters and spaces, or words of ONE script that passes every rule below
    *  (so it cannot pass for a host name). It is false for every non-ASCII text when the server's lookalike list did not load.
    *  After NFC each character must be
    *  - a space (Zs), or
-   *  - a combining mark right after a letter of the same script (or an Inherited mark), never a strike-through or
-   *    enclosing mark (U+0334-0338, U+20D0-20F0), or
+   *  - a combining mark right after a letter of the same script (or an Inherited mark), never an overlay, enclosing or
+   *    symbol-combining mark (any Me, U+0334-0338, U+20D0-20F0, U+101FD, U+1ABE, U+1CF37, U+1CF3E), or
    *  - a letter (Lu, Ll, Lt or Lo; never Lm, Sk, digits, symbols, format characters or the fillers) of a script in SCRIPTS,
    *    where Han, kana and Hangul count as one script, and a tie to a second script fails the label;
    *    Latin, Cyrillic, Greek, Armenian and Georgian trust only cased letters (CASED_ONLY);

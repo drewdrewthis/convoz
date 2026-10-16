@@ -1,11 +1,13 @@
 package httpapi
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/console"
@@ -148,11 +150,7 @@ func lookalikesAsset(_ *Server, w http.ResponseWriter, r *http.Request, _ *call)
 	h.Set("Content-Type", "text/javascript; charset=utf-8")
 	h.Set("Cache-Control", "no-cache")
 	h.Set("ETag", etag)
-	if r.Header.Get("If-None-Match") == etag {
-		w.WriteHeader(http.StatusNotModified)
-		return
-	}
-	_, _ = w.Write(body)
+	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(body)) // answers If-None-Match (weak, lists, "*") and HEAD
 }
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request, _ *call) {
