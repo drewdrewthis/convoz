@@ -60,7 +60,7 @@ Feature: Security walls
     And machine "box-2" is logged in with allow-list "devtool"
     And machine "laptop-1" is logged in with allow-list "devtool"
 
-    @v1 @api @I-38 @unimplemented
+    @v1 @api @I-38
     Scenario: Revoking one machine leaves the others working
       When the owner revokes "box-2"
       Then every command of the "box-2" sessions exits 3
@@ -72,7 +72,7 @@ Feature: Security walls
       When the owner revokes "box-2"
       Then conversation 60 shows as open for pickup again
 
-    @v1 @api @I-38 @unimplemented
+    @v1 @api @I-38
     Scenario: Disabling an identity ends its sessions on every machine
       Given "devtool" sessions on "box-2" and "laptop-1"
       When the owner disables "devtool" with a passkey

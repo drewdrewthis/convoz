@@ -51,6 +51,19 @@ export function fakeTailscale(cfg: FakeTailscaleConfig = {}): FakeTailscale {
 }
 
 /**
+ * A `tailscale whois --json` answer naming one tailnet node (S1 plan amendment 7: the node name and tags are the identity;
+ * the user profile is display only). Put it under the peer's address: `ts.set({ whois: { "127.0.0.1": whoisNode("box-2.testonly.ts.net") } })`.
+ * A test over TCP sees the peer 127.0.0.1; behind the unix listener the source is the last X-Forwarded-For entry.
+ * An address with no entry makes the fake exit 1, which the server must show as the source "unknown".
+ */
+export function whoisNode(fqdn: string, o: { tags?: string[] } = {}): Record<string, unknown> {
+  return {
+    Node: { Name: `${fqdn}.`, Tags: o.tags ?? [] },
+    UserProfile: { LoginName: "TESTONLY@example.com", DisplayName: "TESTONLY" },
+  };
+}
+
+/**
  * A ServeConfig with funnel on for `hostPort` ("convoz.testonly.ts.net:443") proxying `proxy`
  * ("http://127.0.0.1:41000" or "unix:/abs/http.sock"). `where` picks the top-level maps or a Foreground session.
  */

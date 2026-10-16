@@ -81,13 +81,13 @@ Feature: Security walls (contracts)
       When the owner sends POST /api/auth/step-up/options with an extra field "admin": true
       Then the server answers 400
 
-    @v1 @api @I-25 @AC-14 @unimplemented
+    @v1 @api @I-25 @AC-14
     Scenario: A revoked machine key is refused
       Given the owner revoked "box-2"
       When "box-2" mints a session lease
       Then the server answers 401
 
-    @v1 @api @invariant @I-25 @unimplemented
+    @v1 @api @invariant @I-25
     Scenario: No credential is stored in plain text
       Given a passkey device, recovery codes, a bootstrap link, a device code, a machine key and a session lease were issued
       When the data dir of the encryption-off test build is scanned
@@ -101,7 +101,7 @@ Feature: Security walls (contracts)
     And machine "box-2" is logged in with allow-list "devtool"
     And machine "laptop-1" is logged in with allow-list "devtool"
 
-    @v1 @api @I-26 @unimplemented
+    @v1 @api @I-26
     Scenario Outline: Step-up is required for destructive actions
       When the owner calls <action> with no step-up
       Then the server answers 403 with the code "step_up_required"
@@ -114,12 +114,21 @@ Feature: Security walls (contracts)
         | PATCH /api/machines/1                   |
         | POST /api/crew/agents                   |
         | POST /api/identities/7/disable          |
+        | POST /api/me/recovery-codes             |
+
+    # Split out of "Step-up is required for destructive actions": purge, export and delete-my-data ship in S12.
+    @v1 @api @I-26 @unimplemented
+    Scenario Outline: Step-up is required for data actions
+      When the owner calls <action> with no step-up
+      Then the server answers 403 with the code "step_up_required"
+
+      Examples:
+        | action                                  |
         | POST /api/messages/88/purge             |
         | POST /api/me/export                     |
         | POST /api/me/delete                     |
-        | POST /api/me/recovery-codes             |
 
-    @v1 @api @I-26 @unimplemented
+    @v1 @api @I-26
     Scenario: A step-up works once and for one action
       Given the owner made a step-up for "machine.reveal" on "box-2"
       When the owner uses it to regenerate "box-2"
@@ -127,13 +136,13 @@ Feature: Security walls (contracts)
       And a reveal of "box-2" with it answers 200
       And a second reveal with it answers 403
 
-    @v1 @api @I-26 @unimplemented
+    @v1 @api @I-26
     Scenario: A step-up expires after 5 minutes
       Given the owner made a step-up for "machine.reveal" on "box-2" 5 minutes and 1 second ago
       When the owner reveals the key of "box-2" with it
       Then the server answers 403
 
-    @v1 @api @I-26 @I-39 @unimplemented
+    @v1 @api @I-26 @I-39
     Scenario: An agent credential can never step up
       When the "devtool" lease calls POST /api/auth/step-up/options
       Then the server answers 403
@@ -146,23 +155,23 @@ Feature: Security walls (contracts)
     And machine "box-2" is logged in with allow-list "devtool"
     And machine "laptop-1" is logged in with allow-list "devtool"
 
-    @v1 @api @I-39 @AC-14 @unimplemented
+    @v1 @api @I-39 @AC-14
     Scenario: A used step-up cannot reveal again
       Given the owner revealed the key of "box-2" with step-up "su_1"
       When the owner reveals again with "su_1"
       Then the server answers 403
 
-    @v1 @api @invariant @I-39 @AC-14 @unimplemented
+    @v1 @api @invariant @I-39 @AC-14
     Scenario: The key never appears outside the reveal response
       Given the owner revealed and then regenerated the key of "box-2"
-      When the data dir of the encryption-off test build, the event stream, the audit view and the server log are scanned
+      When the data dir of the encryption-off test build, the stored events, the audit view and the server log are scanned
       Then the fake key strings appear 0 times outside the encrypted copy
 
-    @v1 @api @I-39 @AC-14 @unimplemented
+    @v1 @api @I-39 @AC-14
     Scenario: A reveal response is never stored and its event holds no key
       When the owner reveals the key of "box-2" with a passkey
       Then the response has "Cache-Control: no-store"
-      And the event stream carries one "machine.key_revealed" event without the key
+      And the stored events hold one "machine.key_revealed" event without the key
 
   Rule: Regenerate, revoke and disable take effect on the next request (SEC-4)
 
@@ -171,16 +180,23 @@ Feature: Security walls (contracts)
     And machine "box-2" is logged in with allow-list "devtool"
     And machine "laptop-1" is logged in with allow-list "devtool"
 
-    @v1 @cli @api @I-38 @AC-14 @unimplemented
+    @v1 @cli @api @I-38 @AC-14
     Scenario: Regenerating a key stops the old key and its leases at once
-      Given a "devtool" session on "box-2" waits with "convoz inbox --wait 60" and holds 2 claimed items
+      Given a "devtool" session on "box-2" is live
       And a "devtool" session on "laptop-1" is live
       When the owner regenerates the key of "box-2"
       Then the next request with the old key answers 401
-      And the waiting long poll ends within 1 second
       And the "box-2" lease answers 401
-      And the 2 items are ready again for the "laptop-1" session
       And the "laptop-1" session answers 200
+
+    # Split out of "Regenerating a key stops the old key and its leases at once": long polls and claims come with the inbox in S3.
+    @v1 @cli @api @I-38 @AC-14 @unimplemented
+    Scenario: Regenerating a key ends its long polls and frees its claims
+      Given a "devtool" session on "box-2" waits with "convoz inbox --wait 60" and holds 2 claimed items
+      And a "devtool" session on "laptop-1" is live
+      When the owner regenerates the key of "box-2"
+      Then the waiting long poll ends within 1 second
+      And the 2 items are ready again for the "laptop-1" session
 
   Rule: Files are served so that they cannot run (SEC-7)
 
