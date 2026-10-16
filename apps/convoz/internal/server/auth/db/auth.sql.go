@@ -155,6 +155,22 @@ func (q *Queries) CountPendingRequests(ctx context.Context, now int64) (int64, e
 	return count, err
 }
 
+const countPendingRequestsFromSource = `-- name: CountPendingRequestsFromSource :one
+SELECT COUNT(*) FROM machine_requests WHERE state = 'pending' AND expires_at > ?1 AND source = ?2
+`
+
+type CountPendingRequestsFromSourceParams struct {
+	Now    int64
+	Source string
+}
+
+func (q *Queries) CountPendingRequestsFromSource(ctx context.Context, arg CountPendingRequestsFromSourceParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countPendingRequestsFromSource, arg.Now, arg.Source)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deleteMachineAllow = `-- name: DeleteMachineAllow :exec
 DELETE FROM machine_allow WHERE machine_id = ?1
 `

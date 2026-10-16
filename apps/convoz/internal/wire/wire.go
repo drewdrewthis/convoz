@@ -36,12 +36,11 @@ const (
 
 // Routes of the machine login and the session lease, as the CLI calls them.
 const (
-	RouteDeviceCode   = "/api/device/code"
-	RouteDeviceToken  = "/api/device/token"
-	RouteSessions     = "/api/sessions"
-	RouteSessionsMe   = "/api/sessions/me"
-	RouteSessionRenew = "/api/sessions/renew"
-	RouteMe           = "/api/me"
+	RouteDeviceCode  = "/api/device/code"
+	RouteDeviceToken = "/api/device/token"
+	RouteSessions    = "/api/sessions"
+	RouteSessionsMe  = "/api/sessions/me"
+	RouteMe          = "/api/me"
 )
 
 // HostInfo is what a machine says about itself when it asks to log in. The owner sees it labelled as reported.

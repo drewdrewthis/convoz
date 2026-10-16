@@ -39,8 +39,8 @@ type Session struct {
 	ExpiresAt  int64
 }
 
-// MintInput is a request for a lease; the caller has already checked that the identity is an enabled agent.
-type MintInput struct {
+// leaseInput is a request for a lease; MintSession has already checked that the identity is an enabled agent.
+type leaseInput struct {
 	Machine    Machine
 	IdentityID int64
 	Handle     string
@@ -50,15 +50,16 @@ type MintInput struct {
 
 // MintedSession is a new lease with its token (shown once; only the SHA-256 is stored).
 type MintedSession struct {
-	Lease string
+	Handle string // the identity the lease is for
+	Lease  string
 	Session
 	MachineID int64
 }
 
-// MintSession makes a lease in one transaction (the caller's): it ends that client's expired lease, enforces
+// mintLease makes a lease in one transaction (the caller's): it ends that client's expired lease, enforces
 // the live caps and the hourly budgets, ends the live lease of the same client id ("replaced", M5), inserts
 // the new one and marks the machine's device request delivered. The allow-list is also a schema trigger.
-func MintSession(ctx context.Context, d pdb.DBTX, in MintInput, now time.Time) (MintedSession, error) {
+func mintLease(ctx context.Context, d pdb.DBTX, in leaseInput, now time.Time) (MintedSession, error) {
 	q := db.New(d)
 	m, nowMs := in.Machine, now.UnixMilli()
 	if !m.Allow.Covers(in.IdentityID, in.Handle) {

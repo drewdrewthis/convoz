@@ -16,7 +16,8 @@ import (
 const (
 	RequestTTL         = 10 * time.Minute // a request is pending this long
 	DeliveryTTL        = 10 * time.Minute // after approval the key can be fetched this long
-	MaxPendingRequests = 3
+	MaxPendingRequests = 3                // waiting requests from one source
+	MaxPendingAll      = 50               // waiting requests from every source together
 	MaxRequestsPerHour = 10
 	MaxRequestsPerDay  = 20
 	DefaultInterval    = 5 * time.Second
@@ -27,7 +28,8 @@ const (
 
 // Errors of the device flow.
 var (
-	ErrTooManyPending = errors.New("three requests are already waiting")
+	ErrTooManyPending = errors.New("three requests from this source are already waiting")
+	ErrPendingFull    = errors.New("too many requests are waiting")
 	ErrBadRequest     = errors.New("the request is not valid")
 )
 
@@ -76,7 +78,7 @@ type DeviceCode struct {
 	ExpiresIn  time.Duration
 }
 
-// RequestDeviceCode starts a login: it checks the pending cap and the per-source limits, then stores the
+// RequestDeviceCode starts a login: it checks the pending caps (per source and overall) and the per-source limits, then stores the
 // request with the SHA-256 of a new device code. nextCode makes user codes; a code that is already pending
 // is replaced by a fresh random one.
 func RequestDeviceCode(ctx context.Context, d pdb.DBTX, in DeviceRequest, nextCode func() string, now time.Time) (DeviceCode, error) {
@@ -84,12 +86,19 @@ func RequestDeviceCode(ctx context.Context, d pdb.DBTX, in DeviceRequest, nextCo
 	if !ValidMachineName(in.Name) {
 		return DeviceCode{}, ErrBadRequest
 	}
+	fromSource, err := q.CountPendingRequestsFromSource(ctx, db.CountPendingRequestsFromSourceParams{Now: now.UnixMilli(), Source: in.Source})
+	if err != nil {
+		return DeviceCode{}, err
+	}
+	if fromSource >= MaxPendingRequests {
+		return DeviceCode{}, ErrTooManyPending
+	}
 	pending, err := q.CountPendingRequests(ctx, now.UnixMilli())
 	if err != nil {
 		return DeviceCode{}, err
 	}
-	if pending >= MaxPendingRequests {
-		return DeviceCode{}, ErrTooManyPending
+	if pending >= MaxPendingAll {
+		return DeviceCode{}, ErrPendingFull
 	}
 	for _, w := range []struct {
 		window time.Duration
@@ -145,6 +154,16 @@ type PollResult struct {
 	MachineName string
 }
 
+// DeviceCodeLive reports whether the code belongs to a request that can still be polled for something other
+// than expired_token. It reads only, so a probe with a wrong code never takes the writer.
+func DeviceCodeLive(ctx context.Context, d pdb.DBTX, deviceCode string, now time.Time) (bool, error) {
+	r, err := db.New(d).GetRequestByDeviceCode(ctx, hashToken(deviceCode))
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil && now.UnixMilli() < r.ExpiresAt && r.State != "delivered", err
+}
+
 // PollDeviceCode answers one token poll. A poll sooner than the request's interval (less 50 ms) is
 // slow_down; it counts as a poll and adds 5 s to the interval. Run it in a write transaction.
 func PollDeviceCode(ctx context.Context, d pdb.DBTX, box *KeyBox, deviceCode string, now time.Time) (PollResult, error) {
@@ -161,14 +180,15 @@ func PollDeviceCode(ctx context.Context, d pdb.DBTX, box *KeyBox, deviceCode str
 		return PollResult{Outcome: PollExpired}, nil
 	}
 	interval := r.PollIntervalMs
-	touch := func(interval int64) error {
-		return q.TouchRequestPoll(ctx, db.TouchRequestPollParams{LastPollAt: sql.NullInt64{Int64: nowMs, Valid: true}, PollIntervalMs: interval, ID: r.ID})
+	touchAt := func(at, interval int64) error {
+		return q.TouchRequestPoll(ctx, db.TouchRequestPollParams{LastPollAt: sql.NullInt64{Int64: at, Valid: true}, PollIntervalMs: interval, ID: r.ID})
 	}
+	touch := func(interval int64) error { return touchAt(nowMs, interval) }
 	if r.State == "denied" {
 		// Said once, on the first poll after the denial (even a hasty one); every later poll is an expired code.
-		first := !r.LastPollAt.Valid || r.LastPollAt.Int64 < r.DecidedAt.Int64
-		if first {
-			return PollResult{Outcome: PollDenied}, touch(interval)
+		// A poll in the denial's own millisecond has not heard it, so "told" means last_poll_at is past decided_at.
+		if !r.LastPollAt.Valid || r.LastPollAt.Int64 <= r.DecidedAt.Int64 {
+			return PollResult{Outcome: PollDenied}, touchAt(max(nowMs, r.DecidedAt.Int64+1), interval)
 		}
 		return PollResult{Outcome: PollExpired}, nil
 	}

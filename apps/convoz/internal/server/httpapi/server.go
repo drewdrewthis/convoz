@@ -45,6 +45,9 @@ type Server struct {
 	ceremonies    auth.Ceremonies
 	publicLimit   auth.Limiter // 20 hits a minute per source and public route
 	recoveryLimit auth.Limiter // 10 recovery attempts an hour, for everyone
+	// tokenMissLimit counts device-token polls with a code that is not live, per source. A real client stops
+	// at its first expired_token, so 30 a minute is loose.
+	tokenMissLimit auth.Limiter
 }
 
 // NewServer returns the public server state.
@@ -57,8 +60,9 @@ func NewServer(store *db.Store, clock platform.Clock, wa *webauthn.WebAuthn, key
 	}
 	return &Server{
 		Store: store, Clock: clock, WA: wa, Keys: keys, Cfg: cfg, Log: logger, csrfExempt: exempt, userCodes: auth.NewUserCode,
-		publicLimit:   auth.Limiter{Window: time.Minute, Max: 20},
-		recoveryLimit: auth.Limiter{Window: time.Hour, Max: 10},
+		publicLimit:    auth.Limiter{Window: time.Minute, Max: 20},
+		recoveryLimit:  auth.Limiter{Window: time.Hour, Max: 10},
+		tokenMissLimit: auth.Limiter{Window: time.Minute, Max: 30},
 	}
 }
 

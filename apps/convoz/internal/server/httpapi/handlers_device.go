@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform"
@@ -21,11 +20,16 @@ import (
 // hostInfoLimit caps each self-reported field so the stored JSON stays under the column's 200 characters.
 const hostInfoLimit = 30
 
+// clip keeps printable ASCII only (the owner reads this text and a machine controls it: no control, bidi or
+// look-alike characters), then cuts it to hostInfoLimit.
 func clip(s string) string {
-	if utf8.RuneCountInString(s) <= hostInfoLimit {
-		return s
+	out := make([]byte, 0, hostInfoLimit)
+	for i := 0; i < len(s) && len(out) < hostInfoLimit; i++ {
+		if c := s[i]; c >= 0x20 && c <= 0x7e {
+			out = append(out, c)
+		}
 	}
-	return string([]rune(s)[:hostInfoLimit])
+	return string(out)
 }
 
 // interval is the poll interval new device requests get: 5 s, or what the test build asks for.
@@ -71,6 +75,8 @@ func (s *Server) deviceCode(w http.ResponseWriter, r *http.Request, _ *call) {
 	switch {
 	case errors.Is(err, auth.ErrTooManyPending):
 		writeErr(w, http.StatusTooManyRequests, wire.CodeTooManyPending, "Three machines are already waiting. Deny the waiting requests in Convoz, then run convoz login again.")
+	case errors.Is(err, auth.ErrPendingFull):
+		writeErr(w, http.StatusTooManyRequests, wire.CodeTooManyPending, "Too many machines are waiting. Deny the waiting requests in Convoz, then run convoz login again.")
 	case errors.As(err, &limited):
 		retryAfter(w, limited.RetryAfter)
 		writeErr(w, http.StatusTooManyRequests, "rate_limited", "This machine asked too often. Try again later.")
@@ -95,10 +101,26 @@ func (s *Server) deviceToken(w http.ResponseWriter, r *http.Request, _ *call) {
 	if !decode(w, r, &in) {
 		return
 	}
+	// A code that is not live is answered from the reader: a probe with wrong codes never takes the writer.
+	now := s.Clock.Now()
+	live, err := auth.DeviceCodeLive(r.Context(), s.reader(), in.DeviceCode, now)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	if !live {
+		if !s.tokenMissLimit.Allow(s.source(r), now) {
+			w.Header().Set("Retry-After", "60")
+			writeErr(w, http.StatusTooManyRequests, "rate_limited", "Too many tries. Wait a minute.")
+			return
+		}
+		expiredToken(w)
+		return
+	}
 	var res auth.PollResult
-	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
+	err = s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
 		var err error
-		res, err = auth.PollDeviceCode(ctx, tx.DBTX(), s.Keys, in.DeviceCode, s.Clock.Now())
+		res, err = auth.PollDeviceCode(ctx, tx.DBTX(), s.Keys, in.DeviceCode, now)
 		return err
 	})
 	switch {

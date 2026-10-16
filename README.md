@@ -10,7 +10,7 @@ One place to talk with your agents and make their decisions.
 
 ## Status
 
-S0 (the skeleton) and S1a (owner auth and the tailnet wall) are built: the `convoz` binary with `serve`, `admin bootstrap-link` and `version`; the encrypted SQLite store with migrations and a pre-migration backup; the key hierarchy (KEK file, wrapped DEK keyring); the owner's passkeys, recovery codes, device sessions and step-up; the wall (`--host`, loopback or unix socket only, funnel check, admin socket); a bare owner console for sign-in and onboarding; the end-to-end scenarios and the CI gates (module boundaries, red first / green at head). Machines, sessions and crew (S1b) and the rest of the product are design only.
+S0 (the skeleton), S1a (owner auth and the tailnet wall) and S1b (machines, sessions and crew) are built. The `convoz` binary has `serve`, `admin bootstrap-link`, `login`, `whoami`, `session start`, `session end` and `version`. It brings the encrypted SQLite store with migrations and a pre-migration backup; the key hierarchy (KEK file, wrapped DEK keyring); the owner's passkeys, recovery codes, device sessions and step-up; the wall (`--host`, loopback or unix socket only, funnel check, admin socket); a bare owner console for sign-in, onboarding and machine requests; the machine login (a device flow the owner approves with a passkey), machine keys (reveal, regenerate, revoke), per-machine allow-lists, 12-hour session leases, and crew (agent identities); the end-to-end scenarios and the CI gates (module boundaries, red first / green at head). Conversations, asks and the rest of the product are design only.
 
 ### Build and test
 

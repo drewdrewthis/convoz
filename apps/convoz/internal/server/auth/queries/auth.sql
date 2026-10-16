@@ -103,6 +103,9 @@ RETURNING id;
 -- name: CountPendingRequests :one
 SELECT COUNT(*) FROM machine_requests WHERE state = 'pending' AND expires_at > sqlc.arg(now);
 
+-- name: CountPendingRequestsFromSource :one
+SELECT COUNT(*) FROM machine_requests WHERE state = 'pending' AND expires_at > sqlc.arg(now) AND source = sqlc.arg(source);
+
 -- name: RequestsFromSource :one
 SELECT COUNT(*) AS n, CAST(COALESCE(MIN(created_at), 0) AS INTEGER) AS oldest
 FROM machine_requests WHERE source = sqlc.arg(source) AND created_at > sqlc.arg(since);

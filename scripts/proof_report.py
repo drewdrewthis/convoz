@@ -76,18 +76,20 @@ def is_benign_b64(text, m):
     return "/" in run and run == run.lower()
 
 
+# Commands that take revisions as arguments: git, and the repo's own red/green checker (base and head SHAs).
+REVISION_COMMANDS = ("$ git ", "$ python3 -I ./scripts/red_green.py ")
 LONE_SHA = re.compile(r"[0-9A-Fa-f]{40}")
 
 
 def is_sha_stack(text, m):
     """Git SHAs, not one long value. Either every line the match touches is one 40-hex token and nothing else
-    (stacked lines), or the match sits on a recorded command line ("$ ...") and every group is exactly 40 hex
-    (revisions passed as arguments). Two 40-hex groups on any other line, or on lines with other text, are one
+    (stacked lines), or the match sits on a recorded revision command line (REVISION_COMMANDS) and every group is exactly 40 hex
+    (revisions passed as arguments). Two 40-hex groups on any other command (echo, printf), any other line, or on lines with other text, are one
     80-hex value, not two SHAs."""
     start = text.rfind("\n", 0, m.start()) + 1
     end = text.find("\n", m.end())
     lines = text[start:len(text) if end < 0 else end].splitlines()
-    if len(lines) == 1 and lines[0].startswith("$ "):
+    if len(lines) == 1 and lines[0].startswith(REVISION_COMMANDS):
         words = [w for w in lines[0].split() if HEX_GROUP.fullmatch(w)]
         return len(words) >= 2 and all(len(w) == 40 for w in words)
     return len(lines) >= 2 and all(LONE_SHA.fullmatch(line.strip()) for line in lines)
@@ -237,6 +239,8 @@ def self_test():
         ("split hex, colons", ":".join([hex16] * 4) + "\n", {"split hex"}),
         ("stacked 40-char git SHAs", "".join(hashlib.sha1(n).hexdigest() + "\n" for n in (b"alpha", b"beta", b"gamma")), set()),
         ("two SHA arguments on a recorded command line", "$ git diff " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + " --stat\n", set()),
+        ("two SHA arguments to the red/green checker", "$ python3 -I ./scripts/red_green.py " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + " --runner r\n", set()),
+        ("two 40-hex words on a recorded command that is not git", "$ echo " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + "\n", {"split hex"}),
         ("80 hex as two 40-hex groups on one line", hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + "\n", {"split hex"}),
         ("80 hex as two 40-hex lines with text before the first", "key " + hashlib.sha1(b"a").hexdigest() + "\n" + hashlib.sha1(b"b").hexdigest() + "\n", {"split hex"}),
         ("80 hex in one run", hashlib.sha1(b"a").hexdigest() + hashlib.sha1(b"b").hexdigest() + "\n", {"hex"}),

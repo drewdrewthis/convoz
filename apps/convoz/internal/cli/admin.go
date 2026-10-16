@@ -39,7 +39,7 @@ type statusError struct {
 
 func (e *statusError) Error() string { return e.msg }
 
-// exitCode maps an error to its §13.2 exit code.
+// exitCode maps an error to its §13.2 exit code. A 400 is a failure (1), not usage (2): usage means the command line was wrong.
 func exitCode(err error) int {
 	var se *statusError
 	switch {
@@ -49,8 +49,6 @@ func exitCode(err error) int {
 		return ExitFailure
 	case se.status == http.StatusUnauthorized || se.status == http.StatusForbidden:
 		return ExitAuth
-	case se.status == http.StatusBadRequest:
-		return ExitUsage
 	case se.status == http.StatusConflict:
 		return ExitConflict
 	case se.status == http.StatusTooManyRequests:

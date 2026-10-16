@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
@@ -52,7 +53,7 @@ func Whoami(args []string, io IO) int {
 		fmt.Fprintln(io.Stdout, string(raw))
 		return ExitOK
 	}
-	fmt.Fprintf(io.Stdout, "identity: %s\nmachine: %s\nsession: %s\nlive sessions: %d\n", me.Identity.Handle, me.Machine.Name, *sid, me.LiveSessions)
+	fmt.Fprintf(io.Stdout, "identity: %s\nmachine: %s\nsession: %s\nlive sessions: %d\nscopes: %s\n", me.Identity.Handle, me.Machine.Name, *sid, me.LiveSessions, strings.Join(me.Scopes, ", "))
 	return ExitOK
 }
 
