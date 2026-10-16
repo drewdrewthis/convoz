@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.convoz.dev/v1/manifest.json",
+  "title": "Tier 2 app manifest v1",
+  "description": "Written by the agent in convoz.app.json; copied by convoz app build into props.manifest. permissions must be empty in v1: a frame gets no network, storage, camera, microphone, clipboard, popups or navigation.",
+  "type": "object",
+  "required": [
+    "name",
+    "version",
+    "bridge",
+    "kit",
+    "permissions"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "$ref": "common.json#/$defs/line40"
+    },
+    "version": {
+      "$ref": "common.json#/$defs/semver"
+    },
+    "description": {
+      "$ref": "common.json#/$defs/line140"
+    },
+    "icon": {
+      "enum": [
+        "app",
+        "chart",
+        "table",
+        "map",
+        "calendar",
+        "report",
+        "form",
+        "list",
+        "code",
+        "image",
+        "gauge",
+        "tool"
+      ]
+    },
+    "height": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "initial": {
+          "type": "integer",
+          "minimum": 80,
+          "maximum": 600
+        },
+        "min": {
+          "type": "integer",
+          "minimum": 80,
+          "maximum": 600
+        },
+        "max": {
+          "type": "integer",
+          "minimum": 80,
+          "maximum": 600
+        }
+      }
+    },
+    "results": {
+      "description": "true if the app may send a result. The preview card then says 'This app can send a reply for you'.",
+      "type": "boolean"
+    },
+    "permissions": {
+      "type": "array",
+      "maxItems": 0
+    },
+    "bridge": {
+      "description": "Bridge protocol version the bundle speaks.",
+      "const": 1
+    },
+    "kit": {
+      "description": "app-kit runtime version that convoz app build inlined.",
+      "$ref": "common.json#/$defs/semver"
+    }
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.convoz.dev/v1/components/checklist.json",
+  "title": "Tier 1 checklist props v1",
+  "description": "mode view (default): read-only ticks set by the agent. mode select: the viewer ticks items and taps the host Send button, which posts one via_app reply {checked:[ids]}. Semantic checks: item ids unique; minChecked <= items.length. A select checklist is rejected on an ask message.",
+  "type": "object",
+  "required": [
+    "items"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "mode": {
+      "enum": [
+        "view",
+        "select"
+      ]
+    },
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "done"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "../common.json#/$defs/id"
+          },
+          "label": {
+            "$ref": "../common.json#/$defs/line200"
+          },
+          "done": {
+            "type": "boolean"
+          },
+          "note": {
+            "$ref": "../common.json#/$defs/line140"
+          }
+        }
+      }
+    },
+    "submitLabel": {
+      "$ref": "../common.json#/$defs/line24"
+    },
+    "minChecked": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 50
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "not": {
+          "properties": {
+            "mode": {
+              "const": "select"
+            }
+          },
+          "required": [
+            "mode"
+          ]
+        }
+      },
+      "then": {
+        "properties": {
+          "submitLabel": false,
+          "minChecked": false
+        }
+      }
+    }
+  ]
+}

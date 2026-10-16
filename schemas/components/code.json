@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.convoz.dev/v1/components/code.json",
+  "title": "Tier 1 code / diff props v1",
+  "description": "mode code: highlighted source. mode diff: unified diff text (one or more files); the host parses it into a file list and +/- lines, and shows the raw text if it does not parse. Semantic check: <= 2000 lines. Text is never executed or turned into HTML.",
+  "type": "object",
+  "required": [
+    "mode",
+    "text"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "mode": {
+      "enum": [
+        "code",
+        "diff"
+      ]
+    },
+    "text": {
+      "allOf": [
+        {
+          "$ref": "../common.json#/$defs/multiline"
+        }
+      ],
+      "minLength": 1,
+      "maxLength": 49152,
+      "type": "string"
+    },
+    "language": {
+      "type": "string",
+      "pattern": "^[a-z0-9+#.-]{1,20}$"
+    },
+    "filename": {
+      "$ref": "../common.json#/$defs/line120"
+    },
+    "startLine": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000000
+    },
+    "wrap": {
+      "type": "boolean"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "diff"
+          }
+        },
+        "required": [
+          "mode"
+        ]
+      },
+      "then": {
+        "properties": {
+          "startLine": false
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.convoz.dev/v1/components/chart.json",
+  "title": "Tier 1 chart props v1 (line, bar, spark)",
+  "description": "Semantic checks (server and client): every series.values length equals x.labels length when x is present; y.min < y.max when both are set. Colours come from tone tokens only.",
+  "type": "object",
+  "required": [
+    "kind",
+    "series"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "enum": [
+        "line",
+        "bar",
+        "spark"
+      ]
+    },
+    "x": {
+      "type": "object",
+      "required": [
+        "labels"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "labels": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 500,
+          "items": {
+            "$ref": "../common.json#/$defs/line24"
+          }
+        },
+        "title": {
+          "$ref": "../common.json#/$defs/line40"
+        }
+      }
+    },
+    "y": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "unit": {
+          "allOf": [
+            {
+              "$ref": "../common.json#/$defs/line"
+            }
+          ],
+          "maxLength": 12,
+          "type": "string"
+        },
+        "min": {
+          "$ref": "../common.json#/$defs/num"
+        },
+        "max": {
+          "$ref": "../common.json#/$defs/num"
+        },
+        "title": {
+          "$ref": "../common.json#/$defs/line40"
+        }
+      }
+    },
+    "series": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "values"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "$ref": "../common.json#/$defs/line40"
+          },
+          "values": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 500,
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "../common.json#/$defs/num"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "tone": {
+            "$ref": "../common.json#/$defs/tone"
+          }
+        }
+      }
+    },
+    "stacked": {
+      "type": "boolean"
+    },
+    "refLines": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "required": [
+          "value",
+          "label"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "value": {
+            "$ref": "../common.json#/$defs/num"
+          },
+          "label": {
+            "$ref": "../common.json#/$defs/line40"
+          },
+          "tone": {
+            "$ref": "../common.json#/$defs/tone"
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "spark"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "series": {
+            "maxItems": 1,
+            "type": "array"
+          },
+          "stacked": false,
+          "refLines": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "line",
+              "bar"
+            ]
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "required": [
+          "x"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "stacked"
+        ]
+      },
+      "then": {
+        "properties": {
+          "kind": {
+            "const": "bar"
+          }
+        }
+      }
+    }
+  ]
+}

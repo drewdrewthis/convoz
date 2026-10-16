@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.convoz.dev/v1/system.json",
+  "title": "messages.system_json v1",
+  "description": "Ids and enums only (no text: names and titles are looked up at render time, so a rename or a scrub never leaves stale text). <= 2048 bytes (DB CHECK). Written only by the server.",
+  "type": "object",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/byOnly"
+    },
+    {
+      "$ref": "#/$defs/subjectOnly"
+    },
+    {
+      "$ref": "#/$defs/subjectBy"
+    },
+    {
+      "$ref": "#/$defs/added"
+    },
+    {
+      "$ref": "#/$defs/paused"
+    },
+    {
+      "$ref": "#/$defs/released"
+    }
+  ],
+  "$defs": {
+    "ref": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "byOnly": {
+      "type": "object",
+      "required": [
+        "v",
+        "t",
+        "by"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "t": {
+          "enum": [
+            "conversation.renamed",
+            "conversation.resumed",
+            "conversation.restored",
+            "pickup.opened"
+          ]
+        },
+        "by": {
+          "$ref": "#/$defs/ref"
+        }
+      }
+    },
+    "subjectOnly": {
+      "type": "object",
+      "required": [
+        "v",
+        "t",
+        "identity"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "t": {
+          "enum": [
+            "member.left",
+            "member.disabled",
+            "pickup.taken"
+          ]
+        },
+        "identity": {
+          "$ref": "#/$defs/ref"
+        }
+      }
+    },
+    "subjectBy": {
+      "type": "object",
+      "required": [
+        "v",
+        "t",
+        "identity",
+        "by"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "t": {
+          "enum": [
+            "member.requested",
+            "member.removed"
+          ]
+        },
+        "identity": {
+          "$ref": "#/$defs/ref"
+        },
+        "by": {
+          "$ref": "#/$defs/ref"
+        }
+      }
+    },
+    "added": {
+      "type": "object",
+      "required": [
+        "v",
+        "t",
+        "identity",
+        "by",
+        "via"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "t": {
+          "const": "member.added"
+        },
+        "identity": {
+          "$ref": "#/$defs/ref"
+        },
+        "by": {
+          "$ref": "#/$defs/ref"
+        },
+        "via": {
+          "enum": [
+            "mention",
+            "add",
+            "create"
+          ]
+        },
+        "history": {
+          "enum": [
+            "since_now",
+            "full"
+          ]
+        }
+      }
+    },
+    "paused": {
+      "type": "object",
+      "required": [
+        "v",
+        "t",
+        "streak"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "t": {
+          "const": "conversation.paused"
+        },
+        "streak": {
+          "const": 20
+        }
+      }
+    },
+    "released": {
+      "type": "object",
+      "required": [
+        "v",
+        "t",
+        "identity",
+        "reason"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "t": {
+          "const": "pickup.released"
+        },
+        "identity": {
+          "$ref": "#/$defs/ref"
+        },
+        "reason": {
+          "enum": [
+            "removed",
+            "key_revoked",
+            "disabled",
+            "lease_expired"
+          ]
+        }
+      }
+    }
+  }
+}

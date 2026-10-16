@@ -1,0 +1,381 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.convoz.dev/v1/bridge.json",
+  "title": "Tier 2 bridge protocol v1 (host <-> frame over one MessageChannel port)",
+  "description": "convoz.connect is the only message sent with window.postMessage (targetOrigin '*', because a sandboxed frame has an opaque origin); it transfers port2. Every later message goes over that port. The host validates fromFrame, app-kit validates toFrame. Any message > 8192 bytes, of an unknown t, or over 20 per second is dropped and counted; 3 drops close the frame.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/toFrame"
+    },
+    {
+      "$ref": "#/$defs/fromFrame"
+    }
+  ],
+  "$defs": {
+    "toFrame": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/connect"
+        },
+        {
+          "$ref": "#/$defs/init"
+        },
+        {
+          "$ref": "#/$defs/data"
+        },
+        {
+          "$ref": "#/$defs/ack"
+        }
+      ]
+    },
+    "fromFrame": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ready"
+        },
+        {
+          "$ref": "#/$defs/resize"
+        },
+        {
+          "$ref": "#/$defs/result"
+        },
+        {
+          "$ref": "#/$defs/error"
+        }
+      ]
+    },
+    "connect": {
+      "type": "object",
+      "required": [
+        "t",
+        "v",
+        "versions"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "t": {
+          "const": "convoz.connect"
+        },
+        "v": {
+          "const": 1
+        },
+        "versions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    },
+    "env": {
+      "type": "object",
+      "required": [
+        "theme",
+        "tokens",
+        "locale",
+        "reducedMotion",
+        "saveData",
+        "platform",
+        "width"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "theme": {
+          "enum": [
+            "light",
+            "dark"
+          ]
+        },
+        "tokens": {
+          "type": "object",
+          "required": [
+            "bg",
+            "raised",
+            "text",
+            "muted",
+            "line",
+            "accent",
+            "onAccent",
+            "good",
+            "warn",
+            "bad"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "bg": {
+              "$ref": "#/$defs/hex"
+            },
+            "raised": {
+              "$ref": "#/$defs/hex"
+            },
+            "text": {
+              "$ref": "#/$defs/hex"
+            },
+            "muted": {
+              "$ref": "#/$defs/hex"
+            },
+            "line": {
+              "$ref": "#/$defs/hex"
+            },
+            "accent": {
+              "$ref": "#/$defs/hex"
+            },
+            "onAccent": {
+              "$ref": "#/$defs/hex"
+            },
+            "good": {
+              "$ref": "#/$defs/hex"
+            },
+            "warn": {
+              "$ref": "#/$defs/hex"
+            },
+            "bad": {
+              "$ref": "#/$defs/hex"
+            }
+          }
+        },
+        "locale": {
+          "type": "string",
+          "pattern": "^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,3}$"
+        },
+        "reducedMotion": {
+          "type": "boolean"
+        },
+        "saveData": {
+          "type": "boolean"
+        },
+        "platform": {
+          "enum": [
+            "phone",
+            "desktop"
+          ]
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        }
+      }
+    },
+    "init": {
+      "type": "object",
+      "required": [
+        "t",
+        "v",
+        "app",
+        "env"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "t": {
+          "const": "init"
+        },
+        "v": {
+          "const": 1
+        },
+        "app": {
+          "type": "object",
+          "required": [
+            "messageId",
+            "canResult",
+            "onAsk"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "messageId": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "title": {
+              "$ref": "common.json#/$defs/line80"
+            },
+            "canResult": {
+              "type": "boolean"
+            },
+            "onAsk": {
+              "type": "boolean"
+            }
+          }
+        },
+        "data": {},
+        "env": {
+          "$ref": "#/$defs/env"
+        }
+      }
+    },
+    "data": {
+      "type": "object",
+      "required": [
+        "t",
+        "v"
+      ],
+      "anyOf": [
+        {
+          "required": [
+            "data"
+          ]
+        },
+        {
+          "required": [
+            "env"
+          ]
+        }
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "t": {
+          "const": "data"
+        },
+        "v": {
+          "const": 1
+        },
+        "data": {},
+        "env": {
+          "$ref": "#/$defs/env"
+        }
+      }
+    },
+    "ack": {
+      "type": "object",
+      "required": [
+        "t",
+        "v",
+        "id",
+        "status"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "t": {
+          "const": "ack"
+        },
+        "v": {
+          "const": 1
+        },
+        "id": {
+          "$ref": "#/$defs/nonce"
+        },
+        "status": {
+          "enum": [
+            "sent",
+            "cancelled",
+            "rejected",
+            "not_allowed"
+          ]
+        },
+        "reason": {
+          "$ref": "common.json#/$defs/line140"
+        }
+      }
+    },
+    "ready": {
+      "type": "object",
+      "required": [
+        "t",
+        "v",
+        "kit"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "t": {
+          "const": "ready"
+        },
+        "v": {
+          "const": 1
+        },
+        "kit": {
+          "$ref": "common.json#/$defs/semver"
+        }
+      }
+    },
+    "resize": {
+      "type": "object",
+      "required": [
+        "t",
+        "v",
+        "height"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "t": {
+          "const": "resize"
+        },
+        "v": {
+          "const": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20000
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "required": [
+        "t",
+        "v",
+        "id",
+        "summary",
+        "value"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "t": {
+          "const": "result"
+        },
+        "v": {
+          "const": 1
+        },
+        "id": {
+          "$ref": "#/$defs/nonce"
+        },
+        "summary": {
+          "$ref": "common.json#/$defs/summary"
+        },
+        "value": {
+          "description": "Any JSON, <= 4096 bytes canonical (host check). On an ask message, {option: 0..4} only highlights that option."
+        }
+      }
+    },
+    "error": {
+      "type": "object",
+      "required": [
+        "t",
+        "v",
+        "code"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "t": {
+          "const": "error"
+        },
+        "v": {
+          "const": 1
+        },
+        "code": {
+          "enum": [
+            "render",
+            "data",
+            "unsupported",
+            "internal"
+          ]
+        },
+        "message": {
+          "$ref": "common.json#/$defs/line200"
+        }
+      }
+    },
+    "nonce": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{8,64}$"
+    },
+    "hex": {
+      "type": "string",
+      "pattern": "^#[0-9a-f]{6}$"
+    }
+  }
+}

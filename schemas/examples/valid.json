@@ -1,0 +1,244 @@
+[
+  {
+    "name": "chart-bar-prototype-a1",
+    "schema": "app.json",
+    "data": {
+      "v": 1,
+      "type": "chart",
+      "title": "Tokens per day",
+      "fallback": "Tokens per day, last 7 days (millions). Docs lane: Mon 1.1, Tue 1.4, Wed 1.8, Thu 2.3, Fri 1.2, Sat 1.6, Sun 2.1. Other lanes: 0.9, 1.0, 1.1, 1.3, 0.8, 0.7, 1.0. Cap 2M a day; docs went over on Thu and Sun.",
+      "height": 220,
+      "props": {
+        "kind": "bar",
+        "x": { "labels": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] },
+        "y": { "unit": "M", "min": 0, "max": 3 },
+        "series": [
+          { "name": "Docs lane", "values": [1.1, 1.4, 1.8, 2.3, 1.2, 1.6, 2.1], "tone": "accent" },
+          { "name": "Other lanes", "values": [0.9, 1.0, 1.1, 1.3, 0.8, 0.7, 1.0], "tone": "muted" }
+        ],
+        "refLines": [{ "value": 2, "label": "Cap 2M a day", "tone": "warn" }]
+      }
+    }
+  },
+  {
+    "name": "chart-spark",
+    "schema": "app.json",
+    "data": {
+      "v": 1,
+      "type": "chart",
+      "title": "Error rate, last hour",
+      "fallback": "Error rate over the last hour: peak 4.1% at 5:41, now 0.3%.",
+      "props": { "kind": "spark", "y": { "unit": "%" }, "series": [{ "name": "Error rate", "values": [0.3, 0.4, 4.1, 2.2, 0.6, 0.3] }] }
+    }
+  },
+  {
+    "name": "table",
+    "schema": "app.json",
+    "data": {
+      "v": 1,
+      "type": "table",
+      "title": "Test runners",
+      "fallback": "Built-in: 41 s, 0 flaky. vitest: 19 s, 1 flaky. jest: 33 s, 2 flaky.",
+      "props": {
+        "columns": [{ "label": "Runner" }, { "label": "Time (s)", "kind": "number", "align": "right" }, { "label": "Flaky", "kind": "number", "align": "right" }],
+        "rows": [["Built-in", 41, 0], ["vitest", 19, 1], ["jest", 33, 2]],
+        "sortable": true,
+        "highlightRow": 1
+      }
+    }
+  },
+  {
+    "name": "checklist-select",
+    "schema": "app.json",
+    "data": {
+      "v": 1,
+      "type": "checklist",
+      "title": "Release 2.14 checks",
+      "fallback": "Release 2.14 checks: [x] Changelog, [x] Migrations, [ ] Docs, [ ] Smoke test. Tick what you have verified.",
+      "props": {
+        "mode": "select",
+        "items": [
+          { "id": "changelog", "label": "Changelog", "done": true },
+          { "id": "migrations", "label": "Migrations", "done": true },
+          { "id": "docs", "label": "Docs", "done": false },
+          { "id": "smoke", "label": "Smoke test", "done": false, "note": "Needs box-3" }
+        ],
+        "submitLabel": "Send ticks"
+      }
+    }
+  },
+  {
+    "name": "kv",
+    "schema": "app.json",
+    "data": {
+      "v": 1,
+      "type": "kv",
+      "title": "box-3",
+      "fallback": "box-3: rolled back at 5:52 AM; error rate 0.3%; checks 12 of 12.",
+      "props": { "columns": 2, "pairs": [{ "k": "State", "v": "Rolled back", "tone": "warn" }, { "k": "Error rate", "v": "0.3%" }, { "k": "Checks", "v": "12 of 12", "tone": "good" }] }
+    }
+  },
+  {
+    "name": "picker-single-prototype-a2",
+    "schema": "app.json",
+    "data": {
+      "v": 1,
+      "type": "picker",
+      "title": "Runner picker",
+      "fallback": "Which runner should I compare first? Options: Built-in, vitest, jest. Reply with one.",
+      "height": 120,
+      "props": {
+        "prompt": "Which runner should I compare first?",
+        "options": [{ "id": "builtin", "label": "Built-in" }, { "id": "vitest", "label": "vitest" }, { "id": "jest", "label": "jest" }]
+      }
+    }
+  },
+  {
+    "name": "picker-multi",
+    "schema": "app.json",
+    "data": {
+      "v": 1,
+      "type": "picker",
+      "fallback": "Which lanes should run tonight? Options: docs, search, release. Pick one to three.",
+      "props": {
+        "multi": true,
+        "min": 1,
+        "max": 3,
+        "submitLabel": "Run these",
+        "options": [{ "id": "docs", "label": "docs" }, { "id": "search", "label": "search" }, { "id": "release", "label": "release", "hint": "Slow: 40 min" }]
+      }
+    }
+  },
+  {
+    "name": "form",
+    "schema": "app.json",
+    "data": {
+      "v": 1,
+      "type": "form",
+      "title": "Schedule the export",
+      "fallback": "Schedule the nightly export. Fields: start time (default 02:00 UTC), lanes (docs or all), notify me (yes or no). Reply with your values.",
+      "props": {
+        "intro": "I will run the export at this time every night.",
+        "submitLabel": "Review",
+        "fields": [
+          { "id": "start", "label": "Start (UTC hour)", "kind": "number", "min": 0, "max": 23, "step": 1, "default": 2, "required": true },
+          { "id": "lanes", "label": "Lanes", "kind": "select", "options": [{ "id": "docs", "label": "Docs only" }, { "id": "all", "label": "All lanes" }], "default": "docs" },
+          { "id": "notify", "label": "Notify me", "kind": "toggle", "default": true },
+          { "id": "note", "label": "Note", "kind": "textarea", "maxLength": 500 }
+        ]
+      }
+    }
+  },
+  {
+    "name": "progress",
+    "schema": "app.json",
+    "data": {
+      "v": 1,
+      "type": "progress",
+      "fallback": "Milestone 1: 3 of 4 done. Server done, API done, Database done, convoz CLI in progress.",
+      "props": {
+        "label": "Milestone 1",
+        "done": 3,
+        "total": 4,
+        "steps": [{ "label": "Server", "state": "done" }, { "label": "API", "state": "done" }, { "label": "Database", "state": "done" }, { "label": "convoz CLI", "state": "doing" }]
+      }
+    }
+  },
+  {
+    "name": "code-diff",
+    "schema": "app.json",
+    "data": {
+      "v": 1,
+      "type": "code",
+      "title": "Ask state guard",
+      "fallback": "Diff of ask.ts: adds a NEXT table so an ask moves from open only to answered, snoozed or dismissed.",
+      "props": {
+        "mode": "diff",
+        "text": "--- a/ask.ts\n+++ b/ask.ts\n@@ -1,3 +1,8 @@\n+const NEXT = {\n+  open: ['answered', 'snoozed', 'dismissed'],\n+  answered: [],\n+  dismissed: [],\n+};\n export function move(a, to) {\n-  a.state = to;\n+  if (!NEXT[a.state].includes(to)) throw new Error('bad move');\n+  a.state = to;\n }\n"
+      }
+    }
+  },
+  {
+    "name": "gallery-compare",
+    "schema": "app.json",
+    "data": {
+      "v": 1,
+      "type": "gallery",
+      "title": "Search bar, before and after",
+      "fallback": "Two screenshots of the search bar: before and after the filter chips.",
+      "props": {
+        "layout": "compare",
+        "images": [
+          { "upload": "Abc123Abc123Abc123Abc1", "alt": "Search bar before the filter chips", "caption": "Before" },
+          { "upload": "Xyz789Xyz789Xyz789Xyz7", "alt": "Search bar with four filter chips", "caption": "After" }
+        ]
+      }
+    }
+  },
+  {
+    "name": "frame-prototype-a3",
+    "schema": "app.json",
+    "data": {
+      "v": 1,
+      "type": "frame",
+      "title": "Deploy report",
+      "fallback": "Post-deploy report for box-3. box-3: rolled back at 5:52 AM. Error rate: 0.3%, flat for 20 min. Checks: 12 of 12 pass.",
+      "height": 130,
+      "props": {
+        "bundle": { "upload": "Fr4meBundle0000000000a", "sha256": "9f2c4e1b7a3d5c6e8f0a1b2c3d4e5f60718293a4b5c6d7e8f9a0b1c2d3e4f5a6", "size": 61440 },
+        "manifest": {
+          "name": "Deploy report",
+          "version": "1.0.0",
+          "icon": "report",
+          "height": { "initial": 130, "min": 80, "max": 400 },
+          "results": true,
+          "permissions": [],
+          "bridge": 1,
+          "kit": "1.0.0"
+        },
+        "data": { "rows": [["box-3", "Rolled back", "5:52 AM"], ["Error rate", "0.3%", "Flat for 20 min"], ["Checks", "12 of 12", "All pass"]] }
+      }
+    }
+  },
+  {
+    "name": "manifest-minimal",
+    "schema": "manifest.json",
+    "data": { "name": "Deploy report", "version": "1.0.0", "permissions": [], "bridge": 1, "kit": "1.0.0" }
+  },
+  { "name": "bridge-connect", "schema": "bridge.json", "data": { "t": "convoz.connect", "v": 1, "versions": [1] } },
+  {
+    "name": "bridge-init",
+    "schema": "bridge.json",
+    "data": {
+      "t": "init",
+      "v": 1,
+      "app": { "messageId": 9123, "title": "Deploy report", "canResult": true, "onAsk": false },
+      "data": { "rows": [["box-3", "Rolled back", "5:52 AM"]] },
+      "env": {
+        "theme": "dark",
+        "tokens": { "bg": "#0f1115", "raised": "#171a21", "text": "#e8eaf0", "muted": "#9aa3b2", "line": "#2a2f3a", "accent": "#7c9cff", "onAccent": "#0b0d12", "good": "#4cc38a", "warn": "#f2b84b", "bad": "#ff6b6b" },
+        "locale": "en-GB",
+        "reducedMotion": false,
+        "saveData": false,
+        "platform": "phone",
+        "width": 358
+      }
+    }
+  },
+  { "name": "bridge-data-env-only", "schema": "bridge.json", "data": { "t": "data", "v": 1, "env": { "theme": "light", "tokens": { "bg": "#ffffff", "raised": "#f6f7f9", "text": "#11151c", "muted": "#5b6472", "line": "#d9dde4", "accent": "#3355ff", "onAccent": "#ffffff", "good": "#137a45", "warn": "#8a5a00", "bad": "#b42318" }, "locale": "en-GB", "reducedMotion": true, "saveData": true, "platform": "desktop", "width": 640 } } },
+  { "name": "bridge-ready", "schema": "bridge.json", "data": { "t": "ready", "v": 1, "kit": "1.0.0" } },
+  { "name": "bridge-resize", "schema": "bridge.json", "data": { "t": "resize", "v": 1, "height": 412 } },
+  { "name": "bridge-result", "schema": "bridge.json", "data": { "t": "result", "v": 1, "id": "r_7f3a9c21", "summary": "Roll back box-3 again", "value": { "action": "rollback", "host": "box-3" } } },
+  { "name": "bridge-ack", "schema": "bridge.json", "data": { "t": "ack", "v": 1, "id": "r_7f3a9c21", "status": "sent" } },
+  { "name": "bridge-error", "schema": "bridge.json", "data": { "t": "error", "v": 1, "code": "data", "message": "rows is empty" } },
+  { "name": "result-picker", "schema": "app-result.json", "data": { "v": 1, "source": "picker", "summary": "Picked vitest", "value": { "selected": ["vitest"] } } },
+  { "name": "result-checklist", "schema": "app-result.json", "data": { "v": 1, "source": "checklist", "summary": "Checked 3 of 4: Changelog, Migrations, Docs", "value": { "checked": ["changelog", "migrations", "docs"] } } },
+  { "name": "result-form", "schema": "app-result.json", "data": { "v": 1, "source": "form", "summary": "Start 3 UTC, Lanes: All lanes, Notify me: yes", "value": { "fields": { "start": 3, "lanes": "all", "notify": true, "note": null } } } },
+  { "name": "result-frame", "schema": "app-result.json", "data": { "v": 1, "source": "frame", "summary": "Roll back box-3 again", "value": { "action": "rollback", "host": "box-3" } } },
+  { "name": "system-added-mention", "schema": "system.json", "data": { "v": 1, "t": "member.added", "identity": 12, "by": 1, "via": "mention" } },
+  { "name": "system-requested", "schema": "system.json", "data": { "v": 1, "t": "member.requested", "identity": 14, "by": 12 } },
+  { "name": "system-paused", "schema": "system.json", "data": { "v": 1, "t": "conversation.paused", "streak": 20 } },
+  { "name": "system-left", "schema": "system.json", "data": { "v": 1, "t": "member.left", "identity": 12 } },
+  { "name": "system-pickup-released", "schema": "system.json", "data": { "v": 1, "t": "pickup.released", "identity": 12, "reason": "key_revoked" } },
+  { "name": "system-renamed", "schema": "system.json", "data": { "v": 1, "t": "conversation.renamed", "by": 1 } }
+]
