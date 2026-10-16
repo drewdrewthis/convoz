@@ -103,7 +103,8 @@
     return (handle || "?").slice(0, 2);
   }
 
-  /** stripCf drops format characters (bidi controls, zero-width) so text cannot reorder or hide what the owner reads. */
+  /** stripCf drops format characters (bidi controls, zero-width) so text cannot reorder or hide what the owner reads.
+   *  The server strips them from previews and rejects them in display names; titles and bodies are stored as sent, so they are stripped here. */
   const stripCf = (text) => String(text).replace(/\p{Cf}/gu, "");
 
   // ---- Chats ------------------------------------------------------------------------------------------
@@ -111,7 +112,7 @@
   function chatRow(c, mine) {
     const agent = c.participants.find((p) => p.kind === "agent");
     const unread = c.unread > 0;
-    const preview = c.last ? `${c.last.author_handle === mine ? "You" : `@${stripCf(c.last.author_handle)}`}: ${stripCf(c.last.preview)}` : "No messages yet";
+    const preview = c.last ? `${c.last.author_handle === mine ? "You" : `@${c.last.author_handle}`}: ${c.last.preview}` : "No messages yet";
     const flag = unread ? el("span", { class: "flag" }, el("span", { class: "dot", role: "img", "aria-label": "Unread" }), el("span", { class: "count" }, c.unread > 99 ? "99+" : String(c.unread))) : null;
     return el(
       "li",
@@ -168,7 +169,8 @@
 
   // ---- safe markdown ----------------------------------------------------------------------------------
 
-  const INLINE = /`([^`\n]+)`|\[([^\]\n]+)\]\(([^)\s]+)\)|\*\*([^*\n]+?)\*\*|(https?:\/\/[^\s<>]+)/g;
+  // Every quantifier is bounded and the label class excludes "[", so a run of "[" fails each attempt at once: linear time.
+  const INLINE = /`([^`\n]{1,500})`|\[([^[\]\n]{1,200})\]\(([^)\s]{1,2048})\)|\*\*([^*\n]{1,500}?)\*\*|(https?:\/\/[^\s<>]{1,2048})/g;
 
   /** safeUrl returns u when it is an absolute http, https or mailto URL, else null. */
   function safeUrl(u) {
@@ -181,21 +183,25 @@
 
   const link = (href, label) => el("a", { href, target: "_blank", rel: "noopener noreferrer" }, label);
 
-  const HOSTLIKE = /^(https?:\/\/)?[^\s/@]+\.[^\s/@]+(\/\S*)?$/i;
+  // A host-like or email-like token inside a label: "paypal.com", "https://x.test/a", "me@x.test".
+  const NAMED = /(?:[\p{L}\p{N}._%+-]{1,64}@)?(?:https?:\/\/)?(?:[\p{L}\p{N}-]{1,63}\.){1,8}\p{L}{2,24}(?::\d{1,5})?/giu;
+  const bare = (host) => host.toLowerCase().replace(/^www\./, "");
 
-  /** honestLabel stops a link from naming one site and opening another: a label that looks like a URL or host
-   *  but is not the href's host gets the real host appended. */
+  /** honestLabel stops a link from naming one site and opening another: when the label holds any host or email that is
+   *  not the href's host, the real host is appended. The label is checked after NFKC and with ideographic dots read as dots,
+   *  so full-width and no-break-space tricks do not hide a name. */
   function honestLabel(label, href) {
-    if (!HOSTLIKE.test(label)) return label;
+    const shown = label.trim();
     const target = new URL(href);
-    if (target.protocol === "mailto:") return `${label} (${target.pathname})`;
-    try {
-      const named = new URL(/^https?:/i.test(label) ? label : `https://${label}`).host;
-      if (named.replace(/^www\./, "") === target.host.replace(/^www\./, "")) return label;
-    } catch {
-      /* not a URL after all: show the real host below */
+    const mail = target.protocol === "mailto:";
+    const real = mail ? target.pathname : target.host;
+    const seen = shown.normalize("NFKC").replace(/[\u3002\uff61]/g, ".");
+    for (const token of seen.match(NAMED) || []) {
+      let named = token.replace(/^https?:\/\//i, "");
+      if (token.includes("@")) named = mail ? token : token.split("@").pop();
+      if (bare(named) !== bare(real)) return `${shown} (${real})`;
     }
-    return `${label} (${target.host})`;
+    return shown;
   }
 
   function inline(parent, text) {
@@ -338,7 +344,7 @@
       const mine = isMine(m);
       const text = stripCf(m.body);
       const body = !mine && m.format === "markdown" ? renderMarkdown(text) : el("div", { class: "text" }, text);
-      return el("article", { class: `msg ${mine ? "mine" : "theirs"}${first ? " first" : ""}` }, !mine && first ? el("div", { class: "byline" }, `@${stripCf(m.author.handle)}`) : null, " ", body);
+      return el("article", { class: `msg ${mine ? "mine" : "theirs"}${first ? " first" : ""}` }, !mine && first ? el("div", { class: "byline" }, `@${m.author.handle}`) : null, " ", body);
     }
 
     function pendingNode(p) {
@@ -632,7 +638,7 @@
             "button",
             { class: "agentbtn", type: "button", onclick: choose },
             el("span", { class: "ava", "aria-hidden": "true" }, initials(who.handle)),
-            el("span", { class: "who" }, el("span", { class: "handle" }, `@${who.handle}`), " ", el("span", { class: "name" }, who.display_name)),
+            el("span", { class: "who" }, el("span", { class: "handle" }, `@${who.handle}`), " ", el("span", { class: "name" }, stripCf(who.display_name))),
             " ",
             el("span", { class: `state${who.online ? " on" : ""}` }, who.online ? "Online" : "Offline"),
           ),
@@ -652,7 +658,7 @@
   async function chatPage() {
     const isNew = location.pathname === "/chats/new";
     const idPart = location.pathname.split("/")[2];
-    const chat = { convId: isNew ? 0 : /^[1-9]\d*$/.test(idPart) ? Number(idPart) : -1, agent: null, me: null };
+    const chat = { convId: isNew ? 0 : Number(idPart), agent: null, me: null };
     chat.header = header(chat);
 
     $("#back").addEventListener("click", (event) => {
@@ -662,8 +668,6 @@
         history.back();
       }
     });
-
-    if (chat.convId < 0) return chat.header.gone("This chat does not exist.");
 
     const [meRes, people] = await Promise.all([api("GET", "/api/me"), identities()]);
     chat.me = { handle: meRes.identity.handle, display_name: meRes.identity.display_name, kind: "human" };

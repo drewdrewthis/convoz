@@ -269,6 +269,21 @@ Feature: Conversations
       When "mia" opens the rail
       Then she sees conversation 41 and no other
 
+  Rule: The Chats list puts the latest activity first
+
+    # DEFAULT (owner to confirm): the phone Chats list orders by latest activity, so I-21 ("activity never reorders") holds for the desktop rail only.
+    @v1 @browser
+    Scenario: A new conversation goes to the top of the Chats list
+      Given conversations 41 "Ship search filters", 52 "Deploy alerts runbook" and 60 "Weekly usage" were created in that order with "devtool"
+      Then the Chats list shows 60, 52, 41 in that order
+
+    @v1 @browser
+    Scenario: A new message moves its conversation to the top of the list
+      Given conversations 41 "Ship search filters", 52 "Deploy alerts runbook" and 60 "Weekly usage" were created in that order with "devtool"
+      And the owner opened the Chats list
+      When "devtool" posts in conversation 41
+      Then the Chats list shows 41, 60, 52 in that order without a reload
+
   Rule: A conversation reads well on a phone
 
     @v1 @browser @phone

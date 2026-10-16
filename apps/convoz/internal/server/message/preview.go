@@ -11,12 +11,12 @@ import (
 const PreviewRunes = 140
 
 var (
-	previewFence   = regexp.MustCompile("(?s)```.*?(```|$)")
-	previewBlock   = regexp.MustCompile(`(?m)^[ \t]*(#{1,6}[ \t]+|>[ \t]?|[-*+][ \t]+|\d+[.)][ \t]+)`)
-	previewLink    = regexp.MustCompile(`!?\[([^\]]*)\]\([^)]*\)`)
-	previewCode    = regexp.MustCompile("`([^`]*)`")
-	previewStrong  = regexp.MustCompile(`(\*\*|__)(.+?)(\*\*|__)`)
-	previewEmphasi = regexp.MustCompile(`(^|[\s(])[*_]([^*_\s][^*_]*?)[*_]($|[\s).,!?:;])`)
+	previewFence    = regexp.MustCompile("(?s)```.*?(```|$)")
+	previewBlock    = regexp.MustCompile(`(?m)^[ \t]*(#{1,6}[ \t]+|>[ \t]?|[-*+][ \t]+|\d+[.)][ \t]+)`)
+	previewLink     = regexp.MustCompile(`!?\[([^\]]*)\]\([^)]*\)`)
+	previewCode     = regexp.MustCompile("`([^`]*)`")
+	previewStrong   = regexp.MustCompile(`(\*\*|__)(.+?)(\*\*|__)`)
+	previewEmphasis = regexp.MustCompile(`(^|[\s(])[*_]([^*_\s][^*_]*?)[*_]($|[\s).,!?:;])`)
 )
 
 // Preview is the plain text of a markdown body on one line, cut to PreviewRunes runes: the projection the list
@@ -27,7 +27,7 @@ func Preview(body string) string {
 	s = previewLink.ReplaceAllString(s, "$1")
 	s = previewCode.ReplaceAllString(s, "$1")
 	s = previewStrong.ReplaceAllString(s, "$2")
-	s = previewEmphasi.ReplaceAllString(s, "$1$2$3")
+	s = previewEmphasis.ReplaceAllString(s, "$1$2$3")
 	s = strings.Map(func(r rune) rune {
 		if unicode.Is(unicode.Cf, r) {
 			return -1

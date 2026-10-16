@@ -221,8 +221,6 @@ interface Stream {
   frames: Frame[];
   /** Resolve with the first frame (past or future) that matches; reject after `ms`. */
   waitFor(match: (f: Frame) => boolean, ms?: number): Promise<Frame>;
-  /** Resolves when the server ends the stream (or the connection drops). */
-  ended: Promise<void>;
   /** Close this stream (its own request handle). */
   close(): void;
 }
@@ -232,8 +230,6 @@ export function openStream(srv: ServerHandle, client: Client, path = "/api/strea
   return new Promise((resolve, reject) => {
     const frames: Frame[] = [];
     const waiters = new Set<() => void>();
-    let markEnded: () => void = () => {};
-    const ended = new Promise<void>((r) => (markEnded = r));
     let raw = "";
     let buf = "";
     const req = http.request(
@@ -247,7 +243,6 @@ export function openStream(srv: ServerHandle, client: Client, path = "/api/strea
       },
       (res) => {
         res.setEncoding("utf8");
-        res.on("close", markEnded);
         res.on("data", (chunk: string) => {
           raw += chunk;
           buf += chunk;
@@ -278,7 +273,6 @@ export function openStream(srv: ServerHandle, client: Client, path = "/api/strea
         resolve({
           status,
           frames,
-          ended,
           close: () => {
             record(`SSE GET ${path}`, raw, "", `status=${status}`);
             req.destroy();

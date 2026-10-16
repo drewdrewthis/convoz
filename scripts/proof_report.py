@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Render the e2e JSON report into one HTML page of use-proof (commands, HTTP calls, output and exit status per scenario).
 
-Usage: proof_report.py <results.json> <out.html> | --self-test
+Usage: proof_report.py <results.json> <out.html> <base> | --self-test
+<base>: the branch the PR targets (CI passes origin/$BASE_REF), as for red_green.py.
 Exit 1 if any transcript is empty (EMPTY) or looks like it leaks a credential (LEAK); no page is left then.
 """
 import base64
@@ -41,7 +42,8 @@ PEM = re.compile(r"-----BEGIN [A-Z ]*(PRIVATE KEY|CERTIFICATE|PUBLIC KEY)?-----"
 
 FILLER = re.compile(r"(.)\1{15,}")
 # A short unit repeated three or more times with nothing else ("wide_code_line_" x 20): test text, never key material.
-PERIODIC = re.compile(r"(.{1,16})\1{2,}")
+# The unit is limited to plain-text characters: a random token (digits, capitals) repeated three times is still a key.
+PERIODIC = re.compile(r"([a-z_ -]{1,16})\1{2,}")
 
 
 def is_filler(run):
@@ -188,17 +190,16 @@ pre{background:#010409;border-radius:4px;padding:10px;margin:8px 0 0;overflow-x:
 
 
 EXCEPTIONS_PATH = "specs/red-green-exceptions.txt"
-BASE_REF = os.environ.get("PROOF_BASE", "origin/master")
 
 
-def added_exception_lines(base=None):
+def added_exception_lines(base):
     """The exception lines this branch added: the same source as red_green.py (diff merge-base(base, HEAD)..HEAD, added
     lines only), so the page lists what red_green may skip and not older lines it ignores. None when git cannot say:
     an empty list would read as "no exceptions", so the caller must fail instead."""
     def git(*args):
         r = subprocess.run(["git", *args], capture_output=True, text=True, timeout=60)
         return r.stdout if r.returncode == 0 else None
-    merge_base = git("merge-base", base or BASE_REF, "HEAD")
+    merge_base = git("merge-base", base, "HEAD")
     diff = git("diff", "--unified=0", merge_base.strip(), "HEAD", "--", EXCEPTIONS_PATH) if merge_base else None
     return exceptions_in_diff(diff) if diff is not None else None
 
@@ -233,7 +234,7 @@ def render(scens, rev, exceptions=()):
 def main(argv):
     if len(argv) == 2 and argv[1] == "--self-test":
         return self_test()
-    if len(argv) != 3:
+    if len(argv) != 4:
         print(__doc__, file=sys.stderr)
         return 2
     out = Path(argv[2])
@@ -245,9 +246,10 @@ def main(argv):
             label = "EMPTY" if kind in ("empty transcript", "no scenarios") else "LEAK"
             print(f"{label} ({kind}, {length} chars) in '{title}'", file=sys.stderr)
         return 1
-    exceptions = added_exception_lines()
+    base = argv[3]
+    exceptions = added_exception_lines(base)
     if exceptions is None:
-        print(f"unknown: cannot tell which red/green exceptions this branch added (no merge-base with {BASE_REF})", file=sys.stderr)
+        print(f"unknown: cannot tell which red/green exceptions this branch added (no merge-base with {base})", file=sys.stderr)
         return 1
     out.write_text(render(scens, commit(), exceptions))
     return 0
@@ -287,6 +289,7 @@ def self_test():
         ("filler: one character repeated", "path /tmp/" + "a" * 110 + ".sock\n", set()),
         ("a path with a filler segment", "stderr: path $TMP/convoz-s1a-RIOaag/" + "a" * 110 + ".sock\n", set()),
         ("a short unit repeated is test text", "code " + "wide_code_line_" * 20 + "\n", set()),
+        ("a random 16-char token repeated three times", "kek " + "aB3dE9fG2hJ5kL8m" * 3 + "\n", {"base64"}),
         ("a key that ends in a repeated unit", "kek " + mixed + "abcabcabc" + "\n", {"base64"}),
         ("a key that merely contains a filler stretch", "kek " + mixed[:20] + "A" * 16 + mixed[20:] + "\n", {"base64"}),
         ("split hex, spaces", " ".join([hex16] * 4) + "\n", {"split hex"}),
@@ -374,7 +377,6 @@ def self_test_exceptions():
 
 def self_test_unknown_exceptions():
     """No merge-base with the base ref: the answer is unknown and the run fails, never an empty exceptions list."""
-    global BASE_REF
     if added_exception_lines("refs/heads/no-such-base-for-self-test") is not None:
         print("FAIL unknown exceptions: a missing base returned a list", file=sys.stderr)
         return 1
@@ -382,13 +384,9 @@ def self_test_unknown_exceptions():
         results, page = Path(tmp) / "results.json", Path(tmp) / "proof.html"
         results.write_text(json.dumps({"suites": [{"specs": [{"title": "t", "tags": [], "tests": [{"status": "expected", "results": [
             {"duration": 1, "attachments": [{"name": "transcript", "body": base64.b64encode(b"ok\n").decode()}]}]}]}]}]}))
-        saved, BASE_REF = BASE_REF, "refs/heads/no-such-base-for-self-test"
         err = io.StringIO()
-        try:
-            with contextlib.redirect_stderr(err):
-                code = main(["proof_report.py", str(results), str(page)])
-        finally:
-            BASE_REF = saved
+        with contextlib.redirect_stderr(err):
+            code = main(["proof_report.py", str(results), str(page), "refs/heads/no-such-base-for-self-test"])
         if code != 1 or "unknown" not in err.getvalue() or page.exists():
             print(f"FAIL unknown exceptions: exit {code}, page {page.exists()}, stderr {err.getvalue()!r}", file=sys.stderr)
             return 1
@@ -410,8 +408,11 @@ def self_test_leak_exit(work, plain_kek):
     page.write_text("stale")
     err = io.StringIO()
     with contextlib.redirect_stderr(err):
-        code = main(["proof_report.py", str(results), str(page)])
+        code = main(["proof_report.py", str(results), str(page), "HEAD"])
+        no_base = main(["proof_report.py", str(results), str(page)])
     problems = []
+    if no_base != 2:
+        problems.append(f"a call without a base exited {no_base}, want 2")
     if code != 1:
         problems.append(f"leaking report exited {code}, want 1")
     if page.exists():
