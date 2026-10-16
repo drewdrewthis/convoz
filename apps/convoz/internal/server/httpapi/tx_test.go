@@ -3,7 +3,7 @@ package httpapi
 import (
 	"context"
 	"errors"
-	"path/filepath"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/dbtest"
 	"testing"
 	"time"
 
@@ -12,20 +12,6 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
-
-func migratedStore(t *testing.T) *pdb.Store {
-	t.Helper()
-	key := append([]byte("TESTONLY"), make([]byte, 24)...)
-	s, err := pdb.Open(filepath.Join(t.TempDir(), "t.db"), key)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = s.Close() })
-	if err := platform.Migrate(context.Background(), s, platform.MigrateOptions{DataDir: t.TempDir(), Clock: platform.SystemClock{}}); err != nil {
-		t.Fatal(err)
-	}
-	return s
-}
 
 // present reads, outside any transaction, whether the owner row and the bootstrap link made in a test exist.
 func present(t *testing.T, s *pdb.Store, token string) (owner, link bool) {
@@ -45,7 +31,7 @@ func present(t *testing.T, s *pdb.Store, token string) (owner, link bool) {
 // The identity and auth modules each wrap the one open transaction with their own sqlc package.
 // An error after both wrote leaves neither row, and a nested Writer.Tx with the callback ctx joins it.
 func TestIdentityAndAuthShareOneTransaction(t *testing.T) {
-	s := migratedStore(t)
+	s := dbtest.Store(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	now := platform.SystemClock{}.Now()

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -85,6 +86,9 @@ func (s *Server) route(rt Route) http.HandlerFunc {
 func (s *Server) deny(w http.ResponseWriter, r *http.Request, rt Route, err error) {
 	if rt.Page {
 		to := "/signin"
+		if r.URL.Path != "/" {
+			to += "?next=" + url.QueryEscape(r.URL.RequestURI()) // the sign-in page sends the owner back here
+		}
 		if errors.Is(err, authz.ErrLimited) {
 			to = "/recover"
 		}

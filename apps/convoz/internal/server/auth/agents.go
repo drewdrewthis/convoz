@@ -28,6 +28,8 @@ type NewAgent struct {
 // AgentPort is what the flows need from the identity module. The composition root implements it.
 // Create reports a refusal as a *FieldError or ErrHandleTaken.
 type AgentPort interface {
+	// ValidHandle reports whether s can be an agent handle.
+	ValidHandle(s string) bool
 	Lookup(ctx context.Context, d pdb.DBTX, handle string) (a Agent, found bool, err error)
 	Handles(ctx context.Context, d pdb.DBTX) (map[int64]string, error)
 	Create(ctx context.Context, d pdb.DBTX, in NewAgent, now time.Time) (Agent, error)

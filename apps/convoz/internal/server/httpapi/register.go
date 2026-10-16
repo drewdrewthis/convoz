@@ -11,8 +11,8 @@ import (
 )
 
 // registerPasskey hands the caller's new passkey to auth, which owns the flow.
-func registerPasskey(ctx context.Context, d pdb.DBTX, c *call, cred *webauthn.Credential, now time.Time) error {
+func registerPasskey(ctx context.Context, d pdb.DBTX, c *call, userAgent string, cred *webauthn.Credential, now time.Time) (auth.RegisterResult, error) {
 	return auth.RegisterPasskey(ctx, d, journalPort{}, auth.RegisterInput{
-		Human: c.human, DeviceID: c.dev.ID, Limited: c.p.Limited, StepUpID: c.stepUp, Credential: cred,
+		Human: c.human, DeviceID: c.dev.ID, PasskeyID: c.dev.PasskeyID, Limited: c.p.Limited, StepUpID: c.stepUp, UserAgent: userAgent, Credential: cred,
 	}, now)
 }

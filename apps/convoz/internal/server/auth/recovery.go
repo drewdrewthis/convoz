@@ -47,3 +47,53 @@ func UseRecoveryCode(ctx context.Context, d pdb.DBTX, code string, now time.Time
 	}
 	return humanID, err == nil, err
 }
+
+// RecoveryCodesLeft counts the codes that can still be used.
+func RecoveryCodesLeft(ctx context.Context, d pdb.DBTX, humanID int64) (int64, error) {
+	return db.New(d).CountRecoveryCodesLeft(ctx, humanID)
+}
+
+// RegenerateRecoveryCodes spends a recovery.regenerate step-up, voids the unused old codes, makes 10 new ones
+// and writes the audit line and the event. Call it inside one write transaction: a failure leaves the step-up good.
+func RegenerateRecoveryCodes(ctx context.Context, d pdb.DBTX, j JournalPort, in CrewInput, now time.Time) ([]string, error) {
+	if err := ConsumeStepUp(ctx, d, in.StepUpID, in.DeviceID, "recovery.regenerate", nil, now); err != nil {
+		return nil, err
+	}
+	codes, err := NewRecoveryCodes(ctx, d, in.Human.ID, now)
+	if err != nil {
+		return nil, err
+	}
+	if err := j.Audit(ctx, d, now, AuditEntry{Actor: in.Human.ID, Device: in.DeviceID, Action: "recovery.regenerated"}); err != nil {
+		return nil, err
+	}
+	return codes, j.Event(ctx, d, now, "recovery.regenerated.v1", map[string]any{"identity_id": in.Human.ID})
+}
+
+// RecoveryNoteInfo is what the console tells a device that signed in through recovery: the codes left and when
+// the hold on destructive actions ends.
+type RecoveryNoteInfo struct {
+	CodesLeft int64  `json:"codes_left"`
+	HoldUntil *int64 `json:"hold_until"`
+}
+
+// RecoveryNote is the note for the full device session that a recovery registration starts: the console says
+// "you signed in with a recovery code", so it is nil for every device whose passkey did not come from recovery
+// (a passkey added from a held device is held too, but its owner did not sign in with a code).
+// HoldUntil is nil once the hold has ended.
+func RecoveryNote(ctx context.Context, d pdb.DBTX, humanID, passkeyID int64, now time.Time) (*RecoveryNoteInfo, error) {
+	if passkeyID == 0 {
+		return nil, nil
+	}
+	k, ok, err := ActivePasskey(ctx, d, humanID, passkeyID)
+	if err != nil || !ok || k.RegisteredVia != "recovery" {
+		return nil, err
+	}
+	note := &RecoveryNoteInfo{}
+	if now.UnixMilli() < k.DestructiveAt {
+		note.HoldUntil = &k.DestructiveAt
+	}
+	if note.CodesLeft, err = RecoveryCodesLeft(ctx, d, humanID); err != nil {
+		return nil, err
+	}
+	return note, nil
+}

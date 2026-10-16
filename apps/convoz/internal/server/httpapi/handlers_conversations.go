@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/event"
@@ -107,7 +108,7 @@ func (s *Server) createConversation(w http.ResponseWriter, r *http.Request, c *c
 	}
 	title := strings.TrimSpace(in.Title)
 	switch {
-	case !validClientID(in.ClientID):
+	case !auth.ValidClientID(in.ClientID):
 		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "client_id", "The client id must be 8 to 64 characters without spaces.")
 		return
 	case title != "" && !conversation.ValidTitle(title):

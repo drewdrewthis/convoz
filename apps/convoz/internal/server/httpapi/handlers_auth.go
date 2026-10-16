@@ -74,6 +74,24 @@ func linkError(w http.ResponseWriter, state auth.LinkState) bool {
 	return true
 }
 
+// bootstrapCheck tells the setup page, when it opens, what its link is worth; the page then shows the form or says
+// what happened. It changes nothing.
+func (s *Server) bootstrapCheck(w http.ResponseWriter, r *http.Request, _ *call) {
+	var in struct {
+		Token string `json:"token"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	_, state, err := auth.CheckBootstrapLink(r.Context(), s.reader(), in.Token, s.Clock.Now())
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	states := map[auth.LinkState]string{auth.LinkOK: "ok", auth.LinkUnknown: "invalid", auth.LinkUsed: "used", auth.LinkExpired: "expired"}
+	writeJSON(w, http.StatusOK, map[string]any{"state": states[state]})
+}
+
 func (s *Server) bootstrapOptions(w http.ResponseWriter, r *http.Request, _ *call) {
 	var in struct {
 		Token       string `json:"token"`
@@ -340,8 +358,11 @@ func (s *Server) registerVerify(w http.ResponseWriter, r *http.Request, c *call)
 		badCredential(w, http.StatusBadRequest)
 		return
 	}
+	var res auth.RegisterResult
 	err = s.Store.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) error {
-		return registerPasskey(ctx, tx.DBTX(), c, cred, now)
+		var err error
+		res, err = registerPasskey(ctx, tx.DBTX(), c, r.UserAgent(), cred, now)
+		return err
 	})
 	switch {
 	case errors.Is(err, auth.ErrStepUp):
@@ -351,8 +372,8 @@ func (s *Server) registerVerify(w http.ResponseWriter, r *http.Request, c *call)
 	case err != nil:
 		s.internalError(w, r, err)
 	default:
-		if c.p.Limited {
-			clearDeviceCookie(w) // the recovery device ended with this registration
+		if res.DeviceToken != "" { // recovery: the recovery device ended, a full session for the new passkey replaces it
+			setDeviceCookie(w, res.DeviceToken, int(auth.DeviceIdle/time.Second))
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	}
@@ -412,7 +433,7 @@ func (s *Server) stepUpVerify(w http.ResponseWriter, r *http.Request, c *call) {
 		return
 	}
 	if err := auth.CheckDestructive(pk, cer.Action, now); err != nil {
-		writeErr(w, http.StatusForbidden, "passkey_too_new", "That passkey is too new for this action. Try again later or use an older passkey.")
+		writeErr(w, http.StatusForbidden, "passkey_too_new", "This passkey is too new. Actions like this unlock at "+time.UnixMilli(pk.DestructiveAt).UTC().Format("2006-01-02 15:04 MST")+".")
 		return
 	}
 	var id int64

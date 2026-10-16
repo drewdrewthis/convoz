@@ -26,7 +26,7 @@ func (s *Server) postMessage(w http.ResponseWriter, r *http.Request, c *call) {
 	if !decode(w, r, &in) {
 		return
 	}
-	if !validClientID(in.ClientID) {
+	if !auth.ValidClientID(in.ClientID) {
 		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "client_id", "The client id must be 8 to 64 characters without spaces.")
 		return
 	}

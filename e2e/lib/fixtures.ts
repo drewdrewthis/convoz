@@ -2,7 +2,8 @@ import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { test as base, type TestInfo } from "@playwright/test";
+import { test as base, type BrowserContext, type TestInfo } from "@playwright/test";
+import { installCeremonyGuard, type CeremonyGuard } from "./ceremony-guard.ts";
 import { send, type Target } from "./http.ts";
 import { baseEnv, repoRoot, run, type RunResult } from "./run.ts";
 import { beginTranscript, endTranscript, record, track } from "./transcript.ts";
@@ -94,6 +95,8 @@ export interface Fixtures {
   /** Run `convoz serve ...` with the same flags as `server`, for a start that must exit by itself. */
   serveCli: (opts?: ServerOptions) => Promise<RunResult>;
   testApi: TestApiFactory;
+  /** The ceremony-per-tap guard of this test's browser context (ceremony-guard.ts). */
+  guard: CeremonyGuard;
 }
 
 let s1aFlags: boolean | undefined;
@@ -192,6 +195,20 @@ function waitForReady(readyFile: string, child: ChildProcess, log: () => string,
 }
 
 export const test = base.extend<Fixtures & { transcript: void }>({
+  // Every browser context carries the ceremony guard. In the "mobile" project a tap that breaks the one-ceremony rule
+  // fails the test at teardown, whichever scenario it was; in "chromium" only scenarios that assert on guard.violations() fail.
+  context: async ({ context }: { context: BrowserContext }, use, testInfo: TestInfo) => {
+    const guard = await installCeremonyGuard(context);
+    await use(context);
+    const seen = guard.violations();
+    if (seen.length) await testInfo.attach("ceremony-violations", { body: seen.join("\n"), contentType: "text/plain" });
+    if (testInfo.project.name === "mobile" && seen.length) throw new Error(`ceremony guard: ${[...new Set(seen)].join("; ")}`);
+  },
+
+  guard: async ({ context }, use) => {
+    await use(await installCeremonyGuard(context));
+  },
+
   // Auto fixture. endTranscript waits for tracked records, so attaching is safe whatever the teardown order.
   // eslint-disable-next-line no-empty-pattern
   transcript: [async ({}, use, testInfo: TestInfo) => {

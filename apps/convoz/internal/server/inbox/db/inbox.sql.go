@@ -467,7 +467,7 @@ func (q *Queries) PeekItems(ctx context.Context, identityID int64) ([]PeekItemsR
 
 const releaseClaims = `-- name: ReleaseClaims :many
 UPDATE inbox_items SET claim_until = ?1 - 1 WHERE claim_session_id = ?2 AND state = 'claimed'
-RETURNING conversation_id
+RETURNING identity_id, conversation_id
 `
 
 type ReleaseClaimsParams struct {
@@ -475,20 +475,25 @@ type ReleaseClaimsParams struct {
 	SessionID sql.NullInt64
 }
 
+type ReleaseClaimsRow struct {
+	IdentityID     int64
+	ConversationID sql.NullInt64
+}
+
 // Release: a session that ends lets its claims expire at once; the next claim merges them back (3).
-func (q *Queries) ReleaseClaims(ctx context.Context, arg ReleaseClaimsParams) ([]sql.NullInt64, error) {
+func (q *Queries) ReleaseClaims(ctx context.Context, arg ReleaseClaimsParams) ([]ReleaseClaimsRow, error) {
 	rows, err := q.db.QueryContext(ctx, releaseClaims, arg.Now, arg.SessionID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []sql.NullInt64
+	var items []ReleaseClaimsRow
 	for rows.Next() {
-		var conversation_id sql.NullInt64
-		if err := rows.Scan(&conversation_id); err != nil {
+		var i ReleaseClaimsRow
+		if err := rows.Scan(&i.IdentityID, &i.ConversationID); err != nil {
 			return nil, err
 		}
-		items = append(items, conversation_id)
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/inbox"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
 
@@ -54,9 +55,19 @@ func (s *Server) disableIdentity(w http.ResponseWriter, r *http.Request, c *call
 	if !decode(w, r, &in) {
 		return
 	}
+	var released []inbox.Released
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
-		return auth.DisableAgent(ctx, tx.DBTX(), flowPorts, crewInput(c), id, s.Clock.Now())
+		now := s.Clock.Now()
+		ended, err := auth.DisableAgent(ctx, tx.DBTX(), flowPorts, crewInput(c), id, now)
+		if err != nil {
+			return err
+		}
+		released, err = inbox.ReleaseSessions(ctx, tx.DBTX(), now, ended)
+		return err
 	})
+	if err == nil {
+		s.publishReleased(r.Context(), released)
+	}
 	switch {
 	case errors.Is(err, auth.ErrStepUp):
 		stepUpInvalid(w)

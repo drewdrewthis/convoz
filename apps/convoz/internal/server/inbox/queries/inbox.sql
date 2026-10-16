@@ -86,7 +86,7 @@ RETURNING conversation_id, claim_until;
 -- name: ReleaseClaims :many
 -- Release: a session that ends lets its claims expire at once; the next claim merges them back (3).
 UPDATE inbox_items SET claim_until = sqlc.arg(now) - 1 WHERE claim_session_id = sqlc.arg(session_id) AND state = 'claimed'
-RETURNING conversation_id;
+RETURNING identity_id, conversation_id;
 
 -- name: PeekItems :many
 SELECT id, conversation_id, first_message_id, message_id, count, reason, state, claim_token, claim_until, deliveries, claim_session_id

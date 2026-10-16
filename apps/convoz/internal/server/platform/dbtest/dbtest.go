@@ -27,12 +27,18 @@ func Store(t testing.TB) *pdb.Store {
 	return s
 }
 
-// Tx runs fn in one write transaction with a 30 s bound and fails the test on error.
-func Tx(t testing.TB, s *pdb.Store, fn func(ctx context.Context, d pdb.DBTX) error) {
+// TxErr runs fn in one write transaction with a 30 s bound and returns its error, for tests that expect a refusal.
+func TxErr(t testing.TB, s *pdb.Store, fn func(ctx context.Context, d pdb.DBTX) error) error {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	if err := s.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) error { return fn(ctx, tx.DBTX()) }); err != nil {
+	return s.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) error { return fn(ctx, tx.DBTX()) })
+}
+
+// Tx runs fn in one write transaction with a 30 s bound and fails the test on error.
+func Tx(t testing.TB, s *pdb.Store, fn func(ctx context.Context, d pdb.DBTX) error) {
+	t.Helper()
+	if err := TxErr(t, s, fn); err != nil {
 		t.Fatal(err)
 	}
 }

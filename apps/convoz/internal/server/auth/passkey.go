@@ -211,6 +211,20 @@ func ListPasskeys(ctx context.Context, d pdb.DBTX, humanID int64) ([]Passkey, er
 	return out, nil
 }
 
+// ActivePasskey finds h's active passkey by id; ok is false when h has no such passkey.
+func ActivePasskey(ctx context.Context, d pdb.DBTX, humanID, passkeyID int64) (Passkey, bool, error) {
+	keys, err := ListPasskeys(ctx, d, humanID)
+	if err != nil {
+		return Passkey{}, false, err
+	}
+	for _, k := range keys {
+		if k.ID == passkeyID {
+			return k, true, nil
+		}
+	}
+	return Passkey{}, false, nil
+}
+
 // PasskeyByCredential finds an active passkey by credential id; ok is false when there is none.
 func PasskeyByCredential(ctx context.Context, d pdb.DBTX, credentialID []byte) (Passkey, bool, error) {
 	q := db.New(d)
@@ -225,12 +239,13 @@ func PasskeyByCredential(ctx context.Context, d pdb.DBTX, credentialID []byte) (
 }
 
 // AddPasskey stores a new passkey. via is "bootstrap", "session" or "recovery"; a recovery passkey
-// cannot do destructive things for 24 hours.
-func AddPasskey(ctx context.Context, d pdb.DBTX, humanID int64, cred *webauthn.Credential, label, via string, now time.Time) (int64, error) {
+// cannot do destructive things for 24 hours. heldUntil (unix ms, 0 for none) carries the hold of the passkey
+// that added this one, so a held passkey cannot launder its hold by adding a fresh one (I-26).
+func AddPasskey(ctx context.Context, d pdb.DBTX, humanID int64, cred *webauthn.Credential, label, via string, heldUntil int64, now time.Time) (int64, error) {
 	q := db.New(d)
-	after := now
+	after := max(now.UnixMilli(), heldUntil)
 	if via == "recovery" {
-		after = now.Add(RecoveryPasskeyDelay)
+		after = max(after, now.Add(RecoveryPasskeyDelay).UnixMilli())
 	}
 	backup := int64(0)
 	if cred.Flags.BackupEligible {
@@ -245,7 +260,7 @@ func AddPasskey(ctx context.Context, d pdb.DBTX, humanID int64, cred *webauthn.C
 		BackupEligible:         backup,
 		Label:                  label,
 		RegisteredVia:          via,
-		DestructiveStepUpAfter: after.UnixMilli(),
+		DestructiveStepUpAfter: after,
 		CreatedAt:              now.UnixMilli(),
 	})
 }
@@ -262,33 +277,33 @@ var ErrLastPasskey = errors.New("another passkey must be added first")
 // ErrNoPasskey means the passkey does not exist or is already removed.
 var ErrNoPasskey = errors.New("passkey not found")
 
-// RemovePasskey revokes a passkey and signs out the devices that came from it.
+// RemovePasskey revokes a passkey and signs out the devices that came from it; it returns their ids.
 // The last active passkey is refused.
-func RemovePasskey(ctx context.Context, d pdb.DBTX, humanID, passkeyID int64, now time.Time) error {
+func RemovePasskey(ctx context.Context, d pdb.DBTX, humanID, passkeyID int64, now time.Time) ([]int64, error) {
 	q := db.New(d)
 	n, err := q.CountActivePasskeys(ctx, humanID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if n <= 1 {
 		// Distinguish "no such passkey" from "the only one" so a wrong id is not told "last passkey".
 		keys, err := ListPasskeys(ctx, d, humanID)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		for _, k := range keys {
 			if k.ID == passkeyID {
-				return ErrLastPasskey
+				return nil, ErrLastPasskey
 			}
 		}
-		return ErrNoPasskey
+		return nil, ErrNoPasskey
 	}
 	rows, err := q.RevokePasskey(ctx, db.RevokePasskeyParams{RevokedAt: sql.NullInt64{Int64: now.UnixMilli(), Valid: true}, ID: passkeyID, HumanID: humanID})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if rows == 0 {
-		return ErrNoPasskey
+		return nil, ErrNoPasskey
 	}
 	return q.RevokeDevicesOfPasskey(ctx, db.RevokeDevicesOfPasskeyParams{RevokedAt: sql.NullInt64{Int64: now.UnixMilli(), Valid: true}, PasskeyID: sql.NullInt64{Int64: passkeyID, Valid: true}})
 }

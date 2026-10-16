@@ -171,6 +171,17 @@ func (q *Queries) CountPendingRequestsFromSource(ctx context.Context, arg CountP
 	return count, err
 }
 
+const countRecoveryCodesLeft = `-- name: CountRecoveryCodesLeft :one
+SELECT COUNT(*) FROM recovery_codes WHERE human_id = ?1 AND used_at IS NULL AND revoked_at IS NULL
+`
+
+func (q *Queries) CountRecoveryCodesLeft(ctx context.Context, humanID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countRecoveryCodesLeft, humanID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deleteMachineAllow = `-- name: DeleteMachineAllow :exec
 DELETE FROM machine_allow WHERE machine_id = ?1
 `
@@ -280,8 +291,9 @@ func (q *Queries) EndSession(ctx context.Context, arg EndSessionParams) (int64, 
 	return result.RowsAffected()
 }
 
-const endSessionsOfIdentity = `-- name: EndSessionsOfIdentity :exec
+const endSessionsOfIdentity = `-- name: EndSessionsOfIdentity :many
 UPDATE sessions SET ended_at = ?1, end_reason = ?2 WHERE identity_id = ?3 AND ended_at IS NULL
+RETURNING id
 `
 
 type EndSessionsOfIdentityParams struct {
@@ -290,14 +302,33 @@ type EndSessionsOfIdentityParams struct {
 	IdentityID int64
 }
 
-func (q *Queries) EndSessionsOfIdentity(ctx context.Context, arg EndSessionsOfIdentityParams) error {
-	_, err := q.db.ExecContext(ctx, endSessionsOfIdentity, arg.Now, arg.Reason, arg.IdentityID)
-	return err
+func (q *Queries) EndSessionsOfIdentity(ctx context.Context, arg EndSessionsOfIdentityParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, endSessionsOfIdentity, arg.Now, arg.Reason, arg.IdentityID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
-const endSessionsOfIdentityOnMachine = `-- name: EndSessionsOfIdentityOnMachine :exec
+const endSessionsOfIdentityOnMachine = `-- name: EndSessionsOfIdentityOnMachine :many
 UPDATE sessions SET ended_at = ?1, end_reason = ?2
 WHERE identity_id = ?3 AND machine_id = ?4 AND ended_at IS NULL
+RETURNING id
 `
 
 type EndSessionsOfIdentityOnMachineParams struct {
@@ -307,18 +338,37 @@ type EndSessionsOfIdentityOnMachineParams struct {
 	MachineID  int64
 }
 
-func (q *Queries) EndSessionsOfIdentityOnMachine(ctx context.Context, arg EndSessionsOfIdentityOnMachineParams) error {
-	_, err := q.db.ExecContext(ctx, endSessionsOfIdentityOnMachine,
+func (q *Queries) EndSessionsOfIdentityOnMachine(ctx context.Context, arg EndSessionsOfIdentityOnMachineParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, endSessionsOfIdentityOnMachine,
 		arg.Now,
 		arg.Reason,
 		arg.IdentityID,
 		arg.MachineID,
 	)
-	return err
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
-const endSessionsOfMachine = `-- name: EndSessionsOfMachine :exec
+const endSessionsOfMachine = `-- name: EndSessionsOfMachine :many
 UPDATE sessions SET ended_at = ?1, end_reason = ?2 WHERE machine_id = ?3 AND ended_at IS NULL
+RETURNING id
 `
 
 type EndSessionsOfMachineParams struct {
@@ -327,9 +377,27 @@ type EndSessionsOfMachineParams struct {
 	MachineID int64
 }
 
-func (q *Queries) EndSessionsOfMachine(ctx context.Context, arg EndSessionsOfMachineParams) error {
-	_, err := q.db.ExecContext(ctx, endSessionsOfMachine, arg.Now, arg.Reason, arg.MachineID)
-	return err
+func (q *Queries) EndSessionsOfMachine(ctx context.Context, arg EndSessionsOfMachineParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, endSessionsOfMachine, arg.Now, arg.Reason, arg.MachineID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getActiveMachine = `-- name: GetActiveMachine :one
@@ -1379,9 +1447,10 @@ func (q *Queries) RevokeDevice(ctx context.Context, arg RevokeDeviceParams) (int
 	return result.RowsAffected()
 }
 
-const revokeDevicesOfPasskey = `-- name: RevokeDevicesOfPasskey :exec
+const revokeDevicesOfPasskey = `-- name: RevokeDevicesOfPasskey :many
 UPDATE devices SET revoked_at = ?1, revoke_reason = 'passkey_revoked'
 WHERE passkey_id = ?2 AND revoked_at IS NULL
+RETURNING id
 `
 
 type RevokeDevicesOfPasskeyParams struct {
@@ -1389,9 +1458,27 @@ type RevokeDevicesOfPasskeyParams struct {
 	PasskeyID sql.NullInt64
 }
 
-func (q *Queries) RevokeDevicesOfPasskey(ctx context.Context, arg RevokeDevicesOfPasskeyParams) error {
-	_, err := q.db.ExecContext(ctx, revokeDevicesOfPasskey, arg.RevokedAt, arg.PasskeyID)
-	return err
+func (q *Queries) RevokeDevicesOfPasskey(ctx context.Context, arg RevokeDevicesOfPasskeyParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, revokeDevicesOfPasskey, arg.RevokedAt, arg.PasskeyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const revokeMachine = `-- name: RevokeMachine :execrows

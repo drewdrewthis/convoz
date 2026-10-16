@@ -37,24 +37,25 @@ func CreateAgent(ctx context.Context, d pdb.DBTX, p Ports, in NewCrewAgent, now 
 	return made, p.Journal.Event(ctx, d, now, "identity.created.v1", map[string]any{"identity_id": made.ID})
 }
 
-// DisableAgent turns an agent off inside the open transaction and ends all its leases on every machine. It
-// returns ErrNoAgent when there is no such enabled agent.
-func DisableAgent(ctx context.Context, d pdb.DBTX, p Ports, in CrewInput, agentID int64, now time.Time) error {
+// DisableAgent turns an agent off inside the open transaction and ends all its leases on every machine; their ids
+// come back as ended. It returns ErrNoAgent when there is no such enabled agent.
+func DisableAgent(ctx context.Context, d pdb.DBTX, p Ports, in CrewInput, agentID int64, now time.Time) ([]int64, error) {
 	if err := ConsumeStepUp(ctx, d, in.StepUpID, in.DeviceID, "identity.disable", &agentID, now); err != nil {
-		return err
+		return nil, err
 	}
 	disabled, err := p.Agents.Disable(ctx, d, agentID, now)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !disabled {
-		return ErrNoAgent
+		return nil, ErrNoAgent
 	}
-	if err := EndIdentitySessions(ctx, d, agentID, "identity_disabled", now); err != nil {
-		return err
+	ended, err := EndIdentitySessions(ctx, d, agentID, "identity_disabled", now)
+	if err != nil {
+		return nil, err
 	}
 	if err := p.Journal.Audit(ctx, d, now, AuditEntry{Actor: in.Human.ID, Device: in.DeviceID, Action: "identity.disabled", TargetKind: "identity", TargetID: agentID}); err != nil {
-		return err
+		return nil, err
 	}
-	return p.Journal.Event(ctx, d, now, "identity.disabled.v1", map[string]any{"identity_id": agentID})
+	return ended, p.Journal.Event(ctx, d, now, "identity.disabled.v1", map[string]any{"identity_id": agentID})
 }

@@ -18,10 +18,19 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request, c *call) {
 		s.leaseMe(w, r, c)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+	out := map[string]any{
 		"identity": map[string]any{"id": c.human.ID, "handle": c.human.Handle, "display_name": c.human.DisplayName, "role": c.human.Role, "kind": "human"},
 		"device":   map[string]any{"id": c.dev.ID, "limited": c.dev.Limited},
-	})
+	}
+	note, err := auth.RecoveryNote(r.Context(), s.reader(), c.human.ID, c.dev.PasskeyID, s.Clock.Now())
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	if note != nil {
+		out["recovery"] = note
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // identityJSON is an identity in the list. An agent says who made it: the owner, or a machine by name.
@@ -138,6 +147,7 @@ type passkeyJSON struct {
 	RegisteredVia string `json:"registered_via"`
 	CreatedAt     int64  `json:"created_at"`
 	LastUsedAt    *int64 `json:"last_used_at"`
+	ThisDevice    bool   `json:"this_device"` // the passkey the calling device signed in with
 }
 
 func (s *Server) passkeys(w http.ResponseWriter, r *http.Request, c *call) {
@@ -148,7 +158,7 @@ func (s *Server) passkeys(w http.ResponseWriter, r *http.Request, c *call) {
 	}
 	out := make([]passkeyJSON, 0, len(keys))
 	for _, k := range keys {
-		out = append(out, passkeyJSON{k.ID, k.Label, k.RegisteredVia, k.CreatedAt, k.LastUsedAt})
+		out = append(out, passkeyJSON{k.ID, k.Label, k.RegisteredVia, k.CreatedAt, k.LastUsedAt, k.ID == c.dev.PasskeyID})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"passkeys": out})
 }
@@ -159,19 +169,21 @@ func (s *Server) deletePasskey(w http.ResponseWriter, r *http.Request, c *call) 
 		return
 	}
 	now := s.Clock.Now()
+	var signedOut []int64
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
 		d := tx.DBTX()
 		// The step-up is spent first; an error below rolls it back, so a refused removal costs no new check.
 		if err := auth.ConsumeStepUp(ctx, d, c.stepUp, c.dev.ID, "passkey.remove", &id, now); err != nil {
 			return err
 		}
-		if err := auth.RemovePasskey(ctx, d, c.human.ID, id, now); err != nil {
+		var err error
+		if signedOut, err = auth.RemovePasskey(ctx, d, c.human.ID, id, now); err != nil {
 			return err
 		}
 		if err := audit.Write(ctx, d, now, audit.Entry{Actor: c.human.ID, Device: c.dev.ID, Action: "passkey.removed", TargetKind: "passkey", TargetID: id}); err != nil {
 			return err
 		}
-		_, err := event.Append(ctx, d, now, "passkey.removed.v1", map[string]any{"identity_id": c.human.ID, "passkey_id": id})
+		_, err = event.Append(ctx, d, now, "passkey.removed.v1", map[string]any{"identity_id": c.human.ID, "passkey_id": id})
 		return err
 	})
 	switch {
@@ -184,8 +196,21 @@ func (s *Server) deletePasskey(w http.ResponseWriter, r *http.Request, c *call) 
 	case err != nil:
 		s.internalError(w, r, err)
 	default:
+		for _, dev := range signedOut { // their event streams end now, not at the next heartbeat
+			s.streams.cancelDevice(dev)
+		}
 		w.WriteHeader(http.StatusNoContent)
 	}
+}
+
+// recoveryCount is GET /api/me/recovery-codes: how many codes can still be used.
+func (s *Server) recoveryCount(w http.ResponseWriter, r *http.Request, c *call) {
+	n, err := auth.RecoveryCodesLeft(r.Context(), s.reader(), c.human.ID)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"remaining": n})
 }
 
 func (s *Server) regenerateRecoveryCodes(w http.ResponseWriter, r *http.Request, c *call) {
@@ -193,22 +218,15 @@ func (s *Server) regenerateRecoveryCodes(w http.ResponseWriter, r *http.Request,
 	if !decode(w, r, &in) {
 		return
 	}
-	now := s.Clock.Now()
 	var codes []string
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
-		d := tx.DBTX()
-		if err := auth.ConsumeStepUp(ctx, d, c.stepUp, c.dev.ID, "recovery.regenerate", nil, now); err != nil {
-			return err
-		}
 		var err error
-		if codes, err = auth.NewRecoveryCodes(ctx, d, c.human.ID, now); err != nil {
-			return err
-		}
-		return audit.Write(ctx, d, now, audit.Entry{Actor: c.human.ID, Device: c.dev.ID, Action: "recovery.regenerated"})
+		codes, err = auth.RegenerateRecoveryCodes(ctx, tx.DBTX(), journalPort{}, auth.CrewInput{Human: c.human, DeviceID: c.dev.ID, StepUpID: c.stepUp}, s.Clock.Now())
+		return err
 	})
 	switch {
 	case errors.Is(err, auth.ErrStepUp):
-		writeErr(w, http.StatusForbidden, "step_up_invalid", "That passkey check is used up or expired. Check again.")
+		stepUpInvalid(w)
 	case err != nil:
 		s.internalError(w, r, err)
 	default:

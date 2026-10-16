@@ -1,4 +1,7 @@
 {{define "body"}}
-<p><button id="signin" type="button">Sign in with a passkey</button></p>
-<p><a href="/recover">Use a recovery code</a></p>
+<p class="lead">Use the passkey on this device.</p>
+<div class="actions">
+<button id="signin" class="btn primary" type="button" disabled>Sign in with a passkey</button>
+<a class="btn quiet" href="/recover">Lost your passkey? Use a recovery code</a>
+</div>
 {{end}}

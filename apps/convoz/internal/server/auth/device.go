@@ -22,11 +22,12 @@ const (
 
 // Device is a live device session.
 type Device struct {
-	ID       int64
-	HumanID  int64
-	Limited  bool
-	LastSeen time.Time
-	Absolute time.Time // the 90-day end; sliding never goes past it
+	ID        int64
+	HumanID   int64
+	PasskeyID int64 // the passkey this device signed in with; 0 for a recovery device
+	Limited   bool
+	LastSeen  time.Time
+	Absolute  time.Time // the 90-day end; sliding never goes past it
 }
 
 // StartDevice opens a device session and returns the cookie token (shown once, only its hash is stored).
@@ -70,7 +71,7 @@ func LookupDevice(ctx context.Context, d pdb.DBTX, token string, now time.Time) 
 	if row.RevokedAt.Valid || n >= row.ExpiresAt || n >= row.AbsoluteExpiresAt {
 		return Device{}, false, nil
 	}
-	return Device{ID: row.ID, HumanID: row.HumanID, Limited: row.Limited == 1, LastSeen: time.UnixMilli(row.LastSeenAt), Absolute: time.UnixMilli(row.AbsoluteExpiresAt)}, true, nil
+	return Device{ID: row.ID, HumanID: row.HumanID, PasskeyID: row.PasskeyID.Int64, Limited: row.Limited == 1, LastSeen: time.UnixMilli(row.LastSeenAt), Absolute: time.UnixMilli(row.AbsoluteExpiresAt)}, true, nil
 }
 
 // NeedsSlide reports whether use of d at now should be written (at most once a minute).

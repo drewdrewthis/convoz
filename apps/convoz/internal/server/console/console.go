@@ -1,6 +1,6 @@
-// Package console serves the owner console: bare pages for the S1 flows (sign in, bootstrap,
-// onboarding, recover, passkeys, Now with the machine requests, Machines). Plain HTML and one script, no framework; the React app (S-U)
-// replaces it and must pass the same role and text locators.
+// Package console serves the owner console: the pages of the S1 flows (sign in, bootstrap, onboarding, recover,
+// passkeys, recovery codes, account, Now with the machine requests, Machines). Plain HTML, one stylesheet and one
+// script, no framework; the React app (S-U) replaces it and must pass the same role and text locators.
 package console
 
 import (
@@ -17,24 +17,30 @@ var files embed.FS
 const CSP = "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; " +
 	"object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 
+// page is one console page. Shell pages are the signed-in app: account menu in the top bar and the bottom
+// navigation. The others (sign in, setup, recovery, the second-way-in step) are focused flows with the wordmark only.
 type page struct {
-	Title   string
-	Heading string
-	Name    string
-	tmpl    *template.Template
+	Name, Title, Heading string
+	Shell                bool
+	Public               bool // reachable without a session, so a 401 must not send the browser to sign in
+	HideHeading          bool // the script names the page once it knows (a setup link says what it is worth)
+	Tab                  string
+	tmpl                 *template.Template
 }
 
 var pages = map[string]*page{}
 
 func init() {
 	for _, p := range []page{
-		{Name: "bootstrap", Title: "Set up Convoz", Heading: "Set up Convoz"},
-		{Name: "signin", Title: "Sign in", Heading: "Sign in"},
-		{Name: "recover", Title: "Recover access", Heading: "Recover access"},
-		{Name: "now", Title: "Now", Heading: "Now"},
-		{Name: "machines", Title: "Machines", Heading: "Machines"},
+		{Name: "bootstrap", Title: "Set up Convoz", Heading: "Welcome to Convoz", Public: true, HideHeading: true},
+		{Name: "signin", Title: "Sign in", Heading: "Sign in", Public: true},
+		{Name: "recover", Title: "Use a recovery code", Heading: "Use a recovery code", Public: true},
+		{Name: "now", Title: "Now", Heading: "Now", Shell: true, Tab: "now"},
+		{Name: "machines", Title: "Machines", Heading: "Machines", Shell: true, Tab: "account"},
 		{Name: "onboarding", Title: "Set up a second way in", Heading: "Set up a second way in"},
-		{Name: "passkeys", Title: "Passkeys", Heading: "Passkeys"},
+		{Name: "passkeys", Title: "Passkeys", Heading: "Passkeys", Shell: true, Tab: "account"},
+		{Name: "recovery", Title: "Recovery codes", Heading: "Recovery codes", Shell: true, Tab: "account"},
+		{Name: "account", Title: "Account", Heading: "Account", Shell: true, Tab: "account"},
 	} {
 		p := p
 		p.tmpl = template.Must(template.ParseFS(files, "templates/layout.html", "templates/"+p.Name+".html"))

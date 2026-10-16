@@ -79,6 +79,8 @@ def go_strings(text):
 
 def sql_chunks(path):
     """(offset, sql text) pieces of one file: all of a .sql file (comments stripped), the literals of a .go file."""
+    if not path.endswith((".sql", ".go")):
+        return "", []  # embedded assets (icons, css, js) hold no SQL and may not be text
     with open(path, encoding="utf-8") as fh:
         text = fh.read()
     if path.endswith(".sql"):

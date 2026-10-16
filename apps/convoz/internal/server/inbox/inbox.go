@@ -176,13 +176,32 @@ func Extend(ctx context.Context, d pdb.DBTX, now time.Time, sessionID, leaseExpi
 	return out, err
 }
 
-// Release lets the claims of an ending session run out at once; the next claim of the identity merges them back.
-// It returns the conversations those claims were on.
+// Released is a claim that was let go: whose it was and the conversation it was on.
+type Released struct{ Identity, Conversation int64 }
+
+// ReleaseSessions lets the claims of ending sessions run out at once; the next claim of the identity merges them
+// back. Every path that ends a lease calls it with the ended ids, in the same transaction.
+func ReleaseSessions(ctx context.Context, d pdb.DBTX, now time.Time, sessionIDs []int64) ([]Released, error) {
+	q := db.New(d)
+	var out []Released
+	for _, id := range sessionIDs {
+		rows, err := q.ReleaseClaims(ctx, db.ReleaseClaimsParams{Now: sql.NullInt64{Int64: now.UnixMilli(), Valid: true}, SessionID: nullInt(id)})
+		if err != nil {
+			return nil, err
+		}
+		for _, r := range rows {
+			out = append(out, Released{Identity: r.IdentityID, Conversation: r.ConversationID.Int64})
+		}
+	}
+	return out, nil
+}
+
+// Release is ReleaseSessions for one session; it returns the conversations those claims were on.
 func Release(ctx context.Context, d pdb.DBTX, now time.Time, sessionID int64) ([]int64, error) {
-	rows, err := db.New(d).ReleaseClaims(ctx, db.ReleaseClaimsParams{Now: sql.NullInt64{Int64: now.UnixMilli(), Valid: true}, SessionID: nullInt(sessionID)})
-	out := make([]int64, 0, len(rows))
-	for _, r := range rows {
-		out = append(out, r.Int64)
+	rel, err := ReleaseSessions(ctx, d, now, []int64{sessionID})
+	out := make([]int64, 0, len(rel))
+	for _, r := range rel {
+		out = append(out, r.Conversation)
 	}
 	return out, err
 }

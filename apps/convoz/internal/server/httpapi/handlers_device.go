@@ -21,11 +21,12 @@ import (
 const hostInfoLimit = 30
 
 // clip keeps printable ASCII only (the owner reads this text and a machine controls it: no control, bidi or
-// look-alike characters), then cuts it to hostInfoLimit.
+// look-alike characters) and drops < > & " and \\, which JSON escapes to up to six characters each and would
+// push the stored host info past the column's 200 characters. Then it cuts the rest to hostInfoLimit.
 func clip(s string) string {
 	out := make([]byte, 0, hostInfoLimit)
 	for i := 0; i < len(s) && len(out) < hostInfoLimit; i++ {
-		if c := s[i]; c >= 0x20 && c <= 0x7e {
+		if c := s[i]; c >= 0x20 && c <= 0x7e && !strings.ContainsRune(`<>&"\\`, rune(c)) {
 			out = append(out, c)
 		}
 	}
