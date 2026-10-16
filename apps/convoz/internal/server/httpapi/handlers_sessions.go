@@ -11,6 +11,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/audit"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/inbox"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
@@ -109,8 +110,11 @@ func (s *Server) renewSession(w http.ResponseWriter, r *http.Request, c *call) {
 	var expires int64
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
 		var err error
-		expires, err = auth.SlideLease(ctx, tx.DBTX(), c.lease, s.Clock.Now())
-		return err
+		now := s.Clock.Now()
+		if expires, err = auth.SlideLease(ctx, tx.DBTX(), c.lease, now); err != nil {
+			return err
+		}
+		return inbox.Extend(ctx, tx.DBTX(), now, c.lease.SessionID, expires)
 	})
 	if err != nil {
 		s.internalError(w, r, err)
@@ -126,12 +130,16 @@ func (s *Server) endSession(w http.ResponseWriter, r *http.Request, c *call) {
 		if _, err := auth.EndLease(ctx, d, c.lease.SessionID, "logout", now); err != nil {
 			return err
 		}
+		if err := inbox.Release(ctx, d, now, c.lease.SessionID); err != nil {
+			return err
+		}
 		return audit.Write(ctx, d, now, audit.Entry{Actor: c.lease.IdentityID, Machine: c.lease.MachineID, Session: c.lease.SessionID, Action: "session.ended", TargetKind: "session", TargetID: c.lease.SessionID, Detail: map[string]any{"reason": "logout"}})
 	})
 	if err != nil {
 		s.internalError(w, r, err)
 		return
 	}
+	s.Bus.Notify(c.lease.IdentityID) // a poll held for this lease answers "session ended" at once
 	w.WriteHeader(http.StatusNoContent)
 }
 

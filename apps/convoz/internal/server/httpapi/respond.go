@@ -46,6 +46,10 @@ func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 	if errors.Is(err, io.EOF) {
 		return true
 	}
+	if field, ok := strings.CutPrefix(err.Error(), `json: unknown field "`); ok {
+		writeFieldErr(w, http.StatusBadRequest, "invalid_request", strings.TrimSuffix(field, `"`), "That field is not accepted.")
+		return false
+	}
 	writeErr(w, http.StatusBadRequest, "invalid_request", "The request body is not valid.")
 	return false
 }

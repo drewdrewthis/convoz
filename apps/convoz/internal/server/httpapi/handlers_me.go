@@ -28,6 +28,8 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request, c *call) {
 type identityJSON struct {
 	identity.Entry
 	CreatedBy *createdByJSON `json:"created_by,omitempty"`
+	// Online is set on agents: true while the agent has a live session on any machine.
+	Online *bool `json:"online,omitempty"`
 }
 
 type createdByJSON struct {
@@ -53,6 +55,15 @@ func (s *Server) identities(w http.ResponseWriter, r *http.Request, _ *call) {
 	out := make([]identityJSON, 0, len(list))
 	for _, e := range list {
 		row := identityJSON{Entry: e}
+		if e.Kind == "agent" {
+			live, err := auth.LiveSessionCount(r.Context(), s.reader(), e.ID, s.Clock.Now())
+			if err != nil {
+				s.internalError(w, r, err)
+				return
+			}
+			online := live > 0
+			row.Online = &online
+		}
 		switch {
 		case e.CreatedByHuman != 0:
 			row.CreatedBy = &createdByJSON{"human", names[e.CreatedByHuman]}

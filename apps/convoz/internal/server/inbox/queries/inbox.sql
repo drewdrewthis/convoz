@@ -1,0 +1,99 @@
+-- name: UpsertActivityItem :exec
+-- The fan-out of one new main message to one agent participant: the ready conversation item for (identity, conversation)
+-- takes the newest message and counts one more, or is made (design section 3.8, C-10).
+INSERT INTO inbox_items (identity_id, reason, conversation_id, first_message_id, message_id, count, mention_count, source_seq, state, created_at, updated_at)
+VALUES (sqlc.arg(identity_id), 'activity', sqlc.arg(conversation_id), sqlc.arg(message_id), sqlc.arg(message_id), 1, 0, sqlc.arg(source_seq), 'ready', sqlc.arg(now), sqlc.arg(now))
+ON CONFLICT (identity_id, conversation_id) WHERE state = 'ready' AND reason IN ('mention','thread','activity')
+DO UPDATE SET message_id = excluded.message_id, count = inbox_items.count + 1, source_seq = excluded.source_seq, updated_at = excluded.updated_at;
+
+-- name: HeldItems :many
+-- (1) M1: items this session already holds come back first, same tokens, no delivery counted.
+SELECT id, conversation_id, first_message_id, message_id, count, reason, state, claim_token, claim_until, deliveries
+FROM inbox_items
+WHERE identity_id = sqlc.arg(identity_id) AND state = 'claimed' AND claim_session_id = sqlc.arg(session_id) AND claim_until >= sqlc.arg(now)
+ORDER BY id LIMIT sqlc.arg(max_rows);
+
+-- name: ExpirePoisonItems :exec
+-- (2) M2: an item delivered 5 times leaves the queue before any claim; the batch never aborts.
+UPDATE inbox_items
+SET state = 'expired', expired_reason = 'deliveries', claim_session_id = NULL, claim_token = NULL,
+    claim_until = NULL, visibility_ms = NULL, updated_at = sqlc.arg(now)
+WHERE identity_id = sqlc.arg(identity_id) AND deliveries >= 5
+  AND (state = 'ready' OR (state = 'claimed' AND claim_until < sqlc.arg(now)));
+
+-- name: ExpiredClaimIDs :many
+SELECT id FROM inbox_items
+WHERE identity_id = sqlc.arg(identity_id) AND state = 'claimed' AND claim_until < sqlc.arg(now)
+ORDER BY id;
+
+-- name: ExpiredClaim :one
+SELECT identity_id, conversation_id, first_message_id, count, mention_count, reason, deliveries
+FROM inbox_items WHERE id = sqlc.arg(id) AND reason IN ('mention','thread','activity');
+
+-- name: MergeIntoReady :execrows
+-- (3) M4: an expired claim merges into the ready conversation item of the same conversation, if there is one.
+-- (The statement of section 3.8 joins the expired row with UPDATE ... FROM, which sqlc cannot read; the caller reads the row first.)
+UPDATE inbox_items
+SET first_message_id = min(first_message_id, CAST(sqlc.arg(first_message_id) AS INTEGER)),
+    count = count + sqlc.arg(count), mention_count = mention_count + sqlc.arg(mention_count),
+    reason = CASE WHEN 'mention' IN (reason, CAST(sqlc.arg(merged_reason) AS TEXT)) THEN 'mention'
+                  WHEN 'thread'  IN (reason, CAST(sqlc.arg(merged_reason) AS TEXT)) THEN 'thread' ELSE 'activity' END,
+    deliveries = max(deliveries, CAST(sqlc.arg(deliveries) AS INTEGER)), updated_at = sqlc.arg(now)
+WHERE identity_id = sqlc.arg(identity_id) AND conversation_id = sqlc.arg(conversation_id)
+  AND state = 'ready' AND reason IN ('mention','thread','activity');
+
+-- name: DeleteItem :exec
+DELETE FROM inbox_items WHERE id = sqlc.arg(id);
+
+-- name: MakeItemReady :exec
+UPDATE inbox_items
+SET state = 'ready', claim_session_id = NULL, claim_token = NULL, claim_until = NULL, visibility_ms = NULL, updated_at = sqlc.arg(now)
+WHERE id = sqlc.arg(id);
+
+-- name: ClaimItems :many
+-- (4) Claim; one random 128-bit token per item. Not yet in the SQL of section 3.8: the session-preference clause (prefer_session_id
+-- stays NULL until S3) and the --conv filter.
+UPDATE inbox_items
+SET state = 'claimed', claim_session_id = sqlc.arg(session_id), claim_token = randomblob(16),
+    claim_until = sqlc.arg(now) + sqlc.arg(visibility_ms), visibility_ms = sqlc.arg(visibility_ms), deliveries = deliveries + 1, updated_at = sqlc.arg(now)
+WHERE id IN (
+  SELECT i.id FROM inbox_items i
+  WHERE i.identity_id = sqlc.arg(identity_id) AND i.state = 'ready' AND i.deliveries < 5
+    AND (i.not_before IS NULL OR i.not_before <= sqlc.arg(now))
+    AND NOT EXISTS (SELECT 1 FROM inbox_items c
+                    WHERE c.identity_id = i.identity_id AND c.conversation_id = i.conversation_id
+                      AND c.state = 'claimed' AND c.claim_until >= sqlc.arg(now) AND c.claim_session_id <> sqlc.arg(session_id))
+  ORDER BY i.id LIMIT sqlc.arg(n_left))
+RETURNING id, conversation_id, first_message_id, message_id, count, reason, state, claim_token, claim_until, deliveries;
+
+-- name: AckItem :execrows
+-- Ack: the claim columns are cleared, or the claimed-state CHECK fails.
+UPDATE inbox_items
+SET state = 'acked', acked_at = sqlc.arg(now), acked_by_session = sqlc.arg(session_id), claim_session_id = NULL, claim_token = NULL,
+    claim_until = NULL, visibility_ms = NULL, updated_at = sqlc.arg(now)
+WHERE id = sqlc.arg(id) AND identity_id = sqlc.arg(identity_id) AND state = 'claimed'
+  AND claim_session_id = sqlc.arg(session_id) AND claim_token = sqlc.arg(token) AND claim_until >= sqlc.arg(now);
+
+-- name: ItemConversation :one
+SELECT conversation_id FROM inbox_items WHERE id = sqlc.arg(id) AND identity_id = sqlc.arg(identity_id);
+
+-- name: ExtendClaims :exec
+-- Extend (M8): on a lease renewal.
+UPDATE inbox_items SET claim_until = min(sqlc.arg(now) + visibility_ms, sqlc.arg(lease_expires_at)), updated_at = sqlc.arg(now)
+WHERE claim_session_id = sqlc.arg(session_id) AND state = 'claimed' AND claim_until >= sqlc.arg(now);
+
+-- name: ReleaseClaims :exec
+-- Release: a session that ends lets its claims expire at once; the next claim merges them back (3).
+UPDATE inbox_items SET claim_until = sqlc.arg(now) - 1 WHERE claim_session_id = sqlc.arg(session_id) AND state = 'claimed';
+
+-- name: PeekItems :many
+SELECT id, conversation_id, first_message_id, message_id, count, reason, state, claim_token, claim_until, deliveries, claim_session_id
+FROM inbox_items
+WHERE identity_id = sqlc.arg(identity_id) AND state IN ('ready','claimed')
+ORDER BY id;
+
+-- name: ExpireNotVisible :exec
+UPDATE inbox_items
+SET state = 'expired', expired_reason = 'not_visible', claim_session_id = NULL, claim_token = NULL,
+    claim_until = NULL, visibility_ms = NULL, updated_at = sqlc.arg(now)
+WHERE id = sqlc.arg(id);

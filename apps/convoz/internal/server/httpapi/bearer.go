@@ -72,7 +72,7 @@ func (s *Server) authenticateLease(w http.ResponseWriter, r *http.Request, token
 			return nil, err
 		}
 	}
-	return &call{token: token, lease: l, p: authz.Principal{SessionID: l.SessionID}}, nil
+	return &call{token: token, lease: l, p: authz.Principal{SessionID: l.SessionID, IdentityID: l.IdentityID}}, nil
 }
 
 // sessionEndedMessage says why a lease no longer works, in words for the person running the agent.

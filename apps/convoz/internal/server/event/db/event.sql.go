@@ -7,23 +7,128 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
 
 const appendEvent = `-- name: AppendEvent :one
-INSERT INTO events (type, payload, created_at)
-VALUES (?1, ?2, ?3)
-RETURNING id
+INSERT INTO events (type, actor_id, session_id, conversation_id, audience_id, message_id, payload_json, idem_key, created_at)
+VALUES (?1, ?2, ?3, ?4, ?5,
+        ?6, ?7, ?8, ?9)
+RETURNING seq
 `
 
 type AppendEventParams struct {
-	Type      string
-	Payload   string
-	CreatedAt int64
+	Type           string
+	ActorID        sql.NullInt64
+	SessionID      sql.NullInt64
+	ConversationID sql.NullInt64
+	AudienceID     sql.NullInt64
+	MessageID      sql.NullInt64
+	PayloadJson    string
+	IdemKey        sql.NullString
+	CreatedAt      int64
 }
 
 func (q *Queries) AppendEvent(ctx context.Context, arg AppendEventParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, appendEvent, arg.Type, arg.Payload, arg.CreatedAt)
-	var id int64
-	err := row.Scan(&id)
-	return id, err
+	row := q.db.QueryRowContext(ctx, appendEvent,
+		arg.Type,
+		arg.ActorID,
+		arg.SessionID,
+		arg.ConversationID,
+		arg.AudienceID,
+		arg.MessageID,
+		arg.PayloadJson,
+		arg.IdemKey,
+		arg.CreatedAt,
+	)
+	var seq int64
+	err := row.Scan(&seq)
+	return seq, err
+}
+
+const eventByIdem = `-- name: EventByIdem :one
+SELECT seq, conversation_id FROM events WHERE actor_id = ?1 AND idem_key = ?2
+`
+
+type EventByIdemParams struct {
+	ActorID sql.NullInt64
+	IdemKey sql.NullString
+}
+
+type EventByIdemRow struct {
+	Seq            int64
+	ConversationID sql.NullInt64
+}
+
+func (q *Queries) EventByIdem(ctx context.Context, arg EventByIdemParams) (EventByIdemRow, error) {
+	row := q.db.QueryRowContext(ctx, eventByIdem, arg.ActorID, arg.IdemKey)
+	var i EventByIdemRow
+	err := row.Scan(&i.Seq, &i.ConversationID)
+	return i, err
+}
+
+const eventsSince = `-- name: EventsSince :many
+SELECT seq, type, actor_id, session_id, conversation_id, audience_id, message_id, payload_json, created_at
+FROM events WHERE seq > ?1 ORDER BY seq LIMIT ?2
+`
+
+type EventsSinceParams struct {
+	After   int64
+	MaxRows int64
+}
+
+type EventsSinceRow struct {
+	Seq            int64
+	Type           string
+	ActorID        sql.NullInt64
+	SessionID      sql.NullInt64
+	ConversationID sql.NullInt64
+	AudienceID     sql.NullInt64
+	MessageID      sql.NullInt64
+	PayloadJson    string
+	CreatedAt      int64
+}
+
+func (q *Queries) EventsSince(ctx context.Context, arg EventsSinceParams) ([]EventsSinceRow, error) {
+	rows, err := q.db.QueryContext(ctx, eventsSince, arg.After, arg.MaxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []EventsSinceRow
+	for rows.Next() {
+		var i EventsSinceRow
+		if err := rows.Scan(
+			&i.Seq,
+			&i.Type,
+			&i.ActorID,
+			&i.SessionID,
+			&i.ConversationID,
+			&i.AudienceID,
+			&i.MessageID,
+			&i.PayloadJson,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const maxEventSeq = `-- name: MaxEventSeq :one
+SELECT CAST(COALESCE(MAX(seq), 0) AS INTEGER) AS seq FROM events
+`
+
+func (q *Queries) MaxEventSeq(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, maxEventSeq)
+	var seq int64
+	err := row.Scan(&seq)
+	return seq, err
 }

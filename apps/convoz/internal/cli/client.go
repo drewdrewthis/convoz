@@ -50,6 +50,13 @@ func newClient(server string) *client {
 	return &client{base: server, http: &http.Client{Timeout: requestTimeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
 }
 
+// withTimeout is the client with another per-request timeout, for a long poll that waits longer than a normal call.
+func (c *client) withTimeout(d time.Duration) *client {
+	h := *c.http
+	h.Timeout = d
+	return &client{base: c.base, http: &h}
+}
+
 // call sends one JSON request. token, when set, is sent as a bearer credential. A non-2xx answer is a
 // *statusError carrying the server's code and message; a failure to reach the server wraps errUnreachable.
 func (c *client) call(ctx context.Context, method, path, token string, in, out any) error {

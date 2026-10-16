@@ -38,6 +38,16 @@ func main() {
 		os.Exit(cli.Whoami(os.Args[2:], processIO()))
 	case "session":
 		os.Exit(session(os.Args[2:]))
+	case "post":
+		os.Exit(cli.Post(os.Args[2:], processIO()))
+	case "read":
+		os.Exit(cli.Read(os.Args[2:], processIO()))
+	case "inbox":
+		os.Exit(cli.Inbox(os.Args[2:], processIO()))
+	case "ack":
+		os.Exit(cli.Ack(os.Args[2:], processIO()))
+	case "watch":
+		os.Exit(cli.Watch(os.Args[2:], processIO()))
 	case "version":
 		fmt.Printf("convoz %s (schema %d)\n", version, platform.LatestVersion())
 	default:
@@ -69,6 +79,12 @@ func usage() {
 		"       convoz login --server URL [--name N] [--store file|keychain|auto] [--stdin]\n"+
 		"       convoz whoami [--sid SID | --as HANDLE] [--json]\n"+
 		"       convoz session start|end ...\n"+
+		"       convoz post [--format F] [--client-id C] <conv> <text|->\n"+
+		"       convoz read [--since ID] [--limit N] <conv>\n"+
+		"       convoz inbox [--wait S] [--peek] [--claim N] [--visibility D]\n"+
+		"       convoz ack <id:token>...\n"+
+		"       convoz watch [--json]\n"+
+		"       (post, read, inbox, ack and watch also take --sid SID | --as HANDLE, --json and --timeout D)\n"+
 		"       convoz version")
 	os.Exit(exitUsage)
 }
