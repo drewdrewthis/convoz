@@ -123,7 +123,7 @@ func ApproveRequest(ctx context.Context, d pdb.DBTX, box *KeyBox, p Ports, in Ap
 	if err := p.Journal.Audit(ctx, d, now, AuditEntry{Actor: in.Human.ID, Device: in.DeviceID, Machine: machineID, Action: "machine.approved", TargetKind: "machine", TargetID: machineID, Detail: map[string]any{"request_id": in.RequestID}}); err != nil {
 		return Machine{}, err
 	}
-	if err := p.Journal.Event(ctx, d, now, "machine.approved", map[string]any{"machine_id": machineID, "request_id": in.RequestID}); err != nil {
+	if err := p.Journal.Event(ctx, d, now, "machine.approved.v1", map[string]any{"machine_id": machineID, "request_id": in.RequestID}); err != nil {
 		return Machine{}, err
 	}
 	return MachineByID(ctx, d, machineID, now)
@@ -169,7 +169,7 @@ func ReplaceMachineAllow(ctx context.Context, d pdb.DBTX, p Ports, in AllowChang
 	if err := p.Journal.Audit(ctx, d, now, AuditEntry{Actor: in.Human.ID, Device: in.DeviceID, Machine: id, Action: "machine.allow_changed", TargetKind: "machine", TargetID: id}); err != nil {
 		return Machine{}, err
 	}
-	if err := p.Journal.Event(ctx, d, now, "machine.allow_changed", map[string]any{"machine_id": id}); err != nil {
+	if err := p.Journal.Event(ctx, d, now, "machine.allow_changed.v1", map[string]any{"machine_id": id}); err != nil {
 		return Machine{}, err
 	}
 	return MachineByID(ctx, d, id, now)

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	stdio "io"
 	"os"
 	"regexp"
 	"runtime"
@@ -45,7 +46,7 @@ func Login(args []string, io IO) int {
 	name := fs.String("name", defaultMachineName(), "the name of this machine")
 	stdin := fs.Bool("stdin", false, "store the key given on standard input instead of asking the owner")
 	store := fs.String("store", storeAuto, "where the key lives: file, keychain or auto")
-	if err := fs.Parse(args); err != nil || fs.NArg() != 0 {
+	if !parseNoArgs(fs, args, io) {
 		return ExitUsage
 	}
 	if !nameRE.MatchString(*name) {
@@ -76,6 +77,28 @@ func Login(args []string, io IO) int {
 func usageError(io IO, msg string) int {
 	fmt.Fprintf(io.Stderr, "convoz: %s\n", msg)
 	return ExitUsage
+}
+
+// parseFlags parses args into fs. A bad flag is a usage error with the convoz: prefix: the flag package alone would print it bare.
+func parseFlags(fs *flag.FlagSet, args []string, io IO) bool {
+	fs.SetOutput(stdio.Discard)
+	if err := fs.Parse(args); err != nil {
+		usageError(io, err.Error())
+		return false
+	}
+	return true
+}
+
+// parseNoArgs is parseFlags for a command that takes no positional argument.
+func parseNoArgs(fs *flag.FlagSet, args []string, io IO) bool {
+	if !parseFlags(fs, args, io) {
+		return false
+	}
+	if fs.NArg() != 0 {
+		usageError(io, fmt.Sprintf("%s takes no arguments, got %q", fs.Name(), fs.Arg(0)))
+		return false
+	}
+	return true
 }
 
 // fail prints err and returns its exit code. A permission error is an auth failure (exit 3).
@@ -142,7 +165,7 @@ func deviceFlow(io IO, dir string, kc keychain, c *client, base, name, store str
 		case errCode == wire.CodeSlowDown:
 			interval += slowDownStep
 		case errCode == wire.CodeAccessDenied:
-			fmt.Fprintln(io.Stderr, "The owner denied the request.")
+			fmt.Fprintln(io.Stderr, "convoz: The owner denied the request.")
 			return ExitAuth
 		case errCode == wire.CodeExpiredToken:
 			return expired(io)
@@ -156,6 +179,6 @@ func deviceFlow(io IO, dir string, kc keychain, c *client, base, name, store str
 }
 
 func expired(io IO) int {
-	fmt.Fprintln(io.Stderr, "The code expired. Run convoz login again.")
+	fmt.Fprintln(io.Stderr, "convoz: The code expired. Run convoz login again.")
 	return ExitAuth
 }

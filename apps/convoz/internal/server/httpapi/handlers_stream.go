@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/event"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
@@ -33,6 +34,15 @@ type streamSet struct {
 type openStream struct {
 	id     int
 	cancel context.CancelFunc
+}
+
+// cancelDevice closes every open stream of device: its session ended.
+func (ss *streamSet) cancelDevice(device int64) {
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+	for _, o := range ss.byDev[device] {
+		o.cancel()
+	}
 }
 
 // add registers a stream of device and closes the oldest ones beyond the cap. The returned func unregisters it.
@@ -72,7 +82,11 @@ func (ss *streamSet) add(device int64, cancel context.CancelFunc) (remove func()
 // Frames are `event: <type>`, `id: <epoch>:<seq>` and `data: <json>`, hydrated from state when sent: an event row
 // holds ids only (I-23). `: hb` goes out every 15 s. Last-Event-ID resumes from the next seq; with none, the stream
 // starts at the end of the log and the client reads the state it needs over the plain routes. Live frames such as
-// "agent.working" have no id and are never replayed. A client that cannot keep up is cut off and reconnects.
+// "agent.working" have no id and are never replayed, and reach only a reader who may see their conversation.
+// A client that cannot keep up is cut off and reconnects.
+//
+// The stream ends when the device session does: it is checked again on every wake, every live frame and every
+// heartbeat, and logout or deleting the device closes the device's streams at once. After that no body is written.
 func (s *Server) stream(w http.ResponseWriter, r *http.Request, c *call) {
 	if !acceptsStream(r.Header.Get("Accept")) {
 		writeErr(w, http.StatusNotAcceptable, "not_acceptable", "This route streams text/event-stream.")
@@ -98,10 +112,13 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request, c *call) {
 	if _, err := fmt.Fprint(w, ": open\n\n"); err != nil || rc.Flush() != nil {
 		return
 	}
-	tick := time.NewTicker(heartbeatEvery)
+	tick := time.NewTicker(s.heartbeat)
 	defer tick.Stop()
 	for {
 		changed := s.Bus.Changed() // before the read, so a commit between the read and the wait still wakes us
+		if !s.deviceLive(ctx, c) {
+			return
+		}
 		for {
 			n, err := s.sendEvents(ctx, w, c, &cursor)
 			if err != nil {
@@ -117,13 +134,23 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request, c *call) {
 		select {
 		case <-changed:
 		case f, open := <-sub.C:
-			if !open {
+			if !open || !s.deviceLive(ctx, c) {
 				return
+			}
+			if f.Conversation != 0 {
+				if _, visible, err := canSee(ctx, s.reader(), c.p, f.Conversation); err != nil {
+					return
+				} else if !visible {
+					continue
+				}
 			}
 			if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", f.Event, f.Data); err != nil || rc.Flush() != nil {
 				return
 			}
 		case <-tick.C:
+			if !s.deviceLive(ctx, c) {
+				return
+			}
 			if _, err := fmt.Fprint(w, ": hb\n\n"); err != nil || rc.Flush() != nil {
 				return
 			}
@@ -131,6 +158,13 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request, c *call) {
 			return
 		}
 	}
+}
+
+// deviceLive reports whether the device session behind the stream still works. A read that fails counts as no:
+// the client reconnects and is told then.
+func (s *Server) deviceLive(ctx context.Context, c *call) bool {
+	_, ok, err := auth.LookupDevice(ctx, s.reader(), c.token, s.Clock.Now())
+	return err == nil && ok
 }
 
 // acceptsStream reports whether the Accept header asks for an event stream. A plain GET (no Accept) is refused
@@ -185,9 +219,9 @@ func (s *Server) sendEvents(ctx context.Context, w http.ResponseWriter, c *call,
 // frameFor hydrates one event for the caller; data is nil for an event the stream does not carry or the caller may not see.
 func (s *Server) frameFor(ctx context.Context, c *call, dir directory, ev event.Event) (name string, data []byte, err error) {
 	d := s.reader()
-	name = strings.TrimSuffix(ev.Type, event.Version)
-	switch name {
-	case "message.created":
+	switch ev.Type {
+	case event.MessageCreated:
+		name = "message.created"
 		floor, visible, err := canSee(ctx, d, c.p, ev.Conversation)
 		if err != nil || !visible {
 			return name, nil, err
@@ -202,7 +236,8 @@ func (s *Server) frameFor(ctx context.Context, c *call, dir directory, ev event.
 			"body": wm.Body, "format": wm.Format, "created_at": wm.CreatedAt,
 		})
 		return name, data, err
-	case "read.moved":
+	case event.ReadMoved:
+		name = "read.moved"
 		if ev.Audience != c.p.Identity() {
 			return name, nil, nil
 		}
@@ -212,7 +247,8 @@ func (s *Server) frameFor(ctx context.Context, c *call, dir directory, ev event.
 		_ = json.Unmarshal([]byte(ev.Payload), &p)
 		data, err = json.Marshal(map[string]any{"conversation_id": ev.Conversation, "main_id": p.MainID})
 		return name, data, err
-	case "conversation.created":
+	case event.ConversationCreated:
+		name = "conversation.created"
 		cv, ok, err := conversation.Get(ctx, d, ev.Conversation)
 		if err != nil || !ok {
 			return name, nil, err
@@ -228,5 +264,5 @@ func (s *Server) frameFor(ctx context.Context, c *call, dir directory, ev event.
 		data, err = json.Marshal(v)
 		return name, data, err
 	}
-	return name, nil, nil
+	return "", nil, nil
 }

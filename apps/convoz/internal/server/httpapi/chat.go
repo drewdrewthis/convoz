@@ -95,12 +95,19 @@ func unreadOf(ctx context.Context, d pdb.DBTX, reader int64, cv conversation.Con
 }
 
 // publishWorking sends the live-only "agent.working" frame: an agent started or stopped on a conversation.
-// It is a hint for the owner's screen, so a failure to build it is dropped.
-func (s *Server) publishWorking(ctx context.Context, agentID, conversationID int64, working bool) {
+// A working frame carries until (unix ms), the end of the agent's claim, and is sent again when a renewal moves it.
+// The screen hides "working" at until, so a claim that runs out without a post or an ack clears by itself;
+// a stop frame (working false) clears it sooner. The frame goes only to readers who may see the conversation.
+// It is a hint, so a failure to build it is dropped.
+func (s *Server) publishWorking(ctx context.Context, agentID, conversationID int64, working bool, until int64) {
 	who, found, err := identity.ByID(ctx, s.reader(), agentID)
 	if err != nil || !found {
 		return
 	}
-	data, _ := json.Marshal(map[string]any{"identity_id": who.ID, "handle": who.Handle, "conversation_id": conversationID, "working": working})
-	s.Bus.Publish(platform.Frame{Event: "agent.working", Data: data})
+	frame := map[string]any{"identity_id": who.ID, "handle": who.Handle, "conversation_id": conversationID, "working": working}
+	if working {
+		frame["until"] = until
+	}
+	data, _ := json.Marshal(frame)
+	s.Bus.Publish(platform.Frame{Event: "agent.working", Data: data, Conversation: conversationID})
 }

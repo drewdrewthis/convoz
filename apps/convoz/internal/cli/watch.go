@@ -28,19 +28,21 @@ const (
 // It exits 3 when the session ends and otherwise runs until it is stopped, riding out network errors.
 func Watch(args []string, io IO) int {
 	f := newChatFlags("watch", io)
-	if err := f.fs.Parse(args); err != nil || f.fs.NArg() != 0 {
+	if pos, ok := f.parse(args, io); !ok {
 		return ExitUsage
+	} else if len(pos) != 0 {
+		return usageError(io, "usage: convoz watch [--json]")
 	}
 	k, code := f.open(io)
 	if k == nil {
 		return code
 	}
-	poll := k.c.withTimeout((maxHold + 15) * time.Second)
+	poll := k.c.withTimeout((wire.MaxHoldSeconds + 15) * time.Second)
 	printed := map[string]bool{}
 	held := true // the first poll, and the first after an error, also returns claims whose answer was lost
 	backoff := watchBackoffFirst
 	for {
-		q := url.Values{"wait": {strconv.Itoa(maxHold)}}
+		q := url.Values{"wait": {strconv.Itoa(wire.MaxHoldSeconds)}}
 		if !held {
 			q.Set("held", "0")
 		}

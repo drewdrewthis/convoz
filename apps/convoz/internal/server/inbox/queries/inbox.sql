@@ -77,14 +77,16 @@ WHERE id = sqlc.arg(id) AND identity_id = sqlc.arg(identity_id) AND state = 'cla
 -- name: ItemConversation :one
 SELECT conversation_id FROM inbox_items WHERE id = sqlc.arg(id) AND identity_id = sqlc.arg(identity_id);
 
--- name: ExtendClaims :exec
--- Extend (M8): on a lease renewal.
+-- name: ExtendClaims :many
+-- Extend (M8): on a lease renewal. The rows come back so the owner's screen can move the end of "working".
 UPDATE inbox_items SET claim_until = min(sqlc.arg(now) + visibility_ms, sqlc.arg(lease_expires_at)), updated_at = sqlc.arg(now)
-WHERE claim_session_id = sqlc.arg(session_id) AND state = 'claimed' AND claim_until >= sqlc.arg(now);
+WHERE claim_session_id = sqlc.arg(session_id) AND state = 'claimed' AND claim_until >= sqlc.arg(now)
+RETURNING conversation_id, claim_until;
 
--- name: ReleaseClaims :exec
+-- name: ReleaseClaims :many
 -- Release: a session that ends lets its claims expire at once; the next claim merges them back (3).
-UPDATE inbox_items SET claim_until = sqlc.arg(now) - 1 WHERE claim_session_id = sqlc.arg(session_id) AND state = 'claimed';
+UPDATE inbox_items SET claim_until = sqlc.arg(now) - 1 WHERE claim_session_id = sqlc.arg(session_id) AND state = 'claimed'
+RETURNING conversation_id;
 
 -- name: PeekItems :many
 SELECT id, conversation_id, first_message_id, message_id, count, reason, state, claim_token, claim_until, deliveries, claim_session_id

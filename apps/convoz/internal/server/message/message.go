@@ -28,6 +28,7 @@ var (
 	ErrEmpty            = errors.New("the message is empty")
 	ErrTooLarge         = errors.New("the message body is over 16384 bytes")
 	ErrFormat           = errors.New("format is markdown, markdownv2 or plain")
+	ErrNUL              = errors.New("the message has a NUL character")
 	ErrClientIDConflict = errors.New("that client id was used for a different message")
 )
 
@@ -55,10 +56,10 @@ type Draft struct {
 
 func nullInt(v int64) sql.NullInt64 { return sql.NullInt64{Int64: v, Valid: v != 0} }
 
-// Post writes d once per (author, client id), inside the caller's transaction. A repeat of the same message returns
+// insert writes d once per (author, client id), inside the caller's transaction. A repeat of the same message returns
 // the stored one with replayed true and changes nothing; the same client id with another body, format or
 // conversation is ErrClientIDConflict (I-24).
-func Post(ctx context.Context, tx pdb.DBTX, now time.Time, d Draft) (m Message, replayed bool, err error) {
+func insert(ctx context.Context, tx pdb.DBTX, now time.Time, d Draft) (m Message, replayed bool, err error) {
 	if d.Format == "" {
 		d.Format = "markdown"
 	}
@@ -67,8 +68,10 @@ func Post(ctx context.Context, tx pdb.DBTX, now time.Time, d Draft) (m Message, 
 		return Message{}, false, ErrFormat
 	case len(d.Body) > MaxBodyBytes:
 		return Message{}, false, ErrTooLarge
-	case len(d.Body) == 0:
+	case strings.TrimSpace(d.Body) == "":
 		return Message{}, false, ErrEmpty
+	case strings.ContainsRune(d.Body, 0):
+		return Message{}, false, ErrNUL
 	}
 	q := db.New(tx)
 	prev, err := q.GetMessageByClient(ctx, db.GetMessageByClientParams{AuthorID: nullInt(d.Author), ClientID: sql.NullString{String: d.ClientID, Valid: true}})

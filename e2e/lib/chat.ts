@@ -2,7 +2,7 @@ import http from "node:http";
 import { installedMachine, sidOf, type CliMachine, type Running } from "./cli.ts";
 import type { ServerHandle, ServerOptions } from "./fixtures.ts";
 import { Client, send, type Res } from "./http.ts";
-import { ANY, allow, bearer, clientId, createAgents, loginMachine, type Allow, type LoggedIn } from "./machines.ts";
+import { allow, bearer, clientId, createAgents, loginMachine, type Allow, type LoggedIn } from "./machines.ts";
 import { bootstrapOwner, must, type Owner } from "./owner.ts";
 import { record } from "./transcript.ts";
 import type { RunResult } from "./run.ts";
@@ -18,7 +18,7 @@ import type { RunResult } from "./run.ts";
 
 const POLL = { CONVOZ_TEST_POLL_MS: "250" };
 
-export interface World {
+interface World {
   srv: ServerHandle;
   owner: Owner;
   box2: LoggedIn;
@@ -42,11 +42,9 @@ export async function chatWorld(
   return { srv, owner, box2, box };
 }
 
-export { ANY };
-
 // ---- conversations and messages (owner, over HTTP) ----------------------------------------------------
 
-export interface ConversationRow {
+interface ConversationRow {
   id: number;
   title: string | null;
   created_at: number;
@@ -56,7 +54,7 @@ export interface ConversationRow {
   unread: number;
 }
 
-export interface MessageRow {
+interface MessageRow {
   id: number;
   author: { handle: string; display_name: string; kind: string };
   body: string;
@@ -121,7 +119,7 @@ export async function ownerReads(owner: Owner, conv: number, mainId: number): Pr
 
 // ---- agent sessions and commands ----------------------------------------------------------------------
 
-export interface AgentSession {
+interface AgentSession {
   sid: string;
   lease: string;
 }
@@ -134,21 +132,21 @@ export async function startSession(box: CliMachine, as: string, label: string): 
   return { sid, lease: box.leaseOf(sid) };
 }
 
-/** One `convoz <argv>` run with `--sid` and a CLI timeout. Flags come before positional arguments (Go flag parsing). */
+/** One `convoz <argv>` run with `--sid` and a CLI timeout. The command name goes first; its flags may stand anywhere after it. */
 export function convoz(box: CliMachine, sid: string, argv: string[], stdin?: string): Promise<RunResult> {
   const [cmd = "", ...rest] = argv;
   return box.run([cmd, "--sid", sid, "--timeout", "10s", ...rest], { timeoutMs: 20_000, ...(stdin !== undefined ? { stdin } : {}) });
 }
 
 /** `convoz <cmd> --json ...` that must exit 0; returns the parsed stdout. */
-export async function convozJson<T = any>(box: CliMachine, sid: string, argv: string[]): Promise<T> {
+async function convozJson<T = any>(box: CliMachine, sid: string, argv: string[]): Promise<T> {
   const [cmd = "", ...rest] = argv;
   const res = await convoz(box, sid, [cmd, "--json", ...rest]);
   if (res.code !== 0) throw new Error(`convoz ${argv.join(" ")}: exit ${res.code}\n${res.stderr}`);
   return JSON.parse(res.stdout) as T;
 }
 
-export interface InboxItem {
+interface InboxItem {
   id: number;
   claim_token?: string;
   state?: string;
@@ -170,7 +168,7 @@ export async function peekFor(box: CliMachine, sid: string, conv: number): Promi
 
 // ---- convoz watch --json ------------------------------------------------------------------------------
 
-export interface WatchLine {
+interface WatchLine {
   item_id: number;
   claim_token: string;
   reason: string;
@@ -211,13 +209,13 @@ export async function exitsWithin(w: Running, ms: number): Promise<RunResult | n
 
 // ---- the owner's event stream (GET /api/stream) ---------------------------------------------------------
 
-export interface Frame {
+interface Frame {
   event: string;
   id?: string;
   data: any;
 }
 
-export interface Stream {
+interface Stream {
   /** HTTP status of the stream response. */
   status: number;
   frames: Frame[];

@@ -228,9 +228,10 @@ func (q *Queries) ExpiredClaimIDs(ctx context.Context, arg ExpiredClaimIDsParams
 	return items, nil
 }
 
-const extendClaims = `-- name: ExtendClaims :exec
+const extendClaims = `-- name: ExtendClaims :many
 UPDATE inbox_items SET claim_until = min(?1 + visibility_ms, ?2), updated_at = ?1
 WHERE claim_session_id = ?3 AND state = 'claimed' AND claim_until >= ?1
+RETURNING conversation_id, claim_until
 `
 
 type ExtendClaimsParams struct {
@@ -239,10 +240,33 @@ type ExtendClaimsParams struct {
 	SessionID      sql.NullInt64
 }
 
-// Extend (M8): on a lease renewal.
-func (q *Queries) ExtendClaims(ctx context.Context, arg ExtendClaimsParams) error {
-	_, err := q.db.ExecContext(ctx, extendClaims, arg.Now, arg.LeaseExpiresAt, arg.SessionID)
-	return err
+type ExtendClaimsRow struct {
+	ConversationID sql.NullInt64
+	ClaimUntil     sql.NullInt64
+}
+
+// Extend (M8): on a lease renewal. The rows come back so the owner's screen can move the end of "working".
+func (q *Queries) ExtendClaims(ctx context.Context, arg ExtendClaimsParams) ([]ExtendClaimsRow, error) {
+	rows, err := q.db.QueryContext(ctx, extendClaims, arg.Now, arg.LeaseExpiresAt, arg.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ExtendClaimsRow
+	for rows.Next() {
+		var i ExtendClaimsRow
+		if err := rows.Scan(&i.ConversationID, &i.ClaimUntil); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const heldItems = `-- name: HeldItems :many
@@ -441,8 +465,9 @@ func (q *Queries) PeekItems(ctx context.Context, identityID int64) ([]PeekItemsR
 	return items, nil
 }
 
-const releaseClaims = `-- name: ReleaseClaims :exec
+const releaseClaims = `-- name: ReleaseClaims :many
 UPDATE inbox_items SET claim_until = ?1 - 1 WHERE claim_session_id = ?2 AND state = 'claimed'
+RETURNING conversation_id
 `
 
 type ReleaseClaimsParams struct {
@@ -451,9 +476,27 @@ type ReleaseClaimsParams struct {
 }
 
 // Release: a session that ends lets its claims expire at once; the next claim merges them back (3).
-func (q *Queries) ReleaseClaims(ctx context.Context, arg ReleaseClaimsParams) error {
-	_, err := q.db.ExecContext(ctx, releaseClaims, arg.Now, arg.SessionID)
-	return err
+func (q *Queries) ReleaseClaims(ctx context.Context, arg ReleaseClaimsParams) ([]sql.NullInt64, error) {
+	rows, err := q.db.QueryContext(ctx, releaseClaims, arg.Now, arg.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []sql.NullInt64
+	for rows.Next() {
+		var conversation_id sql.NullInt64
+		if err := rows.Scan(&conversation_id); err != nil {
+			return nil, err
+		}
+		items = append(items, conversation_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const upsertActivityItem = `-- name: UpsertActivityItem :exec

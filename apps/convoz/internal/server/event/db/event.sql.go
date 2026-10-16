@@ -47,7 +47,7 @@ func (q *Queries) AppendEvent(ctx context.Context, arg AppendEventParams) (int64
 }
 
 const eventByIdem = `-- name: EventByIdem :one
-SELECT seq, conversation_id FROM events WHERE actor_id = ?1 AND idem_key = ?2
+SELECT seq, conversation_id, payload_json FROM events WHERE actor_id = ?1 AND idem_key = ?2
 `
 
 type EventByIdemParams struct {
@@ -58,12 +58,13 @@ type EventByIdemParams struct {
 type EventByIdemRow struct {
 	Seq            int64
 	ConversationID sql.NullInt64
+	PayloadJson    string
 }
 
 func (q *Queries) EventByIdem(ctx context.Context, arg EventByIdemParams) (EventByIdemRow, error) {
 	row := q.db.QueryRowContext(ctx, eventByIdem, arg.ActorID, arg.IdemKey)
 	var i EventByIdemRow
-	err := row.Scan(&i.Seq, &i.ConversationID)
+	err := row.Scan(&i.Seq, &i.ConversationID, &i.PayloadJson)
 	return i, err
 }
 

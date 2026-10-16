@@ -444,10 +444,12 @@ Server — `apps/convoz/internal/server/<m>/` = `tables.sql`, `queries.sql` (sql
 | `conversation` | conversations, participants, assignments | `conversation.*`, `participant.changed` |
 | `message` | messages, message_edits, mentions | `message.*`, `thread.updated` |
 | `ask` | asks, ask_options, ask_snoozes | `ask.*` |
-| `agentrt` | inbox_items, handoffs | `handoff.created` |
+| `inbox` | inbox_items, handoffs | `handoff.created` |
 | `prefs` | conversation_prefs, pins | `prefs.changed`, `pin.changed` |
 | `readstate` | read_cursors, thread_reads | `read.moved` |
 | `upload`, `transcript` | uploads / transcripts | `upload.transcribed` |
+
+The inbox module is `inbox` in the code (`internal/server/inbox`). Earlier drafts called it `agentrt`; the name now says what it owns. Handoffs join it in S-A.
 | `search` | messages_fts, conversations_fts (written through a port inside the message tx) | — |
 | `event` | events | SSE C1, prune |
 | `notify` | push_subscriptions, notifications, push_deliveries | consumer C2 |
@@ -457,7 +459,7 @@ Server — `apps/convoz/internal/server/<m>/` = `tables.sql`, `queries.sql` (sql
 | `ops` | — (backup, restore, export, delete, purge, rotate, nightly maintenance) | — |
 
 - The owner's `rail`, `star` and `pin` stay merged into `prefs` (one row per user and conversation).
-- **One tx across modules:** a command handler in module A calls `b.DoX(ctx, d db.DBTX, …)` through an interface that **A defines** (ports). `d` is the handle of the open write transaction (`tx.DBTX()` of `Writer.Tx`) or, for a read, `Reader.SQL()`; `ctx` is the context that `Writer.Tx` gave the callback, and it must be the one passed on: it carries the transaction, so a nested `Writer.Tx(ctx, …)` joins it instead of waiting for the one writer connection (a deadlock). The key is per `Writer`, so a ctx never joins a transaction of another database. Each module wraps `d` with its own sqlc `New(d)` **inside its own functions**, so no caller imports a module's `db` package, every module writes in the same transaction and one error rolls all of it back. Examples: `message.Post` calls `search.Index`, `agentrt.FanOut`, `audit.Write`; `conversation.Remove` calls `ask.CloseForRemoval`, `agentrt.ExpireFor`, `conversation.ReleasePickup`. Async side effects go only through events (C1, C2).
+- **One tx across modules:** a command handler in module A calls `b.DoX(ctx, d db.DBTX, …)` through an interface that **A defines** (ports). `d` is the handle of the open write transaction (`tx.DBTX()` of `Writer.Tx`) or, for a read, `Reader.SQL()`; `ctx` is the context that `Writer.Tx` gave the callback, and it must be the one passed on: it carries the transaction, so a nested `Writer.Tx(ctx, …)` joins it instead of waiting for the one writer connection (a deadlock). The key is per `Writer`, so a ctx never joins a transaction of another database. Each module wraps `d` with its own sqlc `New(d)` **inside its own functions**, so no caller imports a module's `db` package, every module writes in the same transaction and one error rolls all of it back. Examples: `message.Post` calls `search.Index`, `inbox.FanOut`, `audit.Write`; `conversation.Remove` calls `ask.CloseForRemoval`, `inbox.ExpireFor`, `conversation.ReleasePickup`. Async side effects go only through events (C1, C2).
 - **Composition roots:** `httpapi` and `cmd/convoz` are the only packages that import several modules. They open the `Writer.Tx` and call the modules inside it, and they implement the ports a module declares. Example: `auth.Bootstrap` (owner, passkey, codes, device, audit, events in one tx) takes the `auth.OwnerPort` and `auth.JournalPort` that `httpapi/ports.go` implements with `identity`, `audit` and `event`. A module reads another module's data only through a port it declares itself (`auth.Human` is filled from `identity` by the root). A root holds no SQL and imports no module's `db` package.
 
 ### 4.3 Boundary rules (CI)
@@ -521,7 +523,7 @@ Unchanged from draft 7 §5.2 (replay cost, schema evolution, deletion, single no
 
 ### 5.4 Event row and catalogue
 
-The row (DDL in §7): `seq`, `type` (`<area>.<name>.v1`), `actor_id`, `session_id`, `conversation_id`, `audience_id`, `message_id`, `payload_json` (≤1 KB, thin), `idem_key`, `created_at`. No `redacted_at`: events are immutable (a trigger rejects UPDATE); prune deletes old rows.
+The row (DDL in §7): `seq`, `type` (`<area>.<name>.v1`), `actor_id`, `session_id`, `conversation_id`, `audience_id`, `message_id`, `payload_json` (≤1 KB, thin), `idem_key`, `created_at`. No `redacted_at`: events are immutable (a trigger rejects UPDATE); prune deletes old rows. Migration 7 creates the table with an `events_no_delete` trigger as well; S3 drops that trigger when it adds prune, and I-23 then reads "immutable, except that prune deletes old rows".
 
 Visibility: **conv** = canSee(conversation, message) and `seq ≥ joined_seq`; **self** = `audience_id` only; **owner** = role owner; **owner+self** = owner and the subject identity's sessions.
 
@@ -547,7 +549,11 @@ Visibility: **conv** = canSee(conversation, message) and `seq ≥ joined_seq`; *
 | `auth.*` (login, login_failed, step_up, device_revoked, passkey_added, recovery_used, bootstrap_used) | API | C1 C2 (recovery_used, bootstrap_used) | device, passkey hint | self/owner |
 | `upload.transcribed` | worker (its tx also re-indexes the message FTS row with the transcript and releases held inbox items) | C1 | upload, message_id | conv |
 
-Live-only (not stored): typing, agent `doing`/progress, app data.
+Every event name carries its version (`message.created.v1`): writers pass the full name, `event.Write` refuses one without `.vN`, and readers match on the full name. The SSE frame name drops the version (`event: message.created`).
+
+Built so far, with their thin payloads: `message.created.v1` {id, kind, conversation_id}, `conversation.created.v1` {id, sig} (`sig` is a hash of the create request, so a replay of its client id with another title or other participants is a 409), `read.moved.v1` {main_id}, and the S1 events (`owner.created`, `passkey.added`, `identity.created`, `session.started`, `machine.*`, `recovery.used`, `passkey.removed`, all `.v1`). The rest of the catalogue above arrives with its slice.
+
+Live-only (not stored): typing, agent `doing`/progress, app data, and `agent.working` {identity_id, handle, conversation_id, working, until?}. The frame goes only to readers who may see the conversation. `working: true` carries `until`, the end of the agent's claim (unix ms), and is sent again when a lease renewal moves it; the client hides "working" at `until`, so a claim that ends without a post or an ack clears by itself. `working: false` is sent when the agent posts, acks or ends its session. No frame is sent when a claim merely runs out.
 
 ### 5.5 Replay, gaps and resync
 
@@ -1236,6 +1242,7 @@ CREATE TABLE events (
 ) STRICT;
 CREATE UNIQUE INDEX events_idem ON events(actor_id, idem_key) WHERE idem_key IS NOT NULL;
 CREATE TRIGGER events_immutable BEFORE UPDATE ON events BEGIN SELECT RAISE(ABORT,'events are immutable'); END;  -- I-23
+-- Migration 7 also creates events_no_delete (BEFORE DELETE, same message). S3 drops it in the migration that adds prune.
 
 CREATE TABLE consumer_offsets (
   consumer TEXT PRIMARY KEY CHECK (consumer IN ('push')),
@@ -1590,8 +1597,8 @@ All JSON (brotli/gzip). Errors `{error:{code,message}}`. Auth: **H** human cooki
 | `GET /api/me` (whoami) · `PATCH /api/me/profile` | H/L | identity, scopes, session, machine · profile | I-3 I-40 |
 | `GET /api/identities` · `GET /api/identities/:id/avatar.svg` | H/L | Crew list · SVG | I-3 I-32 |
 | `POST /api/crew/agents` · `POST /api/identities/:id/disable` | O S | {handle, display_name, allow_on_machines?[]} → identity · disable | I-3 I-38 |
-| `GET /api/inbox?wait=&claim=&visibility=&peek=&conv=` | L | held items first, then claimed ones, each with `claim_token` (hydrated, canSee; the removal notice is exempt) — long poll | I-43 |
-| `POST /api/inbox/claim` · `POST /api/inbox/ack` | L | {n, visibility, conv?} → items with `claim_token` · {items:[{id, claim_token}]} → per item `ok` \| `claim_lost` | I-43 |
+| `GET /api/inbox?wait=&claim=&visibility=&peek=&held=&conv=` | L | held items first, then claimed ones, each with `claim_token` (hydrated, canSee; the removal notice is exempt) — long poll. `held=0` leaves the already-held items out, so `convoz watch` prints each claim once; it is for `watch`, and `conv` is S3 | I-43 |
+| `POST /api/inbox/claim` (S3; `GET /api/inbox` claims until then) · `POST /api/inbox/ack` | L | {n, visibility, conv?} → items with `claim_token` · {items:[{id, claim_token}]} → per item `ok` \| `claim_lost` | I-43 |
 | `GET /api/brief?max_bytes=` · `POST /api/handoffs` · `GET /api/handoffs?identity=` | L · L · O/L(self) | brief · {body, client_id} · notes | I-6 |
 | `POST /api/conversations` · `GET /api/conversations` | H/L | {title?, participants?} → conv (agent-listed participants pending) · rail | I-14 I-17 I-21 |
 | `GET/PATCH/DELETE /api/conversations/:id` · `POST …/restore` | H/L · O | title, link · soft delete · restore from trash | I-6 I-49 |
@@ -1641,11 +1648,11 @@ SSE (humans only in v1): `event: <type>`, `id: epoch:seq`, `data: {…, prev_seq
 | Profile changes | 1/h |
 | Caps | body ≤16 KB; app ≤64 KB (fallback ≤2000 chars, frame data ≤32 KB, per-component caps in app.v1); Tier-2 bundle ≤512 KB; app result ≤4 KB; ≤10 attachments; ≤5 URLs; ≤20 participants; ≤4 alternatives; handoff ≤4096 bytes; brief ≤64 KB even with `--max-bytes` |
 
-Budgets are checked before `BEGIN` (I-30).
+Budgets are checked before `BEGIN` (I-30). A refused post answers 429 `rate_limited` with a `Retry-After` header and `retry_after` in the body, in whole seconds.
 
 ### 13.2 CLI and MCP
 
-One binary `convoz` (alias `cvz`). Credentials: `~/.config/convoz/credentials` (0600, directory 0700) or the OS keychain. Session files: `~/.config/convoz/sessions/<sid>` (0600). Neither is ever printed. Global flags: `--server`, `--as` / `CONVOZ_AS`, `--sid` / `CONVOZ_SID`, `--json`, `--timeout`.
+One binary `convoz` (alias `cvz`). Credentials: `~/.config/convoz/credentials` (0600, directory 0700) or the OS keychain. Session files: `~/.config/convoz/sessions/<sid>` (0600). Neither is ever printed. Global flags of the agent commands: `--as` / `CONVOZ_AS`, `--sid` / `CONVOZ_SID`, `--json`, `--timeout` (`--server` belongs to `login`). A command's flags may stand before, between or after its positional arguments, and `--` ends them. Every error line on stderr starts with `convoz: `. Plain-text output drops control characters except newline and tab; `--json` keeps the text as sent.
 
 | Command | Does | MCP tool |
 |---|---|---|
@@ -1654,9 +1661,9 @@ One binary `convoz` (alias `cvz`). Credentials: `~/.config/convoz/credentials` (
 | `convoz profile [--set name=… description=… capabilities=…] [--avatar file.svg]` | show or change own profile | `profile` |
 | `convoz session start --as H [--create --name "…"]` · `convoz session end` | mint (or create the identity, if the machine may) · end the lease | (automatic) |
 | `convoz brief [--max-bytes N] [--page N]` | §3.8; no side effects | `brief` |
-| `convoz inbox [--wait S] [--conv C] [--peek] [--claim N] [--visibility D] [--ack]` | long poll (held items first), or peek; `--conv` waits on one conversation | `inbox` |
-| `convoz claim [N] [--conv C] [--visibility D]` · `convoz ack <item:token…>` | claim ready items (each with a claim token) · ack with the tokens (`--json` output of `inbox`/`claim` feeds it) | `claim`, `ack` |
-| `convoz read <conv> [--since id] [--thread root] [--limit N]` | read (canSee) | `read` |
+| `convoz inbox [--wait S] [--peek] [--claim N] [--visibility D]` (`--conv C` and `--ack` are S3) | long poll (held items first), or peek; `--conv` will wait on one conversation | `inbox` |
+| `convoz claim [N] [--conv C] [--visibility D]` (S3) · `convoz ack <item:token…>` | claim ready items (each with a claim token) · ack with the tokens (`--json` output of `inbox`/`claim` feeds it) | `claim`, `ack` |
+| `convoz read <conv> [--since id] [--limit N]` (`--thread root` is S2) | read (canSee) | `read` |
 | `convoz search "<q>" [--in conv] [--from @x] [--limit N]` | search (canSee, newest first) | `search` |
 | `convoz post <conv> [--format …] [--file path…] [--app file [--app-data file] [--app-fallback T] [--app-title T]] <text\|->` | post to main | `post` |
 | `convoz app init <dir>` · `convoz app build <dir>` · `convoz app validate <file>` | scaffold · bundle a Tier-2 app · validate | `app_build`, `app_validate` |
@@ -1710,12 +1717,12 @@ Others: a Tier-2 frame can navigate itself away and leak what the owner types in
 | S0 | Repo skeleton, contracts + drift gate, tokens + contrast gate, first `ui` primitives, boundary lint, **supply-chain settings**, `specs/` checker in CI. Server core: driver spike and gate (FTS5, contentless_delete, p95 at 1M, **backup snapshot encrypted**, **FTS optimize time**); `tx()` with audit/FTS/inbox ports; migration runner; pragmas (`secure_delete`); keyring + KEK via `LoadCredential`; thin `events` + immutability trigger; schema golden; `testhooks` build tag + release guard | platform, crypto · — · contracts, tokens, ui, config | `platform` (I-4, I-5, I-23 immutability, I-34, I-48), `ops` (encrypted DB and KEK file), `quality-gates` (AC-1 checker, AC-16, contrast, pinned inputs) |
 | S1 | `identity`, `auth`, `authz`: identities (retired handles, confusables), passkeys, recovery (24 h limit), devices, CSRF, single-use step-up, break-glass socket; **tailnet wall**; **device flow (M6), machines, allow-lists, Reveal / Regenerate / Revoke, session leases (M5)**; Tailscale spike (serve→unix, whois, funnel status); `convoz login/whoami/session/serve/admin` | identity, auth, authz · auth, onboarding, now (machine card), crew (machines) · contracts, api-client | `onboarding`, `machine-login`, `sessions`, `crew`, `security` (wall, step-up, reveal); I-1, I-2, I-3, I-25, I-26, I-33, I-36…I-42; AC-2, AC-8, AC-14, AC-15, AC-24, AC-27 (b, c) |
 | S2 | Conversations (soft delete, pickup), participants (agent-listed pending), messages, threads (involvement), mentions, edits/deletes (E-16, E-18), canSee, counters, read cursors (DA-2/3/4), unread, loop breaker, removal (C-1 notice row), GC; **sync FTS writes**; markdown links/images rules; plain-text projection (E-21) | conversation, message, readstate, search, authz · rail, conversations, threads, composer · markdown, ui | `conversations`, `threads`, `rail`, `composer` (text), `messages-types`; I-6…I-9, I-14…I-21, I-24, I-45, I-47; AC-5, AC-13, AC-26; AC-M1, AC-M13, AC-M14, AC-M15 |
-| S3 | Event backbone: bus, SSE C1 with hydration (humans), delta sync + long-poll fallback, snapshot, prune; **inbox**: items and precedence (C-10), long poll, held/expire/merge/claim/ack/extend (M1–M4, M8), session preference, removal notice (C-1), retention | event, agentrt · (sync engine) · api-client | `inbox`, `poor-network` (sync and stream parts), `platform` (events); I-23, I-43; AC-6, AC-18, AC-20 (b, e), AC-22, AC-27 (a), AC-28 |
+| S3 | Event backbone: bus, SSE C1 with hydration (humans), delta sync + long-poll fallback, snapshot, prune; **inbox**: items and precedence (C-10), long poll, held/expire/merge/claim/ack/extend (M1–M4, M8), session preference, removal notice (C-1), retention | event, inbox · (sync engine) · api-client | `inbox`, `poor-network` (sync and stream parts), `platform` (events); I-23, I-43; AC-6, AC-18, AC-20 (b, e), AC-22, AC-27 (a), AC-28 |
 | S4 | Asks: options + seal, state machine (C-3…C-6), history (`ask_transitions`), per-user snooze (open only, presets C-9), ack via inbox, Now | ask · now · app-kit (AskCard) | `asks`, `now`; I-10…I-13; AC-4, AC-29 |
-| S-A | **Agent surface:** `convoz brief` (M7 budgets, paging, no side effects), `handoff`, `read`, `search`, `post`, `reply`, `ask`, `status`, `watch`; `convoz mcp` tools; `convoz setup`; retries + `client_id`; `CLAUDE_CODE_SESSION_ID` as client id; MCP config spike | agentrt · crew (handoffs, sessions) · contracts (MCP schemas) | `brief-handoff`, `cli-mcp`; AC-19, AC-21; owner check: a real Claude Code session |
+| S-A | **Agent surface:** `convoz brief` (M7 budgets, paging, no side effects), `handoff`, `read`, `search`, `post`, `reply`, `ask`, `status`, `watch`; `convoz mcp` tools; `convoz setup`; retries + `client_id`; `CLAUDE_CODE_SESSION_ID` as client id; MCP config spike | inbox · crew (handoffs, sessions) · contracts (MCP schemas) | `brief-handoff`, `cli-mcp`; AC-19, AC-21; owner check: a real Claude Code session |
 | S5 | Agent status; prefs (nullable rank, star, mute, Older view); pins | identity, prefs · rail, pins-stars, crew · ui | `pins-stars`, `rail` (order, Older), `crew` (status); I-21, I-22 |
 | S6 | Uploads (resumable, Tink segments, quotas, waveform), file serving rules, audio + transcripts (FTS re-index, held inbox items), avatars | upload, transcript, crypto · voice, composer · ui | `voice`, `composer` (files), `security` (files); I-27, I-31, I-32, I-44; AC-20 (c), AC-25 (files); AC-M11 |
-| S7 | Apps: app.v1 schemas + fixtures in contracts; Tier-1 kit (10 types); `convoz app init/build/validate`; frame route + CSP; bridge v1; host confirm sheet; `via_app` + `app_result_json`; `app_result` inbox items | appkit, message, upload, agentrt · apps-host · app-kit, contracts | `apps-host`; I-46, I-50; AC-25 (apps); AC-M2…AC-M10 |
+| S7 | Apps: app.v1 schemas + fixtures in contracts; Tier-1 kit (10 types); `convoz app init/build/validate`; frame route + CSP; bridge v1; host confirm sheet; `via_app` + `app_result_json`; `app_result` inbox items | appkit, message, upload, inbox · apps-host · app-kit, contracts | `apps-host`; I-46, I-50; AC-25 (apps); AC-M2…AC-M10 |
 | S8 | Search API: filters, snippets, recency, `has:`/`is:` derived; transcripts searchable; 1M bench | search · search · markdown | `search`; AC-M12; search benches (nightly) |
 | S9 | Settings registry (workspace, user) + device-local settings | settings · settings · tokens | `settings`; I-29 |
 | S10 | Notifications: VAPID in keyring, subscriptions, C2 pipeline, HMAC topics, padding, retries, cleanup, machine-request and security pushes (C-2; no action buttons) | notify · notifications, onboarding · api-client (SW) | `notifications`; I-28; AC-7 |

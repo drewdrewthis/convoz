@@ -2,7 +2,10 @@ package httpapi
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -116,10 +119,12 @@ func (s *Server) createConversation(w http.ResponseWriter, r *http.Request, c *c
 	}
 	who, now := c.p.Identity(), s.Clock.Now()
 	idemKey := "conversation.create:" + in.ClientID
+	sig := createSignature(title, in.Participants)
 	var (
-		view    wire.Conversation
-		created bool
-		badName bool
+		view     wire.Conversation
+		created  bool
+		badName  bool
+		conflict bool
 	)
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
 		d := tx.DBTX()
@@ -127,11 +132,15 @@ func (s *Server) createConversation(w http.ResponseWriter, r *http.Request, c *c
 		if err != nil {
 			return err
 		}
-		if existing, found, err := event.FindIdem(ctx, d, who, idemKey); err != nil || found {
+		if prior, found, err := event.FindIdem(ctx, d, who, idemKey); err != nil || found {
 			if err != nil {
 				return err
 			}
-			cv, _, err := conversation.Get(ctx, d, existing)
+			if !strings.Contains(prior.Payload, `"sig":"`+sig+`"`) {
+				conflict = true
+				return nil
+			}
+			cv, _, err := conversation.Get(ctx, d, prior.Conversation)
 			if err != nil {
 				return err
 			}
@@ -163,7 +172,7 @@ func (s *Server) createConversation(w http.ResponseWriter, r *http.Request, c *c
 				return err
 			}
 		}
-		if _, err := event.Write(ctx, d, now, event.Entry{Type: "conversation.created", Actor: who, Conversation: cv.ID, IdemKey: idemKey, Payload: map[string]any{"id": cv.ID}}); err != nil {
+		if _, err := event.Write(ctx, d, now, event.Entry{Type: event.ConversationCreated, Actor: who, Conversation: cv.ID, IdemKey: idemKey, Payload: map[string]any{"id": cv.ID, "sig": sig}}); err != nil {
 			return err
 		}
 		created = true
@@ -173,6 +182,8 @@ func (s *Server) createConversation(w http.ResponseWriter, r *http.Request, c *c
 	switch {
 	case err != nil:
 		s.internalError(w, r, err)
+	case conflict:
+		writeFieldErr(w, http.StatusConflict, "client_id_conflict", "client_id", "That client id was used for a different conversation.")
 	case badName:
 		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "participants", "Each participant must be the handle of an agent that is not disabled.")
 	case created:
@@ -181,6 +192,18 @@ func (s *Server) createConversation(w http.ResponseWriter, r *http.Request, c *c
 	default:
 		writeJSON(w, http.StatusOK, map[string]any{"conversation": view})
 	}
+}
+
+// createSignature fingerprints a create request (title and the set of handles) so a replay of its client id with
+// another title or other participants is a conflict (I-24). A hash keeps the event free of titles (I-23).
+func createSignature(title string, handles []string) string {
+	set := make([]string, 0, len(handles))
+	for _, h := range handles {
+		set = append(set, strings.ToLower(h))
+	}
+	slices.Sort(set)
+	sum := sha256.Sum256([]byte(title + "\x00" + strings.Join(slices.Compact(set), "\x00")))
+	return hex.EncodeToString(sum[:16])
 }
 
 // intParam reads a non-negative integer query parameter; it writes the 400 itself and reports false for junk.
@@ -283,7 +306,7 @@ func (s *Server) markRead(w http.ResponseWriter, r *http.Request, c *call) {
 		if moved, err = readstate.Move(ctx, d, now, who, id, min(in.MainID, cv.LastMainID)); err != nil || !moved {
 			return err
 		}
-		_, err = event.Write(ctx, d, now, event.Entry{Type: "read.moved", Actor: who, Conversation: id, Audience: who, Payload: map[string]any{"main_id": min(in.MainID, cv.LastMainID)}})
+		_, err = event.Write(ctx, d, now, event.Entry{Type: event.ReadMoved, Actor: who, Conversation: id, Audience: who, Payload: map[string]any{"main_id": min(in.MainID, cv.LastMainID)}})
 		return err
 	})
 	switch {

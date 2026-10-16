@@ -69,12 +69,12 @@ func session(args []string) int {
 			return cli.SessionEnd(args[1:], processIO())
 		}
 	}
-	fmt.Fprintln(os.Stderr, "usage: convoz session start --as HANDLE [--create --name NAME] [--label L] [--client-id C]\n       convoz session end [--sid SID]")
+	fmt.Fprintln(os.Stderr, "convoz: usage: convoz session start --as HANDLE [--create --name NAME] [--label L] [--client-id C]\n       convoz session end [--sid SID]")
 	return exitUsage
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: convoz serve --data-dir D --host NAME[:PORT] [--kek-file F] [--listen ADDR] [--admin-socket P] [--ready-file F] [--tailscale check|off] [--tailscale-bin B]\n"+
+	fmt.Fprintln(os.Stderr, "convoz: usage: convoz serve --data-dir D --host NAME[:PORT] [--kek-file F] [--listen ADDR] [--admin-socket P] [--ready-file F] [--tailscale check|off] [--tailscale-bin B]\n"+
 		"       convoz admin bootstrap-link [--admin-socket P]\n"+
 		"       convoz login --server URL [--name N] [--store file|keychain|auto] [--stdin]\n"+
 		"       convoz whoami [--sid SID | --as HANDLE] [--json]\n"+

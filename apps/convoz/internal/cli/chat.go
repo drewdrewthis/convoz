@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
@@ -46,6 +47,26 @@ func newChatFlags(name string, io IO) *chatFlags {
 		as:      fs.String("as", io.Getenv("CONVOZ_AS"), "the agent handle; uses or starts the session of the client id"),
 		asJSON:  fs.Bool("json", false, "print JSON"),
 		timeout: fs.Duration("timeout", defaultTimeout, "give up after this long"),
+	}
+}
+
+// parse reads the flags and returns the positional arguments. Flags may come before, between and after them;
+// "--" ends the flags. A bad flag is a usage error with the convoz: prefix.
+func (f *chatFlags) parse(args []string, io IO) ([]string, bool) {
+	var pos []string
+	for {
+		if !parseFlags(f.fs, args, io) {
+			return nil, false
+		}
+		rest := f.fs.Args()
+		if len(rest) == 0 {
+			return pos, true
+		}
+		if n := len(args) - len(rest); n > 0 && args[n-1] == "--" {
+			return append(pos, rest...), true
+		}
+		pos = append(pos, rest[0])
+		args = rest[1:]
 	}
 }
 
@@ -107,17 +128,18 @@ func Post(args []string, io IO) int {
 	f := newChatFlags("post", io)
 	format := f.fs.String("format", "", "markdown, markdownv2 or plain")
 	clientID := f.fs.String("client-id", "", "the id that makes a retry safe; random when not given")
-	if err := f.fs.Parse(args); err != nil {
-		return ExitUsage
-	}
-	if f.fs.NArg() != 2 {
-		return usageError(io, "usage: convoz post [--format F] [--client-id C] <conv> <text|->")
-	}
-	conv, ok := convArg(io, f.fs.Arg(0))
+	pos, ok := f.parse(args, io)
 	if !ok {
 		return ExitUsage
 	}
-	text := f.fs.Arg(1)
+	if len(pos) != 2 {
+		return usageError(io, "usage: convoz post [--format F] [--client-id C] <conv> <text|->")
+	}
+	conv, ok := convArg(io, pos[0])
+	if !ok {
+		return ExitUsage
+	}
+	text := pos[1]
 	if text == "-" {
 		raw, err := readAll(io)
 		if err != nil {
@@ -125,7 +147,7 @@ func Post(args []string, io IO) int {
 		}
 		text = strings.TrimRight(raw, "\r\n")
 	}
-	if text == "" {
+	if strings.TrimSpace(text) == "" {
 		return usageError(io, "the message is empty")
 	}
 	if *clientID == "" {
@@ -174,13 +196,14 @@ func Read(args []string, io IO) int {
 	f := newChatFlags("read", io)
 	since := f.fs.Int64("since", 0, "only messages after this id")
 	limit := f.fs.Int("limit", 0, "at most this many messages (default 50, most 100)")
-	if err := f.fs.Parse(args); err != nil {
+	pos, ok := f.parse(args, io)
+	if !ok {
 		return ExitUsage
 	}
-	if f.fs.NArg() != 1 {
+	if len(pos) != 1 {
 		return usageError(io, "usage: convoz read [--since ID] [--limit N] <conv>")
 	}
-	conv, ok := convArg(io, f.fs.Arg(0))
+	conv, ok := convArg(io, pos[0])
 	if !ok {
 		return ExitUsage
 	}
@@ -218,16 +241,13 @@ func Read(args []string, io IO) int {
 	for _, m := range page.Messages {
 		fmt.Fprintf(k.io.Stdout, "#%d @%s %s\n", m.ID, m.Author.Handle, time.UnixMilli(m.CreatedAt).UTC().Format(time.RFC3339))
 		for _, line := range strings.Split(m.Body, "\n") {
-			fmt.Fprintf(k.io.Stdout, "  %s\n", line)
+			fmt.Fprintf(k.io.Stdout, "  %s\n", plain(line))
 		}
 	}
 	return ExitOK
 }
 
 // ---- inbox, ack -----------------------------------------------------------------------------------------
-
-// maxHold is the longest the server holds one poll; a longer --wait is several polls.
-const maxHold = 25
 
 // Inbox runs `convoz inbox [--wait S] [--peek] [--claim N] [--visibility D]`: the held items, then newly claimed
 // ones; with --wait it polls until an item arrives or S seconds pass. --peek changes nothing.
@@ -237,8 +257,10 @@ func Inbox(args []string, io IO) int {
 	peek := f.fs.Bool("peek", false, "list the items without claiming any")
 	claim := f.fs.Int("claim", 0, "claim at most this many items (default and most 20)")
 	visibility := f.fs.String("visibility", "", "how long a claim holds before another session may take the item, 30s to 30m (default 5m)")
-	if err := f.fs.Parse(args); err != nil || f.fs.NArg() != 0 {
+	if pos, ok := f.parse(args, io); !ok {
 		return ExitUsage
+	} else if len(pos) != 0 {
+		return usageError(io, "usage: convoz inbox [--wait S] [--peek] [--claim N] [--visibility D]")
 	}
 	k, code := f.open(io)
 	if k == nil {
@@ -247,7 +269,7 @@ func Inbox(args []string, io IO) int {
 	remaining := max(*wait, 0)
 	var items []wire.InboxItem
 	for {
-		hold := min(remaining, maxHold)
+		hold := min(remaining, wire.MaxHoldSeconds)
 		q := url.Values{"wait": {strconv.Itoa(hold)}}
 		if *peek {
 			q.Set("peek", "1")
@@ -293,20 +315,32 @@ func itemLine(it wire.InboxItem) string {
 		title = *it.Conversation.Title
 	}
 	first, _, _ := strings.Cut(it.Message.Body, "\n")
-	return fmt.Sprintf("%s conv %d %q %s x%d #%d @%s: %s", ref, it.Conversation.ID, title, it.Reason, it.Count, it.Message.ID, it.Message.Author.Handle, first)
+	return fmt.Sprintf("%s conv %d %q %s x%d #%d @%s: %s", ref, it.Conversation.ID, title, it.Reason, it.Count, it.Message.ID, it.Message.Author.Handle, plain(first))
+}
+
+// plain drops control characters except newline and tab, so a message cannot move the cursor, recolour or retitle
+// the terminal of the person reading it. JSON output needs none of this: the encoder escapes them.
+func plain(s string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) && r != '\n' && r != '\t' {
+			return -1
+		}
+		return r
+	}, s)
 }
 
 // Ack runs `convoz ack <id:token>...`: one line per item, "ok" or "claim_lost". Any lost claim is exit 4.
 func Ack(args []string, io IO) int {
 	f := newChatFlags("ack", io)
-	if err := f.fs.Parse(args); err != nil {
+	pos, ok := f.parse(args, io)
+	if !ok {
 		return ExitUsage
 	}
-	if f.fs.NArg() == 0 {
+	if len(pos) == 0 {
 		return usageError(io, "usage: convoz ack <id:token>...")
 	}
 	var req wire.AckRequest
-	for _, a := range f.fs.Args() {
+	for _, a := range pos {
 		id, token, ok := strings.Cut(a, ":")
 		n, err := strconv.ParseInt(id, 10, 64)
 		if !ok || err != nil || n <= 0 || token == "" {

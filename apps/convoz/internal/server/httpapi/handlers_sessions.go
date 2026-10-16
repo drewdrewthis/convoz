@@ -107,30 +107,39 @@ func (s *Server) renewSession(w http.ResponseWriter, r *http.Request, c *call) {
 	if !decode(w, r, &in) {
 		return
 	}
-	var expires int64
+	var (
+		expires int64
+		holds   []inbox.Hold
+	)
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
 		var err error
 		now := s.Clock.Now()
 		if expires, err = auth.SlideLease(ctx, tx.DBTX(), c.lease, now); err != nil {
 			return err
 		}
-		return inbox.Extend(ctx, tx.DBTX(), now, c.lease.SessionID, expires)
+		holds, err = inbox.Extend(ctx, tx.DBTX(), now, c.lease.SessionID, expires)
+		return err
 	})
 	if err != nil {
 		s.internalError(w, r, err)
 		return
+	}
+	for _, h := range holds { // the claims now run longer, so the "working" of each ends later
+		s.publishWorking(r.Context(), c.lease.IdentityID, h.Conversation, true, h.Until)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"expires_at": expires})
 }
 
 func (s *Server) endSession(w http.ResponseWriter, r *http.Request, c *call) {
 	now := s.Clock.Now()
+	var released []int64
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
 		d := tx.DBTX()
 		if _, err := auth.EndLease(ctx, d, c.lease.SessionID, "logout", now); err != nil {
 			return err
 		}
-		if err := inbox.Release(ctx, d, now, c.lease.SessionID); err != nil {
+		var err error
+		if released, err = inbox.Release(ctx, d, now, c.lease.SessionID); err != nil {
 			return err
 		}
 		return audit.Write(ctx, d, now, audit.Entry{Actor: c.lease.IdentityID, Machine: c.lease.MachineID, Session: c.lease.SessionID, Action: "session.ended", TargetKind: "session", TargetID: c.lease.SessionID, Detail: map[string]any{"reason": "logout"}})
@@ -138,6 +147,9 @@ func (s *Server) endSession(w http.ResponseWriter, r *http.Request, c *call) {
 	if err != nil {
 		s.internalError(w, r, err)
 		return
+	}
+	for _, conv := range released {
+		s.publishWorking(r.Context(), c.lease.IdentityID, conv, false, 0)
 	}
 	s.Bus.Notify(c.lease.IdentityID) // a poll held for this lease answers "session ended" at once
 	w.WriteHeader(http.StatusNoContent)

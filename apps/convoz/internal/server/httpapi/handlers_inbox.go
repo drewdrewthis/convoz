@@ -16,9 +16,6 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
 
-// maxHold is the longest one poll waits: short enough for proxies, mobile NAT and `tailscale serve` (design §3.8).
-const maxHold = 25 * time.Second
-
 // inboxPoll is GET /api/inbox?wait=&claim=&visibility=&peek=&held=.
 //
 // Without peek it answers the items this session holds, then claims ready ones, and when there are none and wait
@@ -74,8 +71,8 @@ func (s *Server) inboxPoll(w http.ResponseWriter, r *http.Request, c *call) {
 			return
 		}
 		if len(items) > 0 || wait == 0 {
-			for _, conv := range fresh {
-				s.publishWorking(r.Context(), req.Identity, conv, true)
+			for _, h := range fresh {
+				s.publishWorking(r.Context(), req.Identity, h.Conversation, true, h.Until)
 			}
 			writeJSON(w, http.StatusOK, wire.InboxResponse{Items: append([]wire.InboxItem{}, items...)})
 			return
@@ -101,7 +98,7 @@ func waitParam(w http.ResponseWriter, raw string) (time.Duration, bool) {
 		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "wait", "wait is a number of seconds, 0 or more.")
 		return 0, false
 	}
-	return min(time.Duration(secs)*time.Second, maxHold), true
+	return min(time.Duration(secs), wire.MaxHoldSeconds) * time.Second, true
 }
 
 // leaseEnded reports whether the lease behind token no longer works, and why in words for the person running the agent.
@@ -118,8 +115,8 @@ func (s *Server) leaseEnded(ctx context.Context, token string) (msg string, ende
 	return "", false, nil
 }
 
-// claimOnce is one claim call in one transaction. fresh lists the conversations of the items claimed just now (not held before).
-func (s *Server) claimOnce(ctx context.Context, c *call, req inbox.Request) (items []wire.InboxItem, fresh []int64, err error) {
+// claimOnce is one claim call in one transaction. fresh lists the claims made just now (not held before).
+func (s *Server) claimOnce(ctx context.Context, c *call, req inbox.Request) (items []wire.InboxItem, fresh []inbox.Hold, err error) {
 	now := s.Clock.Now()
 	err = s.Store.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) error {
 		d := tx.DBTX()
@@ -136,7 +133,7 @@ func (s *Server) claimOnce(ctx context.Context, c *call, req inbox.Request) (ite
 		}
 		for _, it := range claimed {
 			if !it.Held && delivered[it.ID] {
-				fresh = append(fresh, it.ConversationID)
+				fresh = append(fresh, inbox.Hold{Conversation: it.ConversationID, Until: it.ClaimUntil})
 			}
 		}
 		return nil
@@ -240,7 +237,7 @@ func (s *Server) ackInbox(w http.ResponseWriter, r *http.Request, c *call) {
 		return
 	}
 	for _, conv := range done {
-		s.publishWorking(r.Context(), c.lease.IdentityID, conv, false)
+		s.publishWorking(r.Context(), c.lease.IdentityID, conv, false, 0)
 	}
 	writeJSON(w, http.StatusOK, wire.AckResponse{Results: results})
 }

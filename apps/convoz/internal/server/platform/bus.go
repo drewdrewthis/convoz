@@ -6,6 +6,9 @@ import "sync"
 type Frame struct {
 	Event string
 	Data  []byte
+	// Conversation is the conversation the frame is about, 0 for none. A stream writes a frame only to a reader who
+	// may see that conversation, as it does for a stored event.
+	Conversation int64
 }
 
 // Bus wakes the waiting streams and long polls after a commit. It carries no data from the database: a waiter

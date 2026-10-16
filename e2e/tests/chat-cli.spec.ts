@@ -219,4 +219,11 @@ scenario("An agent reads what the owner wrote", { tag: ["@cli"] }, async ({ serv
 
   // Then the output shows "@drew" and "Is the build green?"
   expect(res.stdout).toMatch(/^#\d+ @drew \d{4}-\d\d-\d\dT\S+\n  Is the build green\?\n/m);
+
+  // And a flag after the conversation id works, and a message cannot send control sequences to the terminal
+  await ownerSays(w.owner, conv, "plain \u001b[31mred\u001b]0;pwned\u0007 text");
+  const last = await convoz(w.box, s.sid, ["read", String(conv), "--since", String(1), "--limit", "5"]);
+  expect(last.code, last.stderr).toBe(0);
+  expect(last.stdout).toContain("plain [31mred]0;pwned text");
+  expect(last.stdout).not.toMatch(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/);
 });

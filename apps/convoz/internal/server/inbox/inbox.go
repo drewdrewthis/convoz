@@ -32,7 +32,8 @@ type Item struct {
 	State          string // "ready" or "claimed"; a claim that has run out reads as "ready"
 	ClaimToken     []byte // nil unless the item is claimed
 	ClaimSession   int64
-	Held           bool // the session already held it: returned again with the same token, not a new delivery
+	ClaimUntil     int64 // when the claim runs out, unix ms; 0 for an item nobody holds
+	Held           bool  // the session already held it: returned again with the same token, not a new delivery
 }
 
 func nullInt(v int64) sql.NullInt64 { return sql.NullInt64{Int64: v, Valid: v != 0} }
@@ -69,7 +70,7 @@ func Claim(ctx context.Context, d pdb.DBTX, now time.Time, r Request) ([]Item, e
 		}
 		for _, h := range held {
 			out = append(out, Item{ID: h.ID, ConversationID: h.ConversationID.Int64, FirstMessageID: h.FirstMessageID.Int64, MessageID: h.MessageID.Int64,
-				Count: h.Count, Reason: h.Reason, State: h.State, ClaimToken: h.ClaimToken, ClaimSession: r.Session, Held: true})
+				Count: h.Count, Reason: h.Reason, State: h.State, ClaimToken: h.ClaimToken, ClaimSession: r.Session, ClaimUntil: h.ClaimUntil.Int64, Held: true})
 		}
 	}
 	if len(out) >= n {
@@ -93,7 +94,7 @@ func Claim(ctx context.Context, d pdb.DBTX, now time.Time, r Request) ([]Item, e
 	}
 	for _, c := range claimed {
 		out = append(out, Item{ID: c.ID, ConversationID: c.ConversationID.Int64, FirstMessageID: c.FirstMessageID.Int64, MessageID: c.MessageID.Int64,
-			Count: c.Count, Reason: c.Reason, State: c.State, ClaimToken: c.ClaimToken, ClaimSession: r.Session})
+			Count: c.Count, Reason: c.Reason, State: c.State, ClaimToken: c.ClaimToken, ClaimSession: r.Session, ClaimUntil: c.ClaimUntil.Int64})
 	}
 	return out, nil
 }
@@ -152,7 +153,7 @@ func Peek(ctx context.Context, d pdb.DBTX, now time.Time, identityID, sessionID 
 	for _, r := range rows {
 		it := Item{ID: r.ID, ConversationID: r.ConversationID.Int64, FirstMessageID: r.FirstMessageID.Int64, MessageID: r.MessageID.Int64, Count: r.Count, Reason: r.Reason, State: "ready"}
 		if r.State == "claimed" && r.ClaimUntil.Int64 >= now.UnixMilli() {
-			it.State, it.ClaimSession = "claimed", r.ClaimSessionID.Int64
+			it.State, it.ClaimSession, it.ClaimUntil = "claimed", r.ClaimSessionID.Int64, r.ClaimUntil.Int64
 			if r.ClaimSessionID.Int64 == sessionID {
 				it.ClaimToken = r.ClaimToken
 			}
@@ -162,14 +163,28 @@ func Peek(ctx context.Context, d pdb.DBTX, now time.Time, identityID, sessionID 
 	return out, nil
 }
 
-// Extend lengthens the claims of a session whose lease was renewed, up to the lease's own end (M8).
-func Extend(ctx context.Context, d pdb.DBTX, now time.Time, sessionID, leaseExpiresAt int64) error {
-	return db.New(d).ExtendClaims(ctx, db.ExtendClaimsParams{Now: now.UnixMilli(), LeaseExpiresAt: leaseExpiresAt, SessionID: nullInt(sessionID)})
+// Hold is a claim a session keeps on a conversation until Until (unix ms).
+type Hold struct{ Conversation, Until int64 }
+
+// Extend lengthens the claims of a session whose lease was renewed, up to the lease's own end (M8), and returns them.
+func Extend(ctx context.Context, d pdb.DBTX, now time.Time, sessionID, leaseExpiresAt int64) ([]Hold, error) {
+	rows, err := db.New(d).ExtendClaims(ctx, db.ExtendClaimsParams{Now: now.UnixMilli(), LeaseExpiresAt: leaseExpiresAt, SessionID: nullInt(sessionID)})
+	out := make([]Hold, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, Hold{Conversation: r.ConversationID.Int64, Until: r.ClaimUntil.Int64})
+	}
+	return out, err
 }
 
 // Release lets the claims of an ending session run out at once; the next claim of the identity merges them back.
-func Release(ctx context.Context, d pdb.DBTX, now time.Time, sessionID int64) error {
-	return db.New(d).ReleaseClaims(ctx, db.ReleaseClaimsParams{Now: sql.NullInt64{Int64: now.UnixMilli(), Valid: true}, SessionID: nullInt(sessionID)})
+// It returns the conversations those claims were on.
+func Release(ctx context.Context, d pdb.DBTX, now time.Time, sessionID int64) ([]int64, error) {
+	rows, err := db.New(d).ReleaseClaims(ctx, db.ReleaseClaimsParams{Now: sql.NullInt64{Int64: now.UnixMilli(), Valid: true}, SessionID: nullInt(sessionID)})
+	out := make([]int64, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, r.Int64)
+	}
+	return out, err
 }
 
 // ExpireNotVisible takes an item out of the queue because its message can no longer be shown to the agent.

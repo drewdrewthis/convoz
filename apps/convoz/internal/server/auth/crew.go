@@ -34,7 +34,7 @@ func CreateAgent(ctx context.Context, d pdb.DBTX, p Ports, in NewCrewAgent, now 
 	if err := p.Journal.Audit(ctx, d, now, AuditEntry{Actor: in.Human.ID, Device: in.DeviceID, Action: "identity.created", TargetKind: "identity", TargetID: made.ID}); err != nil {
 		return Agent{}, err
 	}
-	return made, p.Journal.Event(ctx, d, now, "identity.created", map[string]any{"identity_id": made.ID})
+	return made, p.Journal.Event(ctx, d, now, "identity.created.v1", map[string]any{"identity_id": made.ID})
 }
 
 // DisableAgent turns an agent off inside the open transaction and ends all its leases on every machine. It
@@ -56,5 +56,5 @@ func DisableAgent(ctx context.Context, d pdb.DBTX, p Ports, in CrewInput, agentI
 	if err := p.Journal.Audit(ctx, d, now, AuditEntry{Actor: in.Human.ID, Device: in.DeviceID, Action: "identity.disabled", TargetKind: "identity", TargetID: agentID}); err != nil {
 		return err
 	}
-	return p.Journal.Event(ctx, d, now, "identity.disabled", map[string]any{"identity_id": agentID})
+	return p.Journal.Event(ctx, d, now, "identity.disabled.v1", map[string]any{"identity_id": agentID})
 }

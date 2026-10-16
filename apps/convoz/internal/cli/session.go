@@ -123,7 +123,7 @@ func SessionStart(args []string, io IO) int {
 	display := fs.String("name", "", "the display name for --create")
 	label := fs.String("label", "convoz cli", "what the owner sees next to the session")
 	clientID := fs.String("client-id", io.Getenv("CLAUDE_CODE_SESSION_ID"), "the client id; the same one replaces the older lease")
-	if err := fs.Parse(args); err != nil || fs.NArg() != 0 {
+	if !parseNoArgs(fs, args, io) {
 		return ExitUsage
 	}
 	if *as == "" {
@@ -172,7 +172,7 @@ func SessionEnd(args []string, io IO) int {
 	fs := flag.NewFlagSet("session end", flag.ContinueOnError)
 	fs.SetOutput(io.Stderr)
 	sid := fs.String("sid", io.Getenv("CONVOZ_SID"), "the local session id")
-	if err := fs.Parse(args); err != nil || fs.NArg() != 0 {
+	if !parseNoArgs(fs, args, io) {
 		return ExitUsage
 	}
 	dir, err := configDir(io.Getenv)

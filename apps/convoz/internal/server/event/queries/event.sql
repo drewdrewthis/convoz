@@ -12,4 +12,4 @@ FROM events WHERE seq > sqlc.arg(after) ORDER BY seq LIMIT sqlc.arg(max_rows);
 SELECT CAST(COALESCE(MAX(seq), 0) AS INTEGER) AS seq FROM events;
 
 -- name: EventByIdem :one
-SELECT seq, conversation_id FROM events WHERE actor_id = sqlc.arg(actor_id) AND idem_key = sqlc.arg(idem_key);
+SELECT seq, conversation_id, payload_json FROM events WHERE actor_id = sqlc.arg(actor_id) AND idem_key = sqlc.arg(idem_key);

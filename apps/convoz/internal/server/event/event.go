@@ -7,22 +7,31 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"regexp"
 	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/event/db"
-	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
 
-// Version is appended to every event name on write: callers say "message.created", the log stores "message.created.v1".
-const Version = ".v1"
+// The versioned names of the events the chat writes. Callers and readers use the full name, `.vN` included.
+const (
+	MessageCreated      = "message.created.v1"
+	ReadMoved           = "read.moved.v1"
+	ConversationCreated = "conversation.created.v1"
+)
+
+// ErrBadType means an event name that does not end in `.vN`.
+var ErrBadType = errors.New("event type must end in .vN, for example message.created.v1")
+
+var versioned = regexp.MustCompile(`^[a-z][a-z_.]*\.v[0-9]+$`)
 
 // Epoch names this log in a stream id (`<epoch>:<seq>`). It changes only if the log is ever rebuilt or restored.
 const Epoch = "1"
 
 // Entry is one event to write. A zero id means none.
 type Entry struct {
-	Type         string // without the version
+	Type         string // the full versioned name, e.g. "message.created.v1"
 	Actor        int64
 	Session      int64
 	Conversation int64
@@ -50,6 +59,9 @@ func nullInt(v int64) sql.NullInt64 { return sql.NullInt64{Int64: v, Valid: v !=
 
 // Write appends e inside the caller's transaction and returns its seq.
 func Write(ctx context.Context, d pdb.DBTX, now time.Time, e Entry) (int64, error) {
+	if !versioned.MatchString(e.Type) {
+		return 0, ErrBadType
+	}
 	raw, err := json.Marshal(e.Payload)
 	if err != nil {
 		return 0, err
@@ -58,7 +70,7 @@ func Write(ctx context.Context, d pdb.DBTX, now time.Time, e Entry) (int64, erro
 		raw = []byte("{}")
 	}
 	return db.New(d).AppendEvent(ctx, db.AppendEventParams{
-		Type: e.Type + Version, ActorID: nullInt(e.Actor), SessionID: nullInt(e.Session), ConversationID: nullInt(e.Conversation),
+		Type: e.Type, ActorID: nullInt(e.Actor), SessionID: nullInt(e.Session), ConversationID: nullInt(e.Conversation),
 		AudienceID: nullInt(e.Audience), MessageID: nullInt(e.Message), PayloadJson: string(raw),
 		IdemKey:   sql.NullString{String: e.IdemKey, Valid: e.IdemKey != ""},
 		CreatedAt: now.UnixMilli(),
@@ -67,28 +79,10 @@ func Write(ctx context.Context, d pdb.DBTX, now time.Time, e Entry) (int64, erro
 
 // Append writes an event that has no actor, conversation or message: the account and machine events of S1.
 func Append(ctx context.Context, d pdb.DBTX, now time.Time, typ string, payload any) (int64, error) {
-	if previousRelease() {
-		return appendS1(ctx, d, now, typ, payload)
+	if id, played, err := appendAsPreviousRelease(ctx, d, now, typ, payload); played {
+		return id, err
 	}
 	return Write(ctx, d, now, Entry{Type: typ, Payload: payload})
-}
-
-// previousRelease is true only in a test build capped before migration 7, which plays the S1b release: its events
-// table still has the old shape, so the migration test can start from rows that release wrote. A release build never is.
-func previousRelease() bool {
-	cap := platform.MaxMigrationCap()
-	return cap > 0 && cap < 7
-}
-
-// appendS1 writes an event as S1b did, into the table as it was before migration 7: no version on the type.
-func appendS1(ctx context.Context, d pdb.DBTX, now time.Time, typ string, payload any) (int64, error) {
-	raw, err := json.Marshal(payload)
-	if err != nil {
-		return 0, err
-	}
-	var id int64
-	err = d.QueryRowContext(ctx, "INSERT INTO events (type, payload, created_at) VALUES (?1, ?2, ?3) RETURNING id", typ, string(raw), now.UnixMilli()).Scan(&id)
-	return id, err
 }
 
 // Since returns up to limit events with seq > after, oldest first.
@@ -112,11 +106,17 @@ func MaxSeq(ctx context.Context, d pdb.DBTX) (int64, error) {
 	return db.New(d).MaxEventSeq(ctx)
 }
 
-// FindIdem returns the conversation of the event written for (actor, key); ok is false when there is none.
-func FindIdem(ctx context.Context, d pdb.DBTX, actor int64, key string) (conversation int64, ok bool, err error) {
+// Idem is the event a retry-safe command wrote earlier.
+type Idem struct {
+	Conversation int64
+	Payload      string // the JSON the command wrote
+}
+
+// FindIdem returns the event written for (actor, key); ok is false when there is none.
+func FindIdem(ctx context.Context, d pdb.DBTX, actor int64, key string) (e Idem, ok bool, err error) {
 	r, err := db.New(d).EventByIdem(ctx, db.EventByIdemParams{ActorID: nullInt(actor), IdemKey: sql.NullString{String: key, Valid: true}})
 	if errors.Is(err, sql.ErrNoRows) {
-		return 0, false, nil
+		return Idem{}, false, nil
 	}
-	return r.ConversationID.Int64, err == nil, err
+	return Idem{Conversation: r.ConversationID.Int64, Payload: r.PayloadJson}, err == nil, err
 }

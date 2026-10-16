@@ -1,7 +1,7 @@
 /*
- * CHAT MVP, PR 1 CONTRACT (server API and CLI). One source for the coder. Sources: the chat MVP plan (with its "DA amendments" and
- * "Advisor decisions after DA"), design draft 9 §3.8, §7, §8.2, §13, §13.2. Where this block and the plan differ, this block is what
- * the bindings in chat-api.spec.ts and chat-cli.spec.ts assert; the PR summary lists each difference.
+ * CHAT CONTRACT (server API and CLI). The bindings in chat-api.spec.ts and chat-cli.spec.ts assert what this block says.
+ * Sources: design draft 9 §3.8, §7, §8.2, §13, §13.2. Where this block and the design differ, the block is what the code does and
+ * the design says so in its own text.
  * Builds on the S1b contract at the top of tests/machine-login.spec.ts (auth letters O owner device cookie, L session lease,
  * errors `{"error":{"code","message"[,"field"]}}`). Every write carries `client_id` (8 to 64 characters). Unknown body fields: 400
  * invalid_request with `field`. A lease needs no Origin or X-Convoz header; a cookie write needs both (S1a).
@@ -9,12 +9,13 @@
  * ROUTES (H = owner cookie, L = lease)
  *   POST /api/conversations  H  {client_id, title?, participants:[handle]}
  *        -> 201 {conversation:{id, title, created_at, last_activity_at, participants, last, unread}}  (shape of a list row, below).
- *        The owner is a participant. Each listed agent is an active participant at once. Same client_id again -> 200 and the same id.
+ *        The owner is a participant. Each listed agent is an active participant at once. Same client_id with the same title and
+ *        participants again -> 200 and the same id; with another title or other participants -> 409 client_id_conflict.
  *        A lease -> 403. Unknown or disabled handle -> 400 invalid_request, field "participants".
  *   GET  /api/conversations  H, L
  *        -> 200 {conversations:[{id, title|null, created_at, last_activity_at, participants:[{handle,display_name,kind}],
  *           last:{id, author_handle, preview (<=140 runes, one line)}|null, unread}]}
- *        ORDER: last_activity_at DESC, id DESC (plan DA amendment 3: latest activity first, not creation order). A conversation with
+ *        ORDER: last_activity_at DESC, id DESC (latest activity first, not creation order). A conversation with
  *        no message has last_activity_at = created_at. A lease sees only conversations it is an active participant of.
  *        `unread` = main messages after the caller's read cursor that the caller did not write (design §8.2), capped at 100.
  *   GET  /api/conversations/:id  H, L -> 200 {conversation:{...}}; not visible -> 404
@@ -27,17 +28,19 @@
  *        -> 201 {id, conversation_id, created_at}. Same client_id and same body and format again -> 200 with the first id and no
  *        second message. Same client_id with another body or format -> 409 client_id_conflict. A lease that is not an active
  *        participant -> 403 forbidden. Any other field (for example "author") -> 400 invalid_request with field.
- *        Body over 16384 bytes -> 400 too_large (field "body"). Per agent identity 1 per second, burst 20 -> 429.
+ *        Body over 16384 bytes -> 400 too_large (field "body"). A body that is empty after trimming, or holds a NUL -> 400
+ *        invalid_request (field "body"). Per agent identity 1 per second, burst 20; 5000 a day per identity and 20000 a day per
+ *        machine -> 429 rate_limited with header Retry-After and body field retry_after (whole seconds).
  *        The author is always the caller (I-40). Auto title: if the conversation has no title, the first 60 runes of the first message.
  *   POST /api/conversations/:id/read  H, L  {main_id} -> 200 {}. Forward only: a lower id is a no-op.
  *        The author of a message moves its own cursor to that message only if the cursor was at the newest main message
- *        just before the post (`last_read_main_id >= previous last_main_id`, plan DA-2 / I-15). Otherwise the cursor stays.
+ *        just before the post (`last_read_main_id >= previous last_main_id`, DA-2 / I-15). Otherwise the cursor stays.
  *   GET  /api/identities  H  (S1a) every agent row gains `online:boolean`: true when the agent has a live lease on any machine.
- *   GET  /api/inbox?wait=&claim=&visibility=&peek=  L
+ *   GET  /api/inbox?wait=&claim=&visibility=&peek=&held=  L
  *        -> 200 {items:[{id, claim_token, state:"claimed", reason:"activity", count, conversation:{id,title},
  *           message:{id, author:{handle,display_name,kind}, body, format, created_at}}]}
  *        `message` is the newest message of the item. The item exists once per (identity, conversation) while ready; it is made by
- *        the same transaction as the message (I-43). Reasons in PR 1: "activity" only. NEVER an item for the author's own identity
+ *        the same transaction as the message (I-43). Reasons so far: "activity" only. NEVER an item for the author's own identity
  *        (other sessions of that identity included). Humans have no inbox.
  *        Without peek: the caller's held items (claimed by this session, claim not expired) first, then claim up to `claim`
  *        ready items (default 20) with visibility `visibility` (a duration "30s", min 30 s, max 30 min, default 5 min).
@@ -45,41 +48,52 @@
  *        wait=S: if nothing, hold up to S seconds (max 25), woken by new items; then 200 {items:[]}. wait=0 answers at once.
  *        Ending the lease (DELETE /api/sessions/me) answers a held poll of that lease at once with 401 session_ended.
  *        peek=1: no claim, no change; lists the identity's items that are ready or claimed (`state`), without claim_token for ready.
+ *        held=0 leaves the session's already-held items out and returns only newly claimed ones (default: held items come first).
+ *        `convoz watch` asks with held=0 after its first poll, so each claim prints once and the poll does not return at once for
+ *        an item the agent has not acked yet. Only the default is specified for other callers.
  *        A claim writes a live-only frame `agent.working` (below).
  *   POST /api/inbox/ack  L  {items:[{id, claim_token}]} -> 200 {results:[{id, result:"ok"|"claim_lost"}]}  An acked item is gone
  *        from peek. A wrong or old token, or an item already acked, is "claim_lost".
  *   GET  /api/stream  H  text/event-stream. Frames `event: <type>`, `id: <epoch>:<seq>`, `data: <json>`; `: hb` comment every 15 s.
- *        Types in PR 1: message.created {id, conversation_id, author_handle, ...}, read.moved, conversation.created, and the
+ *        Types: message.created {id, conversation_id, author_handle, ...}, read.moved, conversation.created, and the
  *        LIVE-ONLY frame agent.working (no `id`, never replayed, no table):
- *          agent.working  data {identity_id, handle, conversation_id, working:boolean}
- *        working:true is sent when that agent claims an item for the conversation. working:false is sent when the agent posts in
- *        that conversation, or when the claim ends without a post (ack, expiry). Last-Event-ID resumes from seq+1.
+ *          agent.working  data {identity_id, handle, conversation_id, working:boolean, until?:ms}
+ *        working:true carries `until`, the unix ms at which the agent's claim runs out. It is sent when the agent claims an item
+ *        for the conversation, and again with the later `until` when a lease renewal extends the claim. The client hides "working"
+ *        at `until`, so a claim that ends without a post or an ack clears by itself. working:false (no `until`) is sent when the
+ *        agent posts in that conversation, acks its item, or ends its session. The server sends no frame when a claim merely
+ *        runs out; `until` covers it. A reader gets a frame only for a conversation it may see.
+ *        Last-Event-ID resumes from seq+1. The stream closes when the device session ends (logout, device delete, expiry): it is
+ *        checked on every wake, live frame and heartbeat, and logout and device delete close it at once.
  *
- * EVENTS TABLE (migration 0007 rebuilds it to the design §7 shape)
+ * EVENTS TABLE (migration 0007 rebuilds it to the design §7 shape; every event name carries its version)
  *   events(seq INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT CHECK (type GLOB '[a-z]*.[a-z_]*.v[0-9]*'), actor_id, session_id,
  *   conversation_id, audience_id, message_id, payload_json TEXT, idem_key, created_at) STRICT, unique index events_idem,
  *   trigger "events are immutable" on UPDATE. Old rows are copied with the same id (now `seq`), payload (now `payload_json`) and
- *   created_at; the type gets ".v1" appended ("identity.created" -> "identity.created.v1"). New: "message.created.v1".
+ *   created_at; the type gets ".v1" appended ("identity.created" -> "identity.created.v1"). New: "message.created.v1". No alias column
+ *   `payload` is kept. Writers pass the full versioned name and a name without `.vN` is refused.
  *
- * CLI (global flags --server, --as/CONVOZ_AS, --sid/CONVOZ_SID, --json, --timeout; FLAGS GO BEFORE POSITIONAL ARGUMENTS)
+ * CLI (global flags --as/CONVOZ_AS, --sid/CONVOZ_SID, --json, --timeout; flags may stand before, between or after positional
+ *      arguments, and `--` ends them. Every error line on stderr starts with "convoz: ".)
  *   exit codes: 0 ok, 1 other, 2 usage, 3 auth (401, 403), 4 conflict (409, claim_lost), 5 rate limited, 6 network.
  *   convoz post [--format F] [--client-id C] <conv> <text|->
  *        stdout: the message id and a newline, nothing else. --json: {"id":N,"conversation_id":C}. `-` reads the text from stdin.
  *        A lost answer is retried with the same client id (<=3 tries within --timeout).
  *   convoz read [--since ID] [--limit N] <conv>
  *        stdout: per message, oldest first, `#<id> @<handle> <RFC3339 time>` then the body, each body line indented 2 spaces.
+ *        Plain text drops control characters except newline and tab; --json keeps the body as sent (the encoder escapes them).
  *        --json: {"messages":[...same as the messages route...]}. Moves the agent's read cursor to the newest id shown.
  *   convoz inbox [--wait S] [--peek] [--claim N] [--visibility D]
  *        stdout: one line per item `<id>:<token> conv <c> "<title>" <reason> x<count> #<msg> @<author>: <first line of body>`
  *        (peek: `<id>` without `:<token>`). --json: {"items":[...as the route...]}. No item: no stdout, exit 0.
  *   convoz ack <id:token>...   stdout one line per item `<id> ok` or `<id> claim_lost`; any claim_lost -> exit 4.  --json: {"results":[...]}
  *   convoz watch --json
- *        Loops GET /api/inbox?wait=25 and writes ONE line of JSON per item to stdout, flushed, and does NOT ack (plan DA amendment 5):
+ *        Loops GET /api/inbox?wait=25 and writes ONE line of JSON per item to stdout, flushed, and does NOT ack:
  *          {"item_id","claim_token","reason","conversation_id","conversation_title","count","message_id","author","body","created_at"}
  *        Newlines in the body are escaped by JSON. An item is printed once per claim_token: a held item is not printed again until
  *        its claim expires and it is re-claimed with a new token. The agent runs `convoz ack <item_id>:<claim_token>` after it posts.
  *        Lease ended: stderr "convoz: The session ended. ...", exit 3. Network errors: retry with backoff <=30 s, keep running.
- *        (claim_token is NOT in the plan's line; the agent needs it to ack, so it is added here.)
+ *        claim_token is in the line because the agent needs it to ack.
  *
  * TEST BUILD  CONVOZ_TEST_MAX_MIGRATION=<n> stops migrating at schema n; CONVOZ_TEST_PLAINTEXT=1 opens the data file unencrypted.
  *   POST /__test/clock {advance_ms} moves the server clock (claim expiry, last_activity_at). Real time keeps flowing.
@@ -137,6 +151,17 @@ scenario("The same client id with a different body is a conflict", { tag: ["@api
   // Then the server answers 409
   expect(res.status).toBe(409);
   expect(res.json().error.code).toBe("client_id_conflict");
+
+  // And a conversation create with the same client id but another title is a conflict too, while the same request replays
+  const made = { clientId: "c-0002-conv", title: "Plan", participants: ["devtool"] };
+  const first = await createConversation(w.owner, made);
+  const body = (title: string) => ({ client_id: made.clientId, title, participants: made.participants });
+  const replay = await w.owner.client.post("/api/conversations", body("Plan"));
+  expect(replay.status).toBe(200);
+  expect(replay.json().conversation.id).toBe(first);
+  const changed = await w.owner.client.post("/api/conversations", body("Other plan"));
+  expect(changed.status).toBe(409);
+  expect(changed.json().error.code).toBe("client_id_conflict");
 });
 
 // ---- messages-types.feature (contracts): the server decides who wrote a message ----------------------------
@@ -254,8 +279,10 @@ scenario("An agent shows working while it holds an item and stops when it replie
     // When "devtool" claims the item for conversation 41
     must(await send(w.srv.target, "GET", "/api/inbox?claim=1&wait=0", bearer(token)), "claim");
 
-    // Then the stream sends "agent.working" for "devtool" with working true
-    await stream.waitFor(working(true));
+    // Then the stream sends "agent.working" for "devtool" with working true and `until`, the end of the claim (5 minutes by default)
+    const start = await stream.waitFor(working(true));
+    expect(start.data.until).toBeGreaterThan(Date.now());
+    expect(start.data.until).toBeLessThanOrEqual(Date.now() + 5 * 60_000 + 5_000);
 
     // When "devtool" posts in conversation 41
     await agentSays(w.srv, token, conv, "Yes, all 11 checks pass");
@@ -263,6 +290,7 @@ scenario("An agent shows working while it holds an item and stops when it replie
     // Then the stream sends "agent.working" for "devtool" with working false
     const stop = await stream.waitFor(working(false));
     expect(stop.id).toBeUndefined(); // live-only: never replayed
+    expect(stop.data.until).toBeUndefined();
   } finally {
     stream.close();
   }

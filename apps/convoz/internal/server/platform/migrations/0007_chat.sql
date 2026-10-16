@@ -227,8 +227,7 @@ CREATE TRIGGER read_cursors_forward BEFORE UPDATE ON read_cursors
   BEGIN SELECT RAISE(ABORT,'read cursors only move forward'); END;           -- I-15
 
 -- events: rebuilt to the §7 shape. `id` becomes `seq` (same numbers, so nothing that holds an id breaks), `payload`
--- becomes `payload_json`, and every old type gets ".v1". The unused generated column `payload` keeps the S1b readers
--- (`SELECT type, payload FROM events`) working; PRAGMA table_info does not list generated columns.
+-- becomes `payload_json`, and every old type gets ".v1". No alias column is kept: readers use `payload_json`.
 -- owner: event
 CREATE TABLE events_new (
   seq INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -238,7 +237,6 @@ CREATE TABLE events_new (
   payload_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(payload_json) AND length(payload_json) <= 1024),  -- ids/enums only (I-23)
   idem_key TEXT CHECK (idem_key IS NULL OR length(idem_key) <= 100),
   created_at INTEGER NOT NULL,
-  payload TEXT GENERATED ALWAYS AS (payload_json) VIRTUAL,
   CHECK (idem_key IS NULL OR actor_id IS NOT NULL)
 ) STRICT;
 INSERT INTO events_new (seq, type, payload_json, created_at)

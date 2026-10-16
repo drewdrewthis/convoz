@@ -101,9 +101,9 @@ func Bootstrap(ctx context.Context, d pdb.DBTX, p BootstrapPorts, in BootstrapIn
 		return res, err
 	}
 	if res.Created {
-		if err := p.Journal.Event(ctx, d, now, "owner.created", map[string]any{"identity_id": owner.ID}); err != nil {
+		if err := p.Journal.Event(ctx, d, now, "owner.created.v1", map[string]any{"identity_id": owner.ID}); err != nil {
 			return res, err
 		}
 	}
-	return res, p.Journal.Event(ctx, d, now, "passkey.added", map[string]any{"identity_id": owner.ID, "passkey_id": passkeyID, "via": "bootstrap"})
+	return res, p.Journal.Event(ctx, d, now, "passkey.added.v1", map[string]any{"identity_id": owner.ID, "passkey_id": passkeyID, "via": "bootstrap"})
 }

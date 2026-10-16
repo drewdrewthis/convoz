@@ -124,6 +124,7 @@ func (s *Server) deleteDevice(w http.ResponseWriter, r *http.Request, c *call) {
 	case !revoked:
 		writeErr(w, http.StatusNotFound, "not_found", "No such device.")
 	default:
+		s.streams.cancelDevice(id)
 		if id == c.dev.ID {
 			clearDeviceCookie(w)
 		}
@@ -170,7 +171,7 @@ func (s *Server) deletePasskey(w http.ResponseWriter, r *http.Request, c *call) 
 		if err := audit.Write(ctx, d, now, audit.Entry{Actor: c.human.ID, Device: c.dev.ID, Action: "passkey.removed", TargetKind: "passkey", TargetID: id}); err != nil {
 			return err
 		}
-		_, err := event.Append(ctx, d, now, "passkey.removed", map[string]any{"identity_id": c.human.ID, "passkey_id": id})
+		_, err := event.Append(ctx, d, now, "passkey.removed.v1", map[string]any{"identity_id": c.human.ID, "passkey_id": id})
 		return err
 	})
 	switch {
