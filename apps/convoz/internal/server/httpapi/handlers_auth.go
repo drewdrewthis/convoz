@@ -433,7 +433,7 @@ func (s *Server) stepUpVerify(w http.ResponseWriter, r *http.Request, c *call) {
 		return
 	}
 	if err := auth.CheckDestructive(pk, cer.Action, now); err != nil {
-		writeErr(w, http.StatusForbidden, "passkey_too_new", "That passkey is too new for this action. Try again later or use an older passkey.")
+		writeErr(w, http.StatusForbidden, "passkey_too_new", "This passkey is too new. Actions like this unlock at "+time.UnixMilli(pk.DestructiveAt).UTC().Format("2006-01-02 15:04 MST")+".")
 		return
 	}
 	var id int64

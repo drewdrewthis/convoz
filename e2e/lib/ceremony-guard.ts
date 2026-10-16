@@ -9,6 +9,7 @@ import type { BrowserContext, Page } from "@playwright/test";
  *   - a ceremony started by a tap that already started a ceremony        -> "second ceremony in one tap"
  *   - a ceremony started after a fetch() that the same tap started       -> "network call between tap and ceremony"
  *   - a ceremony that no tap started                                    -> "ceremony without a tap"
+ *   - a ceremony called when the browser's user activation has lapsed    -> "ceremony without active user activation"
  * Violations and ceremonies are reported to Node through an exposed function, so they survive page navigations.
  */
 export interface Ceremony {
@@ -46,6 +47,7 @@ const INIT = `(() => {
           tap.ceremonies++;
           if (tap.ceremonies > 1) window.__cvzGuardReport({ violation: "second ceremony in one tap on " + path });
           if (tap.fetches > 0) window.__cvzGuardReport({ violation: "network call between tap and ceremony on " + path });
+          if (navigator.userActivation && !navigator.userActivation.isActive) window.__cvzGuardReport({ violation: "ceremony without active user activation on " + path });
         }
         if (window.__cvzRejectNext) {
           const name = window.__cvzRejectNext;

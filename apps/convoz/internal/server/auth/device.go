@@ -26,8 +26,8 @@ type Device struct {
 	HumanID   int64
 	PasskeyID int64 // the passkey this device signed in with; 0 for a recovery device
 	Limited   bool
-	LastSeen time.Time
-	Absolute time.Time // the 90-day end; sliding never goes past it
+	LastSeen  time.Time
+	Absolute  time.Time // the 90-day end; sliding never goes past it
 }
 
 // StartDevice opens a device session and returns the cookie token (shown once, only its hash is stored).

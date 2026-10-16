@@ -67,12 +67,12 @@ import { webauthn } from "../lib/webauthn-browser.ts";
  *   heading "Recovery codes", text "N of 10 codes left", the warning "Making new codes stops the old ones from working.", button
  *   "Make new codes" (one get ceremony, step-up recovery.regenerate, then POST /api/me/recovery-codes). Success: list "Recovery codes"
  *   (10 listitems) shown once with "Copy codes" and "Download codes"; the count is refreshed. A lost or failed answer: role=alert with
- *   "try again" and the button stays enabled (its options are fetched again). passkey_too_new: role=alert "This passkey was added with a
- *   recovery code less than 24 hours ago. New recovery codes need an older passkey, so try again later or sign in with an older one."
+ *   "try again" and the button stays enabled (its options are fetched again). passkey_too_new: role=alert "This passkey was added less than
+ *   24 hours ago. Actions like this need an older passkey, so try again later or sign in with an older one."
  *
  * NOW  /   heading "Now" (exact). A machine request card is article "<name> wants to connect" with the name, "Source: <node> (<ip>)" or
  *   "Source: unknown (<ip>)", and the code. Approve opens dialog "Approve <name>" (textbox "Allowed identities", textbox "Type the code" when
- *   several wait) whose button "Approve" is fully in view at 390x844 and fetches its step-up options when the dialog opens. After approval
+ *   several wait) whose button "Approve" is fully in view at 390x844 and fetches its step-up options (action machine.approve, target the request) when the dialog opens. After approval
  *   role=status shows "Approved <name>". "Deny" is one tap with no confirm; role=status shows "Denied <name>".
  */
 
@@ -682,7 +682,7 @@ scenario("No page scrolls sideways on a phone", { tag: ["@browser", "@phone"] },
   expect(wide).toEqual([]);
 });
 
-scenario("The console follows the phone's dark or light setting", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {
+scenario("The console is dark by default and has a light look", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {
   // Given the owner is on a phone
   const srv = await server(local);
   const owner = await bootstrapOwner(srv);

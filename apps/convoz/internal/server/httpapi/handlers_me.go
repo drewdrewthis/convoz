@@ -22,7 +22,7 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request, c *call) {
 		"identity": map[string]any{"id": c.human.ID, "handle": c.human.Handle, "display_name": c.human.DisplayName, "role": c.human.Role, "kind": "human"},
 		"device":   map[string]any{"id": c.dev.ID, "limited": c.dev.Limited},
 	}
-	note, err := s.recoveryNote(r.Context(), c)
+	note, err := auth.RecoveryNote(r.Context(), s.reader(), c.human.ID, c.dev.PasskeyID, s.Clock.Now())
 	if err != nil {
 		s.internalError(w, r, err)
 		return
@@ -31,33 +31,6 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request, c *call) {
 		out["recovery"] = note
 	}
 	writeJSON(w, http.StatusOK, out)
-}
-
-// recoveryNote is what the console tells a device that signed in through a recovery code: the codes left and when
-// the 24-hour hold on destructive actions ends (null once it has). Other devices get nothing.
-func (s *Server) recoveryNote(ctx context.Context, c *call) (map[string]any, error) {
-	if c.dev.PasskeyID == 0 {
-		return nil, nil
-	}
-	keys, err := auth.ListPasskeys(ctx, s.reader(), c.human.ID)
-	if err != nil {
-		return nil, err
-	}
-	var hold any
-	for _, k := range keys {
-		if k.ID != c.dev.PasskeyID {
-			continue
-		}
-		if k.RegisteredVia != "recovery" {
-			return nil, nil
-		}
-		if now := s.Clock.Now(); now.UnixMilli() < k.DestructiveAt {
-			hold = k.DestructiveAt
-		}
-		left, err := auth.RecoveryCodesLeft(ctx, s.reader(), c.human.ID)
-		return map[string]any{"codes_left": left, "hold_until": hold}, err
-	}
-	return nil, nil
 }
 
 // identityJSON is an identity in the list. An agent says who made it: the owner, or a machine by name.

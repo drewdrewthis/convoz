@@ -10,7 +10,16 @@ One place to talk with your agents and make their decisions.
 
 ## Status
 
-S0 (the skeleton), S1a (owner auth and the tailnet wall) and S1b (machines, sessions and crew) are built. The `convoz` binary has `serve`, `admin bootstrap-link`, `login`, `whoami`, `session start`, `session end` and `version`. It brings the encrypted SQLite store with migrations and a pre-migration backup; the key hierarchy (KEK file, wrapped DEK keyring); the owner's passkeys, recovery codes, device sessions and step-up; the wall (`--host`, loopback or unix socket only, funnel check, admin socket); a phone-first owner console (S-U0: sign-in, setup, recovery codes, passkeys, machine requests, account menu and bottom nav; plain HTML, CSS and one script, dark by default); the machine login (a device flow the owner approves with a passkey), machine keys (reveal, regenerate, revoke), per-machine allow-lists, 12-hour session leases, and crew (agent identities); the end-to-end scenarios and the CI gates (module boundaries, red first / green at head). Conversations, asks and the rest of the product are design only.
+S0 (the skeleton), S1a (owner auth and the tailnet wall), S1b (machines, sessions and crew) and S-U0 (the mobile console) are built. Conversations, asks and the rest of the product are design only.
+
+The `convoz` binary has `serve`, `admin bootstrap-link`, `login`, `whoami`, `session start`, `session end` and `version`. It brings:
+
+- the encrypted SQLite store, with migrations and a pre-migration backup, and the key hierarchy (KEK file, wrapped DEK keyring);
+- the owner's passkeys, recovery codes, device sessions and step-up;
+- the wall: `--host` (loopback or unix socket only), the funnel check and the admin socket;
+- a phone-first owner console (sign-in, setup, recovery codes, passkeys, machine requests, account menu and bottom nav; plain HTML, CSS and one script, dark by default);
+- the machine login (a device flow the owner approves with a passkey), machine keys (reveal, regenerate, revoke), per-machine allow-lists, 12-hour session leases and crew (agent identities);
+- the end-to-end scenarios and the CI gates (module boundaries, red first / green at head).
 
 ### Build and test
 

@@ -76,22 +76,23 @@ def is_benign_b64(text, m):
     return "/" in run and run == run.lower()
 
 
-# Commands that take revisions as arguments: git, and the repo's own red/green checker (base and head SHAs).
-REVISION_COMMANDS = ("$ git ", "$ python3 -I ./scripts/red_green.py ")
+# The recorded command lines that take revisions as arguments: git, and the repo's own red/green checker (base and
+# head SHAs). An allowlist, not a denylist of shell separators: the line must be the command and plain words, so no
+# metacharacter ($ ` ( ) < > ; | & quotes, braces) can chain or expand into a command that
+# prints one 80-hex value. The one `$` allowed is the literal $TMP/ the transcript writer puts in for a scratch path.
+REVISION_LINE = re.compile(r"\$ (?:git [a-z][a-z-]*|python3 -I \./scripts/red_green\.py)(?: (?:[\w@%+=:,./^~-]+|\$TMP/[\w./-]+))*")
 LONE_SHA = re.compile(r"[0-9A-Fa-f]{40}")
 
 
 def is_sha_stack(text, m):
     """Git SHAs, not one long value. Either every line the match touches is one 40-hex token and nothing else
-    (stacked lines), or the match sits on a recorded revision command line (REVISION_COMMANDS) and every group is exactly 40 hex
+    (stacked lines), or the match sits on a recorded revision command line (REVISION_LINE) and every group is exactly 40 hex
     (revisions passed as arguments). Two 40-hex groups on any other command (echo, printf), any other line, or on lines with other text, are one
     80-hex value, not two SHAs."""
     start = text.rfind("\n", 0, m.start()) + 1
     end = text.find("\n", m.end())
     lines = text[start:len(text) if end < 0 else end].splitlines()
-    if any(c in line for line in lines for c in ";|&"):
-        return False  # a shell separator can chain a command that prints one 80-hex value
-    if len(lines) == 1 and lines[0].startswith(REVISION_COMMANDS):
+    if len(lines) == 1 and REVISION_LINE.fullmatch(lines[0]):
         words = [w for w in lines[0].split() if HEX_GROUP.fullmatch(w)]
         return len(words) >= 2 and all(len(w) == 40 for w in words)
     return len(lines) >= 2 and all(LONE_SHA.fullmatch(line.strip()) for line in lines)
@@ -261,6 +262,10 @@ def self_test():
         ("empty transcript", "\n", {"empty transcript"}),
         ("benign output", benign, set()),
         ("SHAs chained after a git command with a semicolon", "$ git status; echo " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + "\n", {"split hex"}),
+        ("a $TMP scratch path on the red/green line", "$ python3 -I ./scripts/red_green.py " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + " --runner $TMP/x-1/runner\n", set()),
+        ("SHAs inside a command substitution", "$ git diff $(echo " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + ")\n", {"split hex"}),
+        ("SHAs inside backticks", "$ git diff `echo " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + "`\n", {"split hex"}),
+        ("SHAs after a redirect", "$ git diff " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + " > out\n", {"split hex"}),
         ("SHAs piped after a git command", "$ git log | echo " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + "\n", {"split hex"}),
     ]
     failed = 0

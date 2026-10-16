@@ -225,12 +225,13 @@ func PasskeyByCredential(ctx context.Context, d pdb.DBTX, credentialID []byte) (
 }
 
 // AddPasskey stores a new passkey. via is "bootstrap", "session" or "recovery"; a recovery passkey
-// cannot do destructive things for 24 hours.
-func AddPasskey(ctx context.Context, d pdb.DBTX, humanID int64, cred *webauthn.Credential, label, via string, now time.Time) (int64, error) {
+// cannot do destructive things for 24 hours. heldUntil (unix ms, 0 for none) carries the hold of the passkey
+// that added this one, so a held passkey cannot launder its hold by adding a fresh one (I-26).
+func AddPasskey(ctx context.Context, d pdb.DBTX, humanID int64, cred *webauthn.Credential, label, via string, heldUntil int64, now time.Time) (int64, error) {
 	q := db.New(d)
-	after := now
+	after := max(now.UnixMilli(), heldUntil)
 	if via == "recovery" {
-		after = now.Add(RecoveryPasskeyDelay)
+		after = max(after, now.Add(RecoveryPasskeyDelay).UnixMilli())
 	}
 	backup := int64(0)
 	if cred.Flags.BackupEligible {
@@ -245,7 +246,7 @@ func AddPasskey(ctx context.Context, d pdb.DBTX, humanID int64, cred *webauthn.C
 		BackupEligible:         backup,
 		Label:                  label,
 		RegisteredVia:          via,
-		DestructiveStepUpAfter: after.UnixMilli(),
+		DestructiveStepUpAfter: after,
 		CreatedAt:              now.UnixMilli(),
 	})
 }

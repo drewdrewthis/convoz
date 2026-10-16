@@ -4,9 +4,10 @@
 Usage: python3 -I scripts/red_green.py <base> <head> [--runner PATH]      (run inside the git repo)
        python3 -I scripts/red_green.py --self-test
 
-  - The slice is the set of scenario titles that lose @unimplemented between <base> and <head>
-    (@needs-owner scenarios are checked by hand and left out).
-  - The test-only commit is the first commit in <base>..<head> that touches only e2e/ and specs/.
+  - The slice is every scenario bound at <head> (no @unimplemented, no @needs-owner) that was not bound at
+    <base>: a new title, or a title that lost @unimplemented. @needs-owner scenarios are checked by hand.
+  - The test-only commit is the first commit in <base>..<head> that touches only e2e/, specs/,
+    docs/owner-checks/ and *_test.go files.
   - The runner is called as `PATH <checkout-dir> <title>...`, once with a checkout of the test-only commit
     and once with a checkout of <head>. It prints one JSON object {"<title>": "passed" | "failed"} on its last line and exits 0.
     The default runner builds the testhooks binary in the checkout and runs those titles with Playwright.
@@ -32,7 +33,21 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-TEST_ONLY_DIRS = ("e2e/", "specs/")
+TEST_ONLY_DIRS = ("e2e/", "specs/", "docs/owner-checks/")
+
+
+def is_test_only_path(path):
+    return path.startswith(TEST_ONLY_DIRS) or path.endswith("_test.go")
+
+
+def is_bound(tags):
+    return "@unimplemented" not in tags and "@needs-owner" not in tags
+
+
+def newly_bound(before, after):
+    """Titles bound in `after` that were absent or unbound in `before` (title -> (tags, ...) maps)."""
+    return sorted({key[1] for key, fp in after.items()
+                   if is_bound(fp[0]) and not (key in before and is_bound(before[key][0]))})
 
 
 def load(path, name):
@@ -51,24 +66,19 @@ def git(*args, binary=False):
 
 
 def slice_titles(base, head):
-    """Titles whose @unimplemented tag is gone at head."""
+    """Titles bound at head that were not bound at base."""
     sd = load(os.path.join(ROOT, "specs", "scripts", "spec_diff.py"), "spec_diff")
     cs = sd.load_checker()
     with tempfile.TemporaryDirectory(prefix="red-green-specs-") as tmp:
         before, after = sd.scenarios_at(base, cs, tmp), sd.scenarios_at(head, cs, tmp)
-    titles = []
-    for key, fp in after.items():
-        old = before.get(key)
-        if old and "@unimplemented" in old[0] and "@unimplemented" not in fp[0] and "@needs-owner" not in fp[0]:
-            titles.append(key[1])
-    return sorted(titles)
+    return newly_bound(before, after)
 
 
 def test_only_commit(base, head):
-    """The first commit in base..head that touches only e2e/ and specs/, or None."""
+    """The first commit in base..head that touches only test paths, or None."""
     for sha in git("rev-list", "--reverse", "--no-merges", f"{base}..{head}").split():
         files = [f for f in git("diff-tree", "--no-commit-id", "--name-only", "-r", "--root", sha).split("\n") if f]
-        if files and all(f.startswith(TEST_ONLY_DIRS) for f in files):
+        if files and all(is_test_only_path(f) for f in files):
             return sha
     return None
 
@@ -194,6 +204,19 @@ def self_test():
             failures.append("report: unexpected is red, expected is green")
         expect_error("skipped title", lambda: results_from_report(report, ["c"]))
         expect_error("absent title", lambda: results_from_report(report, ["zzz"]))
+    def fp(*tags):
+        return (tuple(tags), None, (), ())
+
+    before = {("f", "kept"): fp("@unimplemented"), ("f", "lost"): fp("@unimplemented"), ("f", "bound"): fp(),
+              ("f", "owner"): fp("@unimplemented")}
+    after = {("f", "kept"): fp("@unimplemented"), ("f", "lost"): fp(), ("f", "bound"): fp(), ("f", "new"): fp(),
+             ("f", "new-unimpl"): fp("@unimplemented"), ("f", "new-owner"): fp("@needs-owner"), ("f", "owner"): fp("@needs-owner")}
+    if newly_bound(before, after) != ["lost", "new"]:
+        failures.append("slice = new titles and lost @unimplemented only")
+    for path, ok in (("e2e/tests/a.spec.ts", True), ("specs/features/a.feature", True), ("docs/owner-checks/a.md", True),
+                     ("apps/x/auth_test.go", True), ("apps/x/auth.go", False), ("docs/design.md", False)):
+        if is_test_only_path(path) != ok:
+            failures.append("test-only path " + path)
     for f in failures:
         print("FAIL:", f, file=sys.stderr)
     print("self-test failed" if failures else "self-test ok", file=sys.stderr if failures else sys.stdout)

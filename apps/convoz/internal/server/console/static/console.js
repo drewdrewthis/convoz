@@ -88,6 +88,8 @@ async function api(method, path, payload, headers) {
   return data;
 }
 
+const SHOWN_AS_SENT = new Set(["machine_name_taken", "invalid_request", "handle_taken", "code_mismatch", "last_passkey", "invalid_code", "rate_limited"]);
+
 /** humanError turns anything that can go wrong into one plain sentence. */
 function humanError(err) {
   if (err && err.handled) return "";
@@ -100,11 +102,16 @@ function humanError(err) {
     switch (err.code) {
       case "ceremony_invalid": return "The passkey check timed out. Tap again.";
       case "step_up_invalid": return "That passkey check was used up or timed out. Tap again.";
+      case "step_up_required": return "This needs a fresh passkey check. Tap again.";
       case "passkey_too_new":
-        return "This passkey was added with a recovery code less than 24 hours ago. New recovery codes need an older passkey, so try again later or sign in with an older one.";
+        return "This passkey was added less than 24 hours ago. Actions like this need an older passkey, so try again later or sign in with an older one.";
       case "invalid_credential": return "That passkey did not work. Try again.";
+      case "machine_cap": return "Ten machines are active. Revoke one before approving another.";
     }
-    return err.message;
+    // These server messages are written for the owner and name what to fix (a machine name, a field); every other
+    // code gets the generic line, so an internal or unexpected message never reaches the page.
+    if (SHOWN_AS_SENT.has(err.code)) return err.message;
+    return "Something went wrong. Try again.";
   }
   if (name === "TypeError") return "Could not reach Convoz. Check your connection and try again.";
   return (err && err.message) || "Something went wrong. Try again.";
@@ -120,10 +127,16 @@ const parseCreate = (options) => PublicKeyCredential.parseCreationOptionsFromJSO
  * use and lives 5 minutes); `use` starts the browser prompt and must be called straight from a click or submit handler.
  * `onchange` fires when ready flips, so the button can follow it.
  */
+const TICKET_MAX_AGE = 3 * 60_000; // the server keeps a ceremony 5 minutes; leave time for the prompt itself
+const tickets = new Set();
+
 function ticket(kind, load, onError) {
-  const t = { ready: false, data: null, gen: 0, timer: 0, onchange() {} };
+  const t = { ready: false, data: null, gen: 0, timer: 0, at: 0, onchange() {} };
+  /** stale: the options are too old to start a prompt with (a page that slept keeps a ticket the server forgot). */
+  t.stale = () => t.ready && Date.now() - t.at > TICKET_MAX_AGE;
   t.refresh = async () => {
     const gen = ++t.gen;
+    tickets.add(t);
     clearTimeout(t.timer);
     t.ready = false;
     t.data = null;
@@ -133,7 +146,8 @@ function ticket(kind, load, onError) {
       if (gen !== t.gen) return;
       t.data = data;
       t.ready = true;
-      t.timer = setTimeout(t.refresh, 4 * 60_000); // before the server forgets it
+      t.at = Date.now();
+      t.timer = setTimeout(t.refresh, TICKET_MAX_AGE); // before the server forgets it
     } catch (err) {
       if (gen === t.gen && onError) onError(err);
     }
@@ -152,10 +166,19 @@ function ticket(kind, load, onError) {
     t.gen++;
     clearTimeout(t.timer);
     t.ready = false;
+    tickets.delete(t);
     t.onchange();
   };
   return t;
 }
+
+// A hidden tab throttles timers, so a ticket can outlive the server's copy. Coming back to the page fetches again.
+function refreshStale() {
+  if (document.visibilityState === "hidden") return;
+  for (const t of tickets) if (t.stale()) t.refresh();
+}
+document.addEventListener("visibilitychange", refreshStale);
+window.addEventListener("pageshow", refreshStale);
 
 const loginTicket = (onError) => ticket("get", async () => {
   const s = await api("POST", "/api/auth/passkey/login/options", {});
@@ -186,9 +209,10 @@ async function finishStepUp(started) {
 /**
  * ceremonyButton runs `go` when `button` is tapped. The button is disabled while the ticket is not ready or while a
  * tap is being handled, and after every try (good or bad) the ticket is fetched again. `go` must call `ticket.use()`
- * before its first await. Failures show in `root`.
+ * before its first await. Failures show in `root`; `onError(err)` sees them first. A ticket that went stale before the tap is
+ * fetched again and the person is asked to tap once more: a prompt started with options the server forgot would fail late.
  */
-function ceremonyButton(button, t, go, { root = $("main"), also = () => true, alive = () => true } = {}) {
+function ceremonyButton(button, t, go, { root = $("main"), also = () => true, alive = () => true, onError = () => {} } = {}) {
   let busy = false;
   const sync = () => {
     button.disabled = busy || !t.ready || !also();
@@ -199,11 +223,17 @@ function ceremonyButton(button, t, go, { root = $("main"), also = () => true, al
   button.addEventListener("click", async (event) => {
     event.preventDefault();
     if (button.disabled) return;
+    if (t.stale()) {
+      t.refresh();
+      fail("That passkey check was waiting too long. Tap again when the button is ready.", root);
+      return;
+    }
     fail("", root);
     busy = true;
     try {
       await go();
     } catch (err) {
+      onError(err);
       fail(humanError(err), root);
     } finally {
       busy = false;
@@ -314,11 +344,11 @@ function stepUpSheet({ title, intro, fields = [], confirm, action, target, perfo
 function addPasskeySheet(onAdded) {
   let phase = "check";
   let stepId = null;
+  let sheet;
   const showError = (err) => fail(humanError(err), sheet.dialog);
   const check = stepUpTicket("passkey.add", null, showError);
   const create = registerTicket(showError);
   const button = el("button", { class: "btn primary", type: "button", disabled: true }, "Confirm it's you");
-  let sheet;
   sheet = openSheet("Add a passkey", (form) => {
     form.append(
       el("p", { class: "muted" }, "First confirm it is you with a passkey you already have. Then create the new one on the device or security key you want to add."),
@@ -327,41 +357,38 @@ function addPasskeySheet(onAdded) {
     check.drop();
     create.drop();
   });
-  const current = () => (phase === "check" ? check : create);
-  let busy = false;
-  const sync = () => {
-    button.disabled = busy || !current().ready;
+  const setPhase = (next) => {
+    phase = next;
     button.textContent = phase === "check" ? "Confirm it's you" : "Create the new passkey";
-    button.setAttribute("aria-busy", String(busy));
   };
-  check.onchange = sync;
-  create.onchange = sync;
-  button.addEventListener("click", async () => {
-    if (button.disabled) return;
-    fail("", sheet.dialog);
-    busy = true;
-    const t = current();
-    try {
-      if (phase === "check") {
-        stepId = await finishStepUp(t.use()); // tap 1: the browser prompt opens at once
-        phase = "create";
-      } else {
-        const started = await t.use(); // tap 2
-        await api("POST", "/api/auth/passkey/register/verify", started, { "X-Convoz-Step-Up": stepId });
-        sheet.close();
-        onAdded();
-        return;
-      }
-    } catch (err) {
-      if (err instanceof ApiError && err.code === "step_up_invalid") phase = "check";
-      fail(humanError(err), sheet.dialog);
-    } finally {
-      busy = false;
-      sync();
-      if (!t.ready && !sheet.closed) t.refresh();
+  // The one ticket ceremonyButton sees is whichever of the two the next tap needs.
+  const current = {
+    get ready() { return (phase === "check" ? check : create).ready; },
+    set onchange(fn) { check.onchange = fn; create.onchange = fn; },
+    stale: () => (phase === "check" ? check : create).stale(),
+    refresh: () => (phase === "check" ? check : create).refresh(),
+  };
+  ceremonyButton(button, current, async () => {
+    if (phase === "check") {
+      stepId = await finishStepUp(check.use()); // tap 1: the browser prompt opens at once
+      setPhase("create");
+      check.refresh(); // the next tap that needs a check starts from fresh options
+      return;
     }
+    const started = await create.use(); // tap 2
+    await api("POST", "/api/auth/passkey/register/verify", started, { "X-Convoz-Step-Up": stepId });
+    sheet.close();
+    onAdded();
+  }, {
+    root: sheet.dialog,
+    alive: () => !sheet.closed,
+    onError: (err) => {
+      if (err instanceof ApiError && err.code === "step_up_invalid") {
+        setPhase("check");
+        create.refresh();
+      }
+    },
   });
-  sync();
   check.refresh();
   create.refresh();
 }
@@ -785,22 +812,32 @@ function wireMenu() {
   const button = $("#account-button");
   const menu = $("#account-menu");
   if (!button) return;
+  const items = [...menu.querySelectorAll("[role=menuitem]")];
+  items.forEach((item) => item.setAttribute("tabindex", "-1")); // arrows move between them; Tab leaves the menu
   const set = (open) => {
     menu.hidden = !open;
     button.setAttribute("aria-expanded", String(open));
   };
+  const focusItem = (i) => items[(i + items.length) % items.length].focus();
   button.addEventListener("click", (event) => {
     event.stopPropagation();
     set(menu.hidden);
-    if (!menu.hidden) menu.querySelector("[role=menuitem]").focus();
+    if (!menu.hidden) items[0].focus();
   });
   document.addEventListener("click", (event) => {
     if (!menu.hidden && !menu.contains(event.target)) set(false);
   });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !menu.hidden) {
+    if (menu.hidden) return;
+    const at = items.indexOf(document.activeElement);
+    if (event.key === "Escape") {
       set(false);
       button.focus();
+    } else if (event.key === "Tab") {
+      set(false); // focus goes on to the next control as usual
+    } else if (at >= 0 && ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+      event.preventDefault();
+      focusItem({ ArrowDown: at + 1, ArrowUp: at - 1, Home: 0, End: items.length - 1 }[event.key]);
     }
   });
   $("#signout").addEventListener("click", signOut);

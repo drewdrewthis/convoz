@@ -81,7 +81,7 @@ func Bootstrap(ctx context.Context, d pdb.DBTX, p BootstrapPorts, in BootstrapIn
 		}
 	}
 	res.Owner = owner
-	passkeyID, err := AddPasskey(ctx, d, owner.ID, in.Credential, PasskeyLabel(now), "bootstrap", now)
+	passkeyID, err := AddPasskey(ctx, d, owner.ID, in.Credential, PasskeyLabel(now), "bootstrap", 0, now)
 	if err != nil {
 		return res, err
 	}

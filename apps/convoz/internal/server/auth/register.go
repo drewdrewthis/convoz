@@ -18,6 +18,7 @@ var ErrDeviceGone = errors.New("the recovery device already ended")
 type RegisterInput struct {
 	Human      Human
 	DeviceID   int64
+	PasskeyID  int64 // the passkey the calling device signed in with; 0 for a recovery device
 	Limited    bool  // a recovery device: no step-up, and it ends with this registration
 	StepUpID   int64 // the passkey.add step-up of a normal device
 	UserAgent  string
@@ -34,7 +35,8 @@ type RegisterResult struct {
 // RegisterPasskey adds a passkey to the caller inside the open transaction. A normal device spends a
 // passkey.add step-up. A recovery device has no passkey to step up with, so it needs nothing more, and the
 // device ends with this one registration and a full device session for the new passkey takes its place (the
-// passkey may not do destructive things yet). It writes the audit line and the event.
+// passkey may not do destructive things yet). A passkey added from a device whose own passkey is still held is
+// held until the same time. It writes the audit lines and the event.
 func RegisterPasskey(ctx context.Context, d pdb.DBTX, j JournalPort, in RegisterInput, now time.Time) (RegisterResult, error) {
 	via := "session"
 	if in.Limited {
@@ -43,8 +45,11 @@ func RegisterPasskey(ctx context.Context, d pdb.DBTX, j JournalPort, in Register
 		return RegisterResult{}, err
 	}
 	res := RegisterResult{}
-	var err error
-	if res.PasskeyID, err = AddPasskey(ctx, d, in.Human.ID, in.Credential, PasskeyLabel(now), via, now); err != nil {
+	heldUntil, err := callerHold(ctx, d, in, now)
+	if err != nil {
+		return res, err
+	}
+	if res.PasskeyID, err = AddPasskey(ctx, d, in.Human.ID, in.Credential, PasskeyLabel(now), via, heldUntil, now); err != nil {
 		return res, err
 	}
 	if in.Limited {
@@ -55,7 +60,11 @@ func RegisterPasskey(ctx context.Context, d pdb.DBTX, j JournalPort, in Register
 		if !ended {
 			return res, ErrDeviceGone
 		}
-		if res.DeviceToken, _, err = StartDevice(ctx, d, in.Human.ID, res.PasskeyID, in.UserAgent, false, now); err != nil {
+		var deviceID int64
+		if res.DeviceToken, deviceID, err = StartDevice(ctx, d, in.Human.ID, res.PasskeyID, in.UserAgent, false, now); err != nil {
+			return res, err
+		}
+		if err := j.Audit(ctx, d, now, AuditEntry{Actor: in.Human.ID, Device: deviceID, Action: "device.login", TargetKind: "passkey", TargetID: res.PasskeyID, Detail: map[string]any{"via": "recovery"}}); err != nil {
 			return res, err
 		}
 	}
@@ -63,4 +72,21 @@ func RegisterPasskey(ctx context.Context, d pdb.DBTX, j JournalPort, in Register
 		return res, err
 	}
 	return res, j.Event(ctx, d, now, "passkey.added", map[string]any{"identity_id": in.Human.ID, "passkey_id": res.PasskeyID, "via": via})
+}
+
+// callerHold is when the calling device's passkey may first do destructive things (unix ms); 0 when it may now.
+func callerHold(ctx context.Context, d pdb.DBTX, in RegisterInput, now time.Time) (int64, error) {
+	if in.Limited || in.PasskeyID == 0 {
+		return 0, nil
+	}
+	keys, err := ListPasskeys(ctx, d, in.Human.ID)
+	if err != nil {
+		return 0, err
+	}
+	for _, k := range keys {
+		if k.ID == in.PasskeyID && k.DestructiveAt > now.UnixMilli() {
+			return k.DestructiveAt, nil
+		}
+	}
+	return 0, nil
 }

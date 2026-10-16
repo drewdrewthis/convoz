@@ -17,12 +17,6 @@ func (s *Server) mintSession(w http.ResponseWriter, r *http.Request, c *call) {
 	if !decode(w, r, &in) {
 		return
 	}
-	if err := auth.ValidateMint(flowPorts, auth.MintRequest{As: in.As, ClientID: in.ClientID, Label: in.Label}); err != nil {
-		var f *auth.FieldError
-		errors.As(err, &f)
-		writeFieldErr(w, http.StatusBadRequest, "invalid_request", f.Field, f.Message)
-		return
-	}
 	req := auth.MintRequest{MachineKey: c.token, As: in.As, ClientID: in.ClientID, Label: in.Label}
 	if in.Create != nil {
 		req.Create = &auth.CreateIdentity{DisplayName: in.Create.DisplayName}

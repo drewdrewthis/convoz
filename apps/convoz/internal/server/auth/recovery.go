@@ -68,3 +68,38 @@ func RegenerateRecoveryCodes(ctx context.Context, d pdb.DBTX, j JournalPort, in 
 	}
 	return codes, j.Event(ctx, d, now, "recovery.regenerated", map[string]any{"identity_id": in.Human.ID})
 }
+
+// RecoveryNoteInfo is what the console tells a device that signed in through recovery: the codes left and when
+// the hold on destructive actions ends.
+type RecoveryNoteInfo struct {
+	CodesLeft int64  `json:"codes_left"`
+	HoldUntil *int64 `json:"hold_until"`
+}
+
+// RecoveryNote is the note for the full device session that a recovery registration starts: the console says
+// "you signed in with a recovery code", so it is nil for every device whose passkey did not come from recovery
+// (a passkey added from a held device is held too, but its owner did not sign in with a code).
+// HoldUntil is nil once the hold has ended.
+func RecoveryNote(ctx context.Context, d pdb.DBTX, humanID, passkeyID int64, now time.Time) (*RecoveryNoteInfo, error) {
+	if passkeyID == 0 {
+		return nil, nil
+	}
+	keys, err := ListPasskeys(ctx, d, humanID)
+	if err != nil {
+		return nil, err
+	}
+	for _, k := range keys {
+		if k.ID != passkeyID || k.RegisteredVia != "recovery" {
+			continue
+		}
+		note := &RecoveryNoteInfo{}
+		if now.UnixMilli() < k.DestructiveAt {
+			note.HoldUntil = &k.DestructiveAt
+		}
+		if note.CodesLeft, err = RecoveryCodesLeft(ctx, d, humanID); err != nil {
+			return nil, err
+		}
+		return note, nil
+	}
+	return nil, nil
+}
