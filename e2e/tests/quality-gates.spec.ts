@@ -218,6 +218,12 @@ scenario("CI fails a boundary break", { tag: ["@cli"] }, async ({}, info) => {
       write: (r) => put(r, "internal/server/auth/queries/zz_comma.sql", "-- name: ZzComma :many\nSELECT p.id FROM passkeys p, identities i;\n"),
     },
     {
+      breaks: "reads another module's table through a comma join after a subquery",
+      check: "table-ownership",
+      file: "zz_subcomma.sql",
+      write: (r) => put(r, "internal/server/auth/queries/zz_subcomma.sql", "-- name: ZzSubComma :many\nSELECT p.id FROM (SELECT id FROM passkeys) p, identities i;\n"),
+    },
+    {
       breaks: "imports a module sqlc package from a composition root",
       check: "go-imports",
       file: "zz_dbimport.go",

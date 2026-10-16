@@ -21,7 +21,7 @@ var credentialInURL = regexp.MustCompile(`cvz_[a-z]_`)
 // Host (421) -> funnel (403) -> credential in the query (400) -> strip untrusted headers ->
 // CSRF -> machine credential (401). Authentication and the route's own requirements run per route.
 func (s *Server) chain(next http.Handler) http.Handler {
-	h := s.rejectMachineCredential(next)
+	h := rejectForeignCredential(next)
 	h = s.csrf(h)
 	h = s.stripUntrusted(h)
 	h = rejectCredentialInURL(h)
@@ -58,18 +58,25 @@ func (s *Server) hostOK(r *http.Request) bool {
 	host := strings.ToLower(r.Host)
 	name := strings.ToLower(s.Cfg.Host)
 	if s.Cfg.Unix {
-		// serve forwards the name the client typed, which carries a port when serve listens on a non-443 port.
-		return host == "localhost" && stripPort(strings.ToLower(r.Header.Get("X-Forwarded-Host"))) == name
+		return host == "localhost" && forwardedHostOK(strings.ToLower(r.Header.Get("X-Forwarded-Host")), name, s.Cfg.PublicPort)
 	}
 	return host == name || host == net.JoinHostPort(name, strconv.Itoa(s.Cfg.Port))
 }
 
-// stripPort drops a ":port" suffix from a host name; a name without a port is returned as is.
-func stripPort(hostport string) string {
-	if h, _, err := net.SplitHostPort(hostport); err == nil {
-		return h
+// forwardedHostOK accepts the configured name as the client typed it: with the serve port when `tailscale serve`
+// listens on a non-443 port (publicPort), without one (or with :443) otherwise. Any other port is a different listener.
+func forwardedHostOK(forwarded, name string, publicPort int) bool {
+	if forwarded == name {
+		return publicPort == 0
 	}
-	return hostport
+	h, p, err := net.SplitHostPort(forwarded)
+	if err != nil || h != name {
+		return false
+	}
+	if publicPort == 0 {
+		return p == "443"
+	}
+	return p == strconv.Itoa(publicPort)
 }
 
 // rejectFunnel refuses anything Tailscale marks as coming through funnel, whatever the start check said.
@@ -112,26 +119,15 @@ func (s *Server) stripUntrusted(next http.Handler) http.Handler {
 
 // csrf guards every write under /api: the exact Origin (a missing one is refused), the Convoz header and a
 // JSON body type. A request with an Authorization header is not cookie-borne and is judged by its credential.
+// The routes marked NoCSRF (the device flow: a CLI with no cookie and no credential) are the only other exception.
 func (s *Server) csrf(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/api/") && r.Method != http.MethodGet && r.Method != http.MethodHead && r.Header.Get("Authorization") == "" {
+		if strings.HasPrefix(r.URL.Path, "/api/") && r.Method != http.MethodGet && r.Method != http.MethodHead && r.Header.Get("Authorization") == "" && !s.csrfExempt[r.Method+" "+r.URL.Path] {
 			media, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
 			if r.Header.Get("Origin") != s.Cfg.Origin || r.Header.Get("X-Convoz") != "1" || media != "application/json" {
 				writeErr(w, http.StatusForbidden, "csrf", "This request did not come from the Convoz app.")
 				return
 			}
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
-// rejectMachineCredential: machine keys and leases are accepted nowhere yet (sessions arrive with the
-// machine slice), so any Authorization header is a 401 before routing.
-func (s *Server) rejectMachineCredential(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") != "" {
-			writeErr(w, http.StatusUnauthorized, "unauthorized", "That credential is not valid.")
-			return
 		}
 		next.ServeHTTP(w, r)
 	})

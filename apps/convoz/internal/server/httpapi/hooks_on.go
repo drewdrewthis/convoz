@@ -8,8 +8,11 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"regexp"
+	"sync"
 	"time"
 
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/testroutes"
@@ -22,6 +25,38 @@ func registerTestHooks(mux *http.ServeMux, s *Server) {
 		return
 	}
 	store := s.Store
+	var (
+		codesMu sync.Mutex
+		codes   []string
+	)
+	// The next device-flow user codes, in order; after those, random ones.
+	s.userCodes = func() string {
+		codesMu.Lock()
+		defer codesMu.Unlock()
+		if len(codes) == 0 {
+			return auth.NewUserCode()
+		}
+		next := codes[0]
+		codes = codes[1:]
+		return next
+	}
+	mux.HandleFunc("POST "+testroutes.UserCodes, func(w http.ResponseWriter, r *http.Request) {
+		var in struct{ Codes []string }
+		if json.NewDecoder(r.Body).Decode(&in) != nil {
+			http.Error(w, "bad body", http.StatusBadRequest)
+			return
+		}
+		for _, c := range in.Codes {
+			if !userCodeShape.MatchString(c) {
+				http.Error(w, "a user code looks like KQWD-MZTP", http.StatusBadRequest)
+				return
+			}
+		}
+		codesMu.Lock()
+		codes = append([]string(nil), in.Codes...)
+		codesMu.Unlock()
+		reply(w, nil, nil)
+	})
 	mux.HandleFunc("POST "+testroutes.KV, func(w http.ResponseWriter, r *http.Request) {
 		var in struct{ Key, Value string }
 		if json.NewDecoder(r.Body).Decode(&in) != nil || in.Key == "" {
@@ -88,6 +123,8 @@ func registerTestHooks(mux *http.ServeMux, s *Server) {
 		reply(w, nil, map[string]any{"routes": rows})
 	})
 }
+
+var userCodeShape = regexp.MustCompile(`^[BCDFGHJKLMNPQRSTVWXZ]{4}-[BCDFGHJKLMNPQRSTVWXZ]{4}$`)
 
 func reply(w http.ResponseWriter, err error, body any) {
 	if err != nil {

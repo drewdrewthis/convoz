@@ -16,11 +16,13 @@ import (
 
 // call is what a handler knows about its caller.
 type call struct {
-	p      authz.Principal
-	dev    auth.Device
-	human  auth.Human
-	token  string // the device cookie value; empty when anonymous
-	stepUp int64  // X-Convoz-Step-Up as a number; 0 when absent
+	p       authz.Principal
+	dev     auth.Device
+	human   auth.Human
+	token   string // the device cookie value, or the machine key; empty when anonymous
+	stepUp  int64  // X-Convoz-Step-Up as a number; 0 when absent
+	machine auth.Machine
+	lease   auth.Lease
 }
 
 // source names who is calling for rate limits. Over TCP it is the peer address; behind the serve socket it is
@@ -44,7 +46,7 @@ func (s *Server) source(r *http.Request) string {
 func (s *Server) route(rt Route) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		now := s.Clock.Now()
-		if rt.Auth == authz.Pub && rt.Method == http.MethodPost && !s.publicLimit.Allow(s.source(r)+"|"+rt.Pattern, now) {
+		if rt.Auth == authz.Pub && rt.Method == http.MethodPost && !rt.NoLimit && !s.publicLimit.Allow(s.source(r)+"|"+rt.Pattern, now) {
 			w.Header().Set("Retry-After", "60")
 			writeErr(w, http.StatusTooManyRequests, "rate_limited", "Too many tries. Wait a minute.")
 			return
@@ -52,11 +54,17 @@ func (s *Server) route(rt Route) http.HandlerFunc {
 		c := &call{}
 		if rt.Auth != authz.Pub {
 			var err error
-			if c, err = s.authenticate(w, r); err != nil {
+			if c, err = s.authenticate(w, r); errors.Is(err, errAnswered) {
+				return
+			} else if err != nil {
 				s.internalError(w, r, err)
 				return
 			}
-			if err := rt.Auth.Check(c.p); err != nil {
+			if c.p.SessionID != 0 && rt.RefuseLease {
+				writeErr(w, http.StatusForbidden, "forbidden", "An agent credential cannot do this.")
+				return
+			}
+			if err := rt.check(c.p); err != nil {
 				s.deny(w, r, rt, err)
 				return
 			}
@@ -97,6 +105,9 @@ func (s *Server) deny(w http.ResponseWriter, r *http.Request, rt Route, err erro
 // Use of a live session is written at most once a minute, and the cookie is re-issued then so its
 // Max-Age slides with the session.
 func (s *Server) authenticate(w http.ResponseWriter, r *http.Request) (*call, error) {
+	if header := r.Header.Get("Authorization"); header != "" {
+		return s.authenticateBearer(w, r, header)
+	}
 	c := &call{}
 	cookie, err := r.Cookie(DeviceCookie)
 	if err != nil || cookie.Value == "" {

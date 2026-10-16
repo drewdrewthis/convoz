@@ -7,7 +7,9 @@ Checks (exit 1 on any failure, one line per problem):
   3. `go mod verify` passes in apps/convoz;
   4. the SQLite module's go.sum line equals apps/convoz/sqlite-module.sum;
   5. the WebAuthn library is required at the pinned version and go.sum has its checksum;
-  6. Playwright is pinned to an exact version and CI installs its chromium.
+  6. Playwright is pinned to an exact version and CI installs its chromium;
+  7. the confusables table (identity/confusables.tsv) was generated from the Unicode file that
+     scripts/gen_confusables.py pins by SHA-256.
 There is no Wasm file to hash: the engine ships inside the Go module, so its go.sum hash is the pin.
 """
 import importlib.util
@@ -138,6 +140,16 @@ def check_playwright_pin(problems):
             problems.append(".github/workflows/ci.yml: no step installs the pinned chromium (playwright install ... chromium)")
 
 
+def check_confusables_pin(problems):
+    spec = importlib.util.spec_from_file_location("gen_confusables", os.path.join(HERE, "gen_confusables.py"))
+    gen = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gen)
+    with open(gen.OUT, encoding="utf-8") as fh:
+        header = fh.read(400)
+    if f"# sha256: {gen.PINNED_SHA256}\n" not in header:
+        problems.append("identity/confusables.tsv was not generated from the file pinned in scripts/gen_confusables.py")
+
+
 def main():
     problems = []
     check_actions(problems)
@@ -145,6 +157,7 @@ def main():
     check_sqlite_sum(problems)
     check_webauthn_pin(problems)
     check_playwright_pin(problems)
+    check_confusables_pin(problems)
     for p in problems:
         print(p)
     if not problems:

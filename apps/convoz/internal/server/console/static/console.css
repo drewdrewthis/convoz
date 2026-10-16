@@ -6,3 +6,7 @@ button { font: inherit; padding: .4rem .9rem; }
 [role="alert"] { color: #b00020; font-weight: 600; }
 ul, ol { padding-left: 1.2rem; }
 ol[aria-label="Recovery codes"] { font-family: ui-monospace, monospace; }
+article, dialog section, li > section { border: 1px solid #8884; border-radius: .5rem; padding: .5rem 1rem; margin: 1rem 0; }
+li { list-style: none; }
+ul { padding-left: 0; }
+dialog { max-width: 32rem; }

@@ -33,6 +33,10 @@ type Entry struct {
 	Role        string `json:"role"`
 	CreatedAt   int64  `json:"created_at"`
 	Disabled    bool   `json:"disabled"`
+	// CreatedByHuman and CreatedByMachine are the ids that made an agent; the composition root turns
+	// them into names (the machine is auth's).
+	CreatedByHuman   int64 `json:"-"`
+	CreatedByMachine int64 `json:"-"`
 }
 
 // ErrNotFound means no such human.
@@ -55,25 +59,29 @@ func ValidDisplayName(s string) bool {
 	return !strings.ContainsFunc(s, unicode.IsControl)
 }
 
+// newIdentity inserts one identities row for a valid handle and display name and returns its id.
+func newIdentity(ctx context.Context, q *db.Queries, kind, handle, displayName string, now time.Time) (int64, error) {
+	first, _ := utf8.DecodeRuneInString(displayName)
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(handle))
+	return q.InsertIdentity(ctx, db.InsertIdentityParams{
+		Kind:            kind,
+		Handle:          handle,
+		DisplayName:     displayName,
+		DisplaySkeleton: Skeleton(displayName),
+		AvatarLetter:    string(unicode.ToUpper(first)),
+		AvatarPalette:   int64(h.Sum32() % 12),
+		CreatedAt:       now.UnixMilli(),
+	})
+}
+
 // CreateOwner inserts the one owner (I-1). The unique owner index refuses a second.
-// The skeleton is the lowercased name for now; the confusables table arrives with crew.
 func CreateOwner(ctx context.Context, d pdb.DBTX, handle, displayName string, now time.Time) (Human, error) {
 	q := db.New(d)
 	if !ValidHandle(handle) || !ValidDisplayName(displayName) {
 		return Human{}, ErrInvalid
 	}
-	first, _ := utf8.DecodeRuneInString(displayName)
-	h := fnv.New32a()
-	_, _ = h.Write([]byte(handle))
-	id, err := q.InsertIdentity(ctx, db.InsertIdentityParams{
-		Kind:            "human",
-		Handle:          handle,
-		DisplayName:     displayName,
-		DisplaySkeleton: strings.ToLower(displayName),
-		AvatarLetter:    string(unicode.ToUpper(first)),
-		AvatarPalette:   int64(h.Sum32() % 12),
-		CreatedAt:       now.UnixMilli(),
-	})
+	id, err := newIdentity(ctx, q, "human", handle, displayName, now)
 	if err != nil {
 		return Human{}, err
 	}
@@ -122,7 +130,8 @@ func List(ctx context.Context, d pdb.DBTX) ([]Entry, error) {
 	}
 	out := make([]Entry, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, Entry{ID: r.ID, Kind: r.Kind, Handle: r.Handle, DisplayName: r.DisplayName, Role: r.Role, CreatedAt: r.CreatedAt, Disabled: r.DisabledAt.Valid})
+		out = append(out, Entry{ID: r.ID, Kind: r.Kind, Handle: r.Handle, DisplayName: r.DisplayName, Role: r.Role, CreatedAt: r.CreatedAt, Disabled: r.DisabledAt.Valid,
+			CreatedByHuman: r.CreatedByHuman.Int64, CreatedByMachine: r.CreatedByMachine.Int64})
 	}
 	return out, nil
 }

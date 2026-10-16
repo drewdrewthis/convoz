@@ -1,5 +1,5 @@
-// Package console serves the owner console: bare pages for the S1a flows (sign in, bootstrap,
-// onboarding, recover, passkeys, Now). Plain HTML and one script, no framework; the React app (S-U)
+// Package console serves the owner console: bare pages for the S1 flows (sign in, bootstrap,
+// onboarding, recover, passkeys, Now with the machine requests, Machines). Plain HTML and one script, no framework; the React app (S-U)
 // replaces it and must pass the same role and text locators.
 package console
 
@@ -32,6 +32,7 @@ func init() {
 		{Name: "signin", Title: "Sign in", Heading: "Sign in"},
 		{Name: "recover", Title: "Recover access", Heading: "Recover access"},
 		{Name: "now", Title: "Now", Heading: "Now"},
+		{Name: "machines", Title: "Machines", Heading: "Machines"},
 		{Name: "onboarding", Title: "Set up a second way in", Heading: "Set up a second way in"},
 		{Name: "passkeys", Title: "Passkeys", Heading: "Passkeys"},
 	} {

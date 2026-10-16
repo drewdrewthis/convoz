@@ -19,6 +19,8 @@ type OwnerPort interface {
 // AuditEntry is one audit line, as auth sees it (the audit module owns the row).
 type AuditEntry struct {
 	Actor, Device int64
+	Machine       int64
+	Session       int64
 	Action        string
 	TargetKind    string
 	TargetID      int64

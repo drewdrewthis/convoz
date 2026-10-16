@@ -22,8 +22,8 @@ const (
 	ExitFailure     = 1 // any other failure (a 5xx, an unreadable answer)
 	ExitUsage       = 2
 	ExitAuth        = 3 // HTTP 401 or 403
-	ExitConflict    = 4 // HTTP 409
-	ExitRateLimited = 5 // HTTP 429
+	ExitConflict    = 4 // HTTP 409 (a name or handle is taken)
+	ExitRateLimited = 5 // HTTP 429, also too_many_pending
 	ExitNetwork     = 6 // the socket cannot be reached
 )
 
@@ -34,6 +34,7 @@ var errUnreachable = errors.New("server unreachable")
 type statusError struct {
 	status int
 	msg    string
+	code   string // the server's error code, when it sent one
 }
 
 func (e *statusError) Error() string { return e.msg }
@@ -48,6 +49,8 @@ func exitCode(err error) int {
 		return ExitFailure
 	case se.status == http.StatusUnauthorized || se.status == http.StatusForbidden:
 		return ExitAuth
+	case se.status == http.StatusBadRequest:
+		return ExitUsage
 	case se.status == http.StatusConflict:
 		return ExitConflict
 	case se.status == http.StatusTooManyRequests:
@@ -103,9 +106,9 @@ func BootstrapLink(ctx context.Context, socket string) (wire.BootstrapLink, erro
 	if res.StatusCode != http.StatusOK {
 		var e wire.Error
 		if json.Unmarshal(body, &e) == nil && e.Error.Message != "" {
-			return wire.BootstrapLink{}, &statusError{res.StatusCode, "server refused: " + e.Error.Message}
+			return wire.BootstrapLink{}, &statusError{status: res.StatusCode, msg: "server refused: " + e.Error.Message}
 		}
-		return wire.BootstrapLink{}, &statusError{res.StatusCode, fmt.Sprintf("server answered %d", res.StatusCode)}
+		return wire.BootstrapLink{}, &statusError{status: res.StatusCode, msg: fmt.Sprintf("server answered %d", res.StatusCode)}
 	}
 	var link wire.BootstrapLink
 	if err := json.Unmarshal(body, &link); err != nil || link.URL == "" {

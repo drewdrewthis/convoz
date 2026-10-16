@@ -23,6 +23,33 @@ FROM humans h JOIN identities i ON i.id = h.identity_id
 WHERE i.handle = sqlc.arg(handle);
 
 -- name: ListIdentities :many
-SELECT i.id, i.kind, i.handle, i.display_name, CAST(COALESCE(h.role, 'agent') AS TEXT) AS role, i.created_at, i.disabled_at
-FROM identities i LEFT JOIN humans h ON h.identity_id = i.id
+SELECT i.id, i.kind, i.handle, i.display_name, CAST(COALESCE(h.role, 'agent') AS TEXT) AS role, i.created_at, i.disabled_at,
+  a.created_by_human, a.created_by_machine
+FROM identities i
+LEFT JOIN humans h ON h.identity_id = i.id
+LEFT JOIN agents a ON a.identity_id = i.id
 ORDER BY i.id;
+
+-- name: GetIdentityByHandle :one
+SELECT id, kind, handle, display_name, disabled_at FROM identities WHERE handle = sqlc.arg(handle);
+
+-- name: GetIdentity :one
+SELECT id, kind, handle, display_name, disabled_at FROM identities WHERE id = sqlc.arg(id);
+
+-- name: InsertAgent :exec
+INSERT INTO agents (identity_id, created_by_human, created_by_machine)
+VALUES (sqlc.arg(identity_id), sqlc.narg(created_by_human), sqlc.narg(created_by_machine));
+
+-- name: DisableAgent :execrows
+UPDATE identities SET disabled_at = sqlc.arg(disabled_at) WHERE id = sqlc.arg(id) AND kind = 'agent' AND disabled_at IS NULL;
+
+-- name: HandleWasUsed :one
+SELECT EXISTS (SELECT 1 FROM retired_handles WHERE handle = sqlc.arg(handle));
+
+-- name: ActiveSkeletons :many
+SELECT handle, display_skeleton FROM identities WHERE disabled_at IS NULL;
+
+-- name: CountAgentsCreatedByMachineSince :one
+SELECT COUNT(*) AS n, CAST(COALESCE(MIN(i.created_at), 0) AS INTEGER) AS oldest
+FROM agents a JOIN identities i ON i.id = a.identity_id
+WHERE a.created_by_machine = sqlc.arg(machine_id) AND i.created_at > sqlc.arg(since);

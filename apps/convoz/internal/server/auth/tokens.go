@@ -14,6 +14,9 @@ const (
 	PrefixBootstrap = "cvz_b_"
 	PrefixDevice    = "cvz_d_"
 	PrefixRecovery  = "cvz_r_"
+	PrefixMachine   = "cvz_m_"
+	PrefixSession   = "cvz_s_"
+	PrefixDeviceReq = "cvz_c_" // the device code of the machine login flow
 )
 
 const base62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"

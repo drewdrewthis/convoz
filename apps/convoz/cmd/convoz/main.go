@@ -31,6 +31,13 @@ func main() {
 		os.Exit(serve(os.Args[2:]))
 	case "admin":
 		os.Exit(cli.Admin(os.Args[2:], os.Stdout, os.Stderr))
+	case "login":
+		cli.Version = version
+		os.Exit(cli.Login(os.Args[2:], processIO()))
+	case "whoami":
+		os.Exit(cli.Whoami(os.Args[2:], processIO()))
+	case "session":
+		os.Exit(session(os.Args[2:]))
 	case "version":
 		fmt.Printf("convoz %s (schema %d)\n", version, platform.LatestVersion())
 	default:
@@ -38,9 +45,30 @@ func main() {
 	}
 }
 
+func processIO() cli.IO {
+	return cli.IO{Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr, Getenv: os.Getenv}
+}
+
+// session dispatches `convoz session start|end`.
+func session(args []string) int {
+	if len(args) > 0 {
+		switch args[0] {
+		case "start":
+			return cli.SessionStart(args[1:], processIO())
+		case "end":
+			return cli.SessionEnd(args[1:], processIO())
+		}
+	}
+	fmt.Fprintln(os.Stderr, "usage: convoz session start --as HANDLE [--create --name NAME] [--label L] [--client-id C]\n       convoz session end [--sid SID]")
+	return exitUsage
+}
+
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage: convoz serve --data-dir D --host NAME[:PORT] [--kek-file F] [--listen ADDR] [--admin-socket P] [--ready-file F] [--tailscale check|off] [--tailscale-bin B]\n"+
 		"       convoz admin bootstrap-link [--admin-socket P]\n"+
+		"       convoz login --server URL [--name N] [--store file|keychain|auto] [--stdin]\n"+
+		"       convoz whoami [--sid SID | --as HANDLE] [--json]\n"+
+		"       convoz session start|end ...\n"+
 		"       convoz version")
 	os.Exit(exitUsage)
 }

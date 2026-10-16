@@ -86,7 +86,7 @@ func serve(args []string) int {
 		return fail(1, err)
 	}
 	defer lock.Close()
-	store, code := openStore(dir, kek, clock)
+	store, keys, code := openStore(dir, kek, clock)
 	if store == nil {
 		return code
 	}
@@ -113,7 +113,7 @@ func serve(args []string) int {
 		}
 	}
 
-	cfg := httpapi.Config{Host: name, Unix: spec.unix, Version: version}
+	cfg := httpapi.Config{Host: name, Unix: spec.unix, PublicPort: publicPort, Version: version, TailscaleBin: *tailscaleBin, TailscaleOn: *tailscaleMode == "check"}
 	if !spec.unix {
 		cfg.Port = pub.Addr().(*net.TCPAddr).Port
 	}
@@ -124,7 +124,7 @@ func serve(args []string) int {
 	}
 	logger := log.New(os.Stderr, "convoz: ", log.LstdFlags)
 	servers := []*http.Server{{
-		Handler:           httpapi.NewServer(store, clock, wa, cfg, logger).Handler(),
+		Handler:           httpapi.NewServer(store, clock, wa, keys, cfg, logger).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       2 * time.Minute,
 		MaxHeaderBytes:    1 << 16,
@@ -238,36 +238,44 @@ func loadKEK(kekFlag string) ([]byte, int) {
 	return kek, 0
 }
 
-// openStore unlocks the key hierarchy, opens the database and migrates it.
-// It returns a nil DB and the exit code on failure.
-func openStore(dataDir string, kek []byte, clock platform.Clock) (*db.Store, int) {
+// openStore unlocks the key hierarchy, opens the database and migrates it. It returns the box that seals the
+// stored copy of machine keys. On failure it returns a nil store and the exit code.
+func openStore(dataDir string, kek []byte, clock platform.Clock) (*db.Store, *auth.KeyBox, int) {
 	dbPath := filepath.Join(dataDir, "convoz.db")
 	ring, err := crypto.OpenKeyring(dataDir, kek, dbPath, clock.Now())
 	if err != nil {
-		return nil, fail(exitKey, err)
+		return nil, nil, fail(exitKey, err)
 	}
 	dek, ok := ring.DEK(crypto.PurposeDB)
 	if !ok {
-		return nil, fail(exitKey, errors.New("keyring has no database key"))
+		return nil, nil, fail(exitKey, errors.New("keyring has no database key"))
+	}
+	machineDEK, ok := ring.DEK(crypto.PurposeMachineKey)
+	if !ok {
+		return nil, nil, fail(exitKey, errors.New("keyring has no machine key key"))
+	}
+	keys, err := auth.NewKeyBox(machineDEK)
+	if err != nil {
+		return nil, nil, fail(exitKey, err)
 	}
 	store, err := db.Open(dbPath, dek)
 	if errors.Is(err, db.ErrWrongKey) {
-		return nil, fail(exitKey, err)
+		return nil, nil, fail(exitKey, err)
 	}
 	if err != nil {
-		return nil, fail(1, err)
+		return nil, nil, fail(1, err)
 	}
 	err = platform.Migrate(context.Background(), store, platform.MigrateOptions{DataDir: dataDir, Clock: clock, MaxVersion: platform.MaxMigrationCap()})
 	var newer *platform.NewerSchemaError
 	switch {
 	case errors.As(err, &newer):
 		store.Close()
-		return nil, fail(exitSchema, err)
+		return nil, nil, fail(exitSchema, err)
 	case err != nil:
 		store.Close()
-		return nil, fail(1, err)
+		return nil, nil, fail(1, err)
 	}
-	return store, 0
+	return store, keys, 0
 }
 
 // writeReady publishes the addresses atomically so a watcher never reads half a file.

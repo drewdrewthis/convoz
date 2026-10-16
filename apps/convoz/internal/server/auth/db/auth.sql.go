@@ -10,6 +10,34 @@ import (
 	"database/sql"
 )
 
+const approveRequest = `-- name: ApproveRequest :execrows
+UPDATE machine_requests SET state = 'approved', decided_by = ?1, decided_at = ?2,
+  expires_at = ?3, machine_id = ?4
+WHERE id = ?5 AND state = 'pending' AND expires_at > ?2
+`
+
+type ApproveRequestParams struct {
+	DecidedBy sql.NullInt64
+	DecidedAt sql.NullInt64
+	ExpiresAt int64
+	MachineID sql.NullInt64
+	ID        int64
+}
+
+func (q *Queries) ApproveRequest(ctx context.Context, arg ApproveRequestParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, approveRequest,
+		arg.DecidedBy,
+		arg.DecidedAt,
+		arg.ExpiresAt,
+		arg.MachineID,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const consumeStepUp = `-- name: ConsumeStepUp :execrows
 UPDATE step_ups SET used_at = ?1
 WHERE id = ?2 AND device_id = ?3 AND action = ?4
@@ -38,6 +66,17 @@ func (q *Queries) ConsumeStepUp(ctx context.Context, arg ConsumeStepUpParams) (i
 	return result.RowsAffected()
 }
 
+const countActiveMachines = `-- name: CountActiveMachines :one
+SELECT COUNT(*) FROM machines WHERE revoked_at IS NULL
+`
+
+func (q *Queries) CountActiveMachines(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countActiveMachines)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countActivePasskeys = `-- name: CountActivePasskeys :one
 SELECT COUNT(*) FROM passkeys WHERE human_id = ?1 AND revoked_at IS NULL
 `
@@ -47,6 +86,276 @@ func (q *Queries) CountActivePasskeys(ctx context.Context, humanID int64) (int64
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const countLiveSessionsOfClient = `-- name: CountLiveSessionsOfClient :one
+SELECT COUNT(*) FROM sessions
+WHERE identity_id = ?1 AND machine_id = ?2 AND client_id = ?3 AND ended_at IS NULL AND expires_at > ?4
+`
+
+type CountLiveSessionsOfClientParams struct {
+	IdentityID int64
+	MachineID  int64
+	ClientID   string
+	Now        int64
+}
+
+func (q *Queries) CountLiveSessionsOfClient(ctx context.Context, arg CountLiveSessionsOfClientParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countLiveSessionsOfClient,
+		arg.IdentityID,
+		arg.MachineID,
+		arg.ClientID,
+		arg.Now,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countLiveSessionsOfIdentity = `-- name: CountLiveSessionsOfIdentity :one
+SELECT COUNT(*) FROM sessions WHERE identity_id = ?1 AND ended_at IS NULL AND expires_at > ?2
+`
+
+type CountLiveSessionsOfIdentityParams struct {
+	IdentityID int64
+	Now        int64
+}
+
+func (q *Queries) CountLiveSessionsOfIdentity(ctx context.Context, arg CountLiveSessionsOfIdentityParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countLiveSessionsOfIdentity, arg.IdentityID, arg.Now)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countLiveSessionsOnMachine = `-- name: CountLiveSessionsOnMachine :one
+SELECT COUNT(*) FROM sessions WHERE machine_id = ?1 AND ended_at IS NULL AND expires_at > ?2
+`
+
+type CountLiveSessionsOnMachineParams struct {
+	MachineID int64
+	Now       int64
+}
+
+func (q *Queries) CountLiveSessionsOnMachine(ctx context.Context, arg CountLiveSessionsOnMachineParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countLiveSessionsOnMachine, arg.MachineID, arg.Now)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countPendingRequests = `-- name: CountPendingRequests :one
+SELECT COUNT(*) FROM machine_requests WHERE state = 'pending' AND expires_at > ?1
+`
+
+func (q *Queries) CountPendingRequests(ctx context.Context, now int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countPendingRequests, now)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const deleteMachineAllow = `-- name: DeleteMachineAllow :exec
+DELETE FROM machine_allow WHERE machine_id = ?1
+`
+
+func (q *Queries) DeleteMachineAllow(ctx context.Context, machineID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteMachineAllow, machineID)
+	return err
+}
+
+const denyAllRequests = `-- name: DenyAllRequests :execrows
+UPDATE machine_requests SET state = 'denied', decided_by = ?1, decided_at = ?2
+WHERE state = 'pending' AND expires_at > ?2
+`
+
+type DenyAllRequestsParams struct {
+	DecidedBy sql.NullInt64
+	DecidedAt sql.NullInt64
+}
+
+func (q *Queries) DenyAllRequests(ctx context.Context, arg DenyAllRequestsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, denyAllRequests, arg.DecidedBy, arg.DecidedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const denyRequest = `-- name: DenyRequest :execrows
+UPDATE machine_requests SET state = 'denied', decided_by = ?1, decided_at = ?2
+WHERE id = ?3 AND state = 'pending' AND expires_at > ?2
+`
+
+type DenyRequestParams struct {
+	DecidedBy sql.NullInt64
+	DecidedAt sql.NullInt64
+	ID        int64
+}
+
+func (q *Queries) DenyRequest(ctx context.Context, arg DenyRequestParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, denyRequest, arg.DecidedBy, arg.DecidedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const endExpiredSessionsOfClient = `-- name: EndExpiredSessionsOfClient :exec
+UPDATE sessions SET ended_at = ?1, end_reason = 'expired'
+WHERE identity_id = ?2 AND machine_id = ?3 AND client_id = ?4
+  AND ended_at IS NULL AND expires_at <= ?1
+`
+
+type EndExpiredSessionsOfClientParams struct {
+	Now        sql.NullInt64
+	IdentityID int64
+	MachineID  int64
+	ClientID   string
+}
+
+func (q *Queries) EndExpiredSessionsOfClient(ctx context.Context, arg EndExpiredSessionsOfClientParams) error {
+	_, err := q.db.ExecContext(ctx, endExpiredSessionsOfClient,
+		arg.Now,
+		arg.IdentityID,
+		arg.MachineID,
+		arg.ClientID,
+	)
+	return err
+}
+
+const endOpenSessionsOfClient = `-- name: EndOpenSessionsOfClient :exec
+UPDATE sessions SET ended_at = ?1, end_reason = 'replaced'
+WHERE identity_id = ?2 AND machine_id = ?3 AND client_id = ?4 AND ended_at IS NULL
+`
+
+type EndOpenSessionsOfClientParams struct {
+	Now        sql.NullInt64
+	IdentityID int64
+	MachineID  int64
+	ClientID   string
+}
+
+func (q *Queries) EndOpenSessionsOfClient(ctx context.Context, arg EndOpenSessionsOfClientParams) error {
+	_, err := q.db.ExecContext(ctx, endOpenSessionsOfClient,
+		arg.Now,
+		arg.IdentityID,
+		arg.MachineID,
+		arg.ClientID,
+	)
+	return err
+}
+
+const endSession = `-- name: EndSession :execrows
+UPDATE sessions SET ended_at = ?1, end_reason = ?2 WHERE id = ?3 AND ended_at IS NULL
+`
+
+type EndSessionParams struct {
+	Now    sql.NullInt64
+	Reason sql.NullString
+	ID     int64
+}
+
+func (q *Queries) EndSession(ctx context.Context, arg EndSessionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, endSession, arg.Now, arg.Reason, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const endSessionsOfIdentity = `-- name: EndSessionsOfIdentity :exec
+UPDATE sessions SET ended_at = ?1, end_reason = ?2 WHERE identity_id = ?3 AND ended_at IS NULL
+`
+
+type EndSessionsOfIdentityParams struct {
+	Now        sql.NullInt64
+	Reason     sql.NullString
+	IdentityID int64
+}
+
+func (q *Queries) EndSessionsOfIdentity(ctx context.Context, arg EndSessionsOfIdentityParams) error {
+	_, err := q.db.ExecContext(ctx, endSessionsOfIdentity, arg.Now, arg.Reason, arg.IdentityID)
+	return err
+}
+
+const endSessionsOfIdentityOnMachine = `-- name: EndSessionsOfIdentityOnMachine :exec
+UPDATE sessions SET ended_at = ?1, end_reason = ?2
+WHERE identity_id = ?3 AND machine_id = ?4 AND ended_at IS NULL
+`
+
+type EndSessionsOfIdentityOnMachineParams struct {
+	Now        sql.NullInt64
+	Reason     sql.NullString
+	IdentityID int64
+	MachineID  int64
+}
+
+func (q *Queries) EndSessionsOfIdentityOnMachine(ctx context.Context, arg EndSessionsOfIdentityOnMachineParams) error {
+	_, err := q.db.ExecContext(ctx, endSessionsOfIdentityOnMachine,
+		arg.Now,
+		arg.Reason,
+		arg.IdentityID,
+		arg.MachineID,
+	)
+	return err
+}
+
+const endSessionsOfMachine = `-- name: EndSessionsOfMachine :exec
+UPDATE sessions SET ended_at = ?1, end_reason = ?2 WHERE machine_id = ?3 AND ended_at IS NULL
+`
+
+type EndSessionsOfMachineParams struct {
+	Now       sql.NullInt64
+	Reason    sql.NullString
+	MachineID int64
+}
+
+func (q *Queries) EndSessionsOfMachine(ctx context.Context, arg EndSessionsOfMachineParams) error {
+	_, err := q.db.ExecContext(ctx, endSessionsOfMachine, arg.Now, arg.Reason, arg.MachineID)
+	return err
+}
+
+const getActiveMachine = `-- name: GetActiveMachine :one
+SELECT id, name, key_hint, scopes, allow_mode, key_enc, key_version, last_used_at FROM machines WHERE id = ?1 AND revoked_at IS NULL
+`
+
+type GetActiveMachineRow struct {
+	ID         int64
+	Name       string
+	KeyHint    string
+	Scopes     int64
+	AllowMode  string
+	KeyEnc     []byte
+	KeyVersion int64
+	LastUsedAt sql.NullInt64
+}
+
+func (q *Queries) GetActiveMachine(ctx context.Context, id int64) (GetActiveMachineRow, error) {
+	row := q.db.QueryRowContext(ctx, getActiveMachine, id)
+	var i GetActiveMachineRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.KeyHint,
+		&i.Scopes,
+		&i.AllowMode,
+		&i.KeyEnc,
+		&i.KeyVersion,
+		&i.LastUsedAt,
+	)
+	return i, err
+}
+
+const getActiveMachineByName = `-- name: GetActiveMachineByName :one
+SELECT id FROM machines WHERE name = ?1 AND revoked_at IS NULL
+`
+
+func (q *Queries) GetActiveMachineByName(ctx context.Context, name string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getActiveMachineByName, name)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
 }
 
 const getActivePasskeyByCredential = `-- name: GetActivePasskeyByCredential :one
@@ -148,6 +457,166 @@ func (q *Queries) GetDeviceByTokenHash(ctx context.Context, tokenHash []byte) (G
 	return i, err
 }
 
+const getMachineByKeyHash = `-- name: GetMachineByKeyHash :one
+SELECT id, name, key_hint, scopes, allow_mode, key_version FROM machines WHERE key_hash = ?1 AND revoked_at IS NULL
+`
+
+type GetMachineByKeyHashRow struct {
+	ID         int64
+	Name       string
+	KeyHint    string
+	Scopes     int64
+	AllowMode  string
+	KeyVersion int64
+}
+
+func (q *Queries) GetMachineByKeyHash(ctx context.Context, keyHash []byte) (GetMachineByKeyHashRow, error) {
+	row := q.db.QueryRowContext(ctx, getMachineByKeyHash, keyHash)
+	var i GetMachineByKeyHashRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.KeyHint,
+		&i.Scopes,
+		&i.AllowMode,
+		&i.KeyVersion,
+	)
+	return i, err
+}
+
+const getPendingRequest = `-- name: GetPendingRequest :one
+SELECT id, user_code, requested_name, host_info, source, source_node, created_at, expires_at
+FROM machine_requests WHERE id = ?1 AND state = 'pending' AND expires_at > ?2
+`
+
+type GetPendingRequestParams struct {
+	ID  int64
+	Now int64
+}
+
+type GetPendingRequestRow struct {
+	ID            int64
+	UserCode      string
+	RequestedName string
+	HostInfo      sql.NullString
+	Source        string
+	SourceNode    sql.NullString
+	CreatedAt     int64
+	ExpiresAt     int64
+}
+
+func (q *Queries) GetPendingRequest(ctx context.Context, arg GetPendingRequestParams) (GetPendingRequestRow, error) {
+	row := q.db.QueryRowContext(ctx, getPendingRequest, arg.ID, arg.Now)
+	var i GetPendingRequestRow
+	err := row.Scan(
+		&i.ID,
+		&i.UserCode,
+		&i.RequestedName,
+		&i.HostInfo,
+		&i.Source,
+		&i.SourceNode,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+	)
+	return i, err
+}
+
+const getRequestByDeviceCode = `-- name: GetRequestByDeviceCode :one
+SELECT id, state, expires_at, last_poll_at, poll_interval_ms, decided_at, machine_id
+FROM machine_requests WHERE device_code_hash = ?1
+`
+
+type GetRequestByDeviceCodeRow struct {
+	ID             int64
+	State          string
+	ExpiresAt      int64
+	LastPollAt     sql.NullInt64
+	PollIntervalMs int64
+	DecidedAt      sql.NullInt64
+	MachineID      sql.NullInt64
+}
+
+func (q *Queries) GetRequestByDeviceCode(ctx context.Context, deviceCodeHash []byte) (GetRequestByDeviceCodeRow, error) {
+	row := q.db.QueryRowContext(ctx, getRequestByDeviceCode, deviceCodeHash)
+	var i GetRequestByDeviceCodeRow
+	err := row.Scan(
+		&i.ID,
+		&i.State,
+		&i.ExpiresAt,
+		&i.LastPollAt,
+		&i.PollIntervalMs,
+		&i.DecidedAt,
+		&i.MachineID,
+	)
+	return i, err
+}
+
+const getSessionByTokenHash = `-- name: GetSessionByTokenHash :one
+SELECT s.id, s.identity_id, s.machine_id, s.client_id, s.label, s.scopes, s.last_seen_at, s.expires_at, s.ended_at, s.end_reason, m.name AS machine_name
+FROM sessions s JOIN machines m ON m.id = s.machine_id WHERE s.token_hash = ?1
+`
+
+type GetSessionByTokenHashRow struct {
+	ID          int64
+	IdentityID  int64
+	MachineID   int64
+	ClientID    string
+	Label       string
+	Scopes      int64
+	LastSeenAt  int64
+	ExpiresAt   int64
+	EndedAt     sql.NullInt64
+	EndReason   sql.NullString
+	MachineName string
+}
+
+func (q *Queries) GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetSessionByTokenHashRow, error) {
+	row := q.db.QueryRowContext(ctx, getSessionByTokenHash, tokenHash)
+	var i GetSessionByTokenHashRow
+	err := row.Scan(
+		&i.ID,
+		&i.IdentityID,
+		&i.MachineID,
+		&i.ClientID,
+		&i.Label,
+		&i.Scopes,
+		&i.LastSeenAt,
+		&i.ExpiresAt,
+		&i.EndedAt,
+		&i.EndReason,
+		&i.MachineName,
+	)
+	return i, err
+}
+
+const insertAllowGlob = `-- name: InsertAllowGlob :exec
+INSERT INTO machine_allow (machine_id, glob) VALUES (?1, ?2)
+`
+
+type InsertAllowGlobParams struct {
+	MachineID int64
+	Glob      sql.NullString
+}
+
+func (q *Queries) InsertAllowGlob(ctx context.Context, arg InsertAllowGlobParams) error {
+	_, err := q.db.ExecContext(ctx, insertAllowGlob, arg.MachineID, arg.Glob)
+	return err
+}
+
+const insertAllowIdentity = `-- name: InsertAllowIdentity :exec
+INSERT INTO machine_allow (machine_id, identity_id) VALUES (?1, ?2)
+`
+
+type InsertAllowIdentityParams struct {
+	MachineID  int64
+	IdentityID sql.NullInt64
+}
+
+func (q *Queries) InsertAllowIdentity(ctx context.Context, arg InsertAllowIdentityParams) error {
+	_, err := q.db.ExecContext(ctx, insertAllowIdentity, arg.MachineID, arg.IdentityID)
+	return err
+}
+
 const insertBootstrapLink = `-- name: InsertBootstrapLink :exec
 
 INSERT INTO bootstrap_links (token_hash, created_at, expires_at)
@@ -197,6 +666,78 @@ func (q *Queries) InsertDevice(ctx context.Context, arg InsertDeviceParams) (int
 		arg.CreatedAt,
 		arg.ExpiresAt,
 		arg.AbsoluteExpiresAt,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const insertMachine = `-- name: InsertMachine :one
+
+INSERT INTO machines (name, key_hash, key_enc, key_dek_id, key_version, key_hint, scopes, allow_mode, approved_by, created_at, key_created_at)
+VALUES (?1, ?2, ?3, 1, 1, ?4, ?5, ?6, ?7, ?8, ?8)
+RETURNING id
+`
+
+type InsertMachineParams struct {
+	Name       string
+	KeyHash    []byte
+	KeyEnc     []byte
+	KeyHint    string
+	Scopes     int64
+	AllowMode  string
+	ApprovedBy int64
+	CreatedAt  int64
+}
+
+// ===== machines =====
+func (q *Queries) InsertMachine(ctx context.Context, arg InsertMachineParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, insertMachine,
+		arg.Name,
+		arg.KeyHash,
+		arg.KeyEnc,
+		arg.KeyHint,
+		arg.Scopes,
+		arg.AllowMode,
+		arg.ApprovedBy,
+		arg.CreatedAt,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const insertMachineRequest = `-- name: InsertMachineRequest :one
+
+INSERT INTO machine_requests (device_code_hash, user_code, requested_name, host_info, source, source_node, created_at, expires_at, poll_interval_ms)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+RETURNING id
+`
+
+type InsertMachineRequestParams struct {
+	DeviceCodeHash []byte
+	UserCode       string
+	RequestedName  string
+	HostInfo       sql.NullString
+	Source         string
+	SourceNode     sql.NullString
+	CreatedAt      int64
+	ExpiresAt      int64
+	PollIntervalMs int64
+}
+
+// ===== device flow (machine requests) =====
+func (q *Queries) InsertMachineRequest(ctx context.Context, arg InsertMachineRequestParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, insertMachineRequest,
+		arg.DeviceCodeHash,
+		arg.UserCode,
+		arg.RequestedName,
+		arg.HostInfo,
+		arg.Source,
+		arg.SourceNode,
+		arg.CreatedAt,
+		arg.ExpiresAt,
+		arg.PollIntervalMs,
 	)
 	var id int64
 	err := row.Scan(&id)
@@ -266,6 +807,41 @@ func (q *Queries) InsertRecoveryCode(ctx context.Context, arg InsertRecoveryCode
 	return err
 }
 
+const insertSession = `-- name: InsertSession :one
+
+INSERT INTO sessions (identity_id, machine_id, token_hash, client_id, label, scopes, created_at, last_seen_at, expires_at)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?8)
+RETURNING id
+`
+
+type InsertSessionParams struct {
+	IdentityID int64
+	MachineID  int64
+	TokenHash  []byte
+	ClientID   string
+	Label      string
+	Scopes     int64
+	Now        int64
+	ExpiresAt  int64
+}
+
+// ===== sessions (leases) =====
+func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, insertSession,
+		arg.IdentityID,
+		arg.MachineID,
+		arg.TokenHash,
+		arg.ClientID,
+		arg.Label,
+		arg.Scopes,
+		arg.Now,
+		arg.ExpiresAt,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
 const insertStepUp = `-- name: InsertStepUp :one
 
 INSERT INTO step_ups (device_id, passkey_id, action, target_id, created_at, expires_at)
@@ -295,6 +871,53 @@ func (q *Queries) InsertStepUp(ctx context.Context, arg InsertStepUpParams) (int
 	var id int64
 	err := row.Scan(&id)
 	return id, err
+}
+
+const listActiveMachines = `-- name: ListActiveMachines :many
+SELECT m.id, m.name, m.key_hint, m.scopes, m.allow_mode, m.last_used_at,
+  (SELECT COUNT(*) FROM sessions s WHERE s.machine_id = m.id AND s.ended_at IS NULL AND s.expires_at > ?1) AS live_sessions
+FROM machines m WHERE m.revoked_at IS NULL ORDER BY m.id
+`
+
+type ListActiveMachinesRow struct {
+	ID           int64
+	Name         string
+	KeyHint      string
+	Scopes       int64
+	AllowMode    string
+	LastUsedAt   sql.NullInt64
+	LiveSessions int64
+}
+
+func (q *Queries) ListActiveMachines(ctx context.Context, now int64) ([]ListActiveMachinesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listActiveMachines, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListActiveMachinesRow
+	for rows.Next() {
+		var i ListActiveMachinesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.KeyHint,
+			&i.Scopes,
+			&i.AllowMode,
+			&i.LastUsedAt,
+			&i.LiveSessions,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listActivePasskeys = `-- name: ListActivePasskeys :many
@@ -403,6 +1026,211 @@ func (q *Queries) ListDevices(ctx context.Context, arg ListDevicesParams) ([]Lis
 	return items, nil
 }
 
+const listMachineAllow = `-- name: ListMachineAllow :many
+SELECT a.machine_id, a.identity_id, a.glob
+FROM machine_allow a JOIN machines m ON m.id = a.machine_id WHERE m.revoked_at IS NULL ORDER BY a.id
+`
+
+type ListMachineAllowRow struct {
+	MachineID  int64
+	IdentityID sql.NullInt64
+	Glob       sql.NullString
+}
+
+func (q *Queries) ListMachineAllow(ctx context.Context) ([]ListMachineAllowRow, error) {
+	rows, err := q.db.QueryContext(ctx, listMachineAllow)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListMachineAllowRow
+	for rows.Next() {
+		var i ListMachineAllowRow
+		if err := rows.Scan(&i.MachineID, &i.IdentityID, &i.Glob); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMachineNames = `-- name: ListMachineNames :many
+SELECT id, name FROM machines
+`
+
+type ListMachineNamesRow struct {
+	ID   int64
+	Name string
+}
+
+func (q *Queries) ListMachineNames(ctx context.Context) ([]ListMachineNamesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listMachineNames)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListMachineNamesRow
+	for rows.Next() {
+		var i ListMachineNamesRow
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPendingRequests = `-- name: ListPendingRequests :many
+SELECT id, user_code, requested_name, host_info, source, source_node, created_at, expires_at
+FROM machine_requests WHERE state = 'pending' AND expires_at > ?1 ORDER BY created_at, id
+`
+
+type ListPendingRequestsRow struct {
+	ID            int64
+	UserCode      string
+	RequestedName string
+	HostInfo      sql.NullString
+	Source        string
+	SourceNode    sql.NullString
+	CreatedAt     int64
+	ExpiresAt     int64
+}
+
+func (q *Queries) ListPendingRequests(ctx context.Context, now int64) ([]ListPendingRequestsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPendingRequests, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPendingRequestsRow
+	for rows.Next() {
+		var i ListPendingRequestsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserCode,
+			&i.RequestedName,
+			&i.HostInfo,
+			&i.Source,
+			&i.SourceNode,
+			&i.CreatedAt,
+			&i.ExpiresAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSessions = `-- name: ListSessions :many
+SELECT s.id, s.identity_id, s.client_id, s.label, s.last_seen_at, s.expires_at, s.ended_at, s.end_reason, m.name AS machine_name
+FROM sessions s JOIN machines m ON m.id = s.machine_id ORDER BY s.id DESC LIMIT ?1
+`
+
+type ListSessionsRow struct {
+	ID          int64
+	IdentityID  int64
+	ClientID    string
+	Label       string
+	LastSeenAt  int64
+	ExpiresAt   int64
+	EndedAt     sql.NullInt64
+	EndReason   sql.NullString
+	MachineName string
+}
+
+func (q *Queries) ListSessions(ctx context.Context, maxRows int64) ([]ListSessionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listSessions, maxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSessionsRow
+	for rows.Next() {
+		var i ListSessionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.IdentityID,
+			&i.ClientID,
+			&i.Label,
+			&i.LastSeenAt,
+			&i.ExpiresAt,
+			&i.EndedAt,
+			&i.EndReason,
+			&i.MachineName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const liveSessionIdentitiesOnMachine = `-- name: LiveSessionIdentitiesOnMachine :many
+SELECT DISTINCT identity_id FROM sessions WHERE machine_id = ?1 AND ended_at IS NULL AND expires_at > ?2
+`
+
+type LiveSessionIdentitiesOnMachineParams struct {
+	MachineID int64
+	Now       int64
+}
+
+func (q *Queries) LiveSessionIdentitiesOnMachine(ctx context.Context, arg LiveSessionIdentitiesOnMachineParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, liveSessionIdentitiesOnMachine, arg.MachineID, arg.Now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var identity_id int64
+		if err := rows.Scan(&identity_id); err != nil {
+			return nil, err
+		}
+		items = append(items, identity_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const markRequestDelivered = `-- name: MarkRequestDelivered :exec
+UPDATE machine_requests SET state = 'delivered' WHERE machine_id = ?1 AND state = 'approved'
+`
+
+func (q *Queries) MarkRequestDelivered(ctx context.Context, machineID sql.NullInt64) error {
+	_, err := q.db.ExecContext(ctx, markRequestDelivered, machineID)
+	return err
+}
+
 const maxRecoveryBatch = `-- name: MaxRecoveryBatch :one
 SELECT CAST(COALESCE(MAX(batch), 0) AS INTEGER) FROM recovery_codes WHERE human_id = ?1
 `
@@ -412,6 +1240,102 @@ func (q *Queries) MaxRecoveryBatch(ctx context.Context, humanID int64) (int64, e
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const mintsOfIdentity = `-- name: MintsOfIdentity :one
+SELECT COUNT(*) AS n, CAST(COALESCE(MIN(created_at), 0) AS INTEGER) AS oldest
+FROM sessions WHERE identity_id = ?1 AND created_at > ?2
+`
+
+type MintsOfIdentityParams struct {
+	IdentityID int64
+	Since      int64
+}
+
+type MintsOfIdentityRow struct {
+	N      int64
+	Oldest int64
+}
+
+func (q *Queries) MintsOfIdentity(ctx context.Context, arg MintsOfIdentityParams) (MintsOfIdentityRow, error) {
+	row := q.db.QueryRowContext(ctx, mintsOfIdentity, arg.IdentityID, arg.Since)
+	var i MintsOfIdentityRow
+	err := row.Scan(&i.N, &i.Oldest)
+	return i, err
+}
+
+const mintsOnMachine = `-- name: MintsOnMachine :one
+SELECT COUNT(*) AS n, CAST(COALESCE(MIN(created_at), 0) AS INTEGER) AS oldest
+FROM sessions WHERE machine_id = ?1 AND created_at > ?2
+`
+
+type MintsOnMachineParams struct {
+	MachineID int64
+	Since     int64
+}
+
+type MintsOnMachineRow struct {
+	N      int64
+	Oldest int64
+}
+
+func (q *Queries) MintsOnMachine(ctx context.Context, arg MintsOnMachineParams) (MintsOnMachineRow, error) {
+	row := q.db.QueryRowContext(ctx, mintsOnMachine, arg.MachineID, arg.Since)
+	var i MintsOnMachineRow
+	err := row.Scan(&i.N, &i.Oldest)
+	return i, err
+}
+
+const replaceMachineKey = `-- name: ReplaceMachineKey :execrows
+UPDATE machines SET key_hash = ?1, key_enc = ?2, key_version = ?3,
+  key_hint = ?4, key_created_at = ?5
+WHERE id = ?6 AND revoked_at IS NULL
+`
+
+type ReplaceMachineKeyParams struct {
+	KeyHash      []byte
+	KeyEnc       []byte
+	KeyVersion   int64
+	KeyHint      string
+	KeyCreatedAt int64
+	ID           int64
+}
+
+func (q *Queries) ReplaceMachineKey(ctx context.Context, arg ReplaceMachineKeyParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, replaceMachineKey,
+		arg.KeyHash,
+		arg.KeyEnc,
+		arg.KeyVersion,
+		arg.KeyHint,
+		arg.KeyCreatedAt,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const requestsFromSource = `-- name: RequestsFromSource :one
+SELECT COUNT(*) AS n, CAST(COALESCE(MIN(created_at), 0) AS INTEGER) AS oldest
+FROM machine_requests WHERE source = ?1 AND created_at > ?2
+`
+
+type RequestsFromSourceParams struct {
+	Source string
+	Since  int64
+}
+
+type RequestsFromSourceRow struct {
+	N      int64
+	Oldest int64
+}
+
+func (q *Queries) RequestsFromSource(ctx context.Context, arg RequestsFromSourceParams) (RequestsFromSourceRow, error) {
+	row := q.db.QueryRowContext(ctx, requestsFromSource, arg.Source, arg.Since)
+	var i RequestsFromSourceRow
+	err := row.Scan(&i.N, &i.Oldest)
+	return i, err
 }
 
 const revokeDevice = `-- name: RevokeDevice :execrows
@@ -454,6 +1378,23 @@ func (q *Queries) RevokeDevicesOfPasskey(ctx context.Context, arg RevokeDevicesO
 	return err
 }
 
+const revokeMachine = `-- name: RevokeMachine :execrows
+UPDATE machines SET revoked_at = ?1, revoke_reason = 'user' WHERE id = ?2 AND revoked_at IS NULL
+`
+
+type RevokeMachineParams struct {
+	RevokedAt sql.NullInt64
+	ID        int64
+}
+
+func (q *Queries) RevokeMachine(ctx context.Context, arg RevokeMachineParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, revokeMachine, arg.RevokedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const revokePasskey = `-- name: RevokePasskey :execrows
 UPDATE passkeys SET revoked_at = ?1
 WHERE id = ?2 AND human_id = ?3 AND revoked_at IS NULL
@@ -488,6 +1429,34 @@ func (q *Queries) RevokeUnusedRecoveryCodes(ctx context.Context, arg RevokeUnuse
 	return err
 }
 
+const sealMachineKey = `-- name: SealMachineKey :exec
+UPDATE machines SET key_enc = ?1 WHERE id = ?2
+`
+
+type SealMachineKeyParams struct {
+	KeyEnc []byte
+	ID     int64
+}
+
+func (q *Queries) SealMachineKey(ctx context.Context, arg SealMachineKeyParams) error {
+	_, err := q.db.ExecContext(ctx, sealMachineKey, arg.KeyEnc, arg.ID)
+	return err
+}
+
+const setMachineAllowMode = `-- name: SetMachineAllowMode :exec
+UPDATE machines SET allow_mode = ?1 WHERE id = ?2
+`
+
+type SetMachineAllowModeParams struct {
+	AllowMode string
+	ID        int64
+}
+
+func (q *Queries) SetMachineAllowMode(ctx context.Context, arg SetMachineAllowModeParams) error {
+	_, err := q.db.ExecContext(ctx, setMachineAllowMode, arg.AllowMode, arg.ID)
+	return err
+}
+
 const slideDevice = `-- name: SlideDevice :exec
 UPDATE devices SET last_seen_at = ?1, expires_at = ?2 WHERE id = ?3
 `
@@ -503,6 +1472,36 @@ func (q *Queries) SlideDevice(ctx context.Context, arg SlideDeviceParams) error 
 	return err
 }
 
+const slideSession = `-- name: SlideSession :exec
+UPDATE sessions SET last_seen_at = ?1, expires_at = ?2 WHERE id = ?3 AND ended_at IS NULL
+`
+
+type SlideSessionParams struct {
+	Now       int64
+	ExpiresAt int64
+	ID        int64
+}
+
+func (q *Queries) SlideSession(ctx context.Context, arg SlideSessionParams) error {
+	_, err := q.db.ExecContext(ctx, slideSession, arg.Now, arg.ExpiresAt, arg.ID)
+	return err
+}
+
+const touchMachine = `-- name: TouchMachine :exec
+UPDATE machines SET last_used_at = ?1, last_used_source = ?2 WHERE id = ?3
+`
+
+type TouchMachineParams struct {
+	LastUsedAt     sql.NullInt64
+	LastUsedSource sql.NullString
+	ID             int64
+}
+
+func (q *Queries) TouchMachine(ctx context.Context, arg TouchMachineParams) error {
+	_, err := q.db.ExecContext(ctx, touchMachine, arg.LastUsedAt, arg.LastUsedSource, arg.ID)
+	return err
+}
+
 const touchPasskey = `-- name: TouchPasskey :exec
 UPDATE passkeys SET sign_count = ?1, last_used_at = ?2 WHERE id = ?3
 `
@@ -515,6 +1514,22 @@ type TouchPasskeyParams struct {
 
 func (q *Queries) TouchPasskey(ctx context.Context, arg TouchPasskeyParams) error {
 	_, err := q.db.ExecContext(ctx, touchPasskey, arg.SignCount, arg.LastUsedAt, arg.ID)
+	return err
+}
+
+const touchRequestPoll = `-- name: TouchRequestPoll :exec
+UPDATE machine_requests SET last_poll_at = ?1, poll_count = poll_count + 1, poll_interval_ms = ?2
+WHERE id = ?3
+`
+
+type TouchRequestPollParams struct {
+	LastPollAt     sql.NullInt64
+	PollIntervalMs int64
+	ID             int64
+}
+
+func (q *Queries) TouchRequestPoll(ctx context.Context, arg TouchRequestPollParams) error {
+	_, err := q.db.ExecContext(ctx, touchRequestPoll, arg.LastPollAt, arg.PollIntervalMs, arg.ID)
 	return err
 }
 

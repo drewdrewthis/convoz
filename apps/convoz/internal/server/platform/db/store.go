@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"runtime"
+	"strings"
 
 	"github.com/ncruces/go-sqlite3"
 	sqlite "github.com/ncruces/go-sqlite3/driver"
@@ -72,16 +73,25 @@ func ensureFile(path string) error {
 	return f.Close()
 }
 
-// fileURI builds a SQLite URI for an absolute path on the adiantum VFS.
-func fileURI(path string) string {
-	return (&url.URL{Scheme: "file", Path: path}).String() + "?vfs=adiantum"
+// fileURI builds a SQLite URI for an absolute path on the VFS vfsName names (the default VFS when it is empty).
+// params is further "key=value" pairs for the query.
+func fileURI(path string, params ...string) string {
+	if vfs := vfsName(); vfs != "" {
+		params = append([]string{"vfs=" + vfs}, params...)
+	}
+	uri := (&url.URL{Scheme: "file", Path: path}).String()
+	if len(params) == 0 {
+		return uri
+	}
+	return uri + "?" + strings.Join(params, "&")
 }
 
 func openPool(path string, key *secret, writer bool) (*sql.DB, error) {
-	dsn := fileURI(path)
+	var params []string
 	if writer {
-		dsn += "&_txlock=immediate" // reads and writes in one tx must not upgrade a read lock
+		params = append(params, "_txlock=immediate") // reads and writes in one tx must not upgrade a read lock
 	}
+	dsn := fileURI(path, params...)
 	pool, err := sqlite.Open(dsn, key.initConn(writer))
 	if err != nil {
 		return nil, key.scrub(fmt.Errorf("open database: %w", err))
@@ -194,7 +204,7 @@ func (w *Writer) Backup(ctx context.Context, path string) error {
 	}
 	defer conn.Close()
 	err = conn.Raw(func(driverConn any) error {
-		return driverConn.(sqlite.Conn).Raw().Backup("main", fileURI(path)+"&hexkey="+w.key.hex)
+		return driverConn.(sqlite.Conn).Raw().Backup("main", fileURI(path, "hexkey="+w.key.hex))
 	})
 	if err != nil {
 		return w.key.scrub(fmt.Errorf("backup: %w", err))
@@ -217,3 +227,9 @@ func (r *Reader) Read(ctx context.Context, fn func(q *Queries) error) error {
 
 // SQL exposes the pool for plain SQL reads.
 func (r *Reader) SQL() *sql.DB { return r.sql }
+
+// IsUniqueViolation reports whether err is SQLite refusing a duplicate in a unique index.
+func IsUniqueViolation(err error) bool { return errors.Is(err, sqlite3.CONSTRAINT_UNIQUE) }
+
+// IsTriggerAbort reports whether err is a trigger raising ABORT (the schema's own rules, e.g. I-37).
+func IsTriggerAbort(err error) bool { return errors.Is(err, sqlite3.CONSTRAINT_TRIGGER) }

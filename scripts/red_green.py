@@ -16,6 +16,8 @@ Prints "test-only commit: <sha>", then "red: <title>" and "green: <title>" per t
 "FAIL: <title>: passed on the test-only commit" | "FAIL: <title>: failed at head" | "FAIL: no test-only commit".
 A title is "failed" only if it ran and Playwright reported it unexpected. A build or install failure,
 a crash, a missing report or a missing/skipped title prints "ERROR: ..." and exits 3 (never "red").
+A "flaky" title (it failed, then passed on a retry) counts as an error too: only "expected" is green and only
+"unexpected" is red, so a flake can neither prove a slice nor fail it.
 Exit 0 when the slice is proven (or empty), 1 on any FAIL.
 """
 import importlib.util
