@@ -105,6 +105,13 @@ func (s *Server) renewSession(w http.ResponseWriter, r *http.Request, c *call) {
 	writeJSON(w, http.StatusOK, map[string]any{"expires_at": expires})
 }
 
+// publishReleased tells the feeds that the agents of released claims stopped working. It runs after the commit.
+func (s *Server) publishReleased(ctx context.Context, released []inbox.Released) {
+	for _, r := range released {
+		s.publishWorking(ctx, r.Identity, r.Conversation, false, 0)
+	}
+}
+
 func (s *Server) endSession(w http.ResponseWriter, r *http.Request, c *call) {
 	now := s.Clock.Now()
 	var released []int64

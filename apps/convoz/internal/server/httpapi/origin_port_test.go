@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/dbtest"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -29,7 +30,7 @@ func TestCSRFComparesToTheOriginWithItsPort(t *testing.T) {
 }
 
 func TestBootstrapLinkCarriesThePort(t *testing.T) {
-	h := NewAdminHandler(migratedStore(t), platform.SystemClock{}, "https://convoz.testonly.ts.net:8473", nil)
+	h := NewAdminHandler(dbtest.Store(t), platform.SystemClock{}, "https://convoz.testonly.ts.net:8473", nil)
 	r := httptest.NewRequest("POST", "/admin/bootstrap-link", strings.NewReader("{}"))
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()

@@ -177,18 +177,19 @@ func EndLease(ctx context.Context, d pdb.DBTX, sessionID int64, reason string, n
 	return n > 0, err
 }
 
-// EndMachineSessions ends every open lease of a machine (key regenerated, machine revoked).
-func EndMachineSessions(ctx context.Context, d pdb.DBTX, machineID int64, reason string, now time.Time) error {
+// EndMachineSessions ends every open lease of a machine (key regenerated, machine revoked) and returns their ids,
+// so the caller can let go of what those leases held.
+func EndMachineSessions(ctx context.Context, d pdb.DBTX, machineID int64, reason string, now time.Time) ([]int64, error) {
 	return db.New(d).EndSessionsOfMachine(ctx, db.EndSessionsOfMachineParams{Now: sql.NullInt64{Int64: now.UnixMilli(), Valid: true}, Reason: sql.NullString{String: reason, Valid: true}, MachineID: machineID})
 }
 
-// EndIdentitySessions ends every open lease of an identity on every machine (the identity was disabled).
-func EndIdentitySessions(ctx context.Context, d pdb.DBTX, identityID int64, reason string, now time.Time) error {
+// EndIdentitySessions ends every open lease of an identity on every machine (the identity was disabled); it returns their ids.
+func EndIdentitySessions(ctx context.Context, d pdb.DBTX, identityID int64, reason string, now time.Time) ([]int64, error) {
 	return db.New(d).EndSessionsOfIdentity(ctx, db.EndSessionsOfIdentityParams{Now: sql.NullInt64{Int64: now.UnixMilli(), Valid: true}, Reason: sql.NullString{String: reason, Valid: true}, IdentityID: identityID})
 }
 
-// EndMachineIdentitySessions ends the open leases of one identity on one machine only (it left the allow-list).
-func EndMachineIdentitySessions(ctx context.Context, d pdb.DBTX, machineID, identityID int64, reason string, now time.Time) error {
+// EndMachineIdentitySessions ends the open leases of one identity on one machine only (it left the allow-list); it returns their ids.
+func EndMachineIdentitySessions(ctx context.Context, d pdb.DBTX, machineID, identityID int64, reason string, now time.Time) ([]int64, error) {
 	return db.New(d).EndSessionsOfIdentityOnMachine(ctx, db.EndSessionsOfIdentityOnMachineParams{Now: sql.NullInt64{Int64: now.UnixMilli(), Valid: true}, Reason: sql.NullString{String: reason, Valid: true}, IdentityID: identityID, MachineID: machineID})
 }
 

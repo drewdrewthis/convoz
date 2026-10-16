@@ -33,38 +33,40 @@ func RevealMachineKey(ctx context.Context, d pdb.DBTX, box *KeyBox, j JournalPor
 	return key, j.Event(ctx, d, now, "machine.key_revealed.v1", map[string]any{"machine_id": id})
 }
 
-// RegenerateMachineKey spends a machine.regenerate step-up and replaces the key; its leases end at once.
-func RegenerateMachineKey(ctx context.Context, d pdb.DBTX, box *KeyBox, j JournalPort, in MachineAction, now time.Time) (key string, version int64, err error) {
+// RegenerateMachineKey spends a machine.regenerate step-up and replaces the key; its leases end at once and
+// their ids come back as ended.
+func RegenerateMachineKey(ctx context.Context, d pdb.DBTX, box *KeyBox, j JournalPort, in MachineAction, now time.Time) (key string, version int64, ended []int64, err error) {
 	id := in.MachineID
 	if err = ConsumeStepUp(ctx, d, in.StepUpID, in.DeviceID, "machine.regenerate", &id, now); err != nil {
-		return "", 0, err
+		return "", 0, nil, err
 	}
-	if key, version, err = RegenerateKey(ctx, d, box, id, now); err != nil {
-		return "", 0, err
+	if key, version, ended, err = RegenerateKey(ctx, d, box, id, now); err != nil {
+		return "", 0, nil, err
 	}
 	if err = j.Audit(ctx, d, now, AuditEntry{Actor: in.Human.ID, Device: in.DeviceID, Machine: id, Action: "machine.key_regenerated", TargetKind: "machine", TargetID: id, Detail: map[string]any{"key_version": version}}); err != nil {
-		return "", 0, err
+		return "", 0, nil, err
 	}
-	return key, version, j.Event(ctx, d, now, "machine.key_regenerated.v1", map[string]any{"machine_id": id, "key_version": version})
+	return key, version, ended, j.Event(ctx, d, now, "machine.key_regenerated.v1", map[string]any{"machine_id": id, "key_version": version})
 }
 
 // RevokeMachineByOwner spends a machine.revoke step-up and ends the machine; ErrNoMachine when it was not active.
-func RevokeMachineByOwner(ctx context.Context, d pdb.DBTX, j JournalPort, in MachineAction, now time.Time) error {
+// It returns the ids of the leases it ended.
+func RevokeMachineByOwner(ctx context.Context, d pdb.DBTX, j JournalPort, in MachineAction, now time.Time) ([]int64, error) {
 	id := in.MachineID
 	if err := ConsumeStepUp(ctx, d, in.StepUpID, in.DeviceID, "machine.revoke", &id, now); err != nil {
-		return err
+		return nil, err
 	}
-	revoked, err := RevokeMachine(ctx, d, id, now)
+	revoked, ended, err := RevokeMachine(ctx, d, id, now)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !revoked {
-		return ErrNoMachine
+		return nil, ErrNoMachine
 	}
 	if err := j.Audit(ctx, d, now, AuditEntry{Actor: in.Human.ID, Device: in.DeviceID, Machine: id, Action: "machine.revoked", TargetKind: "machine", TargetID: id}); err != nil {
-		return err
+		return nil, err
 	}
-	return j.Event(ctx, d, now, "machine.revoked.v1", map[string]any{"machine_id": id})
+	return ended, j.Event(ctx, d, now, "machine.revoked.v1", map[string]any{"machine_id": id})
 }
 
 // DenyMachineRequest denies one pending request and writes the audit line; ok is false when it was not pending.

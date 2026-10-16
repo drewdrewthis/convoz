@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/dbtest"
 	"io"
 	"log"
 	"net/http"
@@ -34,7 +35,7 @@ type streamRig struct {
 // openRig signs in the owner; role is the role the stream treats the caller as ("owner" sees every conversation).
 func openRig(t *testing.T, role string) *streamRig {
 	t.Helper()
-	store := migratedStore(t)
+	store := dbtest.Store(t)
 	now := platform.SystemClock{}.Now()
 	boot, err := runBootstrap(store, bootstrapPorts, mintLink(t, store, now), "one", now)
 	if err != nil {
@@ -87,7 +88,7 @@ func openRig(t *testing.T, role string) *streamRig {
 
 func (r *streamRig) inTx(t *testing.T, fn func(ctx context.Context, d pdb.DBTX) error) {
 	t.Helper()
-	if err := inTx(t, r.s.Store, fn); err != nil {
+	if err := dbtest.TxErr(t, r.s.Store, fn); err != nil {
 		t.Fatal(err)
 	}
 }

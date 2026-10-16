@@ -277,33 +277,33 @@ var ErrLastPasskey = errors.New("another passkey must be added first")
 // ErrNoPasskey means the passkey does not exist or is already removed.
 var ErrNoPasskey = errors.New("passkey not found")
 
-// RemovePasskey revokes a passkey and signs out the devices that came from it.
+// RemovePasskey revokes a passkey and signs out the devices that came from it; it returns their ids.
 // The last active passkey is refused.
-func RemovePasskey(ctx context.Context, d pdb.DBTX, humanID, passkeyID int64, now time.Time) error {
+func RemovePasskey(ctx context.Context, d pdb.DBTX, humanID, passkeyID int64, now time.Time) ([]int64, error) {
 	q := db.New(d)
 	n, err := q.CountActivePasskeys(ctx, humanID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if n <= 1 {
 		// Distinguish "no such passkey" from "the only one" so a wrong id is not told "last passkey".
 		keys, err := ListPasskeys(ctx, d, humanID)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		for _, k := range keys {
 			if k.ID == passkeyID {
-				return ErrLastPasskey
+				return nil, ErrLastPasskey
 			}
 		}
-		return ErrNoPasskey
+		return nil, ErrNoPasskey
 	}
 	rows, err := q.RevokePasskey(ctx, db.RevokePasskeyParams{RevokedAt: sql.NullInt64{Int64: now.UnixMilli(), Valid: true}, ID: passkeyID, HumanID: humanID})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if rows == 0 {
-		return ErrNoPasskey
+		return nil, ErrNoPasskey
 	}
 	return q.RevokeDevicesOfPasskey(ctx, db.RevokeDevicesOfPasskeyParams{RevokedAt: sql.NullInt64{Int64: now.UnixMilli(), Valid: true}, PasskeyID: sql.NullInt64{Int64: passkeyID, Valid: true}})
 }

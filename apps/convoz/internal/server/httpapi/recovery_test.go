@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/dbtest"
 	"testing"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 // A recovery device lives 15 minutes and is revoked by its one passkey registration; that registration starts a
 // full device session for the new passkey, which cannot remove others or regenerate codes until the 24 h window ends.
 func TestRecoveryDeviceLifeAndItsPasskey(t *testing.T) {
-	s := migratedStore(t)
+	s := dbtest.Store(t)
 	now := platform.SystemClock{}.Now()
 	owner, err := runBootstrap(s, bootstrapPorts, mintLink(t, s, now), "first", now)
 	if err != nil {
@@ -122,7 +123,7 @@ func authzLimited(h auth.Human, deviceID int64) authz.Principal {
 
 // Two verifies racing on one recovery device must not both add a passkey: the second finds the device ended.
 func TestRecoveryDeviceRegistersOnlyOnePasskey(t *testing.T) {
-	s := migratedStore(t)
+	s := dbtest.Store(t)
 	now := platform.SystemClock{}.Now()
 	owner, err := runBootstrap(s, bootstrapPorts, mintLink(t, s, now), "first", now)
 	if err != nil {

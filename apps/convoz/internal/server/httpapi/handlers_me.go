@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"slices"
 	"strconv"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/audit"
@@ -177,22 +176,9 @@ func (s *Server) deletePasskey(w http.ResponseWriter, r *http.Request, c *call) 
 		if err := auth.ConsumeStepUp(ctx, d, c.stepUp, c.dev.ID, "passkey.remove", &id, now); err != nil {
 			return err
 		}
-		before, err := auth.ListDevices(ctx, d, c.human.ID, now)
-		if err != nil {
+		var err error
+		if signedOut, err = auth.RemovePasskey(ctx, d, c.human.ID, id, now); err != nil {
 			return err
-		}
-		if err := auth.RemovePasskey(ctx, d, c.human.ID, id, now); err != nil {
-			return err
-		}
-		after, err := auth.ListDevices(ctx, d, c.human.ID, now)
-		if err != nil {
-			return err
-		}
-		signedOut = signedOut[:0]
-		for _, b := range before {
-			if !slices.ContainsFunc(after, func(a auth.DeviceInfo) bool { return a.ID == b.ID }) {
-				signedOut = append(signedOut, b.ID)
-			}
 		}
 		if err := audit.Write(ctx, d, now, audit.Entry{Actor: c.human.ID, Device: c.dev.ID, Action: "passkey.removed", TargetKind: "passkey", TargetID: id}); err != nil {
 			return err

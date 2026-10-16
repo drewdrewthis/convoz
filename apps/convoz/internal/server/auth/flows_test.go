@@ -5,37 +5,22 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/dbtest"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
 
 var flowNow = time.Unix(1_800_000_000, 0)
-
-func migratedStore(t *testing.T) *pdb.Store {
-	t.Helper()
-	key := append([]byte("TESTONLY"), make([]byte, 24)...)
-	s, err := pdb.Open(filepath.Join(t.TempDir(), "t.db"), key)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = s.Close() })
-	if err := platform.Migrate(context.Background(), s, platform.MigrateOptions{DataDir: t.TempDir(), Clock: platform.SystemClock{}}); err != nil {
-		t.Fatal(err)
-	}
-	return s
-}
 
 // ownerRow is the minimum a flow needs from the identity module: a human identity to approve and deny as.
 // The test writes it directly so auth never imports identity.
 func ownerRow(t *testing.T, s *pdb.Store) Human {
 	t.Helper()
 	var h Human
-	if err := inTx(t, s, func(ctx context.Context, d pdb.DBTX) error {
+	if err := dbtest.TxErr(t, s, func(ctx context.Context, d pdb.DBTX) error {
 		res, err := d.ExecContext(ctx, `INSERT INTO identities (kind, handle, display_name, display_skeleton, avatar_letter, avatar_palette, created_at)
 			VALUES ('human', 'drew', 'Drew', 'drew', 'D', 0, ?)`, flowNow.UnixMilli())
 		if err != nil {
@@ -113,17 +98,10 @@ func (fakeJournal) Event(context.Context, pdb.DBTX, time.Time, string, map[strin
 	return nil
 }
 
-func inTx(t *testing.T, s *pdb.Store, fn func(ctx context.Context, d pdb.DBTX) error) error {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	return s.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) error { return fn(ctx, tx.DBTX()) })
-}
-
 func request(t *testing.T, s *pdb.Store, source string, now time.Time) (DeviceCode, error) {
 	t.Helper()
 	var out DeviceCode
-	err := inTx(t, s, func(ctx context.Context, d pdb.DBTX) error {
+	err := dbtest.TxErr(t, s, func(ctx context.Context, d pdb.DBTX) error {
 		var err error
 		out, err = RequestDeviceCode(ctx, d, DeviceRequest{Name: "box-2", Source: source, Interval: 5 * time.Second}, NewUserCode, now)
 		return err
@@ -134,7 +112,7 @@ func request(t *testing.T, s *pdb.Store, source string, now time.Time) (DeviceCo
 func poll(t *testing.T, s *pdb.Store, code string, now time.Time) PollOutcome {
 	t.Helper()
 	var res PollResult
-	if err := inTx(t, s, func(ctx context.Context, d pdb.DBTX) error {
+	if err := dbtest.TxErr(t, s, func(ctx context.Context, d pdb.DBTX) error {
 		var err error
 		res, err = PollDeviceCode(ctx, d, nil, code, now)
 		return err
@@ -145,7 +123,7 @@ func poll(t *testing.T, s *pdb.Store, code string, now time.Time) PollOutcome {
 }
 
 func TestDenialIsToldOnceEvenWhenThePollSharesItsMillisecond(t *testing.T) {
-	s := migratedStore(t)
+	s := dbtest.Store(t)
 	owner := ownerRow(t, s)
 	code, err := request(t, s, "10.0.0.1", flowNow)
 	if err != nil {
@@ -154,7 +132,7 @@ func TestDenialIsToldOnceEvenWhenThePollSharesItsMillisecond(t *testing.T) {
 	if got := poll(t, s, code.DeviceCode, flowNow); got != PollPending {
 		t.Fatalf("first poll: %v", got)
 	}
-	if err := inTx(t, s, func(ctx context.Context, d pdb.DBTX) error {
+	if err := dbtest.TxErr(t, s, func(ctx context.Context, d pdb.DBTX) error {
 		_, err := DenyAllRequests(ctx, d, owner.ID, flowNow)
 		return err
 	}); err != nil {
@@ -169,7 +147,7 @@ func TestDenialIsToldOnceEvenWhenThePollSharesItsMillisecond(t *testing.T) {
 }
 
 func TestPendingCapsPerSourceAndOverall(t *testing.T) {
-	s := migratedStore(t)
+	s := dbtest.Store(t)
 	for i := 0; i < MaxPendingRequests; i++ {
 		if _, err := request(t, s, "10.0.0.1", flowNow); err != nil {
 			t.Fatalf("request %d: %v", i, err)
@@ -192,7 +170,7 @@ func TestPendingCapsPerSourceAndOverall(t *testing.T) {
 }
 
 func TestDeviceCodeLiveReadsOnlyForKnownCodes(t *testing.T) {
-	s := migratedStore(t)
+	s := dbtest.Store(t)
 	code, err := request(t, s, "10.0.0.1", flowNow)
 	if err != nil {
 		t.Fatal(err)
@@ -223,7 +201,7 @@ func machineWithKey(t *testing.T, s *pdb.Store, owner Human, name string, scopes
 		t.Fatal(err)
 	}
 	var key string
-	if err := inTx(t, s, func(ctx context.Context, d pdb.DBTX) error {
+	if err := dbtest.TxErr(t, s, func(ctx context.Context, d pdb.DBTX) error {
 		id, err := CreateMachine(ctx, d, box, NewMachine{Name: name, Scopes: scopes, Allow: Allow{Mode: AllowAny}, ApprovedBy: owner.ID}, flowNow)
 		if err != nil {
 			return err
@@ -239,7 +217,7 @@ func machineWithKey(t *testing.T, s *pdb.Store, owner Human, name string, scopes
 func mint(t *testing.T, s *pdb.Store, ports Ports, in MintRequest) (MintedSession, error) {
 	t.Helper()
 	var out MintedSession
-	err := inTx(t, s, func(ctx context.Context, d pdb.DBTX) error {
+	err := dbtest.TxErr(t, s, func(ctx context.Context, d pdb.DBTX) error {
 		var err error
 		out, err = MintSession(ctx, d, ports, in, flowNow)
 		return err
@@ -248,7 +226,7 @@ func mint(t *testing.T, s *pdb.Store, ports Ports, in MintRequest) (MintedSessio
 }
 
 func TestMintSessionRules(t *testing.T) {
-	s := migratedStore(t)
+	s := dbtest.Store(t)
 	owner := ownerRow(t, s)
 	ports := Ports{Agents: newFakeAgents(), Journal: fakeJournal{}}
 	plain := machineWithKey(t, s, owner, "box-1", DefaultScopes)

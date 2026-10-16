@@ -54,9 +54,10 @@ UPDATE devices SET last_seen_at = sqlc.arg(last_seen_at), expires_at = sqlc.arg(
 UPDATE devices SET revoked_at = sqlc.arg(revoked_at), revoke_reason = sqlc.arg(reason)
 WHERE id = sqlc.arg(id) AND human_id = sqlc.arg(human_id) AND revoked_at IS NULL;
 
--- name: RevokeDevicesOfPasskey :exec
+-- name: RevokeDevicesOfPasskey :many
 UPDATE devices SET revoked_at = sqlc.arg(revoked_at), revoke_reason = 'passkey_revoked'
-WHERE passkey_id = sqlc.arg(passkey_id) AND revoked_at IS NULL;
+WHERE passkey_id = sqlc.arg(passkey_id) AND revoked_at IS NULL
+RETURNING id;
 
 -- name: ListDevices :many
 SELECT id, label, limited, created_at, last_seen_at, expires_at
@@ -242,15 +243,18 @@ UPDATE sessions SET last_seen_at = sqlc.arg(now), expires_at = sqlc.arg(expires_
 -- name: EndSession :execrows
 UPDATE sessions SET ended_at = sqlc.arg(now), end_reason = sqlc.arg(reason) WHERE id = sqlc.arg(id) AND ended_at IS NULL;
 
--- name: EndSessionsOfMachine :exec
-UPDATE sessions SET ended_at = sqlc.arg(now), end_reason = sqlc.arg(reason) WHERE machine_id = sqlc.arg(machine_id) AND ended_at IS NULL;
+-- name: EndSessionsOfMachine :many
+UPDATE sessions SET ended_at = sqlc.arg(now), end_reason = sqlc.arg(reason) WHERE machine_id = sqlc.arg(machine_id) AND ended_at IS NULL
+RETURNING id;
 
--- name: EndSessionsOfIdentity :exec
-UPDATE sessions SET ended_at = sqlc.arg(now), end_reason = sqlc.arg(reason) WHERE identity_id = sqlc.arg(identity_id) AND ended_at IS NULL;
+-- name: EndSessionsOfIdentity :many
+UPDATE sessions SET ended_at = sqlc.arg(now), end_reason = sqlc.arg(reason) WHERE identity_id = sqlc.arg(identity_id) AND ended_at IS NULL
+RETURNING id;
 
--- name: EndSessionsOfIdentityOnMachine :exec
+-- name: EndSessionsOfIdentityOnMachine :many
 UPDATE sessions SET ended_at = sqlc.arg(now), end_reason = sqlc.arg(reason)
-WHERE identity_id = sqlc.arg(identity_id) AND machine_id = sqlc.arg(machine_id) AND ended_at IS NULL;
+WHERE identity_id = sqlc.arg(identity_id) AND machine_id = sqlc.arg(machine_id) AND ended_at IS NULL
+RETURNING id;
 
 -- name: LiveSessionIdentitiesOnMachine :many
 SELECT DISTINCT identity_id FROM sessions WHERE machine_id = sqlc.arg(machine_id) AND ended_at IS NULL AND expires_at > sqlc.arg(now);

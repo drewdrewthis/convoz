@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/dbtest"
 	"testing"
 	"time"
 
@@ -58,7 +59,7 @@ func (failingJournal) Event(context.Context, pdb.DBTX, time.Time, string, map[st
 }
 
 func TestBootstrapMakesTheOwnerOnce(t *testing.T) {
-	s := migratedStore(t)
+	s := dbtest.Store(t)
 	now := platform.SystemClock{}.Now()
 
 	first, err := runBootstrap(s, bootstrapPorts, mintLink(t, s, now), "one", now)
@@ -83,7 +84,7 @@ func TestBootstrapMakesTheOwnerOnce(t *testing.T) {
 }
 
 func TestBootstrapRefusesUsedUnknownAndExpiredLinks(t *testing.T) {
-	s := migratedStore(t)
+	s := dbtest.Store(t)
 	now := platform.SystemClock{}.Now()
 	token := mintLink(t, s, now)
 	if _, err := runBootstrap(s, bootstrapPorts, token, "one", now); err != nil {
@@ -111,7 +112,7 @@ func TestBootstrapRefusesUsedUnknownAndExpiredLinks(t *testing.T) {
 }
 
 func TestBootstrapRollsBackWhenAPortFails(t *testing.T) {
-	s := migratedStore(t)
+	s := dbtest.Store(t)
 	now := platform.SystemClock{}.Now()
 	token := mintLink(t, s, now)
 	ports := auth.BootstrapPorts{Owners: ownerPort{}, Journal: failingJournal{}}

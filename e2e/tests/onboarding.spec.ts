@@ -211,9 +211,11 @@ scenario("A device session slides for 30 days and ends at 90", { tag: ["@browser
   await clock.advanceClock(2 * DAY);
   expect(await use()).toBe(401);
   // The page that is still open may notice the dead session first and redirect to /signin itself, which aborts this
-  // goto (ERR_ABORTED). Either navigation ends on /signin, so tolerate the abort and assert where the page lands.
+  // goto (ERR_ABORTED, or "interrupted by another navigation"). Either navigation ends on /signin, so tolerate the
+  // abort and assert where the page lands.
   await page.goto(`${srv.origin}/`).catch((err) => {
-    if (!String(err).includes("ERR_ABORTED")) throw err;
+    const msg = String(err);
+    if (!msg.includes("ERR_ABORTED") && !msg.includes("interrupted by another navigation")) throw err;
   });
   await expect(page).toHaveURL(/\/signin(\?|$)/);
   await expect(page.getByRole("heading", { name: "Sign in", exact: true })).toBeVisible();

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/dbtest"
 	"strings"
 	"testing"
 	"time"
@@ -36,7 +37,7 @@ func TestMarkupInHostInfoStaysUnderTheColumnLimit(t *testing.T) {
 // The one httpapi test through the real flowPorts: the identity lookup, creation and the per-machine count are
 // the ports' own queries, which the in-memory fakes in auth's tests cannot exercise.
 func TestMintThroughRealPortsCreatesAndCountsAgents(t *testing.T) {
-	s := migratedStore(t)
+	s := dbtest.Store(t)
 	now := time.Unix(1_800_000_000, 0)
 	var owner identity.Human
 	var key string

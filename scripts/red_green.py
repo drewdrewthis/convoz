@@ -16,12 +16,13 @@ Usage: python3 -I scripts/red_green.py <base> <head> [--runner PATH] [--scratch 
     specs/ are laid over <head>'s production tree in a scratch checkout. So a later commit that weakens a test
     cannot turn red into green. Limit: a scenario already bound at <base> whose steps change is not in the slice
     and is not re-proven.
-  - specs/red-green-exceptions.txt (read at <head>), one line each, blank lines and # comments ignored:
+  - specs/red-green-exceptions.txt, only the lines this PR ADDED (diff merge-base(<base>,<head>)..<head>; an older line is
+    ignored, so one PR's exception cannot excuse the next). One line each, blank lines and # comments ignored:
         <title at the test-only commit> | <reason>              skip that scenario in the overlay run
         <title at the test-only commit> | <title at head> | <reason>
                                                                  same, and red is taken from the old title, green from the new
-    Every exception is printed in the log. An exception whose old title is absent at the test-only commit, or whose
-    new title is not in the slice, is a FAIL.
+    Every exception is printed in the log. An exception whose old title is absent at the test-only commit, whose
+    new title is not in the slice, or (a skip line) whose title is not in the slice, is a FAIL.
   - --scratch DIR: parent for the checkouts (default: a fresh mkdtemp). Nothing in it is deleted.
 
 Prints "test-only commit: <sha>", then "red: <title>" and "green: <title>" per title. A break prints
@@ -210,6 +211,11 @@ def parse_exceptions(text):
     return out
 
 
+def added_lines(diff_text):
+    """The text of the lines a unified diff adds (no file headers)."""
+    return "\n".join(ln[1:] for ln in diff_text.splitlines() if ln.startswith("+") and not ln.startswith("+++"))
+
+
 def prove(titles, exceptions, titles_at_first, run_red, run_green, run_overlay):
     """(exit code, log lines). run_* take titles and return title -> passed|failed, or raise RunnerError."""
     out, bad = [], False
@@ -217,6 +223,9 @@ def prove(titles, exceptions, titles_at_first, run_red, run_green, run_overlay):
         out.append(f"exception: {old}" + (f" -> {new}" if new else "") + f" | {reason}")
         if old not in titles_at_first:
             out.append(f"FAIL: exception names a title absent at the test-only commit: {old}")
+            bad = True
+        if new is None and old not in titles:
+            out.append(f"FAIL: exception skips a title that is not in the slice: {old}")
             bad = True
         if new is not None and new not in titles:
             out.append(f"FAIL: exception renames to a title that is not in the slice: {new}")
@@ -318,6 +327,15 @@ def self_test():
     code, _ = prove(["new"], [("old", "other", "why")], {"old"}, failed, fake({}), fake({}))
     if code != 1:
         failures.append("rename to a title outside the slice fails")
+    code, log = prove(["b"], [("a", None, "why")], {"a", "b"}, fake({"a": "failed", "b": "failed"}), fake({}), fake({}))
+    if code != 1 or not any("not in the slice: a" in l for l in log):
+        failures.append("a skip line for a title outside the slice fails")
+    old_line = "-gone | old\n+++ b/specs/red-green-exceptions.txt\n"
+    diff = "--- a/specs/red-green-exceptions.txt\n+++ b/specs/red-green-exceptions.txt\n@@ -1,2 +1,3 @@\n kept | old line\n+new | added line\n"
+    if parse_exceptions(added_lines(diff)) != [("new", None, "added line")]:
+        failures.append("an old line that this PR did not add is ignored, an added line is applied")
+    if added_lines(old_line) != "":
+        failures.append("diff headers and removed lines are not exceptions")
     if parse_exceptions("# c\n\nA | r\nB | C | r2\n") != [("A", None, "r"), ("B", "C", "r2")]:
         failures.append("parse exceptions")
     for bad_line in ("only title", "A | | r", "A | B | C | D"):
@@ -361,7 +379,8 @@ def main(argv):
     print(f"test-only commit: {first}")
     head_sha = git("rev-parse", head).strip()
     try:
-        exceptions = parse_exceptions(git_show_or_empty(head_sha, EXCEPTIONS_PATH))
+        merge_base = git("merge-base", base, head_sha).strip()
+        exceptions = parse_exceptions(added_lines(git("diff", "--unified=0", merge_base, head_sha, "--", EXCEPTIONS_PATH)))
     except ValueError as err:
         print(f"FAIL: {err}")
         return 1
@@ -375,13 +394,6 @@ def main(argv):
         lambda ts: run_at(head_sha, ts, runner, scratch, tests_from=first))
     print("\n".join(log))
     return code
-
-
-def git_show_or_empty(sha, path):
-    """File content at `sha`, or "" when the file is not in that commit."""
-    if not git("ls-tree", "--name-only", sha, "--", path).strip():
-        return ""
-    return git("show", f"{sha}:{path}")
 
 
 if __name__ == "__main__":

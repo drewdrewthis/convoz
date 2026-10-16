@@ -147,50 +147,55 @@ type AllowChange struct {
 
 // ReplaceMachineAllow swaps a machine's allow-list inside the open transaction. It spends the machine.allow
 // step-up, ends the machine's leases for every identity the new list does not cover (the same identity keeps
-// working on other machines), and writes the audit line and the event.
-func ReplaceMachineAllow(ctx context.Context, d pdb.DBTX, p Ports, in AllowChange, now time.Time) (Machine, error) {
+// working on other machines), and writes the audit line and the event. The ids of the ended leases come back.
+func ReplaceMachineAllow(ctx context.Context, d pdb.DBTX, p Ports, in AllowChange, now time.Time) (Machine, []int64, error) {
 	id := in.MachineID
 	if err := ConsumeStepUp(ctx, d, in.StepUpID, in.DeviceID, "machine.allow", &id, now); err != nil {
-		return Machine{}, err
+		return Machine{}, nil, err
 	}
 	if _, err := MachineByID(ctx, d, id, now); err != nil {
-		return Machine{}, err
+		return Machine{}, nil, err
 	}
 	allow, err := ResolveAllow(ctx, d, p.Agents, in.Allow)
 	if err != nil {
-		return Machine{}, err
+		return Machine{}, nil, err
 	}
-	if err := endUncovered(ctx, d, p.Agents, id, allow, now); err != nil {
-		return Machine{}, err
+	ended, err := endUncovered(ctx, d, p.Agents, id, allow, now)
+	if err != nil {
+		return Machine{}, nil, err
 	}
 	if err := ReplaceAllow(ctx, d, id, allow); err != nil {
-		return Machine{}, err
+		return Machine{}, nil, err
 	}
 	if err := p.Journal.Audit(ctx, d, now, AuditEntry{Actor: in.Human.ID, Device: in.DeviceID, Machine: id, Action: "machine.allow_changed", TargetKind: "machine", TargetID: id}); err != nil {
-		return Machine{}, err
+		return Machine{}, nil, err
 	}
 	if err := p.Journal.Event(ctx, d, now, "machine.allow_changed.v1", map[string]any{"machine_id": id}); err != nil {
-		return Machine{}, err
+		return Machine{}, nil, err
 	}
-	return MachineByID(ctx, d, id, now)
+	m, err := MachineByID(ctx, d, id, now)
+	return m, ended, err
 }
 
-func endUncovered(ctx context.Context, d pdb.DBTX, agents AgentPort, machineID int64, next Allow, now time.Time) error {
+func endUncovered(ctx context.Context, d pdb.DBTX, agents AgentPort, machineID int64, next Allow, now time.Time) ([]int64, error) {
 	live, err := LiveSessionIdentities(ctx, d, machineID, now)
 	if err != nil || len(live) == 0 {
-		return err
+		return nil, err
 	}
 	handles, err := agents.Handles(ctx, d)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	var ended []int64
 	for _, identityID := range live {
 		if next.Covers(identityID, handles[identityID]) {
 			continue
 		}
-		if err := EndMachineIdentitySessions(ctx, d, machineID, identityID, "allow_removed", now); err != nil {
-			return err
+		ids, err := EndMachineIdentitySessions(ctx, d, machineID, identityID, "allow_removed", now)
+		if err != nil {
+			return nil, err
 		}
+		ended = append(ended, ids...)
 	}
-	return nil
+	return ended, nil
 }

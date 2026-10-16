@@ -249,15 +249,16 @@ func RevealKey(ctx context.Context, d pdb.DBTX, box *KeyBox, machineID int64) (s
 	return box.Open(r.ID, r.KeyVersion, r.KeyEnc)
 }
 
-// RegenerateKey replaces the key. The old key stops working at once, and so does every lease it made.
-func RegenerateKey(ctx context.Context, d pdb.DBTX, box *KeyBox, machineID int64, now time.Time) (key string, version int64, err error) {
+// RegenerateKey replaces the key. The old key stops working at once, and so does every lease it made; their ids
+// come back as ended.
+func RegenerateKey(ctx context.Context, d pdb.DBTX, box *KeyBox, machineID int64, now time.Time) (key string, version int64, ended []int64, err error) {
 	q := db.New(d)
 	r, err := q.GetActiveMachine(ctx, machineID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return "", 0, ErrNoMachine
+		return "", 0, nil, ErrNoMachine
 	}
 	if err != nil {
-		return "", 0, err
+		return "", 0, nil, err
 	}
 	version = r.KeyVersion + 1
 	key = newToken(PrefixMachine)
@@ -266,20 +267,23 @@ func RegenerateKey(ctx context.Context, d pdb.DBTX, box *KeyBox, machineID int64
 		KeyHint: keyHint(key), KeyCreatedAt: now.UnixMilli(), ID: machineID,
 	})
 	if err != nil {
-		return "", 0, err
+		return "", 0, nil, err
 	}
 	if n == 0 {
-		return "", 0, ErrNoMachine
+		return "", 0, nil, ErrNoMachine
 	}
-	return key, version, EndMachineSessions(ctx, d, machineID, "key_regenerated", now)
+	ended, err = EndMachineSessions(ctx, d, machineID, "key_regenerated", now)
+	return key, version, ended, err
 }
 
-// RevokeMachine ends the machine: its key stops working and so does every lease. It reports whether it was active.
-func RevokeMachine(ctx context.Context, d pdb.DBTX, machineID int64, now time.Time) (bool, error) {
+// RevokeMachine ends the machine: its key stops working and so does every lease. It reports whether it was active
+// and the ids of the leases it ended.
+func RevokeMachine(ctx context.Context, d pdb.DBTX, machineID int64, now time.Time) (bool, []int64, error) {
 	q := db.New(d)
 	n, err := q.RevokeMachine(ctx, db.RevokeMachineParams{RevokedAt: sql.NullInt64{Int64: now.UnixMilli(), Valid: true}, ID: machineID})
 	if err != nil || n == 0 {
-		return false, err
+		return false, nil, err
 	}
-	return true, EndMachineSessions(ctx, d, machineID, "machine_revoked", now)
+	ended, err := EndMachineSessions(ctx, d, machineID, "machine_revoked", now)
+	return true, ended, err
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/inbox"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
 
@@ -179,13 +180,22 @@ func (s *Server) patchMachine(w http.ResponseWriter, r *http.Request, c *call) {
 	}
 	now := s.Clock.Now()
 	var machine auth.Machine
+	var released []inbox.Released
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
+		var ended []int64
 		var err error
-		machine, err = auth.ReplaceMachineAllow(ctx, tx.DBTX(), flowPorts, auth.AllowChange{
+		machine, ended, err = auth.ReplaceMachineAllow(ctx, tx.DBTX(), flowPorts, auth.AllowChange{
 			MachineID: id, Allow: in.Allow.spec(), Human: c.human, DeviceID: c.dev.ID, StepUpID: c.stepUp,
 		}, now)
+		if err != nil {
+			return err
+		}
+		released, err = inbox.ReleaseSessions(ctx, tx.DBTX(), now, ended)
 		return err
 	})
+	if err == nil {
+		s.publishReleased(r.Context(), released)
+	}
 	var bad auth.BadAllowError
 	switch {
 	case errors.Is(err, auth.ErrStepUp):
@@ -240,11 +250,21 @@ func (s *Server) regenerateKey(w http.ResponseWriter, r *http.Request, c *call) 
 	}
 	var key string
 	var version int64
+	var released []inbox.Released
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
+		now := s.Clock.Now()
+		var ended []int64
 		var err error
-		key, version, err = auth.RegenerateMachineKey(ctx, tx.DBTX(), s.Keys, journalPort{}, in, s.Clock.Now())
+		key, version, ended, err = auth.RegenerateMachineKey(ctx, tx.DBTX(), s.Keys, journalPort{}, in, now)
+		if err != nil {
+			return err
+		}
+		released, err = inbox.ReleaseSessions(ctx, tx.DBTX(), now, ended)
 		return err
 	})
+	if err == nil {
+		s.publishReleased(r.Context(), released)
+	}
 	s.keyAnswer(w, r, err, func() map[string]any { return map[string]any{"machine_key": key, "key_version": version} })
 }
 
@@ -267,8 +287,18 @@ func (s *Server) revokeMachine(w http.ResponseWriter, r *http.Request, c *call) 
 	if !ok {
 		return
 	}
+	var released []inbox.Released
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
-		return auth.RevokeMachineByOwner(ctx, tx.DBTX(), journalPort{}, in, s.Clock.Now())
+		now := s.Clock.Now()
+		ended, err := auth.RevokeMachineByOwner(ctx, tx.DBTX(), journalPort{}, in, now)
+		if err != nil {
+			return err
+		}
+		released, err = inbox.ReleaseSessions(ctx, tx.DBTX(), now, ended)
+		return err
 	})
+	if err == nil {
+		s.publishReleased(r.Context(), released)
+	}
 	s.keyAnswer(w, r, err, func() map[string]any { return map[string]any{} })
 }
