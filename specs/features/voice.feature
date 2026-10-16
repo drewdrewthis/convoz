@@ -1,0 +1,74 @@
+# Source: design draft 9 §12.3 (resumable uploads, "voice notes start uploading while recording"), §6.2 (blobs),
+# I-27, I-31, I-44, I-49, AC-20(c), open question 11 (transcription engine).
+# Prototype: "Record a voice message", "Recording a voice message", "Cancel recording", "Send voice message",
+# waveform playback, transcript.
+# Every scenario runs end to end in a browser against a real `convoz serve` on a fresh `mktemp -d` data dir.
+
+Feature: Voice notes
+  As the owner
+  I want to talk instead of type, and have agents get the words
+  So that I can give direction on the move
+
+  Background:
+    Given a fresh Convoz server with owner "drew" signed in with a virtual passkey
+    And the browser has a fake microphone that plays a fixture recording
+    And machine "box-2" is logged in with allow-list "devtool"
+    And "devtool" is an active participant of conversation 41 "Ship search filters"
+
+  Rule: Recording, sending and cancelling
+
+    @v1 @browser @I-31
+    Scenario: A voice note uploads while it records
+      When the owner records for 20 seconds
+      Then the server's upload offset grows before the recording stops
+      And sending posts one voice message with a 0:20 duration
+
+    @v1 @browser
+    Scenario: Cancelling a recording sends nothing
+      When the owner records for 5 seconds and cancels
+      Then conversation 41 shows no new message
+      And the partial upload is gone after 24 hours
+
+    @v1 @browser
+    Scenario: A voice note plays back
+      Given the owner sent a voice note
+      When the owner taps play
+      Then the audio plays and the waveform shows progress
+
+    @v1 @browser @lossy @I-31 @AC-20
+    Scenario: A voice note upload resumes after a drop
+      Given the network drops during the upload of a 5 MB voice note at about 50%
+      When the network returns
+      Then the upload continues from the committed offset, which is above 0
+      And the voice note plays on a second browser
+
+  Rule: Agents get the words
+
+    @v1 @browser @cli
+    Scenario: A transcript appears when transcription is on
+      Given the workspace transcription engine is set
+      When the owner sends a voice note that says "ship the filters on Thursday"
+      Then the voice message shows the transcript
+      And "devtool" reads the transcript with "convoz read 41"
+
+    @v1 @browser
+    Scenario: With no transcription engine the note has no transcript
+      Given the workspace transcription engine is "none"
+      When the owner sends a voice note
+      Then the voice message shows no transcript and no error
+
+    @v1 @browser @cli @AC-M11
+    Scenario: Search finds words that are only in the transcript
+      Given the owner sent a voice note that says "ZQX-thursday-filters"
+      When the transcript is done
+      Then the owner's search for "ZQX-thursday-filters" finds the voice message
+      And "convoz search ZQX-thursday-filters" as "devtool" finds it too
+
+  Rule: Audio is stored and served safely
+
+    @v1 @api @I-49
+    Scenario: Purging a voice note removes its transcript
+      Given a voice note whose transcript says "ZQX-voice-secret"
+      When the owner purges the message with a passkey
+      Then search for "ZQX-voice-secret" returns nothing
+      And the voice note no longer plays for anyone

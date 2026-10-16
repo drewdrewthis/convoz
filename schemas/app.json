@@ -1,0 +1,240 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.convoz.dev/v1/app.json",
+  "title": "messages.app_json v1",
+  "description": "One app per message. Unknown keys are rejected at every level. Size: canonical JSON <= 65536 bytes (DB CHECK) plus the per-component caps below.",
+  "type": "object",
+  "required": [
+    "v",
+    "type",
+    "fallback",
+    "props"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "v": {
+      "const": 1
+    },
+    "type": {
+      "enum": [
+        "chart",
+        "table",
+        "checklist",
+        "kv",
+        "picker",
+        "form",
+        "progress",
+        "code",
+        "gallery",
+        "frame"
+      ]
+    },
+    "title": {
+      "$ref": "common.json#/$defs/line80"
+    },
+    "fallback": {
+      "$ref": "common.json#/$defs/fallback"
+    },
+    "height": {
+      "description": "Height hint in CSS px for the inline card. The host clamps it.",
+      "type": "integer",
+      "minimum": 80,
+      "maximum": 600
+    },
+    "props": {
+      "type": "object"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "chart"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "props": {
+            "$ref": "components/chart.json"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "table"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "props": {
+            "$ref": "components/table.json"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "checklist"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "props": {
+            "$ref": "components/checklist.json"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "kv"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "props": {
+            "$ref": "components/kv.json"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "picker"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "props": {
+            "$ref": "components/picker.json"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "form"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "props": {
+            "$ref": "components/form.json"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "progress"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "props": {
+            "$ref": "components/progress.json"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "code"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "props": {
+            "$ref": "components/code.json"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "gallery"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "props": {
+            "$ref": "components/gallery.json"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "frame"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "props": {
+            "$ref": "components/frame.json"
+          }
+        }
+      }
+    }
+  ]
+}

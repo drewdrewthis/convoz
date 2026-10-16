@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.convoz.dev/v1/components/gallery.json",
+  "title": "Tier 1 image gallery props v1",
+  "description": "Images are uploads bound to this same message, kind image, serve_inline = 1 (semantic check). No URLs: remote images never load. layout compare = a before/after slider over exactly 2 images.",
+  "type": "object",
+  "required": [
+    "images"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "layout": {
+      "enum": [
+        "grid",
+        "carousel",
+        "compare"
+      ]
+    },
+    "images": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "required": [
+          "upload",
+          "alt"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "upload": {
+            "$ref": "../common.json#/$defs/uploadRef"
+          },
+          "alt": {
+            "$ref": "../common.json#/$defs/line200"
+          },
+          "caption": {
+            "$ref": "../common.json#/$defs/line140"
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "layout": {
+            "const": "compare"
+          }
+        },
+        "required": [
+          "layout"
+        ]
+      },
+      "then": {
+        "properties": {
+          "images": {
+            "minItems": 2,
+            "maxItems": 2,
+            "type": "array"
+          }
+        }
+      }
+    }
+  ]
+}
