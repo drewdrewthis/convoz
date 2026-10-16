@@ -12,8 +12,9 @@ const chatJs = path.join(repoRoot, "apps/convoz/internal/server/console/static/c
  * The lookalike-punctuation set is fetched from the running server's /assets/lookalikes.js, the same bytes the page gets,
  * so the Go table stays its only owner.
  */
-export async function loadRenderMarkdown(origin: string): Promise<(source: string) => unknown> {
-  const lookalikes = await (await fetch(`${origin}/assets/lookalikes.js`)).text();
+export async function loadRenderMarkdown(origin: string, options: { withLookalikes?: boolean } = {}): Promise<(source: string) => unknown> {
+  // withLookalikes: false loads no asset, like a page whose /assets/lookalikes.js failed to load
+  const lookalikes = options.withLookalikes === false ? "" : await (await fetch(`${origin}/assets/lookalikes.js`)).text();
   const text = fs.readFileSync(chatJs, "utf8");
   const from = text.indexOf("// ---- safe markdown");
   const to = text.indexOf("// ---- a conversation");

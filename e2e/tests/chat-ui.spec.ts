@@ -799,14 +799,17 @@ scenario("On a phone an agent reply shows paragraphs, code and links safely", { 
   await expect(messageLog(page).locator("img")).toHaveCount(0);
   await expect(mine.locator("strong")).toHaveCount(0);
 
-  // And a link whose label is blank shows the real site, and a link whose label is more than plain words of one script and is not the real site shows the real site after it
+  // And a link whose label is blank shows the real site, and a link whose label is more than plain words of one script and is not the real site shows the real site after it, and without the lookalike list from the server any label that is not plain ASCII shows the real site after it
   await expect(reply.getByRole("link", { name: /bank\.example\.com/ })).toHaveText("bank.example.com (evil.example)");
   await expect(reply.getByRole("link", { name: "our site" })).toHaveText("our site");
-  await agentPosts(u, "devtool", conv, ["Probes", ...["paypal.com ", "paypal.com\u00a0", "paypal\u3002com", "paypal\uff0ecom", "support@paypal.com", "Sign in to paypal.com", "paypal.c\u034fom", "10.0.0.1", "localhost", "intranet", "evil.example", "Sign in", "here", "192.168.1.1/login", "localhost/x", "intranet/login", "Go to 192.168.1.1 now", "paypal. com", "paypal\u200a.\u200acom", "paypal\u2009.\u2009com", "paypal\u00b7com", "paypal\u06d4com", "paypal\u0589com", "paypal\u30fbcom", "paypal.c\u2800om", "PR #23", "paypal\u02d9com", "paypal\u00b8com", "paypal\ua4f8com", "paypal\u1427com", "paypal\u119ecom", "paypal\u4e36com", "https\u02d0\u30ce\u30cepaypal\ua4f8com", "paypal.com evil.example", "Log in to paypal.com via evil.example", "\u3164", "\u043f\u0440\u0438\u0432\u0435\u0442", "\u6587\u6863", "docs", "paypal\ua78fcom", "\u767e\u5ea6\u4e36\u4e2d\u56fd", "\ub124\uc774\ubc84\u119e\ud55c\uad6d", "paypal\u01c3com", "paypal\u0294com", "paypal\u0903com"].map((l) => `[${l}](https://evil.example/x)`), "[docs](https://github.com/a/b)", "https://\u0430pple.com/login", "https://evil.test\\@paypal.com", "https://paypal.com@evil.test", "http://a.b/(x)", "http://a.b/x)"].join("\n"));
-  await expect(message(page, "Probes").locator("a")).toHaveText(["paypal.com (evil.example)", "paypal.com (evil.example)", "paypal\u3002com (evil.example)", "paypal\uff0ecom (evil.example)", "support@paypal.com (evil.example)", "Sign in to paypal.com (evil.example)", "paypal.c\u034fom (evil.example)", "10.0.0.1 (evil.example)", "localhost", "intranet", "evil.example", "Sign in", "here", "192.168.1.1/login (evil.example)", "localhost/x (evil.example)", "intranet/login (evil.example)", "Go to 192.168.1.1 now (evil.example)", "paypal. com (evil.example)", "paypal\u200a.\u200acom (evil.example)", "paypal\u2009.\u2009com (evil.example)", "paypal\u00b7com (evil.example)", "paypal\u06d4com (evil.example)", "paypal\u0589com (evil.example)", "paypal\u30fbcom (evil.example)", "paypal.c\u2800om (evil.example)", "PR #23 (evil.example)", "paypal\u02d9com (evil.example)", "paypal\u00b8com (evil.example)", "paypal\ua4f8com (evil.example)", "paypal\u1427com (evil.example)", "paypal\u119ecom (evil.example)", "paypal\u4e36com (evil.example)", "https\u02d0\u30ce\u30cepaypal\ua4f8com (evil.example)", "paypal.com evil.example (evil.example)", "Log in to paypal.com via evil.example (evil.example)", "evil.example", "\u043f\u0440\u0438\u0432\u0435\u0442", "\u6587\u6863", "docs", "paypal\ua78fcom (evil.example)", "\u767e\u5ea6\u4e36\u4e2d\u56fd (evil.example)", "\ub124\uc774\ubc84\u119e\ud55c\uad6d (evil.example)", "paypal\u01c3com (evil.example)", "paypal\u0294com (evil.example)", "paypal\u0903com (evil.example)", "docs", "https://xn--pple-43d.com/login", "evil.test", "evil.test", "http://a.b/(x)", "http://a.b/x"], { timeout: 3_000 });
+  await agentPosts(u, "devtool", conv, ["Probes", ...["paypal.com ", "paypal.com\u00a0", "paypal\u3002com", "paypal\uff0ecom", "support@paypal.com", "Sign in to paypal.com", "paypal.c\u034fom", "10.0.0.1", "localhost", "intranet", "evil.example", "Sign in", "here", "192.168.1.1/login", "localhost/x", "intranet/login", "Go to 192.168.1.1 now", "paypal. com", "paypal\u200a.\u200acom", "paypal\u2009.\u2009com", "paypal\u00b7com", "paypal\u06d4com", "paypal\u0589com", "paypal\u30fbcom", "paypal.c\u2800om", "PR #23", "paypal\u02d9com", "paypal\u00b8com", "paypal\ua4f8com", "paypal\u1427com", "paypal\u119ecom", "paypal\u4e36com", "https\u02d0\u30ce\u30cepaypal\ua4f8com", "paypal.com evil.example", "Log in to paypal.com via evil.example", "\u3164", "\u043f\u0440\u0438\u0432\u0435\u0442", "\u6587\u6863", "docs", "paypal\ua78fcom", "\u767e\u5ea6\u4e36\u4e2d\u56fd", "\ub124\uc774\ubc84\u119e\ud55c\uad6d", "paypal\u01c3com", "paypal\u0294com", "paypal\u0903com", "paypa\u0140com", "PAYPA\u013fCOM", "paypal\u318dcom", "\ub124\uc774\ubc84\u318d\ud55c\uad6d", "paypal\u0338com", "paypal\u20d2com"].map((l) => `[${l}](https://evil.example/x)`), "[docs](https://github.com/a/b)", "https://\u0430pple.com/login", "https://evil.test\\@paypal.com", "https://paypal.com@evil.test", "http://a.b/(x)", "http://a.b/x)"].join("\n"));
+  await expect(message(page, "Probes").locator("a")).toHaveText(["paypal.com (evil.example)", "paypal.com (evil.example)", "paypal\u3002com (evil.example)", "paypal\uff0ecom (evil.example)", "support@paypal.com (evil.example)", "Sign in to paypal.com (evil.example)", "paypal.c\u034fom (evil.example)", "10.0.0.1 (evil.example)", "localhost", "intranet", "evil.example", "Sign in", "here", "192.168.1.1/login (evil.example)", "localhost/x (evil.example)", "intranet/login (evil.example)", "Go to 192.168.1.1 now (evil.example)", "paypal. com (evil.example)", "paypal\u200a.\u200acom (evil.example)", "paypal\u2009.\u2009com (evil.example)", "paypal\u00b7com (evil.example)", "paypal\u06d4com (evil.example)", "paypal\u0589com (evil.example)", "paypal\u30fbcom (evil.example)", "paypal.c\u2800om (evil.example)", "PR #23 (evil.example)", "paypal\u02d9com (evil.example)", "paypal\u00b8com (evil.example)", "paypal\ua4f8com (evil.example)", "paypal\u1427com (evil.example)", "paypal\u119ecom (evil.example)", "paypal\u4e36com (evil.example)", "https\u02d0\u30ce\u30cepaypal\ua4f8com (evil.example)", "paypal.com evil.example (evil.example)", "Log in to paypal.com via evil.example (evil.example)", "evil.example", "\u043f\u0440\u0438\u0432\u0435\u0442", "\u6587\u6863", "docs", "paypal\ua78fcom (evil.example)", "\u767e\u5ea6\u4e36\u4e2d\u56fd (evil.example)", "\ub124\uc774\ubc84\u119e\ud55c\uad6d (evil.example)", "paypal\u01c3com (evil.example)", "paypal\u0294com (evil.example)", "paypal\u0903com (evil.example)", "paypa\u0140com (evil.example)", "PAYPA\u013fCOM (evil.example)", "paypal\u318dcom (evil.example)", "\ub124\uc774\ubc84\u318d\ud55c\uad6d (evil.example)", "paypal\u0338com (evil.example)", "paypal\u20d2com (evil.example)", "docs", "https://xn--pple-43d.com/login", "evil.test", "evil.test", "http://a.b/(x)", "http://a.b/x"], { timeout: 3_000 });
   const probes = message(page, "Probes");
   await expect(probes.locator("a", { hasText: /^http:\/\/a\.b\/\(x\)$/ })).toHaveAttribute("href", "http://a.b/(x)");
   await expect(probes.locator("a", { hasText: /^http:\/\/a\.b\/x$/ })).toHaveAttribute("href", "http://a.b/x");
+  const noList = await loadRenderMarkdown(u.w.srv.origin, { withLookalikes: false });
+  expect(JSON.stringify(noList("[\u767e\u5ea6\u4e36\u4e2d\u56fd](https://evil.example/x)"))).toContain("(evil.example)");
+  expect(JSON.stringify(noList("[docs](https://evil.example/x)"))).not.toContain("(evil.example)");
 
   // And hidden text-direction marks in a title or a message are not shown
   await expect(reply).toContainText("not exetxt.");
@@ -827,6 +830,7 @@ scenario("On a phone an agent reply shows paragraphs, code and links safely", { 
     for (let i = 0; i < count; i++) render(body);
     expect(performance.now() - began, JSON.stringify(unit.slice(0, 12))).toBeLessThan(500);
   }
+  // And a message shows at most 200 links, the rest as plain text
   const links = (node: unknown): number => {
     if (!node || typeof node !== "object") return 0;
     if (Array.isArray(node)) return node.reduce((n: number, kid) => n + links(kid), 0);
@@ -834,7 +838,6 @@ scenario("On a phone an agent reply shows paragraphs, code and links safely", { 
     return (tag === "a" ? 1 : 0) + links(kids ?? []);
   };
 
-  // And a message shows at most 200 links, the rest as plain text
   const texts = (node: unknown): string => {
     if (typeof node === "string") return node;
     if (!node || typeof node !== "object") return "";
@@ -847,6 +850,8 @@ scenario("On a phone an agent reply shows paragraphs, code and links safely", { 
   expect(texts(capped)).toContain("[l201](http://a.b)");
   expect(texts(capped)).not.toContain("[l200]");
   expect(links(render("[a](http://a.b) ".repeat(1024)))).toBe(200);
+  // failed attempts spend the same budget as good ones, so the link after 200 unparsable ones is plain text
+  expect(links(render("[a](http://[) ".repeat(200) + "[ok](http://a.b)"))).toBe(0);
 });
 
 scenario("On a phone the chat pages fit a 320 px screen with large tap targets", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {

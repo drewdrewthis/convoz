@@ -202,20 +202,34 @@
     ["thai", /\p{Script_Extensions=Thai}/u], ["armenian", /\p{Script_Extensions=Armenian}/u], ["georgian", /\p{Script_Extensions=Georgian}/u],
   ];
   // Hangul fillers and the braille blank look empty; they are Lo or So, so they are named here and never trusted.
-  // Hangul and Braille blank letters: they count as letters but draw nothing
   const FILLER_CHARS = "\u115F\u1160\u3164\uFFA0\u2800";
   const FILLERS = new RegExp("[" + FILLER_CHARS + "]");
   // Lookalike punctuation (ꞏ 丶 ᆞ ...) comes from the server, which owns the table (/assets/lookalikes.js, loaded first).
-  const LOOKALIKES = new Set(Array.from(globalThis.CONVOZ_LOOKALIKES || ""));
-  // Scripts whose "Lo" letters include lookalikes of dots and bars (ꞏ ǀ ǃ ʔ ª º): only their cased letters are trusted.
+  // null when that asset did not load: plainWords then fails closed for anything that is not plain ASCII.
+  const LOOKALIKES = typeof globalThis.CONVOZ_LOOKALIKES === "string" ? new Set(Array.from(globalThis.CONVOZ_LOOKALIKES)) : null;
+  // Scripts whose "Lo" letters include lookalikes of dots and bars (ǀ ǃ ʔ ª º): only their cased letters are trusted.
+  // This is a rule about the script's letter classes, not a list of characters, so it does not copy the server's table;
+  // NFKC cannot replace it because it keeps ǃ and ʔ as they are and turns ª into a plain "a".
   const CASED_ONLY = ["latin", "cyrillic", "greek", "armenian", "georgian"];
   const NOT_BLANK = new RegExp("[^\\p{Cf}\\p{M}\\p{Z}\\p{Cc}" + FILLER_CHARS + "]", "u");
+  // Marks that strike through or enclose the letter before them (a slash drawn over it): never part of a word.
+  const OVERLAY_MARKS = /[\u0334-\u0338\u20D0-\u20F0]/;
 
-  /** plainWords is true when text is words of ONE script: after NFC every character is a letter (Lu, Ll, Lt or Lo, never
-   *  Lm), a space (Zs), or a combining mark right after a letter. Dots, colons, slashes, digits, symbols, spacing accents
-   *  (Sk), modifier letters (Lm), format characters and fillers all fail, and so does a label that mixes scripts. */
+  /** plainWords is true when text is plain ASCII letters and spaces, or words of ONE script that passes every rule below
+   *  (so it cannot pass for a host name). It is false for every non-ASCII text when the server's lookalike list did not load.
+   *  After NFC each character must be
+   *  - a space (Zs), or
+   *  - a combining mark right after a letter of the same script (or an Inherited mark), never a strike-through or
+   *    enclosing mark (U+0334-0338, U+20D0-20F0), or
+   *  - a letter (Lu, Ll, Lt or Lo; never Lm, Sk, digits, symbols, format characters or the fillers) of a script in SCRIPTS,
+   *    where Han, kana and Hangul count as one script, and a tie to a second script fails the label;
+   *    Latin, Cyrillic, Greek, Armenian and Georgian trust only cased letters (CASED_ONLY);
+   *    and the letter, read in NFKC form, is made only of letters and is none of the server's lookalikes
+   *    (so Latin "ŀ" = "l" + middle dot and Hangul "ㆍ" = "ᆞ" fail).
+   *  A character in the server's lookalike list always fails. */
   function plainWords(text) {
     if (/^[A-Za-z ]*$/.test(text)) return true;
+    if (!LOOKALIKES) return false;
     let script = null;
     let letterScript = null;
     let afterLetter = false;
@@ -225,11 +239,14 @@
         afterLetter = false;
       } else if (/\p{M}/u.test(ch)) {
         // a mark belongs to the script of its letter (Devanagari visarga after a Latin letter is a colon in disguise)
-        if (!afterLetter || !(letterScript.test(ch) || /\p{Script_Extensions=Inherited}/u.test(ch))) return false;
+        if (!afterLetter || OVERLAY_MARKS.test(ch) || !(letterScript.test(ch) || /\p{Script_Extensions=Inherited}/u.test(ch))) return false;
       } else if (/[\p{Lu}\p{Ll}\p{Lt}\p{Lo}]/u.test(ch) && !FILLERS.test(ch)) {
         const own = SCRIPTS.find(([, re]) => re.test(ch));
         if (!own || (script && script !== own[0])) return false;
         if (CASED_ONLY.includes(own[0]) && /\p{Lo}/u.test(ch)) return false;
+        for (const part of ch.normalize("NFKC")) {
+          if (LOOKALIKES.has(part) || !/[\p{L}\p{M}]/u.test(part)) return false;
+        }
         script = own[0];
         letterScript = own[1];
         afterLetter = true;

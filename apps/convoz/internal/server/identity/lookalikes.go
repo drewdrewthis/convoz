@@ -6,14 +6,14 @@ import (
 )
 
 // punctuationTargets are the skeletons that make a character a dot, slash, colon, at sign or middle dot in disguise.
-var punctuationTargets = map[string]bool{".": true, "/": true, ":": true, "@": true, "·": true}
+var punctuationTargets = map[string]bool{".": true, "/": true, ":": true, "@": true, "\u00b7": true} // the last one is the middle dot (·)
 
 // handLookalikes are characters the pinned table misses or maps elsewhere.
 const handLookalikes = "" +
-	"ᆞ" + // Hangul Jungseong Arae-a, drawn as a middle dot; absent from the table
-	"丶" + // Han dot stroke, drawn as a dot; the table maps it to a backslash
-	"。" + // ideographic full stop; the table maps it to a spacing ring
-	"｡" // halfwidth ideographic full stop; same
+	"\u119e" + // ᆞ Hangul Jungseong Arae-a, drawn as a middle dot; absent from the table
+	"\u4e36" + // 丶 Han dot stroke, drawn as a dot; the table maps it to a backslash
+	"\u3002" + // 。 ideographic full stop; the table maps it to a spacing ring
+	"\uff61" // ｡ halfwidth ideographic full stop; same
 
 // PunctuationLookalikes returns, sorted and without repeats, every character that can pass for a dot, slash, colon,
 // at sign or middle dot inside a word: the table's sources for those targets plus handLookalikes. The chat page gets

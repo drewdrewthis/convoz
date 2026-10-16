@@ -308,7 +308,7 @@ Feature: Conversations
       Then the reply shows two paragraphs, a code block and a link that opens a new tab safely
       And the image tag shows as text and no image is made
       And the owner's own message with an image tag shows as text too
-      And a link whose label is blank shows the real site, and a link whose label is more than plain words of one script and is not the real site shows the real site after it
+      And a link whose label is blank shows the real site, and a link whose label is more than plain words of one script and is not the real site shows the real site after it, and without the lookalike list from the server any label that is not plain ASCII shows the real site after it
       And hidden text-direction marks in a title or a message are not shown
       And a hundred messages of 16384 characters each of "[", "[a](", "[a](x", "[a]([a](", "**", a backtick or "http://" and 2040 dots and "a", and ten of "[a](http://a.b) ", "[é1](http://a.b) ", "http://a:b " or "[a](http://[) ", render, each shape in under half a second
       And a message shows at most 200 links, the rest as plain text

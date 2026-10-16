@@ -1,8 +1,11 @@
 package httpapi
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
+	"sync"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/console"
@@ -129,13 +132,27 @@ func asset(name, contentType string) handler {
 	return func(_ *Server, w http.ResponseWriter, r *http.Request, _ *call) { serve(w, r) }
 }
 
-// lookalikesAsset hands the confusable-punctuation set to chat.js, so the identity table stays its only owner.
-func lookalikesAsset(_ *Server, w http.ResponseWriter, _ *http.Request, _ *call) {
+// lookalikes is the asset body and its strong ETag, built once: the table is pinned at build time and never changes.
+var lookalikes = sync.OnceValues(func() ([]byte, string) {
 	set, _ := json.Marshal(identity.PunctuationLookalikes())
+	body := append([]byte("globalThis.CONVOZ_LOOKALIKES="), append(set, ';')...)
+	sum := sha256.Sum256(body)
+	return body, `"` + hex.EncodeToString(sum[:]) + `"`
+})
+
+// lookalikesAsset hands the confusable-punctuation set to chat.js, so the identity table stays its only owner.
+// no-cache with an ETag: the browser revalidates every time and gets a 304 while the table is unchanged.
+func lookalikesAsset(_ *Server, w http.ResponseWriter, r *http.Request, _ *call) {
+	body, etag := lookalikes()
 	h := w.Header()
 	h.Set("Content-Type", "text/javascript; charset=utf-8")
 	h.Set("Cache-Control", "no-cache")
-	_, _ = w.Write(append([]byte("globalThis.CONVOZ_LOOKALIKES="), append(set, ';')...))
+	h.Set("ETag", etag)
+	if r.Header.Get("If-None-Match") == etag {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+	_, _ = w.Write(body)
 }
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request, _ *call) {
