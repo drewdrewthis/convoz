@@ -18,6 +18,13 @@ var StepUpActions = map[string]bool{
 	"passkey.add":         true,
 	"passkey.remove":      true,
 	"recovery.regenerate": true,
+	"machine.approve":     true,
+	"machine.reveal":      true,
+	"machine.regenerate":  true,
+	"machine.revoke":      true,
+	"machine.allow":       true,
+	"identity.create":     true,
+	"identity.disable":    true,
 }
 
 // ErrStepUp means the step-up is unknown, used, expired, or for another device, action or target.

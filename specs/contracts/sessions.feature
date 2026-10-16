@@ -14,7 +14,7 @@ Feature: Agent sessions as one identity (contracts)
 
   Rule: A lease is minted only for an identity the machine may use
 
-    @v1 @api @I-37 @unimplemented
+    @v1 @api @I-37
     Scenario Outline: The allow-list decides which identities a machine may use
       Given machine "laptop-1" is logged in with allow mode "<mode>" and entries "<entries>"
       When "laptop-1" asks for a lease as "<identity>"
@@ -28,18 +28,18 @@ Feature: Agent sessions as one identity (contracts)
         | list | dev-*        | docs        | 403    |
         | any  |              | docs        | 201    |
 
-    @v1 @api @I-37 @unimplemented
+    @v1 @api @I-37
     Scenario: A disabled identity cannot start a session
       Given the owner disabled "dev-search"
       When "box-2" asks for a lease as "dev-search"
       Then the server answers 403
 
-    @v1 @api @I-37 @unimplemented
+    @v1 @api @I-37
     Scenario: A human identity cannot be a session identity
       When "box-2" asks for a lease as "drew"
       Then the server answers 403
 
-    @v1 @api @I-25 @unimplemented
+    @v1 @api @I-25
     Scenario: The machine key works only to mint leases
       When "box-2" calls GET /api/inbox with its machine key instead of a lease
       Then the server answers 401
@@ -47,23 +47,29 @@ Feature: Agent sessions as one identity (contracts)
 
   Rule: A retry with the same client id gives a working lease and never two (M5)
 
-    @v1 @api @I-37 @M5 @C-8 @AC-27 @unimplemented
+    @v1 @api @I-37 @M5 @C-8 @AC-27
     Scenario: Re-minting with the same client id ends the old lease
       Given "box-2" holds lease A as "devtool" for client id "claude-7f3a"
       When "box-2" mints again as "devtool" with client id "claude-7f3a"
       Then the server returns lease B that is different from lease A
       And a request with lease B answers 200
       And a request with lease A answers 401
-      And the inbox items lease A held are held by lease B with the same claim tokens
 
-    @v1 @api @I-37 @M5 @unimplemented
+    # Split out of "Re-minting with the same client id ends the old lease": claims arrive with the inbox in S3.
+    @v1 @api @I-37 @M5 @C-8 @AC-27 @unimplemented
+    Scenario: A re-mint moves the old lease's claims to the new lease
+      Given "box-2" holds lease A as "devtool" for client id "claude-7f3a" and lease A holds 2 inbox items
+      When "box-2" mints again as "devtool" with client id "claude-7f3a"
+      Then the inbox items lease A held are held by lease B with the same claim tokens
+
+    @v1 @api @I-37 @M5
     Scenario: An expired session is ended before a new lease is minted
       Given "box-2" held a lease as "devtool" for client id "claude-7f3a" that expired 1 hour ago
       When "box-2" mints again as "devtool" with client id "claude-7f3a"
       Then the server answers 201 with a new lease
       And Crew → Sessions shows one live session for client id "claude-7f3a"
 
-    @v1 @api @invariant @I-37 @M5 @unimplemented
+    @v1 @api @invariant @I-37 @M5
     Scenario: Two concurrent re-mints with one client id leave one working lease
       When "box-2" sends two lease requests as "devtool" with client id "claude-7f3a" at the same time
       Then exactly one of the two returned leases answers 200 on GET /api/me
@@ -71,19 +77,19 @@ Feature: Agent sessions as one identity (contracts)
 
   Rule: Many sessions may share one identity, within caps
 
-    @v1 @api @I-33 @unimplemented
+    @v1 @api @I-33
     Scenario: The 21st live session of one identity is refused
       Given 20 live sessions of "devtool" on "box-2"
       When "box-2" asks for one more lease as "devtool" with a new client id
       Then the server answers 429 with the code "session_cap"
 
-    @v1 @api @I-33 @unimplemented
+    @v1 @api @I-33
     Scenario: The 201st live session on one machine is refused
       Given 200 live sessions on "box-2" across 10 identities
       When "box-2" asks for one more lease
       Then the server answers 429 with the code "session_cap"
 
-    @v1 @api @I-30 @unimplemented
+    @v1 @api @I-30
     Scenario: Lease mints are budgeted per identity
       Given "box-2" minted 30 leases as "devtool" in the last hour
       When it mints one more as "devtool"
@@ -97,7 +103,7 @@ Feature: Agent sessions as one identity (contracts)
       When the session renews its lease 4 minutes later
       Then a second session of "devtool" polling 2 minutes after that gets none of the 3 items
 
-    @v1 @cli @api @I-37 @I-38 @unimplemented
+    @v1 @cli @api @I-37 @I-38
     Scenario: Removing an identity from the allow-list ends its leases on that machine
       Given live sessions of "dev-search" on "box-2" and on "laptop-1"
       When the owner removes "dev-*" from the allow-list of "box-2" with a passkey
@@ -106,13 +112,13 @@ Feature: Agent sessions as one identity (contracts)
 
   Rule: A machine may create identities only when the owner allowed it
 
-    @v1 @api @unimplemented
+    @v1 @api
     Scenario: A machine without create_identity cannot make identities
       When "box-2" asks for a lease as "dev-new" with create set
       Then the server answers 403
       And Crew does not list "dev-new"
 
-    @v1 @api @unimplemented
+    @v1 @api
     Scenario: A machine creates at most 5 identities per day
       Given "box-2" has the create_identity scope and created 5 identities today
       When it creates a sixth

@@ -21,8 +21,10 @@ ROOTS = {"httpapi", "testroutes"}
 OWNER = re.compile(r"^--\s*owner:\s*(\w+)\s*$")
 CREATE = re.compile(r"^CREATE\s+(?:VIRTUAL\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)", re.I)
 USE = re.compile(r"\b(?:JOIN|INTO|UPDATE)\s+(\w+)", re.I)
-# "FROM a, b x, c": the whole list up to the next clause keyword, so a comma join names every table.
-FROM_LIST = re.compile(r"\bFROM\s+(.*?)(?=\b(?:WHERE|GROUP|ORDER|LIMIT|HAVING|UNION|JOIN|LEFT|RIGHT|INNER|CROSS|NATURAL|ON|SET)\b|[;)]|$)", re.I | re.S)
+# After FROM comes a list of tables and subqueries separated by commas; it ends at a clause keyword, a ";"
+# or the ")" that closes the enclosing subquery. Scanned by hand so a comma after a subquery still counts.
+FROM_WORD = re.compile(r"\bFROM\s+", re.I)
+CLAUSE_END = re.compile(r"(?:WHERE|GROUP|ORDER|LIMIT|HAVING|UNION|JOIN|LEFT|RIGHT|INNER|CROSS|NATURAL|ON|SET)\b", re.I)
 # What counts as SQL in a composition root (which must hold none).
 SQL_SHAPE = re.compile(r"\bSELECT\s[\w*,\s.()]+?\sFROM\s+\w|\bINSERT\s+(?:OR\s+\w+\s+)?INTO\s+\w|\bDELETE\s+FROM\s+\w|\bUPDATE\s+\w+\s+SET\b", re.I)
 
@@ -86,16 +88,35 @@ def sql_chunks(path):
     return text, []
 
 
+def from_items(chunk, start):
+    """(offset, text) of each comma-separated item of the FROM list that begins at `start`."""
+    items, depth, item_start, i = [], 0, start, start
+    while i < len(chunk):
+        c = chunk[i]
+        if c == "(":
+            depth += 1
+        elif c == ")":
+            if depth == 0:
+                break
+            depth -= 1
+        elif depth == 0 and (c == ";" or (CLAUSE_END.match(chunk, i) and not chunk[i - 1].isalnum() and chunk[i - 1] != "_")):
+            break
+        elif depth == 0 and c == ",":
+            items.append((item_start, chunk[item_start:i]))
+            item_start = i + 1
+        i += 1
+    items.append((item_start, chunk[item_start:i]))
+    return items
+
+
 def tables_in(chunk):
     """(offset, lowercase table name) for each table a piece of SQL reads or writes."""
     found = [(m.start(1), m.group(1).lower()) for m in USE.finditer(chunk)]
-    for m in FROM_LIST.finditer(chunk):
-        pos = m.start(1)
-        for item in m.group(1).split(","):
+    for m in FROM_WORD.finditer(chunk):
+        for pos, item in from_items(chunk, m.end()):
             word = re.match(r"\s*(\w+)", item)
             if word and not item.lstrip().startswith("("):
                 found.append((pos + word.start(1), word.group(1).lower()))
-            pos += len(item) + 1
     return found
 
 

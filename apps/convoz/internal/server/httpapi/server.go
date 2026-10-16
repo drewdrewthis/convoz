@@ -16,11 +16,17 @@ import (
 
 // Config says who this server is, as the wall sees it.
 type Config struct {
-	Host    string // --host without a port: the name clients use, and the WebAuthn RP ID
-	Origin  string // the exact Origin a browser sends: https://Host, or http://localhost[:port] for a local Host
-	Port    int    // bound TCP port; 0 on a unix listener
-	Unix    bool   // the public listener is the unix socket behind `tailscale serve`
-	Version string
+	Host       string // --host without a port: the name clients use, and the WebAuthn RP ID
+	Origin     string // the exact Origin a browser sends: https://Host, or http://localhost[:port] for a local Host
+	Port       int    // bound TCP port; 0 on a unix listener
+	PublicPort int    // the port clients type (the `tailscale serve` HTTPS port); 0 for 443
+	Unix       bool   // the public listener is the unix socket behind `tailscale serve`
+	Version    string
+
+	// TailscaleBin is the tailscale command; TailscaleOn says whether to ask it who a source address is.
+	// Node identity comes from `tailscale whois`; it is shown to the owner and never trusted as a login.
+	TailscaleBin string
+	TailscaleOn  bool
 }
 
 // Server is the state the public handlers share. There is one per process and public listener.
@@ -31,17 +37,32 @@ type Server struct {
 	Cfg   Config
 	Log   *log.Logger
 
+	Keys *auth.KeyBox // seals and opens the stored copy of each machine key
+
+	csrfExempt map[string]bool // "METHOD /path" of the NoCSRF routes
+	userCodes  func() string   // the next device-flow user code; random unless the test hooks seed some
+
 	ceremonies    auth.Ceremonies
 	publicLimit   auth.Limiter // 20 hits a minute per source and public route
 	recoveryLimit auth.Limiter // 10 recovery attempts an hour, for everyone
+	// tokenMissLimit counts device-token polls with a code that is not live, per source. A real client stops
+	// at its first expired_token, so 30 a minute is loose.
+	tokenMissLimit auth.Limiter
 }
 
 // NewServer returns the public server state.
-func NewServer(store *db.Store, clock platform.Clock, wa *webauthn.WebAuthn, cfg Config, logger *log.Logger) *Server {
+func NewServer(store *db.Store, clock platform.Clock, wa *webauthn.WebAuthn, keys *auth.KeyBox, cfg Config, logger *log.Logger) *Server {
+	exempt := map[string]bool{}
+	for _, r := range Routes {
+		if r.NoCSRF {
+			exempt[r.Method+" "+r.Pattern] = true
+		}
+	}
 	return &Server{
-		Store: store, Clock: clock, WA: wa, Cfg: cfg, Log: logger,
-		publicLimit:   auth.Limiter{Window: time.Minute, Max: 20},
-		recoveryLimit: auth.Limiter{Window: time.Hour, Max: 10},
+		Store: store, Clock: clock, WA: wa, Keys: keys, Cfg: cfg, Log: logger, csrfExempt: exempt, userCodes: auth.NewUserCode,
+		publicLimit:    auth.Limiter{Window: time.Minute, Max: 20},
+		recoveryLimit:  auth.Limiter{Window: time.Hour, Max: 10},
+		tokenMissLimit: auth.Limiter{Window: time.Minute, Max: 30},
 	}
 }
 

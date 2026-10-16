@@ -20,6 +20,13 @@ import (
 // PurposeDB is the purpose of the DEK that keys the SQLite file.
 const PurposeDB = "db"
 
+// PurposeMachineKey is the purpose of the DEK that seals the recoverable copy of each machine key (I-25).
+const PurposeMachineKey = "machine_key"
+
+// purposes are the DEKs every keyring holds. A keyring written by an older build lacks the newer ones;
+// OpenKeyring adds them.
+var purposes = []string{PurposeDB, PurposeMachineKey}
+
 // KeyringFile is the keyring's file name inside the data dir.
 const KeyringFile = "keyring.json"
 
@@ -122,7 +129,75 @@ func OpenKeyring(dataDir string, kek []byte, dbPath string, now time.Time) (*Key
 	if _, ok := ring.deks[PurposeDB]; !ok {
 		return nil, keyErr("%s has no %s key", path, PurposeDB)
 	}
+	if err := ring.addMissing(&doc, g, dataDir, path); err != nil {
+		return nil, keyErr("cannot update %s: %v", path, err)
+	}
 	return ring, nil
+}
+
+// addMissing gives the keyring a DEK for every purpose it lacks and, if it added any, replaces the file
+// atomically: a crash leaves either the old keyring or the new one, never a short file.
+func (k *Keyring) addMissing(doc *keyringDoc, g cipher.AEAD, dataDir, path string) error {
+	changed := false
+	for _, purpose := range purposes {
+		if _, ok := k.deks[purpose]; ok {
+			continue
+		}
+		w, dek, err := newWrappedDEK(g, purpose)
+		if err != nil {
+			return err
+		}
+		doc.DEKs = append(doc.DEKs, w)
+		k.deks[purpose] = dek
+		changed = true
+	}
+	if !changed {
+		return nil
+	}
+	out, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		return err
+	}
+	return replaceFile(dataDir, path, out)
+}
+
+// newWrappedDEK makes a fresh random DEK for purpose and its wrapped form.
+func newWrappedDEK(g cipher.AEAD, purpose string) (wrappedDEK, []byte, error) {
+	dek := make([]byte, 32)
+	id := make([]byte, 8)
+	nonce := make([]byte, g.NonceSize())
+	for _, b := range [][]byte{dek, id, nonce} {
+		if _, err := rand.Read(b); err != nil {
+			return wrappedDEK{}, nil, err
+		}
+	}
+	dekID := hex.EncodeToString(id)
+	wrapped := g.Seal(nonce, nonce, dek, aad(dekID, purpose))
+	return wrappedDEK{DEKID: dekID, Purpose: purpose, Wrapped: base64.StdEncoding.EncodeToString(wrapped)}, dek, nil
+}
+
+// replaceFile writes data to a temp file in dir, syncs it, renames it over path and syncs the directory.
+func replaceFile(dir, path string, data []byte) error {
+	tmp, err := os.CreateTemp(dir, tempPrefix+"*") // mode 0600
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name()) // a no-op after a successful rename
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		return err
+	}
+	return syncDir(dir)
 }
 
 // createKeyring publishes the new keyring without ever replacing an existing one, and syncs
@@ -132,19 +207,16 @@ func createKeyring(dataDir, path string, kek []byte) (*Keyring, error) {
 	if err != nil {
 		return nil, err
 	}
-	dek := make([]byte, 32)
-	id := make([]byte, 8)
-	nonce := make([]byte, g.NonceSize())
-	for _, b := range [][]byte{dek, id, nonce} {
-		if _, err := rand.Read(b); err != nil {
+	doc := keyringDoc{Version: keyringVersion, KEKID: kekID(kek)}
+	ring := &Keyring{deks: map[string][]byte{}}
+	for _, purpose := range purposes {
+		w, dek, err := newWrappedDEK(g, purpose)
+		if err != nil {
 			return nil, err
 		}
+		doc.DEKs = append(doc.DEKs, w)
+		ring.deks[purpose] = dek
 	}
-	dekID := hex.EncodeToString(id)
-	wrapped := g.Seal(nonce, nonce, dek, aad(dekID, PurposeDB))
-	doc := keyringDoc{Version: keyringVersion, KEKID: kekID(kek), DEKs: []wrappedDEK{{
-		DEKID: dekID, Purpose: PurposeDB, Wrapped: base64.StdEncoding.EncodeToString(wrapped),
-	}}}
 	out, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
 		return nil, err
@@ -152,7 +224,7 @@ func createKeyring(dataDir, path string, kek []byte) (*Keyring, error) {
 	if err := publishNew(dataDir, path, out); err != nil {
 		return nil, keyErr("cannot create %s: %v", path, err)
 	}
-	return &Keyring{deks: map[string][]byte{PurposeDB: dek}}, nil
+	return ring, nil
 }
 
 // Seams for the tests: a file system without hard links is not available in CI.

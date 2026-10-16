@@ -1,0 +1,197 @@
+package cli
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
+)
+
+// sessionsDir is the directory of session files inside the config directory.
+const sessionsDir = "sessions"
+
+// sidRE is a local session id: lowercase hex, 6 or more. It is also the file name, so nothing else may pass.
+var sidRE = regexp.MustCompile(`^[0-9a-f]{6,32}$`)
+
+// sessionFile is what a started session leaves on disk (mode 0600). The lease is the only secret in it.
+type sessionFile struct {
+	Lease    string `json:"lease"`
+	Identity string `json:"identity"`
+	Machine  string `json:"machine"`
+	ClientID string `json:"client_id"`
+}
+
+func randomHex(nBytes int) string {
+	b := make([]byte, nBytes)
+	if _, err := rand.Read(b); err != nil {
+		panic("crypto/rand failed: " + err.Error())
+	}
+	return hex.EncodeToString(b)
+}
+
+// sessionPath is the file of a local session id; ok is false for an id that is not one.
+func sessionPath(dir, sid string) (string, bool) {
+	if !sidRE.MatchString(sid) {
+		return "", false
+	}
+	return filepath.Join(dir, sessionsDir, sid), true
+}
+
+func loadSession(dir, sid string) (sessionFile, error) {
+	path, ok := sessionPath(dir, sid)
+	if !ok {
+		return sessionFile{}, fmt.Errorf("%q is not a session id", sid)
+	}
+	raw, err := readPrivate(filepath.Join(dir, sessionsDir), path)
+	if os.IsNotExist(err) {
+		return sessionFile{}, &unknownSessionError{sid}
+	}
+	if err != nil {
+		return sessionFile{}, err
+	}
+	var s sessionFile
+	if err := json.Unmarshal(raw, &s); err != nil || s.Lease == "" {
+		return sessionFile{}, fmt.Errorf("%s is not a session file", path)
+	}
+	return s, nil
+}
+
+// unknownSessionError is a --sid with no session file; it is an auth failure (exit 3): there is no lease to use.
+type unknownSessionError struct{ sid string }
+
+func (e *unknownSessionError) Error() string {
+	return fmt.Sprintf("there is no session %s on this machine: run convoz session start", e.sid)
+}
+
+func saveSession(dir string, s sessionFile) (string, error) {
+	if err := privateDir(filepath.Join(dir, sessionsDir)); err != nil {
+		return "", err
+	}
+	raw, err := json.Marshal(s)
+	if err != nil {
+		return "", err
+	}
+	for {
+		sid := randomHex(4)
+		path, _ := sessionPath(dir, sid)
+		if _, err := os.Stat(path); err == nil {
+			continue
+		}
+		return sid, writePrivate(path, raw)
+	}
+}
+
+// forgetSessions removes the session files of one client id and identity: a re-mint replaced their leases.
+func forgetSessions(dir, identity, clientID string) {
+	entries, err := os.ReadDir(filepath.Join(dir, sessionsDir))
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if s, err := loadSession(dir, e.Name()); err == nil && s.Identity == identity && s.ClientID == clientID {
+			path, _ := sessionPath(dir, e.Name())
+			_ = os.Remove(path)
+		}
+	}
+}
+
+// sessionEnded is the one message for a lease the server no longer honours; any other error is printed as it is.
+func sessionEnded(io IO, err error) int {
+	var se *statusError
+	if errors.As(err, &se) && se.code == wire.CodeSessionEnded {
+		fmt.Fprintf(io.Stderr, "convoz: The session ended. %s Run convoz session start again.\n", se.msg)
+		return ExitAuth
+	}
+	return fail(io, err)
+}
+
+// SessionStart runs `convoz session start`: it mints a lease with the machine key, keeps it in a private
+// file and prints only the local session id.
+func SessionStart(args []string, io IO) int {
+	fs := flag.NewFlagSet("session start", flag.ContinueOnError)
+	fs.SetOutput(io.Stderr)
+	as := fs.String("as", io.Getenv("CONVOZ_AS"), "the agent handle to act as")
+	create := fs.Bool("create", false, "make the identity if it does not exist (needs the create_identity scope)")
+	display := fs.String("name", "", "the display name for --create")
+	label := fs.String("label", "convoz cli", "what the owner sees next to the session")
+	clientID := fs.String("client-id", io.Getenv("CLAUDE_CODE_SESSION_ID"), "the client id; the same one replaces the older lease")
+	if err := fs.Parse(args); err != nil || fs.NArg() != 0 {
+		return ExitUsage
+	}
+	if *as == "" {
+		return usageError(io, "--as needs an agent handle")
+	}
+	if *create && *display == "" {
+		return usageError(io, "--create needs --name")
+	}
+	if *clientID == "" {
+		*clientID = "convoz-" + randomHex(8)
+	}
+	dir, err := configDir(io.Getenv)
+	if err != nil {
+		return fail(io, err)
+	}
+	kc := osKeychain{io.Getenv}
+	creds, err := loadCredentials(dir, kc)
+	if err != nil {
+		return fail(io, err)
+	}
+	sid, err := startSession(dir, newClient(creds.Server), creds, *as, *clientID, *label, *create, *display)
+	if err != nil {
+		return fail(io, err)
+	}
+	fmt.Fprintf(io.Stdout, "CONVOZ_SID=%s\n", sid)
+	return ExitOK
+}
+
+// startSession mints a lease for (as, clientID) and returns the local session id of its file.
+func startSession(dir string, c *client, creds Credentials, as, clientID, label string, create bool, display string) (string, error) {
+	req := wire.MintRequest{As: as, ClientID: clientID, Label: label}
+	if create {
+		req.Create = &wire.CreateIdentity{DisplayName: display}
+	}
+	var out wire.MintResponse
+	if err := c.call(context.Background(), "POST", wire.RouteSessions, creds.Key, req, &out); err != nil {
+		return "", err
+	}
+	forgetSessions(dir, out.Session.Identity, clientID)
+	return saveSession(dir, sessionFile{Lease: out.Lease, Identity: out.Session.Identity, Machine: out.Session.Machine, ClientID: clientID})
+}
+
+// SessionEnd runs `convoz session end`: it ends the lease and removes the file. A lease that already ended
+// counts as ended.
+func SessionEnd(args []string, io IO) int {
+	fs := flag.NewFlagSet("session end", flag.ContinueOnError)
+	fs.SetOutput(io.Stderr)
+	sid := fs.String("sid", io.Getenv("CONVOZ_SID"), "the local session id")
+	if err := fs.Parse(args); err != nil || fs.NArg() != 0 {
+		return ExitUsage
+	}
+	dir, err := configDir(io.Getenv)
+	if err != nil {
+		return fail(io, err)
+	}
+	creds, err := loadCredentials(dir, osKeychain{io.Getenv})
+	if err != nil {
+		return fail(io, err)
+	}
+	s, err := loadSession(dir, *sid)
+	if err != nil {
+		return fail(io, err)
+	}
+	err = newClient(creds.Server).call(context.Background(), "DELETE", wire.RouteSessionsMe, s.Lease, nil, nil)
+	if _, code := statusCode(err); err != nil && code != wire.CodeSessionEnded {
+		return fail(io, err)
+	}
+	path, _ := sessionPath(dir, *sid)
+	_ = os.Remove(path)
+	return ExitOK
+}

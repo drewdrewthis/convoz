@@ -15,6 +15,8 @@ import (
 type Entry struct {
 	Actor      int64 // identity id; 0 for none
 	Device     int64 // device id; 0 for none
+	Machine    int64 // machine id; 0 for none
+	Session    int64 // session id; 0 for none
 	Action     string
 	TargetKind string
 	TargetID   int64
@@ -27,6 +29,8 @@ type Row struct {
 	At         int64           `json:"at"`
 	ActorID    *int64          `json:"actor_id"`
 	DeviceID   *int64          `json:"device_id"`
+	MachineID  *int64          `json:"machine_id"`
+	SessionID  *int64          `json:"session_id"`
 	Action     string          `json:"action"`
 	TargetKind *string         `json:"target_kind"`
 	TargetID   *int64          `json:"target_id"`
@@ -42,6 +46,8 @@ func Write(ctx context.Context, d pdb.DBTX, now time.Time, e Entry) error {
 		At:         now.UnixMilli(),
 		ActorID:    nullInt(e.Actor),
 		DeviceID:   nullInt(e.Device),
+		MachineID:  nullInt(e.Machine),
+		SessionID:  nullInt(e.Session),
 		Action:     e.Action,
 		TargetKind: sql.NullString{String: e.TargetKind, Valid: e.TargetKind != ""},
 		TargetID:   nullInt(e.TargetID),
@@ -71,6 +77,12 @@ func List(ctx context.Context, d pdb.DBTX, max int) ([]Row, error) {
 		}
 		if r.DeviceID.Valid {
 			row.DeviceID = &r.DeviceID.Int64
+		}
+		if r.MachineID.Valid {
+			row.MachineID = &r.MachineID.Int64
+		}
+		if r.SessionID.Valid {
+			row.SessionID = &r.SessionID.Int64
 		}
 		if r.TargetKind.Valid {
 			row.TargetKind = &r.TargetKind.String

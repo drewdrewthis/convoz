@@ -2,6 +2,7 @@ package crypto
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -80,5 +81,44 @@ func TestOpenKeyringSweepsOldTemps(t *testing.T) {
 		if _, err := os.Stat(p); err != nil {
 			t.Fatalf("%s must survive: %v", p, err)
 		}
+	}
+}
+
+func TestOpenKeyringAddsTheMachineKeyDEKToAnOlderKeyring(t *testing.T) {
+	dir := t.TempDir()
+	g, err := aead(testKEK)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, dbDEK, err := newWrappedDEK(g, PurposeDB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old, _ := json.Marshal(keyringDoc{Version: keyringVersion, KEKID: kekID(testKEK), DEKs: []wrappedDEK{w}})
+	if err := publishNew(dir, filepath.Join(dir, KeyringFile), old); err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := OpenKeyring(dir, testKEK, filepath.Join(dir, "convoz.db"), time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	machine, ok := first.DEK(PurposeMachineKey)
+	if !ok || len(machine) != 32 {
+		t.Fatal("no machine key DEK was added")
+	}
+	if got, _ := first.DEK(PurposeDB); !bytes.Equal(got, dbDEK) {
+		t.Fatal("the database DEK changed")
+	}
+
+	again, err := OpenKeyring(dir, testKEK, filepath.Join(dir, "convoz.db"), time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := again.DEK(PurposeMachineKey); !bytes.Equal(got, machine) {
+		t.Fatal("the machine key DEK was not kept")
+	}
+	if info, err := os.Stat(filepath.Join(dir, KeyringFile)); err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("keyring mode: %v %v", info, err)
 	}
 }

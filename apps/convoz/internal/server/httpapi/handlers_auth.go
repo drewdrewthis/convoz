@@ -346,6 +346,8 @@ func (s *Server) registerVerify(w http.ResponseWriter, r *http.Request, c *call)
 	switch {
 	case errors.Is(err, auth.ErrStepUp):
 		writeErr(w, http.StatusForbidden, "step_up_invalid", "That passkey check is used up or expired. Check again.")
+	case errors.Is(err, auth.ErrDeviceGone):
+		writeErr(w, http.StatusUnauthorized, "unauthorized", "Sign in to continue.")
 	case err != nil:
 		s.internalError(w, r, err)
 	default:

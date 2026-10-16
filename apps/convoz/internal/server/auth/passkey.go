@@ -26,7 +26,15 @@ type Human struct {
 const RecoveryPasskeyDelay = 24 * time.Hour
 
 // DestructiveActions are the step-up actions a passkey must be old enough for (I-26).
-var DestructiveActions = map[string]bool{"passkey.remove": true, "recovery.regenerate": true}
+var DestructiveActions = map[string]bool{
+	"passkey.remove":      true,
+	"recovery.regenerate": true,
+	"machine.reveal":      true,
+	"machine.regenerate":  true, // it returns a key
+	"machine.revoke":      true,
+	"machine.approve":     true, // it hands a machine its key
+	"machine.allow":       true, // it widens who a machine may act as
+}
 
 // ErrPasskeyTooNew means the passkey was added by recovery less than RecoveryPasskeyDelay ago.
 var ErrPasskeyTooNew = errors.New("passkey is too new for this action")

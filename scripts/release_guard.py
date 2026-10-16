@@ -4,7 +4,8 @@
 Usage: python3 scripts/release_guard.py <binary>
 Fails (exit 1) if the binary
   1. was built with -tags=testhooks (read from `go version -m`),
-  2. contains the string "/__test/", "TESTONLY" (the fake-token marker) or "CONVOZ_TEST_PLAINTEXT", or
+  2. contains the string "/__test/", "TESTONLY" (the fake-token marker) or any "CONVOZ_TEST_" switch
+     (CONVOZ_TEST_ADMIN, CONVOZ_TEST_PLAINTEXT, CONVOZ_TEST_POLL_MS ...), or
   3. answers anything but 404 on a /__test/ route when booted with CONVOZ_TEST_ADMIN=1.
 The route list comes from the one Go constant (apps/convoz/internal/server/testroutes), so a new test
 route is probed without editing this script.
@@ -112,7 +113,7 @@ def main():
         problems.append("binary was built with -tags=testhooks")
     with open(binary, "rb") as fh:
         content = fh.read()
-    for marker in (b"/__test/", b"TESTONLY", b"CONVOZ_TEST_PLAINTEXT"):
+    for marker in (b"/__test/", b"TESTONLY", b"CONVOZ_TEST_"):
         if marker in content:
             problems.append(f'binary contains the string "{marker.decode()}"')
     boot_and_probe(binary, test_routes(), problems)

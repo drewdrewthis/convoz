@@ -21,7 +21,7 @@ TOKEN = re.compile(r"cvz_[a-z]_[A-Za-z0-9_-]{8,}")
 HEX_RUN = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{64,}(?![0-9A-Fa-f])")
 # Hex split by spaces, colons or one line break (fingerprints, xxd, openssl); counted after the separators go.
 # Groups have no upper length: a 64-char value wrapped 40+24 or 33+31 is still one value. The one shape
-# that is skipped is a stack of lines that are each exactly 40 hex (git SHAs), see is_sha_stack.
+# that is skipped is a stack of lines that each hold nothing but one 40-hex SHA, see is_sha_stack.
 HEX_SPLIT = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{2,}(?:[ :]+|[ :]*\r?\n[ :]*)(?:[0-9A-Fa-f]{2,}(?:[ :]+|[ :]*\r?\n[ :]*))*[0-9A-Fa-f]{2,}(?![0-9A-Fa-f])")
 HEX_GROUP = re.compile(r"[0-9A-Fa-f]+")
 # go.sum digest: 32 bytes of sha256 as exactly 43 base64 chars plus one "=".
@@ -76,9 +76,23 @@ def is_benign_b64(text, m):
     return "/" in run and run == run.lower()
 
 
-def is_sha_stack(groups):
-    """Stacked git SHAs: every group is exactly 40 hex chars."""
-    return all(len(g) == 40 for g in groups)
+# Commands that take revisions as arguments: git, and the repo's own red/green checker (base and head SHAs).
+REVISION_COMMANDS = ("$ git ", "$ python3 -I ./scripts/red_green.py ")
+LONE_SHA = re.compile(r"[0-9A-Fa-f]{40}")
+
+
+def is_sha_stack(text, m):
+    """Git SHAs, not one long value. Either every line the match touches is one 40-hex token and nothing else
+    (stacked lines), or the match sits on a recorded revision command line (REVISION_COMMANDS) and every group is exactly 40 hex
+    (revisions passed as arguments). Two 40-hex groups on any other command (echo, printf), any other line, or on lines with other text, are one
+    80-hex value, not two SHAs."""
+    start = text.rfind("\n", 0, m.start()) + 1
+    end = text.find("\n", m.end())
+    lines = text[start:len(text) if end < 0 else end].splitlines()
+    if len(lines) == 1 and lines[0].startswith(REVISION_COMMANDS):
+        words = [w for w in lines[0].split() if HEX_GROUP.fullmatch(w)]
+        return len(words) >= 2 and all(len(w) == 40 for w in words)
+    return len(lines) >= 2 and all(LONE_SHA.fullmatch(line.strip()) for line in lines)
 
 
 def specs(suite):
@@ -128,7 +142,7 @@ def leaks(scens):
         for m in HEX_SPLIT.finditer(text):
             groups = HEX_GROUP.findall(m.group(0))
             digits = sum(len(g) for g in groups)
-            if digits >= 64 and not is_sha_stack(groups):
+            if digits >= 64 and not is_sha_stack(text, m):
                 found.append((title, "split hex", digits))
         found += [
             (title, "base64", len(m.group(0)))
@@ -224,6 +238,12 @@ def self_test():
         ("split hex, spaces", " ".join([hex16] * 4) + "\n", {"split hex"}),
         ("split hex, colons", ":".join([hex16] * 4) + "\n", {"split hex"}),
         ("stacked 40-char git SHAs", "".join(hashlib.sha1(n).hexdigest() + "\n" for n in (b"alpha", b"beta", b"gamma")), set()),
+        ("two SHA arguments on a recorded command line", "$ git diff " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + " --stat\n", set()),
+        ("two SHA arguments to the red/green checker", "$ python3 -I ./scripts/red_green.py " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + " --runner r\n", set()),
+        ("two 40-hex words on a recorded command that is not git", "$ echo " + hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + "\n", {"split hex"}),
+        ("80 hex as two 40-hex groups on one line", hashlib.sha1(b"a").hexdigest() + " " + hashlib.sha1(b"b").hexdigest() + "\n", {"split hex"}),
+        ("80 hex as two 40-hex lines with text before the first", "key " + hashlib.sha1(b"a").hexdigest() + "\n" + hashlib.sha1(b"b").hexdigest() + "\n", {"split hex"}),
+        ("80 hex in one run", hashlib.sha1(b"a").hexdigest() + hashlib.sha1(b"b").hexdigest() + "\n", {"hex"}),
         ("64 hex wrapped 40+24", hex64[:40] + "\n" + hex64[40:] + "\n", {"split hex"}),
         ("64 hex wrapped 33+31", hex64[:33] + "\n" + hex64[33:] + "\n", {"split hex"}),
         ("over-length secret after challenge", '{"challenge":"' + long_secret + '"}\n', {"base64"}),

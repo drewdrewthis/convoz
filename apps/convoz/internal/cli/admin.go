@@ -22,8 +22,8 @@ const (
 	ExitFailure     = 1 // any other failure (a 5xx, an unreadable answer)
 	ExitUsage       = 2
 	ExitAuth        = 3 // HTTP 401 or 403
-	ExitConflict    = 4 // HTTP 409
-	ExitRateLimited = 5 // HTTP 429
+	ExitConflict    = 4 // HTTP 409 (a name or handle is taken)
+	ExitRateLimited = 5 // HTTP 429, also too_many_pending
 	ExitNetwork     = 6 // the socket cannot be reached
 )
 
@@ -34,11 +34,12 @@ var errUnreachable = errors.New("server unreachable")
 type statusError struct {
 	status int
 	msg    string
+	code   string // the server's error code, when it sent one
 }
 
 func (e *statusError) Error() string { return e.msg }
 
-// exitCode maps an error to its §13.2 exit code.
+// exitCode maps an error to its §13.2 exit code. A 400 is a failure (1), not usage (2): usage means the command line was wrong.
 func exitCode(err error) int {
 	var se *statusError
 	switch {
@@ -103,9 +104,9 @@ func BootstrapLink(ctx context.Context, socket string) (wire.BootstrapLink, erro
 	if res.StatusCode != http.StatusOK {
 		var e wire.Error
 		if json.Unmarshal(body, &e) == nil && e.Error.Message != "" {
-			return wire.BootstrapLink{}, &statusError{res.StatusCode, "server refused: " + e.Error.Message}
+			return wire.BootstrapLink{}, &statusError{status: res.StatusCode, msg: "server refused: " + e.Error.Message}
 		}
-		return wire.BootstrapLink{}, &statusError{res.StatusCode, fmt.Sprintf("server answered %d", res.StatusCode)}
+		return wire.BootstrapLink{}, &statusError{status: res.StatusCode, msg: fmt.Sprintf("server answered %d", res.StatusCode)}
 	}
 	var link wire.BootstrapLink
 	if err := json.Unmarshal(body, &link); err != nil || link.URL == "" {

@@ -22,6 +22,11 @@ func writeErr(w http.ResponseWriter, status int, code, message string) {
 	writeJSON(w, status, wire.Error{Error: wire.ErrorDetail{Code: code, Message: message}})
 }
 
+// writeFieldErr is writeErr for a 400 that is about one request field.
+func writeFieldErr(w http.ResponseWriter, status int, code, field, message string) {
+	writeJSON(w, status, wire.Error{Error: wire.ErrorDetail{Code: code, Message: message, Field: field}})
+}
+
 // maxBody bounds every request body; the biggest real one is a WebAuthn credential of a few KB.
 const maxBody = 1 << 20
 

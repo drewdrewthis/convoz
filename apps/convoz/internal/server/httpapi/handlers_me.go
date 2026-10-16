@@ -13,11 +13,26 @@ import (
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
 
-func (s *Server) me(w http.ResponseWriter, _ *http.Request, c *call) {
+func (s *Server) me(w http.ResponseWriter, r *http.Request, c *call) {
+	if c.p.SessionID != 0 {
+		s.leaseMe(w, r, c)
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"identity": map[string]any{"id": c.human.ID, "handle": c.human.Handle, "display_name": c.human.DisplayName, "role": c.human.Role, "kind": "human"},
 		"device":   map[string]any{"id": c.dev.ID, "limited": c.dev.Limited},
 	})
+}
+
+// identityJSON is an identity in the list. An agent says who made it: the owner, or a machine by name.
+type identityJSON struct {
+	identity.Entry
+	CreatedBy *createdByJSON `json:"created_by,omitempty"`
+}
+
+type createdByJSON struct {
+	Kind string `json:"kind"`
+	Name string `json:"name"`
 }
 
 func (s *Server) identities(w http.ResponseWriter, r *http.Request, _ *call) {
@@ -26,7 +41,27 @@ func (s *Server) identities(w http.ResponseWriter, r *http.Request, _ *call) {
 		s.internalError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"identities": list})
+	machines, err := auth.MachineNames(r.Context(), s.reader())
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	names := make(map[int64]string, len(list))
+	for _, e := range list {
+		names[e.ID] = e.DisplayName
+	}
+	out := make([]identityJSON, 0, len(list))
+	for _, e := range list {
+		row := identityJSON{Entry: e}
+		switch {
+		case e.CreatedByHuman != 0:
+			row.CreatedBy = &createdByJSON{"human", names[e.CreatedByHuman]}
+		case e.CreatedByMachine != 0:
+			row.CreatedBy = &createdByJSON{"machine", machines[e.CreatedByMachine]}
+		}
+		out = append(out, row)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"identities": out})
 }
 
 type deviceJSON struct {

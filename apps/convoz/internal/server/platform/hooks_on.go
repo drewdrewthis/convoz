@@ -87,3 +87,13 @@ func TokenMarker() string {
 	}
 	return ""
 }
+
+// PollIntervalOverride is the device-flow poll interval a test asks for with CONVOZ_TEST_POLL_MS, so a CLI
+// login takes milliseconds. The clock is never frozen for this: a frozen clock would answer slow_down forever.
+func PollIntervalOverride() (time.Duration, bool) {
+	if !HooksEnabled() {
+		return 0, false
+	}
+	ms, err := strconv.Atoi(os.Getenv("CONVOZ_TEST_POLL_MS"))
+	return time.Duration(ms) * time.Millisecond, err == nil && ms > 0
+}

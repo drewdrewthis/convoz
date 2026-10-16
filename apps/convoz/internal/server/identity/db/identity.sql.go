@@ -10,6 +10,78 @@ import (
 	"database/sql"
 )
 
+const activeSkeletons = `-- name: ActiveSkeletons :many
+SELECT handle, display_skeleton FROM identities WHERE disabled_at IS NULL
+`
+
+type ActiveSkeletonsRow struct {
+	Handle          string
+	DisplaySkeleton string
+}
+
+func (q *Queries) ActiveSkeletons(ctx context.Context) ([]ActiveSkeletonsRow, error) {
+	rows, err := q.db.QueryContext(ctx, activeSkeletons)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ActiveSkeletonsRow
+	for rows.Next() {
+		var i ActiveSkeletonsRow
+		if err := rows.Scan(&i.Handle, &i.DisplaySkeleton); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countAgentsCreatedByMachineSince = `-- name: CountAgentsCreatedByMachineSince :one
+SELECT COUNT(*) AS n, CAST(COALESCE(MIN(i.created_at), 0) AS INTEGER) AS oldest
+FROM agents a JOIN identities i ON i.id = a.identity_id
+WHERE a.created_by_machine = ?1 AND i.created_at > ?2
+`
+
+type CountAgentsCreatedByMachineSinceParams struct {
+	MachineID sql.NullInt64
+	Since     int64
+}
+
+type CountAgentsCreatedByMachineSinceRow struct {
+	N      int64
+	Oldest int64
+}
+
+func (q *Queries) CountAgentsCreatedByMachineSince(ctx context.Context, arg CountAgentsCreatedByMachineSinceParams) (CountAgentsCreatedByMachineSinceRow, error) {
+	row := q.db.QueryRowContext(ctx, countAgentsCreatedByMachineSince, arg.MachineID, arg.Since)
+	var i CountAgentsCreatedByMachineSinceRow
+	err := row.Scan(&i.N, &i.Oldest)
+	return i, err
+}
+
+const disableAgent = `-- name: DisableAgent :execrows
+UPDATE identities SET disabled_at = ?1 WHERE id = ?2 AND kind = 'agent' AND disabled_at IS NULL
+`
+
+type DisableAgentParams struct {
+	DisabledAt sql.NullInt64
+	ID         int64
+}
+
+func (q *Queries) DisableAgent(ctx context.Context, arg DisableAgentParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, disableAgent, arg.DisabledAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const getHuman = `-- name: GetHuman :one
 SELECT i.id, i.handle, i.display_name, h.role
 FROM humans h JOIN identities i ON i.id = h.identity_id
@@ -60,6 +132,56 @@ func (q *Queries) GetHumanByHandle(ctx context.Context, handle string) (GetHuman
 	return i, err
 }
 
+const getIdentity = `-- name: GetIdentity :one
+SELECT id, kind, handle, display_name, disabled_at FROM identities WHERE id = ?1
+`
+
+type GetIdentityRow struct {
+	ID          int64
+	Kind        string
+	Handle      string
+	DisplayName string
+	DisabledAt  sql.NullInt64
+}
+
+func (q *Queries) GetIdentity(ctx context.Context, id int64) (GetIdentityRow, error) {
+	row := q.db.QueryRowContext(ctx, getIdentity, id)
+	var i GetIdentityRow
+	err := row.Scan(
+		&i.ID,
+		&i.Kind,
+		&i.Handle,
+		&i.DisplayName,
+		&i.DisabledAt,
+	)
+	return i, err
+}
+
+const getIdentityByHandle = `-- name: GetIdentityByHandle :one
+SELECT id, kind, handle, display_name, disabled_at FROM identities WHERE handle = ?1
+`
+
+type GetIdentityByHandleRow struct {
+	ID          int64
+	Kind        string
+	Handle      string
+	DisplayName string
+	DisabledAt  sql.NullInt64
+}
+
+func (q *Queries) GetIdentityByHandle(ctx context.Context, handle string) (GetIdentityByHandleRow, error) {
+	row := q.db.QueryRowContext(ctx, getIdentityByHandle, handle)
+	var i GetIdentityByHandleRow
+	err := row.Scan(
+		&i.ID,
+		&i.Kind,
+		&i.Handle,
+		&i.DisplayName,
+		&i.DisabledAt,
+	)
+	return i, err
+}
+
 const getOwner = `-- name: GetOwner :one
 SELECT i.id, i.handle, i.display_name, h.role
 FROM humans h JOIN identities i ON i.id = h.identity_id
@@ -83,6 +205,33 @@ func (q *Queries) GetOwner(ctx context.Context) (GetOwnerRow, error) {
 		&i.Role,
 	)
 	return i, err
+}
+
+const handleWasUsed = `-- name: HandleWasUsed :one
+SELECT EXISTS (SELECT 1 FROM retired_handles WHERE handle = ?1)
+`
+
+func (q *Queries) HandleWasUsed(ctx context.Context, handle string) (bool, error) {
+	row := q.db.QueryRowContext(ctx, handleWasUsed, handle)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const insertAgent = `-- name: InsertAgent :exec
+INSERT INTO agents (identity_id, created_by_human, created_by_machine)
+VALUES (?1, ?2, ?3)
+`
+
+type InsertAgentParams struct {
+	IdentityID       int64
+	CreatedByHuman   sql.NullInt64
+	CreatedByMachine sql.NullInt64
+}
+
+func (q *Queries) InsertAgent(ctx context.Context, arg InsertAgentParams) error {
+	_, err := q.db.ExecContext(ctx, insertAgent, arg.IdentityID, arg.CreatedByHuman, arg.CreatedByMachine)
+	return err
 }
 
 const insertHuman = `-- name: InsertHuman :exec
@@ -133,19 +282,24 @@ func (q *Queries) InsertIdentity(ctx context.Context, arg InsertIdentityParams) 
 }
 
 const listIdentities = `-- name: ListIdentities :many
-SELECT i.id, i.kind, i.handle, i.display_name, CAST(COALESCE(h.role, 'agent') AS TEXT) AS role, i.created_at, i.disabled_at
-FROM identities i LEFT JOIN humans h ON h.identity_id = i.id
+SELECT i.id, i.kind, i.handle, i.display_name, CAST(COALESCE(h.role, 'agent') AS TEXT) AS role, i.created_at, i.disabled_at,
+  a.created_by_human, a.created_by_machine
+FROM identities i
+LEFT JOIN humans h ON h.identity_id = i.id
+LEFT JOIN agents a ON a.identity_id = i.id
 ORDER BY i.id
 `
 
 type ListIdentitiesRow struct {
-	ID          int64
-	Kind        string
-	Handle      string
-	DisplayName string
-	Role        string
-	CreatedAt   int64
-	DisabledAt  sql.NullInt64
+	ID               int64
+	Kind             string
+	Handle           string
+	DisplayName      string
+	Role             string
+	CreatedAt        int64
+	DisabledAt       sql.NullInt64
+	CreatedByHuman   sql.NullInt64
+	CreatedByMachine sql.NullInt64
 }
 
 func (q *Queries) ListIdentities(ctx context.Context) ([]ListIdentitiesRow, error) {
@@ -165,6 +319,8 @@ func (q *Queries) ListIdentities(ctx context.Context) ([]ListIdentitiesRow, erro
 			&i.Role,
 			&i.CreatedAt,
 			&i.DisabledAt,
+			&i.CreatedByHuman,
+			&i.CreatedByMachine,
 		); err != nil {
 			return nil, err
 		}

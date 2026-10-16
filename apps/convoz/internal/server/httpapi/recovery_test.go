@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -72,4 +73,39 @@ func TestRecoveryDeviceLifeAndItsPasskey(t *testing.T) {
 
 func authzLimited(h auth.Human, deviceID int64) authz.Principal {
 	return authz.Principal{Authenticated: true, HumanID: h.ID, DeviceID: deviceID, Limited: true, Role: h.Role}
+}
+
+// Two verifies racing on one recovery device must not both add a passkey: the second finds the device ended.
+func TestRecoveryDeviceRegistersOnlyOnePasskey(t *testing.T) {
+	s := migratedStore(t)
+	now := platform.SystemClock{}.Now()
+	owner, err := runBootstrap(s, bootstrapPorts, mintLink(t, s, now), "first", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	human := owner.Owner
+	var devID int64
+	err = s.Writer.Tx(context.Background(), func(ctx context.Context, tx *pdb.Tx) error {
+		var err error
+		_, devID, err = auth.StartDevice(ctx, tx.DBTX(), human.ID, 0, "test", true, now)
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := &call{p: authzLimited(human, devID), dev: auth.Device{ID: devID, HumanID: human.ID, Limited: true}, human: human}
+	register := func(id string) error {
+		return s.Writer.Tx(context.Background(), func(ctx context.Context, tx *pdb.Tx) error {
+			return registerPasskey(ctx, tx.DBTX(), c, fakeCred(id), now.Add(time.Minute))
+		})
+	}
+	if err := register("one"); err != nil {
+		t.Fatal(err)
+	}
+	if err := register("two"); !errors.Is(err, auth.ErrDeviceGone) {
+		t.Fatalf("the second registration on the same recovery device: %v", err)
+	}
+	if n := count(t, s, "passkeys"); n != 2 { // the bootstrap passkey and the first recovery one
+		t.Fatalf("passkeys: %d", n)
+	}
 }

@@ -55,7 +55,7 @@ Feature: Onboarding and sign in
       When the same code is entered again
       Then the app says the code is not valid
 
-    @v1 @api @I-26 @unimplemented
+    @v1 @api @I-26
     Scenario: A passkey added by recovery cannot do destructive things for 24 hours
       Given the owner added a passkey through a recovery code 2 hours ago
       When the owner tries to reveal a machine key with that passkey

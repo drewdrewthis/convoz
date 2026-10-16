@@ -92,3 +92,170 @@ WHERE human_id = sqlc.arg(human_id) AND used_at IS NULL AND revoked_at IS NULL;
 UPDATE recovery_codes SET used_at = sqlc.arg(used_at)
 WHERE code_hash = sqlc.arg(code_hash) AND used_at IS NULL AND revoked_at IS NULL
 RETURNING human_id;
+
+-- ===== device flow (machine requests) =====
+
+-- name: InsertMachineRequest :one
+INSERT INTO machine_requests (device_code_hash, user_code, requested_name, host_info, source, source_node, created_at, expires_at, poll_interval_ms)
+VALUES (sqlc.arg(device_code_hash), sqlc.arg(user_code), sqlc.arg(requested_name), sqlc.narg(host_info), sqlc.arg(source), sqlc.narg(source_node), sqlc.arg(created_at), sqlc.arg(expires_at), sqlc.arg(poll_interval_ms))
+RETURNING id;
+
+-- name: CountPendingRequests :one
+SELECT COUNT(*) FROM machine_requests WHERE state = 'pending' AND expires_at > sqlc.arg(now);
+
+-- name: CountPendingRequestsFromSource :one
+SELECT COUNT(*) FROM machine_requests WHERE state = 'pending' AND expires_at > sqlc.arg(now) AND source = sqlc.arg(source);
+
+-- name: RequestsFromSource :one
+SELECT COUNT(*) AS n, CAST(COALESCE(MIN(created_at), 0) AS INTEGER) AS oldest
+FROM machine_requests WHERE source = sqlc.arg(source) AND created_at > sqlc.arg(since);
+
+-- name: GetRequestByDeviceCode :one
+SELECT id, state, expires_at, last_poll_at, poll_interval_ms, decided_at, machine_id
+FROM machine_requests WHERE device_code_hash = sqlc.arg(device_code_hash);
+
+-- name: TouchRequestPoll :exec
+UPDATE machine_requests SET last_poll_at = sqlc.arg(last_poll_at), poll_count = poll_count + 1, poll_interval_ms = sqlc.arg(poll_interval_ms)
+WHERE id = sqlc.arg(id);
+
+-- name: ListPendingRequests :many
+SELECT id, user_code, requested_name, host_info, source, source_node, created_at, expires_at
+FROM machine_requests WHERE state = 'pending' AND expires_at > sqlc.arg(now) ORDER BY created_at, id;
+
+-- name: GetPendingRequest :one
+SELECT id, user_code, requested_name, host_info, source, source_node, created_at, expires_at
+FROM machine_requests WHERE id = sqlc.arg(id) AND state = 'pending' AND expires_at > sqlc.arg(now);
+
+-- name: DenyRequest :execrows
+UPDATE machine_requests SET state = 'denied', decided_by = sqlc.arg(decided_by), decided_at = sqlc.arg(decided_at)
+WHERE id = sqlc.arg(id) AND state = 'pending' AND expires_at > sqlc.arg(decided_at);
+
+-- name: DenyAllRequests :execrows
+UPDATE machine_requests SET state = 'denied', decided_by = sqlc.arg(decided_by), decided_at = sqlc.arg(decided_at)
+WHERE state = 'pending' AND expires_at > sqlc.arg(decided_at);
+
+-- name: ApproveRequest :execrows
+UPDATE machine_requests SET state = 'approved', decided_by = sqlc.arg(decided_by), decided_at = sqlc.arg(decided_at),
+  expires_at = sqlc.arg(expires_at), machine_id = sqlc.arg(machine_id)
+WHERE id = sqlc.arg(id) AND state = 'pending' AND expires_at > sqlc.arg(decided_at);
+
+-- name: MarkRequestDelivered :exec
+UPDATE machine_requests SET state = 'delivered' WHERE machine_id = sqlc.arg(machine_id) AND state = 'approved';
+
+-- ===== machines =====
+
+-- name: InsertMachine :one
+INSERT INTO machines (name, key_hash, key_enc, key_dek_id, key_version, key_hint, scopes, allow_mode, approved_by, created_at, key_created_at)
+VALUES (sqlc.arg(name), sqlc.arg(key_hash), sqlc.arg(key_enc), 1, 1, sqlc.arg(key_hint), sqlc.arg(scopes), sqlc.arg(allow_mode), sqlc.arg(approved_by), sqlc.arg(created_at), sqlc.arg(created_at))
+RETURNING id;
+
+-- name: SealMachineKey :exec
+UPDATE machines SET key_enc = sqlc.arg(key_enc) WHERE id = sqlc.arg(id);
+
+-- name: GetActiveMachineByName :one
+SELECT id FROM machines WHERE name = sqlc.arg(name) AND revoked_at IS NULL;
+
+-- name: CountActiveMachines :one
+SELECT COUNT(*) FROM machines WHERE revoked_at IS NULL;
+
+-- name: GetMachineByKeyHash :one
+SELECT id, name, key_hint, scopes, allow_mode, key_version FROM machines WHERE key_hash = sqlc.arg(key_hash) AND revoked_at IS NULL;
+
+-- name: GetActiveMachine :one
+SELECT id, name, key_hint, scopes, allow_mode, key_enc, key_version, last_used_at FROM machines WHERE id = sqlc.arg(id) AND revoked_at IS NULL;
+
+-- name: ListActiveMachines :many
+SELECT m.id, m.name, m.key_hint, m.scopes, m.allow_mode, m.last_used_at,
+  (SELECT COUNT(*) FROM sessions s WHERE s.machine_id = m.id AND s.ended_at IS NULL AND s.expires_at > sqlc.arg(now)) AS live_sessions
+FROM machines m WHERE m.revoked_at IS NULL ORDER BY m.id;
+
+-- name: ListMachineNames :many
+SELECT id, name FROM machines;
+
+-- name: TouchMachine :exec
+UPDATE machines SET last_used_at = sqlc.arg(last_used_at), last_used_source = sqlc.narg(last_used_source) WHERE id = sqlc.arg(id);
+
+-- name: ReplaceMachineKey :execrows
+UPDATE machines SET key_hash = sqlc.arg(key_hash), key_enc = sqlc.arg(key_enc), key_version = sqlc.arg(key_version),
+  key_hint = sqlc.arg(key_hint), key_created_at = sqlc.arg(key_created_at)
+WHERE id = sqlc.arg(id) AND revoked_at IS NULL;
+
+-- name: RevokeMachine :execrows
+UPDATE machines SET revoked_at = sqlc.arg(revoked_at), revoke_reason = 'user' WHERE id = sqlc.arg(id) AND revoked_at IS NULL;
+
+-- name: SetMachineAllowMode :exec
+UPDATE machines SET allow_mode = sqlc.arg(allow_mode) WHERE id = sqlc.arg(id);
+
+-- name: DeleteMachineAllow :exec
+DELETE FROM machine_allow WHERE machine_id = sqlc.arg(machine_id);
+
+-- name: InsertAllowIdentity :exec
+INSERT INTO machine_allow (machine_id, identity_id) VALUES (sqlc.arg(machine_id), sqlc.arg(identity_id));
+
+-- name: InsertAllowGlob :exec
+INSERT INTO machine_allow (machine_id, glob) VALUES (sqlc.arg(machine_id), sqlc.arg(glob));
+
+-- name: ListMachineAllow :many
+SELECT a.machine_id, a.identity_id, a.glob
+FROM machine_allow a JOIN machines m ON m.id = a.machine_id WHERE m.revoked_at IS NULL ORDER BY a.id;
+
+-- ===== sessions (leases) =====
+
+-- name: InsertSession :one
+INSERT INTO sessions (identity_id, machine_id, token_hash, client_id, label, scopes, created_at, last_seen_at, expires_at)
+VALUES (sqlc.arg(identity_id), sqlc.arg(machine_id), sqlc.arg(token_hash), sqlc.arg(client_id), sqlc.arg(label), sqlc.arg(scopes), sqlc.arg(now), sqlc.arg(now), sqlc.arg(expires_at))
+RETURNING id;
+
+-- name: GetSessionByTokenHash :one
+SELECT s.id, s.identity_id, s.machine_id, s.client_id, s.label, s.scopes, s.last_seen_at, s.expires_at, s.ended_at, s.end_reason, m.name AS machine_name
+FROM sessions s JOIN machines m ON m.id = s.machine_id WHERE s.token_hash = sqlc.arg(token_hash);
+
+-- name: EndExpiredSessionsOfClient :exec
+UPDATE sessions SET ended_at = sqlc.arg(now), end_reason = 'expired'
+WHERE identity_id = sqlc.arg(identity_id) AND machine_id = sqlc.arg(machine_id) AND client_id = sqlc.arg(client_id)
+  AND ended_at IS NULL AND expires_at <= sqlc.arg(now);
+
+-- name: EndOpenSessionsOfClient :exec
+UPDATE sessions SET ended_at = sqlc.arg(now), end_reason = 'replaced'
+WHERE identity_id = sqlc.arg(identity_id) AND machine_id = sqlc.arg(machine_id) AND client_id = sqlc.arg(client_id) AND ended_at IS NULL;
+
+-- name: CountLiveSessionsOfIdentity :one
+SELECT COUNT(*) FROM sessions WHERE identity_id = sqlc.arg(identity_id) AND ended_at IS NULL AND expires_at > sqlc.arg(now);
+
+-- name: CountLiveSessionsOnMachine :one
+SELECT COUNT(*) FROM sessions WHERE machine_id = sqlc.arg(machine_id) AND ended_at IS NULL AND expires_at > sqlc.arg(now);
+
+-- name: MintsOfIdentity :one
+SELECT COUNT(*) AS n, CAST(COALESCE(MIN(created_at), 0) AS INTEGER) AS oldest
+FROM sessions WHERE identity_id = sqlc.arg(identity_id) AND created_at > sqlc.arg(since);
+
+-- name: MintsOnMachine :one
+SELECT COUNT(*) AS n, CAST(COALESCE(MIN(created_at), 0) AS INTEGER) AS oldest
+FROM sessions WHERE machine_id = sqlc.arg(machine_id) AND created_at > sqlc.arg(since);
+
+-- name: SlideSession :exec
+UPDATE sessions SET last_seen_at = sqlc.arg(now), expires_at = sqlc.arg(expires_at) WHERE id = sqlc.arg(id) AND ended_at IS NULL;
+
+-- name: EndSession :execrows
+UPDATE sessions SET ended_at = sqlc.arg(now), end_reason = sqlc.arg(reason) WHERE id = sqlc.arg(id) AND ended_at IS NULL;
+
+-- name: EndSessionsOfMachine :exec
+UPDATE sessions SET ended_at = sqlc.arg(now), end_reason = sqlc.arg(reason) WHERE machine_id = sqlc.arg(machine_id) AND ended_at IS NULL;
+
+-- name: EndSessionsOfIdentity :exec
+UPDATE sessions SET ended_at = sqlc.arg(now), end_reason = sqlc.arg(reason) WHERE identity_id = sqlc.arg(identity_id) AND ended_at IS NULL;
+
+-- name: EndSessionsOfIdentityOnMachine :exec
+UPDATE sessions SET ended_at = sqlc.arg(now), end_reason = sqlc.arg(reason)
+WHERE identity_id = sqlc.arg(identity_id) AND machine_id = sqlc.arg(machine_id) AND ended_at IS NULL;
+
+-- name: LiveSessionIdentitiesOnMachine :many
+SELECT DISTINCT identity_id FROM sessions WHERE machine_id = sqlc.arg(machine_id) AND ended_at IS NULL AND expires_at > sqlc.arg(now);
+
+-- name: ListSessions :many
+SELECT s.id, s.identity_id, s.client_id, s.label, s.last_seen_at, s.expires_at, s.ended_at, s.end_reason, m.name AS machine_name
+FROM sessions s JOIN machines m ON m.id = s.machine_id ORDER BY s.id DESC LIMIT sqlc.arg(max_rows);
+
+-- name: CountLiveSessionsOfClient :one
+SELECT COUNT(*) FROM sessions
+WHERE identity_id = sqlc.arg(identity_id) AND machine_id = sqlc.arg(machine_id) AND client_id = sqlc.arg(client_id) AND ended_at IS NULL AND expires_at > sqlc.arg(now);

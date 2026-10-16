@@ -76,3 +76,12 @@ func TestAdminUsageExits2(t *testing.T) {
 		t.Fatalf("exit %d", got)
 	}
 }
+
+func TestExitCodeMapsStatusesToSection13Codes(t *testing.T) {
+	cases := map[int]int{400: ExitFailure, 401: ExitAuth, 403: ExitAuth, 409: ExitConflict, 429: ExitRateLimited, 500: ExitFailure}
+	for status, want := range cases {
+		if got := exitCode(&statusError{status: status}); got != want {
+			t.Errorf("HTTP %d: exit %d, want %d", status, got, want)
+		}
+	}
+}
