@@ -16,10 +16,7 @@ Feature: Rail
 
   Rule: Order is the owner's, never the activity's (I-21)
 
-    @v1 @browser @I-21 @unimplemented
-    Scenario: A new conversation goes to the top
-      Then the Conversations group lists 60, 52, 41 in that order
-
+    # Replaced on the phone Chats list by "A new message moves its conversation to the top of the list" (chat MVP plan, DA amendment 3).
     @v1 @browser @I-21 @AC-13 @unimplemented
     Scenario: Activity never reorders the rail
       When "devtool" posts in conversation 41
@@ -79,12 +76,25 @@ Feature: Rail
         | "All checks green" from "devtool"   | devtool: All checks green        |
         | nothing                             | No messages yet                  |
 
-    @v1 @browser @I-14 @unimplemented
+    @v1 @browser @I-14
     Scenario: Unread conversations are bold with a count
       Given the owner has read every conversation
       When "devtool" posts 3 messages in conversation 52
       Then conversation 52 is bold with "3"
       And opening conversation 52 clears the bold and the count
+
+  Rule: The Chats list puts the latest activity first
+
+    # DEFAULT (owner to confirm): the phone Chats list orders by latest activity, so I-21 ("activity never reorders") holds for the desktop rail only.
+    @v1 @browser @I-21
+    Scenario: A new conversation goes to the top of the Chats list
+      Then the Chats list shows 60, 52, 41 in that order
+
+    @v1 @browser
+    Scenario: A new message moves its conversation to the top of the list
+      Given the owner opened the Chats list
+      When "devtool" posts in conversation 41
+      Then the Chats list shows 41, 60, 52 in that order without a reload
 
   Rule: The rail is quick to move around
 

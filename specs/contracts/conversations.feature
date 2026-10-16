@@ -48,6 +48,14 @@ Feature: Conversations (contracts)
       When "devtool" posts in conversation 41
       Then the stream sends "agent.working" for "devtool" with working false
 
+    @v1 @api
+    Scenario: Signing out closes the live stream
+      Given the owner has the event stream open
+      When the owner signs out
+      Then the stream ends
+      And a message posted afterwards reaches no frame on it
+      And opening a new stream with the old cookie answers 401
+
   Rule: Agents join only through a human, and see only from their join
 
     @v1 @api @unimplemented

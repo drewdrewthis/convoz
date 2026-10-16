@@ -90,7 +90,7 @@ scenario("Making new recovery codes records an event as well as the audit line",
 
   // When the stored events and the audit view are read
   const db = plainDb(dataDir);
-  let events: { type: string; payload: string }[];
+  let events: { type: string; payload_json: string }[];
   try {
     events = db.prepare("SELECT type, payload_json AS payload FROM events WHERE type = 'recovery.regenerated.v1'").all() as { type: string; payload: string }[];
   } finally {

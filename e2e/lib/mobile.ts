@@ -31,10 +31,14 @@ export async function signInWith(srv: ServerHandle, soft: SoftAuthenticator, pag
 /** The widest a page is past the screen, in CSS px (0 means no sideways scroll). */
 export const overflowX = (page: Page): Promise<number> => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
+/** The element's box. A page may swap the node under a locator (a sent message is replaced by its stored copy), so a missing box is retried for a second. */
 export async function box(l: Locator): Promise<{ x: number; y: number; width: number; height: number }> {
-  const b = await l.boundingBox();
-  if (!b) throw new Error("element has no box (not visible)");
-  return b;
+  for (let tries = 0; tries < 20; tries++) {
+    const b = await l.boundingBox();
+    if (b) return b;
+    await l.page().waitForTimeout(50);
+  }
+  throw new Error("element has no box (not visible)");
 }
 
 /** Luminance 0..1 of the page background. */

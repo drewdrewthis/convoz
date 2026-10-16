@@ -62,6 +62,13 @@ func TestPlainTextDropsControlCharactersButKeepsNewlineAndTab(t *testing.T) {
 	}
 }
 
+func TestPlainTextDropsUnicodeFormatCharacters(t *testing.T) {
+	in := "a\u202eb\u200bc\u200fd\u2066e\u2069f\u200dg"
+	if got := plain(in); got != "abcdefg" {
+		t.Errorf("plain(%q) = %q, want the format characters gone", in, got)
+	}
+}
+
 func TestAnInboxLineShowsNoControlCharacters(t *testing.T) {
 	title := "t"
 	it := wire.InboxItem{ID: 3, ClaimToken: "ab", Reason: "activity", Count: 1, Conversation: wire.InboxConversation{ID: 4, Title: &title},

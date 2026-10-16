@@ -19,7 +19,8 @@ import { webauthn } from "../lib/webauthn-browser.ts";
  * FRAME (every page)
  *   banner: link "Convoz" (to /). Signed-in pages also have button "Account menu" (aria-haspopup="menu"). It opens role=menu with
  *     menuitems "Passkeys" (/settings/passkeys), "Recovery codes" (/settings/recovery) and "Sign out"; Escape closes it.
- *   navigation "Main" (bottom, signed-in pages): links "Now" (/) and "Account" (/account; rows Passkeys, Recovery codes, Machines, Sign out).
+ *   navigation "Main" (bottom, signed-in pages): links "Chats" (/chats), "Now" (/) and "Account" (/account; rows Passkeys, Recovery codes,
+ *     Machines, Sign out), in that order (chat MVP; see tests/chat-ui.spec.ts).
  *   The frame, the menu and the nav have NO listitem elements (an existing scenario counts the listitems of /settings/passkeys).
  *   Buttons, menu items, nav links and text fields are at least 44 px tall. Primary buttons and text fields are full width (>= 342 px at
  *   390 px). Labels sit above their field. No page is wider than the screen at 390 px and at 320 px. Errors and notes appear in role=alert
@@ -42,7 +43,7 @@ import { webauthn } from "../lib/webauthn-browser.ts";
  *
  * SIGN IN  /signin
  *   heading "Sign in", button "Sign in with a passkey", link "Lost your passkey? Use a recovery code" (to /recover). The login options are
- *   fetched when the page opens. Signed in already: the page goes to Now. After "Sign out" the page shows role=status "Signed out".
+ *   fetched when the page opens. Signed in already: the page goes to Chats (/chats). After a good passkey sign-in the browser lands on Chats (the ?next= path wins). After "Sign out" the page shows role=status "Signed out".
  *   Failures (role=alert): ceremony_invalid (stale) "The passkey check timed out. Tap again."; NotAllowedError "The passkey prompt was closed
  *   or timed out. Try again."; InvalidStateError "This device already has a Convoz passkey. Use another device or a security key."
  *   Any 401 from the console sends the browser to /signin?next=<path> (encoded); after sign in it goes to <path>. A page request without a
@@ -78,6 +79,8 @@ import { webauthn } from "../lib/webauthn-browser.ts";
 
 const local = { host: "localhost", adminSocket: true } as const;
 const nowHeading = (page: import("@playwright/test").Page) => page.getByRole("heading", { name: "Now", exact: true });
+// Chat MVP: signing in lands on Chats (/chats), not Now.
+const chatsHeading = (page: import("@playwright/test").Page) => page.getByRole("heading", { name: "Chats", exact: true });
 
 scenario("Signing in takes one tap and one passkey prompt", { tag: ["@browser"] }, async ({ server, page, context, guard }) => {
   // Given the owner has a passkey on this device
@@ -91,7 +94,7 @@ scenario("Signing in takes one tap and one passkey prompt", { tag: ["@browser"] 
   await page.getByRole("button", { name: "Sign in with a passkey" }).click();
 
   // Then one passkey prompt opens at once, with no network call waited on between the tap and the prompt
-  await expect(nowHeading(page)).toBeVisible();
+  await expect(chatsHeading(page)).toBeVisible();
   expect(guard.ceremonies()).toEqual([{ kind: "get", path: "/signin" }]);
   expect(guard.violations()).toEqual([]);
 });
@@ -146,7 +149,7 @@ scenario("A stale passkey prompt is renewed and the next tap works", { tag: ["@b
   // And the next tap signs the owner in with one passkey prompt
   await expect(signIn).toBeEnabled();
   await signIn.click();
-  await expect(nowHeading(page)).toBeVisible();
+  await expect(chatsHeading(page)).toBeVisible();
   expect(guard.violations()).toEqual([]);
 });
 
@@ -190,7 +193,7 @@ scenario("A closed passkey prompt shows a plain message and can be retried", { t
   // And the next tap signs the owner in
   await expect(signIn).toBeEnabled();
   await signIn.click();
-  await expect(nowHeading(page)).toBeVisible();
+  await expect(chatsHeading(page)).toBeVisible();
   expect(guard.violations()).toEqual([]);
 });
 
@@ -344,7 +347,7 @@ scenario("A used setup link opened while signed in offers Go to Convoz", { tag: 
   await expect(page.getByRole("link", { name: "Go to Convoz" }).or(page.getByRole("button", { name: "Go to Convoz" }))).toBeVisible();
 });
 
-scenario("Opening sign-in while signed in goes to Now", { tag: ["@browser"] }, async ({ server, page, context }) => {
+scenario("Opening sign-in while signed in goes to Chats", { tag: ["@browser"] }, async ({ server, page, context }) => {
   // Given the owner is signed in
   const srv = await server(local);
   const owner = await bootstrapOwner(srv);
@@ -353,9 +356,9 @@ scenario("Opening sign-in while signed in goes to Now", { tag: ["@browser"] }, a
   // When the owner opens the sign-in page
   await page.goto(`${srv.origin}/signin`);
 
-  // Then the app shows Now
-  await expect(nowHeading(page)).toBeVisible();
-  await expect(page).toHaveURL(`${srv.origin}/`);
+  // Then the app shows Chats
+  await expect(chatsHeading(page)).toBeVisible();
+  await expect(page).toHaveURL(`${srv.origin}/chats`);
 });
 
 scenario("An expired session sends the owner to sign in and back", { tag: ["@browser"] }, async ({ server, page, context, guard }) => {
@@ -586,9 +589,9 @@ scenario("The account menu lists Passkeys, Recovery codes and Sign out", { tag: 
   const menu = page.getByRole("menu");
   await expect(menu.getByRole("menuitem")).toHaveText(["Passkeys", "Recovery codes", "Sign out"]);
 
-  // And the bottom nav shows "Now" and "Account"
+  // And the bottom nav shows "Chats", "Now" and "Account"
   const nav = page.getByRole("navigation", { name: "Main" });
-  await expect(nav.getByRole("link")).toHaveText(["Now", "Account"]);
+  await expect(nav.getByRole("link")).toHaveText(["Chats", "Now", "Account"]);
 });
 
 scenario("Sign out from the account menu ends the session", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
