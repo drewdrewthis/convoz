@@ -12,13 +12,28 @@ interface Entry {
 /** Entries of the test running in this worker (a worker runs one test at a time). */
 let active: Entry[] | null = null;
 
+/** Records still on their way (a child that has not exited yet); see `track`. */
+let pending: Promise<unknown>[] = [];
+
 /** Start recording for one test. */
 export function beginTranscript(): void {
   active = [];
+  pending = [];
 }
 
-/** Stop recording and return the rendered `cli-transcript` text. */
-export function endTranscript(): string {
+/**
+ * Register a promise that will call `record` when it settles (e.g. a server's exit).
+ * Rule: any record that lands after the code that started the process returns must go
+ * through `track`, so `endTranscript` waits for it and teardown order cannot lose it.
+ */
+export function track(p: Promise<unknown>): void {
+  pending.push(p);
+}
+
+/** Wait for tracked records, stop recording and return the rendered `transcript` text. */
+export async function endTranscript(): Promise<string> {
+  await Promise.allSettled(pending);
+  pending = [];
   const entries = active ?? [];
   active = null;
   return entries.map((e) => [`$ ${e.cmd}`, e.body, e.trailer].filter((s) => s !== "").join("\n")).join("\n\n") + "\n";

@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { test as base, type TestInfo } from "@playwright/test";
 import { baseEnv, repoRoot, run, type RunResult } from "./run.ts";
-import { beginTranscript, endTranscript, record } from "./transcript.ts";
+import { beginTranscript, endTranscript, record, track } from "./transcript.ts";
 
 /** The binary under test. The default is the `-tags testhooks` build. */
 export const convozBin = path.resolve(
@@ -100,12 +100,12 @@ function waitForReady(readyFile: string, child: ChildProcess, log: () => string,
 }
 
 export const test = base.extend<Fixtures & { transcript: void }>({
-  // Auto fixture; server depends on it so its teardown (server stop, which records) runs first.
+  // Auto fixture. endTranscript waits for tracked records, so attaching is safe whatever the teardown order.
   // eslint-disable-next-line no-empty-pattern
   transcript: [async ({}, use, testInfo: TestInfo) => {
     beginTranscript();
     await use();
-    await testInfo.attach("cli-transcript", { body: endTranscript(), contentType: "text/plain" });
+    await testInfo.attach("transcript", { body: await endTranscript(), contentType: "text/plain" });
   }, { auto: true }],
 
   // eslint-disable-next-line no-empty-pattern
@@ -165,7 +165,7 @@ export const test = base.extend<Fixtures & { transcript: void }>({
         clearTimeout(t);
       };
       // Recorded when the child exits, whoever stopped it.
-      void exited.then(() => record([convozBin, ...args].join(" "), buf, "", `exit=${code}`));
+      track(exited.then(() => record([convozBin, ...args].join(" "), buf, "", `exit=${code}`)));
       const handle: ServerHandle = {
         url: "http://" + ready.listen.replace(/^tcp:\/\//, ""),
         pid: child.pid ?? ready.pid,

@@ -1,20 +1,47 @@
 #!/usr/bin/env python3
 """Render the e2e JSON report into one HTML page of use-proof (stdout and exit code per scenario).
 
-Usage: proof_report.py <results.json> <out.html>
-Exit 1 if any transcript looks like it leaks a credential; no page is written then.
+Usage: proof_report.py <results.json> <out.html> | --self-test
+Exit 1 if any transcript is empty or looks like it leaks a credential; no page is left then.
 """
 import base64
+import contextlib
 import html
+import io
 import json
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
-TOKEN = re.compile(r"cvz_[a-z]_[A-Za-z0-9]{16,}")
-HEX64 = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{64}(?![0-9A-Fa-f])")
+MARKER = "TESTONLY"
+TOKEN = re.compile(r"cvz_[a-z]_[A-Za-z0-9_-]{8,}")
+HEX_RUN = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{64,}(?![0-9A-Fa-f])")
+# Hex split by single spaces or colons (fingerprints, hexdumps); counted after the separators go.
+HEX_SPLIT = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{2,}(?:[ :][0-9A-Fa-f]{2,})+(?![0-9A-Fa-f])")
+# 43 chars is the shortest base64 of 32 bytes; both alphabets, optional padding.
+B64_RUN = re.compile(r"(?<![A-Za-z0-9+/_-])[A-Za-z0-9+/_-]{43,}={0,2}")
 PEM = re.compile(r"-----BEGIN [A-Z ]*(PRIVATE KEY|CERTIFICATE|PUBLIC KEY)?-----")
+
+
+def is_test_b64(run):
+    """True when the run decodes to bytes that start with the TESTONLY marker."""
+    body = run.rstrip("=").replace("-", "+").replace("_", "/")
+    try:
+        return base64.b64decode(body + "=" * (-len(body) % 4), validate=True).startswith(MARKER.encode())
+    except ValueError:
+        return False
+
+
+def is_benign_b64(text, m):
+    """Shapes that are long base64-alphabet runs but not secrets: go.sum `h1:` digests, lowercase paths."""
+    run = m.group(0)
+    if text[max(0, m.start() - 3):m.start()] == "h1:":
+        return True
+    if HEX_RUN.fullmatch(run):
+        return True  # already reported as hex
+    return "/" in run and run == run.lower()
 
 
 def specs(suite):
@@ -31,7 +58,7 @@ def scenarios(report):
             transcript = "".join(
                 base64.b64decode(a["body"]).decode("utf-8", "replace")
                 for a in result.get("attachments", [])
-                if a["name"] == "cli-transcript" and "body" in a
+                if a["name"] == "transcript" and "body" in a
             )
             yield {
                 "title": spec["title"],
@@ -43,13 +70,28 @@ def scenarios(report):
 
 
 def leaks(scens):
-    """Every credential-shaped string a transcript carries without the TESTONLY marker."""
+    """(title, kind, length) for every credential-shaped string a transcript carries, and for empty transcripts.
+
+    Never returns the value itself: the report goes to CI logs.
+    """
     found = []
     for s in scens:
         text = s["transcript"]
-        found += [(s["title"], "token", m.group(0)) for m in TOKEN.finditer(text) if "TESTONLY" not in m.group(0)]
-        found += [(s["title"], "64-hex", m.group(0)) for m in HEX64.finditer(text)]
-        found += [(s["title"], "PEM header", m.group(0)) for m in PEM.finditer(text)]
+        title = s["title"]
+        if not text.strip():
+            found.append((title, "empty transcript", 0))
+        found += [(title, "token", len(m.group(0))) for m in TOKEN.finditer(text) if MARKER not in m.group(0)]
+        found += [(title, "hex", len(m.group(0))) for m in HEX_RUN.finditer(text)]
+        for m in HEX_SPLIT.finditer(text):
+            digits = len(re.sub("[ :]", "", m.group(0)))
+            if digits >= 64:
+                found.append((title, "split hex", digits))
+        found += [
+            (title, "base64", len(m.group(0)))
+            for m in B64_RUN.finditer(text)
+            if not is_benign_b64(text, m) and not is_test_b64(m.group(0))
+        ]
+        found += [(title, "PEM header", len(m.group(0))) for m in PEM.finditer(text)]
     return found
 
 
@@ -82,17 +124,82 @@ def render(scens, rev):
 
 
 def main(argv):
+    if len(argv) == 2 and argv[1] == "--self-test":
+        return self_test()
     if len(argv) != 3:
         print(__doc__, file=sys.stderr)
         return 2
+    out = Path(argv[2])
+    out.unlink(missing_ok=True)  # a failed scan must leave no page behind
     scens = list(scenarios(json.loads(Path(argv[1]).read_text())))
-    bad = leaks(scens)
+    bad = leaks(scens) if scens else [("(report)", "no scenarios", 0)]
     if bad:
-        for title, kind, value in bad:
-            print(f"LEAK ({kind}) in '{title}': {value[:12]}...", file=sys.stderr)
+        for title, kind, length in bad:
+            print(f"LEAK ({kind}, {length} chars) in '{title}'", file=sys.stderr)
         return 1
-    Path(argv[2]).write_text(render(scens, commit()))
+    out.write_text(render(scens, commit()))
     return 0
+
+
+def self_test():
+    """Plant each leak kind and assert the verdict; exit 0 only when every verdict is right."""
+    key = bytes(range(32))
+    plain_kek = base64.b64encode(key).decode()
+    test_kek = base64.b64encode(MARKER.encode() + key[: 32 - len(MARKER)]).decode()
+    hex16 = "0123456789abcdef"
+    benign = (
+        "go: github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db\n"
+        "h1:" + plain_kek + "\ncommit 7cb8d65" + "0" * 33 + "\n"
+    )
+    cases = [
+        ("base64 KEK, not TESTONLY", f"kek {plain_kek}\n", {"base64"}),
+        ("base64 KEK, url-safe alphabet", f"kek {plain_kek.replace('+', '-').replace('/', '_')}\n", {"base64"}),
+        ("TESTONLY KEK", f"kek {test_kek}\n", set()),
+        ("dashed token", "tok cvz_a_abc-def_ghi0123\n", {"token"}),
+        ("TESTONLY token", "tok cvz_a_TESTONLY_abcd\n", set()),
+        ("96 hex", hex16 * 6 + "\n", {"hex"}),
+        ("split hex, spaces", " ".join([hex16] * 4) + "\n", {"split hex"}),
+        ("split hex, colons", ":".join([hex16] * 4) + "\n", {"split hex"}),
+        ("PEM", "-----BEGIN PRIVATE KEY-----\n", {"PEM header"}),
+        ("empty transcript", "\n", {"empty transcript"}),
+        ("benign output", benign, set()),
+    ]
+    failed = 0
+    for title, text, want in cases:
+        got = {kind for _, kind, _ in leaks([{"title": title, "transcript": text}])}
+        if got != want:
+            failed += 1
+            print(f"FAIL {title}: want {sorted(want)}, got {sorted(got)}", file=sys.stderr)
+    failed += self_test_run(plain_kek)
+    print("self-test failed" if failed else "self-test ok", file=sys.stderr if failed else sys.stdout)
+    return 1 if failed else 0
+
+
+def self_test_run(plain_kek):
+    """End to end through main(): a leak exits 1, prints no value and removes a stale page."""
+    work = Path(tempfile.mkdtemp(prefix="proof-self-test-"))
+    results, page = work / "results.json", work / "proof.html"
+    body = base64.b64encode(f"kek {plain_kek}\n".encode()).decode()
+    report = {"suites": [{"specs": [{"title": "t", "tags": [], "tests": [{"status": "expected", "results": [
+        {"duration": 1, "attachments": [{"name": "transcript", "body": body}]}]}]}]}]}
+    results.write_text(json.dumps(report))
+    page.write_text("stale")
+    err = io.StringIO()
+    with contextlib.redirect_stderr(err):
+        code = main(["proof_report.py", str(results), str(page)])
+    problems = []
+    if code != 1:
+        problems.append(f"leaking report exited {code}, want 1")
+    if page.exists():
+        problems.append("stale proof.html survived a failed scan")
+    if plain_kek[:8] in err.getvalue():
+        problems.append("a leaked value was printed")
+    for f in (results, page):
+        f.unlink(missing_ok=True)
+    work.rmdir()
+    for p in problems:
+        print(f"FAIL end-to-end: {p}", file=sys.stderr)
+    return len(problems)
 
 
 if __name__ == "__main__":
