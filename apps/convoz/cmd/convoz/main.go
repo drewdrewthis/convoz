@@ -13,6 +13,7 @@ const (
 	exitUsage  = 2
 	exitKey    = 10
 	exitSchema = 11
+	exitInUse  = 12
 )
 
 // version is set at link time; "dev" otherwise.

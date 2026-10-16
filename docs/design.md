@@ -1669,7 +1669,7 @@ One binary `convoz` (alias `cvz`). Credentials: `~/.config/convoz/credentials` (
 | `convoz setup [--as H] [--scope project\|user]` | register `convoz mcp` with Claude Code; print the one-line prompt | — |
 | `convoz serve [--config f]` · `convoz admin bootstrap-link` · `convoz keys rotate-kek\|rotate-db` · `convoz workspace destroy` | server · break-glass (admin socket) · key ops · crypto-shred | — |
 
-Exit codes: 0 ok, 2 usage, 3 auth (401/403), 4 conflict (409), 5 rate limited after retries, 6 network after retries. `convoz serve` adds 10 (key: KEK missing, unreadable, or its file mode is not 0600/0400) and 11 (schema: the data dir is newer than this build). `--json` output is one object (or one line per item for `watch`). There is no `answer` command: humans answer in the app (C-3).
+Exit codes: 0 ok, 2 usage, 3 auth (401/403), 4 conflict (409), 5 rate limited after retries, 6 network after retries. `convoz serve` adds 10 (key: KEK missing, unreadable, or its file mode is not 0600/0400) 11 (schema: the data dir is newer than this build) and 12 (the data dir is in use by another process: it is locked with `flock` on `<data>/convoz.lock`). `--json` output is one object (or one line per item for `watch`). There is no `answer` command: humans answer in the app (C-3).
 
 ## 14. Migrations, versioning, backups, export, delete
 

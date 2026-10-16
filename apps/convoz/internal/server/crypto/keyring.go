@@ -114,7 +114,7 @@ func OpenKeyring(dataDir string, kek []byte, dbPath string) (*Keyring, error) {
 	return ring, nil
 }
 
-// createKeyring writes the new keyring with O_EXCL (never over an existing one) and syncs
+// createKeyring publishes the new keyring without ever replacing an existing one, and syncs
 // the file and its directory, so a crash cannot leave a database whose key was never stored.
 func createKeyring(dataDir, path string, kek []byte) (*Keyring, error) {
 	g, err := aead(kek)
@@ -138,25 +138,35 @@ func createKeyring(dataDir, path string, kek []byte) (*Keyring, error) {
 	if err != nil {
 		return nil, err
 	}
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-	if err != nil {
+	if err := publishNew(dataDir, path, out); err != nil {
 		return nil, keyErr("cannot create %s: %v", path, err)
 	}
-	if _, err := f.Write(out); err != nil {
-		f.Close()
-		return nil, err
-	}
-	if err := f.Sync(); err != nil {
-		f.Close()
-		return nil, err
-	}
-	if err := f.Close(); err != nil {
-		return nil, err
-	}
-	if err := syncDir(dataDir); err != nil {
-		return nil, err
-	}
 	return &Keyring{deks: map[string][]byte{PurposeDB: dek}}, nil
+}
+
+// publishNew writes data to a temp file in dir, syncs it, then link(2)s it to path: link
+// fails if path exists (O_EXCL semantics), and path never shows a half-written file.
+func publishNew(dir, path string, data []byte) error {
+	tmp, err := os.CreateTemp(dir, ".keyring-*") // mode 0600
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name()) // the link, not the temp name, is the keyring
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Link(tmp.Name(), path); err != nil {
+		return err
+	}
+	return syncDir(dir)
 }
 
 func syncDir(dir string) error {

@@ -32,6 +32,15 @@ RUN_RE = re.compile(r"^(\s*)(?:-\s+)?run:\s*(.*)$")
 GOFLAGS_RE = re.compile(r"^\s*GOFLAGS:\s*(.*)$")
 
 
+def has_readonly_flag(text, command=True):
+    """True when `-mod=readonly` is a whole flag token (not a substring of another word).
+    A command line must also be a go invocation or set GOFLAGS; a GOFLAGS: value is already one."""
+    tokens = re.split(r"[\s\"']+", text)
+    if "-mod=readonly" not in [t.removeprefix("GOFLAGS=") for t in tokens]:
+        return False
+    return not command or "go" in tokens or any(t.startswith("GOFLAGS=") for t in tokens)
+
+
 def run_commands(text):
     """Every `run:` command in a workflow, as (line, command). Comments are skipped,
     and a block scalar (`run: |`) yields one entry per line of its body."""
@@ -72,10 +81,10 @@ def check_actions(problems):
         for n, cmd in run_commands(text):
             if re.search(r"\bpnpm\s+(install|i)\b", cmd):
                 installs.append((fn, n, cmd))
-            readonly = readonly or "-mod=readonly" in cmd
+            readonly = readonly or has_readonly_flag(cmd)
         for line in text.splitlines():
             m = GOFLAGS_RE.match(line)
-            readonly = readonly or bool(m and "-mod=readonly" in m.group(1).split(" #")[0])
+            readonly = readonly or bool(m and has_readonly_flag(m.group(1).split(" #")[0], command=False))
     if not installs:
         problems.append("workflows: no `run:` line installs with pnpm")
     for fn, n, cmd in installs:

@@ -121,7 +121,19 @@ func backupBeforeMigration(ctx context.Context, s *db.Store, opts MigrateOptions
 	if err := s.Writer.Backup(ctx, stem+".db"); err != nil {
 		return err
 	}
-	return copyFile(filepath.Join(opts.DataDir, "keyring.json"), stem+".keyring.json")
+	if err := copyFile(filepath.Join(opts.DataDir, "keyring.json"), stem+".keyring.json"); err != nil {
+		return err
+	}
+	return syncDir(dir)
+}
+
+func syncDir(dir string) error {
+	d, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	return d.Sync()
 }
 
 func copyFile(src, dst string) error {
@@ -135,6 +147,10 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		return err
+	}
+	if err := out.Sync(); err != nil {
 		out.Close()
 		return err
 	}

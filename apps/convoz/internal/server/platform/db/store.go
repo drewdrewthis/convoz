@@ -137,23 +137,43 @@ type Writer struct {
 	key *secret
 }
 
-// Tx runs fn in one write transaction (BEGIN IMMEDIATE). fn may read and write; an
-// error or panic rolls back.
-func (w *Writer) Tx(ctx context.Context, fn func(q *Queries) error) error {
-	return w.SQLTx(ctx, func(tx *sql.Tx) error { return fn(New(tx)) })
-}
+// Tx is the open write transaction. It exposes sqlc's DBTX, so any module wraps it with
+// its own generated New: db.New(tx.DBTX()), or mymodule.New(tx.DBTX()). Every module
+// that does so writes in the same transaction.
+type Tx struct{ tx *sql.Tx }
 
-// SQLTx is Tx for code that needs plain SQL (migrations, FTS maintenance, benchmarks).
-func (w *Writer) SQLTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
-	tx, err := w.sql.BeginTx(ctx, nil)
+// DBTX is the handle for a module's generated New.
+func (t *Tx) DBTX() DBTX { return t.tx }
+
+// SQL is the underlying transaction, for plain SQL (migrations, FTS maintenance).
+func (t *Tx) SQL() *sql.Tx { return t.tx }
+
+type txKey struct{}
+
+// Tx runs fn in one write transaction (BEGIN IMMEDIATE). fn may read and write; an
+// error or panic rolls back. The ctx given to fn carries the transaction: a nested
+// Tx call with that ctx reuses it (the one writer connection would otherwise
+// deadlock waiting for itself), and the outer commit or rollback covers it. A nested
+// call with a ctx that does not carry the transaction still blocks.
+func (w *Writer) Tx(ctx context.Context, fn func(ctx context.Context, tx *Tx) error) error {
+	if open, ok := ctx.Value(txKey{}).(*Tx); ok {
+		return fn(ctx, open)
+	}
+	sqlTx, err := w.sql.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = tx.Rollback() }() // harmless after Commit
-	if err := fn(tx); err != nil {
+	defer func() { _ = sqlTx.Rollback() }() // harmless after Commit
+	tx := &Tx{tx: sqlTx}
+	if err := fn(context.WithValue(ctx, txKey{}, tx), tx); err != nil {
 		return err
 	}
-	return tx.Commit()
+	return sqlTx.Commit()
+}
+
+// SQLTx is Tx for code that needs plain SQL.
+func (w *Writer) SQLTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
+	return w.Tx(ctx, func(_ context.Context, tx *Tx) error { return fn(tx.tx) })
 }
 
 // Backup copies the live database to a new owner-only file under the same key. The

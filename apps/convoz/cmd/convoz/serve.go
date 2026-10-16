@@ -33,7 +33,23 @@ func serve(args []string) int {
 
 	// SQLite creates -wal and -shm with the umask, not the mode of the main file.
 	syscall.Umask(0o077)
-	store, code := openStore(*dataDir, *kekFile)
+	dir, err := filepath.Abs(*dataDir) // the SQLite URI needs an absolute path
+	if err != nil {
+		return fail(1, err)
+	}
+	kek, code := loadKEK(*kekFile)
+	if kek == nil {
+		return code
+	}
+	lock, err := lockDataDir(dir)
+	if errors.Is(err, errInUse) {
+		return fail(exitInUse, err)
+	}
+	if err != nil {
+		return fail(1, err)
+	}
+	defer lock.Close()
+	store, code := openStore(dir, kek)
 	if store == nil {
 		return code
 	}
@@ -64,9 +80,8 @@ func serve(args []string) int {
 	return 0
 }
 
-// openStore unlocks the key hierarchy, opens the database and migrates it.
-// It returns a nil DB and the exit code on failure.
-func openStore(dataDir, kekFlag string) (*db.Store, int) {
+// loadKEK reads the key-encryption key. It returns nil and the exit code on failure.
+func loadKEK(kekFlag string) ([]byte, int) {
 	kekPath, err := crypto.ResolveKEKPath(kekFlag, os.Getenv("CREDENTIALS_DIRECTORY"))
 	if err != nil {
 		return nil, fail(exitKey, err)
@@ -75,12 +90,12 @@ func openStore(dataDir, kekFlag string) (*db.Store, int) {
 	if err != nil {
 		return nil, fail(exitKey, err)
 	}
-	if err := os.MkdirAll(dataDir, 0o700); err != nil {
-		return nil, fail(1, err)
-	}
-	if err := os.Chmod(dataDir, 0o700); err != nil { // tighten a dir that already existed
-		return nil, fail(1, err)
-	}
+	return kek, 0
+}
+
+// openStore unlocks the key hierarchy, opens the database and migrates it.
+// It returns a nil DB and the exit code on failure.
+func openStore(dataDir string, kek []byte) (*db.Store, int) {
 	dbPath := filepath.Join(dataDir, "convoz.db")
 	ring, err := crypto.OpenKeyring(dataDir, kek, dbPath)
 	if err != nil {

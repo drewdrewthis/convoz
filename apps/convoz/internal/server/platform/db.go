@@ -43,5 +43,5 @@ func setSchemaVersion(ctx context.Context, q *db.Queries, v int) error {
 
 // SetSchemaVersion overwrites the stored version. Only the test hooks and the runner call it.
 func SetSchemaVersion(ctx context.Context, s *db.Store, v int) error {
-	return s.Writer.Tx(ctx, func(q *db.Queries) error { return setSchemaVersion(ctx, q, v) })
+	return s.Writer.Tx(ctx, func(ctx context.Context, tx *db.Tx) error { return setSchemaVersion(ctx, db.New(tx.DBTX()), v) })
 }

@@ -3,6 +3,7 @@
 package httpapi
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -24,8 +25,8 @@ func registerTestHooks(mux *http.ServeMux, store *db.Store) {
 			http.Error(w, "bad body", http.StatusBadRequest)
 			return
 		}
-		err := store.Writer.Tx(r.Context(), func(q *db.Queries) error {
-			return q.SetKV(r.Context(), db.SetKVParams{Key: in.Key, Value: sql.NullString{String: in.Value, Valid: true}})
+		err := store.Writer.Tx(r.Context(), func(ctx context.Context, tx *db.Tx) error {
+			return db.New(tx.DBTX()).SetKV(r.Context(), db.SetKVParams{Key: in.Key, Value: sql.NullString{String: in.Value, Valid: true}})
 		})
 		reply(w, err, nil)
 	}))
