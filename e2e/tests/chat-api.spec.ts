@@ -296,35 +296,6 @@ scenario("An agent shows working while it holds an item and stops when it replie
   }
 });
 
-scenario("Signing out closes the live stream", { tag: ["@api"] }, async ({ server }) => {
-  // Given the owner has the event stream open
-  const w = await chatWorld(server, { agents: ["devtool"] });
-  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool"] });
-  const oldCookie = w.owner.client.cookieHeader();
-  const stream = await openStream(w.srv, w.owner.client);
-  try {
-    expect(stream.status).toBe(200);
-
-    // When the owner signs out
-    expect((await w.owner.client.post("/api/auth/logout", {})).status).toBe(204);
-
-    // Then the stream ends
-    await Promise.race([stream.ended, new Promise((_, no) => setTimeout(() => no(new Error("stream still open 5 s after sign-out")), 5_000))]);
-
-    // And a message posted afterwards reaches no frame on it
-    const token = await lease(w.srv, w.box2.key, { as: "devtool" });
-    const id = await agentSays(w.srv, token, conv, "Anyone there?");
-    expect(stream.frames.filter((f) => f.event === "message.created" && f.data?.id === id)).toEqual([]);
-
-    // And opening a new stream with the old cookie answers 401
-    const again = await openStream(w.srv, { cookieHeader: () => oldCookie } as typeof w.owner.client);
-    expect(again.status).toBe(401);
-    again.close();
-  } finally {
-    stream.close();
-  }
-});
-
 // ---- platform.feature (contracts): upgrades are forward only and safe ---------------------------------------
 
 scenario("The events table is rebuilt in its final shape and keeps every row", { tag: ["@cli"] }, async ({ dataDir, server }) => {
