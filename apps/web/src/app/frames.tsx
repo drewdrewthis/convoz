@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { signOut } from "../shared/api.ts";
 import { Banners, useNoticeState } from "../shared/notice.tsx";
 import { PageHeadContext, type PageHead } from "../shared/page-head.tsx";
-import { useNow } from "../features/now/index.ts";
+import { openCount, useNow } from "../features/now/index.ts";
 import { SearchButton, SearchHost, useSearchShortcut } from "../features/search/index.ts";
 import type { PageDef } from "./routes.tsx";
 
@@ -51,13 +51,13 @@ const TABS = [
 
 export function ShellFrame({ def, children }: { def: PageDef; children: ReactNode }) {
   const { status, alert, notice, Provider } = useNoticeState();
-  const requests = useNow((s) => s.machineRequests);
-  const loadRequests = useNow((s) => s.loadMachineRequests);
-  // The Now tab counts what waits for the owner on every signed-in page; Now loads it for itself.
+  const count = openCount(useNow((s) => s.now));
+  // The Now tab counts what waits for the owner on every signed-in page, so the page keeps the numbers fresh while it is open.
+  // Only Now polls: another page loads the numbers once and then follows the stream, so it can go quiet (networkidle).
   useEffect(() => {
-    if (def.name !== "now") loadRequests().catch(() => {});
-  }, [def.name, loadRequests]);
-  const count = requests?.length ?? null;
+    if (def.name === "now") return useNow.getState().start();
+    useNow.getState().load().catch(() => {});
+  }, [def.name]);
   const account = useAccountMenu(notice.fail);
   useSearchShortcut();
   return (

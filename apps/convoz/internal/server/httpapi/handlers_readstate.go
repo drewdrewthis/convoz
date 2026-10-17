@@ -140,9 +140,9 @@ func (s *Server) listReplies(w http.ResponseWriter, r *http.Request, c *call) {
 	if err == nil {
 		dir, err = loadDirectory(ctx, d)
 	}
-	var asks map[int64]string
+	var asks map[int64]wire.AskView
 	if err == nil {
-		asks, err = asksOf(ctx, d, append([]message.Message{root}, page...))
+		asks, err = askViewsOf(ctx, d, dir, append([]message.Message{root}, page...))
 	}
 	if err != nil {
 		s.internalError(w, r, err)
@@ -150,13 +150,13 @@ func (s *Server) listReplies(w http.ResponseWriter, r *http.Request, c *call) {
 	}
 	out := viewMessages(dir, page)
 	for i, m := range page {
-		if state, ok := asks[m.ID]; ok {
-			out[i].Ask = &wire.AskState{State: state}
+		if v, ok := asks[m.ID]; ok {
+			out[i].Ask = &v
 		}
 	}
 	head := viewMessage(dir, root)
-	if state, ok := asks[root.ID]; ok {
-		head.Ask = &wire.AskState{State: state}
+	if v, ok := asks[root.ID]; ok {
+		head.Ask = &v
 	}
 	if root.ID <= floor {
 		head = wire.Message{ID: root.ID, Author: systemAuthor, Body: threadStubWords, Format: "plain"}

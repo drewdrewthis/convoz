@@ -2,23 +2,153 @@ package ask
 
 import (
 	"context"
+	"database/sql"
+	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/ask/db"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
 
-// States maps ask message ids to their state, for the conversation page to label the ask messages.
-func States(ctx context.Context, d pdb.DBTX, messageIDs []int64) (map[int64]string, error) {
-	out := map[int64]string{}
-	if len(messageIDs) == 0 {
+// Get reads one ask with its options and its history.
+func Get(ctx context.Context, d pdb.DBTX, id int64) (Ask, error) {
+	m, err := Views(ctx, d, []int64{id})
+	if err != nil {
+		return Ask{}, err
+	}
+	a, ok := m[id]
+	if !ok {
+		return Ask{}, ErrNotFound
+	}
+	return a, nil
+}
+
+// Views reads the asks with these message ids, each with its options and history, by message id. An id that is no ask is left out.
+func Views(ctx context.Context, d pdb.DBTX, ids []int64) (map[int64]Ask, error) {
+	out := map[int64]Ask{}
+	if len(ids) == 0 {
 		return out, nil
 	}
-	rows, err := db.New(d).AskStatesOf(ctx, messageIDs)
+	q := db.New(d)
+	rows, err := q.AsksByIDs(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
 	for _, r := range rows {
-		out[r.MessageID] = r.State
+		out[r.MessageID] = fromRow(askRow(r))
+	}
+	if len(out) == 0 {
+		return out, nil
+	}
+	have := make([]int64, 0, len(out))
+	for id := range out {
+		have = append(have, id)
+	}
+	opts, err := q.OptionsOf(ctx, have)
+	if err != nil {
+		return nil, err
+	}
+	for _, o := range opts {
+		a := out[o.MessageID]
+		a.Options = append(a.Options, Option{Label: o.Label, Why: o.Why})
+		out[o.MessageID] = a
+	}
+	hist, err := q.HistoryOf(ctx, have)
+	if err != nil {
+		return nil, err
+	}
+	for _, h := range hist {
+		a := out[h.MessageID]
+		a.History = append(a.History, Transition{Version: h.Version, Event: h.Event, ToState: h.ToState, By: h.ByIdentity.Int64, At: h.At})
+		out[h.MessageID] = a
 	}
 	return out, nil
+}
+
+// askRow is the columns of an ask as the queries read them.
+type askRow = db.AskByIDRow
+
+func fromRow(r askRow) Ask {
+	a := Ask{
+		ID: r.MessageID, ConversationID: r.ConversationID, AskerID: r.AskerID, Question: r.Question, Urgent: r.Urgent == 1,
+		Scrubbed: r.ScrubbedAt.Valid, State: r.State, CloseReason: r.CloseReason.String, AnswerVia: r.AnswerVia.String,
+		ResolvedBy: r.ResolvedBy.Int64, ResolvedAt: r.ResolvedAt.Int64, AckedAt: r.AckedAt.Int64, Version: r.Version,
+		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+	}
+	if r.ChosenKind.Valid {
+		a.Chosen = &Choice{Kind: r.ChosenKind.String, Index: int(r.ChosenIndex.Int64), Text: r.ChosenText.String}
+	}
+	return a
+}
+
+// Waiting is what Now lists for one person.
+type Waiting struct {
+	Open     []Ask           // open and not snoozed: urgent first, then the newest
+	Snoozed  []Ask           // open and snoozed by this person: the soonest wake first
+	Until    map[int64]int64 // the snooze time of each snoozed ask
+	Answered []Ask           // answered since the cut: newest first
+}
+
+// ForNow reads the asks that wait for a person at now, and the ones answered since `since`.
+func ForNow(ctx context.Context, d pdb.DBTX, person int64, now time.Time, since int64) (Waiting, error) {
+	q := db.New(d)
+	open, err := q.OpenAsks(ctx)
+	if err != nil {
+		return Waiting{}, err
+	}
+	answered, err := q.AnsweredSince(ctx, sql.NullInt64{Int64: since, Valid: true})
+	if err != nil {
+		return Waiting{}, err
+	}
+	snoozes, err := q.ActiveSnoozes(ctx, db.ActiveSnoozesParams{IdentityID: person, Now: now.UnixMilli()})
+	if err != nil {
+		return Waiting{}, err
+	}
+	until := make(map[int64]int64, len(snoozes))
+	for _, s := range snoozes {
+		until[s.MessageID] = s.UntilAt
+	}
+	ids := append(append([]int64{}, open...), answered...)
+	byID, err := Views(ctx, d, ids)
+	if err != nil {
+		return Waiting{}, err
+	}
+	w := Waiting{Until: until}
+	for _, id := range open {
+		if _, hidden := until[id]; hidden {
+			w.Snoozed = append(w.Snoozed, byID[id])
+		} else {
+			w.Open = append(w.Open, byID[id])
+		}
+	}
+	sortByWake(w.Snoozed, until)
+	for _, id := range answered {
+		w.Answered = append(w.Answered, byID[id])
+	}
+	return w, nil
+}
+
+func sortByWake(list []Ask, until map[int64]int64) {
+	for i := 1; i < len(list); i++ {
+		for j := i; j > 0 && until[list[j].ID] < until[list[j-1].ID]; j-- {
+			list[j], list[j-1] = list[j-1], list[j]
+		}
+	}
+}
+
+// SnoozedUntil is the snooze of one person on these asks that still hides them, by message id.
+func SnoozedUntil(ctx context.Context, d pdb.DBTX, person int64, now time.Time) (map[int64]int64, error) {
+	rows, err := db.New(d).ActiveSnoozes(ctx, db.ActiveSnoozesParams{IdentityID: person, Now: now.UnixMilli()})
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[int64]int64, len(rows))
+	for _, r := range rows {
+		out[r.MessageID] = r.UntilAt
+	}
+	return out, nil
+}
+
+// OpenCount is how many open asks an agent holds.
+func OpenCount(ctx context.Context, d pdb.DBTX, asker int64) (int64, error) {
+	return db.New(d).CountOpenOf(ctx, asker)
 }

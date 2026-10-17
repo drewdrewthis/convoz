@@ -1,6 +1,7 @@
 import type { Message } from "@convoz/api-client";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { AskInline } from "../now/index.ts";
 import { clock, initials, paletteOf, stripCf } from "../../shared/chat.ts";
 import type { PendingSend } from "./store.ts";
 import { Markdown } from "./Markdown.tsx";
@@ -268,9 +269,6 @@ interface RowProps {
   hl?: number | null;
 }
 
-/** What the page says about an ask: where it stands. */
-const ASK_LABEL: Record<string, string> = { open: "Open", answered: "Answered", dismissed: "Dismissed", closed: "Closed" };
-
 /** A row that did not change keeps its node, so a selection in it survives. */
 const sameRow = (a: RowProps, b: RowProps) =>
   a.me === b.me && a.threaded === b.threaded && a.paused === b.paused && a.onDetails === b.onDetails && (a.hl === a.row.message?.id) === (b.hl === b.row.message?.id) && a.row.key === b.row.key && a.row.first === b.row.first && a.row.message === b.row.message && a.row.pending?.state === b.row.pending?.state;
@@ -285,14 +283,14 @@ const MessageRow = memo(function MessageRow({ row, threaded, me, paused, convers
   }
   if (m) {
     const text = stripCf(m.body);
-    const body = m.author.handle !== me && m.format !== "plain" ? <Markdown text={text} format={m.format} /> : <div className="text">{text}</div>;
+    const label = `ask-${m.id}`;
+    const body = m.kind === "ask" && m.ask ? <AskInline ask={m.ask} labelId={label} /> : m.author.handle !== me && m.format !== "plain" ? <Markdown text={text} format={m.format} /> : <div className="text">{text}</div>;
     const edited = m.edited_at ? <EditedMark id={m.id} /> : null;
-    const asked = m.kind === "ask" && m.ask ? <div className={`askstate ${m.ask.state}`}>{ASK_LABEL[m.ask.state] ?? m.ask.state}</div> : null;
     const menu = <MessageMenu message={m} mine={m.author.handle === me} conversation={conversation} />;
     const detail = onDetails && m.author.kind === "agent" ? () => onDetails(m) : undefined;
     const replies = threaded || m.thread_root_id ? null : <ReplyLine message={m} conversation={conversation} />;
     const tag = !threaded && m.thread_root_id ? "replied to a thread" : undefined;
-    return <Article author={m.author.handle} me={me} first={row.first} stamp={clock(m.created_at)} tag={tag} onStamp={detail} body={body} extra={<>{edited}{asked}{replies}</>} menu={menu} mid={m.id} marked={hl === m.id} />;
+    return <Article author={m.author.handle} me={me} first={row.first} stamp={clock(m.created_at)} tag={tag} onStamp={detail} body={body} extra={<>{edited}{replies}</>} menu={menu} mid={m.id} marked={hl === m.id} labelledBy={m.kind === "ask" && m.ask ? label : undefined} />;
   }
   const state =
     p!.state === "failed" ? (
@@ -309,7 +307,7 @@ const MessageRow = memo(function MessageRow({ row, threaded, me, paused, convers
 }, sameRow);
 
 /** Article is one message: avatar, name and time (once per run), then the body. The letter is drawn, so it reads "@devtool 5:25 AM Hello". */
-function Article({ author, me, first, stamp, tag, onStamp, body, extra, menu, mid, marked }: { author: string; me: string; first: boolean; stamp: string; tag?: string; onStamp?: () => void; body: ReactNode; extra?: ReactNode; menu?: ReactNode; mid?: number; marked?: boolean }) {
+function Article({ author, me, first, stamp, tag, onStamp, body, extra, menu, mid, marked, labelledBy }: { author: string; me: string; first: boolean; stamp: string; tag?: string; onStamp?: () => void; body: ReactNode; extra?: ReactNode; menu?: ReactNode; mid?: number; marked?: boolean; labelledBy?: string }) {
   const mine = author === me;
   const avatar = mine ? (
     <span className="ava you" aria-hidden="true" data-l="Y" />
@@ -325,7 +323,7 @@ function Article({ author, me, first, stamp, tag, onStamp, body, extra, menu, mi
     </span>
   );
   return (
-    <article className={`msg ${mine ? "mine" : "theirs"}${first ? " first" : ""}`} data-mid={mid} data-hl={marked ? "true" : undefined}>
+    <article className={`msg ${mine ? "mine" : "theirs"}${first ? " first" : ""}`} data-mid={mid} data-hl={marked ? "true" : undefined} aria-labelledby={labelledBy}>
       <div className="gut">{first ? avatar : null}</div>
       <div className="main">
         {first ? (

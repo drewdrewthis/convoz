@@ -14,7 +14,7 @@ Feature: Now (contracts)
 
   Rule: Agent adds wait for a human (pending adds)
 
-    @v1 @api @I-17 @unimplemented
+    @v1 @api @I-17
     Scenario: A human cannot be the target of a pending add
       When "devtool" requests to add the owner to conversation 52
       Then the server answers 400

@@ -123,8 +123,10 @@ func serve(args []string) int {
 		return fail(1, err)
 	}
 	logger := log.New(os.Stderr, "convoz: ", log.LstdFlags)
+	api := httpapi.NewServer(store, clock, wa, keys, cfg, logger)
+	go api.RunTimers(ctx) // wakes the snoozes whose time has come, even when nobody has Now open
 	servers := []*http.Server{{
-		Handler:           httpapi.NewServer(store, clock, wa, keys, cfg, logger).Handler(),
+		Handler:           api.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 		// No WriteTimeout: event streams and long polls write for as long as they live. The signal context ends them at shutdown.
 		BaseContext:    func(net.Listener) context.Context { return ctx },

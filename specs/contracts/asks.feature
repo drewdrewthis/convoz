@@ -14,7 +14,7 @@ Feature: Asks and their state machine (contracts)
 
   Rule: An ask has a question, a recommendation and at least one alternative, each with a reason
 
-    @v1 @api @I-11 @AC-13 @unimplemented
+    @v1 @api @I-11 @AC-13
     Scenario Outline: An incomplete or oversized ask is refused
       When "devtool" posts an ask with <problem>
       Then the server answers 400 naming "<field>"
@@ -28,24 +28,24 @@ Feature: Asks and their state machine (contracts)
         | 5 alternatives                        | alternatives |
         | a question of 501 characters          | question     |
 
-    @v1 @api @unimplemented
+    @v1 @api
     Scenario: Only an agent with the ask scope asks
       Given machine "laptop-1" has no ask scope and runs "docs"
       When "docs" on "laptop-1" posts a valid ask
       Then the server answers 403
 
-    @v1 @api @unimplemented
+    @v1 @api
     Scenario: A human cannot post an ask
       When the owner posts a valid ask with the device cookie
       Then the server answers 403
 
-    @v1 @api @unimplemented
+    @v1 @api
     Scenario: An identity holds at most 20 open asks
       Given "devtool" has 20 open asks
       When "devtool" posts another valid ask
       Then the server answers 429 with the code "ask_cap"
 
-    @v1 @api @invariant @I-10 @unimplemented
+    @v1 @api @invariant @I-10
     Scenario: Ask content never changes after it is posted
       Given an open ask of "devtool" with the question "Merge #415 on its own?"
       When "devtool" tries to edit the ask message or its options
@@ -54,7 +54,7 @@ Feature: Asks and their state machine (contracts)
 
   Rule: Every transition follows the state table; anything else is a conflict
 
-    @v1 @api @I-12 @I-13 @C-4 @C-5 @AC-29 @unimplemented
+    @v1 @api @I-12 @I-13 @C-4 @C-5 @AC-29
     Scenario Outline: Ask transitions
       Given an ask of "devtool" in state "<from>"
       When <actor> sends "<event>"
@@ -80,7 +80,7 @@ Feature: Asks and their state machine (contracts)
         | dismissed | the owner       | snooze    | 409    | dismissed          |
         | answered  | the owner       | snooze    | 409    | answered           |
 
-    @v1 @api @invariant @I-12 @AC-4 @C-4 @unimplemented
+    @v1 @api @invariant @I-12 @AC-4 @C-4
     Scenario: Fifty racing answers produce one decision
       Given an open ask of "devtool"
       When 50 answer requests with 50 different custom texts arrive at the same time
@@ -90,20 +90,20 @@ Feature: Asks and their state machine (contracts)
       And conversation 41 shows exactly 1 answer message
       And the owner's unread state of conversation 41 is unchanged
 
-    @v1 @api @I-12 @unimplemented
+    @v1 @api @I-12
     Scenario: Undismiss after the asker left is refused
       Given a dismissed ask of "devtool"
       And "devtool" left conversation 41
       When the owner undismisses the ask
       Then the server answers 409 with the code "asker_gone"
 
-    @v1 @api @I-12 @unimplemented
+    @v1 @api @I-12
     Scenario: Undismiss respects the open-ask cap
       Given a dismissed ask of "devtool" and 20 other open asks of "devtool"
       When the owner undismisses the ask
       Then the server answers 409 with the code "ask_cap"
 
-    @v1 @cli @I-12 @unimplemented
+    @v1 @cli @I-12
     Scenario: A repeated ack is a no-op
       Given "devtool" acked the answer to its ask
       When "devtool" acks the same item again with the same claim token
@@ -111,20 +111,20 @@ Feature: Asks and their state machine (contracts)
 
   Rule: Answers are explicit and idempotent
 
-    @v1 @api @unimplemented
+    @v1 @api
     Scenario: A choice the ask did not offer is refused
       Given an open ask of "devtool" with 1 alternative
       When the owner answers with alternative 3
       Then the server answers 400
       And conversation 41 shows no answer message
 
-    @v1 @api @cli @C-3 @unimplemented
+    @v1 @api @cli @C-3
     Scenario: There is no answer path for agents or the CLI in v1
       When the "devtool" lease calls POST /api/asks/:id/answer on an open ask
       Then the server answers 403
       And "convoz --help" lists no answer command
 
-    @v1 @api @I-12 @C-6 @unimplemented
+    @v1 @api @I-12 @C-6
     Scenario: The ask history is append-only and names every actor
       Given an ask of "devtool" that the owner dismissed and undismissed, and that "devtool" then withdrew
       When a client reads GET /api/asks/:id
@@ -133,7 +133,7 @@ Feature: Asks and their state machine (contracts)
 
   Rule: Snooze is a personal overlay that never changes the ask
 
-    @v1 @api @I-13 @unimplemented
+    @v1 @api @I-13
     Scenario: Snoozing does not change the ask version
       Given an open ask of "devtool" at version 1
       When the owner snoozes it until tomorrow 09:00

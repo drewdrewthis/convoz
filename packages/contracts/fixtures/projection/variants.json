@@ -84,6 +84,42 @@
   "long": "@devtool wants to add @docs"
  },
  {
+  "name": "system: approved",
+  "message": {
+   "system": {
+    "t": "member.approved",
+    "identity": {
+     "handle": "docs",
+     "name": "Docs"
+    },
+    "by": {
+     "handle": "drew",
+     "name": "Drew"
+    }
+   }
+  },
+  "short": "Approved · @docs added",
+  "long": "Approved · @docs added"
+ },
+ {
+  "name": "system: declined",
+  "message": {
+   "system": {
+    "t": "member.declined",
+    "identity": {
+     "handle": "docs",
+     "name": "Docs"
+    },
+    "by": {
+     "handle": "drew",
+     "name": "Drew"
+    }
+   }
+  },
+  "short": "Declined · @docs not added",
+  "long": "Declined · @docs not added"
+ },
+ {
   "name": "system: paused",
   "message": {
    "system": {

@@ -83,9 +83,11 @@ func (s *Server) postMessage(w http.ResponseWriter, r *http.Request, c *call) {
 // agentMayPost applies the post scope and the three rate limits to an agent's post. It writes the refusal itself.
 // It only reads the daily caps; countDailyPost spends them once the message is stored.
 func (s *Server) agentMayPost(w http.ResponseWriter, c *call, now time.Time) bool {
-	if !agentMayWrite(w, c) {
-		return false
-	}
+	return agentMayWrite(w, c) && s.withinBudgets(w, c, now)
+}
+
+// withinBudgets applies the three rate limits of an agent that writes to a conversation (a message or an ask). It writes the 429 itself.
+func (s *Server) withinBudgets(w http.ResponseWriter, c *call, now time.Time) bool {
 	identityKey, machineKey := capKeys(c)
 	if !s.postLimit.Allow(identityKey, now) {
 		tooMany(w, s.postLimit.RetryAfter(identityKey, now), "Too many messages. Slow down.")
@@ -188,7 +190,7 @@ func viewMessage(dir directory, m message.Message) wire.Message {
 		v.Kind = m.Kind
 	}
 	v.ThreadRootID, v.Broadcast, v.ReplyCount, v.LastReplyAt, v.EditedAt = m.ThreadRootID, m.Broadcast, m.ReplyCount, m.LastReplyAt, m.EditedAt
-	v.Deleted, v.Purged = m.Deleted, m.Purged
+	v.Deleted, v.Purged, v.AnswersAsk = m.Deleted, m.Purged, m.AnswersAskID
 	v.SessionLabel, v.Machine = m.OriginLabel, m.OriginMachine
 	return v
 }
@@ -270,9 +272,9 @@ func (s *Server) listMessages(w http.ResponseWriter, r *http.Request, c *call) {
 	if err == nil {
 		dir, err = loadDirectory(ctx, d)
 	}
-	var asks map[int64]string
+	var asks map[int64]wire.AskView
 	if err == nil {
-		asks, err = asksOf(ctx, d, page)
+		asks, err = askViewsOf(ctx, d, dir, page)
 	}
 	if err != nil {
 		s.internalError(w, r, err)
@@ -280,8 +282,8 @@ func (s *Server) listMessages(w http.ResponseWriter, r *http.Request, c *call) {
 	}
 	out := viewMessages(dir, page)
 	for i, m := range page {
-		if state, ok := asks[m.ID]; ok {
-			out[i].Ask = &wire.AskState{State: state}
+		if v, ok := asks[m.ID]; ok {
+			out[i].Ask = &v
 		}
 	}
 	if hasThread {
@@ -302,15 +304,20 @@ func threadWithStub(replies []wire.Message, root, floor int64) []wire.Message {
 	return append([]wire.Message{stub}, replies...)
 }
 
-// asksOf finds where the asks in a page stand, by message id.
-func asksOf(ctx context.Context, d pdb.DBTX, page []message.Message) (map[int64]string, error) {
+// askViewsOf reads the asks that the messages of a page carry, by message id: each with its options and history.
+func askViewsOf(ctx context.Context, d pdb.DBTX, dir directory, page []message.Message) (map[int64]wire.AskView, error) {
 	var ids []int64
 	for _, m := range page {
 		if m.Kind == "ask" {
 			ids = append(ids, m.ID)
 		}
 	}
-	return ask.States(ctx, d, ids)
+	asks, err := ask.Views(ctx, d, ids)
+	out := make(map[int64]wire.AskView, len(asks))
+	for id, a := range asks {
+		out[id] = dir.askBase(a)
+	}
+	return out, err
 }
 
 // listEdits is GET /api/messages/:id/edits: the earlier texts of a message, for anyone who can see it (M-13).
@@ -440,7 +447,11 @@ func (s *Server) deleteMessage(w http.ResponseWriter, r *http.Request, c *call) 
 		s.internalError(w, r, err)
 		return
 	}
-	s.Bus.Notify()
+	if m.Kind == "ask" {
+		s.Bus.Notify(m.AuthorID) // the asking agent's inbox got a "resolved" item
+	} else {
+		s.Bus.Notify()
+	}
 	s.writeEdited(w, r, m)
 }
 

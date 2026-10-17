@@ -45,6 +45,8 @@ const (
 	ReasonMention  = "mention"
 	ReasonThread   = "thread"
 	ReasonActivity = "activity"
+	// ReasonAskResolved tells an agent its ask was answered, dismissed or deleted. It never merges with another item.
+	ReasonAskResolved = "ask_resolved"
 )
 
 // FanOut records one new main message for one agent participant: the ready item of that conversation takes the
@@ -140,8 +142,24 @@ func mergeExpiredClaims(ctx context.Context, q *db.Queries, identityID, nowMs in
 	return nil
 }
 
+// AskResolved tells an agent that its ask was resolved (answered, dismissed or deleted): one item for the ask (design §8.1).
+func AskResolved(ctx context.Context, d pdb.DBTX, now time.Time, identityID, conversationID, askMessageID, sourceSeq int64) error {
+	return db.New(d).InsertAskResolvedItem(ctx, db.InsertAskResolvedItemParams{
+		IdentityID: identityID, ConversationID: nullInt(conversationID), AskMessageID: nullInt(askMessageID), SourceSeq: sourceSeq, Now: now.UnixMilli(),
+	})
+}
+
+// AskOf is the ask an ask_resolved item of the identity is about; 0 for any other item.
+func AskOf(ctx context.Context, d pdb.DBTX, identityID, id int64) (int64, error) {
+	ask, err := db.New(d).AskOfItem(ctx, db.AskOfItemParams{ID: id, IdentityID: identityID})
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	return ask.Int64, err
+}
+
 // Ack removes an item the session holds under token. It reports false (claim lost) for a wrong or old token, an
-// expired claim, another session's item, or an item that was acked already. conversation is the item's conversation.
+// expired claim, another session's item, or an item that was acked already (but an ask_resolved item acked again by its own session is fine). conversation is the item's conversation.
 func Ack(ctx context.Context, d pdb.DBTX, now time.Time, identityID, sessionID, id int64, token []byte) (ok bool, conversation int64, err error) {
 	q := db.New(d)
 	conv, err := q.ItemConversation(ctx, db.ItemConversationParams{ID: id, IdentityID: identityID})
@@ -149,7 +167,13 @@ func Ack(ctx context.Context, d pdb.DBTX, now time.Time, identityID, sessionID, 
 		return false, 0, err
 	}
 	n, err := q.AckItem(ctx, db.AckItemParams{Now: sql.NullInt64{Int64: now.UnixMilli(), Valid: true}, SessionID: nullInt(sessionID), ID: id, IdentityID: identityID, Token: token})
-	return n > 0, conv.Int64, err
+	if err != nil || n > 0 {
+		return n > 0, conv.Int64, err
+	}
+	// A repeated ack of an ask_resolved item by the session that acked it is a no-op that succeeds (design §8.1): the claim token
+	// is cleared by the first ack, so the session is what can be checked.
+	again, err := q.AckedAskItem(ctx, db.AckedAskItemParams{ID: id, IdentityID: identityID, SessionID: nullInt(sessionID)})
+	return again, conv.Int64, err
 }
 
 // Peek lists the identity's ready and claimed items without changing any. The token is set only on items the

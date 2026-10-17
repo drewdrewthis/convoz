@@ -3,3 +3,23 @@
 //   sqlc v1.31.1
 
 package db
+
+import (
+	"database/sql"
+)
+
+type AskOption struct {
+	MessageID int64
+	Idx       int64
+	Label     string
+	Why       string
+}
+
+type AskTransition struct {
+	MessageID  int64
+	Version    int64
+	Event      string
+	ToState    string
+	ByIdentity sql.NullInt64
+	At         int64
+}

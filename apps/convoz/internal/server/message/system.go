@@ -30,7 +30,7 @@ var ErrSystemLine = errors.New("not a system.v1 line")
 var (
 	byOnly      = []string{"conversation.renamed", "conversation.resumed", "conversation.restored", "pickup.opened"}
 	subjectOnly = []string{"member.left", "member.disabled", "pickup.taken"}
-	subjectBy   = []string{"member.requested", "member.removed"}
+	subjectBy   = []string{"member.requested", "member.removed", "member.approved", "member.declined"}
 )
 
 // Valid checks the line against system.v1.

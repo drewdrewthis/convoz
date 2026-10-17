@@ -185,12 +185,3 @@ func (s *Server) machineRequests(w http.ResponseWriter, r *http.Request, _ *call
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"requests": requestsJSON(list)})
 }
-
-func (s *Server) now(w http.ResponseWriter, r *http.Request, _ *call) {
-	list, err := auth.PendingRequests(r.Context(), s.reader(), s.Clock.Now())
-	if err != nil {
-		s.internalError(w, r, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"machine_requests": requestsJSON(list)})
-}

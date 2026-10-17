@@ -104,6 +104,7 @@ type Cascade interface {
 
 // Created is the fact "a message was written": ids only (I-23).
 type Created struct {
+	Kind                                  string // "text" or "ask"
 	Actor, Session, Conversation, Message int64
 	ThreadRoot                            int64
 	Broadcast                             bool
@@ -214,13 +215,14 @@ func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) 
 		}
 	}
 	seq, err := p.Journal.MessageCreated(ctx, d, now, Created{
-		Actor: draft.Author, Session: draft.Session, Conversation: draft.Conversation, Message: m.ID,
+		Kind: m.Kind, Actor: draft.Author, Session: draft.Session, Conversation: draft.Conversation, Message: m.ID,
 		ThreadRoot: draft.ThreadRoot, Broadcast: draft.Broadcast, IdemKey: "message.create:" + draft.ClientID,
 	})
 	if err != nil {
 		return Posted{}, err
 	}
-	if inMain {
+	// An answer to an ask never marks the conversation read: the answerer may not have read what came before it (I-15).
+	if inMain && draft.AnswersAsk == 0 {
 		moved, err := p.Reads.MoveForOwnPost(ctx, d, now, draft.Author, draft.Conversation, prevMain, m.ID)
 		if err != nil {
 			return Posted{}, err

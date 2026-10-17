@@ -295,3 +295,16 @@ components:
     SearchConversation: { $ref: "components/search.yaml#/SearchConversation" }
     SearchFilter: { $ref: "components/search.yaml#/SearchFilter" }
     SearchResponse: { $ref: "components/search.yaml#/SearchResponse" }
+    AskOption: { $ref: "components/ask.yaml#/AskOption" }
+    AskChoice: { $ref: "components/ask.yaml#/AskChoice" }
+    AskHistoryRow: { $ref: "components/ask.yaml#/AskHistoryRow" }
+    Ask: { $ref: "components/ask.yaml#/Ask" }
+    AskConversation: { $ref: "components/ask.yaml#/AskConversation" }
+    AskRequest: { $ref: "components/ask.yaml#/AskRequest" }
+    AskAnswerRequest: { $ref: "components/ask.yaml#/AskAnswerRequest" }
+    AskMarkRequest: { $ref: "components/ask.yaml#/AskMarkRequest" }
+    AskSnoozeRequest: { $ref: "components/ask.yaml#/AskSnoozeRequest" }
+    OneAsk: { $ref: "components/ask.yaml#/OneAsk" }
+    AskConflict: { $ref: "components/ask.yaml#/AskConflict" }
+    NowPendingAdd: { $ref: "components/ask.yaml#/NowPendingAdd" }
+    Now: { $ref: "components/ask.yaml#/Now" }

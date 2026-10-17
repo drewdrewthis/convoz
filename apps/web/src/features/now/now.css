@@ -1,0 +1,69 @@
+/* Now and the ask card: a question an agent put to the owner, its answers, and the folds of what is done. */
+@layer components {
+  .asks { display: flex; flex-direction: column; gap: 8px; margin: 0 0 8px; }
+  .askcard {
+    position: relative; display: block; min-width: 0; padding: 2px 14px 14px;
+    border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-raised);
+  }
+  .askcard:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+  .askcard.urgent { border-color: color-mix(in srgb, var(--color-danger) 55%, var(--color-border)); }
+  .askcard.dismissed, .askcard.closed { background: var(--color-surface); }
+  .askq { margin: 0; padding: 12px 0 3px; font-size: 17px; font-weight: 600; line-height: 22px; overflow-wrap: anywhere; }
+  .askmeta { display: flex; align-items: center; gap: 0 8px; font-size: 13px; line-height: 20px; color: var(--color-muted); }
+  .askmeta-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .askurgent { flex: none; font-weight: 600; color: var(--color-danger); }
+  /* In Now the text keeps clear of the right edge, where the prototype draws its expand arrow, so the lines break where the prototype's do. */
+  .askcard.now .askq, .askcard.now .askmeta, .askcard.now .askwhys { padding-right: 26px; }
+  .askbar { display: flex; align-items: center; gap: 8px; min-height: 32px; margin: 0 -14px; padding: 0 6px 0 14px; border-bottom: 1px solid var(--color-border); font-size: 12px; }
+  .asklabel { font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--color-text); }
+  .askbar .askurgent { font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+  /* The message menu button sits over the top right corner of a message (44px), so the card keeps its own buttons clear of it. */
+  .askbar-end { margin-left: auto; margin-right: 44px; display: flex; align-items: center; gap: 2px; }
+  .askwhys { display: flex; flex-direction: column; gap: 1px; margin: 6px 0 9px; font-size: 13px; line-height: 18px; color: var(--color-muted); }
+  .askwhys p { margin: 0; }
+  .askwhys b { font-weight: 600; color: var(--color-text); }
+  .askacts { display: flex; flex-wrap: wrap; margin: 0 -8px 14px; }
+  .askbtn {
+    display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 8px; border: 0; border-radius: 999px; background: none;
+    color: var(--color-muted); font: inherit; font-size: 13px; font-weight: 500; white-space: nowrap; text-decoration: none; cursor: pointer;
+  }
+  .askbtn:hover { color: var(--color-text); }
+  .askbtn.primary { background: var(--grad); color: var(--color-on-accent); font-weight: 600; padding: 0 18px; }
+  .askbtn:disabled { opacity: .45; cursor: default; }
+  .askopts { display: flex; flex-direction: column; gap: 8px; }
+  .askopt {
+    display: flex; align-items: center; justify-content: center; width: 100%; min-height: 50px; padding: 0 16px; border: 1px solid var(--color-border); border-radius: 999px;
+    background: var(--color-raised); color: var(--color-text); font: inherit; font-size: 14px; font-weight: 500; cursor: pointer;
+  }
+  .askopt.rec { background: var(--grad); border-color: transparent; color: var(--color-on-accent); font-weight: 600; }
+  .askopt:disabled { opacity: .55; cursor: default; }
+  .askreply { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+  .askreply input { flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 0 14px; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-surface); color: var(--color-text); font: inherit; font-size: 15px; }
+  .askmenu {
+    position: absolute; right: 8px; bottom: 56px; z-index: 5; display: flex; flex-direction: column; min-width: 10rem; padding: 4px;
+    border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-raised); box-shadow: var(--float);
+  }
+  .askbar ~ .askmenu { top: 36px; bottom: auto; }
+  .askmenu button { min-height: 44px; padding: 0 14px; border: 0; border-radius: 8px; background: none; color: var(--color-text); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+  .askmenu button:hover { background: var(--color-soft); }
+  .askcard .askstate { margin: 4px 0 0; font-size: 14px; font-weight: 600; color: var(--color-accent-text); }
+  .askcard .askstate.dismissed, .askcard .askstate.closed { color: var(--color-muted); }
+  .asknote { margin: 6px 0 0; font-size: 13px; color: var(--color-muted); }
+  .askhist { list-style: none; margin: 8px 0 0; padding: 8px 0 0; border-top: 1px solid var(--color-border); display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--color-muted); }
+
+  /* The fold toggle is a chip: "Snoozed · 1". Its row keeps the prototype's 4px above and 12px below. */
+  .foldbtn {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px; border: 1px solid var(--color-border); border-radius: 999px;
+    background: var(--color-raised); color: var(--color-muted); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
+  }
+  .folds { display: flex; flex-direction: column; align-items: stretch; padding: 2px 0 12px; gap: 8px; }
+  .foldchips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .foldrows { margin: 0; }
+  .foldbtn svg { width: 12px; height: 12px; }
+  .foldbtn[aria-expanded="true"] { color: var(--color-text); }
+  .foldrows { list-style: none; margin: 8px 0 0; padding: 0; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-raised); overflow: hidden; }
+  .foldrows li { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 14px; border-top: 1px solid var(--color-border); }
+  .foldrows li:first-child { border-top: 0; }
+  .foldq { font-size: 14px; font-weight: 600; }
+  .foldwho, .foldstate { font-size: 13px; color: var(--color-muted); }
+}

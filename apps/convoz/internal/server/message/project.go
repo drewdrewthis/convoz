@@ -152,6 +152,10 @@ func systemText(s ProjectSystem) string {
 		return "Added " + s.Identity.Ref()
 	case "member.requested":
 		return s.By.Ref() + " wants to add " + s.Identity.Ref()
+	case "member.approved":
+		return "Approved · " + s.Identity.Ref() + " added"
+	case "member.declined":
+		return "Declined · " + s.Identity.Ref() + " not added"
 	case "member.removed":
 		return s.Identity.Ref() + " was removed"
 	case "member.left":

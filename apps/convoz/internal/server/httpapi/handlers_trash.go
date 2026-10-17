@@ -148,10 +148,13 @@ func (s *Server) maintainSoon(ctx context.Context) {
 	}
 }
 
-// Maintain runs the nightly jobs of conversations: it removes empty untitled conversations older than 24 hours (unless
+// Maintain runs the nightly jobs of conversations (and wakes the snoozes whose time has come): it removes empty untitled conversations older than 24 hours (unless
 // starred, I-20) and purges what has been in the trash for over 30 days (I-49). After a purge it empties the log, so
 // no readable trace of the purged rows stays in the data files.
 func (s *Server) Maintain(ctx context.Context) error {
+	if err := s.wakeSnoozes(ctx); err != nil {
+		return err
+	}
 	now := s.Clock.Now()
 	var purged int64
 	err := s.Store.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) (err error) {

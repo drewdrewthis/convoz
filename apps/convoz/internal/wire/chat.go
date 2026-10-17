@@ -75,24 +75,20 @@ type Message struct {
 	Format    string `json:"format"`
 	CreatedAt int64  `json:"created_at"`
 
-	Kind         string    `json:"kind,omitempty"` // text, ask or system
-	Ask          *AskState `json:"ask,omitempty"`  // where an ask stands, for a message of kind ask
-	ThreadRootID int64     `json:"thread_root_id,omitempty"`
-	Broadcast    bool      `json:"broadcast,omitempty"`
-	ReplyCount   int64     `json:"reply_count,omitempty"`
-	LastReplyAt  int64     `json:"last_reply_at,omitempty"` // when the newest reply came, for a thread root
-	EditedAt     int64     `json:"edited_at,omitempty"`
-	Deleted      bool      `json:"deleted,omitempty"` // a tombstone: Body is empty
-	Purged       bool      `json:"purged,omitempty"`
-	System       *System   `json:"system,omitempty"`
-	Text         string    `json:"text,omitempty"` // a system line's words, the plain-text projection
-	SessionLabel string    `json:"session_label,omitempty"`
-	Machine      string    `json:"machine,omitempty"`
-}
-
-// AskState is the state of the ask a message carries (open, answered, dismissed or closed).
-type AskState struct {
-	State string `json:"state"`
+	Kind         string   `json:"kind,omitempty"` // text, ask or system
+	Ask          *AskView `json:"ask,omitempty"`  // the ask a message of kind ask carries
+	ThreadRootID int64    `json:"thread_root_id,omitempty"`
+	Broadcast    bool     `json:"broadcast,omitempty"`
+	ReplyCount   int64    `json:"reply_count,omitempty"`
+	LastReplyAt  int64    `json:"last_reply_at,omitempty"` // when the newest reply came, for a thread root
+	EditedAt     int64    `json:"edited_at,omitempty"`
+	AnswersAsk   int64    `json:"answers_ask_id,omitempty"` // the ask this message answers
+	Deleted      bool     `json:"deleted,omitempty"`        // a tombstone: Body is empty
+	Purged       bool     `json:"purged,omitempty"`
+	System       *System  `json:"system,omitempty"`
+	Text         string   `json:"text,omitempty"` // a system line's words, the plain-text projection
+	SessionLabel string   `json:"session_label,omitempty"`
+	Machine      string   `json:"machine,omitempty"`
 }
 
 // PostRequest is POST /api/conversations/:id/messages. The author is never in it: the server takes it from the credential.

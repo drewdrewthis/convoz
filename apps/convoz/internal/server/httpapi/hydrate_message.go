@@ -3,7 +3,9 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/ask"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/event"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
@@ -43,6 +45,15 @@ func hydrateMessage(name string) hydrator {
 			return name, nil, err
 		}
 		v := viewMessage(dir, m)
+		if m.Kind == "ask" { // the card needs its options as soon as the message shows
+			a, err := ask.Get(ctx, d, m.ID)
+			if err != nil && !errors.Is(err, ask.ErrNotFound) {
+				return name, nil, err
+			}
+			if err == nil {
+				v.Ask = ptr(dir.askBase(a))
+			}
+		}
 		data, err := json.Marshal(messageFrame{Message: v, ConversationID: ev.Conversation, AuthorHandle: v.Author.Handle})
 		return name, data, err
 	}

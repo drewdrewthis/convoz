@@ -14,6 +14,7 @@ const html = process.env.PROTOTYPE_HTML ?? "/tmp/tmp.Trpsi82Qzz/index.html";
 const out = process.argv[2] ?? path.join(here, "..", "visual", "prototype");
 const masks = JSON.parse(fs.readFileSync(path.join(here, "..", "visual", "masks.json"), "utf8"));
 const SCALE = 2;
+const ONLY = process.env.ONLY; // ONLY=now-asks writes just that screen (the others are already in visual/prototype)
 const FRAME = "div[style*='border-radius: 40px'][style*='width: 390px']";
 
 const browser = await chromium.launch();
@@ -67,8 +68,8 @@ for (const mode of ["Light", "Dark"]) {
     return { page, frame, tabs: frame.getByRole("navigation", { name: "Main" }), shot };
   };
 
-  // Now: answer every ask so the feed is empty (the app has no asks yet, only machine requests).
-  {
+  // Now: answer every ask so the feed is empty.
+  if (!ONLY) {
     const { page, frame, shot } = await open();
     for (let i = 0; i < 30 && !(await frame.getByText("All clear. Nothing needs you.").count()); i++) {
       await frame.locator("ul[aria-label='Open asks'] li").first().locator("button").nth(1).click();
@@ -77,6 +78,31 @@ for (const mode of ["Light", "Dark"]) {
     await page.waitForTimeout(10500); // the toast stays 10 s
     await shot("now");
     await page.close();
+  }
+
+  // Now with asks: the first two asks stay (the app is seeded with the same two and one snoozed ask), the rest are answered. Both cards are open,
+  // without the app message and the text above its buttons, which the app does not have.
+  if (!ONLY || ONLY === "now-asks") {
+    const { page, frame, shot } = await open();
+    const asks = frame.locator("ul[aria-label='Open asks'] li");
+    for (let i = 0; i < 30 && (await asks.count()) > 2; i++) {
+      await asks.last().locator("button").nth(1).click();
+      await page.waitForTimeout(450);
+    }
+    for (let i = 0; i < 2; i++) await asks.nth(i).locator("button").first().click();
+    await page.waitForTimeout(300);
+    await frame.evaluate((el) => {
+      for (const li of el.querySelectorAll("ul[aria-label='Open asks'] li")) {
+        const holder = li.querySelector("button[aria-label='Quick reply']")?.parentElement?.parentElement;
+        if (holder) [...holder.children].forEach((c) => !c.contains(li.querySelector("button[aria-label='Quick reply']")) && c.remove());
+      }
+    });
+    // Answering the other asks made an "Answered today" chip; the app has it only when it answered some, and its seed answers none.
+    await frame.evaluate((el) => [...el.querySelectorAll("button")].filter((b) => b.textContent.trim().startsWith("Answered today")).forEach((b) => b.remove()));
+    await page.waitForTimeout(10500); // the toast stays 10 s
+    await shot("now-asks");
+    await page.close();
+    if (ONLY) continue;
   }
 
   const { page, frame, tabs, shot } = await open();

@@ -41,6 +41,42 @@ func (q *Queries) AckItem(ctx context.Context, arg AckItemParams) (int64, error)
 	return result.RowsAffected()
 }
 
+const ackedAskItem = `-- name: AckedAskItem :one
+SELECT EXISTS (SELECT 1 FROM inbox_items WHERE id = ?1 AND identity_id = ?2 AND reason = 'ask_resolved'
+               AND state = 'acked' AND acked_by_session = ?3)
+`
+
+type AckedAskItemParams struct {
+	ID         int64
+	IdentityID int64
+	SessionID  sql.NullInt64
+}
+
+// A repeat of an ack that went through: the item is acked, by this session.
+func (q *Queries) AckedAskItem(ctx context.Context, arg AckedAskItemParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, ackedAskItem, arg.ID, arg.IdentityID, arg.SessionID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const askOfItem = `-- name: AskOfItem :one
+SELECT ask_message_id FROM inbox_items WHERE id = ?1 AND identity_id = ?2 AND reason = 'ask_resolved'
+`
+
+type AskOfItemParams struct {
+	ID         int64
+	IdentityID int64
+}
+
+// The ask an ask_resolved item of this identity is about.
+func (q *Queries) AskOfItem(ctx context.Context, arg AskOfItemParams) (sql.NullInt64, error) {
+	row := q.db.QueryRowContext(ctx, askOfItem, arg.ID, arg.IdentityID)
+	var ask_message_id sql.NullInt64
+	err := row.Scan(&ask_message_id)
+	return ask_message_id, err
+}
+
 const claimItems = `-- name: ClaimItems :many
 UPDATE inbox_items
 SET state = 'claimed', claim_session_id = ?1, claim_token = randomblob(16),
@@ -360,6 +396,31 @@ func (q *Queries) HoldsLiveClaim(ctx context.Context, arg HoldsLiveClaimParams) 
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const insertAskResolvedItem = `-- name: InsertAskResolvedItem :exec
+INSERT INTO inbox_items (identity_id, reason, conversation_id, first_message_id, message_id, ask_message_id, count, mention_count, source_seq, state, created_at, updated_at)
+VALUES (?1, 'ask_resolved', ?2, ?3, ?3, ?3, 1, 0, ?4, 'ready', ?5, ?5)
+`
+
+type InsertAskResolvedItemParams struct {
+	IdentityID     int64
+	ConversationID sql.NullInt64
+	AskMessageID   sql.NullInt64
+	SourceSeq      int64
+	Now            int64
+}
+
+// The asking agent is told its ask was answered, dismissed or deleted (design 8.1): one item per resolution, ids only. It never merges.
+func (q *Queries) InsertAskResolvedItem(ctx context.Context, arg InsertAskResolvedItemParams) error {
+	_, err := q.db.ExecContext(ctx, insertAskResolvedItem,
+		arg.IdentityID,
+		arg.ConversationID,
+		arg.AskMessageID,
+		arg.SourceSeq,
+		arg.Now,
+	)
+	return err
 }
 
 const itemConversation = `-- name: ItemConversation :one

@@ -116,3 +116,17 @@ WHERE claim_session_id = sqlc.arg(from_session) AND state = 'claimed';
 
 -- name: HoldsLiveClaim :one
 SELECT EXISTS (SELECT 1 FROM inbox_items WHERE claim_session_id = sqlc.arg(session_id) AND state = 'claimed' AND claim_until >= sqlc.arg(now));
+
+-- name: InsertAskResolvedItem :exec
+-- The asking agent is told its ask was answered, dismissed or deleted (design 8.1): one item per resolution, ids only. It never merges.
+INSERT INTO inbox_items (identity_id, reason, conversation_id, first_message_id, message_id, ask_message_id, count, mention_count, source_seq, state, created_at, updated_at)
+VALUES (sqlc.arg(identity_id), 'ask_resolved', sqlc.arg(conversation_id), sqlc.arg(ask_message_id), sqlc.arg(ask_message_id), sqlc.arg(ask_message_id), 1, 0, sqlc.arg(source_seq), 'ready', sqlc.arg(now), sqlc.arg(now));
+
+-- name: AskOfItem :one
+-- The ask an ask_resolved item of this identity is about.
+SELECT ask_message_id FROM inbox_items WHERE id = sqlc.arg(id) AND identity_id = sqlc.arg(identity_id) AND reason = 'ask_resolved';
+
+-- name: AckedAskItem :one
+-- A repeat of an ack that went through: the item is acked, by this session.
+SELECT EXISTS (SELECT 1 FROM inbox_items WHERE id = sqlc.arg(id) AND identity_id = sqlc.arg(identity_id) AND reason = 'ask_resolved'
+               AND state = 'acked' AND acked_by_session = sqlc.arg(session_id));
