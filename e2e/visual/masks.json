@@ -274,5 +274,98 @@
    "w": 44,
    "h": 44
   }
+ ],
+ "thread": [
+  {
+   "name": "avatar (agent images)",
+   "x": 17,
+   "y": 75,
+   "w": 36,
+   "h": 36
+  },
+  {
+   "name": "avatar (agent images)",
+   "x": 17,
+   "y": 191,
+   "w": 36,
+   "h": 36
+  },
+  {
+   "name": "avatar (agent images)",
+   "x": 17,
+   "y": 307,
+   "w": 36,
+   "h": 36
+  },
+  {
+   "name": "avatar (agent images)",
+   "x": 17,
+   "y": 375,
+   "w": 36,
+   "h": 36
+  },
+  {
+   "name": "time",
+   "x": 150,
+   "y": 80,
+   "w": 60,
+   "h": 18
+  },
+  {
+   "name": "time",
+   "x": 143,
+   "y": 198,
+   "w": 60,
+   "h": 18
+  },
+  {
+   "name": "time",
+   "x": 98,
+   "y": 306,
+   "w": 60,
+   "h": 18
+  },
+  {
+   "name": "time",
+   "x": 150,
+   "y": 375,
+   "w": 60,
+   "h": 18
+  },
+  {
+   "name": "pin (no backend)",
+   "x": 210,
+   "y": 78,
+   "w": 16,
+   "h": 16
+  },
+  {
+   "name": "spoiler look",
+   "x": 315,
+   "y": 242,
+   "w": 36,
+   "h": 22
+  },
+  {
+   "name": "spoiler look",
+   "x": 66,
+   "y": 264,
+   "w": 90,
+   "h": 24
+  },
+  {
+   "name": "Attach (no backend)",
+   "x": 15,
+   "y": 690,
+   "w": 48,
+   "h": 44
+  },
+  {
+   "name": "Voice (no backend)",
+   "x": 326,
+   "y": 690,
+   "w": 46,
+   "h": 46
+  }
  ]
 }

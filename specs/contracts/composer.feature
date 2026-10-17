@@ -14,7 +14,7 @@ Feature: Composer (contracts)
 
   Rule: Sending is instant and safe to repeat
 
-    @v1 @browser @unimplemented
+    @v1 @browser
     Scenario: A failed send can be retried
       Given the server refuses the next send with 500 five times
       When the owner sends "retry me"

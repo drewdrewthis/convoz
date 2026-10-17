@@ -53,6 +53,7 @@ type Message struct {
 	ThreadRootID   int64 // 0 for a message of the main list
 	Broadcast      bool
 	ReplyCount     int64
+	LastReplyAt    int64 // when the newest reply came, 0 for none
 	EditedAt       int64 // 0 for never
 	Deleted        bool
 	Purged         bool
@@ -91,7 +92,7 @@ func nullStr(s string) sql.NullString { return sql.NullString{String: s, Valid: 
 func fromRow(r db.MessageRow) Message {
 	return Message{
 		ID: r.ID, ConversationID: r.ConversationID, AuthorID: r.AuthorID.Int64, Kind: r.Kind, Format: r.Format, Body: r.Body, CreatedAt: r.CreatedAt,
-		ThreadRootID: r.ThreadRootID.Int64, Broadcast: r.Broadcast == 1, ReplyCount: r.ReplyCount, EditedAt: r.EditedAt.Int64,
+		ThreadRootID: r.ThreadRootID.Int64, Broadcast: r.Broadcast == 1, ReplyCount: r.ReplyCount, LastReplyAt: r.LastReplyAt.Int64, EditedAt: r.EditedAt.Int64,
 		Deleted: r.DeletedAt.Valid, Purged: r.PurgedAt.Valid, System: r.SystemJson.String, SessionID: r.SessionID.Int64,
 		AnswersAskID: r.AnswersAskID.Int64, ViaAppID: r.ViaAppMessageID.Int64, HasApp: r.HasApp == 1,
 		OriginLabel: r.OriginLabel.String, OriginMachine: r.OriginMachine.String,

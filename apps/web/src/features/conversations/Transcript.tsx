@@ -7,6 +7,7 @@ import { Markdown } from "./Markdown.tsx";
 import { resume } from "./actions.ts";
 import { EditedMark, MessageMenu } from "./messages/MessageMenu.tsx";
 import { NoticeRow, pausedNow } from "./messages/Notice.tsx";
+import { ReplyLine } from "../threads/index.ts";
 
 /** A message that arrives while the log is within this many px of its bottom keeps the log at the bottom. */
 const NEAR_BOTTOM = 80;
@@ -63,7 +64,8 @@ function rowsOf(messages: Message[], pending: PendingSend[], me: string): Row[] 
       prev = null; // a notice ends a run: the next message shows its author again
       continue;
     }
-    out.push({ key: `m${m.id}`, author: m.author.handle, first: prev !== m.author.handle, message: m });
+    // a reply that is also in the main list says so in its header, so it always has one
+    out.push({ key: `m${m.id}`, author: m.author.handle, first: prev !== m.author.handle || Boolean(m.thread_root_id), message: m });
     prev = m.author.handle;
   }
   for (const p of pending) {
@@ -254,6 +256,8 @@ function VirtualItems({ rows, me, paused, conversation, log, items, onRetry, onD
 
 interface RowProps {
   row: Row;
+  /** In the thread pane: no reply line and no "replied to a thread" tag. */
+  threaded?: boolean;
   me: string;
   /** The id of the pause line that still holds, 0 for none. */
   paused: number;
@@ -269,9 +273,9 @@ const ASK_LABEL: Record<string, string> = { open: "Open", answered: "Answered", 
 
 /** A row that did not change keeps its node, so a selection in it survives. */
 const sameRow = (a: RowProps, b: RowProps) =>
-  a.me === b.me && a.paused === b.paused && a.onDetails === b.onDetails && (a.hl === a.row.message?.id) === (b.hl === b.row.message?.id) && a.row.key === b.row.key && a.row.first === b.row.first && a.row.message === b.row.message && a.row.pending?.state === b.row.pending?.state;
+  a.me === b.me && a.threaded === b.threaded && a.paused === b.paused && a.onDetails === b.onDetails && (a.hl === a.row.message?.id) === (b.hl === b.row.message?.id) && a.row.key === b.row.key && a.row.first === b.row.first && a.row.message === b.row.message && a.row.pending?.state === b.row.pending?.state;
 
-const MessageRow = memo(function MessageRow({ row, me, paused, conversation, onRetry, onDetails, hl }: RowProps) {
+const MessageRow = memo(function MessageRow({ row, threaded, me, paused, conversation, onRetry, onDetails, hl }: RowProps) {
   const { message: m, pending: p } = row;
   if (m?.kind === "system" || m?.author.kind === "system") {
     return <NoticeRow message={m} canResume={paused === m.id} onResume={() => void resume(conversation)} />;
@@ -284,26 +288,28 @@ const MessageRow = memo(function MessageRow({ row, me, paused, conversation, onR
     const body = m.author.handle !== me && m.format !== "plain" ? <Markdown text={text} format={m.format} /> : <div className="text">{text}</div>;
     const edited = m.edited_at ? <EditedMark id={m.id} /> : null;
     const asked = m.kind === "ask" && m.ask ? <div className={`askstate ${m.ask.state}`}>{ASK_LABEL[m.ask.state] ?? m.ask.state}</div> : null;
-    const menu = <MessageMenu message={m} mine={m.author.handle === me} />;
+    const menu = <MessageMenu message={m} mine={m.author.handle === me} conversation={conversation} />;
     const detail = onDetails && m.author.kind === "agent" ? () => onDetails(m) : undefined;
-    return <Article author={m.author.handle} me={me} first={row.first} stamp={clock(m.created_at)} onStamp={detail} body={body} extra={<>{edited}{asked}</>} menu={menu} mid={m.id} marked={hl === m.id} />;
+    const replies = threaded || m.thread_root_id ? null : <ReplyLine message={m} conversation={conversation} />;
+    const tag = !threaded && m.thread_root_id ? "replied to a thread" : undefined;
+    return <Article author={m.author.handle} me={me} first={row.first} stamp={clock(m.created_at)} tag={tag} onStamp={detail} body={body} extra={<>{edited}{asked}{replies}</>} menu={menu} mid={m.id} marked={hl === m.id} />;
   }
   const state =
     p!.state === "failed" ? (
       <div className="sendstate bad">
-        Not sent
+        failed ·{" "}
         <button className="retry" type="button" onClick={() => onRetry(p!.cid)}>
-          Retry
+          retry
         </button>
       </div>
     ) : (
-      <div className="sendstate">Sending…</div>
+      <div className="sendstate">sending</div>
     );
   return <Article author={me} me={me} first={row.first} stamp={clock(Date.now())} body={<div className="text">{stripCf(p!.body)}</div>} extra={state} />;
 }, sameRow);
 
 /** Article is one message: avatar, name and time (once per run), then the body. The letter is drawn, so it reads "@devtool 5:25 AM Hello". */
-function Article({ author, me, first, stamp, onStamp, body, extra, menu, mid, marked }: { author: string; me: string; first: boolean; stamp: string; onStamp?: () => void; body: ReactNode; extra?: ReactNode; menu?: ReactNode; mid?: number; marked?: boolean }) {
+function Article({ author, me, first, stamp, tag, onStamp, body, extra, menu, mid, marked }: { author: string; me: string; first: boolean; stamp: string; tag?: string; onStamp?: () => void; body: ReactNode; extra?: ReactNode; menu?: ReactNode; mid?: number; marked?: boolean }) {
   const mine = author === me;
   const avatar = mine ? (
     <span className="ava you" aria-hidden="true" data-l="Y" />
@@ -334,6 +340,7 @@ function Article({ author, me, first, stamp, onStamp, body, extra, menu, mid, ma
                 <time className="stamp">{stamp}</time>
               )
             ) : null}
+            {tag ? <span className="tag">{tag}</span> : null}
           </div>
         ) : null}{" "}
         {body}
@@ -341,5 +348,17 @@ function Article({ author, me, first, stamp, onStamp, body, extra, menu, mid, ma
       </div>
       {menu ?? null}
     </article>
+  );
+}
+
+/** The messages of an open thread drawn as the main list draws them, for the thread pane: a pending reply shows "sending" or "failed · retry". */
+export function ThreadBubbles({ messages, pending, me, conversation, onRetry }: { messages: Message[]; pending: PendingSend[]; me: string; conversation: number; onRetry(cid: string): void }) {
+  const rows = useMemo(() => rowsOf(messages, pending, me), [messages, pending, me]);
+  return (
+    <>
+      {rows.map((r) => (
+        <MessageRow key={r.key} row={r} me={me} paused={0} conversation={conversation} onRetry={onRetry} threaded />
+      ))}
+    </>
   );
 }

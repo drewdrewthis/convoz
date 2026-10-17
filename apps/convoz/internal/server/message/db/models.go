@@ -31,4 +31,5 @@ type MessageRow struct {
 	HasApp          int64
 	OriginLabel     sql.NullString
 	OriginMachine   sql.NullString
+	LastReplyAt     sql.NullInt64
 }

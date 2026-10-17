@@ -8,6 +8,7 @@
 @import "tailwindcss/utilities.css" layer(utilities);
 @import "../features/conversations/conversations.css";
 @import "../features/search/search.css";
+@import "../features/threads/threads.css";
 
 @theme {
   --font-sans: "Atkinson Hyperlegible Next", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;

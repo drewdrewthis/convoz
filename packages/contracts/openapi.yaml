@@ -274,6 +274,7 @@ components:
     Conversation: { $ref: "components/conversation.yaml#/Conversation" }
     Message: { $ref: "components/message.yaml#/Message" }
     Posted: { $ref: "components/message.yaml#/Posted" }
+    Replies: { $ref: "components/readstate.yaml#/RepliesResponse" }
     EditRequest: { $ref: "components/message.yaml#/EditRequest" }
     EditHistory: { $ref: "components/message.yaml#/EditHistory" }
     InboxItem: { $ref: "components/inbox.yaml#/InboxItem" }

@@ -101,4 +101,18 @@
           application/json:
             schema: { type: object, required: [message], properties: { message: { $ref: "../openapi.yaml#/components/schemas/Message" } } }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
-/api/messages/{id}/replies: {}  # not specified yet
+/api/messages/{id}/replies:
+  get:
+    operationId: listReplies
+    summary: The thread of one top-level message - the root (a stub when the caller joined after it) and its replies, oldest first.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+      - { name: after, in: query, schema: { type: integer, format: int64 } }
+      - { name: limit, in: query, schema: { type: integer } }
+    responses:
+      "200":
+        description: The thread.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/Replies" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }

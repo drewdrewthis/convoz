@@ -47,7 +47,7 @@ import { webauthn } from "../lib/webauthn-browser.ts";
  *   (white-space pre-wrap): never HTML. Agent bodies in format markdown are rendered: paragraphs (p), fenced code (pre > code, scrolls
  *   sideways inside itself), inline code (code), links (a with href http/https/mailto only, target=_blank, rel containing noopener and
  *   noreferrer), line breaks. Anything else, including <img onerror>, shows as literal text. Owner bodies are always plain text.
- *   Owner send state inside its article: text "Sending…" until the server confirms; on failure the text "Not sent" and a button "Retry"
+ *   Owner send state inside its article: text "sending" until the server confirms; on failure the text "failed · retry" (retry is the button)
  *   (same client id, so the retry never makes a second message); confirmed: no label.
  *   Opening scrolls the log to its bottom (the latest message is in view). A message that arrives while the log is within 80 px of the
  *   bottom keeps it at the bottom. A message that arrives while it is further up does not move the log and shows button "New message ↓"
@@ -496,12 +496,12 @@ scenario("A sent message shows at once and then confirms", { tag: ["@browser"] }
   // Then the bubble shows at once as "sending"
   const bubble = message(page, "on it");
   await expect(bubble).toBeVisible();
-  await expect(bubble).toContainText("Sending…");
+  await expect(bubble).toContainText("sending");
 
   // And it shows as sent when the server confirms
   release();
-  await expect(bubble).not.toContainText("Sending…");
-  await expect(bubble).not.toContainText("Not sent");
+  await expect(bubble).not.toContainText("sending");
+  await expect(bubble).not.toContainText("failed");
   expect((await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["on it"]);
 });
 
@@ -647,12 +647,12 @@ scenario("On a phone a failed send is retried once without a duplicate", { tag: 
   await composer(page).fill("retry me");
   await sendButton(page).click();
 
-  // Then the bubble first says "Not sent"
+  // Then the bubble first says "failed · retry"
   const bubble = message(page, "retry me");
-  await expect(bubble).toContainText("Not sent");
+  await expect(bubble).toContainText("failed · retry");
   await bubble.getByRole("button", { name: "Retry" }).click();
-  await expect(bubble).not.toContainText("Not sent");
-  await expect(bubble).not.toContainText("Sending…");
+  await expect(bubble).not.toContainText("failed");
+  await expect(bubble).not.toContainText("sending");
 
   // And conversation 41 holds "retry me" once
   expect(tries).toHaveLength(2);

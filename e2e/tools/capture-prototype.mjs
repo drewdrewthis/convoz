@@ -101,6 +101,13 @@ for (const mode of ["Light", "Dark"]) {
   await shot("conversation-thread");
   await frame.getByRole("button", { name: "Back" }).first().click();
 
+  // A thread: the sheet that opens from the reply line under night-watch's "Deploy finished" in Ops reports (3 replies).
+  await frame.locator("li button").filter({ hasText: "Ops reports" }).first().click();
+  await frame.getByRole("button", { name: /^Open thread, 3 replies/ }).click();
+  await shot("thread");
+  await frame.getByRole("dialog", { name: /^Thread / }).getByRole("button", { name: "Back" }).click(); // closes the sheet
+  await frame.getByRole("button", { name: "Back" }).first().click(); // and leaves the conversation
+
   await frame.getByRole("button", { name: "New conversation" }).first().click();
   await shot("new-conversation");
   await frame.getByRole("button", { name: "Back" }).first().click();

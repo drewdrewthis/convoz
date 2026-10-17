@@ -3,7 +3,7 @@
 /api/conversations/{id}/read:
   post:
     operationId: markRead
-    summary: Move the read cursor forward (never past the newest main message).
+    summary: Move a read position forward - the main list (main_id), one thread (root_id with reply_id) or everything (all). Never past the newest message.
     parameters:
       - $ref: "../openapi.yaml#/components/parameters/Id"
     requestBody:
@@ -12,10 +12,11 @@
         application/json:
           schema:
             type: object
-            required: [main_id]
             properties:
               main_id: { type: integer, format: int64, minimum: 0 }
-              all: { type: boolean, description: Mark the whole main thread read. }
+              root_id: { type: integer, format: int64, minimum: 1, description: "A thread root; comes with reply_id. Only a thread the reader is in has a position (I-14)." }
+              reply_id: { type: integer, format: int64, minimum: 1, description: The newest reply of the thread the reader has seen. }
+              all: { type: boolean, description: Mark the whole conversation read - the main list and every thread. }
     responses:
       "200": { $ref: "../openapi.yaml#/components/responses/Empty" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }

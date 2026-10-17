@@ -14,3 +14,31 @@ WHERE identity_id = sqlc.arg(identity_id) AND conversation_id = sqlc.arg(convers
 UPDATE read_cursors SET last_read_main_id = sqlc.arg(main_id), updated_at = sqlc.arg(at)
 WHERE identity_id = sqlc.arg(identity_id) AND conversation_id = sqlc.arg(conversation_id)
   AND last_read_main_id >= sqlc.arg(prev_last_main_id) AND last_read_main_id < sqlc.arg(main_id);
+
+-- name: GetThreadFloor :one
+SELECT thread_floor_id FROM read_cursors WHERE identity_id = sqlc.arg(identity_id) AND conversation_id = sqlc.arg(conversation_id);
+
+-- name: MoveThreadFloor :execrows
+UPDATE read_cursors SET thread_floor_id = sqlc.arg(floor_id), updated_at = sqlc.arg(at)
+WHERE identity_id = sqlc.arg(identity_id) AND conversation_id = sqlc.arg(conversation_id) AND thread_floor_id < sqlc.arg(floor_id);
+
+-- name: CreateThreadRead :exec
+INSERT INTO thread_reads (identity_id, conversation_id, root_id, last_read_id, involved_at)
+VALUES (sqlc.arg(identity_id), sqlc.arg(conversation_id), sqlc.arg(root_id), sqlc.arg(last_read_id), sqlc.arg(at))
+ON CONFLICT (identity_id, conversation_id, root_id) DO NOTHING;
+
+-- name: MoveThreadRead :execrows
+UPDATE thread_reads SET last_read_id = sqlc.arg(reply_id)
+WHERE identity_id = sqlc.arg(identity_id) AND conversation_id = sqlc.arg(conversation_id) AND root_id = sqlc.arg(root_id)
+  AND last_read_id < sqlc.arg(reply_id);
+
+-- name: MoveThreadReadIfCaughtUp :execrows
+UPDATE thread_reads SET last_read_id = sqlc.arg(reply_id)
+WHERE identity_id = sqlc.arg(identity_id) AND conversation_id = sqlc.arg(conversation_id) AND root_id = sqlc.arg(root_id)
+  AND last_read_id >= sqlc.arg(prev_last_id) AND last_read_id < sqlc.arg(reply_id);
+
+-- name: ListThreadReads :many
+SELECT root_id, last_read_id FROM thread_reads WHERE identity_id = sqlc.arg(identity_id) AND conversation_id = sqlc.arg(conversation_id);
+
+-- name: GetThreadRead :one
+SELECT last_read_id FROM thread_reads WHERE identity_id = sqlc.arg(identity_id) AND conversation_id = sqlc.arg(conversation_id) AND root_id = sqlc.arg(root_id);

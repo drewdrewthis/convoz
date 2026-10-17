@@ -5,7 +5,7 @@
 # Search, Show details, Star, Mute, Attach and Voice, the Snoozed and Answered chips, agent status (the Working summary, three status
 # lines, two ask chips on Crew), the avatar images of agents, "picked this up", Invite agent, the muted look of a conversation, the
 # count on the Now tab and every time. No screen hides more than 10% of its pixels (Crew 20%); the spec checks that from masks.json.
-# The two starred conversations are read, not starred. The conversation shown is the only prototype thread with no ask, file or preview. DEFAULT (owner to confirm): the Account menu takes the place of the Search button in the top bar.
+# The two starred conversations are read, not starred. The conversation shown is the only prototype thread with no ask, file or preview. The thread shown is the one under night-watch's "Deploy finished" in Ops reports (3 replies). DEFAULT (owner to confirm): the Account menu takes the place of the Search button in the top bar.
 # The shot, the grey boxes and the reference frames are in e2e/visual; e2e/tools/capture-prototype.mjs makes the frames.
 
 Feature: The phone screens match the prototype
@@ -33,6 +33,11 @@ Feature: The phone screens match the prototype
     @v1 @browser @phone
     Scenario: On a phone a conversation matches the prototype
       When the owner opens "Why did the nightly export get slower?" on a phone
+      Then it matches the prototype in light and in dark
+
+    @v1 @browser @phone
+    Scenario: On a phone a thread matches the prototype
+      When the owner opens the thread of "Deploy finished at 5:29. I'm watching the error rate." in "Ops reports" on a phone
       Then it matches the prototype in light and in dark
 
     @v1 @browser @phone

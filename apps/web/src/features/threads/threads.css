@@ -1,0 +1,37 @@
+/* Threads: the reply line under a root, the thread pane (a panel at the right edge on a wide screen, the whole screen on a phone),
+   and the tag over a reply that is in the main list too. Prototype v41. */
+@layer components {
+  .replyline {
+    align-self: flex-start; min-height: 44px; max-width: 100%; display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px 8px;
+    margin: 0 0 0 -4px; padding: 2px 8px 2px 4px; border: 0; border-radius: 14px; background: transparent; color: var(--color-accent-text);
+    font-size: 12px; font-weight: 600; line-height: normal; text-align: left;
+  }
+  .replyline:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+  .msg .tag { font-size: 12px; color: var(--color-muted); }
+
+  .thread {
+    position: absolute; top: 0; right: 0; bottom: 0; z-index: 7; width: 360px; max-width: 100%; display: flex; flex-direction: column; min-height: 0;
+    background: var(--color-surface); border-left: 1px solid var(--color-border); box-shadow: var(--float);
+  }
+  .thread.sheet { left: 0; width: auto; z-index: 9; border-left: 0; box-shadow: none; }
+  .threadbar { flex: none; display: flex; align-items: center; gap: 2px; min-height: 48px; padding: 8px 8px 8px 16px; border-bottom: 1px solid var(--color-border); }
+  .thread.sheet .threadbar { padding: calc(var(--top) + 4px) 6px 4px; }
+  .threadbar .titles { padding: 0 8px; min-height: 0; }
+  .thread:not(.sheet) .threadbar .titles { padding: 0; gap: 1px; }
+  .threadbar h2 { margin: 0; font-size: 14px; font-weight: 600; }
+  .thread.sheet .threadbar h2 { font-size: 16px; }
+  .threadbar .sub { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .thrclose { width: 32px; height: 32px; color: var(--color-muted); }
+  .threadlog { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; padding: 8px 8px 12px; }
+  .threadcount { display: flex; align-items: center; gap: 10px; padding: 6px 10px 2px; font-size: 12px; color: var(--color-muted); }
+  .threadcount .rule { flex: 1 1 auto; border-top: 1px solid var(--color-border); }
+  .threadform { flex: none; display: flex; flex-direction: column; gap: 4px; padding: 8px 14px 12px; border-top: 1px solid var(--color-border); }
+  .thread.sheet .threadform { padding: 6px 12px calc(var(--bottom) + 10px); }
+  .thrcomposer { min-height: 56px; border-radius: 999px; border-color: var(--color-edge); }
+  .thread .thrcomposer input[id] {
+    flex: 1 1 auto; min-width: 0; width: auto; height: auto; min-height: 44px; padding: 0 12px; border: 0; border-radius: 0; outline: none; background: transparent;
+    color: var(--color-text); font-size: 14px;
+  }
+  .alsorow { display: flex; align-items: center; gap: 8px; min-height: 44px; font-size: 13px; font-weight: 400; color: var(--color-muted); cursor: pointer; }
+  .alsorow input { width: 16px; height: 16px; margin: 0; accent-color: var(--color-accent); }
+}

@@ -477,7 +477,7 @@ scenario("Mark all read clears the conversation", { tag: ["@browser"] }, async (
   );
   await page.goto(`${w.srv.origin}/chats`);
   const row = rowsOnList(page).filter({ hasText: "Ship search filters" });
-  await expect(unreadDot(row)).toHaveText("Unread: 7");
+  await expect(unreadDot(row)).toHaveText("Unread: 9"); // 7 main and, since WP5, the 2 replies of the thread it is in
   expect(await isBold(row.getByRole("heading"))).toBe(true);
 
   // When the owner marks the conversation read

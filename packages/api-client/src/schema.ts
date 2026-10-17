@@ -876,7 +876,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Move the read cursor forward (never past the newest main message). */
+        /** Move a read position forward - the main list (main_id), one thread (root_id with reply_id) or everything (all). Never past the newest message. */
         post: operations["markRead"];
         delete?: never;
         options?: never;
@@ -961,7 +961,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** The thread of one top-level message - the root (a stub when the caller joined after it) and its replies, oldest first. */
+        get: operations["listReplies"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1738,6 +1739,11 @@ export interface components {
             broadcast?: boolean;
             /** Format: int64 */
             reply_count?: number;
+            /**
+             * Format: int64
+             * @description When the newest reply came
+             */
+            last_reply_at?: number;
             /** Format: int64 */
             edited_at?: number;
             deleted?: boolean;
@@ -1763,6 +1769,7 @@ export interface components {
             /** Format: int64 */
             created_at: number;
         };
+        Replies: components["schemas"]["RepliesResponse"];
         EditRequest: {
             client_id: components["schemas"]["ClientId"];
             body: string;
@@ -1968,6 +1975,14 @@ export interface components {
             /** @description Conversations whose title the words name, latest activity first. */
             conversations: components["schemas"]["SearchConversation"][];
             filters: components["schemas"]["SearchFilter"][];
+        };
+        RepliesResponse: {
+            /** Format: int64 */
+            conversation_id: number;
+            root: components["schemas"]["Message"];
+            messages: components["schemas"]["Message"][];
+            /** Format: int64 */
+            as_of_seq: number;
         };
         SettingEntry: {
             /** @enum {string} */
@@ -3095,8 +3110,18 @@ export interface operations {
             content: {
                 "application/json": {
                     /** Format: int64 */
-                    main_id: number;
-                    /** @description Mark the whole main thread read. */
+                    main_id?: number;
+                    /**
+                     * Format: int64
+                     * @description A thread root; comes with reply_id. Only a thread the reader is in has a position (I-14).
+                     */
+                    root_id?: number;
+                    /**
+                     * Format: int64
+                     * @description The newest reply of the thread the reader has seen.
+                     */
+                    reply_id?: number;
+                    /** @description Mark the whole conversation read - the main list and every thread. */
                     all?: boolean;
                 };
             };
@@ -3265,6 +3290,32 @@ export interface operations {
                     "application/json": {
                         message: components["schemas"]["Message"];
                     };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listReplies: {
+        parameters: {
+            query?: {
+                after?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The thread. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RepliesResponse"];
                 };
             };
             default: components["responses"]["Error"];

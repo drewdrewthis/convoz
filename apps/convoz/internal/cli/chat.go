@@ -159,9 +159,21 @@ func Post(args []string, io IO) int {
 	if k == nil {
 		return code
 	}
-	var out wire.PostResponse
-	req := wire.PostRequest{ClientID: *clientID, Body: text, Format: *format}
-	var err error
+	out, err := k.sendPost(conv, wire.PostRequest{ClientID: *clientID, Body: text, Format: *format})
+	if err != nil {
+		return k.fail(err)
+	}
+	if k.asJSON {
+		k.printJSON(map[string]int64{"id": out.ID, "conversation_id": out.ConversationID})
+	} else {
+		fmt.Fprintln(k.io.Stdout, out.ID)
+	}
+	return ExitOK
+}
+
+// sendPost sends one message and returns its ids. A lost answer is retried with the same client id (up to 3 tries) and a 429 with
+// Retry-After is waited out, so the server stores the message once; see Post.
+func (k *chatCmd) sendPost(conv int64, req wire.PostRequest) (out wire.PostResponse, err error) {
 	slowUntil := time.Now().Add(maxSlowDown) // the one budget for all the waiting that Convoz asks for
 	for try := 1; ; {
 		ctx, cancel := context.WithTimeout(context.Background(), k.timeout)
@@ -172,20 +184,11 @@ func Post(args []string, io IO) int {
 			continue
 		}
 		if !errors.Is(err, errUnreachable) || try >= 3 {
-			break
+			return out, err
 		}
 		time.Sleep(time.Duration(try) * 300 * time.Millisecond)
 		try++
 	}
-	if err != nil {
-		return k.fail(err)
-	}
-	if k.asJSON {
-		k.printJSON(map[string]int64{"id": out.ID, "conversation_id": out.ConversationID})
-	} else {
-		fmt.Fprintln(k.io.Stdout, out.ID)
-	}
-	return ExitOK
 }
 
 // maxSlowDown is the longest `convoz post` waits in all for a busy server before it gives up.

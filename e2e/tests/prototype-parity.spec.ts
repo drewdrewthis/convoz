@@ -1,3 +1,6 @@
+import { agentPost } from "../lib/chat.ts";
+import { clientId } from "../lib/machines.ts";
+import { must } from "../lib/owner.ts";
 import { expect, scenario, test } from "../lib/scenario.ts";
 import { AGENTS, LIVE, NOT_IDLE, ONLINE_IDLE, keepActual, maskPercent, protoWorld, readyForShot, seedPrototype } from "../lib/prototype-seed.ts";
 
@@ -19,7 +22,7 @@ import { AGENTS, LIVE, NOT_IDLE, ONLINE_IDLE, keepActual, maskPercent, protoWorl
 test.use({ deviceScaleFactor: 2 });
 
 /** No screen may hide more than its share of the frame behind grey boxes, so the masks cannot grow without this number changing. */
-const MASK_CAP: Record<string, number> = { now: 10, conversations: 10, "conversation-thread": 10, "new-conversation": 10, crew: 20 };
+const MASK_CAP: Record<string, number> = { now: 10, conversations: 10, "conversation-thread": 10, thread: 10, "new-conversation": 10, crew: 20 };
 
 const SHOT = { maxDiffPixelRatio: 0.02, threshold: 0.2, animations: "disabled", caret: "hide", scale: "device" } as const;
 
@@ -74,6 +77,28 @@ scenario("On a phone a conversation matches the prototype", { tag: ["@browser", 
 
   // Then it matches the prototype in light and in dark
   await matchesBoth(page, "conversation-thread");
+});
+
+scenario("On a phone a thread matches the prototype", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(180_000);
+  // Background: the prototype's agents and conversations, and the thread under night-watch's "Deploy finished" in Ops reports
+  const u = await protoWorld({ server, page, context }, { agents: AGENTS, live: LIVE });
+  const ops = (await seedPrototype(u))["Ops reports"]!;
+  const as = (handle: string) => u.sessions[handle]!.lease;
+  const root = must(await agentPost(u.w.srv, as("night-watch"), ops, "Deploy finished at 5:29. I'm watching the error rate."), "root", 201).json().id as number;
+  const reply = (lease: string, body: string, format?: string) => agentPost(u.w.srv, lease, ops, body, { thread_root_id: root, ...(format ? { format } : {}) });
+  must(await reply(as("usage-bot"), "Token spend is flat across the deploy\\. __No change__ needed\\. The docs lane used ||1\\.1M tokens|| today\\.", "markdownv2"), "reply 1", 201);
+  must(await u.w.owner.client.post(`/api/conversations/${ops}/messages`, { client_id: clientId(), body: "Ping me if the error rate goes over 2%.", thread_root_id: root }), "reply 2", 201);
+  must(await reply(as("night-watch"), "Will do. I will post here first."), "reply 3", 201);
+
+  // When the owner opens the thread of "Deploy finished at 5:29. I'm watching the error rate." in "Ops reports" on a phone
+  await page.goto(`${u.w.srv.origin}/chats/${ops}`);
+  await page.getByRole("button", { name: /^Open thread, 3 replies/ }).click();
+  await expect(page.getByRole("dialog", { name: "Thread in Ops reports" }).getByRole("log", { name: "Thread messages" }).getByRole("article")).toHaveCount(4);
+
+  // Then it matches the prototype in light and in dark
+  await page.mouse.move(0, 0); // no hover state on a row
+  await matchesBoth(page, "thread");
 });
 
 scenario("On a phone New conversation matches the prototype", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {

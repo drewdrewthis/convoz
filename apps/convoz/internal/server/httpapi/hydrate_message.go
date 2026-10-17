@@ -48,7 +48,7 @@ func hydrateMessage(name string) hydrator {
 	}
 }
 
-// hydrateThread tells a reader how many replies a thread root has now.
+// hydrateThread tells a reader how many replies a thread root has now and when the newest came.
 func hydrateThread(ctx context.Context, s *Server, c *call, _ directory, ev event.Event) (string, []byte, error) {
 	if _, visible, err := canSee(ctx, s.reader(), c.p, ev.Conversation); err != nil || !visible {
 		return "thread.updated", nil, err
@@ -59,6 +59,12 @@ func hydrateThread(ctx context.Context, s *Server, c *call, _ directory, ev even
 		LastReplyID int64 `json:"last_reply_id"`
 	}
 	_ = json.Unmarshal([]byte(ev.Payload), &p)
-	data, err := json.Marshal(map[string]int64{"conversation_id": ev.Conversation, "root_id": p.RootID, "reply_count": p.ReplyCount, "last_reply_id": p.LastReplyID})
+	frame := map[string]int64{"conversation_id": ev.Conversation, "root_id": p.RootID, "reply_count": p.ReplyCount, "last_reply_id": p.LastReplyID}
+	if root, ok, err := message.Get(ctx, s.reader(), p.RootID); err != nil {
+		return "thread.updated", nil, err
+	} else if ok {
+		frame["last_reply_at"] = root.LastReplyAt
+	}
+	data, err := json.Marshal(frame)
 	return "thread.updated", data, err
 }

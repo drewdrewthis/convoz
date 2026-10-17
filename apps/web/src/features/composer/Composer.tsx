@@ -2,9 +2,7 @@ import type { Identity } from "@convoz/api-client";
 import { SendIcon } from "@convoz/ui/icons";
 import { useEffect, useLayoutEffect, useState, type KeyboardEvent, type RefObject } from "react";
 import { initials, paletteOf, stripCf } from "../../shared/chat.ts";
-
-// On a coarse pointer or a narrow screen Enter adds a line and only Send sends (read at each key: the screen can change).
-const phone = matchMedia("(pointer: coarse), (max-width: 600px)");
+import { enterSends } from "./enterToSend.ts";
 
 export interface ComposerProps {
   /** The agent the message goes to; with none, Send stays disabled. */
@@ -14,8 +12,11 @@ export interface ComposerProps {
   onSend(body: string): void;
   /** The text box, for the page to focus. */
   textRef: RefObject<HTMLTextAreaElement | null>;
-  /** New conversation: typing "@" lists these agents above the box; picking one starts the chat with it. */
-  mentions?: { crew: Identity[]; onPick(who: Identity): void };
+  /**
+   * Typing "@" lists these agents above the box. With `onPick` (New conversation) picking one starts the chat with it; without it
+   * (a conversation that exists) picking one writes its handle into the message, and sending the message brings the agent in (I-18).
+   */
+  mentions?: { crew: Identity[]; onPick?(who: Identity): void };
 }
 
 /** Composer is the pinned message box: it grows to about six lines, then scrolls inside itself. */
@@ -48,8 +49,13 @@ export function Composer({ agent, label, onSend, textRef, mentions }: ComposerPr
   }, [crewCount]); // only on the crew's arrival, not on every keystroke
 
   const pick = (who: Identity) => {
-    setText("");
     setMenu(null);
+    if (!mentions!.onPick) {
+      setText((now) => now.replace(/(^|\s)@[a-z0-9-]*$/, `$1@${who.handle} `));
+      textRef.current?.focus();
+      return;
+    }
+    setText("");
     mentions!.onPick(who);
   };
 
@@ -71,7 +77,7 @@ export function Composer({ agent, label, onSend, textRef, mentions }: ComposerPr
         return;
       }
     }
-    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && !phone.matches) {
+    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && enterSends()) {
       event.preventDefault();
       event.currentTarget.form?.requestSubmit();
     }

@@ -2,17 +2,20 @@ import type { Message } from "@convoz/api-client";
 import { Sheet } from "@convoz/ui/Sheet";
 import { useEffect, useRef, useState } from "react";
 import { humanError } from "../../../shared/api.ts";
+import { useThreads } from "../../threads/index.ts";
 import { deleteMessage, editHistory, editMessage } from "./actions.ts";
 
 /**
  * MessageMenu is the "Message actions" button of one message and what it opens. The button is invisible until the row is
  * hovered or focused (a long press does the same on touch), so a message looks as the prototype draws it.
  */
-export function MessageMenu({ message, mine }: { message: Message; mine: boolean }) {
+export function MessageMenu({ message, mine, conversation }: { message: Message; mine: boolean; conversation: number }) {
   const [open, setOpen] = useState(false);
   const [sheet, setSheet] = useState<"edit" | "delete" | null>(null);
   const press = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const root = useRef<HTMLSpanElement>(null);
+  const rootId = message.thread_root_id ?? message.id;
+  const inOpenThread = useThreads((s) => s.open?.rootId === rootId);
 
   useEffect(() => {
     if (!open) return;
@@ -36,6 +39,11 @@ export function MessageMenu({ message, mine }: { message: Message; mine: boolean
       />
       {open ? (
         <div className="msg-menu" role="menu">
+          {inOpenThread ? null : (
+            <button role="menuitem" type="button" onClick={() => (setOpen(false), void useThreads.getState().openThread(conversation, rootId, message.thread_root_id ? undefined : message))}>
+              Reply in thread
+            </button>
+          )}
           {mine ? (
             <button role="menuitem" type="button" onClick={() => (setOpen(false), setSheet("edit"))}>
               Edit
