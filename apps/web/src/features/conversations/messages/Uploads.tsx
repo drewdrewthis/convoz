@@ -1,6 +1,7 @@
 import type { Upload } from "@convoz/api-client";
 import { FileIcon } from "@convoz/ui/icons";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
+import { useMediaAutoLoads } from "../../../shared/media.ts";
 import { fileSize, fileUrl } from "../../../shared/uploads.ts";
 import { VoiceNote } from "../../voice/index.ts";
 
@@ -27,7 +28,7 @@ export function Uploads({ uploads, body }: { uploads: Upload[]; body: string }) 
         <div className="mimgs">
           {images.map((u) => (
             <span key={u.id} className="mimg">
-              <img src={fileUrl(u.id)} alt={u.name} loading="lazy" width={u.width} height={u.height} />
+              <MessageImage upload={u} />
             </span>
           ))}
         </div>
@@ -48,6 +49,19 @@ export function Uploads({ uploads, body }: { uploads: Upload[]; body: string }) 
         </div>
       ) : null}
     </>
+  );
+}
+
+/** MessageImage is a safe image of a message: drawn at once where media auto-loads, else a placeholder with its size that loads on a tap. */
+function MessageImage({ upload: u }: { upload: Upload }) {
+  const auto = useMediaAutoLoads();
+  const [tapped, setTapped] = useState(false);
+  if (auto || tapped) return <img src={fileUrl(u.id)} alt={u.name} loading="lazy" width={u.width} height={u.height} />;
+  return (
+    <button type="button" className="mwait" onClick={() => setTapped(true)}>
+      <span className="mname">{u.name}</span>
+      <span className="msize">{`${fileSize(u.size)} · tap to load`}</span>
+    </button>
   );
 }
 

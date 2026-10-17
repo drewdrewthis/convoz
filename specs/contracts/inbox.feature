@@ -31,7 +31,7 @@ Feature: Agent inbox (contracts)
       Then GET /api/inbox?peek=1 shows exactly 1 ready item for conversation 41 whose count covers all 3 messages
       And no request failed on the one-ready-item rule
 
-    @v1 @api @I-43 @AC-M11 @unimplemented
+    @v1 @api @I-43 @AC-M11
     Scenario: A voice item waits at most 120 seconds for its transcript
       Given the transcription engine fails
       When the owner sends a voice note in conversation 41

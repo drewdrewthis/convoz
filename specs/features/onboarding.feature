@@ -43,7 +43,7 @@ Feature: Onboarding and sign in
       And it then asks for a passkey on another device or a hardware key and lets the owner skip it for now
       And the codes are not shown again anywhere in the app
 
-    @v1 @browser @I-26 @unimplemented
+    @v1 @browser @I-26
     Scenario: A recovery code lets the owner add a new passkey only
       Given the owner lost every passkey
       When the owner enters a recovery code

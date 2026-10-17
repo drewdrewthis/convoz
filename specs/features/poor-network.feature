@@ -24,14 +24,14 @@ Feature: Poor connections
       Then a second browser shows messages 1 to 20 exactly once and in order
       And the first browser shows no message as "failed · retry"
 
-    @v1 @browser @lossy @I-27 @I-31 @AC-20 @unimplemented
+    @v1 @browser @lossy @I-27 @I-31 @AC-20
     Scenario: A voice note upload cut halfway resumes
       Given the owner records a 5 MB voice note on the lossy profile
       When the connection drops at about 50% of the upload
       Then the upload resumes from the server's committed offset, which is above 0
       And the voice note plays in a second browser
 
-    @v1 @browser @lossy @AC-20 @unimplemented
+    @v1 @browser @lossy @AC-20
     Scenario: With Save-Data on, no media loads until tapped
       Given the browser reports Save-Data on
       When the owner opens a conversation with 3 images, an unfurl card and an app preview

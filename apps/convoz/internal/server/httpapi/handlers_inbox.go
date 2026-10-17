@@ -16,6 +16,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/settings"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/transcript"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
 
@@ -354,6 +355,9 @@ func (s *Server) deliver(ctx context.Context, d pdb.DBTX, now time.Time, p authz
 			title := cv.Title
 			wi.Conversation.Title = &title
 		}
+		if wi.TranscriptState, err = transcriptStateOf(ctx, d, m.ID); err != nil {
+			return nil, err
+		}
 		if it.Reason == inbox.ReasonAskResolved {
 			if wi.Message, err = s.askMessageView(ctx, d, dir, m); err != nil {
 				return nil, err
@@ -368,6 +372,28 @@ func (s *Server) deliver(ctx context.Context, d pdb.DBTX, now time.Time, p authz
 		out = append(out, wi)
 	}
 	return out, nil
+}
+
+// transcriptStateOf is the transcript state an item carries, a snapshot taken when it is delivered; "" for a message with no voice
+// note. An item is only delivered once its transcript is done or its 120 s wait is over (E-5), so a transcript still pending now has
+// not made it in time: it reads "failed" when every try so far has failed, "pending" when none has finished yet. The transcript itself
+// may still be retried in the background and change later.
+func transcriptStateOf(ctx context.Context, d pdb.DBTX, messageID int64) (string, error) {
+	by, err := attachmentsOf(ctx, d, []int64{messageID})
+	if err != nil {
+		return "", err
+	}
+	for _, a := range by[messageID] {
+		t := a.Transcript
+		switch {
+		case t == nil:
+		case t.State == transcript.Pending && t.Attempts > 0:
+			return transcript.Failed, nil
+		default:
+			return t.State, nil
+		}
+	}
+	return "", nil
 }
 
 // askMessageView is the ask message of an ask_resolved item with the ask as it stands now: the answer, the history.

@@ -177,6 +177,8 @@ type InboxItem struct {
 	Deliveries   int64             `json:"deliveries"`    // how many times a claim handed the item out; at 5 it leaves the queue (M2)
 	Conversation InboxConversation `json:"conversation"`
 	Message      Message           `json:"message"`
+	// TranscriptState is the state of the voice note's transcript (pending, done, failed); absent for an item with no voice note (E-5).
+	TranscriptState string `json:"transcript_state,omitempty"`
 }
 
 // InboxResponse is GET /api/inbox.

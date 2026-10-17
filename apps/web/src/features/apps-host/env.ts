@@ -6,11 +6,6 @@ interface NetworkInfo {
 }
 const connection = (): NetworkInfo | undefined => (navigator as Navigator & { connection?: NetworkInfo }).connection;
 
-/** A Save-Data or slow link (2g, 3g): previews that cost bytes wait for a tap (design §12.3). */
-export const slowLink = (): boolean => {
-  const c = connection();
-  return Boolean(c?.saveData) || ["slow-2g", "2g", "3g"].includes(c?.effectiveType ?? "");
-};
 export const saveData = (): boolean => Boolean(connection()?.saveData);
 
 /** "61 KB" for 61440 bytes: decimal kilobytes, as the preview card shows them. */

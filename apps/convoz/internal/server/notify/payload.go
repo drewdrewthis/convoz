@@ -36,6 +36,8 @@ type Facts struct {
 	Text string
 	// Conversation is the conversation's title, for a push about the conversation itself.
 	Conversation string
+	// Headline is the title of a security alert: what happened, in a few words ("Recovery code used").
+	Headline string
 	// Machine and Code belong to a machine request.
 	Machine, Code string
 	URL           string
@@ -62,7 +64,10 @@ func Compose(reason, topic string, f Facts, burst int) Payload {
 		p.Title, p.Body = clip(f.Machine)+" wants to connect", "code "+f.Code
 		return p
 	case ReasonSecurity:
-		p.Title, p.Body = "Security alert", clip(f.Text)
+		p.Title, p.Body = clip(f.Headline), clip(f.Text)
+		if p.Title == "" {
+			p.Title = "Security alert"
+		}
 		return p
 	}
 	if f.Previews == PreviewNone {

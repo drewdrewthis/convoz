@@ -20,4 +20,4 @@ UPDATE transcripts SET state = 'failed', attempts = attempts + 1, next_attempt_a
 WHERE upload_id = sqlc.arg(upload_id) AND state = 'pending';
 
 -- name: TranscriptsOf :many
-SELECT upload_id, state, text FROM transcripts WHERE upload_id IN (sqlc.slice('upload_ids'));
+SELECT upload_id, state, text, attempts FROM transcripts WHERE upload_id IN (sqlc.slice('upload_ids'));

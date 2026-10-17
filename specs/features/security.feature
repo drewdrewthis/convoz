@@ -40,7 +40,7 @@ Feature: Security walls
     And machine "box-2" is logged in with allow-list "devtool"
     And machine "laptop-1" is logged in with allow-list "devtool"
 
-    @v1 @browser @api @I-39 @AC-14 @C-2 @unimplemented
+    @v1 @browser @api @I-39 @AC-14 @C-2
     Scenario: A valid reveal shows the key once and leaves a trail
       When the owner reveals the key of "box-2" with a passkey
       Then the key is shown once with a copy button and the hint "Paste into convoz login --stdin on the machine, never into an agent prompt."

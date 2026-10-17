@@ -3,7 +3,8 @@ import { validateApp, type App, type AppContext, type AppStub, type ProposedResu
 import { lazy, Suspense, useState } from "react";
 import { call, client } from "../../shared/api.ts";
 import { ConfirmSheet } from "./ConfirmSheet.tsx";
-import { jsonBytes, saveData, size, slowLink } from "./env.ts";
+import { useMediaAutoLoads } from "../../shared/media.ts";
+import { jsonBytes, saveData, size } from "./env.ts";
 import { FrameHost } from "./FrameHost.tsx";
 import { sendViaApp, type AppResult, type Target } from "./send.ts";
 
@@ -34,6 +35,7 @@ export function AppHost({ app: raw, messageId, agent, conversation, threadRoot, 
   const [tapped, setTapped] = useState(false);
   const [sheet, setSheet] = useState<ProposedResult | null>(null);
   const [sentError, setSentError] = useState("");
+  const auto = useMediaAutoLoads();
   const target: Target = { conversation, message: messageId, agent, threadRoot };
   const root = { "data-app": "", "data-message-id": messageId } as const;
 
@@ -48,7 +50,7 @@ export function AppHost({ app: raw, messageId, agent, conversation, threadRoot, 
   if (unsupported || failed) return <Fallback root={root} type={type} title={title} text={fallback} />;
 
   const bytes = stub?.bytes ?? jsonBytes(raw);
-  const slowWait = !tapped && slowLink() && (type === "gallery" || stub !== null) && type !== "frame";
+  const slowWait = !tapped && !auto && (type === "gallery" || stub !== null) && type !== "frame";
 
   if (app?.type === "frame") return <FrameHost app={app as App & { type: "frame" }} messageId={messageId} agent={agent} target={target} onAsk={onAsk} />;
   if (stub?.type === "frame") return <FrameStub root={root} stub={stub} agent={agent} load={() => void load()} />;

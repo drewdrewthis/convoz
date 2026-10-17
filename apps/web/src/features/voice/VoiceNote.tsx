@@ -1,7 +1,8 @@
 import type { Upload } from "@convoz/api-client";
 import { ChevronIcon, PauseIcon, PlayIcon } from "@convoz/ui/icons";
-import { useMemo, useRef, useState } from "react";
-import { fileUrl } from "../../shared/uploads.ts";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useMediaAutoLoads } from "../../shared/media.ts";
+import { fileSize, fileUrl } from "../../shared/uploads.ts";
 import { mmss } from "./mmss.ts";
 
 const BARS = 30;
@@ -27,6 +28,10 @@ export function VoiceNote({ upload }: { upload: Upload }) {
   const [on, setOn] = useState(false);
   const [pct, setPct] = useState(0);
   const [open, setOpen] = useState(false);
+  const auto = useMediaAutoLoads();
+  const [tapped, setTapped] = useState(false);
+  // Where media waits for a tap the audio is not fetched, not even its header; the first tap on play loads it and plays.
+  const loaded = auto || tapped;
   const heights = useMemo(() => bars(upload.waveform), [upload.waveform]);
   const total = upload.duration_ms ?? 0;
   const words = upload.transcript?.state === "done" ? (upload.transcript.text ?? "") : null;
@@ -37,7 +42,18 @@ export function VoiceNote({ upload }: { upload: Upload }) {
     const length = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : total / 1000;
     setPct(length ? Math.min(100, Math.round((a.currentTime / length) * 100)) : 0);
   };
+  useEffect(() => {
+    const a = audio.current;
+    if (!tapped || !a) return;
+    if (playing && playing !== a) playing.pause();
+    playing = a;
+    a.play().catch(() => setOn(false));
+  }, [tapped]);
   const toggle = () => {
+    if (!loaded) {
+      setTapped(true); // the effect below plays once the element has its source
+      return;
+    }
     const a = audio.current!;
     if (!a.paused) {
       a.pause();
@@ -60,10 +76,11 @@ export function VoiceNote({ upload }: { upload: Upload }) {
           ))}
         </span>
         <span className="vtime">{mmss(Math.round(total / 1000))}</span>
+        {loaded ? null : <span className="vsize">{`${fileSize(upload.size)} · tap to load`}</span>}
         <audio
           ref={audio}
-          src={fileUrl(upload.id)}
-          preload="metadata"
+          src={loaded ? fileUrl(upload.id) : undefined}
+          preload={loaded ? "metadata" : "none"}
           onPlay={() => setOn(true)}
           onPause={() => setOn(false)}
           onTimeUpdate={follow}

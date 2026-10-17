@@ -332,11 +332,12 @@ func (p pushSource) Facts(ctx context.Context, d pdb.DBTX, n notify.Notification
 			return f, err
 		}
 		f.URL = "/settings/privacy"
-		f.Text = "A recovery code was used to sign in"
+		// The title says what happened; the body offers the way out (Settings → Privacy & security signs every other device out).
+		f.Headline, f.Text = "Recovery code used", "Not you? Sign out all other devices in Settings."
 		if ev.Type == eventKeyRevealed {
-			f.Text = "The key of a machine was revealed"
+			f.Headline, f.Text = "Key revealed", "Not you? Regenerate the key in Crew."
 			if name := p.machineName(ctx, d, bodyOf(ev).MachineID); name != "" {
-				f.Text = "The key of " + name + " was revealed"
+				f.Headline = "Key revealed · " + name
 			}
 		}
 	}

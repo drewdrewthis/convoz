@@ -2,7 +2,8 @@ import type { Person } from "@convoz/api-client";
 import { validateBridge, validateResult, type App, type FrameProps } from "@convoz/app-kit";
 import { useEffect, useRef, useState } from "react";
 import { ConfirmSheet, rowsOf } from "./ConfirmSheet.tsx";
-import { frameEnv, saveData, size, slowLink } from "./env.ts";
+import { useMediaAutoLoads } from "../../shared/media.ts";
+import { frameEnv, size } from "./env.ts";
 import { sendViaApp, type Target } from "./send.ts";
 
 const MAX_IN_BYTES = 8192;
@@ -38,7 +39,7 @@ export function FrameHost({ app, messageId, agent, target, onAsk }: Props) {
   const session = useRef<{ port: MessagePort | null; loads: number; drops: number; stamps: number[]; results: number; sheetOpen: boolean; ready: boolean; stop(): void }>({
     port: null, loads: 0, drops: 0, stamps: [], results: 0, sheetOpen: false, ready: false, stop() {},
   });
-  const slow = slowLink();
+  const slow = !useMediaAutoLoads();
 
   const close = (to: Phase) => {
     session.current.stop();
@@ -198,7 +199,7 @@ export function FrameHost({ app, messageId, agent, target, onAsk }: Props) {
         {m.results ? <div className="appmeta">This app can send a reply for you</div> : null}
         <div className="appmeta">Do not type secrets into apps.</div>
         <button type="button" className="btn small" onClick={open}>
-          {slow || saveData() ? `Open app · ${bytes}` : "Open app"}
+          {slow ? `Open app · ${bytes}` : "Open app"}
         </button>
       </section>
     );
