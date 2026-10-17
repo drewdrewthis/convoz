@@ -2,7 +2,8 @@
 """AC-1: a slice PR shows its scenarios red first and green at head.
 
 Usage: python3 -I scripts/red_green.py <base> <head> [--runner PATH] [--scratch DIR]
-                                  [--phase red|green|overlay|all] [--shard K/N]      (run inside the git repo)
+                                  [--phase red|green|overlay|all] [--shard K/N]
+                                  (run inside the git repo)
        python3 -I scripts/red_green.py --self-test
 
   - The slice is every scenario bound at <head> (no @unimplemented, no @needs-owner) that was not bound at
@@ -128,7 +129,7 @@ def checkout(sha, dest, tests_from=None):
 
 ENV_ALLOW = ("PATH", "HOME", "GO_BIN", "PNPM_BIN", "GOFLAGS", "GOPATH", "GOCACHE", "GOMODCACHE", "GOROOT", "GOTOOLCHAIN",
              "PNPM_HOME", "COREPACK_HOME", "PLAYWRIGHT_BROWSERS_PATH", "CI", "TMPDIR", "LANG", "LC_ALL", "TERM",
-             "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "SSL_CERT_FILE", "NODE_EXTRA_CA_CERTS")
+             "NO_PROXY", "SSL_CERT_FILE", "NODE_EXTRA_CA_CERTS")
 
 
 def child_env(extra=None):
@@ -140,13 +141,23 @@ def child_env(extra=None):
 
 def run_group(cmd, timeout, **kw):
     """subprocess.run in its own session. On a timeout the child's whole process group is killed, then
-    TimeoutExpired is raised: a hung step cannot leave a grandchild running."""
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True, **kw)
+    TimeoutExpired is raised. Limit: a descendant that calls setsid leaves the group and is not killed.
+    A command that cannot start is a RunnerError."""
+    try:
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True, **kw)
+    except OSError as err:
+        raise RunnerError(f"cannot start {cmd[0]}: {err}")
     try:
         out, err = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
-        os.killpg(proc.pid, signal.SIGKILL)  # the child's own group (it is the session leader), nothing else
-        proc.communicate()
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)  # the child's own group (it is the session leader), nothing else
+        except ProcessLookupError:
+            pass
+        try:
+            proc.communicate(timeout=10)
+        except subprocess.TimeoutExpired:
+            pass  # a setsid descendant still holds the pipes; give up on its output
         raise
     return subprocess.CompletedProcess(cmd, proc.returncode, out, err)
 
@@ -229,7 +240,8 @@ def parse_runner_output(res, titles):
 
 
 def call_runner(runner, directory, titles, timeout=3600):
-    """Run `runner` (or the default) in `directory`; a hang is a RunnerError, never a traceback."""
+    """Run `runner` (or the default) in `directory`; a hang is a RunnerError, never a traceback.
+    `timeout` (3600 s) applies to a custom runner only; the default runner has a timeout per step."""
     try:
         if runner is None:
             return default_runner(directory, titles)
@@ -300,6 +312,9 @@ def prove(titles, exceptions, titles_at_first, run_red, run_green, run_overlay, 
         if new is not None and new not in titles:
             out.append(f"FAIL: exception renames to a title that is not in the slice: {new}")
             bad = True
+        if new is not None and old in titles:
+            out.append(f"FAIL: exception renames from a title that is itself in the slice (red would be borrowed): {old}")
+            bad = True
     if bad:
         return 1, out
     red_name = {new: old for old, new, _ in exceptions if new}
@@ -309,7 +324,9 @@ def prove(titles, exceptions, titles_at_first, run_red, run_green, run_overlay, 
         out.append(f"shard {shard[0]}/{shard[1]}: {len(titles)} title(s)")
     if not titles:
         return 0, out
-    red_of = lambda t: red_name.get(t, t)
+    def red_of(t):
+        return red_name.get(t, t)
+
     # (phase, runner, titles it runs): only the requested phases run; an empty overlay set is not run.
     plan = [("red", run_red, [red_of(t) for t in titles]), ("green", run_green, titles),
             ("overlay", run_overlay, [red_of(t) for t in titles if red_of(t) not in skipped])]
@@ -336,6 +353,18 @@ def prove(titles, exceptions, titles_at_first, run_red, run_green, run_overlay, 
         else:
             out += lines
     return (1 if bad else 0), out
+
+
+CI_PATH = os.path.join(ROOT, ".github", "workflows", "ci.yml")
+
+
+def ci_gate_ok(text):
+    """True when ci.yml's `red-green` job needs the cells, runs always, and fails unless their result is success."""
+    m = re.search(r"^  red-green:\n(.*?)(?=^  \S|\Z)", text, re.M | re.S)
+    job = m.group(1) if m else ""
+    return all(re.search(pattern, job, re.M) for pattern in (
+        r"^    needs: red-green-cell$", r"^    if: always\(\)", r"^          RESULT: \$\{\{ needs\.red-green-cell\.result \}\}$",
+        r'^        run: test "\$RESULT" = success$'))
 
 
 def process_gone(pid):
@@ -483,6 +512,16 @@ def self_test():
             pass
     if parse_shard("2/3") != (2, 3):
         failures.append("parse shard")
+    code, log = prove(["a", "b"], [("a", "b", "why")], {"a", "b"}, fake({"a": "failed", "b": "failed"}), fake({}), fake({}))
+    if code != 1 or not any("renames from a title that is itself in the slice" in l for l in log):
+        failures.append("a rename whose old title is a slice title fails")
+    # the required-check gate in ci.yml
+    with open(CI_PATH, encoding="utf-8") as fh:
+        ci = fh.read()
+    if not ci_gate_ok(ci):
+        failures.append("ci.yml red-green gate needs red-green-cell, runs always and requires result success")
+    if ci_gate_ok(ci.replace('run: test "$RESULT" = success', "run: true")):
+        failures.append("ci.yml gate check accepts a gate step that is `true`")
     # timeout: a hung build or runner is a clean ERROR (exit 3), never a traceback, and its whole process group dies
     with tempfile.TemporaryDirectory(prefix="red-green-self-test-") as tmp:
         pidfile = os.path.join(tmp, "grandchild.pid")
