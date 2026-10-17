@@ -1,6 +1,6 @@
 import { composer, message, messageLog, uiWorld } from "../lib/chat-ui.ts";
 import { createConversation, inboxItems, messagesOf, openStream, ownerPost, ownerSays, startSession } from "../lib/chat.ts";
-import { deferred, deltaFrom, platformWorld, seedMessages, snapshotOf, stallProxy, syncRaw } from "../lib/event.ts";
+import { deltaFrom, platformWorld, seedMessages, snapshotOf, stallProxy, syncRaw } from "../lib/event.ts";
 import { send } from "../lib/http.ts";
 import { plainDb } from "../lib/machines.ts";
 import { must } from "../lib/owner.ts";
@@ -9,9 +9,9 @@ import { expect, scenario } from "../lib/scenario.ts";
 /*
  * EVENT BACKBONE AND SYNC (WP2), platform contracts. Read with specs/contracts/platform.feature and the contract block atop lib/event.ts.
  * Not bound here, and why:
- *   "A write and its event, inbox item, search entry and audit row appear together" needs search (WP12) and the inbox mention item (WP6).
  *   "Cross-record rules hold ...", "Counters match the messages ...", "Events never carry content" need asks (WP8), uploads (WP10),
- *   app messages (WP11) and threads, deletes and removals (WP3, WP5); their tests wait for those routes.
+ *   app messages (WP11) and threads, deletes and removals (WP3, WP5). "A write and its event, inbox item, search entry and audit row
+ *   appear together" is bound below; "Counters match ..." is bound in platform.left.spec.ts; the other two still wait for WP11 and WP10.
  */
 
 scenario("A failed write leaves no event behind", { tag: ["@api"] }, async ({ server }) => {
@@ -155,9 +155,9 @@ scenario("The server is serving within 500 ms of start", { tag: ["@cli"] }, asyn
   expect(took, `serve took ${Math.round(took)} ms to answer /healthz`).toBeLessThan(500);
 });
 
-// ---- written, and waiting for the work packages named in each ------------------------------------------------------
+// ---- written by this work package, bound once search (WP12) and the inbox mention items (WP6) landed ----------------------
 
-deferred("A write and its event, inbox item, search entry and audit row appear together", "WP12 search, WP6 inbox mention items", { tag: ["@api"] }, async ({ server }) => {
+scenario("A write and its event, inbox item, search entry and audit row appear together", { tag: ["@api"] }, async ({ server }) => {
   const { w, conv } = await platformWorld(server);
   const stream = await openStream(w.srv, w.owner.client);
   try {

@@ -52,7 +52,7 @@ Feature: Agent inbox
         | the owner declines an add that "devtool" requested in conversation 52  | membership   |
         | the owner sends a result through an app of "devtool"                    | app_result   |
 
-    @v1 @cli @I-43 @unimplemented
+    @v1 @cli @I-43
     Scenario: Snoozing an ask makes no inbox item
       Given "devtool" has an open ask in conversation 41
       When the owner snoozes it for 1 hour
@@ -73,7 +73,7 @@ Feature: Agent inbox
       Then "convoz inbox --peek --sid s1" shows 1 "activity" item for conversation 41 with count 30
       And the item points at the newest of the 30 messages
 
-    @v1 @cli @I-43 @C-10 @unimplemented
+    @v1 @cli @I-43 @C-10
     Scenario: Thread replies join the conversation item
       Given "devtool" started thread 900 in conversation 41
       When the owner posts 5 replies in thread 900 and 2 messages in the main list
@@ -92,7 +92,7 @@ Feature: Agent inbox
       When the owner answers an ask of "devtool" there and sends a result through an app of "devtool" there
       Then "convoz inbox --peek --sid s1" shows 3 items for conversation 41: the conversation item, one "ask_resolved" and one "app_result"
 
-    @v1 @cli @I-43 @unimplemented
+    @v1 @cli @I-43
     Scenario: One message makes one item and the strongest reason wins
       Given "devtool" asked a question in conversation 41
       When the owner answers it with the custom text "@devtool merge it after lunch"
@@ -135,7 +135,7 @@ Feature: Agent inbox
       And "s2" polls 30 seconds later
       Then "s2" gets neither of the 2 items
 
-    @v1 @cli @I-12 @I-43 @unimplemented
+    @v1 @cli @I-12 @I-43
     Scenario: Acking an answer item marks the ask as acked
       Given the owner answered the ask of "devtool" in conversation 41
       When session "s1" claims and acks the "ask_resolved" item
@@ -143,7 +143,7 @@ Feature: Agent inbox
 
   Rule: One bad item never blocks the batch (M2)
 
-    @v1 @cli @M2 @AC-18 @unimplemented
+    @v1 @cli @M2 @AC-18
     Scenario: An item delivered 5 times is expired before the next claim
       Given a mention item that was delivered 5 times and never acked
       And 3 other ready items
@@ -153,7 +153,7 @@ Feature: Agent inbox
 
   Rule: Several sessions of one identity share the work sensibly
 
-    @v1 @cli @AC-28 @unimplemented
+    @v1 @cli @AC-28
     Scenario: An item goes to the session that posted last in that conversation
       Given session "s2" posted in conversation 41 after session "s1"
       And both sessions wait with "convoz inbox --wait 60"
@@ -169,7 +169,7 @@ Feature: Agent inbox
 
   Rule: Items expire on schedule and never outlive what the agent may see
 
-    @v1 @cli @I-43 @unimplemented
+    @v1 @cli @I-43
     Scenario: Old items are cleaned up on schedule
       Given an acked item 7 days and 1 hour old and an unacked item 30 days and 1 hour old
       When the nightly maintenance runs
@@ -177,7 +177,7 @@ Feature: Agent inbox
       And "convoz brief" lists the unacked one as expired unread
       And "convoz read 41" still shows the message the expired item pointed at
 
-    @v1 @cli @I-19 @AC-6 @C-1 @unimplemented
+    @v1 @cli @I-19 @AC-6 @C-1
     Scenario: Removal leaves one notice and then nothing more
       Given "devtool" has 2 ready items for conversation 41
       When the owner removes "devtool" from conversation 41
@@ -185,7 +185,7 @@ Feature: Agent inbox
       And no other item for conversation 41 arrives, even when the owner posts there again
       And items for "devtool" in conversation 52 still arrive
 
-    @v1 @cli @I-6 @unimplemented
+    @v1 @cli @I-6
     Scenario: Delivery checks visibility again
       Given "devtool" has a ready mention item for conversation 41
       When the owner soft-deletes conversation 41

@@ -45,6 +45,7 @@ export const PAGES = {
   settings: page({ name: "settings", title: "Settings", heading: "Settings", frame: "shell", back: "/account", load: () => import("../features/settings/index.ts").then((f) => f.Settings) }),
   privacy: page({ name: "privacy", title: "Privacy & security", heading: "Privacy & security", frame: "shell", back: "/settings", load: () => import("../features/settings/index.ts").then((f) => f.Privacy) }),
   exportData: page({ name: "export", title: "Export your data", heading: "Export your data", frame: "shell", back: "/settings/privacy", load: () => import("../features/settings/index.ts").then((f) => f.ExportData) }),
+  deleteData: page({ name: "delete", title: "Delete my data", heading: "Delete my data", frame: "shell", back: "/settings/privacy", load: () => import("../features/settings/index.ts").then((f) => f.DeleteData) }),
   account: page({ name: "account", title: "Account", heading: "Account", frame: "shell", back: "/", load: () => import("../features/settings/index.ts").then((f) => f.Account) }),
 };
 
@@ -63,6 +64,7 @@ const EXACT: Record<string, PageDef> = {
   "/settings/passkeys": PAGES.passkeys,
   "/settings/recovery": PAGES.recovery,
   "/settings/export": PAGES.exportData,
+  "/settings/delete": PAGES.deleteData,
   "/account": PAGES.account,
   "/trash": PAGES.trash,
 };

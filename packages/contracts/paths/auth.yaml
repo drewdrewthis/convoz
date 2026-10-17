@@ -168,6 +168,24 @@
     responses:
       "204": { description: Signed out. }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/auth/signout-all:
+  post:
+    operationId: signOutAll
+    summary: End every other device session of the owner. Needs a step-up (signout.all).
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/StepUp"
+    requestBody: { $ref: "../openapi.yaml#/components/requestBodies/Empty" }
+    responses:
+      "200":
+        description: The other devices are signed out.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [signed_out]
+              properties:
+                signed_out: { type: integer, description: How many devices ended. }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/me/passkeys:
   get:
     operationId: passkeys

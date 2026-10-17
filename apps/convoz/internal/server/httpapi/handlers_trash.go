@@ -8,6 +8,7 @@ import (
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/event"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/inbox"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/prefs"
 )
@@ -166,8 +167,10 @@ func (s *Server) Maintain(ctx context.Context) error {
 		if _, err = conversation.CleanEmpty(ctx, d, now, starred); err != nil {
 			return err
 		}
-		purged, err = conversation.PurgeTrash(ctx, d, now)
-		return err
+		if purged, err = conversation.PurgeTrash(ctx, d, now); err != nil {
+			return err
+		}
+		return inbox.Sweep(ctx, d, now)
 	})
 	if err == nil && purged > 0 {
 		s.Bus.Notify()

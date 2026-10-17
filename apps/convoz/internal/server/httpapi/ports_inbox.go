@@ -5,6 +5,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/inbox"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
@@ -18,7 +19,11 @@ func (inboxPort) FanOut(ctx context.Context, d pdb.DBTX, now time.Time, identity
 	if err != nil {
 		return err
 	}
-	return inbox.FanOut(ctx, d, now, identity, conv, messageID, sourceSeq, reason)
+	prefer, err := conversation.LastPostSession(ctx, d, conv, identity)
+	if err != nil {
+		return err
+	}
+	return inbox.FanOut(ctx, d, now, identity, conv, messageID, sourceSeq, prefer, reason)
 }
 
 // reasonFor is "mention" when the message mentions the agent (the mentions table, written when the message was), "thread"

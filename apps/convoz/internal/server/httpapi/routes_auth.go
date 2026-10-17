@@ -15,6 +15,7 @@ var authRoutes = []Route{
 	{Method: "POST", Pattern: "/api/auth/step-up/options", Auth: authz.Human, RefuseLease: true, handle: (*Server).stepUpOptions},
 	{Method: "POST", Pattern: "/api/auth/step-up/verify", Auth: authz.Human, handle: (*Server).stepUpVerify},
 	{Method: "POST", Pattern: "/api/auth/logout", Auth: authz.HumanLimited, handle: (*Server).logout},
+	{Method: "POST", Pattern: "/api/auth/signout-all", Auth: authz.Human, StepUp: "signout.all", handle: (*Server).signOutAll},
 	{Method: "GET", Pattern: "/api/me/devices", Auth: authz.Human, handle: (*Server).devices},
 	{Method: "DELETE", Pattern: "/api/me/devices/:id", Auth: authz.Human, handle: (*Server).deleteDevice},
 	{Method: "GET", Pattern: "/api/me/passkeys", Auth: authz.Human, handle: (*Server).passkeys},

@@ -12,7 +12,7 @@ Feature: Settings (contracts)
 
   Rule: The server checks every setting (I-29)
 
-    @v1 @api @I-29 @unimplemented
+    @v1 @api @I-29
     Scenario Outline: Bad settings are refused
       When the owner sets <change>
       Then the server answers 400

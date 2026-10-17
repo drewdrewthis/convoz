@@ -45,7 +45,7 @@ Feature: Settings
       When the owner reads the settings
       Then "notify.previews" is "full", "notify.machine_requests" is true, "notify.urgent_bypass" is true and "brief.max_bytes" is 12288
 
-    @v1 @api @unimplemented
+    @v1 @api
     Scenario: The owner sets the workspace inbox and brief defaults
       When the owner sets "inbox.visibility_default" to "10m" and "brief.max_bytes" to 12000
       Then a new agent claim without a visibility holds its items for 10 minutes
@@ -75,7 +75,7 @@ Feature: Settings
       Then it lists devices, passkeys, machines, sessions, sign out all, export and delete
       And it does not list personal access tokens
 
-    @v1 @browser @I-26 @unimplemented
+    @v1 @browser @I-26
     Scenario: Signing out all other devices needs a passkey
       Given the owner is signed in on a laptop and a phone
       When the owner signs out all other devices from the laptop with a passkey

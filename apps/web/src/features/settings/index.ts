@@ -6,4 +6,4 @@ export { Privacy } from "./Privacy.tsx";
 export { RecoveryCodes } from "./RecoveryCodes.tsx";
 export { Settings } from "./Settings.tsx";
 export { syncAppearance } from "./sync.ts";
-export { ExportData } from "./privacy/index.ts";
+export { DeleteData, ExportData } from "./privacy/index.ts";

@@ -68,7 +68,7 @@ Feature: Agent inbox (contracts)
       Then the server answers 409 with the code "claim_lost"
       And the item is ready again
 
-    @v1 @api @I-43 @AC-28 @unimplemented
+    @v1 @api @I-43 @AC-28
     Scenario: The preferred session has 30 seconds before others may take an item
       Given session "s2" posted last in conversation 41 and is live but not polling
       When the owner posts "@devtool ping" in conversation 41 and "s1" polls at once and again 31 seconds later

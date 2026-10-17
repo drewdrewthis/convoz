@@ -33,6 +33,8 @@ type fakes struct {
 func (f *fakes) Access(context.Context, pdb.DBTX, int64) (message.Access, error) {
 	return f.access, nil
 }
+func (f *fakes) NoteAgentPost(context.Context, pdb.DBTX, int64, int64, int64) error { return nil }
+
 func (f *fakes) RecordMainPost(context.Context, pdb.DBTX, time.Time, int64, int64, string) (int64, error) {
 	f.recorded++
 	return f.prevMain, nil

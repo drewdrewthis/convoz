@@ -89,7 +89,7 @@ func (r *releaseRig) claim(t *testing.T, session int64) {
 	t.Helper()
 	now := platform.SystemClock{}.Now()
 	dbtest.Tx(t, r.s.Store, func(ctx context.Context, d pdb.DBTX) error {
-		if err := inbox.FanOut(ctx, d, now, agentID, convID, 1, 1, inbox.ReasonActivity); err != nil {
+		if err := inbox.FanOut(ctx, d, now, agentID, convID, 1, 1, 0, inbox.ReasonActivity); err != nil {
 			return err
 		}
 		items, err := inbox.Claim(ctx, d, now, inbox.Request{Identity: agentID, Session: session, N: 1})

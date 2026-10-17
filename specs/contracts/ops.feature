@@ -13,7 +13,7 @@ Feature: Data at rest, backups and deletion (contracts)
 
   Rule: The database, its backups and its blobs are encrypted
 
-    @v1 @cli @I-27 @AC-3 @unimplemented
+    @v1 @cli @I-27 @AC-3
     Scenario: The data file cannot be read without the key
       Given "devtool" posted the seeded body "ZQX-secret-plan" in conversation 41
       When the data file and a fresh backup snapshot are opened with a plain SQLite reader

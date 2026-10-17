@@ -33,6 +33,8 @@ type Conversations interface {
 	// RecordMainPost moves the counters for a new main message, names a nameless conversation and returns the
 	// newest main message id from before this one.
 	RecordMainPost(ctx context.Context, d pdb.DBTX, now time.Time, conv, messageID int64, body string) (prevLastMain int64, err error)
+	// NoteAgentPost records the session of an agent that posted, for the inbox's session preference.
+	NoteAgentPost(ctx context.Context, d pdb.DBTX, conv, author, session int64) error
 	// AgentRecipients lists the enabled agent participants other than author: the identities that get an inbox item.
 	AgentRecipients(ctx context.Context, d pdb.DBTX, conv, author int64) ([]int64, error)
 }
@@ -193,6 +195,11 @@ func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) 
 	if err != nil || replayed {
 		return Posted{Message: m, Replayed: replayed}, err
 	}
+	if isAgent {
+		if err := p.Conversations.NoteAgentPost(ctx, d, draft.Conversation, draft.Author, draft.Session); err != nil {
+			return Posted{}, err
+		}
+	}
 	inMain := draft.ThreadRoot == 0 || draft.Broadcast
 	var prevMain int64
 	if inMain {
@@ -237,7 +244,14 @@ func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) 
 	if err != nil {
 		return Posted{}, err
 	}
+	asker, err := askerAnswered(ctx, d, draft)
+	if err != nil {
+		return Posted{}, err
+	}
 	for _, who := range recipients {
+		if who == asker {
+			continue // the asker gets one ask_resolved item for its answer, not a second item for the same message (I-43)
+		}
 		if err := p.Inbox.FanOut(ctx, d, now, who, draft.Conversation, m.ID, seq); err != nil {
 			return Posted{}, err
 		}
@@ -247,6 +261,18 @@ func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) 
 		return Posted{}, err
 	}
 	return Posted{Message: m, Wake: recipients, Paused: paused}, nil
+}
+
+// askerAnswered is the author of the ask that a message answers; 0 when the message answers none.
+func askerAnswered(ctx context.Context, d pdb.DBTX, draft Draft) (int64, error) {
+	if draft.AnswersAsk == 0 {
+		return 0, nil
+	}
+	ask, found, err := get(ctx, d, draft.AnswersAsk)
+	if err != nil || !found {
+		return 0, err
+	}
+	return ask.AuthorID, nil
 }
 
 // checkRoot refuses a reply whose root is not a top-level, non-system message of the same conversation (I-8).

@@ -167,6 +167,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/signout-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** End every other device session of the owner. Needs a step-up (signout.all). */
+        post: operations["signOutAll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me/devices": {
         parameters: {
             query?: never;
@@ -1598,7 +1615,7 @@ export interface components {
         /** @description Made once per command and reused on a retry, so a retry never makes a second one. */
         ClientId: string;
         /** @enum {string} */
-        StepUpAction: "passkey.add" | "passkey.remove" | "recovery.regenerate" | "machine.approve" | "machine.reveal" | "machine.regenerate" | "machine.revoke" | "machine.allow" | "identity.create" | "identity.disable" | "data.export";
+        StepUpAction: "passkey.add" | "passkey.remove" | "recovery.regenerate" | "machine.approve" | "machine.reveal" | "machine.regenerate" | "machine.revoke" | "machine.allow" | "identity.create" | "identity.disable" | "data.export" | "signout.all";
         Owner: {
             /** Format: int64 */
             id: number;
@@ -2562,6 +2579,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    signOutAll: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description The step_up_id of a fresh passkey check for this action. */
+                "X-Convoz-Step-Up": components["parameters"]["StepUp"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: components["requestBodies"]["Empty"];
+        responses: {
+            /** @description The other devices are signed out. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description How many devices ended. */
+                        signed_out: number;
+                    };
+                };
             };
             default: components["responses"]["Error"];
         };

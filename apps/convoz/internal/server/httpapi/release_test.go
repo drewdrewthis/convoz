@@ -61,7 +61,7 @@ func TestEveryLeaseEndingPathFreesTheClaimsOfTheLeasesItEnded(t *testing.T) {
 				   (100,2,1,randomblob(32),'client-aaaa','a',127,1,1,9999999999999)`)
 			var released []inbox.Released
 			dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error {
-				if err := inbox.FanOut(ctx, d, now, 2, 10, 1, 1, inbox.ReasonActivity); err != nil {
+				if err := inbox.FanOut(ctx, d, now, 2, 10, 1, 1, 0, inbox.ReasonActivity); err != nil {
 					return err
 				}
 				if _, err := inbox.Claim(ctx, d, now, inbox.Request{Identity: 2, Session: 100, N: 1}); err != nil {

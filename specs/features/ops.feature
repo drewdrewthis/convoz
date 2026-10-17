@@ -84,7 +84,7 @@ Feature: Data at rest, backups and deletion
       Then the KEK and the keyring are gone
       And "convoz serve" on that data dir exits non-zero because the data cannot be opened
 
-    @v1 @browser @unimplemented
+    @v1 @browser
     Scenario: The privacy screen states what cannot be recalled
       When the owner opens Settings → Privacy & security → Delete
       Then the screen states the 24 hour index window, the 35 day backup window and that shown notifications cannot be recalled

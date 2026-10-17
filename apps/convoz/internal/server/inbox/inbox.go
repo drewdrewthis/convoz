@@ -51,9 +51,11 @@ const (
 
 // FanOut records one new main message for one agent participant: the ready item of that conversation takes the
 // message, counts one more and keeps the strongest reason, or is made. sourceSeq is the seq of the message's event.
-func FanOut(ctx context.Context, d pdb.DBTX, now time.Time, identityID, conversationID, messageID, sourceSeq int64, reason string) error {
+// preferSession (0 for none) is the session that posted last in the conversation: it has the item to itself for 30 s (AC-28).
+func FanOut(ctx context.Context, d pdb.DBTX, now time.Time, identityID, conversationID, messageID, sourceSeq, preferSession int64, reason string) error {
 	return db.New(d).UpsertConversationItem(ctx, db.UpsertConversationItemParams{
-		IdentityID: identityID, Reason: reason, ConversationID: nullInt(conversationID), MessageID: nullInt(messageID), SourceSeq: sourceSeq, Now: now.UnixMilli(),
+		IdentityID: identityID, Reason: reason, ConversationID: nullInt(conversationID), MessageID: nullInt(messageID), SourceSeq: sourceSeq,
+		PreferSessionID: nullInt(preferSession), Now: now.UnixMilli(),
 	})
 }
 
@@ -221,6 +223,9 @@ func ReleaseSessions(ctx context.Context, d pdb.DBTX, now time.Time, sessionIDs 
 	var out []Released
 	seen := map[int64]bool{}
 	for _, id := range sessionIDs {
+		if err := q.ClearPreference(ctx, nullInt(id)); err != nil {
+			return nil, err
+		}
 		rows, err := q.ReleaseClaims(ctx, db.ReleaseClaimsParams{Now: sql.NullInt64{Int64: now.UnixMilli(), Valid: true}, SessionID: nullInt(id)})
 		if err != nil {
 			return nil, err
@@ -242,6 +247,9 @@ func ReleaseSessions(ctx context.Context, d pdb.DBTX, now time.Time, sessionIDs 
 func Transfer(ctx context.Context, d pdb.DBTX, now time.Time, from []int64, to int64) error {
 	q := db.New(d)
 	for _, id := range from {
+		if err := q.TransferPreference(ctx, db.TransferPreferenceParams{ToSession: nullInt(to), FromSession: nullInt(id)}); err != nil {
+			return err
+		}
 		if err := q.TransferClaims(ctx, db.TransferClaimsParams{ToSession: nullInt(to), Now: now.UnixMilli(), FromSession: nullInt(id)}); err != nil {
 			return err
 		}
@@ -279,4 +287,24 @@ func Release(ctx context.Context, d pdb.DBTX, now time.Time, sessionID int64) ([
 // ExpireNotVisible takes an item out of the queue because its message can no longer be shown to the agent.
 func ExpireNotVisible(ctx context.Context, d pdb.DBTX, now time.Time, id int64) error {
 	return db.New(d).ExpireNotVisible(ctx, db.ExpireNotVisibleParams{Now: now.UnixMilli(), ID: id})
+}
+
+// Retention (design §3.8): acked items go after 7 days, unacked ones expire after 30, expired rows go after 60.
+const (
+	AckedKeep   = 7 * 24 * time.Hour
+	UnackedKeep = 30 * 24 * time.Hour
+	ExpiredKeep = 60 * 24 * time.Hour
+)
+
+// Sweep is the inbox part of the nightly maintenance. An item that expires by age stays readable in the brief as expired
+// unread; the messages it pointed at are untouched.
+func Sweep(ctx context.Context, d pdb.DBTX, now time.Time) error {
+	q := db.New(d)
+	if err := q.DeleteAckedBefore(ctx, sql.NullInt64{Int64: now.Add(-AckedKeep).UnixMilli(), Valid: true}); err != nil {
+		return err
+	}
+	if err := q.ExpireOldItems(ctx, db.ExpireOldItemsParams{Now: now.UnixMilli(), Before: now.Add(-UnackedKeep).UnixMilli()}); err != nil {
+		return err
+	}
+	return q.DeleteExpiredBefore(ctx, now.Add(-ExpiredKeep).UnixMilli())
 }

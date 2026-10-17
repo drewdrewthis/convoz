@@ -86,6 +86,7 @@ WHERE id IN (
   WHERE i.identity_id = ?4 AND i.state = 'ready' AND i.deliveries < 5
     AND (i.not_before IS NULL OR i.not_before <= ?2)
     AND (?5 = 0 OR i.conversation_id = ?5)
+    AND (i.prefer_session_id IS NULL OR i.prefer_session_id = ?1 OR i.updated_at + 30000 <= ?2)
     AND NOT EXISTS (SELECT 1 FROM inbox_items c
                     WHERE c.identity_id = i.identity_id AND c.conversation_id = i.conversation_id
                       AND c.state = 'claimed' AND c.claim_until >= ?2 AND c.claim_session_id <> ?1)
@@ -160,6 +161,36 @@ func (q *Queries) ClaimItems(ctx context.Context, arg ClaimItemsParams) ([]Claim
 	return items, nil
 }
 
+const clearPreference = `-- name: ClearPreference :exec
+UPDATE inbox_items SET prefer_session_id = NULL WHERE prefer_session_id = ?1 AND state IN ('ready','claimed')
+`
+
+// A session that ends is preferred no more: the other sessions take its items at once.
+func (q *Queries) ClearPreference(ctx context.Context, sessionID sql.NullInt64) error {
+	_, err := q.db.ExecContext(ctx, clearPreference, sessionID)
+	return err
+}
+
+const deleteAckedBefore = `-- name: DeleteAckedBefore :exec
+DELETE FROM inbox_items WHERE state = 'acked' AND acked_at < ?1
+`
+
+// Retention (design 3.8): an acked item is deleted after 7 days.
+func (q *Queries) DeleteAckedBefore(ctx context.Context, before sql.NullInt64) error {
+	_, err := q.db.ExecContext(ctx, deleteAckedBefore, before)
+	return err
+}
+
+const deleteExpiredBefore = `-- name: DeleteExpiredBefore :exec
+DELETE FROM inbox_items WHERE state = 'expired' AND updated_at < ?1
+`
+
+// Retention: an expired row is deleted after 60 days.
+func (q *Queries) DeleteExpiredBefore(ctx context.Context, before int64) error {
+	_, err := q.db.ExecContext(ctx, deleteExpiredBefore, before)
+	return err
+}
+
 const deleteItem = `-- name: DeleteItem :exec
 DELETE FROM inbox_items WHERE id = ?1
 `
@@ -183,6 +214,23 @@ type ExpireNotVisibleParams struct {
 
 func (q *Queries) ExpireNotVisible(ctx context.Context, arg ExpireNotVisibleParams) error {
 	_, err := q.db.ExecContext(ctx, expireNotVisible, arg.Now, arg.ID)
+	return err
+}
+
+const expireOldItems = `-- name: ExpireOldItems :exec
+UPDATE inbox_items
+SET state = 'expired', expired_reason = 'age', claim_session_id = NULL, claim_token = NULL, claim_until = NULL, visibility_ms = NULL, updated_at = ?1
+WHERE state IN ('ready','claimed') AND created_at < ?2
+`
+
+type ExpireOldItemsParams struct {
+	Now    int64
+	Before int64
+}
+
+// Retention: an item nobody acked in 30 days leaves the queue as expired (age); the brief reports it as expired unread.
+func (q *Queries) ExpireOldItems(ctx context.Context, arg ExpireOldItemsParams) error {
+	_, err := q.db.ExecContext(ctx, expireOldItems, arg.Now, arg.Before)
 	return err
 }
 
@@ -610,25 +658,40 @@ func (q *Queries) TransferClaims(ctx context.Context, arg TransferClaimsParams) 
 	return err
 }
 
+const transferPreference = `-- name: TransferPreference :exec
+UPDATE inbox_items SET prefer_session_id = ?1 WHERE prefer_session_id = ?2 AND state IN ('ready','claimed')
+`
+
+type TransferPreferenceParams struct {
+	ToSession   sql.NullInt64
+	FromSession sql.NullInt64
+}
+
+func (q *Queries) TransferPreference(ctx context.Context, arg TransferPreferenceParams) error {
+	_, err := q.db.ExecContext(ctx, transferPreference, arg.ToSession, arg.FromSession)
+	return err
+}
+
 const upsertConversationItem = `-- name: UpsertConversationItem :exec
-INSERT INTO inbox_items (identity_id, reason, conversation_id, first_message_id, message_id, count, mention_count, source_seq, state, created_at, updated_at)
-VALUES (?1, ?2, ?3, ?4, ?4, 1, CASE WHEN ?2 = 'mention' THEN 1 ELSE 0 END, ?5, 'ready', ?6, ?6)
+INSERT INTO inbox_items (identity_id, reason, conversation_id, first_message_id, message_id, count, mention_count, source_seq, prefer_session_id, state, created_at, updated_at)
+VALUES (?1, ?2, ?3, ?4, ?4, 1, CASE WHEN ?2 = 'mention' THEN 1 ELSE 0 END, ?5, ?6, 'ready', ?7, ?7)
 ON CONFLICT (identity_id, conversation_id) WHERE state = 'ready' AND reason IN ('mention','thread','activity')
 DO UPDATE SET message_id = excluded.message_id,
     count = CASE WHEN inbox_items.message_id = excluded.message_id THEN inbox_items.count ELSE inbox_items.count + 1 END,
     mention_count = CASE WHEN inbox_items.message_id = excluded.message_id AND inbox_items.reason = 'mention' THEN inbox_items.mention_count ELSE inbox_items.mention_count + excluded.mention_count END,
     reason = CASE WHEN 'mention' IN (inbox_items.reason, excluded.reason) THEN 'mention'
                   WHEN 'thread'  IN (inbox_items.reason, excluded.reason) THEN 'thread' ELSE 'activity' END,
-    source_seq = excluded.source_seq, updated_at = excluded.updated_at
+    source_seq = excluded.source_seq, prefer_session_id = excluded.prefer_session_id, updated_at = excluded.updated_at
 `
 
 type UpsertConversationItemParams struct {
-	IdentityID     int64
-	Reason         string
-	ConversationID sql.NullInt64
-	MessageID      sql.NullInt64
-	SourceSeq      int64
-	Now            int64
+	IdentityID      int64
+	Reason          string
+	ConversationID  sql.NullInt64
+	MessageID       sql.NullInt64
+	SourceSeq       int64
+	PreferSessionID sql.NullInt64
+	Now             int64
 }
 
 // The fan-out of one new main message to one agent participant: the ready conversation item for (identity, conversation)
@@ -642,6 +705,7 @@ func (q *Queries) UpsertConversationItem(ctx context.Context, arg UpsertConversa
 		arg.ConversationID,
 		arg.MessageID,
 		arg.SourceSeq,
+		arg.PreferSessionID,
 		arg.Now,
 	)
 	return err

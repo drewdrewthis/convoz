@@ -41,7 +41,19 @@ func (a conversationPort) RecordMainPost(ctx context.Context, d pdb.DBTX, now ti
 	if err != nil || !ok {
 		return prev, err
 	}
-	return prev, addMentioned(ctx, d, now, conv, a.p.Identity(), messageID, message.ParseMentions(m.Body, m.Format))
+	skip := int64(0)
+	if m.AnswersAskID != 0 {
+		if ask, found, err := message.GetAny(ctx, d, m.AnswersAskID); err != nil {
+			return prev, err
+		} else if found {
+			skip = ask.AuthorID
+		}
+	}
+	return prev, addMentioned(ctx, d, now, conv, a.p.Identity(), messageID, skip, message.ParseMentions(m.Body, m.Format))
+}
+
+func (conversationPort) NoteAgentPost(ctx context.Context, d pdb.DBTX, conv, author, session int64) error {
+	return conversation.NoteAgentPost(ctx, d, conv, author, session)
 }
 
 func (conversationPort) AgentRecipients(ctx context.Context, d pdb.DBTX, conv, author int64) ([]int64, error) {

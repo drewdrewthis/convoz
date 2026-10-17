@@ -2,8 +2,8 @@
 -- The fan-out of one new main message to one agent participant: the ready conversation item for (identity, conversation)
 -- takes the newest message and counts one more, or is made (design section 3.8, C-10). The reason only goes up:
 -- mention over thread over activity. mention_count is how many of the item's messages mention the agent.
-INSERT INTO inbox_items (identity_id, reason, conversation_id, first_message_id, message_id, count, mention_count, source_seq, state, created_at, updated_at)
-VALUES (sqlc.arg(identity_id), sqlc.arg(reason), sqlc.arg(conversation_id), sqlc.arg(message_id), sqlc.arg(message_id), 1, CASE WHEN sqlc.arg(reason) = 'mention' THEN 1 ELSE 0 END, sqlc.arg(source_seq), 'ready', sqlc.arg(now), sqlc.arg(now))
+INSERT INTO inbox_items (identity_id, reason, conversation_id, first_message_id, message_id, count, mention_count, source_seq, prefer_session_id, state, created_at, updated_at)
+VALUES (sqlc.arg(identity_id), sqlc.arg(reason), sqlc.arg(conversation_id), sqlc.arg(message_id), sqlc.arg(message_id), 1, CASE WHEN sqlc.arg(reason) = 'mention' THEN 1 ELSE 0 END, sqlc.arg(source_seq), sqlc.narg(prefer_session_id), 'ready', sqlc.arg(now), sqlc.arg(now))
 ON CONFLICT (identity_id, conversation_id) WHERE state = 'ready' AND reason IN ('mention','thread','activity')
 -- the ordinary fan-out may have counted this very message already (an @mention made the item first): it counts once
 DO UPDATE SET message_id = excluded.message_id,
@@ -11,7 +11,7 @@ DO UPDATE SET message_id = excluded.message_id,
     mention_count = CASE WHEN inbox_items.message_id = excluded.message_id AND inbox_items.reason = 'mention' THEN inbox_items.mention_count ELSE inbox_items.mention_count + excluded.mention_count END,
     reason = CASE WHEN 'mention' IN (inbox_items.reason, excluded.reason) THEN 'mention'
                   WHEN 'thread'  IN (inbox_items.reason, excluded.reason) THEN 'thread' ELSE 'activity' END,
-    source_seq = excluded.source_seq, updated_at = excluded.updated_at;
+    source_seq = excluded.source_seq, prefer_session_id = excluded.prefer_session_id, updated_at = excluded.updated_at;
 
 -- name: HeldItems :many
 -- (1) M1: items this session already holds come back first, same tokens, no delivery counted.
@@ -69,6 +69,7 @@ WHERE id IN (
   WHERE i.identity_id = sqlc.arg(identity_id) AND i.state = 'ready' AND i.deliveries < 5
     AND (i.not_before IS NULL OR i.not_before <= sqlc.arg(now))
     AND (sqlc.arg(conv) = 0 OR i.conversation_id = sqlc.arg(conv))
+    AND (i.prefer_session_id IS NULL OR i.prefer_session_id = sqlc.arg(session_id) OR i.updated_at + 30000 <= sqlc.arg(now))
     AND NOT EXISTS (SELECT 1 FROM inbox_items c
                     WHERE c.identity_id = i.identity_id AND c.conversation_id = i.conversation_id
                       AND c.state = 'claimed' AND c.claim_until >= sqlc.arg(now) AND c.claim_session_id <> sqlc.arg(session_id))
@@ -130,3 +131,24 @@ SELECT ask_message_id FROM inbox_items WHERE id = sqlc.arg(id) AND identity_id =
 -- A repeat of an ack that went through: the item is acked, by this session.
 SELECT EXISTS (SELECT 1 FROM inbox_items WHERE id = sqlc.arg(id) AND identity_id = sqlc.arg(identity_id) AND reason = 'ask_resolved'
                AND state = 'acked' AND acked_by_session = sqlc.arg(session_id));
+
+-- name: ClearPreference :exec
+-- A session that ends is preferred no more: the other sessions take its items at once.
+UPDATE inbox_items SET prefer_session_id = NULL WHERE prefer_session_id = sqlc.arg(session_id) AND state IN ('ready','claimed');
+
+-- name: TransferPreference :exec
+UPDATE inbox_items SET prefer_session_id = sqlc.arg(to_session) WHERE prefer_session_id = sqlc.arg(from_session) AND state IN ('ready','claimed');
+
+-- name: DeleteAckedBefore :exec
+-- Retention (design 3.8): an acked item is deleted after 7 days.
+DELETE FROM inbox_items WHERE state = 'acked' AND acked_at < sqlc.arg(before);
+
+-- name: ExpireOldItems :exec
+-- Retention: an item nobody acked in 30 days leaves the queue as expired (age); the brief reports it as expired unread.
+UPDATE inbox_items
+SET state = 'expired', expired_reason = 'age', claim_session_id = NULL, claim_token = NULL, claim_until = NULL, visibility_ms = NULL, updated_at = sqlc.arg(now)
+WHERE state IN ('ready','claimed') AND created_at < sqlc.arg(before);
+
+-- name: DeleteExpiredBefore :exec
+-- Retention: an expired row is deleted after 60 days.
+DELETE FROM inbox_items WHERE state = 'expired' AND updated_at < sqlc.arg(before);

@@ -93,6 +93,11 @@ WHERE conversation_id = sqlc.arg(conversation_id) AND identity_id = sqlc.arg(ide
 -- name: GetParticipantFull :one
 SELECT * FROM participants WHERE conversation_id = sqlc.arg(conversation_id) AND identity_id = sqlc.arg(identity_id);
 
+-- name: SetLastPostSession :exec
+-- The inbox prefers the session of an agent that posted last in this conversation (design 3.8).
+UPDATE participants SET last_post_session_id = sqlc.arg(session_id)
+WHERE conversation_id = sqlc.arg(conversation_id) AND identity_id = sqlc.arg(identity_id);
+
 -- name: ListActiveParticipants :many
 SELECT identity_id, joined_message_id FROM participants
 WHERE conversation_id = sqlc.arg(conversation_id) AND status = 'active'

@@ -242,3 +242,36 @@ func (s *Server) auditList(w http.ResponseWriter, r *http.Request, _ *call) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"audit": rows})
 }
+
+// signOutAll is POST /api/auth/signout-all: every device session of the owner except the calling one ends (design §2.1).
+// A passkey check for "signout.all" is the gate (I-26); the other devices see sign in on their next request.
+func (s *Server) signOutAll(w http.ResponseWriter, r *http.Request, c *call) {
+	now := s.Clock.Now()
+	var ended []int64
+	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
+		d := tx.DBTX()
+		live, err := auth.ListDevices(ctx, d, c.human.ID, now)
+		if err != nil {
+			return err
+		}
+		for _, dev := range live {
+			if dev.ID == c.dev.ID {
+				continue
+			}
+			if revoked, err := auth.RevokeDevice(ctx, d, c.human.ID, dev.ID, "sign_out_all", now); err != nil {
+				return err
+			} else if revoked {
+				ended = append(ended, dev.ID)
+			}
+		}
+		return audit.Write(ctx, d, now, audit.Entry{Actor: c.human.ID, Device: c.dev.ID, Action: "device.signout_all"})
+	})
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	for _, id := range ended {
+		s.streams.cancelDevice(id)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"signed_out": len(ended)})
+}

@@ -77,7 +77,7 @@ Feature: Onboarding and sign in
       When the test clock reaches day 91 with daily use
       Then the app asks the owner to sign in again
 
-    @v1 @browser @unimplemented
+    @v1 @browser
     Scenario: Logout clears the device
       Given the installed app cached conversations
       When the owner logs out

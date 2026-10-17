@@ -848,6 +848,23 @@ func (q *Queries) SetAutoTitle(ctx context.Context, arg SetAutoTitleParams) erro
 	return err
 }
 
+const setLastPostSession = `-- name: SetLastPostSession :exec
+UPDATE participants SET last_post_session_id = ?1
+WHERE conversation_id = ?2 AND identity_id = ?3
+`
+
+type SetLastPostSessionParams struct {
+	SessionID      sql.NullInt64
+	ConversationID int64
+	IdentityID     int64
+}
+
+// The inbox prefers the session of an agent that posted last in this conversation (design 3.8).
+func (q *Queries) SetLastPostSession(ctx context.Context, arg SetLastPostSessionParams) error {
+	_, err := q.db.ExecContext(ctx, setLastPostSession, arg.SessionID, arg.ConversationID, arg.IdentityID)
+	return err
+}
+
 const setLink = `-- name: SetLink :exec
 UPDATE conversations SET link_url = ?1 WHERE id = ?2
 `

@@ -12,7 +12,7 @@ import (
 func Claim(args []string, io IO) int {
 	f := newChatFlags("claim", io)
 	conv := f.fs.Int64("conv", 0, "claim only the items of this conversation")
-	visibility := f.fs.String("visibility", "", "how long the claims hold, 30s to 30m (default 5m)")
+	visibility := f.fs.String("visibility", "", "how long the claims hold, 30s to 30m (default: the workspace setting, 5m)")
 	pos, ok := f.parse(args, io)
 	if !ok {
 		return ExitUsage

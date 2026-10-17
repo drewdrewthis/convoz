@@ -45,7 +45,7 @@ func run(t *testing.T, s *pdb.Store, fn func(ctx context.Context, d pdb.DBTX)) {
 func fan(t *testing.T, s *pdb.Store, at time.Time, conv, msg int64) {
 	t.Helper()
 	run(t, s, func(ctx context.Context, d pdb.DBTX) {
-		if err := inbox.FanOut(ctx, d, at, devtool, conv, msg, msg, inbox.ReasonActivity); err != nil {
+		if err := inbox.FanOut(ctx, d, at, devtool, conv, msg, msg, 0, inbox.ReasonActivity); err != nil {
 			t.Fatal(err)
 		}
 	})
@@ -239,7 +239,7 @@ func TestReleaseFreesTheClaimsAtOnceForAnotherSession(t *testing.T) {
 func fanAs(t *testing.T, s *pdb.Store, at time.Time, conv, msg int64, reason string) {
 	t.Helper()
 	run(t, s, func(ctx context.Context, d pdb.DBTX) {
-		if err := inbox.FanOut(ctx, d, at, devtool, conv, msg, msg, reason); err != nil {
+		if err := inbox.FanOut(ctx, d, at, devtool, conv, msg, msg, 0, reason); err != nil {
 			t.Fatal(err)
 		}
 	})

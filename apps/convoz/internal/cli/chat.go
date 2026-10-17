@@ -306,7 +306,7 @@ func Inbox(args []string, io IO) int {
 	wait := f.fs.Int("wait", 0, "wait up to this many seconds for an item")
 	peek := f.fs.Bool("peek", false, "list the items without claiming any")
 	claim := f.fs.Int("claim", 0, "claim at most this many items (default and most 20)")
-	visibility := f.fs.String("visibility", "", "how long a claim holds before another session may take the item, 30s to 30m (default 5m)")
+	visibility := f.fs.String("visibility", "", "how long a claim holds before another session may take the item, 30s to 30m (default: the workspace setting, 5m)")
 	conv := f.fs.Int64("conv", 0, "claim only the items of this conversation")
 	if pos, ok := f.parse(args, io); !ok {
 		return ExitUsage
