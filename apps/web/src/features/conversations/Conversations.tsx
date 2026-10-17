@@ -6,13 +6,18 @@ import { stripCf, whenLabel } from "../../shared/chat.ts";
 import { humanError } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { data, useData, useLive } from "../../shared/data.ts";
+import { ChevronIcon, groups, setMute, setStar } from "../rail/index.ts";
+import { toast } from "../pins-stars/index.ts";
 import { markAllRead } from "./actions.ts";
 
 /** Lists longer than this are virtualized (design §12.2): only the rows near the screen are in the page. */
 const VIRTUAL_ABOVE = 100;
 const ROW_HEIGHT = 64;
 
-/** Conversations is /chats: newest activity first, live (new messages, reads and new conversations reorder it with no reload). */
+/**
+ * Conversations is /chats: Starred (in the owner's order) on top, then the conversations with the newest activity first, live (new
+ * messages, reads and new conversations reorder it with no reload), then Older folded away (design I-21, C-9).
+ */
 export function Conversations() {
   const { fail } = useNotice();
   const me = useData((s) => s.me?.identity.handle);
@@ -28,6 +33,8 @@ export function Conversations() {
   const [menu, setMenu] = useState<{ id: number; x: number; y: number } | null>(null);
   const ready = list !== null && me !== undefined;
   const rows = ready ? list : [];
+  const g = groups(rows, "activity");
+  const [olderOpen, setOlderOpen] = useState(false);
 
   // A long press or a right click on a row opens its menu: Mark all read.
   const onContextMenu = (event: MouseEvent<HTMLDivElement>) => {
@@ -47,11 +54,28 @@ export function Conversations() {
   };
   return (
     <div id="chats" className="chats" aria-busy={ready ? undefined : true} onContextMenu={onContextMenu}>
-      {menu ? <RowMenu at={menu} onRead={() => void read(menu.id)} onClose={() => setMenu(null)} /> : null}
-      <p id="chats-head" className="ghdr" hidden={!rows.length}>
+      {menu ? <RowMenu at={menu} row={rows.find((c) => c.id === menu.id)} onRead={() => void read(menu.id)} onClose={() => setMenu(null)} onFail={(err) => fail(humanError(err))} /> : null}
+      {g.starred.length ? (
+        <>
+          <p id="starred-head" className="ghdr">
+            Starred
+          </p>
+          <PlainList rows={g.starred} me={me ?? ""} label="Starred conversations" id="starred-list" />
+        </>
+      ) : null}
+      <p id="chats-head" className="ghdr" hidden={!g.mid.length}>
         Conversations
       </p>
-      {rows.length > VIRTUAL_ABOVE ? <VirtualList rows={rows} me={me!} /> : <PlainList rows={rows} me={me ?? ""} />}
+      {g.mid.length > VIRTUAL_ABOVE ? <VirtualList rows={g.mid} me={me!} /> : <PlainList rows={g.mid} me={me ?? ""} />}
+      {g.older.length ? (
+        <>
+          <button type="button" id="older-toggle" className="olderbtn" aria-expanded={olderOpen} onClick={() => setOlderOpen((o) => !o)}>
+            <ChevronIcon open={olderOpen} />
+            <span>{`Older · ${g.older.length}`}</span>
+          </button>
+          {olderOpen ? <PlainList rows={g.older} me={me ?? ""} label="Older conversations" id="older-list" /> : null}
+        </>
+      ) : null}
       <div id="chats-empty" className="emptystate" hidden={!ready || rows.length !== 0}>
         <ChatIcon />
         <p className="lead">No chats yet. A chat starts with an agent.</p>
@@ -63,9 +87,9 @@ export function Conversations() {
   );
 }
 
-function PlainList({ rows, me }: { rows: Conversation[]; me: string }) {
+function PlainList({ rows, me, label = "Conversations", id = "chat-list" }: { rows: Conversation[]; me: string; label?: string; id?: string }) {
   return (
-    <ul id="chat-list" className="chatlist" role="list" aria-label="Conversations" hidden={!rows.length}>
+    <ul id={id} className="chatlist" role="list" aria-label={label} hidden={!rows.length}>
       {rows.map((c) => (
         <Row key={c.id} c={c} me={me} />
       ))}
@@ -111,7 +135,7 @@ const Row = memo(function Row({ c, me, index, measure, style }: RowProps) {
   const unread = c.unread > 0;
   const preview = c.last ? `${c.last.author_handle === me ? "You" : c.last.author_handle}: ${c.last.preview}` : "No messages yet";
   return (
-    <li className={unread ? "unread" : undefined} data-id={c.id} data-index={index} ref={measure} style={style}>
+    <li className={`${unread ? "unread" : ""}${c.muted_until ? " muted" : ""}`.trim() || undefined} data-id={c.id} data-index={index} ref={measure} style={style}>
       <a className="chatrow" href={`/chats/${c.id}`}>
         <div className="rowbody">
           <div className="rowtop">
@@ -133,7 +157,7 @@ const Row = memo(function Row({ c, me, index, measure, style }: RowProps) {
 });
 
 /** RowMenu is the little menu of a conversation row. Escape or a click anywhere else closes it. */
-function RowMenu({ at, onRead, onClose }: { at: { x: number; y: number }; onRead(): void; onClose(): void }) {
+function RowMenu({ at, row, onRead, onClose, onFail }: { at: { x: number; y: number }; row: Conversation | undefined; onRead(): void; onClose(): void; onFail(err: unknown): void }) {
   const first = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     first.current?.focus();
@@ -148,11 +172,25 @@ function RowMenu({ at, onRead, onClose }: { at: { x: number; y: number }; onRead
       document.removeEventListener("keydown", key);
     };
   }, [onClose]);
+  const act = (run: Promise<void>, said?: string) => {
+    onClose();
+    run.then(() => said && toast(said), onFail);
+  };
   return (
     <div className="menu rowmenu" role="menu" aria-label="Conversation actions" style={{ position: "fixed", left: Math.min(at.x, innerWidth - 240), top: at.y }}>
       <button ref={first} type="button" role="menuitem" onClick={onRead}>
         Mark all read
       </button>
+      {row ? (
+        <>
+          <button type="button" role="menuitem" onClick={() => act(setStar(row.id, !row.starred), row.starred ? "Unstarred" : "Starred")}>
+            {row.starred ? "Unstar conversation" : "Star conversation"}
+          </button>
+          <button type="button" role="menuitem" onClick={() => act(setMute(row.id, !row.muted_until), row.muted_until ? "Unmuted" : "Muted")}>
+            {row.muted_until ? "Unmute" : "Mute"}
+          </button>
+        </>
+      ) : null}
     </div>
   );
 }

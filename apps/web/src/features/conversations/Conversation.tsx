@@ -5,6 +5,7 @@ import { ApiError } from "../../shared/api.ts";
 import { initials, paletteOf, setRegistry, stripCf } from "../../shared/chat.ts";
 import { data, useData, useLive } from "../../shared/data.ts";
 import { Composer, useAttachments } from "../composer/index.ts";
+import { StarButton } from "../pins-stars/index.ts";
 import { rememberChat } from "../search/index.ts";
 import { ThreadPane, useThreads } from "../threads/index.ts";
 import { resume } from "./actions.ts";
@@ -205,6 +206,7 @@ export function Conversation() {
         </a>
         <div className="titles">
           <h1 id="heading">{title}</h1>
+          {conversation?.muted_until ? <span className="mutedtag">Muted</span> : null}
           <p id="subtitle" className="subtitle sr" hidden={!presence}>
             {agent && presence ? (
               <>
@@ -214,6 +216,7 @@ export function Conversation() {
             ) : null}
           </p>
         </div>
+        {conversation && !isNew ? <StarButton id={convId} starred={conversation.starred} /> : null}
         {conversation && !isNew ? (
           <button type="button" className="iconbtn" aria-label="Show details" aria-pressed={info} aria-keyshortcuts="I" title="Show details · I" onClick={() => setInfo((on) => !on)}>
             <DetailsIcon />

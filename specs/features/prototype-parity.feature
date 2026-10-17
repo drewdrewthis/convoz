@@ -57,3 +57,17 @@ Feature: The phone screens match the prototype
       Given every agent is idle
       When the owner opens Crew on a phone
       Then it matches the prototype in light and in dark
+
+  Rule: The rail and Crew show the owner's stars, mute and the agents' status like the prototype
+
+    @v1 @browser @phone
+    Scenario: On a phone the rail matches the prototype
+      Given the owner starred "assistant" and "Ops reports" and muted "Team updates"
+      When the owner opens the rail on a phone
+      Then it matches the prototype in light and in dark
+
+    @v1 @browser @phone
+    Scenario: On a phone Crew with agent status matches the prototype
+      Given the agents report the status the prototype shows
+      When the owner opens Crew on a phone
+      Then it matches the prototype in light and in dark

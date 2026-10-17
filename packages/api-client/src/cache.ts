@@ -4,7 +4,7 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { coalesce } from "./coalesce.ts";
 import type { DataSource } from "./source.ts";
-import type { Conversation, Frame, Identity, Me, Message } from "./types.ts";
+import type { Conversation, Frame, Identity, Me, Message, PrefsResponse } from "./types.ts";
 
 /** Messages per page, as the server pages them. */
 export const LIMIT = 100;
@@ -47,6 +47,10 @@ export interface DataCache {
   /** Take in one live frame (the sync engine calls this before the features' handlers). False means it is not news: a
    *  message the cache already held, so no handler should see it again. */
   apply(frame: Frame): boolean;
+  /** Take in the owner's own prefs after a star, mute or move (the answer of the PATCH, or a prefs.changed frame): the flags and every rank that moved. */
+  applyPrefs(p: Pick<PrefsResponse, "conversation_id" | "starred" | "muted_until" | "ranks">): void;
+  /** Change one conversation's row in the list and in the held rows at once, for an update the server has not answered yet. */
+  patchConversation(id: number, change: Partial<Conversation>): void;
   /** After a gap: reload what the stream may have missed (the list; messages are caught up by the sync engine). */
   resync(): void;
 }
@@ -81,6 +85,12 @@ export function createDataCache(source: DataSource): DataCache {
   const reloadList = coalesce(async () => set({ conversations: await source.conversations() }));
   const setList = (id: number, change: (m: MessageList) => MessageList) =>
     set((s) => ({ messages: { ...s.messages, [id]: change(s.messages[id] ?? { list: [], hasEarlier: false }) } }));
+
+  const mapRows = (change: (c: Conversation) => Conversation) =>
+    set((s) => ({
+      conversations: s.conversations ? s.conversations.map(change) : s.conversations,
+      rows: Object.fromEntries(Object.entries(s.rows).map(([k, c]) => [k, change(c)])),
+    }));
 
   const cache: DataCache = {
     store,
@@ -158,6 +168,12 @@ export function createDataCache(source: DataSource): DataCache {
           setList(ask.conversation_id, (m) => ({ ...m, list: m.list.map((x) => (x.id === ask.id ? { ...x, ask: { ...ask, snoozed_until: undefined } } : x)) }));
           return true;
         }
+        case "pin.changed":
+        case "agent.status_changed":
+          return true; // presence, pins and status: the features that show them read the server themselves
+        case "prefs.changed":
+          cache.applyPrefs(frame.data);
+          return true;
       }
       // the list follows message.created, read.moved and conversation.created, a burst at a time
       if (get().conversations) {
@@ -166,6 +182,22 @@ export function createDataCache(source: DataSource): DataCache {
       }
       return true;
     },
+    applyPrefs: (p) => {
+      const ranks = new Map(p.ranks.map((r) => [r.id, r.rank]));
+      mapRows((c) => {
+        const rank = ranks.get(c.id);
+        if (c.id !== p.conversation_id && rank === undefined) return c;
+        const next: Conversation = { ...c, rank: rank ?? c.rank };
+        if (c.id === p.conversation_id) {
+          next.starred = p.starred;
+          next.older = p.starred ? false : c.older; // a starred conversation never folds into Older
+          if (p.muted_until === null) delete next.muted_until;
+          else next.muted_until = p.muted_until;
+        }
+        return next;
+      });
+    },
+    patchConversation: (id, change) => mapRows((c) => (c.id === id ? { ...c, ...change } : c)),
     resync: () => {
       if (get().conversations) void reloadList();
     },

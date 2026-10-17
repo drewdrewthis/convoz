@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://convoz.dev/events/pin.changed.v1.json",
+  "title": "pin.changed.v1",
+  "description": "A person pinned or unpinned a message for themselves; sent to that person only.",
+  "type": "object",
+  "required": [
+    "pinned"
+  ],
+  "properties": {
+    "pinned": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false
+}

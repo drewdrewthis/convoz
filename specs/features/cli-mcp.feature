@@ -153,7 +153,7 @@ Feature: The convoz CLI and MCP server for agents
       Then conversation 41 shows the system line "@devtool left"
       And "convoz read 41" exits 3
 
-    @v1 @cli @unimplemented
+    @v1 @cli
     Scenario: Status updates show in Crew
       When "devtool" runs "convoz status --state working --doing 'Fixing #412' --next 'Open PR'"
       Then Crew shows "devtool" as "working" with "Fixing #412"

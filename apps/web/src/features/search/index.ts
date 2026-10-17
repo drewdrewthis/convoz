@@ -3,3 +3,4 @@
 // overlay, a result opens a page of its own.
 export { SearchButton, SearchHost, useSearchShortcut } from "./Host.tsx";
 export { rememberChat } from "./recent.ts";
+export { useSearchUi } from "./store.ts";

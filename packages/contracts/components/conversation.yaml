@@ -8,7 +8,7 @@ LastMessage:
     preview: { type: string, description: At most 140 characters, one line, plain text. }
 Conversation:
   type: object
-  required: [id, title, created_at, last_activity_at, participants, last, unread]
+  required: [id, title, created_at, last_activity_at, participants, last, unread, starred, rank, older]
   properties:
     id: { type: integer, format: int64 }
     title: { type: ["string", "null"] }
@@ -20,9 +20,22 @@ Conversation:
         - $ref: "../openapi.yaml#/components/schemas/LastMessage"
         - type: "null"
     unread: { type: integer }
+    starred: { type: boolean, description: The caller starred it. Personal to the caller (I-22); always false for an agent. }
+    rank:
+      type: number
+      description: |
+        The sort key of the row in the caller's rail: coalesce(rail_rank, created_at). Within a section (Starred, Conversations) the higher
+        rank is first; activity never changes it (I-21).
+    older:
+      type: boolean
+      description: Not starred and no activity for 14 days (C-9). A view of the Conversations section; it never changes the order.
     started_by: { $ref: "../openapi.yaml#/components/schemas/Person" }
     link_url: { type: string, description: The linked pull request (https). }
-    muted_until: { type: integer, format: int64 }
+    muted_until: { type: integer, format: int64, description: The caller muted it until this epoch ms (253402300799000 is forever). Absent when not muted. }
+    pinned:
+      type: array
+      description: The messages the caller pinned in it, newest pin first. The single-conversation route only.
+      items: { $ref: "../openapi.yaml#/components/schemas/Message" }
     paused: { type: boolean, description: The loop breaker stopped the agents after 20 messages in a row. }
     pickup: { type: string, enum: [closed, open, taken] }
     picked_up_by: { $ref: "../openapi.yaml#/components/schemas/Person" }

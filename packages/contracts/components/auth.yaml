@@ -53,3 +53,16 @@ Machine:
     allow: { $ref: "../openapi.yaml#/components/schemas/Allow" }
     live_sessions: { type: integer }
     last_used_at: { type: ["integer", "null"], format: int64 }
+Session:
+  type: object
+  required: [id, identity, machine, client_id, label, state, end_reason, last_seen_at, expires_at]
+  properties:
+    id: { type: integer, format: int64 }
+    identity: { type: string, description: The handle the session speaks as. }
+    machine: { type: string, description: The name of the machine it ran on. }
+    client_id: { type: string }
+    label: { type: string, description: "The label the session gave itself, such as claude-7f3a." }
+    state: { type: string, enum: [live, ended] }
+    end_reason: { type: ["string", "null"], description: Why it ended; null while live. }
+    last_seen_at: { type: integer, format: int64 }
+    expires_at: { type: integer, format: int64 }

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://convoz.dev/events/agent.status_changed.v1.json",
+  "title": "agent.status_changed.v1",
+  "description": "An agent reported a status (the state and the time only; the texts are read from the status row, I-23).",
+  "type": "object",
+  "required": [
+    "state"
+  ],
+  "properties": {
+    "state": {
+      "type": "string",
+      "enum": [
+        "idle",
+        "working",
+        "blocked",
+        "waiting"
+      ]
+    }
+  },
+  "additionalProperties": false
+}

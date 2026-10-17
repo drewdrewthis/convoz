@@ -40,7 +40,7 @@ func cascadesOf(ports ...any) []message.Cascade {
 // name an identity. Nobody is added to a conversation by it (I-18).
 type mentionsPort struct{}
 
-func (mentionsPort) RecordMentions(ctx context.Context, d pdb.DBTX, _ time.Time, m message.Message) ([]int64, error) {
+func (mentionsPort) RecordMentions(ctx context.Context, d pdb.DBTX, now time.Time, m message.Message) ([]int64, error) {
 	handles := message.ParseMentions(m.Body, m.Format)
 	if len(handles) == 0 {
 		return nil, nil
@@ -59,7 +59,10 @@ func (mentionsPort) RecordMentions(ctx context.Context, d pdb.DBTX, _ time.Time,
 			ids = append(ids, id)
 		}
 	}
-	return ids, message.StoreMentions(ctx, d, m.ID, ids)
+	if err := message.StoreMentions(ctx, d, m.ID, ids); err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 
 // The versioned names of the events of this module.

@@ -1,5 +1,72 @@
 # Paths of the prefs module (design §13). Only the work package that owns prefs edits this file; the root
 # openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
-/api/conversations/{id}/prefs: {}  # not specified yet
-/api/messages/{id}/pin: {}  # not specified yet
-/api/status: {}  # not specified yet
+/api/conversations/{id}/prefs:
+  patch:
+    operationId: patchConversationPrefs
+    summary: Star, mute or reorder one conversation in the owner's rail.
+    description: |
+      Personal to the caller (I-22): another person's stars, mutes and order never change. A person only; an agent is 403.
+      A conversation the caller cannot see is 404. Send only what changes. The order is the owner's, never the activity's (I-21).
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "../openapi.yaml#/components/schemas/PrefsRequest" }
+    responses:
+      "200":
+        description: The prefs after the change, and the ranks that moved.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/PrefsResponse" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/messages/{id}/pin:
+  put:
+    operationId: pinMessage
+    summary: Pin a message in its conversation, for the caller only. Pinning twice is the same as once.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody: { $ref: "../openapi.yaml#/components/requestBodies/Empty" }
+    responses:
+      "200": { $ref: "../openapi.yaml#/components/responses/Empty" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+  delete:
+    operationId: unpinMessage
+    summary: Remove the caller's pin. Unpinning what is not pinned is the same as unpinning it.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    responses:
+      "200": { $ref: "../openapi.yaml#/components/responses/Empty" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/status:
+  put:
+    operationId: putStatus
+    summary: An agent says what it is doing, for Crew. The status is the agent's, shared by all its sessions.
+    description: |
+      The identity comes from the lease, which needs the `status` scope. `since` moves only when the state changes. A text over 200
+      characters, or a state that is not one of the four, is 400 `invalid_request`.
+    security: [{ leaseBearer: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "../openapi.yaml#/components/schemas/StatusRequest" }
+    responses:
+      "200":
+        description: The status as stored.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/AgentStatus" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+  get:
+    operationId: getStatus
+    summary: The status of every agent (the owner) or of the calling agent itself.
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
+    responses:
+      "200":
+        description: The statuses.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/StatusList" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }

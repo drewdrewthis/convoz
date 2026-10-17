@@ -1,0 +1,72 @@
+/* Crew: the status ring, the add button, the ask chip, the profile. The list rows themselves are in app.css (the prototype's own). */
+@layer components {
+  /* The ring says the state in its look and, for a screen reader, in its name; the label beside it says it in words. */
+  .ring[data-st="working"]::before {
+    background: conic-gradient(from 0deg, var(--color-grad-ring-1), var(--color-grad-ring-2), var(--color-grad-ring-3), var(--color-grad-ring-1));
+    animation: ringspin 2.4s linear infinite;
+  }
+  @keyframes ringspin { to { transform: rotate(360deg); } }
+  .ring[data-st="waiting"]::before { background: var(--color-amber); }
+  .ring[data-st="blocked"]::before { background: var(--color-danger); }
+  .ring[data-st="offline"]::before { opacity: .5; }
+  .ring[data-st="offline"]::after {
+    content: ""; position: absolute; right: -1px; bottom: -1px; box-sizing: border-box; width: 30%; height: 30%; border-radius: 999px;
+    border: 2px solid var(--color-idle); background: var(--color-surface);
+  }
+  .cgrp[data-group="waiting"] h3 i { background: var(--color-amber); }
+  .cgrp[data-group="working"] h3 i { background: var(--gradring); }
+
+  .crew-top .addagent {
+    margin-left: auto; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px; border: 1px solid var(--color-edge); border-radius: 999px;
+    background: var(--color-raised); color: var(--color-accent-text); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .addagent svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+  .crow .chip { flex: none; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 8px; border-radius: 999px; background: color-mix(in srgb, var(--color-amber) 16%, var(--color-raised)); color: var(--color-warning); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .cgrp h3 .disclose { all: unset; cursor: pointer; font: inherit; color: inherit; }
+  .cgrp h3 .disclose:focus-visible { outline: 2px solid var(--color-edge); outline-offset: 2px; }
+
+  .profile { display: flex; flex-direction: column; gap: 12px; padding: 4px 12px 24px; }
+  .phead { display: flex; align-items: center; gap: 16px; }
+  .phead .ring { width: 64px; height: 64px; --rw: 3px; }
+  .phead .ring .in { inset: 6px; font-size: 22px; }
+  .ptxt { min-width: 0; }
+  .ptxt h2 { margin: 0; font-size: 18px; overflow-wrap: anywhere; }
+  .ptxt p { margin: 2px 0 0; font-size: 14px; }
+  .ptxt .pstate { font-weight: 600; }
+  .profile .btn { align-self: flex-start; text-decoration: none; }
+  .profile .crow.plain { min-height: 44px; padding: 8px 12px; }
+  .ptabs { display: flex; gap: 8px; margin-top: 8px; }
+  .ptabs [role="tab"] { min-height: 40px; padding: 0 16px; border: 1px solid var(--color-edge); border-radius: 999px; background: transparent; color: var(--color-text); font: inherit; font-weight: 600; cursor: pointer; }
+  .ptabs [role="tab"][aria-selected="true"] { background: var(--color-selection); color: var(--color-accent-text); }
+
+  /* The dock: on a wide window Crew is the prototype's 380 px card (header, faces, search, a scrolling list, Invite agent at the foot). */
+  .dockhead, .dockfoot { display: none; }
+  .docklist { display: contents; }
+  @media (min-width: 900px) {
+    #crew {
+      width: 380px; height: min(727px, calc(100dvh - 24px)); box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden;
+      background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 14px; box-shadow: var(--float);
+    }
+    #crew .dockhead { flex: none; display: flex; align-items: center; gap: 10px; padding: 14px 8px 8px 20px; }
+    .dockhead h2 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+    .dockhead .count { min-width: 24px; height: 22px; padding: 0 8px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--color-selection); font-family: var(--font-mono); color: var(--color-text); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .dockhead .sp { flex: 1 1 auto; }
+    .dockhead .iconbtn { width: 32px; height: 32px; min-width: 0; min-height: 0; color: var(--color-muted); }
+    .dockhead .iconbtn svg { width: 14px; height: 14px; stroke-width: 2; }
+    #crew .crew-top { flex: none; padding: 4px 20px 12px; }
+    #crew .crew-top .addagent { display: none; }
+    #crew > div:not(.crew-top):not(.docklist) { flex: none; padding: 0 16px 8px; }
+    #crew .fld { min-height: 40px; margin: 0; box-sizing: border-box; }
+    #crew .fld input { min-height: 36px; }
+    #crew .fld:focus-within { outline-color: var(--color-ring); }
+    #crew .cgrp h3 { line-height: normal; padding-bottom: 7px; }
+    .dockhead h2 { line-height: normal; }
+    #crew .docklist { flex: 1 1 auto; min-height: 0; display: block; overflow: auto; overscroll-behavior: contain; padding: 0 8px 8px; }
+    #crew .crow { min-height: 60px; }
+    #crew .crow .ring { width: 44px; height: 44px; --rw: 2px; }
+    #crew .crow .ring .in { inset: 5px; }
+    #crew .dockfoot { flex: none; display: block; padding: 4px; border-top: 1px solid var(--color-border); }
+    .dockfoot button { width: 100%; min-height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 0; border-radius: 14px; background: transparent; color: var(--color-accent-text); font: inherit; font-size: 14px; font-weight: 600; text-align: left; cursor: pointer; }
+    .dockfoot button:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+  }
+}

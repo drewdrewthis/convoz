@@ -36,11 +36,14 @@ func Status(args []string, io IO) int {
 	if k == nil {
 		return code
 	}
-	if err := k.callRetry("PUT", wire.RouteStatus, wire.StatusRequest{State: *state, Doing: *doing, Next: *next}, nil); err != nil {
+	var stored wire.AgentStatus
+	if err := k.callRetry("PUT", wire.RouteStatus, wire.StatusRequest{State: *state, Doing: *doing, Next: *next}, &stored); err != nil {
 		return k.fail(err)
 	}
 	if k.asJSON {
-		k.printJSON(map[string]string{"state": *state, "doing": *doing, "next": *next})
+		k.printJSON(stored)
+	} else {
+		fmt.Fprintln(k.io.Stdout, stored.State)
 	}
 	return ExitOK
 }

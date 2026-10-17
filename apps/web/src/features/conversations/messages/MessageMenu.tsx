@@ -3,6 +3,8 @@ import { Sheet } from "@convoz/ui/Sheet";
 import { useEffect, useRef, useState } from "react";
 import { humanError } from "../../../shared/api.ts";
 import { useThreads } from "../../threads/index.ts";
+import { useData } from "../../../shared/data.ts";
+import { pinMessage, toast, unpinMessage } from "../../pins-stars/index.ts";
 import { deleteMessage, editHistory, editMessage } from "./actions.ts";
 
 /**
@@ -11,6 +13,7 @@ import { deleteMessage, editHistory, editMessage } from "./actions.ts";
  */
 export function MessageMenu({ message, mine, conversation }: { message: Message; mine: boolean; conversation: number }) {
   const [open, setOpen] = useState(false);
+  const pinned = useData((s) => Boolean(s.rows[conversation]?.pinned?.some((x) => x.id === message.id)));
   const [sheet, setSheet] = useState<"edit" | "delete" | null>(null);
   const press = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const root = useRef<HTMLSpanElement>(null);
@@ -44,6 +47,16 @@ export function MessageMenu({ message, mine, conversation }: { message: Message;
               Reply in thread
             </button>
           )}
+          <button
+            role="menuitem"
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              (pinned ? unpinMessage : pinMessage)(conversation, message.id).catch((err) => toast(humanError(err)));
+            }}
+          >
+            {pinned ? "Unpin" : "Pin"}
+          </button>
           {mine ? (
             <button role="menuitem" type="button" onClick={() => (setOpen(false), setSheet("edit"))}>
               Edit

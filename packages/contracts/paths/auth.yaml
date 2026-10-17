@@ -348,6 +348,20 @@
 /api/device/code: {}  # not specified yet
 /api/device/token: {}  # not specified yet
 /api/machines/requests: {}  # not specified yet
-/api/sessions: {}  # not specified yet
+/api/sessions:
+  get:
+    operationId: listSessions
+    summary: The sessions of every machine and agent, newest first (the owner), live ones and recently ended ones.
+    responses:
+      "200":
+        description: The sessions.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sessions]
+              properties:
+                sessions: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Session" } }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/sessions/renew: {}  # not specified yet
 /api/sessions/me: {}  # not specified yet

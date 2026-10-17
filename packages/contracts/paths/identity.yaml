@@ -58,5 +58,55 @@
           image/svg+xml:
             schema: { type: string }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
-/api/crew/agents: {}  # not specified yet
-/api/identities/{id}/disable: {}  # not specified yet
+/api/crew/agents:
+  post:
+    operationId: createAgent
+    summary: The owner makes an agent identity. Names are unique and never reused (I-3).
+    description: |
+      Needs a fresh passkey check for `identity.create`. A handle that exists or was used before is 409 `handle_taken`; a handle or display
+      name that is not valid is 400 `invalid_request` with the field. The agent has no key: a machine that allows the handle speaks for it.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/StepUp"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [handle, display_name]
+            properties:
+              handle: { type: string }
+              display_name: { type: string }
+    responses:
+      "201":
+        description: The new agent.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identity]
+              properties:
+                identity:
+                  type: object
+                  required: [id, handle, display_name, kind]
+                  properties:
+                    id: { type: integer, format: int64 }
+                    handle: { type: string }
+                    display_name: { type: string }
+                    kind: { type: string, enum: [agent] }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/identities/{id}/disable:
+  post:
+    operationId: disableIdentity
+    summary: The owner disables an agent. Identities are never deleted (I-2).
+    description: |
+      Needs a fresh passkey check for `identity.disable`. Every session of the agent ends at once, its open asks close, and its handle
+      stays used (I-38). An agent that is not there or already disabled is 404.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+      - $ref: "../openapi.yaml#/components/parameters/StepUp"
+    requestBody: { $ref: "../openapi.yaml#/components/requestBodies/Empty" }
+    responses:
+      "200": { $ref: "../openapi.yaml#/components/responses/Empty" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }

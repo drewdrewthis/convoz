@@ -59,7 +59,6 @@ export function ShellFrame({ def, children }: { def: PageDef; children: ReactNod
     useNow.getState().load().catch(() => {});
   }, [def.name]);
   const account = useAccountMenu(notice.fail);
-  useSearchShortcut();
   return (
     <Provider value={notice}>
       <header className="appbar">
@@ -109,7 +108,6 @@ export function ShellFrame({ def, children }: { def: PageDef; children: ReactNod
           </a>
         ))}
       </nav>
-      <SearchHost />
     </Provider>
   );
 }

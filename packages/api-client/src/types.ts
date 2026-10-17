@@ -20,6 +20,12 @@ export type ApiErrorBody = S["Error"];
 export type MessageCreatedFrame = S["MessageCreatedFrame"];
 export type ReadMovedFrame = S["ReadMovedFrame"];
 export type AgentWorkingFrame = S["AgentWorkingFrame"];
+export type PrefsRequest = S["PrefsRequest"];
+export type PrefsResponse = S["PrefsResponse"];
+export type RailRank = S["RailRank"];
+export type PrefsChangedFrame = S["PrefsChangedFrame"];
+export type PinChangedFrame = S["PinChangedFrame"];
+export type AgentStatusChangedFrame = S["AgentStatusChangedFrame"];
 export type SyncEvent = S["SyncEvent"];
 export type SyncAnswer = S["SyncAnswer"];
 export type SyncDelta = S["SyncDelta"];
@@ -63,6 +69,9 @@ export interface StreamFrames {
   "ask.changed": Ask;
   /** A voice note got its words: the message as it reads now. */
   "upload.transcribed": MessageChangedFrame;
+  "prefs.changed": PrefsChangedFrame;
+  "pin.changed": PinChangedFrame;
+  "agent.status_changed": AgentStatusChangedFrame;
 }
 export type FrameName = keyof StreamFrames;
 /** One frame: its name and its payload, so a switch on `name` narrows `data`. */
@@ -80,4 +89,7 @@ export const FRAME_NAMES = [
   "agent.working",
   "ask.changed",
   "upload.transcribed",
+  "prefs.changed",
+  "pin.changed",
+  "agent.status_changed",
 ] as const satisfies readonly FrameName[];

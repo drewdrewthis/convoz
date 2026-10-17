@@ -39,6 +39,7 @@ export const PAGES = {
   notfound: page({ name: "notfound", title: "Chat not found", heading: "Chat not found", frame: "shell", tab: "chats", back: "/chats", load: () => import("../features/conversations/index.ts").then((f) => f.NotFound) }),
   trash: page({ name: "trash", title: "Trash", heading: "Trash", frame: "shell", back: "/account", load: () => import("../features/conversations/index.ts").then((f) => f.Trash) }),
   crew: page({ name: "crew", title: "Crew", heading: "Crew", frame: "shell", tab: "crew", back: "/", load: () => import("../features/crew/index.ts").then((f) => f.Crew) }),
+  agent: page({ name: "agent", title: "Agent", heading: "Agent", frame: "shell", tab: "crew", back: "/crew", load: () => import("../features/crew/index.ts").then((f) => f.AgentProfile) }),
   machines: page({ name: "machines", title: "Machines", heading: "Machines", frame: "shell", tab: "crew", back: "/crew", load: () => import("../features/crew/index.ts").then((f) => f.Machines) }),
   passkeys: page({ name: "passkeys", title: "Passkeys", heading: "Passkeys", frame: "shell", back: "/", load: () => import("../features/settings/index.ts").then((f) => f.Passkeys) }),
   recovery: page({ name: "recovery", title: "Recovery codes", heading: "Recovery codes", frame: "shell", back: "/", load: () => import("../features/settings/index.ts").then((f) => f.RecoveryCodes) }),
@@ -69,6 +70,7 @@ const EXACT: Record<string, PageDef> = {
 
 const PATTERNS: [RegExp, PageDef][] = [
   [/^\/chats\/[^/]+$/, PAGES.chat],
+  [/^\/crew\/[^/]+$/, PAGES.agent],
   [/^\/now\/machine\/[^/]+$/, PAGES.now], // a machine request's deep link (design §9); its card opens on Now
 ];
 

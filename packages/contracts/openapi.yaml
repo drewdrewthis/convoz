@@ -272,6 +272,7 @@ components:
     MachineRequest: { $ref: "components/auth.yaml#/MachineRequest" }
     Allow: { $ref: "components/auth.yaml#/Allow" }
     Machine: { $ref: "components/auth.yaml#/Machine" }
+    Session: { $ref: "components/auth.yaml#/Session" }
     Person: { $ref: "components/identity.yaml#/Person" }
     LastMessage: { $ref: "components/conversation.yaml#/LastMessage" }
     Conversation: { $ref: "components/conversation.yaml#/Conversation" }
@@ -302,6 +303,18 @@ components:
     SyncDelta: { $ref: "components/event.yaml#/SyncDelta" }
     SyncReset: { $ref: "components/event.yaml#/SyncReset" }
     SyncSnapshot: { $ref: "components/event.yaml#/SyncSnapshot" }
+    PrefsRequest: { $ref: "components/prefs.yaml#/PrefsRequest" }
+    RailRank: { $ref: "components/prefs.yaml#/RailRank" }
+    PrefsResponse: { $ref: "components/prefs.yaml#/PrefsResponse" }
+    PrefsChangedFrame: { $ref: "components/prefs.yaml#/PrefsChangedFrame" }
+    PinChangedFrame: { $ref: "components/prefs.yaml#/PinChangedFrame" }
+    AgentState: { $ref: "components/prefs.yaml#/AgentState" }
+    StatusRequest: { $ref: "components/prefs.yaml#/StatusRequest" }
+    AgentStatus: { $ref: "components/prefs.yaml#/AgentStatus" }
+    OpenAsk: { $ref: "components/prefs.yaml#/OpenAsk" }
+    CrewStatus: { $ref: "components/prefs.yaml#/CrewStatus" }
+    StatusList: { $ref: "components/prefs.yaml#/StatusList" }
+    AgentStatusChangedFrame: { $ref: "components/prefs.yaml#/AgentStatusChangedFrame" }
     SearchPart: { $ref: "components/search.yaml#/SearchPart" }
     SearchResult: { $ref: "components/search.yaml#/SearchResult" }
     SearchConversation: { $ref: "components/search.yaml#/SearchConversation" }

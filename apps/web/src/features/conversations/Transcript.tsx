@@ -3,6 +3,8 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { AskInline } from "../now/index.ts";
 import { clock, initials, paletteOf, stripCf } from "../../shared/chat.ts";
+import { useData } from "../../shared/data.ts";
+import { PinMark } from "../pins-stars/index.ts";
 import type { PendingSend } from "./store.ts";
 import { Markdown } from "./Markdown.tsx";
 import { resume } from "./actions.ts";
@@ -277,6 +279,7 @@ const sameRow = (a: RowProps, b: RowProps) =>
 
 const MessageRow = memo(function MessageRow({ row, threaded, me, paused, conversation, onRetry, onDetails, hl }: RowProps) {
   const { message: m, pending: p } = row;
+  const pinned = useData((s) => Boolean(m && s.rows[conversation]?.pinned?.some((x) => x.id === m.id)));
   if (m?.kind === "system" || m?.author.kind === "system") {
     return <NoticeRow message={m} canResume={paused === m.id} onResume={() => void resume(conversation)} />;
   }
@@ -302,7 +305,7 @@ const MessageRow = memo(function MessageRow({ row, threaded, me, paused, convers
     const detail = onDetails && m.author.kind === "agent" ? () => onDetails(m) : undefined;
     const replies = threaded || m.thread_root_id ? null : <ReplyLine message={m} conversation={conversation} />;
     const tag = !threaded && m.thread_root_id ? "replied to a thread" : undefined;
-    return <Article author={m.author.handle} me={me} first={row.first} stamp={clock(m.created_at)} tag={tag} onStamp={detail} body={body} extra={<>{m.kind !== "ask" && hasLink(text) ? <LinkPreview id={m.id} /> : null}{edited}{replies}</>} menu={menu} mid={m.id} marked={hl === m.id} labelledBy={m.kind === "ask" && m.ask ? label : undefined} />;
+    return <Article author={m.author.handle} named={withHandle(m.author)} me={me} first={row.first} stamp={clock(m.created_at)} tag={tag} onStamp={detail} body={body} extra={<>{m.kind !== "ask" && hasLink(text) ? <LinkPreview id={m.id} /> : null}{pinned ? <PinMark /> : null}{edited}{replies}</>} menu={menu} mid={m.id} marked={hl === m.id} labelledBy={m.kind === "ask" && m.ask ? label : undefined} />;
   }
   const state =
     p!.state === "failed" ? (
@@ -324,8 +327,13 @@ const MessageRow = memo(function MessageRow({ row, threaded, me, paused, convers
   return <Article author={me} me={me} first={row.first} stamp={clock(Date.now())} body={body} extra={state} />;
 }, sameRow);
 
+/** withHandle is "Drew @devtool" when the display name says more than the handle does, so the handle is always next to the name (I-3). */
+function withHandle(p: { handle: string; display_name: string }): string | undefined {
+  return p.display_name && p.display_name.toLowerCase() !== p.handle.toLowerCase() ? `${p.display_name} @${p.handle}` : undefined;
+}
+
 /** Article is one message: avatar, name and time (once per run), then the body. The letter is drawn, so it reads "@devtool 5:25 AM Hello". */
-function Article({ author, me, first, stamp, tag, onStamp, body, extra, menu, mid, marked, labelledBy }: { author: string; me: string; first: boolean; stamp: string; tag?: string; onStamp?: () => void; body: ReactNode; extra?: ReactNode; menu?: ReactNode; mid?: number; marked?: boolean; labelledBy?: string }) {
+function Article({ author, named, me, first, stamp, tag, onStamp, body, extra, menu, mid, marked, labelledBy }: { author: string; named?: string; me: string; first: boolean; stamp: string; tag?: string; onStamp?: () => void; body: ReactNode; extra?: ReactNode; menu?: ReactNode; mid?: number; marked?: boolean; labelledBy?: string }) {
   const mine = author === me;
   const avatar = mine ? (
     <span className="ava you" aria-hidden="true" data-l="Y" />
@@ -336,8 +344,7 @@ function Article({ author, me, first, stamp, tag, onStamp, body, extra, menu, mi
     <span className="who">You</span>
   ) : (
     <span className="who">
-      <span className="sr">@</span>
-      {author}
+      {named ? named : <><span className="sr">@</span>{author}</>}
     </span>
   );
   return (

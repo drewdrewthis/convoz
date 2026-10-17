@@ -65,7 +65,7 @@ func conversationView(ctx context.Context, d pdb.DBTX, p authz.Principal, dir di
 	if err != nil {
 		return wire.Conversation{}, err
 	}
-	out := wire.Conversation{ID: cv.ID, CreatedAt: cv.CreatedAt, LastActivityAt: cv.LastActivityAt, Participants: make([]wire.Person, 0, len(parts))}
+	out := wire.Conversation{ID: cv.ID, CreatedAt: cv.CreatedAt, LastActivityAt: cv.LastActivityAt, Rank: float64(cv.CreatedAt), Participants: make([]wire.Person, 0, len(parts))}
 	if cv.Title != "" {
 		title := cv.Title
 		out.Title = &title

@@ -5,6 +5,10 @@
 // The frame's border and radius are neutralised so the PNG is exactly 390x800 CSS px (2x). Rectangles from visual/masks.json are
 // painted over the frame; the parity spec paints the same rectangles over the app, so the controls the app does not have yet
 // (and the times) never count. Run it from e2e/ so @playwright/test resolves.
+//
+// Besides the phone frame (390x800) it shoots two desktop elements at a 1280x800 window: the rail (the sidebar, 240x742, "rail-desktop")
+// and the Crew dock (380x726, "crew-desktop"). The prototype has a desktop layout; the app draws only these two parts of it so far, so
+// only these are compared. Masks of a desktop screen are relative to its element, like the phone's are to the frame.
 import fs from "node:fs";
 import path from "node:path";
 import { chromium } from "@playwright/test";
@@ -105,6 +109,15 @@ for (const mode of ["Light", "Dark"]) {
     if (ONLY) continue;
   }
 
+  // The rail on a phone: the Conversations tab as the prototype has it, with its Starred group and its muted "Team updates".
+  if (!ONLY) {
+    const { page, frame, tabs, shot } = await open();
+    await tabs.getByRole("button", { name: "Conversations" }).click();
+    await page.waitForTimeout(500);
+    await shot("rail");
+    await page.close();
+  }
+
   const { page, frame, tabs, shot } = await open();
   // The app has no stars: take the two starred conversations out of Starred (opening one reads it) so the list is one "Conversations" section.
   await tabs.getByRole("button", { name: "Conversations" }).click();
@@ -140,9 +153,44 @@ for (const mode of ["Light", "Dark"]) {
 
   await tabs.getByRole("button", { name: "Crew" }).click();
   await page.waitForTimeout(10500);
+  await shot("crew-status"); // Waiting on you, Working and Idle groups as the prototype's agents report them
   // Agents have no published status in the app yet, so every agent is idle: drop the Waiting and Working groups.
   await frame.evaluate((el) => ["Waiting on you", "Working"].forEach((l) => el.querySelector(`section[aria-label="${l}"]`)?.remove()));
   await shot("crew");
+  await page.close();
+}
+
+// Desktop: the rail sidebar and the Crew dock, as elements of the 1280x800 window.
+for (const mode of ["Light", "Dark"]) {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: SCALE });
+  await page.goto(`file://${html}`);
+  await page.waitForTimeout(1500);
+  await page.getByRole("button", { name: mode, exact: true }).click();
+  await page.waitForTimeout(400);
+  const dismiss = page.getByRole("button", { name: "Dismiss notification" });
+  if (await dismiss.count()) await dismiss.first().click();
+  await page.addStyleTag({ content: "*,*::before,*::after{caret-color:transparent!important;animation:none!important;transition:none!important}" });
+  const desktopShot = async (name, el, w, h) => {
+    await page.mouse.move(0, 0);
+    await page.waitForTimeout(500);
+    await el.evaluate((node, rects) => {
+      if (getComputedStyle(node).position === "static") node.style.position = "relative";
+      for (const r of rects) {
+        const d = document.createElement("div");
+        d.setAttribute("data-mask", r.name);
+        d.style.cssText = `position:absolute;z-index:9999;background:#808080;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px`;
+        node.appendChild(d);
+      }
+    }, masks[name] ?? []);
+    const box = await el.boundingBox();
+    if (Math.round(box.width) !== w || Math.round(box.height) !== h) throw new Error(`${name} is ${box.width}x${box.height}, want ${w}x${h}`);
+    await el.screenshot({ path: path.join(out, `${name}-${mode.toLowerCase()}.png`) });
+    await el.evaluate((node) => node.querySelectorAll("[data-mask]").forEach((d) => d.remove()));
+  };
+  await desktopShot("rail-desktop", page.getByRole("navigation", { name: "Conversations" }), 240, 742);
+  await page.getByRole("button", { name: "Crew" }).first().click();
+  await page.waitForTimeout(10500);
+  await desktopShot("crew-desktop", page.locator("aside[aria-label='Crew']"), 380, 726);
   await page.close();
 }
 await browser.close();

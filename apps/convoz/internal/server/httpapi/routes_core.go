@@ -17,6 +17,7 @@ var coreRoutes = []Route{
 	{Method: "GET", Pattern: "/chats/:id", Auth: authz.Human, Page: true, handle: (*Server).chatPage},
 	{Method: "GET", Pattern: "/crew", Auth: authz.Human, Page: true, handle: appPage},
 	{Method: "GET", Pattern: "/crew/machines", Auth: authz.Human, Page: true, handle: appPage},
+	{Method: "GET", Pattern: "/crew/:handle", Auth: authz.Human, Page: true, handle: appPage},
 	{Method: "GET", Pattern: "/onboarding", Auth: authz.Human, Page: true, handle: appPage},
 	{Method: "GET", Pattern: "/settings/passkeys", Auth: authz.Human, Page: true, handle: appPage},
 	{Method: "GET", Pattern: "/settings/recovery", Auth: authz.Human, Page: true, handle: appPage},

@@ -318,6 +318,9 @@ func (s *Server) frameFor(ctx context.Context, c *call, dir directory, ev event.
 			return name, nil, err
 		}
 		v, err := conversationView(ctx, d, c.p, dir, cv, floor)
+		if err == nil {
+			err = s.withRail(ctx, d, c.p, &v)
+		}
 		if err != nil {
 			return name, nil, err
 		}
