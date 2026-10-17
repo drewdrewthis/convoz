@@ -17,14 +17,9 @@ func (s *Server) chatPage(w http.ResponseWriter, r *http.Request, c *call) {
 			return
 		}
 		if found {
-			chatServe(w, r)
+			console.Page(w, r)
 			return
 		}
 	}
-	notFoundServe(w, r)
+	console.NotFound(w, r)
 }
-
-var (
-	chatServe     = console.Page("chat")
-	notFoundServe = console.NotFound()
-)

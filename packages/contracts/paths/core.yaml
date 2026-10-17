@@ -1,0 +1,5 @@
+# Paths of the core module (design §13). Only the work package that owns core edits this file; the root
+# openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
+/healthz: {}  # not specified yet
+/api/ping: {}  # not specified yet
+/api/version: {}  # not specified yet

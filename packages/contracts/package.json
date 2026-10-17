@@ -1,0 +1,12 @@
+{
+  "name": "@convoz/contracts",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    "./openapi.yaml": "./openapi.yaml",
+    "./paths/*": "./paths/*",
+    "./components/*": "./components/*",
+    "./events/*": "./events/*"
+  }
+}

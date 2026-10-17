@@ -1,0 +1,24 @@
+{
+  "name": "@convoz/api-client",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./db": "./src/db/schema.ts"
+  },
+  "scripts": {
+    "gen": "node gen.mjs",
+    "gen:check": "node gen.mjs --check"
+  },
+  "dependencies": {
+    "idb": "8.0.3",
+    "openapi-fetch": "0.17.0",
+    "zustand": "5.0.15"
+  },
+  "devDependencies": {
+    "@convoz/contracts": "workspace:*",
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3"
+  }
+}

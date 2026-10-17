@@ -1,0 +1,142 @@
+// The shared data cache: the server data more than one feature reads (who is signed in, identities, the conversation
+// list, conversation rows and their messages). Features keep only their own UI state in their own stores and read this
+// one; it changes only through its actions and through frames the sync engine hands it. It persists to db/ later.
+import { createStore, type StoreApi } from "zustand/vanilla";
+import { coalesce } from "./coalesce.ts";
+import type { DataSource } from "./source.ts";
+import type { Conversation, Frame, Identity, Me, Message } from "./types.ts";
+
+/** Messages per page, as the server pages them. */
+export const LIMIT = 100;
+/** A burst of frames reloads the list once. */
+const LIST_DEBOUNCE_MS = 80;
+
+/** The messages of one conversation the client holds, ascending by id. */
+export interface MessageList {
+  list: Message[];
+  hasEarlier: boolean;
+}
+
+export interface DataState {
+  me: Me | null;
+  identities: Identity[] | null;
+  /** The conversation list, in the server's order; null until first loaded. */
+  conversations: Conversation[] | null;
+  /** Conversation rows by id, for a conversation that is open. */
+  rows: Record<number, Conversation>;
+  /** Messages by conversation id, only for the conversations whose newest page was loaded. */
+  messages: Record<number, MessageList>;
+}
+
+export interface DataCache {
+  store: StoreApi<DataState>;
+  loadMe(): Promise<Me>;
+  loadIdentities(): Promise<Identity[]>;
+  /** Reload the list (calls while one runs become one more run). */
+  loadConversations(): Promise<void>;
+  loadConversation(id: number): Promise<Conversation>;
+  putConversation(c: Conversation): void;
+  /** The newest page of a conversation. */
+  loadNewest(id: number): Promise<void>;
+  /** The page before the oldest message held. */
+  loadEarlier(id: number): Promise<void>;
+  /** Start holding the messages of a conversation the client just made (it has none yet), so its frames are kept. */
+  track(id: number): void;
+  /** Merge server messages by id, so nothing shows twice; returns the ones that were new. */
+  putMessages(id: number, list: Message[]): Message[];
+  /** Take in one live frame (the sync engine calls this before the features' handlers). False means it is not news: a
+   *  message the cache already held, so no handler should see it again. */
+  apply(frame: Frame): boolean;
+  /** After a gap: reload what the stream may have missed (the list; messages are caught up by the sync engine). */
+  resync(): void;
+}
+
+/** maxId is the newest message id held for a conversation, 0 for none. */
+export const maxId = (m: MessageList | undefined): number => (m?.list.length ? m.list[m.list.length - 1]!.id : 0);
+
+function merge(have: Message[], more: Message[]): Message[] {
+  const byId = new Map(have.map((m) => [m.id, m]));
+  let changed = false;
+  for (const m of more) {
+    if (!byId.has(m.id)) {
+      byId.set(m.id, m);
+      changed = true;
+    }
+  }
+  return changed ? [...byId.values()].sort((a, b) => a.id - b.id) : have;
+}
+
+/** createDataCache builds the cache over a data source. */
+export function createDataCache(source: DataSource): DataCache {
+  const store = createStore<DataState>()(() => ({ me: null, identities: null, conversations: null, rows: {}, messages: {} }));
+  const { getState: get, setState: set } = store;
+  let listTimer: ReturnType<typeof setTimeout> | undefined;
+  const reloadList = coalesce(async () => set({ conversations: await source.conversations() }));
+  const setList = (id: number, change: (m: MessageList) => MessageList) =>
+    set((s) => ({ messages: { ...s.messages, [id]: change(s.messages[id] ?? { list: [], hasEarlier: false }) } }));
+
+  const cache: DataCache = {
+    store,
+    loadMe: async () => {
+      const me = await source.me();
+      set({ me });
+      return me;
+    },
+    loadIdentities: async () => {
+      const identities = await source.identities();
+      set({ identities });
+      return identities;
+    },
+    loadConversations: async () => {
+      clearTimeout(listTimer);
+      await reloadList();
+    },
+    loadConversation: async (id) => {
+      const c = await source.conversation(id);
+      cache.putConversation(c);
+      return c;
+    },
+    putConversation: (c) => set((s) => ({ rows: { ...s.rows, [c.id]: c } })),
+    loadNewest: async (id) => {
+      const { messages } = await source.messages(id, { limit: LIMIT });
+      setList(id, (m) => ({ list: merge(m.list, messages), hasEarlier: messages.length >= LIMIT }));
+    },
+    loadEarlier: async (id) => {
+      const held = get().messages[id];
+      if (!held?.list.length) return;
+      const { messages } = await source.messages(id, { before: held.list[0]!.id, limit: LIMIT });
+      setList(id, (m) => ({ list: merge(m.list, messages), hasEarlier: messages.length >= LIMIT }));
+    },
+    track: (id) => {
+      if (!get().messages[id]) setList(id, (m) => m);
+    },
+    putMessages: (id, list) => {
+      const held = get().messages[id]?.list ?? [];
+      const added = list.filter((m) => !held.some((h) => h.id === m.id));
+      if (added.length) setList(id, (m) => ({ ...m, list: merge(m.list, added) }));
+      return added;
+    },
+    apply: (frame) => {
+      switch (frame.name) {
+        case "message.created": {
+          const held = get().messages[frame.data.conversation_id];
+          if (held?.list.some((m) => m.id === frame.data.id)) return false;
+          if (held) cache.putMessages(frame.data.conversation_id, [frame.data]);
+          break;
+        }
+        case "agent.working":
+          return true; // presence only: nothing cached
+      }
+      // the list follows message.created, read.moved and conversation.created, a burst at a time
+      if (get().conversations) {
+        clearTimeout(listTimer);
+        listTimer = setTimeout(() => void reloadList(), LIST_DEBOUNCE_MS);
+      }
+      return true;
+    },
+    resync: () => {
+      if (get().conversations) void reloadList();
+    },
+  };
+  return cache;
+}

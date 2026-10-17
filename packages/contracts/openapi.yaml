@@ -1,0 +1,273 @@
+openapi: 3.1.0
+info:
+  title: Convoz web API
+  version: 0.1.0
+  description: |
+    Every route of design §13, listed once here; each one's operations live in paths/<module>.yaml and its schemas in
+    components/<module>.yaml, so a work package edits only its own module's files. An empty path item is a §13 route not
+    specified yet. Event payloads are JSON Schema files, one per type: events/<type>.v1.json. This contract is the source of
+    truth for the web client: packages/api-client generates its types from it (`pnpm --filter @convoz/api-client gen`,
+    checked in CI by `gen:check`).
+
+    Every request is same-origin JSON with the device cookie. Every write under /api carries `Origin`, `X-Convoz: 1` and
+    `Content-Type: application/json`, or the server answers 403 `csrf`. Errors are `{error:{code,message}}`.
+    A route marked with the X-Convoz-Step-Up parameter needs the id of a fresh passkey check for that action.
+
+    Live updates come from GET /api/stream (server-sent events), listed here for completeness; the client opens it with EventSource.
+servers:
+  - url: /
+security:
+  - deviceCookie: []
+
+paths:
+  # ---- auth
+  /api/auth/bootstrap/check: { $ref: "paths/auth.yaml#/~1api~1auth~1bootstrap~1check" }
+  /api/auth/bootstrap/options: { $ref: "paths/auth.yaml#/~1api~1auth~1bootstrap~1options" }
+  /api/auth/bootstrap/verify: { $ref: "paths/auth.yaml#/~1api~1auth~1bootstrap~1verify" }
+  /api/auth/passkey/register/options: { $ref: "paths/auth.yaml#/~1api~1auth~1passkey~1register~1options" }
+  /api/auth/passkey/register/verify: { $ref: "paths/auth.yaml#/~1api~1auth~1passkey~1register~1verify" }
+  /api/auth/passkey/login/options: { $ref: "paths/auth.yaml#/~1api~1auth~1passkey~1login~1options" }
+  /api/auth/passkey/login/verify: { $ref: "paths/auth.yaml#/~1api~1auth~1passkey~1login~1verify" }
+  /api/auth/step-up/options: { $ref: "paths/auth.yaml#/~1api~1auth~1step-up~1options" }
+  /api/auth/step-up/verify: { $ref: "paths/auth.yaml#/~1api~1auth~1step-up~1verify" }
+  /api/auth/logout: { $ref: "paths/auth.yaml#/~1api~1auth~1logout" }
+  /api/me/devices: { $ref: "paths/auth.yaml#/~1api~1me~1devices" }
+  /api/me/devices/{id}: { $ref: "paths/auth.yaml#/~1api~1me~1devices~1{id}" }
+  /api/me/passkeys: { $ref: "paths/auth.yaml#/~1api~1me~1passkeys" }
+  /api/me/passkeys/{id}: { $ref: "paths/auth.yaml#/~1api~1me~1passkeys~1{id}" }
+  /api/me/recovery-codes: { $ref: "paths/auth.yaml#/~1api~1me~1recovery-codes" }
+  /api/auth/recovery: { $ref: "paths/auth.yaml#/~1api~1auth~1recovery" }
+  /api/device/code: { $ref: "paths/auth.yaml#/~1api~1device~1code" }
+  /api/device/token: { $ref: "paths/auth.yaml#/~1api~1device~1token" }
+  /api/machines: { $ref: "paths/auth.yaml#/~1api~1machines" }
+  /api/machines/requests: { $ref: "paths/auth.yaml#/~1api~1machines~1requests" }
+  /api/machines/requests/{id}/approve: { $ref: "paths/auth.yaml#/~1api~1machines~1requests~1{id}~1approve" }
+  /api/machines/requests/{id}/deny: { $ref: "paths/auth.yaml#/~1api~1machines~1requests~1{id}~1deny" }
+  /api/machines/requests/deny-all: { $ref: "paths/auth.yaml#/~1api~1machines~1requests~1deny-all" }
+  /api/machines/{id}: { $ref: "paths/auth.yaml#/~1api~1machines~1{id}" }
+  /api/machines/{id}/reveal: { $ref: "paths/auth.yaml#/~1api~1machines~1{id}~1reveal" }
+  /api/machines/{id}/regenerate: { $ref: "paths/auth.yaml#/~1api~1machines~1{id}~1regenerate" }
+  /api/machines/{id}/revoke: { $ref: "paths/auth.yaml#/~1api~1machines~1{id}~1revoke" }
+  /api/sessions: { $ref: "paths/auth.yaml#/~1api~1sessions" }
+  /api/sessions/renew: { $ref: "paths/auth.yaml#/~1api~1sessions~1renew" }
+  /api/sessions/me: { $ref: "paths/auth.yaml#/~1api~1sessions~1me" }
+  # ---- identity
+  /api/me: { $ref: "paths/identity.yaml#/~1api~1me" }
+  /api/me/profile: { $ref: "paths/identity.yaml#/~1api~1me~1profile" }
+  /api/identities: { $ref: "paths/identity.yaml#/~1api~1identities" }
+  /api/identities/{id}/avatar.svg: { $ref: "paths/identity.yaml#/~1api~1identities~1{id}~1avatar.svg" }
+  /api/crew/agents: { $ref: "paths/identity.yaml#/~1api~1crew~1agents" }
+  /api/identities/{id}/disable: { $ref: "paths/identity.yaml#/~1api~1identities~1{id}~1disable" }
+  # ---- inbox
+  /api/inbox: { $ref: "paths/inbox.yaml#/~1api~1inbox" }
+  /api/inbox/claim: { $ref: "paths/inbox.yaml#/~1api~1inbox~1claim" }
+  /api/inbox/ack: { $ref: "paths/inbox.yaml#/~1api~1inbox~1ack" }
+  # ---- brief
+  /api/brief: { $ref: "paths/brief.yaml#/~1api~1brief" }
+  /api/handoffs: { $ref: "paths/brief.yaml#/~1api~1handoffs" }
+  # ---- conversation
+  /api/conversations: { $ref: "paths/conversation.yaml#/~1api~1conversations" }
+  /api/conversations/{id}: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}" }
+  /api/conversations/{id}/restore: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}~1restore" }
+  /api/conversations/{id}/participants: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}~1participants" }
+  /api/conversations/{id}/participants/{iid}: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}~1participants~1{iid}" }
+  /api/conversations/{id}/participants/{iid}/approve: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}~1participants~1{iid}~1approve" }
+  /api/conversations/{id}/participants/{iid}/decline: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}~1participants~1{iid}~1decline" }
+  /api/conversations/{id}/leave: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}~1leave" }
+  /api/conversations/{id}/resume: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}~1resume" }
+  /api/conversations/{id}/pickup/open: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}~1pickup~1open" }
+  /api/conversations/{id}/pickup: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}~1pickup" }
+  # ---- readstate
+  /api/conversations/{id}/read: { $ref: "paths/readstate.yaml#/~1api~1conversations~1{id}~1read" }
+  # ---- message
+  /api/conversations/{id}/messages: { $ref: "paths/message.yaml#/~1api~1conversations~1{id}~1messages" }
+  /api/messages/{id}: { $ref: "paths/message.yaml#/~1api~1messages~1{id}" }
+  /api/messages/{id}/purge: { $ref: "paths/message.yaml#/~1api~1messages~1{id}~1purge" }
+  /api/messages/{id}/replies: { $ref: "paths/message.yaml#/~1api~1messages~1{id}~1replies" }
+  # ---- appkit
+  /api/apps/validate: { $ref: "paths/appkit.yaml#/~1api~1apps~1validate" }
+  /api/messages/{id}/app: { $ref: "paths/appkit.yaml#/~1api~1messages~1{id}~1app" }
+  /api/apps/{message_id}/frame: { $ref: "paths/appkit.yaml#/~1api~1apps~1{message_id}~1frame" }
+  # ---- unfurl
+  /api/messages/{id}/unfurl: { $ref: "paths/unfurl.yaml#/~1api~1messages~1{id}~1unfurl" }
+  # ---- prefs
+  /api/conversations/{id}/prefs: { $ref: "paths/prefs.yaml#/~1api~1conversations~1{id}~1prefs" }
+  /api/messages/{id}/pin: { $ref: "paths/prefs.yaml#/~1api~1messages~1{id}~1pin" }
+  /api/status: { $ref: "paths/prefs.yaml#/~1api~1status" }
+  # ---- ask
+  /api/asks: { $ref: "paths/ask.yaml#/~1api~1asks" }
+  /api/asks/{id}: { $ref: "paths/ask.yaml#/~1api~1asks~1{id}" }
+  /api/asks/{id}/answer: { $ref: "paths/ask.yaml#/~1api~1asks~1{id}~1answer" }
+  /api/asks/{id}/dismiss: { $ref: "paths/ask.yaml#/~1api~1asks~1{id}~1dismiss" }
+  /api/asks/{id}/undismiss: { $ref: "paths/ask.yaml#/~1api~1asks~1{id}~1undismiss" }
+  /api/asks/{id}/withdraw: { $ref: "paths/ask.yaml#/~1api~1asks~1{id}~1withdraw" }
+  /api/asks/{id}/snooze: { $ref: "paths/ask.yaml#/~1api~1asks~1{id}~1snooze" }
+  /api/now: { $ref: "paths/ask.yaml#/~1api~1now" }
+  # ---- upload
+  /api/uploads: { $ref: "paths/upload.yaml#/~1api~1uploads" }
+  /api/uploads/{id}: { $ref: "paths/upload.yaml#/~1api~1uploads~1{id}" }
+  /api/files/{public_id}: { $ref: "paths/upload.yaml#/~1api~1files~1{public_id}" }
+  # ---- search
+  /api/search: { $ref: "paths/search.yaml#/~1api~1search" }
+  # ---- event
+  /api/stream: { $ref: "paths/event.yaml#/~1api~1stream" }
+  /api/sync: { $ref: "paths/event.yaml#/~1api~1sync" }
+  /api/sync/snapshot: { $ref: "paths/event.yaml#/~1api~1sync~1snapshot" }
+  # ---- notify
+  /api/push/vapid-key: { $ref: "paths/notify.yaml#/~1api~1push~1vapid-key" }
+  /api/push/subscriptions: { $ref: "paths/notify.yaml#/~1api~1push~1subscriptions" }
+  /api/push/test: { $ref: "paths/notify.yaml#/~1api~1push~1test" }
+  # ---- settings
+  /api/settings: { $ref: "paths/settings.yaml#/~1api~1settings" }
+  # ---- ops
+  /api/me/export: { $ref: "paths/ops.yaml#/~1api~1me~1export" }
+  /api/me/delete: { $ref: "paths/ops.yaml#/~1api~1me~1delete" }
+  /api/admin/health: { $ref: "paths/ops.yaml#/~1api~1admin~1health" }
+  # ---- audit
+  /api/admin/audit: { $ref: "paths/audit.yaml#/~1api~1admin~1audit" }
+  # ---- core
+  /healthz: { $ref: "paths/core.yaml#/~1healthz" }
+  /api/ping: { $ref: "paths/core.yaml#/~1api~1ping" }
+  /api/version: { $ref: "paths/core.yaml#/~1api~1version" }
+
+components:
+  securitySchemes:
+    deviceCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-convoz_sid
+
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    StepUp:
+      name: X-Convoz-Step-Up
+      in: header
+      required: true
+      description: The step_up_id of a fresh passkey check for this action.
+      schema: { type: string }
+    StepUpOptional:
+      name: X-Convoz-Step-Up
+      in: header
+      required: false
+      schema: { type: string }
+
+  requestBodies:
+    Empty:
+      required: true
+      content:
+        application/json:
+          schema: { type: object }
+    CeremonyFinish:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [ceremony_id, credential]
+            properties:
+              ceremony_id: { type: string }
+              credential:
+                description: PublicKeyCredential.toJSON() of the finished prompt.
+                type: object
+                additionalProperties: true
+
+  responses:
+    Error:
+      description: An error.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Empty:
+      description: Done.
+      content:
+        application/json:
+          schema: { type: object }
+    Ok:
+      description: Done.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [ok]
+            properties:
+              ok: { type: boolean }
+    Ceremony:
+      description: A WebAuthn ceremony to start in the browser.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [ceremony_id, options]
+            properties:
+              ceremony_id: { type: string }
+              options:
+                type: object
+                required: [publicKey]
+                properties:
+                  publicKey:
+                    description: The JSON form of PublicKeyCredentialCreationOptions or PublicKeyCredentialRequestOptions.
+                    type: object
+                    additionalProperties: true
+    MachineKey:
+      description: The machine key, in this answer only (Cache-Control no-store). Revoke answers an empty object.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              machine_key: { type: string }
+              key_version: { type: integer }
+    OneConversation:
+      description: One conversation.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [conversation]
+            properties:
+              conversation: { $ref: "#/components/schemas/Conversation" }
+    Posted:
+      description: The stored message.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Posted" }
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            field: { type: string }
+            retry_after: { type: integer }
+    ClientId:
+      type: string
+      minLength: 8
+      maxLength: 64
+      description: Made once per command and reused on a retry, so a retry never makes a second one.
+    StepUpAction: { $ref: "components/auth.yaml#/StepUpAction" }
+    Owner: { $ref: "components/identity.yaml#/Owner" }
+    Me: { $ref: "components/identity.yaml#/Me" }
+    Identity: { $ref: "components/identity.yaml#/Identity" }
+    Passkey: { $ref: "components/auth.yaml#/Passkey" }
+    HostInfo: { $ref: "components/auth.yaml#/HostInfo" }
+    MachineRequest: { $ref: "components/auth.yaml#/MachineRequest" }
+    Allow: { $ref: "components/auth.yaml#/Allow" }
+    Machine: { $ref: "components/auth.yaml#/Machine" }
+    Person: { $ref: "components/identity.yaml#/Person" }
+    LastMessage: { $ref: "components/conversation.yaml#/LastMessage" }
+    Conversation: { $ref: "components/conversation.yaml#/Conversation" }
+    Message: { $ref: "components/message.yaml#/Message" }
+    Posted: { $ref: "components/message.yaml#/Posted" }
+    MessageCreatedFrame: { $ref: "components/event.yaml#/MessageCreatedFrame" }
+    ReadMovedFrame: { $ref: "components/event.yaml#/ReadMovedFrame" }
+    AgentWorkingFrame: { $ref: "components/event.yaml#/AgentWorkingFrame" }

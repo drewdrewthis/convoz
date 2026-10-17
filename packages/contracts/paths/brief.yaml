@@ -1,0 +1,4 @@
+# Paths of the brief module (design §13). Only the work package that owns brief edits this file; the root
+# openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
+/api/brief: {}  # not specified yet
+/api/handoffs: {}  # not specified yet

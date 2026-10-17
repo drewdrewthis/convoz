@@ -76,3 +76,83 @@ sql:
         package: db
         omit_unused_structs: true
         out: internal/server/readstate/db
+  - engine: sqlite
+    schema: internal/server/platform/migrations
+    queries: internal/server/ask/queries
+    gen:
+      go:
+        package: db
+        omit_unused_structs: true
+        out: internal/server/ask/db
+  - engine: sqlite
+    schema: internal/server/platform/migrations
+    queries: internal/server/prefs/queries
+    gen:
+      go:
+        package: db
+        omit_unused_structs: true
+        out: internal/server/prefs/db
+  - engine: sqlite
+    schema: internal/server/platform/migrations
+    queries: internal/server/upload/queries
+    gen:
+      go:
+        package: db
+        omit_unused_structs: true
+        out: internal/server/upload/db
+  - engine: sqlite
+    schema: internal/server/platform/migrations
+    queries: internal/server/transcript/queries
+    gen:
+      go:
+        package: db
+        omit_unused_structs: true
+        out: internal/server/transcript/db
+  - engine: sqlite
+    schema: internal/server/platform/migrations
+    queries: internal/server/search/queries
+    gen:
+      go:
+        package: db
+        omit_unused_structs: true
+        out: internal/server/search/db
+  - engine: sqlite
+    schema: internal/server/platform/migrations
+    queries: internal/server/notify/queries
+    gen:
+      go:
+        package: db
+        omit_unused_structs: true
+        out: internal/server/notify/db
+  - engine: sqlite
+    schema: internal/server/platform/migrations
+    queries: internal/server/settings/queries
+    gen:
+      go:
+        package: db
+        omit_unused_structs: true
+        out: internal/server/settings/db
+  - engine: sqlite
+    schema: internal/server/platform/migrations
+    queries: internal/server/unfurl/queries
+    gen:
+      go:
+        package: db
+        omit_unused_structs: true
+        out: internal/server/unfurl/db
+  - engine: sqlite
+    schema: internal/server/platform/migrations
+    queries: internal/server/appkit/queries
+    gen:
+      go:
+        package: db
+        omit_unused_structs: true
+        out: internal/server/appkit/db
+  - engine: sqlite
+    schema: internal/server/platform/migrations
+    queries: internal/server/ops/queries
+    gen:
+      go:
+        package: db
+        omit_unused_structs: true
+        out: internal/server/ops/db

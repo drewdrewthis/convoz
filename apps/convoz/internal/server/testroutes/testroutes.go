@@ -11,5 +11,6 @@ const (
 	UserCodes     = "/__test/user-codes"
 )
 
-// All lists every test route; scripts/release_guard.py probes each one.
+// All lists every test route; scripts/release_guard.py probes each one. A later module appends its own routes from an
+// init function in testroutes/<module>.go, so this list is never edited by two work packages.
 var All = []string{KV, SchemaVersion, Clock, Routes, UserCodes}

@@ -1,0 +1,20 @@
+# Paths of the readstate module (design §13). Only the work package that owns readstate edits this file; the root
+# openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
+/api/conversations/{id}/read:
+  post:
+    operationId: markRead
+    summary: Move the read cursor forward (never past the newest main message).
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [main_id]
+            properties:
+              main_id: { type: integer, format: int64, minimum: 0 }
+    responses:
+      "200": { $ref: "../openapi.yaml#/components/responses/Empty" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }

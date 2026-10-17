@@ -1,46 +1,63 @@
 package console
 
 import (
+	"io/fs"
 	"math"
+	"net/http"
+	"net/http/httptest"
 	"regexp"
 	"strconv"
 	"strings"
 	"testing"
 )
 
-// The default look is dark: the bare :root block (no media query) must define a dark page, and only the
-// prefers-color-scheme: light block may lighten it. A browser with no preference, or one that cannot evaluate
-// the query, therefore gets dark.
-func TestCSSDefaultIsDarkAndLightIsTheOverride(t *testing.T) {
-	raw, err := files.ReadFile("static/console.css")
+// builtCSS is the stylesheet the web build ships.
+func builtCSS(t *testing.T) string {
+	t.Helper()
+	requireBuild(t)
+	names, err := fs.Glob(dist, "web/assets/*.css")
+	if err != nil || len(names) != 1 {
+		t.Fatalf("want one built stylesheet, got %v (%v)", names, err)
+	}
+	raw, err := dist.ReadFile(names[0])
 	if err != nil {
 		t.Fatal(err)
 	}
-	css := string(raw)
-	mediaAt := strings.Index(css, "@media (prefers-color-scheme: light)")
-	if mediaAt < 0 {
+	return string(raw)
+}
+
+// The default look is dark: the theme (no media query) must define a dark page, and only the prefers-color-scheme: light
+// block may lighten it. A browser with no preference, or one that cannot evaluate the query, therefore gets dark.
+func TestCSSDefaultIsDarkAndLightIsTheOverride(t *testing.T) {
+	css := builtCSS(t)
+	light := regexp.MustCompile(`@media\s*\(prefers-color-scheme:\s*light\)`).FindStringIndex(css)
+	if light == nil {
 		t.Fatal("no light override block")
 	}
-	base, light := css[:mediaAt], css[mediaAt:]
-	if !regexp.MustCompile(`:root\s*\{`).MatchString(base) {
-		t.Fatal("no bare :root block before the media query")
+	base, over := css[:light[0]], css[light[0]:]
+	if !strings.Contains(base, ":root") {
+		t.Fatal("no :root theme before the media query")
 	}
-	bg, text := customProperty(t, base, "--bg"), customProperty(t, base, "--text")
+	bg, text := customProperty(t, base, "--color-surface"), customProperty(t, base, "--color-text")
 	if luminance(t, bg) > 0.1 || luminance(t, text) < 0.6 {
-		t.Fatalf("the default must be light text on a dark page: --bg %s, --text %s", bg, text)
+		t.Fatalf("the default must be light text on a dark page: surface %s, text %s", bg, text)
 	}
-	if luminance(t, customProperty(t, light, "--bg")) < 0.8 || luminance(t, customProperty(t, light, "--text")) > 0.1 {
+	if luminance(t, customProperty(t, over, "--color-surface")) < 0.8 || luminance(t, customProperty(t, over, "--color-text")) > 0.1 {
 		t.Fatal("the prefers-color-scheme: light block must give dark text on a light page")
 	}
 }
 
 func customProperty(t *testing.T, css, name string) string {
 	t.Helper()
-	m := regexp.MustCompile(regexp.QuoteMeta(name) + `:\s*(#[0-9a-fA-F]{6})\s*;`).FindStringSubmatch(css)
+	m := regexp.MustCompile(regexp.QuoteMeta(name) + `:\s*(#[0-9a-fA-F]{6}|#[0-9a-fA-F]{3})\b`).FindStringSubmatch(css)
 	if m == nil {
-		t.Fatalf("%s is not a #rrggbb value here", name)
+		t.Fatalf("%s is not a hex colour here", name)
 	}
-	return m[1]
+	hex := m[1]
+	if len(hex) == 4 {
+		hex = "#" + strings.Repeat(hex[1:2], 2) + strings.Repeat(hex[2:3], 2) + strings.Repeat(hex[3:4], 2)
+	}
+	return hex
 }
 
 // luminance is the WCAG relative luminance of a #rrggbb colour, 0 (black) to 1 (white).
@@ -58,4 +75,54 @@ func luminance(t *testing.T, hex string) float64 {
 		return math.Pow((c+0.055)/1.055, 2.4)
 	}
 	return 0.2126*channel(1) + 0.7152*channel(3) + 0.0722*channel(5)
+}
+
+// The page loads only our own files: no inline script or style needs a nonce, and every asset it names is served.
+func TestPageNeedsNoInlineCodeAndItsAssetsAreServed(t *testing.T) {
+	requireBuild(t)
+	page := string(index)
+	if regexp.MustCompile(`<script(?:\s[^>]*)?>[^<]`).MatchString(page) || strings.Contains(page, "<style") || strings.Contains(page, " style=") {
+		t.Fatal("index.html carries inline script or style, which the CSP refuses")
+	}
+	for _, m := range regexp.MustCompile(`(?:src|href)="/assets/([^"/]+)"`).FindAllStringSubmatch(page, -1) {
+		if m[1] == "lookalikes.js" { // served by httpapi from the identity table
+			continue
+		}
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/assets/"+m[1], nil)
+		req.SetPathValue("file", m[1])
+		Asset(rec, req)
+		if rec.Code != http.StatusOK || !strings.Contains(rec.Header().Get("Cache-Control"), "immutable") {
+			t.Fatalf("/assets/%s: %d %q", m[1], rec.Code, rec.Header().Get("Cache-Control"))
+		}
+	}
+}
+
+func TestNotFoundMarksTheDocument(t *testing.T) {
+	requireBuild(t)
+	rec := httptest.NewRecorder()
+	NotFound(rec, httptest.NewRequest("GET", "/chats/9", nil))
+	if rec.Code != http.StatusNotFound || !strings.Contains(rec.Body.String(), notFoundMark) || rec.Header().Get("Content-Security-Policy") != CSP {
+		t.Fatalf("404 page: %d, marked %v", rec.Code, strings.Contains(rec.Body.String(), notFoundMark))
+	}
+}
+
+func TestAssetRefusesNamesThatAreNotBuildFiles(t *testing.T) {
+	for _, name := range []string{"", "../index.html", ".hidden.js", "x.html", "nope.js"} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/assets/x", nil)
+		req.SetPathValue("file", name)
+		Asset(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("%q: %d", name, rec.Code)
+		}
+	}
+}
+
+// requireBuild fails (never skips) a test that needs the web build: CI and `make build` build it first.
+func requireBuild(t *testing.T) {
+	t.Helper()
+	if !Built() {
+		t.Fatal("the web app is not built into console/web: run make -C apps/convoz web")
+	}
 }

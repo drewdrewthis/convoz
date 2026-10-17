@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://convoz.dev/events/message.created.v1.json",
+  "title": "message.created.v1",
+  "description": "A message was written (thin: ids only, I-23). The stream hydrates it into a MessageCreatedFrame.",
+  "type": "object",
+  "required": [
+    "id",
+    "kind",
+    "conversation_id"
+  ],
+  "properties": {
+    "id": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "kind": {
+      "type": "string"
+    },
+    "conversation_id": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,5 @@
+# Paths of the appkit module (design §13). Only the work package that owns appkit edits this file; the root
+# openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
+/api/apps/validate: {}  # not specified yet
+/api/messages/{id}/app: {}  # not specified yet
+/api/apps/{message_id}/frame: {}  # not specified yet

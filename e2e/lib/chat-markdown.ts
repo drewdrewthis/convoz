@@ -1,30 +1,19 @@
-import fs from "node:fs";
-import path from "node:path";
 import vm from "node:vm";
-import { repoRoot } from "./paths.ts";
-
-const chatJs = path.join(repoRoot, "apps/convoz/internal/server/console/static/chat.js");
+import { createRenderer } from "../../packages/markdown/src/index.ts";
 
 /**
- * loadRenderMarkdown evaluates the real "safe markdown" section of chat.js in plain Node, with a stub for the console's el().
+ * loadRenderMarkdown runs the web app's real "safe markdown" renderer (packages/markdown, the module the page bundles) in plain Node.
  * Chromium's V8 falls back to a linear regex engine on heavy backtracking, so a browser timing cannot catch a slow regex;
  * iPhone Safari has no such fallback. Node's V8 backtracks for real, so timing here is the honest guard.
  * The lookalike-punctuation set is fetched from the running server's /assets/lookalikes.js, the same bytes the page gets,
- * so the Go table stays its only owner.
+ * so the Go table stays its only owner. The renderer returns a plain tree of {tag, attrs, kids}.
  */
 export async function loadRenderMarkdown(origin: string, options: { withLookalikes?: boolean } = {}): Promise<(source: string) => unknown> {
   // withLookalikes: false loads no asset, like a page whose /assets/lookalikes.js failed to load
-  const lookalikes = options.withLookalikes === false ? "" : await (await fetch(`${origin}/assets/lookalikes.js`)).text();
-  const text = fs.readFileSync(chatJs, "utf8");
-  const from = text.indexOf("// ---- safe markdown");
-  const to = text.indexOf("// ---- a conversation");
-  if (from < 0 || to < from) throw new Error("chat.js section markers moved");
-  const el = (tag: string, attrs: unknown, ...kids: unknown[]) => {
-    const node = { tag, attrs, kids, append: (...more: unknown[]) => void kids.push(...more) };
-    return node;
-  };
+  if (options.withLookalikes === false) return createRenderer(null);
+  const asset = await (await fetch(`${origin}/assets/lookalikes.js`)).text();
   const context = vm.createContext({});
-  vm.runInContext(lookalikes, context);
-  const make = vm.runInContext(`(function (el, URL) { ${text.slice(from, to)}\n return renderMarkdown; })`, context);
-  return make(el, URL);
+  vm.runInContext(asset, context);
+  const set = (context as { CONVOZ_LOOKALIKES?: unknown }).CONVOZ_LOOKALIKES;
+  return createRenderer(typeof set === "string" ? set : null);
 }

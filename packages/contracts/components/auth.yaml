@@ -1,0 +1,55 @@
+# Schemas of the auth module. Only the work package that owns auth edits this file; the root lists each by name.
+StepUpAction:
+  type: string
+  enum: [passkey.add, passkey.remove, recovery.regenerate, machine.approve, machine.reveal, machine.regenerate, machine.revoke, machine.allow, identity.create, identity.disable]
+Passkey:
+  type: object
+  required: [id, label, registered_via, created_at, last_used_at, this_device]
+  properties:
+    id: { type: integer, format: int64 }
+    label: { type: string }
+    registered_via: { type: string, enum: [bootstrap, session, recovery] }
+    created_at: { type: integer, format: int64 }
+    last_used_at: { type: ["integer", "null"], format: int64 }
+    this_device: { type: boolean, description: The passkey the calling device signed in with. }
+HostInfo:
+  type: object
+  description: What the machine says about itself, labelled as reported.
+  properties:
+    hostname: { type: string }
+    os: { type: string }
+    arch: { type: string }
+    cli_version: { type: string }
+MachineRequest:
+  type: object
+  required: [id, name, user_code, host_info, source_ip, node_name, created_at, expires_at]
+  properties:
+    id: { type: integer, format: int64 }
+    name: { type: string }
+    user_code: { type: string }
+    host_info:
+      oneOf:
+        - $ref: "../openapi.yaml#/components/schemas/HostInfo"
+        - type: "null"
+    source_ip: { type: ["string", "null"] }
+    node_name: { type: ["string", "null"] }
+    created_at: { type: integer, format: int64 }
+    expires_at: { type: integer, format: int64 }
+Allow:
+  type: object
+  required: [mode, identities, globs]
+  properties:
+    mode: { type: string, enum: [any, list] }
+    identities: { type: array, items: { type: string }, description: Handles. }
+    globs: { type: array, items: { type: string } }
+Machine:
+  type: object
+  required: [id, name, key_hint, scopes, allow, live_sessions, last_used_at]
+  properties:
+    id: { type: integer, format: int64 }
+    name: { type: string }
+    key_hint: { type: string }
+    scopes: { type: array, items: { type: string } }
+    allow: { $ref: "../openapi.yaml#/components/schemas/Allow" }
+    live_sessions: { type: integer }
+    last_used_at: { type: ["integer", "null"], format: int64 }

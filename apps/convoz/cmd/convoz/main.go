@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/cli"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform"
@@ -29,29 +30,16 @@ func main() {
 	switch os.Args[1] {
 	case "serve":
 		os.Exit(serve(os.Args[2:]))
-	case "admin":
-		os.Exit(cli.Admin(os.Args[2:], os.Stdout, os.Stderr))
-	case "login":
-		cli.Version = version
-		os.Exit(cli.Login(os.Args[2:], processIO()))
-	case "whoami":
-		os.Exit(cli.Whoami(os.Args[2:], processIO()))
-	case "session":
-		os.Exit(session(os.Args[2:]))
-	case "post":
-		os.Exit(cli.Post(os.Args[2:], processIO()))
-	case "read":
-		os.Exit(cli.Read(os.Args[2:], processIO()))
-	case "inbox":
-		os.Exit(cli.Inbox(os.Args[2:], processIO()))
-	case "ack":
-		os.Exit(cli.Ack(os.Args[2:], processIO()))
-	case "watch":
-		os.Exit(cli.Watch(os.Args[2:], processIO()))
 	case "version":
 		fmt.Printf("convoz %s (schema %d)\n", version, platform.LatestVersion())
 	default:
-		usage()
+		// every client command comes from the CLI registry (internal/cli/cmd_<name>.go)
+		cmd, ok := cli.Lookup(os.Args[1])
+		if !ok {
+			usage()
+		}
+		cli.Version = version
+		os.Exit(cmd.Run(os.Args[2:], processIO()))
 	}
 }
 
@@ -59,32 +47,9 @@ func processIO() cli.IO {
 	return cli.IO{Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr, Getenv: os.Getenv}
 }
 
-// session dispatches `convoz session start|end`.
-func session(args []string) int {
-	if len(args) > 0 {
-		switch args[0] {
-		case "start":
-			return cli.SessionStart(args[1:], processIO())
-		case "end":
-			return cli.SessionEnd(args[1:], processIO())
-		}
-	}
-	fmt.Fprintln(os.Stderr, "convoz: usage: convoz session start --as HANDLE [--create --name NAME] [--label L] [--client-id C]\n       convoz session end [--sid SID]")
-	return exitUsage
-}
-
 func usage() {
-	fmt.Fprintln(os.Stderr, "convoz: usage: convoz serve --data-dir D --host NAME[:PORT] [--kek-file F] [--listen ADDR] [--admin-socket P] [--ready-file F] [--tailscale check|off] [--tailscale-bin B]\n"+
-		"       convoz admin bootstrap-link [--admin-socket P]\n"+
-		"       convoz login --server URL [--name N] [--store file|keychain|auto] [--stdin]\n"+
-		"       convoz whoami [--sid SID | --as HANDLE] [--json]\n"+
-		"       convoz session start|end ...\n"+
-		"       convoz post [--format F] [--client-id C] <conv> <text|->\n"+
-		"       convoz read [--since ID] [--limit N] <conv>\n"+
-		"       convoz inbox [--wait S] [--peek] [--claim N] [--visibility D]\n"+
-		"       convoz ack <id:token>...\n"+
-		"       convoz watch [--json]\n"+
-		"       (post, read, inbox, ack and watch also take --sid SID | --as HANDLE, --json and --timeout D)\n"+
-		"       convoz version")
+	lines := append([]string{"convoz serve --data-dir D --host NAME[:PORT] [--kek-file F] [--listen ADDR] [--admin-socket P] [--ready-file F] [--tailscale check|off] [--tailscale-bin B]"},
+		cli.Usages()...)
+	fmt.Fprintln(os.Stderr, "convoz: usage: "+strings.Join(append(lines, "convoz version"), "\n       "))
 	os.Exit(exitUsage)
 }

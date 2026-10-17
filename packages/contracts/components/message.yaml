@@ -1,0 +1,17 @@
+# Schemas of the message module. Only the work package that owns message edits this file; the root lists each by name.
+Message:
+  type: object
+  required: [id, author, body, format, created_at]
+  properties:
+    id: { type: integer, format: int64 }
+    author: { $ref: "../openapi.yaml#/components/schemas/Person" }
+    body: { type: string }
+    format: { type: string, enum: [plain, markdown] }
+    created_at: { type: integer, format: int64 }
+Posted:
+  type: object
+  required: [id, conversation_id, created_at]
+  properties:
+    id: { type: integer, format: int64 }
+    conversation_id: { type: integer, format: int64 }
+    created_at: { type: integer, format: int64 }

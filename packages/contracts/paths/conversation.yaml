@@ -1,0 +1,52 @@
+# Paths of the conversation module (design §13). Only the work package that owns conversation edits this file; the root
+# openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
+/api/conversations:
+  get:
+    operationId: listConversations
+    summary: The caller's conversations, newest activity first.
+    responses:
+      "200":
+        description: The list.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [conversations]
+              properties:
+                conversations: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Conversation" } }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+  post:
+    operationId: createConversation
+    summary: Make a conversation. The same client_id again answers 200 with the one it made.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [client_id]
+            properties:
+              client_id: { $ref: "../openapi.yaml#/components/schemas/ClientId" }
+              title: { type: string }
+              participants: { type: array, items: { type: string }, description: Handles. }
+    responses:
+      "200": { $ref: "../openapi.yaml#/components/responses/OneConversation" }
+      "201": { $ref: "../openapi.yaml#/components/responses/OneConversation" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/conversations/{id}:
+  get:
+    operationId: getConversation
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    responses:
+      "200": { $ref: "../openapi.yaml#/components/responses/OneConversation" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/conversations/{id}/restore: {}  # not specified yet
+/api/conversations/{id}/participants: {}  # not specified yet
+/api/conversations/{id}/participants/{iid}: {}  # not specified yet
+/api/conversations/{id}/participants/{iid}/approve: {}  # not specified yet
+/api/conversations/{id}/participants/{iid}/decline: {}  # not specified yet
+/api/conversations/{id}/leave: {}  # not specified yet
+/api/conversations/{id}/resume: {}  # not specified yet
+/api/conversations/{id}/pickup/open: {}  # not specified yet
+/api/conversations/{id}/pickup: {}  # not specified yet

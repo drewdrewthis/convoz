@@ -1,0 +1,23 @@
+# Paths of the ask module (design §13). Only the work package that owns ask edits this file; the root
+# openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
+/api/now:
+  get:
+    operationId: now
+    responses:
+      "200":
+        description: What waits for the owner.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [machine_requests]
+              properties:
+                machine_requests: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/MachineRequest" } }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/asks: {}  # not specified yet
+/api/asks/{id}: {}  # not specified yet
+/api/asks/{id}/answer: {}  # not specified yet
+/api/asks/{id}/dismiss: {}  # not specified yet
+/api/asks/{id}/undismiss: {}  # not specified yet
+/api/asks/{id}/withdraw: {}  # not specified yet
+/api/asks/{id}/snooze: {}  # not specified yet

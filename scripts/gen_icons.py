@@ -1,7 +1,8 @@
-"""Draw the Convoz app icons (a blue "C" ring on near-black) into the console's static dir. Run once; the PNGs are committed.
+"""Draw the Convoz app icons (a blue "C" ring on near-black) into the web app's public dir. Run once; the PNGs are committed.
 
-Usage: python3 -I scripts/gen_icons.py apps/convoz/internal/server/console/static
-Writes icon-192.png, icon-512.png, apple-touch-icon.png and favicon.ico into the given directory.
+Usage: python3 -I scripts/gen_icons.py apps/web/public
+Writes assets/icon-192.png, assets/icon-512.png, apple-touch-icon.png and favicon.ico under the given directory (the
+paths the server serves them at).
 """
 import math, struct, sys, zlib
 from pathlib import Path
@@ -37,6 +38,7 @@ if __name__ == "__main__":
     if len(sys.argv) != 2:
         sys.exit(__doc__)
     out = Path(sys.argv[1])
-    for name, n in (("icon-192.png", 192), ("icon-512.png", 512), ("apple-touch-icon.png", 180)):
+    (out / "assets").mkdir(exist_ok=True)
+    for name, n in (("assets/icon-192.png", 192), ("assets/icon-512.png", 512), ("apple-touch-icon.png", 180)):
         (out / name).write_bytes(png(n))
     (out / "favicon.ico").write_bytes(ico(png(48), 48))

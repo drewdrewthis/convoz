@@ -122,7 +122,15 @@ func registerTestHooks(mux *http.ServeMux, s *Server) {
 		}
 		reply(w, nil, map[string]any{"routes": rows})
 	})
+	for _, add := range moduleHooks {
+		add(mux, s)
+	}
 }
+
+// moduleHooks are the test hooks of the later modules (fake push service, fake transcriber, seed routes). Each module
+// registers its own from hooks_on_<module>.go in an init function, so no work package edits this file; its route names
+// go in testroutes/<module>.go, so the release guard probes them.
+var moduleHooks []func(mux *http.ServeMux, s *Server)
 
 var userCodeShape = regexp.MustCompile(`^[BCDFGHJKLMNPQRSTVWXZ]{4}-[BCDFGHJKLMNPQRSTVWXZ]{4}$`)
 

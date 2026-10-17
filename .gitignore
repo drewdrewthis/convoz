@@ -6,3 +6,8 @@ apps/convoz/bin/
 *.log
 __pycache__/
 dist/
+# The web app build embedded by the console package; only its placeholder is committed.
+apps/convoz/internal/server/console/web/*
+!apps/convoz/internal/server/console/web/placeholder.txt
+# Ladle build output (packages/ui)
+ladle-build/

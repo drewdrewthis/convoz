@@ -1,0 +1,2 @@
+The web app (apps/web) is built into this folder by `make web` (pnpm --filter web build) and embedded in the binary.
+Only this file is committed; it keeps the folder, so the Go package compiles before the first web build.

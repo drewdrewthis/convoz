@@ -1,0 +1,5 @@
+# Paths of the ops module (design §13). Only the work package that owns ops edits this file; the root
+# openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
+/api/me/export: {}  # not specified yet
+/api/me/delete: {}  # not specified yet
+/api/admin/health: {}  # not specified yet

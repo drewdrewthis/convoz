@@ -1,0 +1,37 @@
+{
+  "name": "@convoz/web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "node ../../packages/tokens/build.mjs && vite build",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p src/sw",
+    "size": "size-limit"
+  },
+  "dependencies": {
+    "@convoz/api-client": "workspace:*",
+    "@convoz/markdown": "workspace:*",
+    "@convoz/ui": "workspace:*",
+    "@tanstack/react-virtual": "3.14.13",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "workbox-precaching": "7.4.1",
+    "workbox-routing": "7.4.1",
+    "workbox-strategies": "7.4.1",
+    "workbox-window": "7.4.1",
+    "zustand": "5.0.15"
+  },
+  "devDependencies": {
+    "@convoz/tokens": "workspace:*",
+    "@size-limit/file": "14.1.0",
+    "@tailwindcss/vite": "4.3.3",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "fast-check": "4.10.2",
+    "size-limit": "14.1.0",
+    "tailwindcss": "4.3.3",
+    "typescript": "5.9.3",
+    "vite": "8.3.1"
+  }
+}

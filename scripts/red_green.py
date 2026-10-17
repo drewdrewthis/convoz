@@ -116,16 +116,29 @@ def checkout(sha, dest, tests_from=None):
 
 
 def default_runner(directory, titles):
-    """Build the testhooks binary in `directory` and run `titles` with Playwright; title -> passed|failed."""
+    """Build `directory` the way CI does (pnpm install, the web app when the tree has one, the testhooks binary) and run
+    `titles` with Playwright; title -> passed|failed. A step that runs out of time is a RunnerError, never "red"."""
+    try:
+        return _build_and_run(directory, titles)
+    except subprocess.TimeoutExpired as err:
+        raise RunnerError(f"timed out after {err.timeout}s: {' '.join(map(str, err.cmd))[:200]}") from None
+
+
+def _build_and_run(directory, titles):
     gotool = load(os.path.join(HERE, "gotool.py"), "gotool")
     env = dict(os.environ, GOFLAGS="-mod=readonly")
+    pnpm = os.environ.get("PNPM_BIN", "pnpm")
+    if subprocess.run([pnpm, "install", "--frozen-lockfile"], cwd=directory, capture_output=True, timeout=900).returncode != 0:
+        raise RunnerError("pnpm install failed")
+    # The Go binary embeds the web build, so the web app is built first (an older tree without apps/web has none).
+    if os.path.isdir(os.path.join(directory, "apps", "web")):
+        web = subprocess.run([pnpm, "--filter", "@convoz/web", "build"], cwd=directory, capture_output=True, text=True, timeout=600)
+        if web.returncode != 0:
+            raise RunnerError("web build failed: " + (web.stdout + web.stderr).strip()[-500:])
     built = subprocess.run([gotool.go_bin(), "build", "-trimpath", "-tags", "testhooks", "-o", "bin/convoz-test", "./cmd/convoz"],
                            cwd=os.path.join(directory, "apps", "convoz"), env=env, capture_output=True, text=True, timeout=600)
     if built.returncode != 0:
         raise RunnerError("go build failed: " + built.stderr.strip()[-500:])
-    pnpm = os.environ.get("PNPM_BIN", "pnpm")
-    if subprocess.run([pnpm, "install", "--frozen-lockfile"], cwd=directory, capture_output=True, timeout=900).returncode != 0:
-        raise RunnerError("pnpm install failed")
     grep = "|".join(re.escape(t) for t in titles)
     # The e2e config writes the JSON report to e2e/report/results.json. A red run exits non-zero, so the
     # exit code is not checked: the report decides.

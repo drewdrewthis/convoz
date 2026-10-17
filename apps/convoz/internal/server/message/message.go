@@ -50,7 +50,9 @@ type Draft struct {
 	Device       int64
 	ClientID     string
 	Body         string
-	Format       string // empty means markdown
+	Format       string   // empty means markdown
+	App          []byte   // an app message's app.v1 JSON (appkit); nil for none
+	UploadIDs    []string // public ids of the uploads the message carries; nil for none
 }
 
 func nullInt(v int64) sql.NullInt64 { return sql.NullInt64{Int64: v, Valid: v != 0} }

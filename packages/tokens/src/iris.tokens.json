@@ -171,6 +171,66 @@
       "amber": {
         "$type": "color",
         "$value": "#A26900"
+      },
+      "soft": {
+        "$type": "color",
+        "$value": "#F1EDFD"
+      },
+      "selection": {
+        "$type": "color",
+        "$value": "#F0F0F2"
+      },
+      "you": {
+        "$type": "color",
+        "$value": "#E7E5F0"
+      },
+      "avatar-0-bg": {
+        "$type": "color",
+        "$value": "#D7E8FE"
+      },
+      "avatar-0-fg": {
+        "$type": "color",
+        "$value": "#39659B"
+      },
+      "avatar-1-bg": {
+        "$type": "color",
+        "$value": "#EAE1FE"
+      },
+      "avatar-1-fg": {
+        "$type": "color",
+        "$value": "#6C5594"
+      },
+      "avatar-2-bg": {
+        "$type": "color",
+        "$value": "#F6E4C5"
+      },
+      "avatar-2-fg": {
+        "$type": "color",
+        "$value": "#815C0A"
+      },
+      "avatar-3-bg": {
+        "$type": "color",
+        "$value": "#CAF1E2"
+      },
+      "avatar-3-fg": {
+        "$type": "color",
+        "$value": "#057259"
+      },
+      "avatar-4-bg": {
+        "$type": "color",
+        "$value": "#FEDDE0"
+      },
+      "avatar-4-fg": {
+        "$type": "color",
+        "$value": "#934954"
+      },
+      "avatar-5-bg": {
+        "$type": "color",
+        "$value": "#E6E5EE"
+      },
+      "avatar-5-fg": {
+        "$type": "color",
+        "$value": "#63626A"
       }
     }
   },
@@ -335,6 +395,66 @@
       "amber": {
         "$type": "color",
         "$value": "#FFBC64"
+      },
+      "soft": {
+        "$type": "color",
+        "$value": "#262452"
+      },
+      "selection": {
+        "$type": "color",
+        "$value": "#262A3D"
+      },
+      "you": {
+        "$type": "color",
+        "$value": "#242A42"
+      },
+      "avatar-0-bg": {
+        "$type": "color",
+        "$value": "#1A314E"
+      },
+      "avatar-0-fg": {
+        "$type": "color",
+        "$value": "#90BAF1"
+      },
+      "avatar-1-bg": {
+        "$type": "color",
+        "$value": "#35294A"
+      },
+      "avatar-1-fg": {
+        "$type": "color",
+        "$value": "#C0ABE9"
+      },
+      "avatar-2-bg": {
+        "$type": "color",
+        "$value": "#402C05"
+      },
+      "avatar-2-fg": {
+        "$type": "color",
+        "$value": "#D6B174"
+      },
+      "avatar-3-bg": {
+        "$type": "color",
+        "$value": "#023A2C"
+      },
+      "avatar-3-fg": {
+        "$type": "color",
+        "$value": "#79CAAF"
+      },
+      "avatar-4-bg": {
+        "$type": "color",
+        "$value": "#4A2228"
+      },
+      "avatar-4-fg": {
+        "$type": "color",
+        "$value": "#EBA0A8"
+      },
+      "avatar-5-bg": {
+        "$type": "color",
+        "$value": "#302F36"
+      },
+      "avatar-5-fg": {
+        "$type": "color",
+        "$value": "#B7B6BF"
       }
     }
   }

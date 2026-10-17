@@ -1,0 +1,17 @@
+# Paths of the event module (design §13). Only the work package that owns event edits this file; the root
+# openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
+/api/stream:
+  get:
+    operationId: stream
+    summary: |
+      Server-sent events: message.created, read.moved, conversation.created (ids "epoch:seq", resumable with Last-Event-ID),
+      and the live-only agent.working. Frame payloads are the StreamFrame schemas.
+    responses:
+      "200":
+        description: The event stream.
+        content:
+          text/event-stream:
+            schema: { type: string }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/sync: {}  # not specified yet
+/api/sync/snapshot: {}  # not specified yet

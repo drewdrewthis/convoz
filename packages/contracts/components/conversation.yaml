@@ -1,0 +1,22 @@
+# Schemas of the conversation module. Only the work package that owns conversation edits this file; the root lists each by name.
+LastMessage:
+  type: object
+  required: [id, author_handle, preview]
+  properties:
+    id: { type: integer, format: int64 }
+    author_handle: { type: string }
+    preview: { type: string, description: At most 140 characters, one line, plain text. }
+Conversation:
+  type: object
+  required: [id, title, created_at, last_activity_at, participants, last, unread]
+  properties:
+    id: { type: integer, format: int64 }
+    title: { type: ["string", "null"] }
+    created_at: { type: integer, format: int64 }
+    last_activity_at: { type: integer, format: int64 }
+    participants: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Person" } }
+    last:
+      oneOf:
+        - $ref: "../openapi.yaml#/components/schemas/LastMessage"
+        - type: "null"
+    unread: { type: integer }

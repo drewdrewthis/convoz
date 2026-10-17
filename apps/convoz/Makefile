@@ -1,14 +1,19 @@
 # Release build: no tags. Test build: -tags testhooks. Both are reproducible (-trimpath).
+# Both embed the web app (apps/web, built into internal/server/console/web), so both build it first: no binary ships a stale UI.
 GO ?= go
+PNPM ?= pnpm
 export GOFLAGS := -mod=readonly
 
-.PHONY: build release testhooks sqlc sqlc-check lint-boundaries lint-go-imports lint-table-ownership
+.PHONY: build release testhooks web sqlc sqlc-check lint-boundaries lint-go-imports lint-table-ownership
 build: release testhooks
 
-release:
+web:
+	$(PNPM) --dir ../.. --filter web build
+
+release: web
 	$(GO) build -trimpath -o bin/convoz ./cmd/convoz
 
-testhooks:
+testhooks: web
 	$(GO) build -trimpath -tags testhooks -o bin/convoz-test ./cmd/convoz
 
 # sqlc is pinned by the tool directive in go.mod; generated code is committed.

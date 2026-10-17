@@ -51,7 +51,7 @@ Feature: Build and quality gates (contracts)
         | imports internal/server from internal/cli or internal/mcp        | go-imports       |
 
     # Split out of "CI fails a boundary break": the web and contract rows belong to S-U1.
-    @v1 @cli @AC-16 @unimplemented
+    @v1 @cli @AC-16
     Scenario Outline: CI fails a web or contract boundary break
       Given a branch that <breaks>
       When CI runs

@@ -1,0 +1,353 @@
+# Paths of the auth module (design §13). Only the work package that owns auth edits this file; the root
+# openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
+/api/auth/bootstrap/check:
+  post:
+    operationId: bootstrapCheck
+    summary: What the setup link in the page is worth. Changes nothing.
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [token]
+            properties:
+              token: { type: string }
+    responses:
+      "200":
+        description: The link state.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [state]
+              properties:
+                state: { type: string, enum: [ok, invalid, used, expired] }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/auth/bootstrap/options:
+  post:
+    operationId: bootstrapOptions
+    summary: Start the first passkey registration of a setup link.
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [token]
+            properties:
+              token: { type: string }
+              handle: { type: string }
+              display_name: { type: string }
+    responses:
+      "200": { $ref: "../openapi.yaml#/components/responses/Ceremony" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/auth/bootstrap/verify:
+  post:
+    operationId: bootstrapVerify
+    summary: Finish the registration; sets the device cookie. The recovery codes come only when the owner was made now.
+    security: []
+    requestBody: { $ref: "../openapi.yaml#/components/requestBodies/CeremonyFinish" }
+    responses:
+      "200":
+        description: The owner, and the recovery codes once.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [owner]
+              properties:
+                owner: { $ref: "../openapi.yaml#/components/schemas/Owner" }
+                recovery_codes: { type: array, items: { type: string } }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/auth/passkey/login/options:
+  post:
+    operationId: loginOptions
+    security: []
+    requestBody: { $ref: "../openapi.yaml#/components/requestBodies/Empty" }
+    responses:
+      "200": { $ref: "../openapi.yaml#/components/responses/Ceremony" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/auth/passkey/login/verify:
+  post:
+    operationId: loginVerify
+    summary: Sign in; sets the device cookie.
+    security: []
+    requestBody: { $ref: "../openapi.yaml#/components/requestBodies/CeremonyFinish" }
+    responses:
+      "200":
+        description: Signed in.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [owner]
+              properties:
+                owner: { $ref: "../openapi.yaml#/components/schemas/Owner" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/auth/recovery:
+  post:
+    operationId: useRecoveryCode
+    summary: Use one recovery code; the device gets a limited session that may only add a passkey.
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [code]
+            properties:
+              code: { type: string }
+    responses:
+      "200":
+        description: A limited device session.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [limited]
+              properties:
+                limited: { type: boolean }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/auth/passkey/register/options:
+  post:
+    operationId: registerOptions
+    requestBody: { $ref: "../openapi.yaml#/components/requestBodies/Empty" }
+    responses:
+      "200": { $ref: "../openapi.yaml#/components/responses/Ceremony" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/auth/passkey/register/verify:
+  post:
+    operationId: registerVerify
+    summary: Add a passkey. A full device needs a step-up (passkey.add); a recovery device does not and gets a full session.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/StepUpOptional"
+    requestBody: { $ref: "../openapi.yaml#/components/requestBodies/CeremonyFinish" }
+    responses:
+      "200": { $ref: "../openapi.yaml#/components/responses/Ok" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/auth/step-up/options:
+  post:
+    operationId: stepUpOptions
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [action]
+            properties:
+              action: { $ref: "../openapi.yaml#/components/schemas/StepUpAction" }
+              target_id: { type: integer, format: int64 }
+    responses:
+      "200": { $ref: "../openapi.yaml#/components/responses/Ceremony" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/auth/step-up/verify:
+  post:
+    operationId: stepUpVerify
+    requestBody: { $ref: "../openapi.yaml#/components/requestBodies/CeremonyFinish" }
+    responses:
+      "200":
+        description: The single-use step-up, for X-Convoz-Step-Up.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [step_up_id]
+              properties:
+                step_up_id: { type: integer, format: int64 }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/auth/logout:
+  post:
+    operationId: logout
+    summary: Revoke this device; answers Clear-Site-Data.
+    requestBody: { $ref: "../openapi.yaml#/components/requestBodies/Empty" }
+    responses:
+      "204": { description: Signed out. }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/me/passkeys:
+  get:
+    operationId: passkeys
+    responses:
+      "200":
+        description: The owner's active passkeys.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [passkeys]
+              properties:
+                passkeys: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Passkey" } }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/me/passkeys/{id}:
+  delete:
+    operationId: removePasskey
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+      - $ref: "../openapi.yaml#/components/parameters/StepUp"
+    responses:
+      "204": { description: Removed. }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/me/recovery-codes:
+  get:
+    operationId: recoveryCodesLeft
+    responses:
+      "200":
+        description: How many codes can still be used.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [remaining]
+              properties:
+                remaining: { type: integer }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+  post:
+    operationId: regenerateRecoveryCodes
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/StepUp"
+    requestBody: { $ref: "../openapi.yaml#/components/requestBodies/Empty" }
+    responses:
+      "200":
+        description: Ten new codes, shown once; the old ones stop working.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [recovery_codes]
+              properties:
+                recovery_codes: { type: array, items: { type: string } }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/machines/requests/deny-all:
+  post:
+    operationId: denyAllRequests
+    requestBody: { $ref: "../openapi.yaml#/components/requestBodies/Empty" }
+    responses:
+      "200":
+        description: How many were denied.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [denied]
+              properties:
+                denied: { type: integer }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/machines/requests/{id}/approve:
+  post:
+    operationId: approveRequest
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+      - $ref: "../openapi.yaml#/components/parameters/StepUp"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name: { type: string }
+              allow: { $ref: "../openapi.yaml#/components/schemas/Allow" }
+              scopes: { type: array, items: { type: string } }
+              typed_code: { type: string, description: Required when several machines are waiting. }
+    responses:
+      "201":
+        description: The machine is connected.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [machine]
+              properties:
+                machine: { $ref: "../openapi.yaml#/components/schemas/Machine" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/machines/requests/{id}/deny:
+  post:
+    operationId: denyRequest
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody: { $ref: "../openapi.yaml#/components/requestBodies/Empty" }
+    responses:
+      "200": { $ref: "../openapi.yaml#/components/responses/Empty" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/machines:
+  get:
+    operationId: machines
+    responses:
+      "200":
+        description: Every active machine.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [machines]
+              properties:
+                machines: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Machine" } }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/machines/{id}:
+  patch:
+    operationId: patchMachine
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+      - $ref: "../openapi.yaml#/components/parameters/StepUp"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [allow]
+            properties:
+              allow: { $ref: "../openapi.yaml#/components/schemas/Allow" }
+    responses:
+      "200":
+        description: The machine with its new allow-list.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [machine]
+              properties:
+                machine: { $ref: "../openapi.yaml#/components/schemas/Machine" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/machines/{id}/reveal:
+  post:
+    operationId: revealMachineKey
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+      - $ref: "../openapi.yaml#/components/parameters/StepUp"
+    requestBody: { $ref: "../openapi.yaml#/components/requestBodies/Empty" }
+    responses:
+      "200": { $ref: "../openapi.yaml#/components/responses/MachineKey" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/machines/{id}/regenerate:
+  post:
+    operationId: regenerateMachineKey
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+      - $ref: "../openapi.yaml#/components/parameters/StepUp"
+    requestBody: { $ref: "../openapi.yaml#/components/requestBodies/Empty" }
+    responses:
+      "200": { $ref: "../openapi.yaml#/components/responses/MachineKey" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/machines/{id}/revoke:
+  post:
+    operationId: revokeMachine
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+      - $ref: "../openapi.yaml#/components/parameters/StepUp"
+    requestBody: { $ref: "../openapi.yaml#/components/requestBodies/Empty" }
+    responses:
+      "200": { $ref: "../openapi.yaml#/components/responses/MachineKey" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/me/devices: {}  # not specified yet
+/api/me/devices/{id}: {}  # not specified yet
+/api/device/code: {}  # not specified yet
+/api/device/token: {}  # not specified yet
+/api/machines/requests: {}  # not specified yet
+/api/sessions: {}  # not specified yet
+/api/sessions/renew: {}  # not specified yet
+/api/sessions/me: {}  # not specified yet

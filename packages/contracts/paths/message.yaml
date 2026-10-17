@@ -1,0 +1,46 @@
+# Paths of the message module (design §13). Only the work package that owns message edits this file; the root
+# openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
+/api/conversations/{id}/messages:
+  get:
+    operationId: listMessages
+    summary: A page of messages, oldest first. With no cursor, the newest page.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+      - { name: before, in: query, schema: { type: integer, format: int64 } }
+      - { name: after, in: query, schema: { type: integer, format: int64 } }
+      - { name: limit, in: query, schema: { type: integer } }
+    responses:
+      "200":
+        description: The page.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [messages, as_of_seq]
+              properties:
+                messages: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Message" } }
+                as_of_seq: { type: integer, format: int64 }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+  post:
+    operationId: postMessage
+    summary: Post a message. The same client_id again answers 200 with the same ids (no second message).
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [client_id, body]
+            properties:
+              client_id: { $ref: "../openapi.yaml#/components/schemas/ClientId" }
+              body: { type: string }
+              format: { type: string, enum: [plain, markdown] }
+    responses:
+      "200": { $ref: "../openapi.yaml#/components/responses/Posted" }
+      "201": { $ref: "../openapi.yaml#/components/responses/Posted" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/messages/{id}: {}  # not specified yet
+/api/messages/{id}/purge: {}  # not specified yet
+/api/messages/{id}/replies: {}  # not specified yet

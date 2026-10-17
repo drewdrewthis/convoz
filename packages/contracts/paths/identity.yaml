@@ -1,0 +1,31 @@
+# Paths of the identity module (design §13). Only the work package that owns identity edits this file; the root
+# openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
+/api/me:
+  get:
+    operationId: me
+    responses:
+      "200":
+        description: Who the caller is.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/Me" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/identities:
+  get:
+    operationId: identities
+    summary: Everyone the owner can chat with (the Crew list).
+    responses:
+      "200":
+        description: Identities in the order they were made.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identities]
+              properties:
+                identities: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Identity" } }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/me/profile: {}  # not specified yet
+/api/identities/{id}/avatar.svg: {}  # not specified yet
+/api/crew/agents: {}  # not specified yet
+/api/identities/{id}/disable: {}  # not specified yet

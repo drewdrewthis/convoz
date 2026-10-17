@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://convoz.dev/events/conversation.created.v1.json",
+  "title": "conversation.created.v1",
+  "description": "A conversation was made.",
+  "type": "object",
+  "required": [
+    "id",
+    "sig"
+  ],
+  "properties": {
+    "id": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "sig": {
+      "type": "string",
+      "description": "A digest of the title and participants, so a repeat of the create with other values is told apart."
+    }
+  },
+  "additionalProperties": false
+}

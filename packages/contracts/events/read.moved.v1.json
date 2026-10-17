@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://convoz.dev/events/read.moved.v1.json",
+  "title": "read.moved.v1",
+  "description": "The reader's main read cursor moved; sent to the reader only.",
+  "type": "object",
+  "required": [
+    "main_id"
+  ],
+  "properties": {
+    "main_id": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "additionalProperties": false
+}

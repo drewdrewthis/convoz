@@ -1,0 +1,18 @@
+[
+  {
+    "name": "initial JS (entry chunk and the chunks it imports, brotli)",
+    "path": [
+      "../convoz/internal/server/console/web/assets/main-*.js",
+      "../convoz/internal/server/console/web/assets/data-*.js",
+      "../convoz/internal/server/console/web/assets/react-dom-*.js"
+    ],
+    "brotli": true,
+    "limit": "150 KB"
+  },
+  {
+    "name": "initial CSS (brotli)",
+    "path": "../convoz/internal/server/console/web/assets/main-*.css",
+    "brotli": true,
+    "limit": "20 KB"
+  }
+]

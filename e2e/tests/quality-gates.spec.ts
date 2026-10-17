@@ -247,6 +247,82 @@ scenario("CI fails a boundary break", { tag: ["@cli"] }, async ({}, info) => {
   }
 });
 
+// ---- WP0: module boundaries (AC-16, web and contract side) --------------------------------------------------
+// Contract: CI step "boundaries" runs `pnpm lint` (eslint with eslint-plugin-boundaries: another feature only through its
+// index.ts; packages/ui imports no app code) and step "contract-drift" runs `pnpm --filter @convoz/api-client gen:check`
+// (src/schema.ts must equal what packages/contracts generates). Each exits 1 on a break and prints the file; eslint names
+// the rule "boundaries/…", gen:check prints "contract-drift: <file> …".
+
+/** Copy the web app, the packages and the lint config into a fresh dir; the installed node_modules are linked, not copied. */
+function copyWeb(): string {
+  const root = scratch("convoz-web-lint-");
+  const skip = (src: string) => !/(^|\/)(node_modules|ladle-build|report)(\/|$)/.test(path.relative(repoRoot, src));
+  for (const rel of ["eslint.config.js", "package.json", "apps/web", "packages"]) {
+    fs.cpSync(path.join(repoRoot, rel), path.join(root, rel), { recursive: true, filter: skip });
+  }
+  for (const rel of [".", "apps/web", ...fs.readdirSync(path.join(repoRoot, "packages")).map((p) => `packages/${p}`)]) {
+    const modules = path.join(repoRoot, rel, "node_modules");
+    if (fs.existsSync(modules)) fs.symlinkSync(modules, path.join(root, rel, "node_modules"));
+  }
+  return root;
+}
+
+const node = (root: string, args: string[]) => run(process.execPath, args, { cwd: root, env: baseEnv(), timeoutMs: 90_000 });
+const eslint = (root: string) => node(root, [path.join(repoRoot, "node_modules", "eslint", "bin", "eslint.js"), "."]);
+const genCheck = (root: string) => node(root, [path.join(root, "packages", "api-client", "gen.mjs"), "--check"]);
+
+scenario("CI fails a web or contract boundary break", { tag: ["@cli"] }, async ({}, info) => {
+  info.setTimeout(240_000);
+
+  // Negative control: a clean copy passes both checks
+  const clean = copyWeb();
+  const lintClean = await eslint(clean);
+  expect(lintClean.code, lintClean.stdout + lintClean.stderr).toBe(0);
+  const genClean = await genCheck(clean);
+  expect(genClean.code, genClean.stdout + genClean.stderr).toBe(0);
+  expect(genClean.stdout).toContain("contract-drift");
+
+  // CI runs both by these step names (read from the workflow, so a step cannot be dropped silently)
+  const ci = fs.readFileSync(path.join(repoRoot, ".github", "workflows", "ci.yml"), "utf8");
+  expect(ci).toMatch(/name:\s*boundaries\n\s*run:\s*pnpm lint/);
+  expect(ci).toMatch(/name:\s*contract-drift\n\s*run:\s*pnpm --filter @convoz\/api-client gen:check/);
+
+  // Given a branch that <breaks> / When CI runs / Then the "<check>" check fails and names the file
+  const put = (root: string, rel: string, text: string) => fs.writeFileSync(path.join(root, rel), text);
+  const rows: { breaks: string; check: string; file: string; write: (root: string) => void; runs: (root: string) => ReturnType<typeof node> }[] = [
+    {
+      breaks: "imports an internal file of another web feature",
+      check: "boundaries",
+      file: "zz_break.ts",
+      write: (r) => put(r, "apps/web/src/features/now/zz_break.ts", 'import { allowText } from "../crew/allow.ts";\nexport const zz = allowText;\n'),
+      runs: eslint,
+    },
+    {
+      breaks: "imports app code from packages/ui",
+      check: "boundaries",
+      file: "zz_break.tsx",
+      write: (r) => put(r, "packages/ui/src/zz_break.tsx", 'import { page } from "../../../apps/web/src/shared/api.ts";\nexport const zz = page;\n'),
+      runs: eslint,
+    },
+    {
+      breaks: "changes generated contract code without changing the contract",
+      check: "contract-drift",
+      file: "schema.ts",
+      write: (r) => fs.appendFileSync(path.join(r, "packages/api-client/src/schema.ts"), "export type ZzHandEdit = string;\n"),
+      runs: genCheck,
+    },
+  ];
+  for (const row of rows) {
+    const root = copyWeb();
+    row.write(root);
+    const res = await row.runs(root);
+    const out = res.stdout + res.stderr;
+    expect(res.code, `${row.breaks}: ${out}`).toBe(1);
+    expect(out, row.breaks).toContain(row.check);
+    expect(out, row.breaks).toContain(row.file);
+  }
+});
+
 // ---- S1a: AC-1 red first, green at head ------------------------------------------------------------------
 // Contract: `python3 -I scripts/red_green.py <base> <head> [--runner PATH]`, run inside a git repo.
 //  - The test-only commit is the first commit in base..head that touches only e2e/ and specs/.

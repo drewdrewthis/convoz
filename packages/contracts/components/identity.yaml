@@ -1,0 +1,59 @@
+# Schemas of the identity module. Only the work package that owns identity edits this file; the root lists each by name.
+Owner:
+  type: object
+  required: [id, handle, display_name]
+  properties:
+    id: { type: integer, format: int64 }
+    handle: { type: string }
+    display_name: { type: string }
+Me:
+  type: object
+  required: [identity]
+  properties:
+    identity:
+      type: object
+      required: [id, handle, display_name, kind]
+      properties:
+        id: { type: integer, format: int64 }
+        handle: { type: string }
+        display_name: { type: string }
+        role: { type: string }
+        kind: { type: string, enum: [human, agent] }
+    device:
+      type: object
+      required: [id, limited]
+      properties:
+        id: { type: integer, format: int64 }
+        limited: { type: boolean, description: A recovery device that may only add a passkey. }
+    recovery:
+      type: object
+      description: Set when this device signed in with a recovery code.
+      required: [codes_left, hold_until]
+      properties:
+        codes_left: { type: integer }
+        hold_until: { type: ["integer", "null"], format: int64, description: Epoch ms when the 24-hour hold ends; null once it has. }
+Identity:
+  type: object
+  required: [id, kind, handle, display_name, role, created_at, disabled]
+  properties:
+    id: { type: integer, format: int64 }
+    kind: { type: string, enum: [human, agent] }
+    handle: { type: string }
+    display_name: { type: string }
+    role: { type: string }
+    created_at: { type: integer, format: int64 }
+    disabled: { type: boolean }
+    online: { type: boolean, description: Agents only. True while the agent has a live session. }
+    created_by:
+      type: object
+      required: [kind, name]
+      properties:
+        kind: { type: string, enum: [human, machine] }
+        name: { type: string }
+Person:
+  type: object
+  required: [handle, display_name, kind]
+  properties:
+    handle: { type: string }
+    display_name: { type: string }
+    kind: { type: string, enum: [human, agent] }

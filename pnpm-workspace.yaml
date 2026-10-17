@@ -1,4 +1,5 @@
 packages:
+  - apps/web
   - e2e
   - packages/*
 
@@ -6,3 +7,8 @@ packages:
 minimumReleaseAge: 1440
 # No dependency runs an install script unless it is listed here.
 onlyBuiltDependencies: []
+# Ladle's tools: their install scripts only fetch or check a binary the platform package already ships, so they stay off.
+allowBuilds:
+  "@swc/core": false
+  esbuild: false
+  msw: false
