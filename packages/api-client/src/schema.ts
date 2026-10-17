@@ -2173,6 +2173,11 @@ export interface components {
                 title: string | null;
             };
             message: components["schemas"]["Message"];
+            /**
+             * @description The state of the transcript of the voice note the message carries. Absent when there is none (E-5).
+             * @enum {string}
+             */
+            transcript_state?: "pending" | "done" | "failed";
         };
         InboxResponse: {
             items: components["schemas"]["InboxItem"][];

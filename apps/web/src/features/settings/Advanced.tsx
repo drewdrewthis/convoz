@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { client } from "../../shared/api.ts";
-import { effectiveType, median, sampled, useConnection } from "../../shared/connection.ts";
+import { effectiveType, median, useConnection } from "../../shared/connection.ts";
 import { chooseMedia, mediaSetting, type MediaAutoload } from "../../shared/media.ts";
+import { ping } from "../../shared/ping.ts";
 
 const MEDIA: [MediaAutoload, string][] = [
   ["auto", "Automatic"],
@@ -11,17 +11,6 @@ const MEDIA: [MediaAutoload, string][] = [
 /** Pings taken as the view opens (so the median means something at once), then one every few seconds while it stays open. */
 const FIRST_PINGS = 3;
 const EVERY_MS = 5_000;
-
-/** ping times one round trip to the server; a failed one is simply not a sample (the offline note says why). */
-async function ping(): Promise<void> {
-  const start = performance.now();
-  try {
-    const { response } = await client.GET("/api/ping", { cache: "no-store" });
-    if (response.ok) sampled(Math.round(performance.now() - start));
-  } catch {
-    /* no answer: no sample */
-  }
-}
 
 /** Connection is Settings → Advanced → Connection: how the link to the server behaves from this device (design §12.3). */
 export function Connection() {

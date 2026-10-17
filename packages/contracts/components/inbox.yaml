@@ -18,6 +18,10 @@ InboxItem:
         id: { type: integer, format: int64 }
         title: { type: [string, "null"] }
     message: { $ref: "../openapi.yaml#/components/schemas/Message" }
+    transcript_state:
+      type: string
+      enum: [pending, done, failed]
+      description: The state of the transcript of the voice note the message carries. Absent when there is none (E-5).
 InboxResponse:
   type: object
   required: [items]

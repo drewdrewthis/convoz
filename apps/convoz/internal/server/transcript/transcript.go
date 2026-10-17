@@ -110,8 +110,9 @@ func Retry(ctx context.Context, d pdb.DBTX, now time.Time, j Job) (gaveUp bool, 
 
 // Of is a transcript as a reader sees it.
 type Of struct {
-	State string
-	Text  string
+	State    string
+	Text     string
+	Attempts int64 // tries made so far; each one that has not finished the transcript failed
 }
 
 // ForUploads reads the transcripts of the given uploads, by upload id.
@@ -125,7 +126,7 @@ func ForUploads(ctx context.Context, d pdb.DBTX, uploadIDs []int64) (map[int64]O
 		return nil, err
 	}
 	for _, r := range rows {
-		out[r.UploadID] = Of{State: r.State, Text: r.Text.String}
+		out[r.UploadID] = Of{State: r.State, Text: r.Text.String, Attempts: r.Attempts}
 	}
 	return out, nil
 }

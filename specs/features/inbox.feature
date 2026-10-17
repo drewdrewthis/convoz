@@ -36,7 +36,7 @@ Feature: Agent inbox
       Then "convoz inbox --peek --sid s2" shows no item for that message
       And "convoz inbox --peek" as "docs" shows 1 "activity" item for conversation 41
 
-    @v1 @cli @I-43 @unimplemented
+    @v1 @cli @I-43
     Scenario Outline: Each kind of event makes an item with its reason
       When <event>
       Then "convoz inbox --peek --sid s1" shows an item with reason "<reason>"
@@ -58,7 +58,7 @@ Feature: Agent inbox
       When the owner snoozes it for 1 hour
       Then "convoz inbox --peek --sid s1" shows no new item
 
-    @v1 @cli @I-43 @AC-M11 @unimplemented
+    @v1 @cli @I-43 @AC-M11
     Scenario: A voice message reaches the agent as words
       Given the transcription engine takes 30 seconds
       When the owner sends a voice note that says "ship the filters on Thursday" in conversation 41
@@ -86,7 +86,7 @@ Feature: Agent inbox
       Then "convoz inbox --peek --sid s1" shows 1 item for conversation 41 with reason "mention" and count 4
       And the item says 1 of the 4 messages mentions "devtool"
 
-    @v1 @cli @I-43 @C-10 @unimplemented
+    @v1 @cli @I-43 @C-10
     Scenario: Answers, membership changes and app results stay separate items
       Given the owner posted 2 messages in conversation 41
       When the owner answers an ask of "devtool" there and sends a result through an app of "devtool" there

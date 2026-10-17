@@ -1,5 +1,6 @@
 import { createRenderer, type MdChild, type MdNode } from "@convoz/markdown";
-import { createElement, useMemo, type ReactNode } from "react";
+import { createElement, useMemo, useState, type ReactNode } from "react";
+import { useMediaAutoLoads } from "../../shared/media.ts";
 
 // The renderer builds only these; anything else in a tree is dropped (defence in depth: the tree is ours, never the message's).
 // An img comes only from the renderer's own-upload branch (/api/files/<id>, I-45).
@@ -15,13 +16,26 @@ function renderer() {
   return render;
 }
 
+/** An image of the body waits for a tap where media does not auto-load. Its size is not known here, so the placeholder gives its name. */
+function BodyImage(props: { src?: string; alt?: string; loading?: string }) {
+  const auto = useMediaAutoLoads();
+  const [tapped, setTapped] = useState(false);
+  if (auto || tapped) return createElement("img", props);
+  return (
+    <button type="button" className="mwait" onClick={() => setTapped(true)}>
+      <span className="mname">{props.alt || "Image"}</span>
+      <span className="msize">tap to load</span>
+    </button>
+  );
+}
+
 function toReact(node: MdChild, key: number): ReactNode {
   if (typeof node === "string") return node;
   if (!TAGS.has(node.tag)) return null;
   if (node.tag === "img" && !OWN_FILE.test(node.attrs?.src ?? "")) return null;
   const props: Record<string, string | number> = { key };
   for (const [k, v] of Object.entries(node.attrs ?? {})) if (ATTRS.has(k)) props[k === "class" ? "className" : k] = v;
-  return createElement(node.tag, props, ...node.kids.map(toReact));
+  return createElement(node.tag === "img" ? BodyImage : node.tag, props, ...node.kids.map(toReact));
 }
 
 /** Markdown shows an agent's markdown body: paragraphs, lists, code, bold, honest links and images of own uploads, nothing else. */

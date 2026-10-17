@@ -129,6 +129,9 @@ func (s *Server) addParticipant(w http.ResponseWriter, r *http.Request, c *call)
 			if err := readstate.Create(ctx, d, now, target.ID, convID, cv.LastMessageID); err != nil {
 				return err
 			}
+			if err := inbox.Joined(ctx, d, now, target.ID, convID, lineID, seq); err != nil {
+				return err
+			}
 		}
 		_, err = journalChange(ctx, d, now, c.p.Identity(), convID, target.ID, status)
 		return err
@@ -199,11 +202,25 @@ func decideParticipant(approve bool) handler {
 			if approve {
 				line.T = "member.approved"
 			}
-			if _, _, err := sayLine(ctx, d, now, c.p.HumanID, convID, line); err != nil {
+			lineID, seq, err := sayLine(ctx, d, now, c.p.HumanID, convID, line)
+			if err != nil {
 				return err
 			}
 			if done, err = conversation.Decide(ctx, d, now, convID, iid, c.p.HumanID, approve, seat.JoinedMessageID, seat.JoinedSeq); err != nil || !done {
 				return err
+			}
+			// The agent that asked for the add hears how it ended; on an approval the one added hears it too.
+			told := []int64{seat.RequestedBy}
+			if approve && seat.RequestedBy != iid {
+				told = append(told, iid)
+			}
+			for _, who := range told {
+				if who == 0 {
+					continue
+				}
+				if err := inbox.Joined(ctx, d, now, who, convID, lineID, seq); err != nil {
+					return err
+				}
 			}
 			if approve {
 				if err := readstate.Create(ctx, d, now, iid, convID, cv.LastMessageID); err != nil {

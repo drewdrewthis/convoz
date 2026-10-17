@@ -100,13 +100,14 @@ func (q *Queries) RetryTranscript(ctx context.Context, arg RetryTranscriptParams
 }
 
 const transcriptsOf = `-- name: TranscriptsOf :many
-SELECT upload_id, state, text FROM transcripts WHERE upload_id IN (/*SLICE:upload_ids*/?)
+SELECT upload_id, state, text, attempts FROM transcripts WHERE upload_id IN (/*SLICE:upload_ids*/?)
 `
 
 type TranscriptsOfRow struct {
 	UploadID int64
 	State    string
 	Text     sql.NullString
+	Attempts int64
 }
 
 func (q *Queries) TranscriptsOf(ctx context.Context, uploadIds []int64) ([]TranscriptsOfRow, error) {
@@ -128,7 +129,12 @@ func (q *Queries) TranscriptsOf(ctx context.Context, uploadIds []int64) ([]Trans
 	var items []TranscriptsOfRow
 	for rows.Next() {
 		var i TranscriptsOfRow
-		if err := rows.Scan(&i.UploadID, &i.State, &i.Text); err != nil {
+		if err := rows.Scan(
+			&i.UploadID,
+			&i.State,
+			&i.Text,
+			&i.Attempts,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -142,6 +142,7 @@ function KeySheet({ title, machineKey, close }: { title: string; machineKey: str
       }
     >
       <p className="muted">Copy the key now. It is not shown again unless you reveal it with a passkey.</p>
+      <p className="muted">Paste into convoz login --stdin on the machine, never into an agent prompt.</p>
       <p>
         <output className="mono" aria-label="Machine key">
           {machineKey}

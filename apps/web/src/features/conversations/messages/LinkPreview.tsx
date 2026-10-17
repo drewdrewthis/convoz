@@ -1,5 +1,6 @@
 import type { UnfurlCard } from "@convoz/api-client";
 import { useEffect, useState } from "react";
+import { useMediaAutoLoads } from "../../../shared/media.ts";
 import { unfurlOf } from "./actions.ts";
 
 /** An address in a message body: the first one gets the card (the server decides the same way). */
@@ -12,17 +13,6 @@ export const hasLink = (body: string): boolean => LINK.test(body);
 const PENDING_TRIES = 5;
 const PENDING_MS = 3000;
 
-interface Connection {
-  saveData?: boolean;
-  effectiveType?: string;
-}
-
-/** On Save-Data or a slow network nothing is fetched until a tap (design §12.3). */
-function slowNetwork(): boolean {
-  const c = (navigator as Navigator & { connection?: Connection }).connection;
-  return Boolean(c?.saveData) || ["slow-2g", "2g", "3g"].includes(c?.effectiveType ?? "");
-}
-
 /** What the server said, by message id, so a row drawn again (the log is virtualized) does not ask again. `null`: no card. */
 const answered = new Map<number, UnfurlCard | null>();
 
@@ -34,8 +24,9 @@ const STATE = { open: "Open", merged: "Merged", closed: "Closed" } as const;
  * it draws nothing at all.
  */
 export function LinkPreview({ id }: { id: number }) {
-  const [slow] = useState(slowNetwork);
-  const [armed, setArmed] = useState(!slow);
+  const auto = useMediaAutoLoads();
+  const [tapped, setTapped] = useState(false);
+  const armed = auto || tapped;
   const [card, setCard] = useState<UnfurlCard | null>(answered.get(id) ?? null);
   const [open, setOpen] = useState(true);
 
@@ -64,9 +55,10 @@ export function LinkPreview({ id }: { id: number }) {
   }, [id, armed]);
 
   if (!armed) {
+    // The card's size is not known before the server fetches it, so the placeholder can only say it waits.
     return (
-      <button type="button" className="previewbtn" aria-expanded="false" onClick={() => setArmed(true)}>
-        <span>Preview</span>
+      <button type="button" className="previewbtn" aria-expanded="false" onClick={() => setTapped(true)}>
+        <span>Preview · tap to load</span>
       </button>
     );
   }

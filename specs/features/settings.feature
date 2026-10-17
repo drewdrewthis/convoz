@@ -53,7 +53,7 @@ Feature: Settings
 
   Rule: Media auto-load follows the network unless the owner says otherwise
 
-    @v1 @browser @unimplemented
+    @v1 @browser
     Scenario Outline: Media auto-load decides when images load
       Given the device setting "media auto-load" is "<setting>" and the network is <network>
       When the owner opens a conversation with an image
