@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://convoz.dev/events/conversation.resumed.v1.json",
+  "title": "conversation.resumed.v1",
+  "description": "A person lifted the loop breaker.",
+  "type": "object",
+  "required": [],
+  "properties": {},
+  "additionalProperties": false
+}

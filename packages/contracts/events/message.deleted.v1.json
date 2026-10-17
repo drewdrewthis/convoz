@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://convoz.dev/events/message.deleted.v1.json",
+  "title": "message.deleted.v1",
+  "description": "A message was deleted; it stays as a tombstone.",
+  "type": "object",
+  "required": [
+    "id",
+    "deleted_at"
+  ],
+  "properties": {
+    "id": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "deleted_at": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "additionalProperties": false
+}

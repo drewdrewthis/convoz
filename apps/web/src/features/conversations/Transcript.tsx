@@ -4,6 +4,9 @@ import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type React
 import { clock, initials, paletteOf, stripCf } from "../../shared/chat.ts";
 import type { PendingSend } from "./store.ts";
 import { Markdown } from "./Markdown.tsx";
+import { resumeConversation } from "./messages/actions.ts";
+import { EditedMark, MessageMenu } from "./messages/MessageMenu.tsx";
+import { NoticeRow, pausedNow } from "./messages/Notice.tsx";
 
 /** A message that arrives while the log is within this many px of its bottom keeps the log at the bottom. */
 const NEAR_BOTTOM = 80;
@@ -27,6 +30,8 @@ export interface TranscriptProps {
   /** The first page is in: open at the newest message. */
   opened: boolean;
   hint: boolean;
+  /** The conversation, so a notice can act on it (Resume). */
+  conversation: number;
   working: string | null;
   control: RefObject<TranscriptControl | null>;
   onEarlier(): Promise<void>;
@@ -46,6 +51,11 @@ function rowsOf(messages: Message[], pending: PendingSend[], me: string): Row[] 
   const out: Row[] = [];
   let prev: string | null = null;
   for (const m of messages) {
+    if (m.kind === "system") {
+      out.push({ key: `m${m.id}`, author: "", first: false, message: m });
+      prev = null; // a notice ends a run: the next message shows its author again
+      continue;
+    }
     out.push({ key: `m${m.id}`, author: m.author.handle, first: prev !== m.author.handle, message: m });
     prev = m.author.handle;
   }
@@ -60,7 +70,7 @@ function rowsOf(messages: Message[], pending: PendingSend[], me: string): Row[] 
  * Transcript is the log "Messages": the page itself does not scroll, the log does. It opens at the newest message, follows new
  * ones while it is at the bottom, and otherwise shows "New message ↓" instead of jumping.
  */
-export function Transcript({ messages, pending, hasEarlier, me, opened, hint, working, control, onEarlier, onRetry }: TranscriptProps) {
+export function Transcript({ messages, pending, hasEarlier, me, opened, hint, conversation, working, control, onEarlier, onRetry }: TranscriptProps) {
   const log = useRef<HTMLDivElement>(null);
   const items = useRef<HTMLDivElement>(null);
   const stuck = useRef(true);
@@ -68,6 +78,7 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, hint, wo
   const anchor = useRef<{ height: number; top: number } | null>(null);
   const [pill, setPill] = useState(false);
   const rows = useMemo(() => rowsOf(messages, pending, me), [messages, pending, me]);
+  const paused = useMemo(() => pausedNow(messages), [messages]);
   const shape = rows.map((r) => r.key + (r.pending?.state ?? "")).join();
 
   const toBottom = () => {
@@ -137,11 +148,11 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, hint, wo
 
   const body =
     rows.length > VIRTUAL_ABOVE ? (
-      <VirtualItems rows={rows} me={me} log={log} items={items} onRetry={onRetry} stuck={stuck} />
+      <VirtualItems rows={rows} me={me} paused={paused} conversation={conversation} log={log} items={items} onRetry={onRetry} stuck={stuck} />
     ) : (
       <div ref={items} id="items" className="items">
         {rows.map((r) => (
-          <MessageRow key={r.key} row={r} me={me} onRetry={onRetry} />
+          <MessageRow key={r.key} row={r} me={me} paused={paused} conversation={conversation} onRetry={onRetry} />
         ))}
       </div>
     );
@@ -169,7 +180,7 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, hint, wo
   );
 }
 
-function VirtualItems({ rows, me, log, items, onRetry, stuck }: { rows: Row[]; me: string; log: RefObject<HTMLDivElement | null>; items: RefObject<HTMLDivElement | null>; onRetry(cid: string): void; stuck: RefObject<boolean> }) {
+function VirtualItems({ rows, me, paused, conversation, log, items, onRetry, stuck }: { rows: Row[]; me: string; paused: number; conversation: number; log: RefObject<HTMLDivElement | null>; items: RefObject<HTMLDivElement | null>; onRetry(cid: string): void; stuck: RefObject<boolean> }) {
   const [margin, setMargin] = useState(0);
   useLayoutEffect(() => {
     const el = log.current;
@@ -192,7 +203,7 @@ function VirtualItems({ rows, me, log, items, onRetry, stuck }: { rows: Row[]; m
     <div ref={items} id="items" className="items" style={{ position: "relative", height: v.getTotalSize() }}>
       {v.getVirtualItems().map((item) => (
         <div key={item.key} data-index={item.index} ref={v.measureElement} style={{ position: "absolute", top: 0, left: 0, right: 0, transform: `translateY(${item.start - margin}px)` }}>
-          <MessageRow row={rows[item.index]!} me={me} onRetry={onRetry} />
+          <MessageRow row={rows[item.index]!} me={me} paused={paused} conversation={conversation} onRetry={onRetry} />
         </div>
       ))}
     </div>
@@ -202,19 +213,30 @@ function VirtualItems({ rows, me, log, items, onRetry, stuck }: { rows: Row[]; m
 interface RowProps {
   row: Row;
   me: string;
+  /** The id of the pause line that still holds, 0 for none. */
+  paused: number;
+  conversation: number;
   onRetry(cid: string): void;
 }
 
 /** A row that did not change keeps its node, so a selection in it survives. */
 const sameRow = (a: RowProps, b: RowProps) =>
-  a.me === b.me && a.row.key === b.row.key && a.row.first === b.row.first && a.row.message === b.row.message && a.row.pending?.state === b.row.pending?.state;
+  a.me === b.me && a.paused === b.paused && a.row.key === b.row.key && a.row.first === b.row.first && a.row.message === b.row.message && a.row.pending?.state === b.row.pending?.state;
 
-const MessageRow = memo(function MessageRow({ row, me, onRetry }: RowProps) {
+const MessageRow = memo(function MessageRow({ row, me, paused, conversation, onRetry }: RowProps) {
   const { message: m, pending: p } = row;
+  if (m?.kind === "system") {
+    return <NoticeRow message={m} canResume={paused === m.id} onResume={() => void resumeConversation(conversation)} />;
+  }
+  if (m?.deleted) {
+    return <Article author={m.author.handle} me={me} first={row.first} stamp={clock(m.created_at)} body={<div className="text tombstone">Message deleted</div>} />;
+  }
   if (m) {
     const text = stripCf(m.body);
-    const body = m.author.handle !== me && m.format === "markdown" ? <Markdown text={text} /> : <div className="text">{text}</div>;
-    return <Article author={m.author.handle} me={me} first={row.first} stamp={clock(m.created_at)} body={body} />;
+    const body = m.author.handle !== me && m.format !== "plain" ? <Markdown text={text} format={m.format} /> : <div className="text">{text}</div>;
+    const edited = m.edited_at ? <EditedMark id={m.id} /> : null;
+    const menu = <MessageMenu message={m} mine={m.author.handle === me} />;
+    return <Article author={m.author.handle} me={me} first={row.first} stamp={clock(m.created_at)} body={body} extra={edited} menu={menu} />;
   }
   const state =
     p!.state === "failed" ? (
@@ -231,7 +253,7 @@ const MessageRow = memo(function MessageRow({ row, me, onRetry }: RowProps) {
 }, sameRow);
 
 /** Article is one message: avatar, name and time (once per run), then the body. The letter is drawn, so it reads "@devtool 5:25 AM Hello". */
-function Article({ author, me, first, stamp, body, extra }: { author: string; me: string; first: boolean; stamp: string; body: ReactNode; extra?: ReactNode }) {
+function Article({ author, me, first, stamp, body, extra, menu }: { author: string; me: string; first: boolean; stamp: string; body: ReactNode; extra?: ReactNode; menu?: ReactNode }) {
   const mine = author === me;
   const avatar = mine ? (
     <span className="ava you" aria-hidden="true" data-l="Y" />
@@ -258,6 +280,7 @@ function Article({ author, me, first, stamp, body, extra }: { author: string; me
         {body}
         {extra ?? null}
       </div>
+      {menu ?? null}
     </article>
   );
 }

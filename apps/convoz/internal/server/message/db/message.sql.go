@@ -10,6 +10,42 @@ import (
 	"database/sql"
 )
 
+const applyEdit = `-- name: ApplyEdit :exec
+UPDATE messages SET body = ?1, format = ?2, edited_at = ?3 WHERE id = ?4
+`
+
+type ApplyEditParams struct {
+	Body     string
+	Format   string
+	EditedAt sql.NullInt64
+	ID       int64
+}
+
+func (q *Queries) ApplyEdit(ctx context.Context, arg ApplyEditParams) error {
+	_, err := q.db.ExecContext(ctx, applyEdit,
+		arg.Body,
+		arg.Format,
+		arg.EditedAt,
+		arg.ID,
+	)
+	return err
+}
+
+const bumpReplies = `-- name: BumpReplies :exec
+UPDATE messages SET reply_count = reply_count + 1, last_reply_id = ?1, last_reply_at = ?2 WHERE id = ?3
+`
+
+type BumpRepliesParams struct {
+	ReplyID sql.NullInt64
+	At      sql.NullInt64
+	RootID  int64
+}
+
+func (q *Queries) BumpReplies(ctx context.Context, arg BumpRepliesParams) error {
+	_, err := q.db.ExecContext(ctx, bumpReplies, arg.ReplyID, arg.At, arg.RootID)
+	return err
+}
+
 const countUnread = `-- name: CountUnread :one
 SELECT COUNT(*) FROM (
   SELECT id FROM messages
@@ -38,59 +74,47 @@ func (q *Queries) CountUnread(ctx context.Context, arg CountUnreadParams) (int64
 	return count, err
 }
 
-const getMessage = `-- name: GetMessage :one
-SELECT id, conversation_id, author_id, kind, format, body, created_at
-FROM messages WHERE id = ?1 AND deleted_at IS NULL
+const deleteEdits = `-- name: DeleteEdits :exec
+DELETE FROM message_edits WHERE message_id = ?1
 `
 
-type GetMessageRow struct {
-	ID             int64
-	ConversationID int64
-	AuthorID       sql.NullInt64
-	Kind           string
-	Format         string
-	Body           string
-	CreatedAt      int64
+func (q *Queries) DeleteEdits(ctx context.Context, messageID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteEdits, messageID)
+	return err
 }
 
-func (q *Queries) GetMessage(ctx context.Context, id int64) (GetMessageRow, error) {
-	row := q.db.QueryRowContext(ctx, getMessage, id)
-	var i GetMessageRow
-	err := row.Scan(
-		&i.ID,
-		&i.ConversationID,
-		&i.AuthorID,
-		&i.Kind,
-		&i.Format,
-		&i.Body,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const getMessageByClient = `-- name: GetMessageByClient :one
-SELECT id, conversation_id, author_id, kind, format, body, created_at
-FROM messages WHERE author_id = ?1 AND client_id = ?2
+const deleteMentions = `-- name: DeleteMentions :exec
+DELETE FROM mentions WHERE message_id = ?1
 `
 
-type GetMessageByClientParams struct {
+func (q *Queries) DeleteMentions(ctx context.Context, messageID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteMentions, messageID)
+	return err
+}
+
+const getIDByClient = `-- name: GetIDByClient :one
+SELECT id FROM messages WHERE author_id = ?1 AND client_id = ?2
+`
+
+type GetIDByClientParams struct {
 	AuthorID sql.NullInt64
 	ClientID sql.NullString
 }
 
-type GetMessageByClientRow struct {
-	ID             int64
-	ConversationID int64
-	AuthorID       sql.NullInt64
-	Kind           string
-	Format         string
-	Body           string
-	CreatedAt      int64
+func (q *Queries) GetIDByClient(ctx context.Context, arg GetIDByClientParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getIDByClient, arg.AuthorID, arg.ClientID)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
 }
 
-func (q *Queries) GetMessageByClient(ctx context.Context, arg GetMessageByClientParams) (GetMessageByClientRow, error) {
-	row := q.db.QueryRowContext(ctx, getMessageByClient, arg.AuthorID, arg.ClientID)
-	var i GetMessageByClientRow
+const getMessage = `-- name: GetMessage :one
+SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine FROM message_rows WHERE id = ?1
+`
+
+func (q *Queries) GetMessage(ctx context.Context, id int64) (MessageRow, error) {
+	row := q.db.QueryRowContext(ctx, getMessage, id)
+	var i MessageRow
 	err := row.Scan(
 		&i.ID,
 		&i.ConversationID,
@@ -98,15 +122,70 @@ func (q *Queries) GetMessageByClient(ctx context.Context, arg GetMessageByClient
 		&i.Kind,
 		&i.Format,
 		&i.Body,
+		&i.ThreadRootID,
+		&i.Broadcast,
+		&i.InMain,
+		&i.ReplyCount,
+		&i.LastReplyID,
 		&i.CreatedAt,
+		&i.EditedAt,
+		&i.DeletedAt,
+		&i.PurgedAt,
+		&i.SystemJson,
+		&i.SessionID,
+		&i.AnswersAskID,
+		&i.ViaAppMessageID,
+		&i.HasApp,
+		&i.OriginLabel,
+		&i.OriginMachine,
 	)
 	return i, err
 }
 
+const insertEdit = `-- name: InsertEdit :exec
+INSERT INTO message_edits (message_id, prev_body, prev_format, edited_by, edited_at)
+VALUES (?1, ?2, ?3, ?4, ?5)
+`
+
+type InsertEditParams struct {
+	MessageID  int64
+	PrevBody   string
+	PrevFormat string
+	EditedBy   int64
+	EditedAt   int64
+}
+
+func (q *Queries) InsertEdit(ctx context.Context, arg InsertEditParams) error {
+	_, err := q.db.ExecContext(ctx, insertEdit,
+		arg.MessageID,
+		arg.PrevBody,
+		arg.PrevFormat,
+		arg.EditedBy,
+		arg.EditedAt,
+	)
+	return err
+}
+
+const insertMention = `-- name: InsertMention :exec
+INSERT OR IGNORE INTO mentions (message_id, identity_id) VALUES (?1, ?2)
+`
+
+type InsertMentionParams struct {
+	MessageID  int64
+	IdentityID int64
+}
+
+func (q *Queries) InsertMention(ctx context.Context, arg InsertMentionParams) error {
+	_, err := q.db.ExecContext(ctx, insertMention, arg.MessageID, arg.IdentityID)
+	return err
+}
+
 const insertMessage = `-- name: InsertMessage :one
-INSERT INTO messages (conversation_id, author_id, kind, format, body, session_id, device_id, client_id, created_at)
+INSERT INTO messages (conversation_id, author_id, kind, format, body, thread_root_id, broadcast, app_json, session_id, device_id, client_id,
+                      origin_label, origin_machine, created_at)
 VALUES (?1, ?2, 'text', ?3, ?4, ?5, ?6,
-        ?7, ?8)
+        ?7, ?8, ?9, ?10, ?11, ?12,
+        ?13)
 RETURNING id
 `
 
@@ -115,9 +194,14 @@ type InsertMessageParams struct {
 	AuthorID       sql.NullInt64
 	Format         string
 	Body           string
+	ThreadRootID   sql.NullInt64
+	Broadcast      int64
+	AppJson        sql.NullString
 	SessionID      sql.NullInt64
 	DeviceID       sql.NullInt64
 	ClientID       sql.NullString
+	OriginLabel    sql.NullString
+	OriginMachine  sql.NullString
 	CreatedAt      int64
 }
 
@@ -127,9 +211,14 @@ func (q *Queries) InsertMessage(ctx context.Context, arg InsertMessageParams) (i
 		arg.AuthorID,
 		arg.Format,
 		arg.Body,
+		arg.ThreadRootID,
+		arg.Broadcast,
+		arg.AppJson,
 		arg.SessionID,
 		arg.DeviceID,
 		arg.ClientID,
+		arg.OriginLabel,
+		arg.OriginMachine,
 		arg.CreatedAt,
 	)
 	var id int64
@@ -137,10 +226,112 @@ func (q *Queries) InsertMessage(ctx context.Context, arg InsertMessageParams) (i
 	return id, err
 }
 
+const insertSystem = `-- name: InsertSystem :one
+INSERT INTO messages (conversation_id, author_id, kind, format, body, system_json, created_at)
+VALUES (?1, NULL, 'system', 'plain', '', ?2, ?3)
+RETURNING id
+`
+
+type InsertSystemParams struct {
+	ConversationID int64
+	SystemJson     sql.NullString
+	CreatedAt      int64
+}
+
+func (q *Queries) InsertSystem(ctx context.Context, arg InsertSystemParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, insertSystem, arg.ConversationID, arg.SystemJson, arg.CreatedAt)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const listEdits = `-- name: ListEdits :many
+SELECT prev_body, prev_format, edited_by, edited_at FROM message_edits WHERE message_id = ?1 ORDER BY id
+`
+
+type ListEditsRow struct {
+	PrevBody   string
+	PrevFormat string
+	EditedBy   int64
+	EditedAt   int64
+}
+
+func (q *Queries) ListEdits(ctx context.Context, messageID int64) ([]ListEditsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listEdits, messageID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListEditsRow
+	for rows.Next() {
+		var i ListEditsRow
+		if err := rows.Scan(
+			&i.PrevBody,
+			&i.PrevFormat,
+			&i.EditedBy,
+			&i.EditedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMentions = `-- name: ListMentions :many
+SELECT identity_id FROM mentions WHERE message_id = ?1 ORDER BY identity_id
+`
+
+func (q *Queries) ListMentions(ctx context.Context, messageID int64) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listMentions, messageID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var identity_id int64
+		if err := rows.Scan(&identity_id); err != nil {
+			return nil, err
+		}
+		items = append(items, identity_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const markDeleted = `-- name: MarkDeleted :execrows
+UPDATE messages SET deleted_at = ?1, deleted_by = ?2 WHERE id = ?3 AND deleted_at IS NULL
+`
+
+type MarkDeletedParams struct {
+	At sql.NullInt64
+	By sql.NullInt64
+	ID int64
+}
+
+func (q *Queries) MarkDeleted(ctx context.Context, arg MarkDeletedParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, markDeleted, arg.At, arg.By, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const pageAfter = `-- name: PageAfter :many
-SELECT id, conversation_id, author_id, kind, format, body, created_at
-FROM messages
-WHERE conversation_id = ?1 AND in_main = 1 AND kind <> 'system' AND deleted_at IS NULL AND id > ?2
+SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine FROM message_rows
+WHERE conversation_id = ?1 AND in_main = 1 AND id > ?2
 ORDER BY id LIMIT ?3
 `
 
@@ -150,25 +341,15 @@ type PageAfterParams struct {
 	MaxRows        int64
 }
 
-type PageAfterRow struct {
-	ID             int64
-	ConversationID int64
-	AuthorID       sql.NullInt64
-	Kind           string
-	Format         string
-	Body           string
-	CreatedAt      int64
-}
-
-func (q *Queries) PageAfter(ctx context.Context, arg PageAfterParams) ([]PageAfterRow, error) {
+func (q *Queries) PageAfter(ctx context.Context, arg PageAfterParams) ([]MessageRow, error) {
 	rows, err := q.db.QueryContext(ctx, pageAfter, arg.ConversationID, arg.After, arg.MaxRows)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []PageAfterRow
+	var items []MessageRow
 	for rows.Next() {
-		var i PageAfterRow
+		var i MessageRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.ConversationID,
@@ -176,7 +357,22 @@ func (q *Queries) PageAfter(ctx context.Context, arg PageAfterParams) ([]PageAft
 			&i.Kind,
 			&i.Format,
 			&i.Body,
+			&i.ThreadRootID,
+			&i.Broadcast,
+			&i.InMain,
+			&i.ReplyCount,
+			&i.LastReplyID,
 			&i.CreatedAt,
+			&i.EditedAt,
+			&i.DeletedAt,
+			&i.PurgedAt,
+			&i.SystemJson,
+			&i.SessionID,
+			&i.AnswersAskID,
+			&i.ViaAppMessageID,
+			&i.HasApp,
+			&i.OriginLabel,
+			&i.OriginMachine,
 		); err != nil {
 			return nil, err
 		}
@@ -192,10 +388,8 @@ func (q *Queries) PageAfter(ctx context.Context, arg PageAfterParams) ([]PageAft
 }
 
 const pageBefore = `-- name: PageBefore :many
-SELECT id, conversation_id, author_id, kind, format, body, created_at
-FROM messages
-WHERE conversation_id = ?1 AND in_main = 1 AND kind <> 'system' AND deleted_at IS NULL
-  AND id < ?2 AND id > ?3
+SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine FROM message_rows
+WHERE conversation_id = ?1 AND in_main = 1 AND id < ?2 AND id > ?3
 ORDER BY id DESC LIMIT ?4
 `
 
@@ -206,17 +400,7 @@ type PageBeforeParams struct {
 	MaxRows        int64
 }
 
-type PageBeforeRow struct {
-	ID             int64
-	ConversationID int64
-	AuthorID       sql.NullInt64
-	Kind           string
-	Format         string
-	Body           string
-	CreatedAt      int64
-}
-
-func (q *Queries) PageBefore(ctx context.Context, arg PageBeforeParams) ([]PageBeforeRow, error) {
+func (q *Queries) PageBefore(ctx context.Context, arg PageBeforeParams) ([]MessageRow, error) {
 	rows, err := q.db.QueryContext(ctx, pageBefore,
 		arg.ConversationID,
 		arg.Before,
@@ -227,9 +411,9 @@ func (q *Queries) PageBefore(ctx context.Context, arg PageBeforeParams) ([]PageB
 		return nil, err
 	}
 	defer rows.Close()
-	var items []PageBeforeRow
+	var items []MessageRow
 	for rows.Next() {
-		var i PageBeforeRow
+		var i MessageRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.ConversationID,
@@ -237,7 +421,22 @@ func (q *Queries) PageBefore(ctx context.Context, arg PageBeforeParams) ([]PageB
 			&i.Kind,
 			&i.Format,
 			&i.Body,
+			&i.ThreadRootID,
+			&i.Broadcast,
+			&i.InMain,
+			&i.ReplyCount,
+			&i.LastReplyID,
 			&i.CreatedAt,
+			&i.EditedAt,
+			&i.DeletedAt,
+			&i.PurgedAt,
+			&i.SystemJson,
+			&i.SessionID,
+			&i.AnswersAskID,
+			&i.ViaAppMessageID,
+			&i.HasApp,
+			&i.OriginLabel,
+			&i.OriginMachine,
 		); err != nil {
 			return nil, err
 		}
@@ -253,9 +452,8 @@ func (q *Queries) PageBefore(ctx context.Context, arg PageBeforeParams) ([]PageB
 }
 
 const pageNewest = `-- name: PageNewest :many
-SELECT id, conversation_id, author_id, kind, format, body, created_at
-FROM messages
-WHERE conversation_id = ?1 AND in_main = 1 AND kind <> 'system' AND deleted_at IS NULL AND id > ?2
+SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine FROM message_rows
+WHERE conversation_id = ?1 AND in_main = 1 AND id > ?2
 ORDER BY id DESC LIMIT ?3
 `
 
@@ -265,25 +463,15 @@ type PageNewestParams struct {
 	MaxRows        int64
 }
 
-type PageNewestRow struct {
-	ID             int64
-	ConversationID int64
-	AuthorID       sql.NullInt64
-	Kind           string
-	Format         string
-	Body           string
-	CreatedAt      int64
-}
-
-func (q *Queries) PageNewest(ctx context.Context, arg PageNewestParams) ([]PageNewestRow, error) {
+func (q *Queries) PageNewest(ctx context.Context, arg PageNewestParams) ([]MessageRow, error) {
 	rows, err := q.db.QueryContext(ctx, pageNewest, arg.ConversationID, arg.Floor, arg.MaxRows)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []PageNewestRow
+	var items []MessageRow
 	for rows.Next() {
-		var i PageNewestRow
+		var i MessageRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.ConversationID,
@@ -291,7 +479,22 @@ func (q *Queries) PageNewest(ctx context.Context, arg PageNewestParams) ([]PageN
 			&i.Kind,
 			&i.Format,
 			&i.Body,
+			&i.ThreadRootID,
+			&i.Broadcast,
+			&i.InMain,
+			&i.ReplyCount,
+			&i.LastReplyID,
 			&i.CreatedAt,
+			&i.EditedAt,
+			&i.DeletedAt,
+			&i.PurgedAt,
+			&i.SystemJson,
+			&i.SessionID,
+			&i.AnswersAskID,
+			&i.ViaAppMessageID,
+			&i.HasApp,
+			&i.OriginLabel,
+			&i.OriginMachine,
 		); err != nil {
 			return nil, err
 		}
@@ -304,4 +507,22 @@ func (q *Queries) PageNewest(ctx context.Context, arg PageNewestParams) ([]PageN
 		return nil, err
 	}
 	return items, nil
+}
+
+const scrubMessage = `-- name: ScrubMessage :exec
+UPDATE messages
+SET body = '', app_json = NULL, app_result_json = NULL, purged_at = ?1,
+    deleted_at = COALESCE(deleted_at, ?1), deleted_by = COALESCE(deleted_by, ?2)
+WHERE id = ?3
+`
+
+type ScrubMessageParams struct {
+	At sql.NullInt64
+	By sql.NullInt64
+	ID int64
+}
+
+func (q *Queries) ScrubMessage(ctx context.Context, arg ScrubMessageParams) error {
+	_, err := q.db.ExecContext(ctx, scrubMessage, arg.At, arg.By, arg.ID)
+	return err
 }

@@ -888,6 +888,25 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /** Delete a message (a tombstone stays). The author, or the owner for any message. */
+        delete: operations["deleteMessage"];
+        options?: never;
+        head?: never;
+        /** Edit a text message. The author only; an agent within 24 hours and 30 edits an hour. */
+        patch: operations["editMessage"];
+        trace?: never;
+    };
+    "/api/messages/{id}/edits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The earlier texts of an edited message, oldest first. */
+        get: operations["listMessageEdits"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -903,7 +922,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
+        /** Scrub every copy of a message's content. The owner, with a step-up for action message.purge. */
+        post: operations["purgeMessage"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1605,11 +1625,37 @@ export interface components {
             /** Format: int64 */
             id: number;
             author: components["schemas"]["Person"];
+            /** @description Empty for a deleted or purged message (a tombstone). */
             body: string;
             /** @enum {string} */
-            format: "plain" | "markdown";
+            format: "plain" | "markdown" | "markdownv2";
             /** Format: int64 */
             created_at: number;
+            /**
+             * @description Absent for a text message.
+             * @enum {string}
+             */
+            kind?: "system";
+            /** Format: int64 */
+            thread_root_id?: number;
+            broadcast?: boolean;
+            /** Format: int64 */
+            reply_count?: number;
+            /** Format: int64 */
+            edited_at?: number;
+            deleted?: boolean;
+            purged?: boolean;
+            /** @description A system line - its subtype and the people it names, looked up when read so a rename shows at once (I-23). */
+            system?: {
+                t: string;
+            } & {
+                [key: string]: unknown;
+            };
+            /** @description The words of a system line. */
+            text?: string;
+            /** @description The session an agent wrote the message from (I-40). */
+            session_label?: string;
+            machine?: string;
         };
         Posted: {
             /** Format: int64 */
@@ -1618,6 +1664,21 @@ export interface components {
             conversation_id: number;
             /** Format: int64 */
             created_at: number;
+        };
+        EditRequest: {
+            client_id: components["schemas"]["ClientId"];
+            body: string;
+            /** @enum {string} */
+            format?: "plain" | "markdown" | "markdownv2";
+        };
+        EditHistory: {
+            edits: {
+                body: string;
+                format: string;
+                /** Format: int64 */
+                edited_at: number;
+                by?: string;
+            }[];
         };
         /** @description SSE message.created. */
         MessageCreatedFrame: components["schemas"]["Message"] & {
@@ -2444,13 +2505,121 @@ export interface operations {
                     client_id: components["schemas"]["ClientId"];
                     body: string;
                     /** @enum {string} */
-                    format?: "plain" | "markdown";
+                    format?: "plain" | "markdown" | "markdownv2";
+                    /** Format: int64 */
+                    thread_root_id?: number;
+                    broadcast?: boolean;
+                    upload_ids?: string[];
+                    /** @description Agents only; at most 65536 bytes. */
+                    app?: Record<string, never>;
                 };
             };
         };
         responses: {
             200: components["responses"]["Posted"];
             201: components["responses"]["Posted"];
+            default: components["responses"]["Error"];
+        };
+    };
+    deleteMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The tombstone. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        message: components["schemas"]["Message"];
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    editMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditRequest"];
+            };
+        };
+        responses: {
+            /** @description The edited message. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        message: components["schemas"]["Message"];
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listMessageEdits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The history. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EditHistory"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    purgeMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Purged. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        message: components["schemas"]["Message"];
+                    };
+                };
+            };
             default: components["responses"]["Error"];
         };
     };

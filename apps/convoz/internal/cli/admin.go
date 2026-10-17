@@ -35,6 +35,8 @@ type statusError struct {
 	status int
 	msg    string
 	code   string // the server's error code, when it sent one
+	// retryAfter is how long the server asked the caller to wait (Retry-After), 0 when it did not.
+	retryAfter time.Duration
 }
 
 func (e *statusError) Error() string { return e.msg }

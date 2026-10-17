@@ -22,6 +22,8 @@ const (
 var (
 	ErrDenied  = errors.New("not a participant of that conversation")
 	ErrMissing = errors.New("no such conversation")
+	// ErrPaused means the loop breaker stopped the conversation: agents may not post until a person writes or resumes (I-16).
+	ErrPaused = errors.New("the conversation is paused after 20 agent messages in a row")
 )
 
 // Conversations is what Post needs from the conversation side.
@@ -46,7 +48,8 @@ type InboxFanOut interface {
 	FanOut(ctx context.Context, d pdb.DBTX, now time.Time, identity, conv, messageID, sourceSeq int64) error
 }
 
-// Indexer writes the message into full-text search, inside the same transaction (search module).
+// Indexer writes the message into full-text search, inside the same transaction (search module). It is called again with
+// the new text after an edit, so the row must be replaced, not added.
 type Indexer interface {
 	IndexMessage(ctx context.Context, d pdb.DBTX, now time.Time, m Message) error
 }
@@ -76,9 +79,19 @@ type Audit interface {
 	MessagePosted(ctx context.Context, d pdb.DBTX, now time.Time, session int64, m Message) error
 }
 
+// Cascade is a module that keeps a copy of a message: search, asks, uploads, apps, transcripts. It is called inside the
+// transaction of a delete or a purge, so no copy outlives the message (E-16, I-49). Delete hides: the index row goes, an
+// open ask closes, files stop being served. Purge scrubs the bytes.
+type Cascade interface {
+	MessageDeleted(ctx context.Context, d pdb.DBTX, now time.Time, m Message) error
+	MessagePurged(ctx context.Context, d pdb.DBTX, now time.Time, m Message) error
+}
+
 // Created is the fact "a message was written": ids only (I-23).
 type Created struct {
 	Actor, Session, Conversation, Message int64
+	ThreadRoot                            int64
+	Broadcast                             bool
 	IdemKey                               string
 }
 
@@ -86,6 +99,17 @@ type Created struct {
 type Journal interface {
 	MessageCreated(ctx context.Context, d pdb.DBTX, now time.Time, c Created) (seq int64, err error)
 	ReadMoved(ctx context.Context, d pdb.DBTX, now time.Time, reader, conv, mainID int64) error
+}
+
+// Events writes the thin events of everything after the post: a reply, an edit, a delete, a purge, the loop breaker.
+type Events interface {
+	ThreadUpdated(ctx context.Context, d pdb.DBTX, now time.Time, conv, root, lastReply, replies int64) error
+	Edited(ctx context.Context, d pdb.DBTX, now time.Time, actor, conv, id, at int64, idem string) error
+	Deleted(ctx context.Context, d pdb.DBTX, now time.Time, actor, conv, id, at int64) error
+	Purged(ctx context.Context, d pdb.DBTX, now time.Time, actor, conv, id int64) error
+	LoopChanged(ctx context.Context, d pdb.DBTX, now time.Time, actor, conv int64, paused bool) error
+	// SystemWritten announces a system line, like a message created (the stream shows it live).
+	SystemWritten(ctx context.Context, d pdb.DBTX, now time.Time, conv, id int64) error
 }
 
 // Ports are the other modules Post works through, so this module imports none of them. Each later module plugs in its
@@ -101,6 +125,9 @@ type Ports struct {
 	Mentions      Mentions
 	Unfurls       UnfurlQueue
 	Audit         Audit
+	Loop          Loop
+	Events        Events
+	Cascades      []Cascade
 }
 
 // Posted is what Post did. Wake lists the identities whose inbox got an item, for the caller to notify after the commit.
@@ -108,11 +135,16 @@ type Posted struct {
 	Message  Message
 	Replayed bool
 	Wake     []int64
+	// Paused is true when this post was the one that stopped the conversation (the 20th agent message in a row).
+	Paused bool
 }
 
 // Post is the whole write of one message, in the caller's transaction (I-4, I-43): the message, the conversation's
 // counters, the author's read cursor, one inbox item per other agent participant and the thin events. A repeat of
 // the same client id changes nothing and returns Replayed. The author is always the caller (I-40).
+//
+// An agent's post is refused with ErrPaused while the conversation is paused; its own post counts toward the pause
+// and a person's resets the count (I-16). A reply counts like any other message.
 func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) (Posted, error) {
 	switch access, err := p.Conversations.Access(ctx, d, draft.Conversation); {
 	case err != nil:
@@ -121,6 +153,19 @@ func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) 
 		return Posted{}, ErrDenied
 	case access == Missing:
 		return Posted{}, ErrMissing
+	}
+	isAgent := draft.Session != 0
+	if isAgent && p.Loop != nil {
+		paused, err := p.Loop.Paused(ctx, d, draft.Conversation)
+		if err != nil {
+			return Posted{}, err
+		}
+		if paused {
+			return Posted{}, ErrPaused
+		}
+	}
+	if err := checkRoot(ctx, d, draft); err != nil {
+		return Posted{}, err
 	}
 	if len(draft.App) > 0 && p.Apps != nil {
 		if err := p.Apps.ValidateApp(ctx, d, draft.Author, draft.App); err != nil {
@@ -131,26 +176,37 @@ func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) 
 	if err != nil || replayed {
 		return Posted{Message: m, Replayed: replayed}, err
 	}
-	prevMain, err := p.Conversations.RecordMainPost(ctx, d, now, draft.Conversation, m.ID, m.Body)
-	if err != nil {
-		return Posted{}, err
+	inMain := draft.ThreadRoot == 0 || draft.Broadcast
+	var prevMain int64
+	if inMain {
+		if prevMain, err = p.Conversations.RecordMainPost(ctx, d, now, draft.Conversation, m.ID, m.Body); err != nil {
+			return Posted{}, err
+		}
+	}
+	if draft.ThreadRoot != 0 {
+		if err := bumpReplies(ctx, d, p, now, m); err != nil {
+			return Posted{}, err
+		}
 	}
 	if err := afterInsert(ctx, d, p, now, draft, m); err != nil {
 		return Posted{}, err
 	}
 	seq, err := p.Journal.MessageCreated(ctx, d, now, Created{
-		Actor: draft.Author, Session: draft.Session, Conversation: draft.Conversation, Message: m.ID, IdemKey: "message.create:" + draft.ClientID,
+		Actor: draft.Author, Session: draft.Session, Conversation: draft.Conversation, Message: m.ID,
+		ThreadRoot: draft.ThreadRoot, Broadcast: draft.Broadcast, IdemKey: "message.create:" + draft.ClientID,
 	})
 	if err != nil {
 		return Posted{}, err
 	}
-	moved, err := p.Reads.MoveForOwnPost(ctx, d, now, draft.Author, draft.Conversation, prevMain, m.ID)
-	if err != nil {
-		return Posted{}, err
-	}
-	if moved {
-		if err := p.Journal.ReadMoved(ctx, d, now, draft.Author, draft.Conversation, m.ID); err != nil {
+	if inMain {
+		moved, err := p.Reads.MoveForOwnPost(ctx, d, now, draft.Author, draft.Conversation, prevMain, m.ID)
+		if err != nil {
 			return Posted{}, err
+		}
+		if moved {
+			if err := p.Journal.ReadMoved(ctx, d, now, draft.Author, draft.Conversation, m.ID); err != nil {
+				return Posted{}, err
+			}
 		}
 	}
 	recipients, err := p.Conversations.AgentRecipients(ctx, d, draft.Conversation, draft.Author)
@@ -162,7 +218,45 @@ func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) 
 			return Posted{}, err
 		}
 	}
-	return Posted{Message: m, Wake: recipients}, nil
+	paused, err := countLoop(ctx, d, p, now, draft, isAgent)
+	if err != nil {
+		return Posted{}, err
+	}
+	return Posted{Message: m, Wake: recipients, Paused: paused}, nil
+}
+
+// checkRoot refuses a reply whose root is not a top-level, non-system message of the same conversation (I-8).
+func checkRoot(ctx context.Context, d pdb.DBTX, draft Draft) error {
+	if draft.ThreadRoot == 0 {
+		if draft.Broadcast {
+			return ErrBadRoot
+		}
+		return nil
+	}
+	root, ok, err := get(ctx, d, draft.ThreadRoot)
+	switch {
+	case err != nil:
+		return err
+	case !ok || root.ConversationID != draft.Conversation || root.ThreadRootID != 0 || root.Deleted:
+		return ErrBadRoot
+	case root.Kind == "system":
+		return ErrSystemRoot
+	}
+	return nil
+}
+
+func bumpReplies(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, reply Message) error {
+	if err := bump(ctx, d, now, reply); err != nil {
+		return err
+	}
+	if p.Events == nil {
+		return nil
+	}
+	root, _, err := get(ctx, d, reply.ThreadRootID)
+	if err != nil {
+		return err
+	}
+	return p.Events.ThreadUpdated(ctx, d, now, reply.ConversationID, root.ID, reply.ID, root.ReplyCount)
 }
 
 // afterInsert runs the ports that follow a new message in the same transaction: mentions, the search index, the uploads

@@ -13,7 +13,6 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/event"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity"
-	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/readstate"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
@@ -218,61 +217,6 @@ func intParam(w http.ResponseWriter, r *http.Request, name string) (v int64, pre
 		return 0, true, false
 	}
 	return n, true, true
-}
-
-// listMessages is GET /api/conversations/:id/messages: oldest first. after=N the oldest page past N, before=N the
-// newest page before N, neither the newest page. Messages from before the caller joined are never shown.
-func (s *Server) listMessages(w http.ResponseWriter, r *http.Request, c *call) {
-	id, ok := pathID(w, r)
-	if !ok {
-		return
-	}
-	before, hasBefore, ok1 := intParam(w, r, "before")
-	after, hasAfter, ok2 := intParam(w, r, "after")
-	limit, _, ok3 := intParam(w, r, "limit")
-	if !ok1 || !ok2 || !ok3 {
-		return
-	}
-	ctx, d := r.Context(), s.reader()
-	_, found, err := conversation.Get(ctx, d, id)
-	var floor int64
-	var visible bool
-	if err == nil && found {
-		floor, visible, err = canSee(ctx, d, c.p, id)
-	}
-	if err != nil {
-		s.internalError(w, r, err)
-		return
-	}
-	if !found || !visible {
-		writeErr(w, http.StatusNotFound, "not_found", "No such conversation.")
-		return
-	}
-	seq, err := event.MaxSeq(ctx, d)
-	var page []message.Message
-	if err == nil {
-		switch {
-		case hasAfter:
-			page, err = message.After(ctx, d, id, after, floor, int(limit))
-		case hasBefore:
-			page, err = message.Before(ctx, d, id, before, floor, int(limit))
-		default:
-			page, err = message.Newest(ctx, d, id, floor, int(limit))
-		}
-	}
-	var dir directory
-	if err == nil {
-		dir, err = loadDirectory(ctx, d)
-	}
-	if err != nil {
-		s.internalError(w, r, err)
-		return
-	}
-	out := wire.MessagesResponse{Messages: make([]wire.Message, 0, len(page)), AsOfSeq: seq}
-	for _, m := range page {
-		out.Messages = append(out.Messages, dir.message(m))
-	}
-	writeJSON(w, http.StatusOK, out)
 }
 
 // markRead is POST /api/conversations/:id/read. The cursor only moves forward, and never past the newest main message.

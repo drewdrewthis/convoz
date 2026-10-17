@@ -1,0 +1,155 @@
+import type { Message } from "@convoz/api-client";
+import { Sheet } from "@convoz/ui/Sheet";
+import { useEffect, useRef, useState } from "react";
+import { humanError } from "../../../shared/api.ts";
+import { deleteMessage, editHistory, editMessage } from "./actions.ts";
+
+/**
+ * MessageMenu is the "Message actions" button of one message and what it opens. The button is invisible until the row is
+ * hovered or focused (a long press does the same on touch), so a message looks as the prototype draws it.
+ */
+export function MessageMenu({ message, mine }: { message: Message; mine: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [sheet, setSheet] = useState<"edit" | "delete" | null>(null);
+  const press = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const root = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: Event) => root.current && !root.current.contains(e.target as Node) && setOpen(false);
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, [open]);
+
+  return (
+    <span className="msg-actions" ref={root}>
+      <button
+        className="msg-actions-btn"
+        type="button"
+        aria-label="Message actions"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        onTouchStart={() => (press.current = setTimeout(() => setOpen(true), 450))}
+        onTouchEnd={() => clearTimeout(press.current)}
+        onTouchMove={() => clearTimeout(press.current)}
+      />
+      {open ? (
+        <div className="msg-menu" role="menu">
+          {mine ? (
+            <button role="menuitem" type="button" onClick={() => (setOpen(false), setSheet("edit"))}>
+              Edit
+            </button>
+          ) : null}
+          <button role="menuitem" type="button" onClick={() => (setOpen(false), setSheet("delete"))}>
+            Delete
+          </button>
+        </div>
+      ) : null}
+      {sheet === "edit" ? <EditSheet message={message} close={() => setSheet(null)} /> : null}
+      {sheet === "delete" ? <DeleteSheet message={message} close={() => setSheet(null)} /> : null}
+    </span>
+  );
+}
+
+function EditSheet({ message, close }: { message: Message; close(): void }) {
+  const [text, setText] = useState(message.body);
+  const [alert, setAlert] = useState("");
+  const save = async () => {
+    try {
+      await editMessage(message.id, text);
+      close();
+    } catch (err) {
+      setAlert(humanError(err));
+    }
+  };
+  return (
+    <Sheet
+      title="Edit message"
+      alert={alert}
+      onClose={close}
+      actions={
+        <>
+          <button className="btn" type="button" disabled={!text.trim()} onClick={save}>
+            Save
+          </button>
+          <button className="btn quiet" type="button" onClick={close}>
+            Cancel
+          </button>
+        </>
+      }
+    >
+      <textarea aria-label="Message text" rows={4} value={text} onChange={(e) => setText(e.target.value)} autoFocus />
+    </Sheet>
+  );
+}
+
+function DeleteSheet({ message, close }: { message: Message; close(): void }) {
+  const [alert, setAlert] = useState("");
+  const remove = async () => {
+    try {
+      await deleteMessage(message.id);
+      close();
+    } catch (err) {
+      setAlert(humanError(err));
+    }
+  };
+  return (
+    <Sheet
+      title="Delete this message?"
+      alert={alert}
+      onClose={close}
+      actions={
+        <>
+          <button className="btn danger" type="button" onClick={remove}>
+            Delete
+          </button>
+          <button className="btn quiet" type="button" onClick={close}>
+            Cancel
+          </button>
+        </>
+      }
+    >
+      <p>It stays as &ldquo;Message deleted&rdquo; in the conversation.</p>
+    </Sheet>
+  );
+}
+
+/** EditedMark is "(edited)": a button that opens the earlier texts. */
+export function EditedMark({ id }: { id: number }) {
+  const [list, setList] = useState<{ body: string; edited_at: number }[] | null>(null);
+  const [alert, setAlert] = useState("");
+  const show = async () => {
+    try {
+      setList((await editHistory(id)).edits);
+    } catch (err) {
+      setAlert(humanError(err));
+      setList([]);
+    }
+  };
+  return (
+    <>
+      <button className="edited" type="button" onClick={show}>
+        (edited)
+      </button>
+      {list ? (
+        <Sheet
+          title="Edit history"
+          alert={alert}
+          onClose={() => setList(null)}
+          actions={
+            <button className="btn quiet" type="button" onClick={() => setList(null)}>
+              Close
+            </button>
+          }
+        >
+          <ol className="edit-history">
+            {list.map((e) => (
+              <li key={e.edited_at}>{e.body}</li>
+            ))}
+          </ol>
+        </Sheet>
+      ) : null}
+    </>
+  );
+}

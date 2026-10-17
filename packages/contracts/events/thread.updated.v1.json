@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://convoz.dev/events/thread.updated.v1.json",
+  "title": "thread.updated.v1",
+  "description": "A thread root has a new reply.",
+  "type": "object",
+  "required": [
+    "root_id",
+    "reply_count",
+    "last_reply_id"
+  ],
+  "properties": {
+    "root_id": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "reply_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "last_reply_id": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "additionalProperties": false
+}

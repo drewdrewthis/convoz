@@ -82,6 +82,7 @@ paths:
   # ---- message
   /api/conversations/{id}/messages: { $ref: "paths/message.yaml#/~1api~1conversations~1{id}~1messages" }
   /api/messages/{id}: { $ref: "paths/message.yaml#/~1api~1messages~1{id}" }
+  /api/messages/{id}/edits: { $ref: "paths/message.yaml#/~1api~1messages~1{id}~1edits" }
   /api/messages/{id}/purge: { $ref: "paths/message.yaml#/~1api~1messages~1{id}~1purge" }
   /api/messages/{id}/replies: { $ref: "paths/message.yaml#/~1api~1messages~1{id}~1replies" }
   # ---- appkit
@@ -268,6 +269,8 @@ components:
     Conversation: { $ref: "components/conversation.yaml#/Conversation" }
     Message: { $ref: "components/message.yaml#/Message" }
     Posted: { $ref: "components/message.yaml#/Posted" }
+    EditRequest: { $ref: "components/message.yaml#/EditRequest" }
+    EditHistory: { $ref: "components/message.yaml#/EditHistory" }
     MessageCreatedFrame: { $ref: "components/event.yaml#/MessageCreatedFrame" }
     ReadMovedFrame: { $ref: "components/event.yaml#/ReadMovedFrame" }
     AgentWorkingFrame: { $ref: "components/event.yaml#/AgentWorkingFrame" }

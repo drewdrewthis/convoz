@@ -31,7 +31,7 @@ Feature: Data at rest, backups and deletion (contracts)
 
   Rule: Purge and delete-my-data leave no readable trace
 
-    @v1 @browser @api @invariant @I-5 @I-49 @C-7 @unimplemented
+    @v1 @browser @api @invariant @I-5 @I-49 @C-7
     Scenario: Purging a message scrubs every copy of its content
       Given "devtool" posted "ZQX-purge-me", edited it to "ZQX-purge-edit", and asked "ZQX-purge-question" with a custom answer "ZQX-purge-answer"
       And "devtool" posted an app holding "ZQX-purge-app" that the owner answered through with "ZQX-purge-result"

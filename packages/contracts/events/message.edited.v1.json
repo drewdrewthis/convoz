@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://convoz.dev/events/message.edited.v1.json",
+  "title": "message.edited.v1",
+  "description": "A message was edited (ids and the time only, I-23). An edit adds nobody and makes no inbox item.",
+  "type": "object",
+  "required": [
+    "id",
+    "edited_at"
+  ],
+  "properties": {
+    "id": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "edited_at": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "additionalProperties": false
+}
