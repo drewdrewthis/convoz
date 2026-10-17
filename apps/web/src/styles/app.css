@@ -1,4 +1,4 @@
-/* Convoz web app, phone UI of prototype v41 (Iris). Dark is the default look; light follows prefers-color-scheme: light.
+/* Convoz web app, phone UI of prototype v41 (Iris). Dark is the default look; light is set by <html data-mode> or, for "system", by the OS.
    Colours come from packages/tokens (Tailwind v4 @theme, generated). Tailwind's preflight is not imported: the rules below are the
    prototype's own reset, ported 1:1 so the parity frames still match.
    Atkinson Hyperlegible Next and Mono are bundled (SIL OFL 1.1, see /fonts/OFL.txt); nothing loads from another origin. */
@@ -41,14 +41,22 @@
   --top: env(safe-area-inset-top, 0px);
   --bottom: env(safe-area-inset-bottom, 0px);
 }
+/* The boot script (settings, /assets/settings/theme-boot.js) sets data-mode to the chosen theme; while it is "system" light follows the OS. */
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-mode="light"]):not([data-mode="dark"]) {
     --glass: rgba(254, 254, 255, 0.84);
     --glass-edge: rgba(80, 77, 92, 0.1);
     --glass-shadow: 0 1px 2px rgba(80, 77, 92, 0.05), 0 6px 16px -8px rgba(80, 77, 92, 0.14);
     --float: 0 1px 2px rgba(80, 77, 92, 0.05), 0 6px 18px -6px rgba(80, 77, 92, 0.16);
     --scrim: rgba(80, 77, 92, 0.28);
   }
+}
+:root[data-mode="light"] {
+  --glass: rgba(254, 254, 255, 0.84);
+  --glass-edge: rgba(80, 77, 92, 0.1);
+  --glass-shadow: 0 1px 2px rgba(80, 77, 92, 0.05), 0 6px 16px -8px rgba(80, 77, 92, 0.14);
+  --float: 0 1px 2px rgba(80, 77, 92, 0.05), 0 6px 18px -6px rgba(80, 77, 92, 0.16);
+  --scrim: rgba(80, 77, 92, 0.28);
 }
 
 @layer components {
