@@ -138,11 +138,14 @@ const maintainEvery = time.Minute
 // maintainSoon runs Maintain when a minute of server time passed since the last run, so the empty-conversation
 // clean-up (24 h) and the trash purge (30 d) happen even if nothing else triggers them. A failure is logged only.
 func (s *Server) maintainSoon(ctx context.Context) {
+	// Serialised on purpose: a reader that lost a race for the run must not list before the winner's clean-up commits.
+	s.maintaining.Lock()
+	defer s.maintaining.Unlock()
 	now := s.Clock.Now().UnixMilli()
-	last := s.maintainedAt.Load()
-	if now-last < maintainEvery.Milliseconds() || !s.maintainedAt.CompareAndSwap(last, now) {
+	if now-s.maintainedAt.Load() < maintainEvery.Milliseconds() {
 		return
 	}
+	s.maintainedAt.Store(now)
 	if err := s.Maintain(ctx); err != nil {
 		s.Log.Printf("maintenance: %v", err)
 	}
