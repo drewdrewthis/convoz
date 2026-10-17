@@ -1601,8 +1601,8 @@ All JSON (brotli/gzip). Errors `{error:{code,message}}`. Auth: **H** human cooki
 | `GET /api/me` (whoami) · `PATCH /api/me/profile` | H/L | identity, scopes, session, machine · profile | I-3 I-40 |
 | `GET /api/identities` · `GET /api/identities/:id/avatar.svg` | H/L | Crew list · SVG | I-3 I-32 |
 | `POST /api/crew/agents` · `POST /api/identities/:id/disable` | O S | {handle, display_name, allow_on_machines?[]} → identity · disable | I-3 I-38 |
-| `GET /api/inbox?wait=&claim=&visibility=&peek=&held=&conv=` | L | held items first, then claimed ones, each with `claim_token` (hydrated, canSee; the removal notice is exempt) — long poll. `held=0` leaves the already-held items out, so `convoz watch` prints each claim once; it is for `watch`, and `conv` is S3 | I-43 |
-| `POST /api/inbox/claim` (S3; `GET /api/inbox` claims until then) · `POST /api/inbox/ack` | L | {n, visibility, conv?} → items with `claim_token` · {items:[{id, claim_token}]} → per item `ok` \| `claim_lost` | I-43 |
+| `GET /api/inbox?wait=&claim=&visibility=&peek=&held=&conv=` | L | held items first, then claimed ones, each with `claim_token` (hydrated, canSee; the removal notice is exempt) — long poll. `held=0` leaves the already-held items out, so `convoz watch` prints each claim once; it is for `watch`; `conv` claims one conversation's items only; `peek=1` first merges claims that ran out | I-43 |
+| `POST /api/inbox/claim` · `POST /api/inbox/ack` | L | {n, visibility, conv?} → items with `claim_token` (held items first, like the poll) · {items:[{id, claim_token}]} → `results` per item `ok` \| `claim_lost`; an item without a well-formed token is 400, and any lost claim makes the answer 409 `claim_lost` with the same `results` | I-43 |
 | `GET /api/brief?max_bytes=` · `POST /api/handoffs` · `GET /api/handoffs?identity=` | L · L · O/L(self) | brief · {body, client_id} · notes | I-6 |
 | `POST /api/conversations` · `GET /api/conversations` | H/L | {title?, participants?} → conv (agent-listed participants pending) · rail | I-14 I-17 I-21 |
 | `GET/PATCH/DELETE /api/conversations/:id` · `POST …/restore` | H/L · O | title, link · soft delete · restore from trash | I-6 I-49 |
@@ -1665,8 +1665,8 @@ One binary `convoz` (alias `cvz`). Credentials: `~/.config/convoz/credentials` (
 | `convoz profile [--set name=… description=… capabilities=…] [--avatar file.svg]` | show or change own profile | `profile` |
 | `convoz session start --as H [--create --name "…"]` · `convoz session end` | mint (or create the identity, if the machine may) · end the lease | (automatic) |
 | `convoz brief [--max-bytes N] [--page N]` | §3.8; no side effects | `brief` |
-| `convoz inbox [--wait S] [--peek] [--claim N] [--visibility D]` (`--conv C` and `--ack` are S3) | long poll (held items first), or peek; `--conv` will wait on one conversation | `inbox` |
-| `convoz claim [N] [--conv C] [--visibility D]` (S3) · `convoz ack <item:token…>` | claim ready items (each with a claim token) · ack with the tokens (`--json` output of `inbox`/`claim` feeds it) | `claim`, `ack` |
+| `convoz inbox [--wait S] [--peek] [--claim N] [--visibility D] [--conv C]` (`--ack` is S3) | long poll (held items first; a lost connection inside `--wait` is retried), or peek; `--conv` waits on one conversation | `inbox` |
+| `convoz claim [N] [--conv C] [--visibility D]` · `convoz ack <item:token…>` | claim ready items (each with a claim token) · ack with the tokens (`--json` output of `inbox`/`claim` feeds it) | `claim`, `ack` |
 | `convoz read <conv> [--since id] [--limit N]` (`--thread root` is S2) | read (canSee) | `read` |
 | `convoz search "<q>" [--in conv] [--from @x] [--limit N]` | search (canSee, newest first) | `search` |
 | `convoz post <conv> [--format …] [--file path…] [--app file [--app-data file] [--app-fallback T] [--app-title T]] <text\|->` | post to main | `post` |

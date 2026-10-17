@@ -72,6 +72,9 @@ func (s *Server) authenticateLease(w http.ResponseWriter, r *http.Request, token
 			return nil, err
 		}
 	}
+	if err := s.touchClaims(ctx, l, now); err != nil {
+		return nil, err
+	}
 	return &call{token: token, lease: l, p: authz.Principal{SessionID: l.SessionID, IdentityID: l.IdentityID}}, nil
 }
 

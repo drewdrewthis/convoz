@@ -28,6 +28,7 @@ type Item struct {
 	FirstMessageID int64
 	MessageID      int64 // the newest message of the item
 	Count          int64
+	MentionCount   int64 // how many of the item's messages mention the agent
 	Reason         string
 	State          string // "ready" or "claimed"; a claim that has run out reads as "ready"
 	ClaimToken     []byte // nil unless the item is claimed
@@ -38,11 +39,18 @@ type Item struct {
 
 func nullInt(v int64) sql.NullInt64 { return sql.NullInt64{Int64: v, Valid: v != 0} }
 
-// FanOut records one new main message for one agent participant: the ready "activity" item of that conversation
-// takes the message and counts one more, or is made. sourceSeq is the seq of the message's event.
-func FanOut(ctx context.Context, d pdb.DBTX, now time.Time, identityID, conversationID, messageID, sourceSeq int64) error {
-	return db.New(d).UpsertActivityItem(ctx, db.UpsertActivityItemParams{
-		IdentityID: identityID, ConversationID: nullInt(conversationID), MessageID: nullInt(messageID), SourceSeq: sourceSeq, Now: now.UnixMilli(),
+// Reasons of a conversation item. A ready item keeps the strongest one its messages gave it (C-10).
+const (
+	ReasonMention  = "mention"
+	ReasonThread   = "thread"
+	ReasonActivity = "activity"
+)
+
+// FanOut records one new main message for one agent participant: the ready item of that conversation takes the
+// message, counts one more and keeps the strongest reason, or is made. sourceSeq is the seq of the message's event.
+func FanOut(ctx context.Context, d pdb.DBTX, now time.Time, identityID, conversationID, messageID, sourceSeq int64, reason string) error {
+	return db.New(d).UpsertConversationItem(ctx, db.UpsertConversationItemParams{
+		IdentityID: identityID, Reason: reason, ConversationID: nullInt(conversationID), MessageID: nullInt(messageID), SourceSeq: sourceSeq, Now: now.UnixMilli(),
 	})
 }
 
@@ -53,6 +61,7 @@ type Request struct {
 	N           int
 	Visibility  time.Duration
 	IncludeHeld bool
+	Conv        int64 // 0 claims the items of every conversation
 }
 
 // Claim returns the items this session holds (when IncludeHeld) and then claims ready ones up to N in total.
@@ -64,13 +73,13 @@ func Claim(ctx context.Context, d pdb.DBTX, now time.Time, r Request) ([]Item, e
 	n := min(max(r.N, 1), MaxClaim)
 	var out []Item
 	if r.IncludeHeld {
-		held, err := q.HeldItems(ctx, db.HeldItemsParams{IdentityID: r.Identity, SessionID: nullInt(r.Session), Now: sql.NullInt64{Int64: nowMs, Valid: true}, MaxRows: int64(n)})
+		held, err := q.HeldItems(ctx, db.HeldItemsParams{IdentityID: r.Identity, SessionID: nullInt(r.Session), Now: sql.NullInt64{Int64: nowMs, Valid: true}, Conv: r.Conv, MaxRows: int64(n)})
 		if err != nil {
 			return nil, err
 		}
 		for _, h := range held {
 			out = append(out, Item{ID: h.ID, ConversationID: h.ConversationID.Int64, FirstMessageID: h.FirstMessageID.Int64, MessageID: h.MessageID.Int64,
-				Count: h.Count, Reason: h.Reason, State: h.State, ClaimToken: h.ClaimToken, ClaimSession: r.Session, ClaimUntil: h.ClaimUntil.Int64, Held: true})
+				Count: h.Count, MentionCount: h.MentionCount, Reason: h.Reason, State: h.State, ClaimToken: h.ClaimToken, ClaimSession: r.Session, ClaimUntil: h.ClaimUntil.Int64, Held: true})
 		}
 	}
 	if len(out) >= n {
@@ -87,14 +96,14 @@ func Claim(ctx context.Context, d pdb.DBTX, now time.Time, r Request) ([]Item, e
 		vis = DefaultVisibility
 	}
 	claimed, err := q.ClaimItems(ctx, db.ClaimItemsParams{
-		SessionID: nullInt(r.Session), Now: nowMs, VisibilityMs: sql.NullInt64{Int64: vis.Milliseconds(), Valid: true}, IdentityID: r.Identity, NLeft: int64(n - len(out)),
+		SessionID: nullInt(r.Session), Now: nowMs, VisibilityMs: sql.NullInt64{Int64: vis.Milliseconds(), Valid: true}, IdentityID: r.Identity, Conv: r.Conv, NLeft: int64(n - len(out)),
 	})
 	if err != nil {
 		return nil, err
 	}
 	for _, c := range claimed {
 		out = append(out, Item{ID: c.ID, ConversationID: c.ConversationID.Int64, FirstMessageID: c.FirstMessageID.Int64, MessageID: c.MessageID.Int64,
-			Count: c.Count, Reason: c.Reason, State: c.State, ClaimToken: c.ClaimToken, ClaimSession: r.Session, ClaimUntil: c.ClaimUntil.Int64})
+			Count: c.Count, MentionCount: c.MentionCount, Reason: c.Reason, State: c.State, ClaimToken: c.ClaimToken, ClaimSession: r.Session, ClaimUntil: c.ClaimUntil.Int64})
 	}
 	return out, nil
 }
@@ -151,7 +160,7 @@ func Peek(ctx context.Context, d pdb.DBTX, now time.Time, identityID, sessionID 
 	}
 	out := make([]Item, 0, len(rows))
 	for _, r := range rows {
-		it := Item{ID: r.ID, ConversationID: r.ConversationID.Int64, FirstMessageID: r.FirstMessageID.Int64, MessageID: r.MessageID.Int64, Count: r.Count, Reason: r.Reason, State: "ready"}
+		it := Item{ID: r.ID, ConversationID: r.ConversationID.Int64, FirstMessageID: r.FirstMessageID.Int64, MessageID: r.MessageID.Int64, Count: r.Count, MentionCount: r.MentionCount, Reason: r.Reason, State: "ready"}
 		if r.State == "claimed" && r.ClaimUntil.Int64 >= now.UnixMilli() {
 			it.State, it.ClaimSession, it.ClaimUntil = "claimed", r.ClaimSessionID.Int64, r.ClaimUntil.Int64
 			if r.ClaimSessionID.Int64 == sessionID {
@@ -179,12 +188,13 @@ func Extend(ctx context.Context, d pdb.DBTX, now time.Time, sessionID, leaseExpi
 // Released is a claim that was let go: whose it was and the conversation it was on.
 type Released struct{ Identity, Conversation int64 }
 
-// ReleaseSessions lets the claims of ending sessions run out at once; the next claim of the identity merges them
-// back. Every path that ends a lease, a re-mint of the same client included, calls it with the ended ids, in the
-// same transaction.
+// ReleaseSessions lets the claims of ending sessions run out at once and merges them back into the ready items
+// of their conversations, so a peek right after shows one item per conversation. Every path that ends a lease calls
+// it with the ended ids, in the same transaction. (A re-mint of the same client moves the claims instead: Transfer.)
 func ReleaseSessions(ctx context.Context, d pdb.DBTX, now time.Time, sessionIDs []int64) ([]Released, error) {
 	q := db.New(d)
 	var out []Released
+	seen := map[int64]bool{}
 	for _, id := range sessionIDs {
 		rows, err := q.ReleaseClaims(ctx, db.ReleaseClaimsParams{Now: sql.NullInt64{Int64: now.UnixMilli(), Valid: true}, SessionID: nullInt(id)})
 		if err != nil {
@@ -192,9 +202,43 @@ func ReleaseSessions(ctx context.Context, d pdb.DBTX, now time.Time, sessionIDs 
 		}
 		for _, r := range rows {
 			out = append(out, Released{Identity: r.IdentityID, Conversation: r.ConversationID.Int64})
+			seen[r.IdentityID] = true
+		}
+	}
+	for identity := range seen {
+		if err := mergeExpiredClaims(ctx, q, identity, now.UnixMilli()); err != nil {
+			return nil, err
 		}
 	}
 	return out, nil
+}
+
+// Transfer hands the live claims of the replaced sessions to the session that replaces them, tokens unchanged (M5).
+func Transfer(ctx context.Context, d pdb.DBTX, now time.Time, from []int64, to int64) error {
+	q := db.New(d)
+	for _, id := range from {
+		if err := q.TransferClaims(ctx, db.TransferClaimsParams{ToSession: nullInt(to), Now: now.UnixMilli(), FromSession: nullInt(id)}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// HoldsLiveClaim reports whether the session has a claim that has not run out.
+func HoldsLiveClaim(ctx context.Context, d pdb.DBTX, now time.Time, sessionID int64) (bool, error) {
+	return db.New(d).HoldsLiveClaim(ctx, db.HoldsLiveClaimParams{SessionID: nullInt(sessionID), Now: sql.NullInt64{Int64: now.UnixMilli(), Valid: true}})
+}
+
+// HasExpiredClaims reports whether the identity has a claim that ran out and is not merged back yet.
+func HasExpiredClaims(ctx context.Context, d pdb.DBTX, now time.Time, identityID int64) (bool, error) {
+	ids, err := db.New(d).ExpiredClaimIDs(ctx, db.ExpiredClaimIDsParams{IdentityID: identityID, Now: sql.NullInt64{Int64: now.UnixMilli(), Valid: true}})
+	return len(ids) > 0, err
+}
+
+// MergeExpired merges the identity's claims that ran out into the ready items of their conversations (M4). A peek
+// calls it first, so the one-ready-item rule holds in what it shows.
+func MergeExpired(ctx context.Context, d pdb.DBTX, now time.Time, identityID int64) error {
+	return mergeExpiredClaims(ctx, db.New(d), identityID, now.UnixMilli())
 }
 
 // Release is ReleaseSessions for one session; it returns the conversations those claims were on.

@@ -49,11 +49,12 @@ WHERE id IN (
   SELECT i.id FROM inbox_items i
   WHERE i.identity_id = ?4 AND i.state = 'ready' AND i.deliveries < 5
     AND (i.not_before IS NULL OR i.not_before <= ?2)
+    AND (?5 = 0 OR i.conversation_id = ?5)
     AND NOT EXISTS (SELECT 1 FROM inbox_items c
                     WHERE c.identity_id = i.identity_id AND c.conversation_id = i.conversation_id
                       AND c.state = 'claimed' AND c.claim_until >= ?2 AND c.claim_session_id <> ?1)
-  ORDER BY i.id LIMIT ?5)
-RETURNING id, conversation_id, first_message_id, message_id, count, reason, state, claim_token, claim_until, deliveries
+  ORDER BY i.id LIMIT ?6)
+RETURNING id, conversation_id, first_message_id, message_id, count, mention_count, reason, state, claim_token, claim_until, deliveries
 `
 
 type ClaimItemsParams struct {
@@ -61,6 +62,7 @@ type ClaimItemsParams struct {
 	Now          int64
 	VisibilityMs sql.NullInt64
 	IdentityID   int64
+	Conv         interface{}
 	NLeft        int64
 }
 
@@ -70,6 +72,7 @@ type ClaimItemsRow struct {
 	FirstMessageID sql.NullInt64
 	MessageID      sql.NullInt64
 	Count          int64
+	MentionCount   int64
 	Reason         string
 	State          string
 	ClaimToken     []byte
@@ -77,14 +80,15 @@ type ClaimItemsRow struct {
 	Deliveries     int64
 }
 
-// (4) Claim; one random 128-bit token per item. Not yet in the SQL of section 3.8: the session-preference clause (prefer_session_id
-// stays NULL until S3) and the --conv filter.
+// (4) Claim; one random 128-bit token per item. conv 0 means every conversation. Not yet in the SQL of section 3.8: the
+// session-preference clause (prefer_session_id stays NULL until the post path records the posting session).
 func (q *Queries) ClaimItems(ctx context.Context, arg ClaimItemsParams) ([]ClaimItemsRow, error) {
 	rows, err := q.db.QueryContext(ctx, claimItems,
 		arg.SessionID,
 		arg.Now,
 		arg.VisibilityMs,
 		arg.IdentityID,
+		arg.Conv,
 		arg.NLeft,
 	)
 	if err != nil {
@@ -100,6 +104,7 @@ func (q *Queries) ClaimItems(ctx context.Context, arg ClaimItemsParams) ([]Claim
 			&i.FirstMessageID,
 			&i.MessageID,
 			&i.Count,
+			&i.MentionCount,
 			&i.Reason,
 			&i.State,
 			&i.ClaimToken,
@@ -270,16 +275,18 @@ func (q *Queries) ExtendClaims(ctx context.Context, arg ExtendClaimsParams) ([]E
 }
 
 const heldItems = `-- name: HeldItems :many
-SELECT id, conversation_id, first_message_id, message_id, count, reason, state, claim_token, claim_until, deliveries
+SELECT id, conversation_id, first_message_id, message_id, count, mention_count, reason, state, claim_token, claim_until, deliveries
 FROM inbox_items
 WHERE identity_id = ?1 AND state = 'claimed' AND claim_session_id = ?2 AND claim_until >= ?3
-ORDER BY id LIMIT ?4
+  AND (?4 = 0 OR conversation_id = ?4)
+ORDER BY id LIMIT ?5
 `
 
 type HeldItemsParams struct {
 	IdentityID int64
 	SessionID  sql.NullInt64
 	Now        sql.NullInt64
+	Conv       interface{}
 	MaxRows    int64
 }
 
@@ -289,6 +296,7 @@ type HeldItemsRow struct {
 	FirstMessageID sql.NullInt64
 	MessageID      sql.NullInt64
 	Count          int64
+	MentionCount   int64
 	Reason         string
 	State          string
 	ClaimToken     []byte
@@ -302,6 +310,7 @@ func (q *Queries) HeldItems(ctx context.Context, arg HeldItemsParams) ([]HeldIte
 		arg.IdentityID,
 		arg.SessionID,
 		arg.Now,
+		arg.Conv,
 		arg.MaxRows,
 	)
 	if err != nil {
@@ -317,6 +326,7 @@ func (q *Queries) HeldItems(ctx context.Context, arg HeldItemsParams) ([]HeldIte
 			&i.FirstMessageID,
 			&i.MessageID,
 			&i.Count,
+			&i.MentionCount,
 			&i.Reason,
 			&i.State,
 			&i.ClaimToken,
@@ -334,6 +344,22 @@ func (q *Queries) HeldItems(ctx context.Context, arg HeldItemsParams) ([]HeldIte
 		return nil, err
 	}
 	return items, nil
+}
+
+const holdsLiveClaim = `-- name: HoldsLiveClaim :one
+SELECT EXISTS (SELECT 1 FROM inbox_items WHERE claim_session_id = ?1 AND state = 'claimed' AND claim_until >= ?2)
+`
+
+type HoldsLiveClaimParams struct {
+	SessionID sql.NullInt64
+	Now       sql.NullInt64
+}
+
+func (q *Queries) HoldsLiveClaim(ctx context.Context, arg HoldsLiveClaimParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, holdsLiveClaim, arg.SessionID, arg.Now)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const itemConversation = `-- name: ItemConversation :one
@@ -410,7 +436,7 @@ func (q *Queries) MergeIntoReady(ctx context.Context, arg MergeIntoReadyParams) 
 }
 
 const peekItems = `-- name: PeekItems :many
-SELECT id, conversation_id, first_message_id, message_id, count, reason, state, claim_token, claim_until, deliveries, claim_session_id
+SELECT id, conversation_id, first_message_id, message_id, count, mention_count, reason, state, claim_token, claim_until, deliveries, claim_session_id
 FROM inbox_items
 WHERE identity_id = ?1 AND state IN ('ready','claimed')
 ORDER BY id
@@ -422,6 +448,7 @@ type PeekItemsRow struct {
 	FirstMessageID sql.NullInt64
 	MessageID      sql.NullInt64
 	Count          int64
+	MentionCount   int64
 	Reason         string
 	State          string
 	ClaimToken     []byte
@@ -445,6 +472,7 @@ func (q *Queries) PeekItems(ctx context.Context, identityID int64) ([]PeekItemsR
 			&i.FirstMessageID,
 			&i.MessageID,
 			&i.Count,
+			&i.MentionCount,
 			&i.Reason,
 			&i.State,
 			&i.ClaimToken,
@@ -504,15 +532,36 @@ func (q *Queries) ReleaseClaims(ctx context.Context, arg ReleaseClaimsParams) ([
 	return items, nil
 }
 
-const upsertActivityItem = `-- name: UpsertActivityItem :exec
-INSERT INTO inbox_items (identity_id, reason, conversation_id, first_message_id, message_id, count, mention_count, source_seq, state, created_at, updated_at)
-VALUES (?1, 'activity', ?2, ?3, ?3, 1, 0, ?4, 'ready', ?5, ?5)
-ON CONFLICT (identity_id, conversation_id) WHERE state = 'ready' AND reason IN ('mention','thread','activity')
-DO UPDATE SET message_id = excluded.message_id, count = inbox_items.count + 1, source_seq = excluded.source_seq, updated_at = excluded.updated_at
+const transferClaims = `-- name: TransferClaims :exec
+UPDATE inbox_items SET claim_session_id = ?1, updated_at = ?2
+WHERE claim_session_id = ?3 AND state = 'claimed'
 `
 
-type UpsertActivityItemParams struct {
+type TransferClaimsParams struct {
+	ToSession   sql.NullInt64
+	Now         int64
+	FromSession sql.NullInt64
+}
+
+// Re-mint (M5): the lease that replaces another keeps the claims of the old one, tokens unchanged.
+func (q *Queries) TransferClaims(ctx context.Context, arg TransferClaimsParams) error {
+	_, err := q.db.ExecContext(ctx, transferClaims, arg.ToSession, arg.Now, arg.FromSession)
+	return err
+}
+
+const upsertConversationItem = `-- name: UpsertConversationItem :exec
+INSERT INTO inbox_items (identity_id, reason, conversation_id, first_message_id, message_id, count, mention_count, source_seq, state, created_at, updated_at)
+VALUES (?1, ?2, ?3, ?4, ?4, 1, CASE WHEN ?2 = 'mention' THEN 1 ELSE 0 END, ?5, 'ready', ?6, ?6)
+ON CONFLICT (identity_id, conversation_id) WHERE state = 'ready' AND reason IN ('mention','thread','activity')
+DO UPDATE SET message_id = excluded.message_id, count = inbox_items.count + 1, mention_count = inbox_items.mention_count + excluded.mention_count,
+    reason = CASE WHEN 'mention' IN (inbox_items.reason, excluded.reason) THEN 'mention'
+                  WHEN 'thread'  IN (inbox_items.reason, excluded.reason) THEN 'thread' ELSE 'activity' END,
+    source_seq = excluded.source_seq, updated_at = excluded.updated_at
+`
+
+type UpsertConversationItemParams struct {
 	IdentityID     int64
+	Reason         string
 	ConversationID sql.NullInt64
 	MessageID      sql.NullInt64
 	SourceSeq      int64
@@ -520,10 +569,12 @@ type UpsertActivityItemParams struct {
 }
 
 // The fan-out of one new main message to one agent participant: the ready conversation item for (identity, conversation)
-// takes the newest message and counts one more, or is made (design section 3.8, C-10).
-func (q *Queries) UpsertActivityItem(ctx context.Context, arg UpsertActivityItemParams) error {
-	_, err := q.db.ExecContext(ctx, upsertActivityItem,
+// takes the newest message and counts one more, or is made (design section 3.8, C-10). The reason only goes up:
+// mention over thread over activity. mention_count is how many of the item's messages mention the agent.
+func (q *Queries) UpsertConversationItem(ctx context.Context, arg UpsertConversationItemParams) error {
+	_, err := q.db.ExecContext(ctx, upsertConversationItem,
 		arg.IdentityID,
+		arg.Reason,
 		arg.ConversationID,
 		arg.MessageID,
 		arg.SourceSeq,

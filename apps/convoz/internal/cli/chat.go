@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	stdio "io"
+	"math"
 	"net/url"
 	"strconv"
 	"strings"
@@ -249,27 +250,29 @@ func Read(args []string, io IO) int {
 
 // ---- inbox, ack -----------------------------------------------------------------------------------------
 
-// Inbox runs `convoz inbox [--wait S] [--peek] [--claim N] [--visibility D]`: the held items, then newly claimed
-// ones; with --wait it polls until an item arrives or S seconds pass. --peek changes nothing.
+// Inbox runs `convoz inbox [--wait S] [--peek] [--claim N] [--visibility D] [--conv C]`: the held items, then newly
+// claimed ones; with --wait it polls until an item arrives or S seconds pass, and rides out a lost connection while
+// time is left. --peek changes nothing. --conv C looks at the items of one conversation only.
 func Inbox(args []string, io IO) int {
 	f := newChatFlags("inbox", io)
 	wait := f.fs.Int("wait", 0, "wait up to this many seconds for an item")
 	peek := f.fs.Bool("peek", false, "list the items without claiming any")
 	claim := f.fs.Int("claim", 0, "claim at most this many items (default and most 20)")
 	visibility := f.fs.String("visibility", "", "how long a claim holds before another session may take the item, 30s to 30m (default 5m)")
+	conv := f.fs.Int64("conv", 0, "claim only the items of this conversation")
 	if pos, ok := f.parse(args, io); !ok {
 		return ExitUsage
 	} else if len(pos) != 0 {
-		return usageError(io, "usage: convoz inbox [--wait S] [--peek] [--claim N] [--visibility D]")
+		return usageError(io, "usage: convoz inbox [--wait S] [--peek] [--claim N] [--visibility D] [--conv C]")
 	}
 	k, code := f.open(io)
 	if k == nil {
 		return code
 	}
-	remaining := max(*wait, 0)
+	deadline := time.Now().Add(time.Duration(max(*wait, 0)) * time.Second)
 	var items []wire.InboxItem
 	for {
-		hold := min(remaining, wire.MaxHoldSeconds)
+		hold := max(min(int(math.Ceil(time.Until(deadline).Seconds())), wire.MaxHoldSeconds), 0)
 		q := url.Values{"wait": {strconv.Itoa(hold)}}
 		if *peek {
 			q.Set("peek", "1")
@@ -280,19 +283,33 @@ func Inbox(args []string, io IO) int {
 		if *visibility != "" {
 			q.Set("visibility", *visibility)
 		}
+		if *conv > 0 {
+			q.Set("conv", strconv.FormatInt(*conv, 10))
+		}
 		var out wire.InboxResponse
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(hold)*time.Second+k.timeout)
 		err := k.c.withTimeout(time.Duration(hold)*time.Second+requestTimeout).call(ctx, "GET", wire.RouteInbox+"?"+q.Encode(), k.lease, nil, &out)
 		cancel()
+		if errors.Is(err, errUnreachable) && time.Now().Before(deadline) {
+			time.Sleep(inboxRetryPause) // a lost connection costs a try, not the wait; the held claim comes back with the same token
+			continue
+		}
 		if err != nil {
 			return k.fail(err)
 		}
 		items = out.Items
-		remaining -= hold
-		if len(items) > 0 || remaining <= 0 || *peek {
+		if len(items) > 0 || !time.Now().Before(deadline) || *peek {
 			break
 		}
 	}
+	return k.printItems(items)
+}
+
+// inboxRetryPause is how long `convoz inbox` waits before asking again after a lost connection.
+const inboxRetryPause = 300 * time.Millisecond
+
+// printItems writes claimed or peeked items: JSON, or one line each.
+func (k *chatCmd) printItems(items []wire.InboxItem) int {
 	if k.asJSON {
 		k.printJSON(map[string]any{"items": append([]wire.InboxItem{}, items...)})
 		return ExitOK
@@ -356,10 +373,14 @@ func Ack(args []string, io IO) int {
 	ctx, cancel := context.WithTimeout(context.Background(), k.timeout)
 	defer cancel()
 	var out wire.AckResponse
-	if err := k.call(ctx, "POST", wire.RouteInboxAck, req, &out); err != nil {
+	err := k.call(ctx, "POST", wire.RouteInboxAck, req, &out)
+	lost := false
+	if status, code := statusCode(err); status == 409 && code == wire.AckClaimLost {
+		err, lost = nil, true // the body still says which items were acked
+	}
+	if err != nil {
 		return k.fail(err)
 	}
-	lost := false
 	for _, r := range out.Results {
 		lost = lost || r.Result != wire.AckOK
 	}
