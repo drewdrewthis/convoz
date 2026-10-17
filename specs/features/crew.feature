@@ -16,7 +16,7 @@ Feature: Crew: identities, machines and sessions
   Rule: The owner creates identities; names are unique and never reused
 
     # -> S-U (S1 plan, amendment 5): the S1 console has no Crew, Sessions or Audit screens; the API half is bound in the contracts.
-    @v1 @browser @I-42 @unimplemented
+    @v1 @browser @I-42
     Scenario: Adding an agent on a machine that already allows it
       Given "box-2" has allow mode "any"
       When the owner adds agent "dev-search" named "Search Dev" with a passkey
@@ -25,27 +25,27 @@ Feature: Crew: identities, machines and sessions
       And the sheet shows no key and no string starting with "cvz_"
 
     # -> S-U (S1 plan, amendment 5): the S1 console has no Crew, Sessions or Audit screens; the API half is bound in the contracts.
-    @v1 @browser @I-37 @unimplemented
+    @v1 @browser @I-37
     Scenario: Adding an agent that no machine allows yet
       When the owner adds agent "docs" named "Docs" with a passkey
       Then the sheet offers "Allow on machine…" with "box-2"
       And it shows the command "convoz login" for a new machine
       And choosing "box-2" lets "convoz session start --as docs" work there
 
-    @v1 @browser @I-3 @unimplemented
+    @v1 @browser @I-3
     Scenario: A handle is never used again
       Given the owner disabled the agent "release-bot"
       When the owner tries to add a new agent with the handle "release-bot"
       Then the add sheet says the handle "release-bot" was used before
       And Crew still lists the disabled "release-bot" with its old messages
 
-    @v1 @browser @I-3 @unimplemented
+    @v1 @browser @I-3
     Scenario: The handle always shows next to an agent's display name
       Given "devtool" set its display name to "Drew"
       When the owner views a message from "devtool"
       Then the author reads "Drew @devtool"
 
-    @v1 @browser @I-2 @unimplemented
+    @v1 @browser @I-2
     Scenario: Identities are disabled, never deleted
       When the owner disables "devtool" with a passkey
       Then Crew lists "devtool" as disabled
@@ -54,7 +54,7 @@ Feature: Crew: identities, machines and sessions
 
   Rule: Disabling an identity cuts every session at once (I-38)
 
-    @v1 @browser @cli @I-38 @unimplemented
+    @v1 @browser @cli @I-38
     Scenario: Disabling an identity ends its sessions and closes its asks
       Given "devtool" has sessions on "box-2" and an open ask in conversation 41
       When the owner disables "devtool" with a passkey
@@ -65,27 +65,27 @@ Feature: Crew: identities, machines and sessions
   Rule: The owner manages machines and their allow-lists
 
     # -> S-U (S1 plan, amendment 5): the S1 console has no Crew, Sessions or Audit screens; the API half is bound in the contracts.
-    @v1 @browser @unimplemented
+    @v1 @browser
     Scenario: Crew lists machines with their state
       Given "box-2" has 3 live sessions and was last used 2 minutes ago
       When the owner opens Crew → Machines
       Then "box-2" shows its key hint, allow-list, "3 live sessions" and "last used 2 min ago"
 
     # -> S-U (S1 plan, amendment 5): the S1 console has no Crew, Sessions or Audit screens; the API half is bound in the contracts.
-    @v1 @browser @I-37 @unimplemented
+    @v1 @browser @I-37
     Scenario: Editing a machine's allow-list needs a passkey
       When the owner adds "docs" to the allow-list of "box-2"
       Then the app asks for a passkey first
       And after it, "convoz session start --as docs" works on "box-2"
 
     # -> S-U (S1 plan, amendment 5): the S1 console has no Crew, Sessions or Audit screens; the API half is bound in the contracts.
-    @v1 @browser @unimplemented
+    @v1 @browser
     Scenario: Crew lists live sessions with label and machine
       Given "devtool" has sessions "claude-7f3a" and "claude-91bc" on "box-2"
       When the owner opens Crew → devtool → Sessions
       Then both sessions show with their label, machine and last seen time
 
-    @v1 @browser @unimplemented
+    @v1 @browser
     Scenario: The owner reads an agent's handoff notes
       Given "devtool" stored 3 handoff notes
       When the owner opens Crew → devtool → Handoffs
@@ -99,7 +99,7 @@ Feature: Crew: identities, machines and sessions
       When the owner opens Crew
       Then the avatar shows next to "@devtool"
 
-    @v1 @browser @unimplemented
+    @v1 @browser
     Scenario Outline: The status ring tells the agent's state without colour alone
       Given "devtool" has the status "<state>"
       When the owner opens Crew
@@ -112,7 +112,7 @@ Feature: Crew: identities, machines and sessions
         | idle     | idle           | grey ring               |
         | offline  | offline        | hollow grey dot         |
 
-    @v1 @browser @unimplemented
+    @v1 @browser
     Scenario: An agent profile shows what waits on the owner and shared conversations
       Given "devtool" has 2 open asks and shares 4 conversations with the owner
       When the owner opens the profile of "devtool"

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://convoz.dev/events/prefs.changed.v1.json",
+  "title": "prefs.changed.v1",
+  "description": "A person starred, muted or moved a conversation in their own rail; sent to that person only (ids and enums, I-23).",
+  "type": "object",
+  "required": [
+    "starred",
+    "keys"
+  ],
+  "properties": {
+    "starred": {
+      "type": "boolean"
+    },
+    "keys": {
+      "type": "array",
+      "description": "Which prefs changed.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "starred",
+          "muted",
+          "rank"
+        ]
+      }
+    }
+  },
+  "additionalProperties": false
+}

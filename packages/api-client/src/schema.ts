@@ -447,7 +447,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** The sessions of every machine and agent, newest first (the owner), live ones and recently ended ones. */
+        get: operations["listSessions"];
         put?: never;
         post?: never;
         delete?: never;
@@ -567,7 +568,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
+        /**
+         * The owner makes an agent identity. Names are unique and never reused (I-3).
+         * @description Needs a fresh passkey check for `identity.create`. A handle that exists or was used before is 409 `handle_taken`; a handle or display
+         *     name that is not valid is 400 `invalid_request` with the field. The agent has no key: a machine that allows the handle speaks for it.
+         */
+        post: operations["createAgent"];
         delete?: never;
         options?: never;
         head?: never;
@@ -583,7 +589,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
+        /**
+         * The owner disables an agent. Identities are never deleted (I-2).
+         * @description Needs a fresh passkey check for `identity.disable`. Every session of the agent ends at once, its open asks close, and its handle
+         *     stays used (I-38). An agent that is not there or already disabled is 404.
+         */
+        post: operations["disableIdentity"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1068,7 +1079,12 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Star, mute or reorder one conversation in the owner's rail.
+         * @description Personal to the caller (I-22): another person's stars, mutes and order never change. A person only; an agent is 403.
+         *     A conversation the caller cannot see is 404. Send only what changes. The order is the owner's, never the activity's (I-21).
+         */
+        patch: operations["patchConversationPrefs"];
         trace?: never;
     };
     "/api/messages/{id}/pin": {
@@ -1079,9 +1095,11 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
+        /** Pin a message in its conversation, for the caller only. Pinning twice is the same as once. */
+        put: operations["pinMessage"];
         post?: never;
-        delete?: never;
+        /** Remove the caller's pin. Unpinning what is not pinned is the same as unpinning it. */
+        delete: operations["unpinMessage"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1094,8 +1112,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
-        put?: never;
+        /** The status of every agent (the owner) or of the calling agent itself. */
+        get: operations["getStatus"];
+        /**
+         * An agent says what it is doing, for Crew. The status is the agent's, shared by all its sessions.
+         * @description The identity comes from the lease, which needs the `status` scope. `since` moves only when the state changes. A text over 200
+         *     characters, or a state that is not one of the four, is 400 `invalid_request`.
+         */
+        put: operations["putStatus"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1696,6 +1720,25 @@ export interface components {
             /** Format: int64 */
             last_used_at: number | null;
         };
+        Session: {
+            /** Format: int64 */
+            id: number;
+            /** @description The handle the session speaks as. */
+            identity: string;
+            /** @description The name of the machine it ran on. */
+            machine: string;
+            client_id: string;
+            /** @description The label the session gave itself, such as claude-7f3a. */
+            label: string;
+            /** @enum {string} */
+            state: "live" | "ended";
+            /** @description Why it ended; null while live. */
+            end_reason: string | null;
+            /** Format: int64 */
+            last_seen_at: number;
+            /** Format: int64 */
+            expires_at: number;
+        };
         Person: {
             /** Format: int64 */
             id?: number;
@@ -1725,11 +1768,25 @@ export interface components {
             participants: components["schemas"]["Person"][];
             last: components["schemas"]["LastMessage"] | null;
             unread: number;
+            /** @description The caller starred it. Personal to the caller (I-22); always false for an agent. */
+            starred: boolean;
+            /**
+             * @description The sort key of the row in the caller's rail: coalesce(rail_rank, created_at). Within a section (Starred, Conversations) the higher
+             *     rank is first; activity never changes it (I-21).
+             */
+            rank: number;
+            /** @description Not starred and no activity for 14 days (C-9). A view of the Conversations section; it never changes the order. */
+            older: boolean;
             started_by?: components["schemas"]["Person"];
             /** @description The linked pull request (https). */
             link_url?: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description The caller muted it until this epoch ms (253402300799000 is forever). Absent when not muted.
+             */
             muted_until?: number;
+            /** @description The messages the caller pinned in it, newest pin first. The single-conversation route only. */
+            pinned?: components["schemas"]["Message"][];
             /** @description The loop breaker stopped the agents after 20 messages in a row. */
             paused?: boolean;
             /** @enum {string} */
@@ -1992,6 +2049,132 @@ export interface components {
             /** Format: int64 */
             as_of_seq: number;
             cursor: string;
+        };
+        PrefsRequest: {
+            /**
+             * @description Star or unstar. Either way the conversation goes to the top of the section it lands in (I-21): Starred when starred, Conversations
+             *     when not. A request that also carries `place` is placed after that.
+             */
+            starred?: boolean;
+            /**
+             * Format: int64
+             * @description Epoch ms the conversation stays muted until; 253402300799000 is forever; null unmutes. A muted conversation pushes nothing but stays in Now.
+             */
+            muted_until?: number | null;
+            /**
+             * @description Move the conversation inside its section (the one it is in, or the one `starred` puts it in). The server works out the new key as the
+             *     midpoint of the two neighbours', and renormalizes the section in the same transaction when no midpoint fits (I-21).
+             */
+            place?: {
+                /**
+                 * Format: int64
+                 * @description The conversation it goes directly below in the section; null puts it first. Naming one that is not in the section is 400.
+                 */
+                after: number | null;
+            };
+        };
+        RailRank: {
+            /** Format: int64 */
+            id: number;
+            /** @description The sort key of the row in the owner's rail: coalesce(rail_rank, created_at), higher first. */
+            rank: number;
+        };
+        PrefsResponse: {
+            /** Format: int64 */
+            conversation_id: number;
+            starred: boolean;
+            /** Format: int64 */
+            muted_until: number | null;
+            /** @description Every row whose rank changed (the moved one; the whole section after a renormalization). Empty when no rank changed. */
+            ranks: components["schemas"]["RailRank"][];
+        };
+        /** @description SSE prefs.changed (the owner's own prefs; the other devices of the owner get it). */
+        PrefsChangedFrame: {
+            /** Format: int64 */
+            conversation_id: number;
+            starred: boolean;
+            /** Format: int64 */
+            muted_until: number | null;
+            ranks: components["schemas"]["RailRank"][];
+            /** Format: int64 */
+            prev_seq_for_you?: number;
+        };
+        /** @description SSE pin.changed (the owner's own pins; the other devices of the owner get it). */
+        PinChangedFrame: {
+            /** Format: int64 */
+            conversation_id: number;
+            /** Format: int64 */
+            message_id: number;
+            pinned: boolean;
+            /** Format: int64 */
+            prev_seq_for_you?: number;
+        };
+        /**
+         * @description What the agent says it is doing. "Offline" is not a state an agent reports; it is an agent with no live session.
+         * @enum {string}
+         */
+        AgentState: "idle" | "working" | "blocked" | "waiting";
+        StatusRequest: {
+            state: components["schemas"]["AgentState"];
+            /** @description What the agent is doing now. */
+            doing?: string;
+            /** @description What it does next. */
+            next?: string;
+        };
+        AgentStatus: {
+            state: components["schemas"]["AgentState"];
+            doing: string;
+            next: string;
+            /**
+             * Format: int64
+             * @description Epoch ms the agent has been in this state since.
+             */
+            since: number;
+            /**
+             * Format: int64
+             * @description Epoch ms of the last report.
+             */
+            updated_at: number;
+        };
+        OpenAsk: {
+            /**
+             * Format: int64
+             * @description The id of the ask message.
+             */
+            id: number;
+            /** Format: int64 */
+            conversation_id: number;
+            question: string;
+            urgent: boolean;
+        };
+        /** @description One agent's status as the owner sees it in Crew. An agent that never reported is idle with since and updated_at 0. */
+        CrewStatus: components["schemas"]["AgentStatus"] & {
+            /** Format: int64 */
+            identity_id: number;
+            handle: string;
+            /** @description The agent has a live session. */
+            online: boolean;
+            /** @description The asks of the agent that wait for the owner, newest first. Empty for an agent session reading its own status. */
+            open_asks: components["schemas"]["OpenAsk"][];
+        };
+        StatusList: {
+            /** @description The owner gets every agent, enabled or not, in the order they were made; an agent session gets itself only. */
+            statuses: components["schemas"]["CrewStatus"][];
+        };
+        /** @description SSE agent.status_changed (the owner's devices only). */
+        AgentStatusChangedFrame: {
+            /** Format: int64 */
+            identity_id: number;
+            handle: string;
+            state: components["schemas"]["AgentState"];
+            doing: string;
+            next: string;
+            /** Format: int64 */
+            since: number;
+            /** Format: int64 */
+            updated_at: number;
+            /** Format: int64 */
+            prev_seq_for_you?: number;
         };
         /** @description A run of a snippet. A run the query matched has hit set, so a page marks it with weight as well as a tint. */
         SearchPart: {
@@ -2691,6 +2874,29 @@ export interface operations {
             default: components["responses"]["Error"];
         };
     };
+    listSessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The sessions. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        sessions: components["schemas"]["Session"][];
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
     me: {
         parameters: {
             query?: never;
@@ -2757,6 +2963,64 @@ export interface operations {
                     };
                 };
             };
+            default: components["responses"]["Error"];
+        };
+    };
+    createAgent: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description The step_up_id of a fresh passkey check for this action. */
+                "X-Convoz-Step-Up": components["parameters"]["StepUp"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    handle: string;
+                    display_name: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The new agent. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        identity: {
+                            /** Format: int64 */
+                            id: number;
+                            handle: string;
+                            display_name: string;
+                            /** @enum {string} */
+                            kind: "agent";
+                        };
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    disableIdentity: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description The step_up_id of a fresh passkey check for this action. */
+                "X-Convoz-Step-Up": components["parameters"]["StepUp"];
+            };
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: components["requestBodies"]["Empty"];
+        responses: {
+            200: components["responses"]["Empty"];
             default: components["responses"]["Error"];
         };
     };
@@ -3449,6 +3713,109 @@ export interface operations {
                     "application/json": {
                         message: components["schemas"]["Message"];
                     };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    patchConversationPrefs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PrefsRequest"];
+            };
+        };
+        responses: {
+            /** @description The prefs after the change, and the ranks that moved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrefsResponse"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    pinMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: components["requestBodies"]["Empty"];
+        responses: {
+            200: components["responses"]["Empty"];
+            default: components["responses"]["Error"];
+        };
+    };
+    unpinMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Empty"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The statuses. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusList"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    putStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StatusRequest"];
+            };
+        };
+        responses: {
+            /** @description The status as stored. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentStatus"];
                 };
             };
             default: components["responses"]["Error"];

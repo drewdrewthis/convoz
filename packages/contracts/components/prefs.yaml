@@ -1,2 +1,130 @@
-# Schemas of the prefs module. Only the work package that owns prefs edits this file; the root lists each by name.
-{}
+# Schemas of the prefs module (stars, mutes, the rail order, pins) and of agent status. Only the work package that owns prefs
+# edits this file; the root lists each by name.
+PrefsRequest:
+  type: object
+  additionalProperties: false
+  minProperties: 1
+  properties:
+    starred:
+      type: boolean
+      description: |
+        Star or unstar. Either way the conversation goes to the top of the section it lands in (I-21): Starred when starred, Conversations
+        when not. A request that also carries `place` is placed after that.
+    muted_until:
+      type: ["integer", "null"]
+      format: int64
+      description: Epoch ms the conversation stays muted until; 253402300799000 is forever; null unmutes. A muted conversation pushes nothing but stays in Now.
+    place:
+      type: object
+      additionalProperties: false
+      required: [after]
+      description: |
+        Move the conversation inside its section (the one it is in, or the one `starred` puts it in). The server works out the new key as the
+        midpoint of the two neighbours', and renormalizes the section in the same transaction when no midpoint fits (I-21).
+      properties:
+        after:
+          type: ["integer", "null"]
+          format: int64
+          description: The conversation it goes directly below in the section; null puts it first. Naming one that is not in the section is 400.
+RailRank:
+  type: object
+  required: [id, rank]
+  properties:
+    id: { type: integer, format: int64 }
+    rank: { type: number, description: "The sort key of the row in the owner's rail: coalesce(rail_rank, created_at), higher first." }
+PrefsResponse:
+  type: object
+  required: [conversation_id, starred, muted_until, ranks]
+  properties:
+    conversation_id: { type: integer, format: int64 }
+    starred: { type: boolean }
+    muted_until: { type: ["integer", "null"], format: int64 }
+    ranks:
+      type: array
+      description: Every row whose rank changed (the moved one; the whole section after a renormalization). Empty when no rank changed.
+      items: { $ref: "../openapi.yaml#/components/schemas/RailRank" }
+PrefsChangedFrame:
+  description: SSE prefs.changed (the owner's own prefs; the other devices of the owner get it).
+  type: object
+  required: [conversation_id, starred, muted_until, ranks]
+  properties:
+    conversation_id: { type: integer, format: int64 }
+    starred: { type: boolean }
+    muted_until: { type: ["integer", "null"], format: int64 }
+    ranks:
+      type: array
+      items: { $ref: "../openapi.yaml#/components/schemas/RailRank" }
+    prev_seq_for_you: { type: integer, format: int64 }
+PinChangedFrame:
+  description: SSE pin.changed (the owner's own pins; the other devices of the owner get it).
+  type: object
+  required: [conversation_id, message_id, pinned]
+  properties:
+    conversation_id: { type: integer, format: int64 }
+    message_id: { type: integer, format: int64 }
+    pinned: { type: boolean }
+    prev_seq_for_you: { type: integer, format: int64 }
+AgentState:
+  type: string
+  enum: [idle, working, blocked, waiting]
+  description: What the agent says it is doing. "Offline" is not a state an agent reports; it is an agent with no live session.
+StatusRequest:
+  type: object
+  additionalProperties: false
+  required: [state]
+  properties:
+    state: { $ref: "../openapi.yaml#/components/schemas/AgentState" }
+    doing: { type: string, maxLength: 200, description: What the agent is doing now. }
+    next: { type: string, maxLength: 200, description: What it does next. }
+AgentStatus:
+  type: object
+  required: [state, doing, next, since, updated_at]
+  properties:
+    state: { $ref: "../openapi.yaml#/components/schemas/AgentState" }
+    doing: { type: string }
+    next: { type: string }
+    since: { type: integer, format: int64, description: Epoch ms the agent has been in this state since. }
+    updated_at: { type: integer, format: int64, description: Epoch ms of the last report. }
+OpenAsk:
+  type: object
+  required: [id, conversation_id, question, urgent]
+  properties:
+    id: { type: integer, format: int64, description: The id of the ask message. }
+    conversation_id: { type: integer, format: int64 }
+    question: { type: string }
+    urgent: { type: boolean }
+CrewStatus:
+  description: One agent's status as the owner sees it in Crew. An agent that never reported is idle with since and updated_at 0.
+  allOf:
+    - $ref: "../openapi.yaml#/components/schemas/AgentStatus"
+    - type: object
+      required: [identity_id, handle, online, open_asks]
+      properties:
+        identity_id: { type: integer, format: int64 }
+        handle: { type: string }
+        online: { type: boolean, description: The agent has a live session. }
+        open_asks:
+          type: array
+          description: The asks of the agent that wait for the owner, newest first. Empty for an agent session reading its own status.
+          items: { $ref: "../openapi.yaml#/components/schemas/OpenAsk" }
+StatusList:
+  type: object
+  required: [statuses]
+  properties:
+    statuses:
+      type: array
+      description: The owner gets every agent, enabled or not, in the order they were made; an agent session gets itself only.
+      items: { $ref: "../openapi.yaml#/components/schemas/CrewStatus" }
+AgentStatusChangedFrame:
+  description: SSE agent.status_changed (the owner's devices only).
+  type: object
+  required: [identity_id, handle, state, doing, next, since, updated_at]
+  properties:
+    identity_id: { type: integer, format: int64 }
+    handle: { type: string }
+    state: { $ref: "../openapi.yaml#/components/schemas/AgentState" }
+    doing: { type: string }
+    next: { type: string }
+    since: { type: integer, format: int64 }
+    updated_at: { type: integer, format: int64 }
+    prev_seq_for_you: { type: integer, format: int64 }

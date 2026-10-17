@@ -1,10 +1,11 @@
 import type { Machine } from "@convoz/api-client";
 import { Sheet } from "@convoz/ui/Sheet";
 import { useCallback, useEffect, useState } from "react";
-import { call, client, fmtDate, humanError, stepUp } from "../../shared/api.ts";
+import { call, client, humanError, stepUp } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { StepUpSheet, useSheets } from "../../shared/sheets.tsx";
 import { allowText, parseAllow } from "./allow.ts";
+import { ago } from "./status.ts";
 
 type Open = ReturnType<typeof useSheets>["open"];
 
@@ -98,8 +99,8 @@ function MachineItem({ m, reload, open }: { m: Machine; reload: () => Promise<vo
       <div>
         <strong>{m.name}</strong> <code>{m.key_hint}</code>
       </div>
-      <div className="sub">{`Allowed: ${allowText(m.allow)}. Scopes: ${m.scopes.join(", ")}. Live sessions: ${m.live_sessions}.`}</div>
-      <div className="sub">{m.last_used_at ? `Last used ${fmtDate(m.last_used_at)}` : "Never used"}</div>
+      <div className="sub">{`Allowed: ${allowText(m.allow)}. Scopes: ${m.scopes.join(", ")}.`}</div>
+      <div className="sub">{`${m.live_sessions} live ${m.live_sessions === 1 ? "session" : "sessions"} · ${m.last_used_at ? `last used ${ago(m.last_used_at)}` : "never used"}`}</div>
       <div className="btns wrap">
         {act("Reveal", "machine.reveal", "reveal", "Show this machine's key once. This needs a passkey check.")}
         {act("Regenerate", "machine.regenerate", "regenerate", "Make a new key. The old key and its sessions stop working at once.", "danger")}

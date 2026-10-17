@@ -8,6 +8,8 @@ import { initials, paletteOf, stripCf } from "../../shared/chat.ts";
 import { data } from "../../shared/data.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { useSheets, CancelButton } from "../../shared/sheets.tsx";
+import { PinnedList } from "../pins-stars/index.ts";
+import { setMute } from "../rail/index.ts";
 import { AddAgentSheet } from "./AddAgentSheet.tsx";
 import { addAgent, decideAdd, deleteConversation, markAllRead, openPickup, removeAgent, rename } from "./actions.ts";
 
@@ -97,6 +99,8 @@ export function Details({ row, onClose }: DetailsProps) {
           ) : null}
         </section>
 
+        <PinnedList row={row} />
+
         <section aria-labelledby="det-conv" className="detsec">
           <div className="dethead">
             <h3 id="det-conv">Conversation</h3>
@@ -113,6 +117,9 @@ export function Details({ row, onClose }: DetailsProps) {
         <section aria-label="Actions" className="detsec actions-sec">
           <button type="button" className="btn" onClick={() => void markAllRead(row.id).catch((err) => fail(humanError(err)))}>
             Mark all read
+          </button>
+          <button type="button" className="btn" onClick={() => void run(() => setMute(row.id, !row.muted_until))}>
+            {row.muted_until ? "Unmute" : "Mute"}
           </button>
           <button type="button" className="btn" onClick={() => open((done) => <RenameSheet current={row.title ?? ""} done={done} onSave={(t) => rename(row.id, t)} />)}>
             Rename

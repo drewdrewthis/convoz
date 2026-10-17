@@ -35,3 +35,7 @@ async function refreshAsks(convId: number): Promise<void> {
     return { messages: { ...s.messages, [convId]: { ...now, list: now.list.map((m) => (m.kind === "ask" && fresh.has(m.id) ? fresh.get(m.id)! : m)) } } };
   });
 }
+registerHandler("pin.", (frame) => {
+  // Another device of the owner pinned or unpinned: the row that holds the pins is read again.
+  if (frame.name === "pin.changed" && data.store.getState().rows[frame.data.conversation_id]) void data.loadConversation(frame.data.conversation_id).catch(() => {});
+});

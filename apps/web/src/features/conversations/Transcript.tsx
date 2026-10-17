@@ -2,6 +2,8 @@ import type { Message } from "@convoz/api-client";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { clock, initials, paletteOf, stripCf } from "../../shared/chat.ts";
+import { useData } from "../../shared/data.ts";
+import { PinMark } from "../pins-stars/index.ts";
 import type { PendingSend } from "./store.ts";
 import { Markdown } from "./Markdown.tsx";
 import { resume } from "./actions.ts";
@@ -273,6 +275,7 @@ const sameRow = (a: RowProps, b: RowProps) =>
 
 const MessageRow = memo(function MessageRow({ row, me, paused, conversation, onRetry, onDetails, hl }: RowProps) {
   const { message: m, pending: p } = row;
+  const pinned = useData((s) => Boolean(m && s.rows[conversation]?.pinned?.some((x) => x.id === m.id)));
   if (m?.kind === "system" || m?.author.kind === "system") {
     return <NoticeRow message={m} canResume={paused === m.id} onResume={() => void resume(conversation)} />;
   }
@@ -284,9 +287,10 @@ const MessageRow = memo(function MessageRow({ row, me, paused, conversation, onR
     const body = m.author.handle !== me && m.format !== "plain" ? <Markdown text={text} format={m.format} /> : <div className="text">{text}</div>;
     const edited = m.edited_at ? <EditedMark id={m.id} /> : null;
     const asked = m.kind === "ask" && m.ask ? <div className={`askstate ${m.ask.state}`}>{ASK_LABEL[m.ask.state] ?? m.ask.state}</div> : null;
-    const menu = <MessageMenu message={m} mine={m.author.handle === me} />;
+    const menu = <MessageMenu message={m} mine={m.author.handle === me} conversation={conversation} />;
+    const pin = pinned ? <PinMark /> : null;
     const detail = onDetails && m.author.kind === "agent" ? () => onDetails(m) : undefined;
-    return <Article author={m.author.handle} me={me} first={row.first} stamp={clock(m.created_at)} onStamp={detail} body={body} extra={<>{edited}{asked}</>} menu={menu} mid={m.id} marked={hl === m.id} />;
+    return <Article author={m.author.handle} named={withHandle(m.author)} me={me} first={row.first} stamp={clock(m.created_at)} onStamp={detail} body={body} extra={<>{pin}{edited}{asked}</>} menu={menu} mid={m.id} marked={hl === m.id} />;
   }
   const state =
     p!.state === "failed" ? (
@@ -302,8 +306,13 @@ const MessageRow = memo(function MessageRow({ row, me, paused, conversation, onR
   return <Article author={me} me={me} first={row.first} stamp={clock(Date.now())} body={<div className="text">{stripCf(p!.body)}</div>} extra={state} />;
 }, sameRow);
 
+/** withHandle is "Drew @devtool" when the display name says more than the handle does, so the handle is always next to the name (I-3). */
+function withHandle(p: { handle: string; display_name: string }): string | undefined {
+  return p.display_name && p.display_name.toLowerCase() !== p.handle.toLowerCase() ? `${p.display_name} @${p.handle}` : undefined;
+}
+
 /** Article is one message: avatar, name and time (once per run), then the body. The letter is drawn, so it reads "@devtool 5:25 AM Hello". */
-function Article({ author, me, first, stamp, onStamp, body, extra, menu, mid, marked }: { author: string; me: string; first: boolean; stamp: string; onStamp?: () => void; body: ReactNode; extra?: ReactNode; menu?: ReactNode; mid?: number; marked?: boolean }) {
+function Article({ author, named, me, first, stamp, onStamp, body, extra, menu, mid, marked }: { author: string; named?: string; me: string; first: boolean; stamp: string; onStamp?: () => void; body: ReactNode; extra?: ReactNode; menu?: ReactNode; mid?: number; marked?: boolean }) {
   const mine = author === me;
   const avatar = mine ? (
     <span className="ava you" aria-hidden="true" data-l="Y" />
@@ -314,8 +323,7 @@ function Article({ author, me, first, stamp, onStamp, body, extra, menu, mid, ma
     <span className="who">You</span>
   ) : (
     <span className="who">
-      <span className="sr">@</span>
-      {author}
+      {named ? named : <><span className="sr">@</span>{author}</>}
     </span>
   );
   return (

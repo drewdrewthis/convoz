@@ -1,0 +1,90 @@
+/* Rail: the desktop sidebar (prototype v41), the groups of the phone Chats list, the drag line, the toast and the shortcuts list. */
+@layer components {
+  .rail { display: none; }
+  /* The desktop canvas behind the sidebar: soft blends of the palette's three tints over a quiet base, and grain (prototype v41). */
+  :root {
+    --canvas: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.06 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"),
+      radial-gradient(60% 55% at 0% 0%, color-mix(in srgb, var(--color-m1) 34%, transparent) 0%, transparent 70%),
+      radial-gradient(55% 55% at 100% 100%, color-mix(in srgb, var(--color-m2) 30%, transparent) 0%, transparent 70%),
+      radial-gradient(40% 40% at 100% 0%, color-mix(in srgb, var(--color-m3) 16%, transparent) 0%, transparent 70%),
+      var(--color-bg);
+  }
+  :root[data-mode="light"] { --canvas: var(--canvas-light); }
+  @media (prefers-color-scheme: light) { :root:not([data-mode="light"]):not([data-mode="dark"]) { --canvas: var(--canvas-light); } }
+  :root {
+    --canvas-light: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.07 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"),
+      radial-gradient(60% 55% at 0% 0%, color-mix(in srgb, var(--color-m1) 62%, transparent) 0%, transparent 70%),
+      radial-gradient(55% 55% at 100% 100%, color-mix(in srgb, var(--color-m2) 55%, transparent) 0%, transparent 70%),
+      radial-gradient(40% 40% at 100% 0%, color-mix(in srgb, var(--color-m3) 34%, transparent) 0%, transparent 70%),
+      color-mix(in srgb, var(--color-bg) 80%, var(--color-border));
+  }
+  .olderbtn { width: 100%; min-height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 0; border-radius: 14px; background: transparent; color: var(--color-muted); font-size: 13px; font-weight: 500; text-align: left; }
+  .olderbtn:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+  .chatlist li.muted .rowtitle { color: var(--color-muted); }
+
+  @media (min-width: 900px) {
+    body[data-desk] { padding: 8px 8px 8px 240px; background: var(--canvas); }
+    body[data-desk] .appbar { border-radius: 14px 14px 0 0; border: 1px solid var(--color-border); border-bottom-color: var(--color-border); }
+    body[data-desk] .screen { background: var(--color-surface); border: 1px solid var(--color-border); border-top: 0; border-radius: 0 0 14px 14px; }
+    body[data-desk] .rail {
+      position: fixed; left: 0; top: 0; bottom: 0; z-index: 5; width: 240px; display: flex; flex-direction: column; gap: 12px; padding: 14px 10px;
+      overflow: hidden;
+    }
+    body[data-desk] .chatframe { left: 240px; right: 8px; top: 8px; bottom: 8px; height: auto; border: 1px solid var(--color-border); border-radius: 14px; overflow: hidden; }
+    /* The sidebar has the search, the new conversation button and the tabs, so the phone's copies go. */
+    body[data-desk] .tabbar, body[data-desk] .fab, body[data-desk] .searchbtn { display: none; }
+  }
+
+  .rail-top { flex: none; display: flex; align-items: center; gap: 8px; padding: 2px 8px 0; }
+  .rail-top .brand { min-height: 32px; margin-right: auto; display: flex; align-items: center; }
+  .rbtn.dim { color: var(--color-muted); opacity: .5; }
+  .rail-tools { flex: none; display: flex; align-items: center; gap: 4px; }
+  .rbtn { width: 32px; height: 32px; flex: none; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--color-text); text-decoration: none; }
+  .rbtn:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+  .rbtn.bordered { border: 1px solid var(--color-border); background: var(--color-raised); }
+  .rsearch { flex: 1 1 auto; min-width: 0; min-height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-raised); color: var(--color-text); font-size: 14px; font-weight: 500; text-align: left; }
+  .rsearch span { flex: 1 1 auto; }
+  .rail-scroll { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 12px; margin: 0 -10px; padding: 0 10px; }
+  .rail-foot { flex: none; padding-top: 8px; border-top: 1px solid var(--color-border); }
+  .rnav { min-height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border-radius: 999px; color: var(--color-text); font-size: 14px; font-weight: 500; text-decoration: none; }
+  .rnav:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+  .rnav { position: relative; }
+  .rnav[aria-current="page"] { background: var(--color-selection); }
+  .rnav.now[aria-current="page"]::before { content: ""; position: absolute; left: -7px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 999px; background: var(--color-accent); }
+  .rnav span:nth-of-type(1) { flex: 1 1 auto; }
+  .rsum { flex: none; font-size: 12px; color: var(--color-muted); font-variant-numeric: tabular-nums; }
+  .rgroup { display: flex; flex-direction: column; gap: 1px; }
+  .rghdr { padding: 0 0 2px 8px; font-size: 12px; font-weight: 600; letter-spacing: .02em; color: var(--color-muted); }
+  .rrow { position: relative; width: 100%; display: flex; align-items: center; border-radius: 999px; color: var(--color-text); }
+  .rrow:hover, .rrow:focus-within, .rrow[data-current] { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+  .rrow[data-current] { background: var(--color-selection); }
+  .rgo { flex: 1 1 auto; min-width: 0; min-height: 32px; display: flex; align-items: center; gap: 8px; padding: 3px 8px 1px; border-radius: 999px; color: inherit; font-size: 14px; font-weight: 400; text-decoration: none; }
+  .rgo.unread { font-weight: 600; }
+  .rgo.muted { color: var(--color-muted); }
+  .rrow[data-current] .rgo { font-weight: 500; }
+  .rrow[data-current] .rgo.unread { font-weight: 600; }
+  .rtitle { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rcnt { flex: none; min-width: 20px; padding: 1px 6px; border-radius: 999px; background: color-mix(in srgb, var(--color-text) 8%, transparent); font-size: 12px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; transition: opacity 140ms ease; }
+  /* The star takes the place of the count on hover or focus, so no box moves; the grip is for the keyboard and shows on focus only. */
+  .rstar, .rgrab { position: absolute; top: 50%; margin-top: -14px; height: 28px; padding: 0; border: 0; border-radius: 999px; display: flex; align-items: center; justify-content: center; background: transparent; color: var(--color-muted); opacity: 0; pointer-events: none; transition: opacity 140ms ease; }
+  .rstar { right: 0; width: 28px; }
+  .rstar[data-on] { color: var(--color-warning); }
+  .rgrab { right: 28px; width: 22px; cursor: grab; touch-action: none; }
+  .rrow:hover .rstar, .rrow:focus-within .rstar { opacity: 1; pointer-events: auto; }
+  .rgrab:focus-visible { opacity: 1; }
+  .rrow:hover .rcnt, .rrow:focus-within .rcnt { opacity: 0; }
+  .rrow > .rgo:not(:has(.rcnt)) { padding-right: 36px; }
+  .rrow.dragging { position: relative; z-index: 5; box-shadow: var(--float); background: var(--color-raised); transition: none; will-change: transform; }
+  .dropline { position: absolute; display: none; height: 2px; border-radius: 2px; background: var(--color-accent); pointer-events: none; z-index: 6; }
+  .rolder { min-height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border: 0; border-radius: 999px; background: transparent; color: var(--color-muted); font-size: 12px; font-weight: 500; text-align: left; }
+
+  .toastbox { position: fixed; left: 0; right: 0; bottom: calc(88px + var(--bottom)); z-index: 70; display: flex; justify-content: center; pointer-events: none; }
+  body[data-desk] .toastbox { bottom: 24px; }
+  .toast { max-width: min(90vw, 28rem); padding: 12px 18px; border-radius: 999px; background: var(--color-raised); color: var(--color-text); border: 1px solid var(--color-border); box-shadow: var(--float); font-size: 14px; font-weight: 500; }
+
+  .keys { margin: 0; display: flex; flex-direction: column; }
+  .keyrow { display: flex; align-items: baseline; gap: 16px; padding: 8px 0; border-top: 1px solid var(--color-border); }
+  .keyrow dt { flex: 0 0 11rem; }
+  .keyrow dd { margin: 0; color: var(--color-muted); }
+  kbd { padding: 2px 8px; border-radius: 8px; border: 1px solid var(--color-border); background: var(--color-selection); font-family: var(--font-mono); font-size: 13px; }
+}

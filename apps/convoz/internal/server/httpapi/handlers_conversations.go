@@ -62,6 +62,14 @@ func (s *Server) listConversations(w http.ResponseWriter, r *http.Request, c *ca
 			return
 		}
 	}
+	rows := make([]*wire.Conversation, len(out))
+	for i := range out {
+		rows[i] = &out[i]
+	}
+	if err := s.withRail(ctx, d, c.p, rows...); err != nil {
+		s.internalError(w, r, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"conversations": out})
 }
 
@@ -108,7 +116,9 @@ func (s *Server) visibleView(ctx context.Context, d pdb.DBTX, p authz.Principal,
 	if err != nil {
 		return wire.Conversation{}, false, err
 	}
-	v, err = conversationView(ctx, d, p, dir, cv, floor)
+	if v, err = conversationView(ctx, d, p, dir, cv, floor); err == nil {
+		err = s.withRail(ctx, d, p, &v)
+	}
 	return v, err == nil, err
 }
 
@@ -127,6 +137,15 @@ func (s *Server) visibleDetail(ctx context.Context, d pdb.DBTX, p authz.Principa
 		return wire.Conversation{}, false, err
 	}
 	v, err = detailView(ctx, d, p, dir, cv, floor)
+	if err == nil {
+		err = s.withRail(ctx, d, p, &v)
+	}
+	if err == nil && p.SessionID == 0 {
+		var pinned []wire.Message
+		if pinned, err = pinnedIn(ctx, d, p.Identity(), cv.ID, floor, dir); err == nil {
+			v.Pinned = &pinned
+		}
+	}
 	return v, err == nil, err
 }
 
@@ -193,8 +212,10 @@ func (s *Server) createConversation(w http.ResponseWriter, r *http.Request, c *c
 			if err != nil {
 				return err
 			}
-			view, err = conversationView(ctx, d, c.p, dir, cv, 0)
-			return err
+			if view, err = conversationView(ctx, d, c.p, dir, cv, 0); err != nil {
+				return err
+			}
+			return s.withRail(ctx, d, c.p, &view)
 		}
 		if isAgent {
 			n, err := conversation.AgentCreatedSince(ctx, d, who, now.Add(-24*time.Hour))
@@ -241,8 +262,10 @@ func (s *Server) createConversation(w http.ResponseWriter, r *http.Request, c *c
 			return err
 		}
 		created = true
-		view, err = conversationView(ctx, d, c.p, dir, cv, 0)
-		return err
+		if view, err = conversationView(ctx, d, c.p, dir, cv, 0); err != nil {
+			return err
+		}
+		return s.withRail(ctx, d, c.p, &view)
 	})
 	switch {
 	case err != nil:

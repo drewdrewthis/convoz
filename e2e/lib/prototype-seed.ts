@@ -4,11 +4,13 @@ import type { Page } from "@playwright/test";
 import { agentPost, chatWorld, createConversation, ownerReads, ownerSays, startSession } from "./chat.ts";
 import type { AgentSession } from "./chat.ts";
 import { addSecondPasskey } from "./mobile.ts";
-import { signInBrowser, stepped } from "./machines.ts";
+import { bearer, plainDb, signInBrowser, stepped } from "./machines.ts";
 import type { Owner } from "./owner.ts";
 import type { BrowserContext } from "@playwright/test";
 import type { ServerHandle, ServerOptions } from "./fixtures.ts";
 import { must } from "./owner.ts";
+import { send } from "./http.ts";
+import { seedAsk } from "./agent-wp7.ts";
 import type { UiWorld } from "./chat-ui.ts";
 
 /**
@@ -26,9 +28,9 @@ export const AGENTS = ["assistant", "devtool", "orchardist", "night-watch", "usa
  */
 export async function protoWorld(
   fx: { server: (o?: ServerOptions) => Promise<ServerHandle>; page: Page; context: BrowserContext },
-  o: { agents: string[]; live: string[]; disabled?: string[] },
+  o: { agents: string[]; live: string[]; disabled?: string[]; /** The data dir, when a scenario writes into the plain data file. */ dataDir?: string },
 ): Promise<UiWorld> {
-  const w = await chatWorld(fx.server, { agents: o.agents });
+  const w = await chatWorld(fx.server, { agents: o.agents, env: o.dataDir ? { CONVOZ_TEST_PLAINTEXT: "1" } : undefined });
   // A disabled agent still counts in the registry order that tints the avatars; it is not listed on Crew.
   for (const h of o.disabled ?? []) {
     const row = await findAgent(w.owner, h);
@@ -189,4 +191,85 @@ export function maskPercent(screen: string): number {
   for (const r of MASKS[screen] ?? [])
     for (let x = r.x; x < Math.min(390, r.x + r.w); x++) for (let y = r.y; y < Math.min(800, r.y + r.h); y++) covered.add(y * 390 + x);
   return (100 * covered.size) / (390 * 800);
+}
+
+// ---- WP9: stars, mute, Older and agent status ------------------------------------------------------
+
+/** The prototype's six quiet conversations: the sidebar folds them into "Older · 6". */
+const OLDER: { title: string; agents: string[]; from: string }[] = [
+  { title: "Is the nightly export faster after the cache fix?", agents: ["lane-search"], from: "lane-search" },
+  { title: "Who owns the flaky export test?", agents: ["usage-bot"], from: "usage-bot" },
+  { title: "How many agents were active last week?", agents: ["assistant"], from: "assistant" },
+  { title: "Feature #8397 · export retry", agents: ["devtool"], from: "devtool" },
+  { title: "Bug #8590 · fixed in #398", agents: ["devtool"], from: "devtool" },
+  { title: "Docs chat 91", agents: ["lane-search"], from: "lane-search" },
+];
+const DAY = 86_400_000;
+
+/**
+ * The conversations that sit below the visible ones in the prototype's rail: two recent ones under "night-watch" and six quiet ones.
+ * Run BEFORE seedPrototype so they are the oldest (rank and activity), then push the quiet ones 20 days back in the data file, the way
+ * seedAsk writes rows (the server clock stays real).
+ */
+export async function seedRailExtras(u: UiWorld, dataDir: string): Promise<void> {
+  const quiet: number[] = [];
+  for (const o of OLDER) {
+    const conv = await createConversation(u.w.owner, { participants: o.agents, title: o.title });
+    must(await agentPost(u.w.srv, u.sessions[o.from]!.lease, conv, "Done."), `${o.from} posts in ${o.title}`, 201);
+    quiet.push(conv);
+  }
+  for (const [title, from] of [["Docs chat 94 · API reference", "lane-search"], ["Feature #8401 · setup", "devtool"]] as const) {
+    const conv = await createConversation(u.w.owner, { participants: [from], title });
+    must(await agentPost(u.w.srv, u.sessions[from]!.lease, conv, "Ready when you are."), `${from} posts in ${title}`, 201);
+  }
+  const db = plainDb(dataDir);
+  try {
+    const old = Date.now() - 20 * DAY;
+    for (const id of quiet) db.prepare("UPDATE conversations SET last_activity_at = ? WHERE id = ?").run(old, id);
+  } finally {
+    db.close();
+  }
+}
+
+/** The prototype's stars and mute: "assistant" then "Ops reports" starred (so Ops reports is first), "Team updates" muted. */
+export async function starAndMute(u: UiWorld, ids: Record<string, number>): Promise<void> {
+  const patch = async (title: string, body: unknown) => must(await u.w.owner.client.request("PATCH", `/api/conversations/${ids[title]}/prefs`, { csrf: true, json: body }), `prefs of ${title}`);
+  await patch("assistant", { starred: true });
+  await patch("Ops reports", { starred: true });
+  await patch("Team updates", { muted_until: 253402300799000 });
+}
+
+/** The agents' statuses as the prototype's Crew shows them; the others stay idle. */
+export const STATUSES: Record<string, { state: "waiting" | "working"; doing: string }> = {
+  assistant: { state: "waiting", doing: "OK on the Slack draft" },
+  devtool: { state: "waiting", doing: "pick of test runner" },
+  "night-watch": { state: "working", doing: "Watching the error rate after the 5:29 deploy" },
+  "lane-search": { state: "working", doing: "Starting step 1 of the search filters plan" },
+  docs: { state: "working", doing: "Answering a question about the API reference" },
+};
+
+export async function reportStatuses(u: UiWorld): Promise<void> {
+  for (const [handle, s] of Object.entries(STATUSES)) {
+    const res = await send(u.w.srv.target, "PUT", "/api/status", { json: s, ...bearer(u.sessions[handle]!.lease) });
+    must(res, `status of ${handle}`);
+  }
+}
+
+/** The open asks the prototype's Crew counts per agent (the chips "2 asks", "1 ask"). */
+const OPEN_ASKS: Record<string, number> = { assistant: 2, devtool: 3, "night-watch": 1, "lane-search": 1, "usage-bot": 1, "release-bot": 1 };
+
+/** Seed those asks in the plain data file the way the ask module will write them (seedAsk), each in a conversation of its agent. */
+export async function seedOpenAsks(u: UiWorld, dataDir: string): Promise<void> {
+  const people = must(await u.w.owner.client.get("/api/identities"), "identities").json().identities as { id: number; handle: string; kind: string }[];
+  const owner = people.find((p) => p.kind === "human")!.id;
+  const db = plainDb(dataDir);
+  try {
+    for (const [handle, n] of Object.entries(OPEN_ASKS)) {
+      const conv = await createConversation(u.w.owner, { participants: [handle], title: `Asks of ${handle}` });
+      const asker = people.find((p) => p.handle === handle)!.id;
+      for (let i = 1; i <= n; i++) seedAsk(db, { conv, asker, owner, question: `Question ${i} of ${handle}` });
+    }
+  } finally {
+    db.close();
+  }
 }

@@ -54,10 +54,14 @@ type Conversation struct {
 	Participants   []Person     `json:"participants"`
 	Last           *LastMessage `json:"last"`
 	Unread         int64        `json:"unread"`
+	Starred        bool         `json:"starred"`
+	Rank           float64      `json:"rank"`
+	Older          bool         `json:"older"`
 
 	StartedBy  *Person      `json:"started_by,omitempty"`
 	LinkURL    *string      `json:"link_url,omitempty"`
 	MutedUntil *int64       `json:"muted_until,omitempty"`
+	Pinned     *[]Message   `json:"pinned,omitempty"`
 	Paused     bool         `json:"paused,omitempty"`
 	Pickup     string       `json:"pickup,omitempty"`
 	PickedUpBy *Person      `json:"picked_up_by,omitempty"`

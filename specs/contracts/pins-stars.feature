@@ -14,7 +14,7 @@ Feature: Pins, stars and mute (contracts)
 
   Rule: Pins collect key messages per conversation
 
-    @v1 @api @unimplemented
+    @v1 @api
     Scenario: An agent cannot pin or star
       When "devtool" pins a message in conversation 41
       Then the server answers 403

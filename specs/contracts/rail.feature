@@ -14,7 +14,7 @@ Feature: Rail (contracts)
 
   Rule: Order is the owner's, never the activity's (I-21)
 
-    @v1 @api @I-21 @unimplemented
+    @v1 @api @I-21
     Scenario: A conversation the owner never touched needs no preferences
       When the owner loads the rail
       Then conversations 41, 52 and 60 come back with no star, no rank and no mute set

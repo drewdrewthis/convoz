@@ -6,7 +6,7 @@ import { signOut } from "../shared/api.ts";
 import { Banners, useNoticeState } from "../shared/notice.tsx";
 import { PageHeadContext, type PageHead } from "../shared/page-head.tsx";
 import { useNow } from "../features/now/index.ts";
-import { SearchButton, SearchHost, useSearchShortcut } from "../features/search/index.ts";
+import { SearchButton } from "../features/search/index.ts";
 import type { PageDef } from "./routes.tsx";
 
 export function FocusFrame({ def, children }: { def: PageDef; children: ReactNode }) {
@@ -59,7 +59,6 @@ export function ShellFrame({ def, children }: { def: PageDef; children: ReactNod
   }, [def.name, loadRequests]);
   const count = requests?.length ?? null;
   const account = useAccountMenu(notice.fail);
-  useSearchShortcut();
   return (
     <Provider value={notice}>
       <header className="appbar">
@@ -109,7 +108,6 @@ export function ShellFrame({ def, children }: { def: PageDef; children: ReactNod
           </a>
         ))}
       </nav>
-      <SearchHost />
     </Provider>
   );
 }

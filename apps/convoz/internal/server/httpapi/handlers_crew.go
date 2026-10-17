@@ -5,7 +5,9 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/ask"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/inbox"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
@@ -62,8 +64,19 @@ func (s *Server) disableIdentity(w http.ResponseWriter, r *http.Request, c *call
 		if err != nil {
 			return err
 		}
-		released, err = releaseEnded(ctx, tx.DBTX(), now, ended)
-		return err
+		if released, err = releaseEnded(ctx, tx.DBTX(), now, ended); err != nil {
+			return err
+		}
+		open, err := ask.CloseForDisable(ctx, tx.DBTX(), now, id)
+		if err != nil {
+			return err
+		}
+		for conv, n := range open {
+			if err := conversation.AddOpenAsks(ctx, tx.DBTX(), conv, -n); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	if err == nil {
 		s.publishReleased(r.Context(), released)

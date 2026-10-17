@@ -92,3 +92,57 @@ type StatusRequest struct {
 	Doing string `json:"doing,omitempty"`
 	Next  string `json:"next,omitempty"`
 }
+
+// AgentStatus is what PUT /api/status stores and answers.
+type AgentStatus struct {
+	State     string `json:"state"`
+	Doing     string `json:"doing"`
+	Next      string `json:"next"`
+	Since     int64  `json:"since"`
+	UpdatedAt int64  `json:"updated_at"`
+}
+
+// OpenAsk is an ask of an agent that waits for the owner.
+type OpenAsk struct {
+	ID             int64  `json:"id"`
+	ConversationID int64  `json:"conversation_id"`
+	Question       string `json:"question"`
+	Urgent         bool   `json:"urgent"`
+}
+
+// CrewStatus is one agent's row of GET /api/status.
+type CrewStatus struct {
+	AgentStatus
+	IdentityID int64     `json:"identity_id"`
+	Handle     string    `json:"handle"`
+	Online     bool      `json:"online"`
+	OpenAsks   []OpenAsk `json:"open_asks"`
+}
+
+// StatusList is the body of GET /api/status.
+type StatusList struct {
+	Statuses []CrewStatus `json:"statuses"`
+}
+
+// Rail is one conversation's rank in the owner's rail, as PATCH prefs and the prefs.changed frame carry it.
+type Rail struct {
+	ID   int64   `json:"id"`
+	Rank float64 `json:"rank"`
+}
+
+// PrefsRequest is PATCH /api/conversations/:id/prefs. MutedUntil stays raw so an absent field (leave it) and null (unmute) differ.
+type PrefsRequest struct {
+	Starred    *bool           `json:"starred"`
+	MutedUntil json.RawMessage `json:"muted_until"`
+	Place      *struct {
+		After *int64 `json:"after"`
+	} `json:"place"`
+}
+
+// PrefsResult is the answer of PATCH prefs and the data of the prefs.changed frame.
+type PrefsResult struct {
+	ConversationID int64  `json:"conversation_id"`
+	Starred        bool   `json:"starred"`
+	MutedUntil     *int64 `json:"muted_until"`
+	Ranks          []Rail `json:"ranks"`
+}

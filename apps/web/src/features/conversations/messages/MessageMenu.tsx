@@ -2,14 +2,17 @@ import type { Message } from "@convoz/api-client";
 import { Sheet } from "@convoz/ui/Sheet";
 import { useEffect, useRef, useState } from "react";
 import { humanError } from "../../../shared/api.ts";
+import { useData } from "../../../shared/data.ts";
+import { pinMessage, toast, unpinMessage } from "../../pins-stars/index.ts";
 import { deleteMessage, editHistory, editMessage } from "./actions.ts";
 
 /**
  * MessageMenu is the "Message actions" button of one message and what it opens. The button is invisible until the row is
  * hovered or focused (a long press does the same on touch), so a message looks as the prototype draws it.
  */
-export function MessageMenu({ message, mine }: { message: Message; mine: boolean }) {
+export function MessageMenu({ message, mine, conversation }: { message: Message; mine: boolean; conversation: number }) {
   const [open, setOpen] = useState(false);
+  const pinned = useData((s) => Boolean(s.rows[conversation]?.pinned?.some((x) => x.id === message.id)));
   const [sheet, setSheet] = useState<"edit" | "delete" | null>(null);
   const press = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const root = useRef<HTMLSpanElement>(null);
@@ -36,6 +39,16 @@ export function MessageMenu({ message, mine }: { message: Message; mine: boolean
       />
       {open ? (
         <div className="msg-menu" role="menu">
+          <button
+            role="menuitem"
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              (pinned ? unpinMessage : pinMessage)(conversation, message.id).catch((err) => toast(humanError(err)));
+            }}
+          >
+            {pinned ? "Unpin" : "Pin"}
+          </button>
           {mine ? (
             <button role="menuitem" type="button" onClick={() => (setOpen(false), setSheet("edit"))}>
               Edit

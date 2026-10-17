@@ -274,5 +274,95 @@
    "w": 44,
    "h": 44
   }
- ]
+ ],
+ "rail": [],
+ "crew-status": [
+  {
+   "name": "Search (no backend)",
+   "x": 336,
+   "y": 8,
+   "w": 44,
+   "h": 44
+  },
+  {
+   "name": "Now badge (asks have no backend)",
+   "x": 76,
+   "y": 727,
+   "w": 30,
+   "h": 24
+  },
+  {
+   "name": "summary faces and Add agent (agent images; the app has an Add agent button)",
+   "x": 16,
+   "y": 66,
+   "w": 364,
+   "h": 42
+  },
+  {
+   "name": "agent avatar (images)",
+   "x": 14,
+   "y": 212,
+   "w": 56,
+   "h": 56
+  },
+  {
+   "name": "agent avatar (images)",
+   "x": 14,
+   "y": 282,
+   "w": 56,
+   "h": 56
+  },
+  {
+   "name": "agent avatar (images)",
+   "x": 14,
+   "y": 387,
+   "w": 56,
+   "h": 56
+  },
+  {
+   "name": "agent avatar (images)",
+   "x": 14,
+   "y": 459,
+   "w": 56,
+   "h": 56
+  },
+  {
+   "name": "agent avatar (images)",
+   "x": 14,
+   "y": 531,
+   "w": 56,
+   "h": 56
+  },
+  {
+   "name": "agent avatar (images)",
+   "x": 14,
+   "y": 638,
+   "w": 56,
+   "h": 56
+  }
+ ],
+ "rail-desktop": [
+  {
+   "name": "unread count (the prototype has Ops reports unread)",
+   "x": 196,
+   "y": 172,
+   "w": 30,
+   "h": 24
+  },
+  {
+   "name": "unread count (the prototype has assistant unread)",
+   "x": 196,
+   "y": 205,
+   "w": 30,
+   "h": 24
+  },
+  {
+   "name": "Now badge (asks have no backend)",
+   "x": 192,
+   "y": 106,
+   "w": 34,
+   "h": 30
+  }
+ ],
+ "crew-desktop": []
 }

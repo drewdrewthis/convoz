@@ -8,7 +8,9 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/event"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/notify"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/prefs"
 )
 
 // messagePorts wires message.Post to the other modules for the caller p. Each port lives in the file of the module that
@@ -40,7 +42,7 @@ func cascadesOf(ports ...any) []message.Cascade {
 // name an identity. Nobody is added to a conversation by it (I-18).
 type mentionsPort struct{}
 
-func (mentionsPort) RecordMentions(ctx context.Context, d pdb.DBTX, _ time.Time, m message.Message) ([]int64, error) {
+func (mentionsPort) RecordMentions(ctx context.Context, d pdb.DBTX, now time.Time, m message.Message) ([]int64, error) {
 	handles := message.ParseMentions(m.Body, m.Format)
 	if len(handles) == 0 {
 		return nil, nil
@@ -59,7 +61,32 @@ func (mentionsPort) RecordMentions(ctx context.Context, d pdb.DBTX, _ time.Time,
 			ids = append(ids, id)
 		}
 	}
-	return ids, message.StoreMentions(ctx, d, m.ID, ids)
+	if err := message.StoreMentions(ctx, d, m.ID, ids); err != nil {
+		return nil, err
+	}
+	return ids, logMutedMentions(ctx, d, now, dir, m, ids)
+}
+
+// logMutedMentions writes the notification a person's mention would have made, as suppressed with the reason "muted", for each
+// mentioned person who muted the conversation. Nothing is sent: the push pipeline decides the rest of the reasons.
+func logMutedMentions(ctx context.Context, d pdb.DBTX, now time.Time, dir directory, m message.Message, mentioned []int64) error {
+	for _, id := range mentioned {
+		if id == m.AuthorID || dir[id].Kind != "human" {
+			continue
+		}
+		pf, err := prefs.OfConversation(ctx, d, id, m.ConversationID)
+		if err != nil {
+			return err
+		}
+		if pf.MutedUntil <= now.UnixMilli() {
+			continue
+		}
+		err = notify.RecordSuppressed(ctx, d, now, notify.Suppressed{Identity: id, Reason: "mention", Why: "muted", SourceSeq: m.ID, Conversation: m.ConversationID, Message: m.ID})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // The versioned names of the events of this module.

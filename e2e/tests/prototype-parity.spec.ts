@@ -1,5 +1,6 @@
 import { expect, scenario, test } from "../lib/scenario.ts";
-import { AGENTS, LIVE, NOT_IDLE, ONLINE_IDLE, keepActual, maskPercent, protoWorld, readyForShot, seedPrototype } from "../lib/prototype-seed.ts";
+import { MASKS } from "../lib/prototype-seed.ts";
+import { AGENTS, LIVE, NOT_IDLE, ONLINE_IDLE, keepActual, maskPercent, protoWorld, readyForShot, reportStatuses, seedOpenAsks, seedPrototype, seedRailExtras, starAndMute } from "../lib/prototype-seed.ts";
 
 /*
  * PROTOTYPE PARITY: the owner's verdict on the phone UI was "Why doesn't it have 1:1 pixel perfect match with the prototype?".
@@ -19,7 +20,7 @@ import { AGENTS, LIVE, NOT_IDLE, ONLINE_IDLE, keepActual, maskPercent, protoWorl
 test.use({ deviceScaleFactor: 2 });
 
 /** No screen may hide more than its share of the frame behind grey boxes, so the masks cannot grow without this number changing. */
-const MASK_CAP: Record<string, number> = { now: 10, conversations: 10, "conversation-thread": 10, "new-conversation": 10, crew: 20 };
+const MASK_CAP: Record<string, number> = { now: 10, conversations: 10, "conversation-thread": 10, "new-conversation": 10, crew: 20, rail: 10, "crew-status": 20 };
 
 const SHOT = { maxDiffPixelRatio: 0.02, threshold: 0.2, animations: "disabled", caret: "hide", scale: "device" } as const;
 
@@ -102,4 +103,115 @@ scenario("On a phone Crew matches the prototype", { tag: ["@browser", "@phone"] 
 
   // Then it matches the prototype in light and in dark
   await matchesBoth(page, "crew");
+});
+
+scenario("On a phone the rail matches the prototype", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(180_000);
+  // Background: the prototype's agents and conversations
+  const u = await protoWorld({ server, page, context }, { agents: AGENTS, live: LIVE });
+  const ids = await seedPrototype(u);
+
+  // Given the owner starred "assistant" and "Ops reports" and muted "Team updates"
+  await starAndMute(u, ids);
+
+  // When the owner opens the rail on a phone
+  await page.goto(`${u.w.srv.origin}/chats`);
+  await expect(page.getByRole("heading", { name: "Ops reports" })).toBeVisible();
+
+  // Then it matches the prototype in light and in dark
+  await matchesBoth(page, "rail");
+});
+
+scenario("On a phone Crew with agent status matches the prototype", { tag: ["@browser", "@phone"] }, async ({ server, page, context, dataDir }, info) => {
+  info.setTimeout(180_000);
+  // Background: the prototype's agents and conversations (docs is live too: the prototype shows it working)
+  const u = await protoWorld({ server, page, context }, { agents: AGENTS, live: [...LIVE, "docs", "orchardist"], dataDir });
+
+  // Given the agents report the status the prototype shows
+  await reportStatuses(u);
+  await seedOpenAsks(u, dataDir);
+
+  // When the owner opens Crew on a phone
+  await page.goto(`${u.w.srv.origin}/crew`);
+  await expect(page.getByRole("heading", { name: "Crew", exact: true })).toBeVisible();
+  await expect(page.getByText("Waiting on you · OK on the Slack draft")).toBeVisible();
+
+  // Then it matches the prototype in light and in dark
+  await matchesBoth(page, "crew-status");
+});
+
+// ---- desktop: one element of the 1280x800 window, as the prototype's rail and Crew dock are shot ----------------------------------
+
+const DESKTOP_CAP: Record<string, number> = { "rail-desktop": 10, "crew-desktop": 20 };
+
+/** The share of a w x h element that the grey boxes of a screen cover (overlaps counted once), in percent. */
+function elementMaskPercent(screen: string, w: number, h: number): number {
+  const covered = new Set<number>();
+  for (const r of MASKS[screen] ?? []) for (let x = r.x; x < Math.min(w, r.x + r.w); x++) for (let y = r.y; y < Math.min(h, r.y + r.h); y++) covered.add(y * w + x);
+  return (100 * covered.size) / (w * h);
+}
+
+/** Light then dark: `el` against the prototype's element of the same screen (w x h), with the same grey boxes inside it. */
+async function matchesElement(page: import("@playwright/test").Page, screen: string, el: import("@playwright/test").Locator, w: number, h: number, window: number): Promise<void> {
+  expect(elementMaskPercent(screen, w, h), `the masks of ${screen} cover too much of the element`).toBeLessThanOrEqual(DESKTOP_CAP[screen]!);
+  for (const scheme of ["light", "dark"] as const) {
+    // The window is 1280 wide in both Playwright projects: the phone project widens its window for these scenarios.
+    await page.setViewportSize({ width: 1280, height: window });
+    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
+    await page.evaluate(() => document.fonts.ready);
+    await el.evaluate(
+      (node, rects) => {
+        node.querySelectorAll("[data-mask]").forEach((d) => d.remove());
+        if (getComputedStyle(node).position === "static") (node as HTMLElement).style.position = "relative";
+        for (const r of rects) {
+          const d = document.createElement("div");
+          d.setAttribute("data-mask", r.name);
+          d.style.cssText = `position:absolute;z-index:2147483647;background:#808080;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px`;
+          node.appendChild(d);
+        }
+      },
+      MASKS[screen] ?? [],
+    );
+    const dir = process.env.PARITY_ACTUAL_DIR;
+    if (dir) await el.screenshot({ path: `${dir}/${screen}-${scheme}.png`, animations: "disabled", caret: "hide", scale: "device" });
+    await expect(el).toHaveScreenshot(`${screen}-${scheme}.png`, SHOT);
+  }
+}
+
+scenario("On a desktop the rail matches the prototype", { tag: ["@browser"] }, async ({ server, page, context, dataDir }, info) => {
+  info.setTimeout(180_000);
+  // Background: the prototype's agents and conversations
+  const u = await protoWorld({ server, page, context }, { agents: AGENTS, live: LIVE, dataDir });
+  await seedRailExtras(u, dataDir);
+  const ids = await seedPrototype(u);
+
+  // Given the owner starred "assistant" and "Ops reports" and muted "Team updates"
+  await starAndMute(u, ids);
+
+  // When the owner opens the rail on a desktop (the prototype's sidebar is 742 high inside its window)
+  await page.setViewportSize({ width: 1280, height: 743 });
+  await page.goto(`${u.w.srv.origin}/`);
+  const rail = page.getByRole("navigation", { name: "Conversations" });
+  await expect(rail.getByRole("button", { name: /Older · 6/ })).toBeVisible();
+
+  // Then it matches the prototype in light and in dark
+  await matchesElement(page, "rail-desktop", rail, 240, 742, 743);
+});
+
+scenario("On a desktop Crew matches the prototype", { tag: ["@browser"] }, async ({ server, page, context, dataDir }, info) => {
+  info.setTimeout(180_000);
+  // Background: the prototype's agents and conversations (docs is live too: the prototype shows it working)
+  const u = await protoWorld({ server, page, context }, { agents: AGENTS, live: [...LIVE, "docs", "orchardist"], dataDir });
+
+  // Given the agents report the status the prototype shows
+  await reportStatuses(u);
+  await seedOpenAsks(u, dataDir);
+
+  // When the owner opens Crew on a desktop
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`${u.w.srv.origin}/crew`);
+  await expect(page.getByText("Waiting on you · OK on the Slack draft")).toBeVisible();
+
+  // Then it matches the prototype in light and in dark
+  await matchesElement(page, "crew-desktop", page.locator("#crew"), 380, 726, 800);
 });

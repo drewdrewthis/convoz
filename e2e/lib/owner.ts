@@ -83,7 +83,8 @@ export async function signIn(client: Client, soft: SoftAuthenticator): Promise<R
 export async function uiSignIn(page: Page, origin: string): Promise<void> {
   await page.goto(`${origin}/signin`);
   await page.getByRole("button", { name: "Sign in with a passkey" }).click();
-  await page.getByRole("navigation", { name: "Main" }).waitFor();
+  // the tab bar on a phone, the sidebar rail on a wide window
+  await page.getByRole("navigation", { name: "Main" }).or(page.getByRole("navigation", { name: "Conversations" })).waitFor();
   await page.goto(`${origin}/`);
   await page.getByRole("heading", { name: "Now", exact: true }).waitFor();
 }
