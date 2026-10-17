@@ -366,84 +366,19 @@ def prove(titles, exceptions, titles_at_first, run_red, run_green, run_overlay, 
     return (1 if bad else 0), out
 
 
-EXPECTED_CELL_JOB = r'''  red-green-cell:
-    name: red-green-cell (${{ matrix.phase }} ${{ matrix.shard }})
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        phase: [red, green, overlay]
-        shard: [1/3, 2/3, 3/3]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: "3.13"
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: apps/convoz/go.mod
-          cache-dependency-path: apps/convoz/go.sum
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24
-          cache: pnpm
-      - name: Install
-        run: pnpm install --frozen-lockfile
-      - name: Playwright chromium
-        run: pnpm --filter @convoz/e2e exec playwright install --with-deps chromium
-      - name: Red first, green at head
-        env:
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PHASE: ${{ matrix.phase }}
-          SHARD: ${{ matrix.shard }}
-        run: |
-          # Merge-ref base, as in "Proof page" of the verify job.
-          [ "$(git rev-parse HEAD^2)" = "$HEAD_SHA" ] || { echo "not a merge-ref checkout" >&2; exit 1; }
-          base="$(git rev-parse HEAD^1)"
-          scratch="$(mktemp -d)"
-          python3 -I scripts/red_green.py --phase "$PHASE" --shard "$SHARD" --scratch "$scratch" "$base" HEAD'''
-
-EXPECTED_GATE_JOB = r'''  red-green:
-    if: always() && github.event_name == 'pull_request'
-    needs: red-green-cell
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - name: Every cell is green
-        env:
-          RESULT: ${{ needs.red-green-cell.result }}
-        run: test "$RESULT" = success'''
-
-
-def ci_job(text, name):
-    """The full text of the top-level job `name` (its key line up to the next 2-space-indent line), "" if absent."""
-    m = re.search(rf"^  {re.escape(name)}:\n(.*?)(?=^  \S|\Z)", text, re.M | re.S)
-    return f"  {name}:\n{m.group(1)}".rstrip("\n") if m else ""
+CI_SHA256 = "43f740f99a4028bb639560e093992687bb85304abdad9c7557e67705f21f27e0"
 
 
 def ci_gate_problems(text):
-    """[message] naming each of the two jobs whose text differs from its pinned copy, and the first differing line."""
-    problems = []
-    for name, expected in (("red-green-cell", EXPECTED_CELL_JOB), ("red-green", EXPECTED_GATE_JOB)):
-        have, want = ci_job(text, name).splitlines(), expected.splitlines()
-        if have != want:
-            n = next((i for i, (h, w) in enumerate(zip(have, want)) if h != w), min(len(have), len(want)))
-            got = have[n] if n < len(have) else "<end of job>"
-            problems.append(f"ci.yml job {name} differs at line {n + 1}: have {got!r}, pinned {want[n] if n < len(want) else '<end of job>'!r}")
-    return problems
-
-
-def ci_gate_ok(text):
-    """True when the `red-green-cell` and `red-green` jobs of ci.yml equal EXPECTED_CELL_JOB and EXPECTED_GATE_JOB verbatim.
-    Any edit to these two jobs must update the constants in the same commit. This guards against accidents, not a
-    hostile author: branch protection is what makes the gate binding."""
-    return not ci_gate_problems(text)
+    """[message] when ci.yml is not the pinned file, else []. The whole file is pinned because the red-green jobs can
+    be weakened from outside their own text (on, env, defaults, a comment line that splits a job, the verify step
+    that runs this self-test). This guards against accidents, not a hostile author: branch protection is what makes
+    the gate binding."""
+    have = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    if have == CI_SHA256:
+        return []
+    return [f"ci.yml changed (sha256 {have}, pinned {CI_SHA256}). If the edit is intended, review the red-green jobs "
+            "and update CI_SHA256 in scripts/red_green.py in the same commit."]
 
 
 def process_gone(pid):
@@ -595,11 +530,11 @@ def self_test():
     if code != 1 or not any("renames from a title that is itself in the slice" in l for l in log):
         failures.append("a rename whose old title is a slice title fails")
     # the required-check gate in ci.yml
-    with open(CI_PATH, encoding="utf-8") as fh:
+    with open(CI_PATH, encoding="utf-8", newline="") as fh:
         ci = fh.read()
     problems = ci_gate_problems(ci)
     if problems:
-        failures.append("the real ci.yml red-green jobs equal their pinned copies: " + "; ".join(problems))
+        failures.append("the real ci.yml matches CI_SHA256: " + "; ".join(problems))
     gate_step = 'run: test "$RESULT" = success'
     cell_cmd = '--scratch "$scratch" "$base" HEAD'
     cell_step, gate_name = "      - name: Red first, green at head\n", "      - name: Every cell is green\n"
@@ -625,6 +560,11 @@ def self_test():
             ("set +e and exit 0 in the cell step", [('          scratch="$(mktemp -d)"\n', '          set +e\n          scratch="$(mktemp -d)"\n'),
                                                    (cell_cmd, cell_cmd + "\n          exit 0")]),
             ("an extra step in the cell job", [(cell_cmd, cell_cmd + "\n      - run: true")]),
+            ("a comment line, then continue-on-error", [("    timeout-minutes: 5\n",
+                                                         "    timeout-minutes: 5\n  # note\n    continue-on-error: true\n")]),
+            ("a top-level defaults.run.shell", [("jobs:\n", "defaults:\n  run:\n    shell: bash {0}\n\njobs:\n")]),
+            ("a top-level env BASH_ENV", [("  GOFLAGS: -mod=readonly\n", "  GOFLAGS: -mod=readonly\n  BASH_ENV: /dev/null\n")]),
+            ("on: without pull_request", [("  pull_request:\n  push:", "  push:")]),
             ("an extra step in the gate job", [(gate_step, gate_step + "\n      - run: true")])):
         mutated = ci
         for old, new in edits:
@@ -633,7 +573,7 @@ def self_test():
                 break
             mutated = mutated.replace(old, new, 1)
         else:
-            if ci_gate_ok(mutated):
+            if not ci_gate_problems(mutated):
                 failures.append("ci.yml gate check accepts " + label)
     # timeout: a hung build or runner is a clean ERROR (exit 3), never a traceback, and its whole process group dies
     with tempfile.TemporaryDirectory(prefix="red-green-self-test-") as tmp:

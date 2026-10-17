@@ -1,3 +1,4 @@
+# Pinned by sha256 in scripts/red_green.py (CI_SHA256); update it with any edit here.
 name: ci
 
 on:
