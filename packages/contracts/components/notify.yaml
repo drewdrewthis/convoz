@@ -1,2 +1,50 @@
-# Schemas of the notify module. Only the work package that owns notify edits this file; the root lists each by name.
-{}
+# Schemas of the notify module. Only the work package that owns notify edits this file; paths/notify.yaml refers to them directly.
+VapidKey:
+  type: object
+  required: [public_key]
+  properties:
+    public_key: { type: string, description: "The server's VAPID public key: the 65-byte uncompressed P-256 point, base64url without padding. It is the browser's applicationServerKey." }
+PushKeys:
+  type: object
+  required: [p256dh, auth]
+  properties:
+    p256dh: { type: string, description: "The browser's public key (65 bytes), base64url." }
+    auth: { type: string, description: "The browser's 16-byte auth secret, base64url." }
+PushSubscriptionRequest:
+  type: object
+  description: "A PushSubscription as the browser's toJSON() gives it. The endpoint must be https on a push-service host the server knows (I-28)."
+  required: [endpoint, keys]
+  properties:
+    endpoint: { type: string, maxLength: 1024 }
+    keys: { $ref: "#/PushKeys" }
+PushSubscription:
+  type: object
+  required: [id, host, current, state, created_at]
+  properties:
+    id: { type: integer }
+    host: { type: string, description: "The push service's host. The full endpoint stays on the server: it is a capability to send to the device." }
+    current: { type: boolean, description: "This request's own device owns the subscription." }
+    state: { type: string, enum: [active, disabled] }
+    disabled_reason: { type: string, enum: [gone, failures, device_revoked, user] }
+    created_at: { type: integer, description: "Unix ms." }
+    last_success_at: { type: integer, description: "Unix ms of the last push the service accepted." }
+PushSubscriptionList:
+  type: object
+  required: [subscriptions]
+  properties:
+    subscriptions: { type: array, items: { $ref: "#/PushSubscription" } }
+PushSubscribed:
+  type: object
+  required: [subscription]
+  properties:
+    subscription: { $ref: "#/PushSubscription" }
+PushTestResult:
+  type: object
+  required: [delivered]
+  properties:
+    delivered: { type: boolean, description: "The push service accepted the test push." }
+PushFocus:
+  type: object
+  description: "Where the device is looking. conversation_id null (or absent) says it looks at no conversation."
+  properties:
+    conversation_id: { type: [integer, "null"] }

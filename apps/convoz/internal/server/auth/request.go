@@ -72,6 +72,7 @@ type DeviceRequest struct {
 
 // DeviceCode is the answer to a started login.
 type DeviceCode struct {
+	RequestID  int64 // the stored request, for the event that tells the owner (push: machine_request)
 	DeviceCode string
 	UserCode   string
 	Interval   time.Duration
@@ -118,7 +119,7 @@ func RequestDeviceCode(ctx context.Context, d pdb.DBTX, in DeviceRequest, nextCo
 		if attempt > 0 {
 			user = NewUserCode()
 		}
-		_, err = q.InsertMachineRequest(ctx, db.InsertMachineRequestParams{
+		id, err := q.InsertMachineRequest(ctx, db.InsertMachineRequestParams{
 			DeviceCodeHash: hashToken(code), UserCode: user, RequestedName: in.Name,
 			HostInfo:   sql.NullString{String: in.HostInfo, Valid: in.HostInfo != ""},
 			Source:     in.Source,
@@ -126,7 +127,7 @@ func RequestDeviceCode(ctx context.Context, d pdb.DBTX, in DeviceRequest, nextCo
 			CreatedAt:  now.UnixMilli(), ExpiresAt: now.Add(RequestTTL).UnixMilli(), PollIntervalMs: in.Interval.Milliseconds(),
 		})
 		if err == nil {
-			return DeviceCode{DeviceCode: code, UserCode: user, Interval: in.Interval, ExpiresIn: RequestTTL}, nil
+			return DeviceCode{RequestID: id, DeviceCode: code, UserCode: user, Interval: in.Interval, ExpiresIn: RequestTTL}, nil
 		}
 		if !pdb.IsUniqueViolation(err) || attempt >= 5 {
 			return DeviceCode{}, err

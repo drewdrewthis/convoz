@@ -1,5 +1,6 @@
 import { humanError } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
+import { NotificationSettings } from "../notifications/index.ts";
 import { PALETTES, TEXT_SIZES, THEMES, type Look } from "./appearance.ts";
 import { useSettings } from "./store.ts";
 
@@ -33,6 +34,7 @@ export function Settings() {
       <Choice name="Theme" field="theme" options={THEMES} hint="This device only. System follows your phone or computer." />
       <Choice name="Palette" field="palette" options={PALETTES} hint="The same on every device you sign in on." />
       <Choice name="Text size" field="text_size" options={TEXT_SIZES} hint="This device only." />
+      <NotificationSettings />
       <div className="group">
         <a className="row" href="/settings/privacy">
           <span>Privacy &amp; security</span>

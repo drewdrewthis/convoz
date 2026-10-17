@@ -255,7 +255,7 @@ scenario("A snoozed ask returns at its time", { tag: ["@browser"] }, async ({ se
   const reasons = () => {
     const db = plainDb(dataDir);
     try {
-      return (db.prepare("SELECT reason FROM notifications").all() as { reason: string }[]).map((r) => r.reason);
+      return (db.prepare("SELECT reason FROM notifications WHERE reason = 'snooze_wake'").all() as { reason: string }[]).map((r) => r.reason);
     } finally {
       db.close();
     }

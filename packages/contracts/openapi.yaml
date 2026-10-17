@@ -118,6 +118,7 @@ paths:
   /api/push/vapid-key: { $ref: "paths/notify.yaml#/~1api~1push~1vapid-key" }
   /api/push/subscriptions: { $ref: "paths/notify.yaml#/~1api~1push~1subscriptions" }
   /api/push/test: { $ref: "paths/notify.yaml#/~1api~1push~1test" }
+  /api/push/focus: { $ref: "paths/notify.yaml#/~1api~1push~1focus" }
   # ---- settings
   /api/settings: { $ref: "paths/settings.yaml#/~1api~1settings" }
   # ---- ops

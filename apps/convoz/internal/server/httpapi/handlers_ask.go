@@ -427,7 +427,9 @@ func (s *Server) wakeSnoozes(ctx context.Context) error {
 	}
 	var woke int
 	err = s.Store.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) (err error) {
-		woke, err = ask.WakeDue(ctx, tx.DBTX(), askPorts(authz.Principal{}, &askEffects{}), now)
+		ports := askPorts(authz.Principal{}, &askEffects{})
+		ports.Notify = pushWake{s} // the wake and its push commit together
+		woke, err = ask.WakeDue(ctx, tx.DBTX(), ports, now)
 		return err
 	})
 	if err == nil && woke > 0 {
@@ -441,6 +443,9 @@ const snoozeCheckEvery = 10 * time.Second
 
 // RunTimers runs the jobs that follow the clock, until ctx ends: waking the snoozes whose time has come.
 func (s *Server) RunTimers(ctx context.Context) {
+	if s.Push != nil {
+		go s.Push.Run(ctx, s.Bus.Changed) // the push worker: events in, pushes out
+	}
 	tick := time.NewTicker(snoozeCheckEvery)
 	defer tick.Stop()
 	for {

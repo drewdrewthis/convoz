@@ -10,7 +10,41 @@ import (
 	"database/sql"
 )
 
-const insertNotification = `-- name: InsertNotification :exec
+const burstSize = `-- name: BurstSize :one
+SELECT count(*) FROM notifications
+WHERE identity_id = ?1 AND topic = ?2 AND decision = 'send' AND id <= ?3 AND created_at > ?4
+`
+
+type BurstSizeParams struct {
+	IdentityID int64
+	Topic      string
+	ID         int64
+	Since      int64
+}
+
+// How many pushes the person was sent on one topic in the minute up to this notification, itself included (a burst reads "3 new").
+func (q *Queries) BurstSize(ctx context.Context, arg BurstSizeParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, burstSize,
+		arg.IdentityID,
+		arg.Topic,
+		arg.ID,
+		arg.Since,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const expireNotification = `-- name: ExpireNotification :exec
+UPDATE notifications SET decision = 'expired' WHERE id = ?1 AND decision = 'send'
+`
+
+func (q *Queries) ExpireNotification(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, expireNotification, id)
+	return err
+}
+
+const insertNotification = `-- name: InsertNotification :execrows
 INSERT OR IGNORE INTO notifications (identity_id, reason, source_seq, conversation_id, message_id, topic, urgent, decision, suppressed_reason, created_at)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7,
         ?8, ?9, ?10)
@@ -30,8 +64,8 @@ type InsertNotificationParams struct {
 }
 
 // One notification per (person, reason, source event): a second write of the same event changes nothing (I-28).
-func (q *Queries) InsertNotification(ctx context.Context, arg InsertNotificationParams) error {
-	_, err := q.db.ExecContext(ctx, insertNotification,
+func (q *Queries) InsertNotification(ctx context.Context, arg InsertNotificationParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, insertNotification,
 		arg.IdentityID,
 		arg.Reason,
 		arg.SourceSeq,
@@ -43,5 +77,39 @@ func (q *Queries) InsertNotification(ctx context.Context, arg InsertNotification
 		arg.SuppressedReason,
 		arg.Now,
 	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const notificationByKey = `-- name: NotificationByKey :one
+SELECT id FROM notifications WHERE identity_id = ?1 AND reason = ?2 AND source_seq = ?3
+`
+
+type NotificationByKeyParams struct {
+	IdentityID int64
+	Reason     string
+	SourceSeq  int64
+}
+
+func (q *Queries) NotificationByKey(ctx context.Context, arg NotificationByKeyParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, notificationByKey, arg.IdentityID, arg.Reason, arg.SourceSeq)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const suppressNotification = `-- name: SuppressNotification :exec
+UPDATE notifications SET decision = 'suppressed', suppressed_reason = ?1 WHERE id = ?2 AND decision = 'send'
+`
+
+type SuppressNotificationParams struct {
+	Why sql.NullString
+	ID  int64
+}
+
+func (q *Queries) SuppressNotification(ctx context.Context, arg SuppressNotificationParams) error {
+	_, err := q.db.ExecContext(ctx, suppressNotification, arg.Why, arg.ID)
 	return err
 }

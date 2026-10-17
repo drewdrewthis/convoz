@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/event"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/tailnet"
@@ -69,9 +70,17 @@ func (s *Server) deviceCode(w http.ResponseWriter, r *http.Request, _ *call) {
 	var out auth.DeviceCode
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
 		var err error
-		out, err = auth.RequestDeviceCode(ctx, tx.DBTX(), req, s.userCodes, s.Clock.Now())
+		now := s.Clock.Now()
+		if out, err = auth.RequestDeviceCode(ctx, tx.DBTX(), req, s.userCodes, now); err != nil {
+			return err
+		}
+		// The owner is told (a card in Now, a push): the event names the request, the push reads its name and code when it is sent.
+		_, err = event.Append(ctx, tx.DBTX(), now, eventMachineRequested, map[string]any{"request_id": out.RequestID})
 		return err
 	})
+	if err == nil {
+		s.Bus.Notify()
+	}
 	var limited *auth.RateLimitedError
 	switch {
 	case errors.Is(err, auth.ErrTooManyPending):
