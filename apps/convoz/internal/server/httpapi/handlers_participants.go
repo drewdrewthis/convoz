@@ -194,10 +194,13 @@ func decideParticipant(approve bool) handler {
 			if approve {
 				status = conversation.StatusActive
 			}
+			// The conversation says how the request ended: "Approved · @docs added" or "Declined · @docs not added".
+			line := message.SystemLine{T: "member.declined", Identity: iid, By: c.p.HumanID}
 			if approve {
-				if _, _, err := sayLine(ctx, d, now, c.p.HumanID, convID, message.SystemLine{T: "member.added", Identity: iid, By: c.p.HumanID, Via: "add"}); err != nil {
-					return err
-				}
+				line.T = "member.approved"
+			}
+			if _, _, err := sayLine(ctx, d, now, c.p.HumanID, convID, line); err != nil {
+				return err
 			}
 			if done, err = conversation.Decide(ctx, d, now, convID, iid, c.p.HumanID, approve, seat.JoinedMessageID, seat.JoinedSeq); err != nil || !done {
 				return err
@@ -277,11 +280,7 @@ func (s *Server) endSeat(w http.ResponseWriter, r *http.Request, c *call, convID
 		if _, err := conversation.ReleaseOf(ctx, d, convID, who); err != nil {
 			return err
 		}
-		wasOpen, err := ask.CloseForRemoval(ctx, d, now, convID, who)
-		if err != nil {
-			return err
-		}
-		if err := conversation.AddOpenAsks(ctx, d, convID, -wasOpen); err != nil {
+		if err := ask.CloseForRemoval(ctx, d, askPorts(c.p, &askEffects{}), now, convID, who); err != nil {
 			return err
 		}
 		line := message.SystemLine{T: "member.removed", Identity: who, By: c.p.Identity()}

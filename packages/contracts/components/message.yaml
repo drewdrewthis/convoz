@@ -9,12 +9,7 @@ Message:
     format: { type: string, enum: [plain, markdown, markdownv2] }
     created_at: { type: integer, format: int64 }
     kind: { type: string, enum: [ask, system], description: "An agent's question (ask) or a line the conversation says about itself (system). Absent for a text message." }
-    ask:
-      type: object
-      required: [state]
-      description: Where the ask stands, for a message of kind ask.
-      properties:
-        state: { type: string, enum: [open, answered, dismissed, closed] }
+    ask: { $ref: "../openapi.yaml#/components/schemas/Ask", description: "The ask a message of kind ask carries: its question, options, state and history." }
     thread_root_id: { type: integer, format: int64 }
     broadcast: { type: boolean }
     reply_count: { type: integer, format: int64 }

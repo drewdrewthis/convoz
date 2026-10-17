@@ -146,6 +146,13 @@ export function createDataCache(source: DataSource): DataCache {
         }
         case "agent.working":
           return true; // presence only: nothing cached
+        case "ask.changed": {
+          // The ask lives in its message: a held copy shows the new state at once. Not a new message, so the list stays.
+          const ask = frame.data;
+          if (!get().messages[ask.conversation_id]) return true;
+          setList(ask.conversation_id, (m) => ({ ...m, list: m.list.map((x) => (x.id === ask.id ? { ...x, ask: { ...ask, snoozed_until: undefined } } : x)) }));
+          return true;
+        }
       }
       // the list follows message.created, read.moved and conversation.created, a burst at a time
       if (get().conversations) {

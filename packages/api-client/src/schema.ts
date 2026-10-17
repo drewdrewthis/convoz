@@ -1091,7 +1091,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
+        /**
+         * An agent asks a question with a recommendation and alternatives. The same client_id again answers 200 with the same ask.
+         * @description Needs a lease with the `ask` scope; a person gets 403. 400 names the field (`question`, `recommended`, `alternatives`,
+         *     `why`, `label`). 429 `ask_cap` at 20 open asks of one identity, 429 `conversation_paused` while the loop breaker holds.
+         */
+        post: operations["postAsk"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1105,7 +1110,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** The ask, its options, its state and its history. For anyone who can see the conversation. */
+        get: operations["getAsk"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1123,7 +1129,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
+        /**
+         * A person answers an ask (the recommended option, an alternative, or their own words).
+         * @description The first answer wins. The same person sending the same answer again is 200 and writes nothing; any other answer to an
+         *     answered ask is 409 `conflict` with the ask as it stands. An answer for an option the ask did not offer is 400. A lease is 403.
+         */
+        post: operations["answerAsk"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1139,7 +1150,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
+        /** A person dismisses an open ask. Dismissing a dismissed ask is 200. */
+        post: operations["dismissAsk"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1155,7 +1167,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
+        /**
+         * A person reopens a dismissed ask.
+         * @description 409 `asker_gone` when the agent is no longer in the conversation or is disabled; 409 `ask_cap` at 20 open asks of the agent.
+         */
+        post: operations["undismissAsk"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1171,7 +1187,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
+        /** The asking agent withdraws an open or dismissed ask. Only the asker, with a lease. */
+        post: operations["withdrawAsk"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1186,9 +1203,14 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
+        /**
+         * Snooze an open ask for the caller (a personal overlay; the ask does not change).
+         * @description 409 `not_open` for an ask that is not open. 400 `preset_unavailable` for Tonight from 20:00.
+         */
+        put: operations["snoozeAsk"];
         post?: never;
-        delete?: never;
+        /** Take the snooze off at once. 200 when there was none. */
+        delete: operations["unsnoozeAsk"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1201,6 +1223,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** What waits for the owner; the Now screen and its badge. */
         get: operations["now"];
         put?: never;
         post?: never;
@@ -1721,11 +1744,8 @@ export interface components {
              * @enum {string}
              */
             kind?: "ask" | "system";
-            /** @description Where the ask stands, for a message of kind ask. */
-            ask?: {
-                /** @enum {string} */
-                state: "open" | "answered" | "dismissed" | "closed";
-            };
+            /** @description The ask a message of kind ask carries: its question, options, state and history. */
+            ask?: components["schemas"]["Ask"];
             /** Format: int64 */
             thread_root_id?: number;
             broadcast?: boolean;
@@ -1910,6 +1930,158 @@ export interface components {
             /** Format: int64 */
             as_of_seq: number;
             cursor: string;
+        };
+        AskOption: {
+            label: string;
+            why: string;
+            /** @description True on the first option, the one the agent recommends. */
+            recommended?: boolean;
+        };
+        /** @description What the answer was. A recommended or alternative answer names an option; a custom one carries the person's words. */
+        AskChoice: {
+            /** @enum {string} */
+            kind: "recommended" | "alternative" | "custom";
+            /** @description The alternative (1 to 4); its place after the recommended option. */
+            index?: number;
+            text?: string;
+        };
+        /** @description One row of the ask's history (C-6). Append-only; ids and enums only. A row without `by` was made by the system. */
+        AskHistoryRow: {
+            version: number;
+            /** @enum {string} */
+            event: "create" | "answer" | "dismiss" | "undismiss" | "withdraw" | "close";
+            /** @enum {string} */
+            to_state: "open" | "answered" | "dismissed" | "closed";
+            by?: components["schemas"]["Person"];
+            /** Format: int64 */
+            at: number;
+        };
+        /**
+         * @description An ask as a reader sees it. `id` is the id of the ask message. The first option is the recommended one. `snoozed_until`
+         *     is the caller's own snooze (a person's overlay, never part of the ask).
+         */
+        Ask: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            conversation_id: number;
+            conversation?: components["schemas"]["AskConversation"];
+            /**
+             * Format: int64
+             * @description The thread the ask was asked in.
+             */
+            thread_root_id?: number;
+            asker: components["schemas"]["Person"];
+            /** @description Empty after a purge. */
+            question: string;
+            urgent: boolean;
+            /** @enum {string} */
+            state: "open" | "answered" | "dismissed" | "closed";
+            /** @enum {string} */
+            close_reason?: "removed" | "withdrawn" | "deleted" | "agent_revoked";
+            options: components["schemas"]["AskOption"][];
+            chosen?: components["schemas"]["AskChoice"];
+            /** @description The answer in words: the chosen option's label, or the custom text. */
+            answer?: string;
+            /** @enum {string} */
+            answer_via?: "inline" | "now";
+            resolved_by?: components["schemas"]["Person"];
+            /** Format: int64 */
+            resolved_at?: number;
+            /**
+             * Format: int64
+             * @description When the asker saw the result ("Seen by @asker").
+             */
+            acked_at?: number;
+            /** @description Moves by one with every state change; a snooze never moves it. */
+            version: number;
+            /** Format: int64 */
+            created_at: number;
+            /** Format: int64 */
+            snoozed_until?: number;
+            history?: components["schemas"]["AskHistoryRow"][];
+        };
+        AskConversation: {
+            /** Format: int64 */
+            id: number;
+            title: string | null;
+        };
+        AskRequest: {
+            /** Format: int64 */
+            conversation_id: number;
+            /** Format: int64 */
+            thread_root_id?: number;
+            client_id: components["schemas"]["ClientId"];
+            question: string;
+            recommended: components["schemas"]["AskOption"];
+            alternatives: components["schemas"]["AskOption"][];
+            urgent?: boolean;
+        };
+        AskAnswerRequest: {
+            /** @enum {string} */
+            choice: "recommended" | "alternative" | "custom";
+            /** @description With choice alternative: which one. */
+            index?: number;
+            /** @description With choice custom: the person's words. */
+            text?: string;
+            /** @description The version the person saw; another version is a 409. */
+            if_version?: number;
+            client_id?: components["schemas"]["ClientId"];
+            /**
+             * @description Where the person answered (default inline).
+             * @enum {string}
+             */
+            via?: "inline" | "now";
+        };
+        AskMarkRequest: {
+            if_version?: number;
+            client_id?: components["schemas"]["ClientId"];
+        };
+        /** @description A preset, or an exact time. Tonight and Tomorrow are read in the zone `tz` (an IANA name, UTC when left out). */
+        AskSnoozeRequest: {
+            /** @enum {string} */
+            preset?: "1h" | "tonight" | "tomorrow";
+            /** Format: int64 */
+            until?: number;
+            tz?: string;
+        };
+        OneAsk: {
+            ask: components["schemas"]["Ask"];
+        };
+        /** @description A 409 that carries the ask as it stands, so the screen can show what won. */
+        AskConflict: {
+            error: {
+                code: string;
+                message: string;
+            };
+            ask: components["schemas"]["Ask"];
+        };
+        /** @description An agent that waits for a person to add it to a conversation. */
+        NowPendingAdd: {
+            conversation: components["schemas"]["AskConversation"];
+            person: components["schemas"]["Person"];
+            requested_by?: components["schemas"]["Person"];
+            /** Format: int64 */
+            at: number;
+        };
+        Now: {
+            /**
+             * Format: int64
+             * @description The server's clock
+             */
+            now: number;
+            /** @description How often an open Now asks again */
+            poll_ms: number;
+            /** @description Open asks that are not snoozed. */
+            badge: number;
+            /** @description Open and not snoozed; urgent first, then the newest. */
+            asks: components["schemas"]["Ask"][];
+            /** @description The caller's snoozed open asks, the soonest wake first. */
+            snoozed: components["schemas"]["Ask"][];
+            /** @description Answered in the last 24 hours */
+            answered_today: components["schemas"]["Ask"][];
+            pending_adds: components["schemas"]["NowPendingAdd"][];
+            machine_requests: components["schemas"]["MachineRequest"][];
         };
         SettingEntry: {
             /** @enum {string} */
@@ -3212,6 +3384,257 @@ export interface operations {
             default: components["responses"]["Error"];
         };
     };
+    postAsk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AskRequest"];
+            };
+        };
+        responses: {
+            /** @description The ask that client_id made before. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OneAsk"];
+                };
+            };
+            /** @description The new ask. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OneAsk"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getAsk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The ask. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OneAsk"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    answerAsk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AskAnswerRequest"];
+            };
+        };
+        responses: {
+            /** @description The ask after the answer. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OneAsk"];
+                };
+            };
+            /** @description Another answer won, or the ask is closed; `ask` is how it stands. `asker_gone` when a dismissed ask's agent left. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AskConflict"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    dismissAsk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AskMarkRequest"];
+            };
+        };
+        responses: {
+            /** @description The ask after the change. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OneAsk"];
+                };
+            };
+            /** @description The ask is answered or closed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AskConflict"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    undismissAsk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AskMarkRequest"];
+            };
+        };
+        responses: {
+            /** @description The ask after the change. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OneAsk"];
+                };
+            };
+            /** @description Not dismissed, or the agent is gone, or it holds too many open asks. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AskConflict"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    withdrawAsk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AskMarkRequest"];
+            };
+        };
+        responses: {
+            /** @description The ask after the change. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OneAsk"];
+                };
+            };
+            /** @description The ask is answered or closed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AskConflict"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    snoozeAsk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AskSnoozeRequest"];
+            };
+        };
+        responses: {
+            /** @description The ask with the caller's snooze. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OneAsk"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    unsnoozeAsk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The ask. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OneAsk"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
     now: {
         parameters: {
             query?: never;
@@ -3227,9 +3650,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        machine_requests: components["schemas"]["MachineRequest"][];
-                    };
+                    "application/json": components["schemas"]["Now"];
                 };
             };
             default: components["responses"]["Error"];

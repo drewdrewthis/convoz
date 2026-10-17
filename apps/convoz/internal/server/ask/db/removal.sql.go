@@ -7,56 +7,12 @@ package db
 
 import (
 	"context"
-	"database/sql"
-	"strings"
 )
 
-const askStatesOf = `-- name: AskStatesOf :many
-SELECT message_id, state, close_reason FROM asks WHERE message_id IN (/*SLICE:ids*/?)
-`
-
-type AskStatesOfRow struct {
-	MessageID   int64
-	State       string
-	CloseReason sql.NullString
-}
-
-func (q *Queries) AskStatesOf(ctx context.Context, ids []int64) ([]AskStatesOfRow, error) {
-	query := askStatesOf
-	var queryParams []interface{}
-	if len(ids) > 0 {
-		for _, v := range ids {
-			queryParams = append(queryParams, v)
-		}
-		query = strings.Replace(query, "/*SLICE:ids*/?", strings.Repeat(",?", len(ids))[1:], 1)
-	} else {
-		query = strings.Replace(query, "/*SLICE:ids*/?", "NULL", 1)
-	}
-	rows, err := q.db.QueryContext(ctx, query, queryParams...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []AskStatesOfRow
-	for rows.Next() {
-		var i AskStatesOfRow
-		if err := rows.Scan(&i.MessageID, &i.State, &i.CloseReason); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const asksToCloseOnRemoval = `-- name: AsksToCloseOnRemoval :many
-SELECT message_id, state, version FROM asks
+SELECT message_id FROM asks
 WHERE conversation_id = ?1 AND asker_id = ?2 AND state IN ('open','dismissed')
+ORDER BY message_id
 `
 
 type AsksToCloseOnRemovalParams struct {
@@ -64,26 +20,20 @@ type AsksToCloseOnRemovalParams struct {
 	AskerID        int64
 }
 
-type AsksToCloseOnRemovalRow struct {
-	MessageID int64
-	State     string
-	Version   int64
-}
-
 // The open and the dismissed asks one agent has in one conversation (I-19).
-func (q *Queries) AsksToCloseOnRemoval(ctx context.Context, arg AsksToCloseOnRemovalParams) ([]AsksToCloseOnRemovalRow, error) {
+func (q *Queries) AsksToCloseOnRemoval(ctx context.Context, arg AsksToCloseOnRemovalParams) ([]int64, error) {
 	rows, err := q.db.QueryContext(ctx, asksToCloseOnRemoval, arg.ConversationID, arg.AskerID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []AsksToCloseOnRemovalRow
+	var items []int64
 	for rows.Next() {
-		var i AsksToCloseOnRemovalRow
-		if err := rows.Scan(&i.MessageID, &i.State, &i.Version); err != nil {
+		var message_id int64
+		if err := rows.Scan(&message_id); err != nil {
 			return nil, err
 		}
-		items = append(items, i)
+		items = append(items, message_id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -92,44 +42,4 @@ func (q *Queries) AsksToCloseOnRemoval(ctx context.Context, arg AsksToCloseOnRem
 		return nil, err
 	}
 	return items, nil
-}
-
-const closeAskRemoved = `-- name: CloseAskRemoved :exec
-UPDATE asks
-SET state = 'closed', close_reason = 'removed', resolved_by = NULL, resolved_at = NULL, version = version + 1, updated_at = ?1
-WHERE message_id = ?2
-`
-
-type CloseAskRemovedParams struct {
-	Now       int64
-	MessageID int64
-}
-
-func (q *Queries) CloseAskRemoved(ctx context.Context, arg CloseAskRemovedParams) error {
-	_, err := q.db.ExecContext(ctx, closeAskRemoved, arg.Now, arg.MessageID)
-	return err
-}
-
-const insertAskTransition = `-- name: InsertAskTransition :exec
-INSERT INTO ask_transitions (message_id, version, event, to_state, by_identity, at)
-VALUES (?1, ?2, ?3, ?4, NULL, ?5)
-`
-
-type InsertAskTransitionParams struct {
-	MessageID int64
-	Version   int64
-	Event     string
-	ToState   string
-	At        int64
-}
-
-func (q *Queries) InsertAskTransition(ctx context.Context, arg InsertAskTransitionParams) error {
-	_, err := q.db.ExecContext(ctx, insertAskTransition,
-		arg.MessageID,
-		arg.Version,
-		arg.Event,
-		arg.ToState,
-		arg.At,
-	)
-	return err
 }

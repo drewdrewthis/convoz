@@ -1,0 +1,184 @@
+import type { Locator, Page } from "@playwright/test";
+import type { ServerHandle, ServerOptions } from "./fixtures.ts";
+import { createConversation, startSession } from "./chat.ts";
+import { send, type Res } from "./http.ts";
+import { bearer, clientId, plainDb } from "./machines.ts";
+import { must, type Owner } from "./owner.ts";
+import { world, type World } from "./wp3.ts";
+
+/**
+ * Helpers of the ask and Now scenarios (asks.wp8.spec.ts, now.wp8.spec.ts). The routes are in packages/contracts/paths/ask.yaml:
+ *   POST /api/asks (lease, `ask` scope)  {conversation_id, thread_root_id?, client_id, question, recommended:{label,why}, alternatives:[{label,why}], urgent?}
+ *   GET  /api/asks/:id                   {ask}           the ask with its options, answer and history
+ *   POST /api/asks/:id/{answer,dismiss,undismiss}  (owner)   answer {choice: recommended | alternative(+index 1..4) | custom(+text), if_version?, client_id?}
+ *   POST /api/asks/:id/withdraw          (asker's lease)
+ *   PUT|DELETE /api/asks/:id/snooze      (owner)   {preset: "1h" | "tonight" | "tomorrow", tz?} or {until}
+ *   GET  /api/now                        {now, poll_ms, badge, asks, snoozed, answered_today, pending_adds, machine_requests}
+ * A 409 carries `{error:{code,message}, ask}`. An ask is `{id, conversation_id, asker, question, urgent, state, close_reason?, options[{label,why}],
+ * chosen?{kind,index?,text?}, answer?, resolved_by?, acked_at?, version, history[], snoozed_until?}`; the first option is the recommended one.
+ */
+
+export const QUESTION = "Merge #415 on its own?";
+
+export interface Person {
+  id?: number;
+  handle: string;
+  display_name?: string;
+}
+
+export interface AskView {
+  id: number;
+  conversation_id: number;
+  conversation?: { id: number; title: string | null };
+  thread_root_id?: number;
+  asker: Person;
+  question: string;
+  urgent: boolean;
+  state: "open" | "answered" | "dismissed" | "closed";
+  close_reason?: string;
+  options: { label: string; why: string; recommended?: boolean }[];
+  chosen?: { kind: string; index?: number; text?: string };
+  answer?: string;
+  resolved_by?: Person;
+  acked_at?: number;
+  version: number;
+  snoozed_until?: number;
+  history?: { version: number; event: string; to_state: string; by?: Person; at: number }[];
+}
+
+export interface NowView {
+  now: number;
+  poll_ms: number;
+  badge: number;
+  asks: AskView[];
+  snoozed: AskView[];
+  answered_today: AskView[];
+  pending_adds: { conversation: { id: number; title: string | null }; person: Person; requested_by?: Person; at: number }[];
+  machine_requests: { id: number; name: string; user_code: string }[];
+}
+
+export interface AskSpec {
+  question?: string;
+  rec?: [label: string, why: string];
+  alts?: [label: string, why: string][];
+  urgent?: boolean;
+  thread?: number;
+  clientId?: string;
+}
+
+/** The body of `POST /api/asks`: "Merge it" recommended, "Hold it" the alternative, unless the spec says otherwise. */
+export function askBody(conv: number, o: AskSpec = {}): Record<string, unknown> {
+  const [label, why] = o.rec ?? ["Merge it", "All 11 checks pass"];
+  return {
+    conversation_id: conv,
+    client_id: o.clientId ?? clientId(),
+    question: o.question ?? QUESTION,
+    recommended: { label, why },
+    alternatives: (o.alts ?? [["Hold it", "Wait for #412"]]).map(([l, w]) => ({ label: l, why: w })),
+    ...(o.urgent ? { urgent: true } : {}),
+    ...(o.thread ? { thread_root_id: o.thread } : {}),
+  };
+}
+
+/** `POST /api/asks` with a lease. The raw answer. */
+export function postAsk(srv: ServerHandle, lease: string, body: Record<string, unknown>): Promise<Res> {
+  return send(srv.target, "POST", "/api/asks", { json: body, ...bearer(lease) });
+}
+
+/** An agent asks and it must open (201). Returns the ask id (the id of the ask message). */
+export async function agentAsks(srv: ServerHandle, lease: string, conv: number, o: AskSpec = {}): Promise<number> {
+  return (must(await postAsk(srv, lease, askBody(conv, o)), `ask ${JSON.stringify(o.question ?? QUESTION)}`, 201).json().ask as AskView).id;
+}
+
+/** `GET /api/asks/:id` as the owner. */
+export async function askOf(owner: Owner, id: number): Promise<AskView> {
+  return must(await owner.client.get(`/api/asks/${id}`), `get ask ${id}`).json().ask as AskView;
+}
+
+/** `GET /api/asks/:id` with a lease. */
+export async function askOfAgent(srv: ServerHandle, lease: string, id: number): Promise<AskView> {
+  return must(await send(srv.target, "GET", `/api/asks/${id}`, bearer(lease)), `get ask ${id} as agent`).json().ask as AskView;
+}
+
+/** `GET /api/now` as the owner. */
+export async function nowOf(owner: Owner): Promise<NowView> {
+  return must(await owner.client.get("/api/now"), "get now").json() as NowView;
+}
+
+export type Answer = { choice: "recommended" } | { choice: "alternative"; index: number } | { choice: "custom"; text: string };
+
+/** `POST /api/asks/:id/answer` as the owner. The raw answer. */
+export function answerAsk(owner: Owner, id: number, a: Answer = { choice: "recommended" }, extra: Record<string, unknown> = {}): Promise<Res> {
+  return owner.client.post(`/api/asks/${id}/answer`, { client_id: clientId(), ...a, ...extra });
+}
+
+/** `POST /api/asks/:id/<event>` as the owner for dismiss and undismiss. The raw answer. */
+export function markAsk(owner: Owner, id: number, event: "dismiss" | "undismiss", extra: Record<string, unknown> = {}): Promise<Res> {
+  return owner.client.post(`/api/asks/${id}/${event}`, { client_id: clientId(), ...extra });
+}
+
+/** `POST /api/asks/:id/withdraw` with the asker's lease. The raw answer. */
+export function withdrawAsk(srv: ServerHandle, lease: string, id: number): Promise<Res> {
+  return send(srv.target, "POST", `/api/asks/${id}/withdraw`, { json: { client_id: clientId() }, ...bearer(lease) });
+}
+
+/** `PUT /api/asks/:id/snooze` as the owner. The raw answer. */
+export function snoozeAsk(owner: Owner, id: number, body: { preset?: string; until?: number; tz?: string }): Promise<Res> {
+  return owner.client.request("PUT", `/api/asks/${id}/snooze`, { csrf: true, json: body });
+}
+
+/** The ask must be in this state (and close reason). */
+export async function expectState(owner: Owner, id: number): Promise<string> {
+  const a = await askOf(owner, id);
+  return a.close_reason ? `${a.state} (${a.close_reason})` : a.state;
+}
+
+/** Messages that answer asks, among a conversation's main list and every thread: counted straight from the data file of the encryption-off build. */
+export function answerMessages(dataDir: string, askId: number): { id: number; body: string; author_id: number }[] {
+  const db = plainDb(dataDir);
+  try {
+    return db.prepare("SELECT id, body, author_id FROM messages WHERE answers_ask_id = ? ORDER BY id").all(askId) as { id: number; body: string; author_id: number }[];
+  } finally {
+    db.close();
+  }
+}
+
+/** The ask world: a fresh server, owner "drew", machine "box-2" with "devtool" and "docs", conversation "Ship search filters" and a lease for each agent. */
+export async function askWorld(
+  server: (o?: ServerOptions) => Promise<ServerHandle>,
+  o: { plaintext?: boolean; title?: string } = {},
+): Promise<{ w: World; conv: number; devtool: { sid: string; lease: string }; docs: { sid: string; lease: string } }> {
+  const w = await world(server, { agents: ["devtool", "docs"], ...(o.plaintext ? { plaintext: true } : {}) });
+  const conv = await createConversation(w.owner, { title: o.title ?? "Ship search filters", participants: ["devtool", "docs"] });
+  const devtool = await startSession(w.box, "devtool", "s1");
+  const docs = await startSession(w.box, "docs", "s2");
+  return { w, conv, devtool, docs };
+}
+
+// ---- the owner's browser -----------------------------------------------------------------------------------
+
+/** The Now card of an ask: an article named by its question. */
+export const askCard = (page: Page, question: string = QUESTION): Locator => page.getByRole("article", { name: question });
+
+/** Open Now and wait until it has loaded. */
+export async function openNow(page: Page, srv: ServerHandle): Promise<void> {
+  await page.goto(`${srv.origin}/`);
+  await page.getByRole("heading", { name: "Now", exact: true }).waitFor();
+}
+
+/** A fold of Now ("Snoozed", "Answered today"): its toggle button. Opens it when it is closed. */
+export async function openFold(page: Page, name: string): Promise<void> {
+  const toggle = page.getByRole("button", { name: new RegExp(`^${name}\\b`) });
+  await toggle.waitFor();
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+}
+
+/** Move the server clock so the time is `iso` (a UTC instant, "2026-10-16T18:00:00Z"), and keep it frozen there. */
+export async function setServerTime(
+  testApi: { freezeClock(): Promise<void>; advanceClock(ms: number): Promise<void> },
+  owner: Owner,
+  iso: string,
+): Promise<void> {
+  await testApi.freezeClock();
+  await testApi.advanceClock(Date.parse(iso) - (await nowOf(owner)).now);
+}

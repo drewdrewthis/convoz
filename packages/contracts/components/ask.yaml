@@ -1,2 +1,134 @@
 # Schemas of the ask module. Only the work package that owns ask edits this file; the root lists each by name.
-{}
+AskOption:
+  type: object
+  required: [label, why]
+  properties:
+    label: { type: string, minLength: 1, maxLength: 120 }
+    why: { type: string, minLength: 1, maxLength: 280 }
+    recommended: { type: boolean, description: "True on the first option, the one the agent recommends." }
+AskChoice:
+  type: object
+  required: [kind]
+  description: What the answer was. A recommended or alternative answer names an option; a custom one carries the person's words.
+  properties:
+    kind: { type: string, enum: [recommended, alternative, custom] }
+    index: { type: integer, minimum: 1, maximum: 4, description: "The alternative (1 to 4); its place after the recommended option." }
+    text: { type: string, maxLength: 4000 }
+AskHistoryRow:
+  type: object
+  required: [version, event, to_state, at]
+  description: One row of the ask's history (C-6). Append-only; ids and enums only. A row without `by` was made by the system.
+  properties:
+    version: { type: integer }
+    event: { type: string, enum: [create, answer, dismiss, undismiss, withdraw, close] }
+    to_state: { type: string, enum: [open, answered, dismissed, closed] }
+    by: { $ref: "../openapi.yaml#/components/schemas/Person" }
+    at: { type: integer, format: int64 }
+Ask:
+  type: object
+  required: [id, conversation_id, asker, question, urgent, state, options, version, created_at]
+  description: |
+    An ask as a reader sees it. `id` is the id of the ask message. The first option is the recommended one. `snoozed_until`
+    is the caller's own snooze (a person's overlay, never part of the ask).
+  properties:
+    id: { type: integer, format: int64 }
+    conversation_id: { type: integer, format: int64 }
+    conversation: { $ref: "../openapi.yaml#/components/schemas/AskConversation" }
+    thread_root_id: { type: integer, format: int64, description: The thread the ask was asked in. }
+    asker: { $ref: "../openapi.yaml#/components/schemas/Person" }
+    question: { type: string, maxLength: 500, description: Empty after a purge. }
+    urgent: { type: boolean }
+    state: { type: string, enum: [open, answered, dismissed, closed] }
+    close_reason: { type: string, enum: [removed, withdrawn, deleted, agent_revoked] }
+    options: { type: array, minItems: 2, maxItems: 5, items: { $ref: "../openapi.yaml#/components/schemas/AskOption" } }
+    chosen: { $ref: "../openapi.yaml#/components/schemas/AskChoice" }
+    answer: { type: string, description: "The answer in words: the chosen option's label, or the custom text." }
+    answer_via: { type: string, enum: [inline, now] }
+    resolved_by: { $ref: "../openapi.yaml#/components/schemas/Person" }
+    resolved_at: { type: integer, format: int64 }
+    acked_at: { type: integer, format: int64, description: When the asker saw the result ("Seen by @asker"). }
+    version: { type: integer, description: Moves by one with every state change; a snooze never moves it. }
+    created_at: { type: integer, format: int64 }
+    snoozed_until: { type: integer, format: int64 }
+    history: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/AskHistoryRow" } }
+AskConversation:
+  type: object
+  required: [id, title]
+  properties:
+    id: { type: integer, format: int64 }
+    title: { type: ["string", "null"] }
+AskRequest:
+  type: object
+  required: [conversation_id, client_id, question, recommended, alternatives]
+  additionalProperties: false
+  properties:
+    conversation_id: { type: integer, format: int64 }
+    thread_root_id: { type: integer, format: int64 }
+    client_id: { $ref: "../openapi.yaml#/components/schemas/ClientId" }
+    question: { type: string, minLength: 1, maxLength: 500 }
+    recommended: { $ref: "../openapi.yaml#/components/schemas/AskOption" }
+    alternatives: { type: array, minItems: 1, maxItems: 4, items: { $ref: "../openapi.yaml#/components/schemas/AskOption" } }
+    urgent: { type: boolean }
+AskAnswerRequest:
+  type: object
+  required: [choice]
+  additionalProperties: false
+  properties:
+    choice: { type: string, enum: [recommended, alternative, custom] }
+    index: { type: integer, minimum: 1, maximum: 4, description: "With choice alternative: which one." }
+    text: { type: string, maxLength: 4000, description: "With choice custom: the person's words." }
+    if_version: { type: integer, description: The version the person saw; another version is a 409. }
+    client_id: { $ref: "../openapi.yaml#/components/schemas/ClientId" }
+    via: { type: string, enum: [inline, now], description: "Where the person answered (default inline)." }
+AskMarkRequest:
+  type: object
+  additionalProperties: false
+  properties:
+    if_version: { type: integer }
+    client_id: { $ref: "../openapi.yaml#/components/schemas/ClientId" }
+AskSnoozeRequest:
+  type: object
+  additionalProperties: false
+  description: A preset, or an exact time. Tonight and Tomorrow are read in the zone `tz` (an IANA name, UTC when left out).
+  properties:
+    preset: { type: string, enum: [1h, tonight, tomorrow] }
+    until: { type: integer, format: int64 }
+    tz: { type: string }
+OneAsk:
+  type: object
+  required: [ask]
+  properties:
+    ask: { $ref: "../openapi.yaml#/components/schemas/Ask" }
+AskConflict:
+  type: object
+  required: [error, ask]
+  description: A 409 that carries the ask as it stands, so the screen can show what won.
+  properties:
+    error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+    ask: { $ref: "../openapi.yaml#/components/schemas/Ask" }
+NowPendingAdd:
+  type: object
+  required: [conversation, person, at]
+  description: An agent that waits for a person to add it to a conversation.
+  properties:
+    conversation: { $ref: "../openapi.yaml#/components/schemas/AskConversation" }
+    person: { $ref: "../openapi.yaml#/components/schemas/Person" }
+    requested_by: { $ref: "../openapi.yaml#/components/schemas/Person" }
+    at: { type: integer, format: int64 }
+Now:
+  type: object
+  required: [now, poll_ms, badge, asks, snoozed, answered_today, pending_adds, machine_requests]
+  properties:
+    now: { type: integer, format: int64, description: The server's clock, epoch ms. Snooze times and "tonight" are read against it. }
+    poll_ms: { type: integer, description: How often an open Now asks again, for what only time changes (a snooze waking, a request expiring). }
+    badge: { type: integer, description: Open asks that are not snoozed. }
+    asks: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Ask" }, description: "Open and not snoozed; urgent first, then the newest." }
+    snoozed: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Ask" }, description: "The caller's snoozed open asks, the soonest wake first." }
+    answered_today: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Ask" }, description: Answered in the last 24 hours, newest first. }
+    pending_adds: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/NowPendingAdd" } }
+    machine_requests: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/MachineRequest" } }

@@ -11,6 +11,7 @@ var coreRoutes = []Route{
 	{Method: "GET", Pattern: "/signin", Auth: authz.Pub, handle: appPage},
 	{Method: "GET", Pattern: "/recover", Auth: authz.Pub, handle: appPage},
 	{Method: "GET", Pattern: "/", Auth: authz.Human, Page: true, handle: appPage},
+	{Method: "GET", Pattern: "/now/machine/:id", Auth: authz.Human, Page: true, handle: appPage},
 	{Method: "GET", Pattern: "/chats", Auth: authz.Human, Page: true, handle: appPage},
 	{Method: "GET", Pattern: "/chats/new", Auth: authz.Human, Page: true, handle: appPage},
 	{Method: "GET", Pattern: "/chats/:id", Auth: authz.Human, Page: true, handle: (*Server).chatPage},

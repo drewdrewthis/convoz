@@ -78,6 +78,8 @@ type Draft struct {
 	ClientID     string
 	Body         string
 	Format       string   // empty means markdown
+	Kind         string   // "ask" for the message of an ask; empty is a text message
+	AnswersAsk   int64    // the ask this message answers (the ask module writes it); 0 for none
 	ThreadRoot   int64    // the top-level message this replies to; 0 for a main message
 	Broadcast    bool     // a reply also shown in the main list
 	App          []byte   // an app message's app.v1 JSON (appkit); nil for none
@@ -165,8 +167,12 @@ func insert(ctx context.Context, tx pdb.DBTX, now time.Time, d Draft) (m Message
 		return Message{}, false, err
 	}
 	at := now.UnixMilli()
+	kind := d.Kind
+	if kind == "" {
+		kind = "text"
+	}
 	p := db.InsertMessageParams{
-		ConversationID: d.Conversation, AuthorID: nullInt(d.Author), Format: d.Format, Body: d.Body,
+		ConversationID: d.Conversation, AuthorID: nullInt(d.Author), Kind: kind, Format: d.Format, Body: d.Body, AnswersAskID: nullInt(d.AnswersAsk),
 		ThreadRootID: nullInt(d.ThreadRoot), Broadcast: boolInt(d.Broadcast),
 		SessionID: nullInt(d.Session), DeviceID: nullInt(d.Device), ClientID: sql.NullString{String: d.ClientID, Valid: true},
 		OriginLabel: nullStr(d.Origin.Label), OriginMachine: nullStr(d.Origin.Machine), CreatedAt: at,
@@ -179,7 +185,7 @@ func insert(ctx context.Context, tx pdb.DBTX, now time.Time, d Draft) (m Message
 		return Message{}, false, err
 	}
 	return Message{
-		ID: id, ConversationID: d.Conversation, AuthorID: d.Author, Kind: "text", Format: d.Format, Body: d.Body, CreatedAt: at,
+		ID: id, ConversationID: d.Conversation, AuthorID: d.Author, Kind: kind, Format: d.Format, Body: d.Body, CreatedAt: at, AnswersAskID: d.AnswersAsk,
 		ThreadRootID: d.ThreadRoot, Broadcast: d.Broadcast, SessionID: d.Session, HasApp: len(d.App) > 0,
 		OriginLabel: d.Origin.Label, OriginMachine: d.Origin.Machine,
 	}, false, nil

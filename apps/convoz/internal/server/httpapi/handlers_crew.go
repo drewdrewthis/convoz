@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/ask"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/inbox"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
@@ -60,6 +61,9 @@ func (s *Server) disableIdentity(w http.ResponseWriter, r *http.Request, c *call
 		now := s.Clock.Now()
 		ended, err := auth.DisableAgent(ctx, tx.DBTX(), flowPorts, crewInput(c), id, now)
 		if err != nil {
+			return err
+		}
+		if err := ask.CloseForAgent(ctx, tx.DBTX(), askPorts(c.p, &askEffects{}), now, id); err != nil { // its open and dismissed asks close everywhere (I-38)
 			return err
 		}
 		released, err = releaseEnded(ctx, tx.DBTX(), now, ended)

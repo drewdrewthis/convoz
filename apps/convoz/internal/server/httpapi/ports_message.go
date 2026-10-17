@@ -21,7 +21,7 @@ func messagePorts(p authz.Principal) message.Ports {
 		Search: search, Uploads: uploads, Apps: apps, Mentions: mentionsPort{}, Unfurls: unfurls, Audit: postAuditPort{},
 		Loop: loopPort{}, Events: messageEvents{},
 		// A module that keeps a copy of a message joins the delete and the purge by giving its port the two Cascade methods.
-		Cascades: cascadesOf(search, uploads, apps, unfurls),
+		Cascades: cascadesOf(search, uploads, apps, unfurls, askCascade{}),
 	}
 }
 
@@ -76,7 +76,11 @@ const (
 type postJournal struct{}
 
 func (postJournal) MessageCreated(ctx context.Context, d pdb.DBTX, now time.Time, c message.Created) (int64, error) {
-	payload := map[string]any{"id": c.Message, "kind": "text", "conversation_id": c.Conversation}
+	kind := c.Kind
+	if kind == "" {
+		kind = "text"
+	}
+	payload := map[string]any{"id": c.Message, "kind": kind, "conversation_id": c.Conversation}
 	if c.ThreadRoot != 0 {
 		payload["thread_root_id"] = c.ThreadRoot
 		payload["broadcast"] = c.Broadcast

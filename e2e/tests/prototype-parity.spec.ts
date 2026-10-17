@@ -1,4 +1,6 @@
+import { must } from "../lib/owner.ts";
 import { expect, scenario, test } from "../lib/scenario.ts";
+import { agentAsks, snoozeAsk } from "../lib/asks.ts";
 import { AGENTS, LIVE, NOT_IDLE, ONLINE_IDLE, keepActual, maskPercent, protoWorld, readyForShot, seedPrototype } from "../lib/prototype-seed.ts";
 
 /*
@@ -19,7 +21,7 @@ import { AGENTS, LIVE, NOT_IDLE, ONLINE_IDLE, keepActual, maskPercent, protoWorl
 test.use({ deviceScaleFactor: 2 });
 
 /** No screen may hide more than its share of the frame behind grey boxes, so the masks cannot grow without this number changing. */
-const MASK_CAP: Record<string, number> = { now: 10, conversations: 10, "conversation-thread": 10, "new-conversation": 10, crew: 20 };
+const MASK_CAP: Record<string, number> = { now: 10, "now-asks": 10, conversations: 10, "conversation-thread": 10, "new-conversation": 10, crew: 20 };
 
 const SHOT = { maxDiffPixelRatio: 0.02, threshold: 0.2, animations: "disabled", caret: "hide", scale: "device" } as const;
 
@@ -45,6 +47,35 @@ scenario("On a phone Now matches the prototype", { tag: ["@browser", "@phone"] }
 
   // Then it matches the prototype in light and in dark
   await matchesBoth(page, "now");
+});
+
+scenario("On a phone Now with asks matches the prototype", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(180_000);
+  // Background: the prototype's agents and conversations. Given "night-watch" asked an urgent "Close the incident?" and "devtool" asked "Push the 8642 fix to staging?"
+  const u = await protoWorld({ server, page, context }, { agents: AGENTS, live: LIVE });
+  const ids = await seedPrototype(u);
+  const lease = (h: string) => u.sessions[h]!.lease;
+  await agentAsks(u.w.srv, lease("night-watch"), ids["Ops reports"]!, {
+    question: "Close the incident?",
+    urgent: true,
+    rec: ["Close it", "the error rate is back to 0.3% and has held for 20 minutes."],
+    alts: [["Keep open", "the 4.1% peak is recent, and one more quiet window would make me surer."]],
+  });
+  await agentAsks(u.w.srv, lease("devtool"), ids["Bug #8642 · null check fix"]!, {
+    question: "Push the 8642 fix to staging?",
+    rec: ["Push it", "the new test fails before the fix and passes after, and I reproduced the bug twice."],
+    alts: [["Hold", "staging is busy with the export run, so waiting avoids a noisy deploy."]],
+  });
+  // And one ask is snoozed
+  const later = await agentAsks(u.w.srv, lease("scrum-master"), ids["scrum-master"]!, { question: "Pick the next sprint goal", rec: ["Search filters", "it unblocks two lanes."], alts: [["Flaky tests", "they cost about 40 minutes of CI a day."]] });
+  must(await snoozeAsk(u.w.owner, later, { preset: "tomorrow", tz: "UTC" }), "snooze the sprint ask");
+
+  // When the owner opens Now on a phone
+  await page.goto(`${u.w.srv.origin}/`);
+  await expect(page.getByRole("article", { name: "Close the incident?" })).toBeVisible();
+
+  // Then it matches the prototype in light and in dark
+  await matchesBoth(page, "now-asks");
 });
 
 scenario("On a phone the Conversations list matches the prototype", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {

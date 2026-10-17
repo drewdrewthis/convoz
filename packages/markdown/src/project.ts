@@ -43,6 +43,10 @@ function systemText(s: NonNullable<Projectable["system"]>): string {
       return s.history === "full" ? `Added ${ref(s.identity)} · full history` : `Added ${ref(s.identity)}`;
     case "member.requested":
       return `${ref(s.by)} wants to add ${ref(s.identity)}`;
+    case "member.approved":
+      return `Approved · ${ref(s.identity)} added`;
+    case "member.declined":
+      return `Declined · ${ref(s.identity)} not added`;
     case "member.removed":
       return `${ref(s.identity)} was removed`;
     case "member.left":

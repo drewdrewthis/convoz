@@ -3,21 +3,177 @@
 /api/now:
   get:
     operationId: now
+    summary: What waits for the owner; the Now screen and its badge.
     responses:
       "200":
         description: What waits for the owner.
         content:
           application/json:
-            schema:
-              type: object
-              required: [machine_requests]
-              properties:
-                machine_requests: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/MachineRequest" } }
+            schema: { $ref: "../openapi.yaml#/components/schemas/Now" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
-/api/asks: {}  # not specified yet
-/api/asks/{id}: {}  # not specified yet
-/api/asks/{id}/answer: {}  # not specified yet
-/api/asks/{id}/dismiss: {}  # not specified yet
-/api/asks/{id}/undismiss: {}  # not specified yet
-/api/asks/{id}/withdraw: {}  # not specified yet
-/api/asks/{id}/snooze: {}  # not specified yet
+/api/asks:
+  post:
+    operationId: postAsk
+    summary: An agent asks a question with a recommendation and alternatives. The same client_id again answers 200 with the same ask.
+    description: |
+      Needs a lease with the `ask` scope; a person gets 403. 400 names the field (`question`, `recommended`, `alternatives`,
+      `why`, `label`). 429 `ask_cap` at 20 open asks of one identity, 429 `conversation_paused` while the loop breaker holds.
+    security: [{ leaseBearer: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "../openapi.yaml#/components/schemas/AskRequest" }
+    responses:
+      "200":
+        description: The ask that client_id made before.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/OneAsk" }
+      "201":
+        description: The new ask.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/OneAsk" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/asks/{id}:
+  get:
+    operationId: getAsk
+    summary: The ask, its options, its state and its history. For anyone who can see the conversation.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    responses:
+      "200":
+        description: The ask.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/OneAsk" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/asks/{id}/answer:
+  post:
+    operationId: answerAsk
+    summary: A person answers an ask (the recommended option, an alternative, or their own words).
+    description: |
+      The first answer wins. The same person sending the same answer again is 200 and writes nothing; any other answer to an
+      answered ask is 409 `conflict` with the ask as it stands. An answer for an option the ask did not offer is 400. A lease is 403.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "../openapi.yaml#/components/schemas/AskAnswerRequest" }
+    responses:
+      "200":
+        description: The ask after the answer.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/OneAsk" }
+      "409":
+        description: Another answer won, or the ask is closed; `ask` is how it stands. `asker_gone` when a dismissed ask's agent left.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/AskConflict" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/asks/{id}/dismiss:
+  post:
+    operationId: dismissAsk
+    summary: A person dismisses an open ask. Dismissing a dismissed ask is 200.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "../openapi.yaml#/components/schemas/AskMarkRequest" }
+    responses:
+      "200":
+        description: The ask after the change.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/OneAsk" }
+      "409":
+        description: The ask is answered or closed.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/AskConflict" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/asks/{id}/undismiss:
+  post:
+    operationId: undismissAsk
+    summary: A person reopens a dismissed ask.
+    description: 409 `asker_gone` when the agent is no longer in the conversation or is disabled; 409 `ask_cap` at 20 open asks of the agent.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "../openapi.yaml#/components/schemas/AskMarkRequest" }
+    responses:
+      "200":
+        description: The ask after the change.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/OneAsk" }
+      "409":
+        description: Not dismissed, or the agent is gone, or it holds too many open asks.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/AskConflict" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/asks/{id}/withdraw:
+  post:
+    operationId: withdrawAsk
+    summary: The asking agent withdraws an open or dismissed ask. Only the asker, with a lease.
+    security: [{ leaseBearer: [] }]
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "../openapi.yaml#/components/schemas/AskMarkRequest" }
+    responses:
+      "200":
+        description: The ask after the change.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/OneAsk" }
+      "409":
+        description: The ask is answered or closed.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/AskConflict" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/asks/{id}/snooze:
+  put:
+    operationId: snoozeAsk
+    summary: Snooze an open ask for the caller (a personal overlay; the ask does not change).
+    description: 409 `not_open` for an ask that is not open. 400 `preset_unavailable` for Tonight from 20:00.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "../openapi.yaml#/components/schemas/AskSnoozeRequest" }
+    responses:
+      "200":
+        description: The ask with the caller's snooze.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/OneAsk" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+  delete:
+    operationId: unsnoozeAsk
+    summary: Take the snooze off at once. 200 when there was none.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    responses:
+      "200":
+        description: The ask.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/OneAsk" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }

@@ -181,21 +181,23 @@ func (q *Queries) InsertMention(ctx context.Context, arg InsertMentionParams) er
 }
 
 const insertMessage = `-- name: InsertMessage :one
-INSERT INTO messages (conversation_id, author_id, kind, format, body, thread_root_id, broadcast, app_json, session_id, device_id, client_id,
+INSERT INTO messages (conversation_id, author_id, kind, format, body, thread_root_id, broadcast, answers_ask_id, app_json, session_id, device_id, client_id,
                       origin_label, origin_machine, created_at)
-VALUES (?1, ?2, 'text', ?3, ?4, ?5, ?6,
-        ?7, ?8, ?9, ?10, ?11, ?12,
-        ?13)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,
+        ?9, ?10, ?11, ?12, ?13, ?14,
+        ?15)
 RETURNING id
 `
 
 type InsertMessageParams struct {
 	ConversationID int64
 	AuthorID       sql.NullInt64
+	Kind           string
 	Format         string
 	Body           string
 	ThreadRootID   sql.NullInt64
 	Broadcast      int64
+	AnswersAskID   sql.NullInt64
 	AppJson        sql.NullString
 	SessionID      sql.NullInt64
 	DeviceID       sql.NullInt64
@@ -209,10 +211,12 @@ func (q *Queries) InsertMessage(ctx context.Context, arg InsertMessageParams) (i
 	row := q.db.QueryRowContext(ctx, insertMessage,
 		arg.ConversationID,
 		arg.AuthorID,
+		arg.Kind,
 		arg.Format,
 		arg.Body,
 		arg.ThreadRootID,
 		arg.Broadcast,
+		arg.AnswersAskID,
 		arg.AppJson,
 		arg.SessionID,
 		arg.DeviceID,

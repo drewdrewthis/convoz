@@ -94,7 +94,9 @@
         "t": {
           "enum": [
             "member.requested",
-            "member.removed"
+            "member.removed",
+            "member.approved",
+            "member.declined"
           ]
         },
         "identity": {

@@ -2,7 +2,7 @@
 # The prototype is v41 (Iris, light and dark). Each scenario opens one phone screen at 390 by 800 with the prototype's sample data and
 # compares it with the prototype frame: at most 2% of the pixels may differ.
 # What the app does not have yet, because it has no backend, is covered by a grey box on both images, so it never counts:
-# Search, Show details, Star, Mute, Attach and Voice, the Snoozed and Answered chips, agent status (the Working summary, three status
+# Search, Show details, Star, Mute, Attach and Voice, the Answered chip, agent status (the Working summary, three status
 # lines, two ask chips on Crew), the avatar images of agents, "picked this up", Invite agent, the muted look of a conversation, the
 # count on the Now tab and every time. No screen hides more than 10% of its pixels (Crew 20%); the spec checks that from masks.json.
 # The two starred conversations are read, not starred. The conversation shown is the only prototype thread with no ask, file or preview. DEFAULT (owner to confirm): the Account menu takes the place of the Search button in the top bar.
@@ -22,6 +22,13 @@ Feature: The phone screens match the prototype
     @v1 @browser @phone
     Scenario: On a phone Now matches the prototype
       Given nothing waits for the owner
+      When the owner opens Now on a phone
+      Then it matches the prototype in light and in dark
+
+    @v1 @browser @phone
+    Scenario: On a phone Now with asks matches the prototype
+      Given "night-watch" asked an urgent "Close the incident?" and "devtool" asked "Push the 8642 fix to staging?"
+      And one ask is snoozed
       When the owner opens Now on a phone
       Then it matches the prototype in light and in dark
 

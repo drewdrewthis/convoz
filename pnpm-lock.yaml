@@ -187,6 +187,9 @@ importers:
       '@convoz/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@convoz/app-kit':
+        specifier: workspace:*
+        version: link:../../packages/app-kit
       '@convoz/markdown':
         specifier: workspace:*
         version: link:../../packages/markdown
@@ -284,7 +287,10 @@ importers:
         version: 5.9.3
 
   packages/app-kit:
-    dependencies:
+    devDependencies:
+      '@types/react':
+        specifier: 19.3.0
+        version: 19.3.0
       react:
         specifier: 19.3.0
         version: 19.3.0

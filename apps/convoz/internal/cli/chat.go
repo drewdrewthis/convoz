@@ -276,6 +276,9 @@ func Read(args []string, io IO) int {
 			for _, line := range strings.Split(m.Body, "\n") {
 				fmt.Fprintf(k.io.Stdout, "  %s\n", plain(line))
 			}
+			if m.Ask != nil {
+				printAsk(k.io, *m.Ask)
+			}
 		}
 	}
 	return ExitOK
@@ -429,4 +432,56 @@ func Ack(args []string, io IO) int {
 		return ExitConflict
 	}
 	return ExitOK
+}
+
+// printAsk writes what an ask message holds besides its question: the options with their reasons, where the ask stands and
+// its history, so an agent reads who dismissed or answered it (C-6).
+func printAsk(io IO, a wire.AskView) {
+	for i, o := range a.Options {
+		mark := "-"
+		if i == 0 {
+			mark = "*"
+			o.Label += " (recommended)"
+		}
+		fmt.Fprintf(io.Stdout, "  %s %s — %s\n", mark, plain(o.Label), plain(o.Why))
+	}
+	state := a.State
+	switch {
+	case a.State == "answered" && a.Chosen != nil && a.Chosen.Kind == "custom":
+		state = "Replied · " + a.Answer
+	case a.State == "answered":
+		state = "Answered · " + a.Answer
+	case a.State == "closed":
+		state = "Closed (" + strings.ReplaceAll(a.CloseReason, "_", " ") + ")"
+	}
+	fmt.Fprintf(io.Stdout, "  [ask %s]\n", plain(state))
+	for _, h := range a.History {
+		fmt.Fprintf(io.Stdout, "    %s %s\n", plain(historyLine(h, a)), time.UnixMilli(h.At).UTC().Format(time.RFC3339))
+	}
+}
+
+// historyLine is one history row in words: "Dismissed by Drew", "Reopened by Drew", "Answered by Drew · Merge it".
+func historyLine(h wire.AskHistoryRow, a wire.AskView) string {
+	who := "the system"
+	if h.By != nil {
+		who = h.By.DisplayName
+		if who == "" {
+			who = "@" + h.By.Handle
+		} else if h.By.Kind == "agent" {
+			who += " @" + h.By.Handle // an agent is always shown with its handle (I-3)
+		}
+	}
+	switch h.Event {
+	case "create":
+		return "Asked by " + who
+	case "answer":
+		return "Answered by " + who + " · " + a.Answer
+	case "dismiss":
+		return "Dismissed by " + who
+	case "undismiss":
+		return "Reopened by " + who
+	case "withdraw":
+		return "Withdrawn by " + who
+	}
+	return "Closed (" + strings.ReplaceAll(a.CloseReason, "_", " ") + ")"
 }

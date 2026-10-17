@@ -3,10 +3,12 @@ package httpapi
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/ask"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
@@ -297,7 +299,11 @@ func (s *Server) deliver(ctx context.Context, d pdb.DBTX, now time.Time, p authz
 		if err != nil {
 			return nil, err
 		}
-		m, have, err := message.Get(ctx, d, it.MessageID)
+		get := message.Get
+		if it.Reason == inbox.ReasonAskResolved {
+			get = message.GetAny // the ask message may be the very thing that was deleted
+		}
+		m, have, err := get(ctx, d, it.MessageID)
 		if err != nil {
 			return nil, err
 		}
@@ -314,12 +320,30 @@ func (s *Server) deliver(ctx context.Context, d pdb.DBTX, now time.Time, p authz
 			title := cv.Title
 			wi.Conversation.Title = &title
 		}
+		if it.Reason == inbox.ReasonAskResolved {
+			if wi.Message, err = s.askMessageView(ctx, d, dir, m); err != nil {
+				return nil, err
+			}
+		}
 		if it.ClaimToken != nil {
 			wi.ClaimToken = hex.EncodeToString(it.ClaimToken)
 		}
 		out = append(out, wi)
 	}
 	return out, nil
+}
+
+// askMessageView is the ask message of an ask_resolved item with the ask as it stands now: the answer, the history.
+func (s *Server) askMessageView(ctx context.Context, d pdb.DBTX, dir directory, m message.Message) (wire.Message, error) {
+	v := viewMessage(dir, m)
+	a, err := ask.Get(ctx, d, m.ID)
+	if err == nil {
+		v.Ask = ptr(dir.askBase(a))
+	}
+	if errors.Is(err, ask.ErrNotFound) {
+		err = nil
+	}
+	return v, err
 }
 
 // maxAckItems bounds one ack call to what one claim can return.
@@ -360,6 +384,9 @@ func (s *Server) ackInbox(w http.ResponseWriter, r *http.Request, c *call) {
 			if ok {
 				result = wire.AckOK
 				done = append(done, conv)
+				if err := s.ackAsk(ctx, tx.DBTX(), now, c, ref.ID); err != nil {
+					return err
+				}
 			}
 			lost = lost || !ok
 			results = append(results, wire.AckResult{ID: ref.ID, Result: result})
@@ -378,6 +405,15 @@ func (s *Server) ackInbox(w http.ResponseWriter, r *http.Request, c *call) {
 		return
 	}
 	writeJSON(w, http.StatusOK, wire.AckResponse{Results: results})
+}
+
+// ackAsk tells the ask that its agent saw the result, when the acked item was the "ask resolved" one.
+func (s *Server) ackAsk(ctx context.Context, d pdb.DBTX, now time.Time, c *call, item int64) error {
+	id, err := inbox.AskOf(ctx, d, c.lease.IdentityID, item)
+	if err != nil || id == 0 {
+		return err
+	}
+	return ask.Ack(ctx, d, askPorts(c.p, &askEffects{}), now, id, c.lease.IdentityID, c.lease.SessionID)
 }
 
 // membershipNotice builds the wire item of a membership notice: the system line that says the agent was removed, with

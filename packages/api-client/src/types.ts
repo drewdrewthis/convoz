@@ -25,6 +25,10 @@ export type SyncAnswer = S["SyncAnswer"];
 export type SyncDelta = S["SyncDelta"];
 export type SyncSnapshot = S["SyncSnapshot"];
 export type EditHistory = S["EditHistory"];
+export type Ask = S["Ask"];
+export type AskAnswerRequest = S["AskAnswerRequest"];
+export type Now = S["Now"];
+export type NowPendingAdd = S["NowPendingAdd"];
 /** A message frame after the message changed: the message as it is now, with the conversation it is in. */
 export type MessageChangedFrame = Message & { conversation_id: number; author_handle: string };
 export interface ThreadUpdatedFrame {
@@ -44,6 +48,8 @@ export interface StreamFrames {
   "read.moved": ReadMovedFrame;
   "conversation.created": Conversation;
   "agent.working": AgentWorkingFrame;
+  /** An ask changed (asked, answered, dismissed, snoozed, woke): the ask as this reader sees it now. */
+  "ask.changed": Ask;
 }
 export type FrameName = keyof StreamFrames;
 /** One frame: its name and its payload, so a switch on `name` narrows `data`. */
@@ -59,4 +65,5 @@ export const FRAME_NAMES = [
   "read.moved",
   "conversation.created",
   "agent.working",
+  "ask.changed",
 ] as const satisfies readonly FrameName[];
