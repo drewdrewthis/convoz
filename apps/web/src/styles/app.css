@@ -10,6 +10,7 @@
 @import "../features/search/search.css";
 @import "../features/threads/threads.css";
 @import "../features/now/now.css";
+@import "./status.css";
 
 @theme {
   --font-sans: "Atkinson Hyperlegible Next", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;

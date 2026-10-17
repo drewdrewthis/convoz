@@ -5,6 +5,7 @@ import { TickIcon } from "@convoz/ui/icons";
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { call, client, humanError, stepUp } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
+import { markUseful } from "../../shared/perf.ts";
 import { StepUpSheet, useSheets } from "../../shared/sheets.tsx";
 import { data } from "../../shared/data.ts";
 import { answerAsk, dismissAsk, snoozeAsk, unsnoozeAsk, useNow } from "./store.ts";
@@ -29,11 +30,16 @@ export function Now() {
   useEffect(() => {
     (async () => {
       setMe(await data.loadMe());
-      const { passkeys } = await call(client.GET("/api/me/passkeys"));
-      setOnePasskey(passkeys.length === 1);
+      // The passkey count only shapes a hint: with no link it is left out, and Now still shows what the device kept.
+      const passkeys = await call(client.GET("/api/me/passkeys")).then((r) => r.passkeys, () => null);
+      if (passkeys) setOnePasskey(passkeys.length === 1);
       await load();
     })().catch((err) => fail(humanError(err)));
   }, [load, fail]);
+
+  useEffect(() => {
+    if (now) markUseful();
+  }, [now]);
 
   const pending = now?.machine_requests ?? null;
   const asks = now?.asks ?? [];

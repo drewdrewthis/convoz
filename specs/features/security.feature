@@ -47,7 +47,7 @@ Feature: Security walls
       And the owner's audit view lists one "key revealed · box-2"
       And every other device of the owner gets the push "Key revealed · box-2"
 
-    @v1 @browser @I-39 @unimplemented
+    @v1 @browser @I-39
     Scenario: The service worker never caches a reveal
       Given the installed app revealed the key of "box-2"
       When the browser goes offline and the reveal page is opened again

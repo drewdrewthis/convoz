@@ -1,5 +1,8 @@
+import { useState } from "react";
 import { humanError } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
+import { Advanced, Connection } from "./Advanced.tsx";
+import { Notifications } from "./Notifications.tsx";
 import { PALETTES, TEXT_SIZES, THEMES, type Look } from "./appearance.ts";
 import { useSettings } from "./store.ts";
 
@@ -26,14 +29,31 @@ function Choice<K extends keyof Look>({ name, field, options, hint }: { name: st
   );
 }
 
-/** Settings is /settings: how the app looks on this device, and the way to Privacy & security. */
+type View = "settings" | "notifications" | "advanced" | "connection";
+
+function Row({ name, to, go }: { name: string; to: View; go: (view: View) => void }) {
+  return (
+    <button className="row" type="button" onClick={() => go(to)}>
+      <span>{name}</span>
+      <span className="chev" aria-hidden="true" />
+    </button>
+  );
+}
+
+/** Settings is /settings: how the app looks on this device, notifications, advanced options, and the way to Privacy & security. */
 export function Settings() {
+  const [view, setView] = useState<View>("settings");
+  if (view === "notifications") return <Notifications />;
+  if (view === "advanced") return <Advanced onConnection={() => setView("connection")} />;
+  if (view === "connection") return <Connection />;
   return (
     <>
       <Choice name="Theme" field="theme" options={THEMES} hint="This device only. System follows your phone or computer." />
       <Choice name="Palette" field="palette" options={PALETTES} hint="The same on every device you sign in on." />
       <Choice name="Text size" field="text_size" options={TEXT_SIZES} hint="This device only." />
       <div className="group">
+        <Row name="Notifications" to="notifications" go={setView} />
+        <Row name="Advanced" to="advanced" go={setView} />
         <a className="row" href="/settings/privacy">
           <span>Privacy &amp; security</span>
           <span className="chev" aria-hidden="true" />

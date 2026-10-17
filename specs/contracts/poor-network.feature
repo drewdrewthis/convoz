@@ -40,7 +40,7 @@ Feature: Poor connections (contracts)
       When a client that accepts brotli loads a page of 50 typical text messages
       Then the response is brotli-compressed and at most 12 KB on the wire
 
-    @v1 @browser @unimplemented
+    @v1 @browser
     Scenario Outline: Only a revoking 401 clears the offline cache
       Given the installed app has cached conversation 41
       When the next request gets <response>
@@ -68,7 +68,7 @@ Feature: Poor connections (contracts)
         | Fast-3G | cold with an empty cache   | 1.5 s   |
         | lossy   | cold with an empty cache   | 4 s     |
 
-    @v1 @browser @AC-10 @unimplemented
+    @v1 @browser @AC-10
     Scenario: The initial download stays small
       When the production build is measured
       Then the initial JavaScript is at most 150 KB and the CSS at most 20 KB with brotli

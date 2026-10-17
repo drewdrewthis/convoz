@@ -17,7 +17,7 @@ Feature: Poor connections
 
   Rule: Nothing sent is lost or doubled (AC-20)
 
-    @v1 @browser @lossy @I-24 @AC-20 @unimplemented
+    @v1 @browser @lossy @I-24 @AC-20
     Scenario: Twenty messages sent across three outages arrive once and in order
       Given the owner's browser is on the lossy profile
       When the owner sends 20 numbered messages and the browser goes offline 3 times while sending
@@ -39,7 +39,7 @@ Feature: Poor connections
       And each placeholder shows its size and "tap to load"
       And tapping one image loads only that image
 
-    @v1 @browser @lossy @unimplemented
+    @v1 @browser @lossy
     Scenario: A message sent offline waits in the outbox
       Given the owner's browser is offline
       When the owner sends "be back soon"
@@ -48,19 +48,19 @@ Feature: Poor connections
 
   Rule: The live link degrades gracefully
 
-    @v1 @browser @unimplemented
+    @v1 @browser
     Scenario: A network error never wipes the offline cache
       Given the installed app has cached conversation 41
       When the server cannot be reached and then refuses one request for a reason other than a revoked device
       Then conversation 41 still opens from the cache with the last sync time shown
 
-    @v1 @browser @unimplemented
+    @v1 @browser
     Scenario: A revoked device clears the offline cache
       Given the installed app has cached conversation 41
       When the owner revokes this device from another device
       Then on its next request the app clears its stored data and shows sign in
 
-    @v1 @browser @unimplemented
+    @v1 @browser
     Scenario: The offline shell opens with the cached rail and Now
       Given the installed app synced the 20 most recent conversations
       When the device is offline and the app opens
@@ -77,7 +77,7 @@ Feature: Poor connections
 
   Rule: The owner can see how the link behaves
 
-    @v1 @browser @unimplemented
+    @v1 @browser
     Scenario: Settings shows the connection quality
       When the owner opens Settings → Advanced → Connection
       Then it shows the median RTT, the last 20 samples and the effective connection type

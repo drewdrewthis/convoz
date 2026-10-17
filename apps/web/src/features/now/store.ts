@@ -2,7 +2,9 @@
 // read it on every signed-in page, so the store polls on its own; a stream frame about an ask loads it at once.
 import type { Ask, MachineRequest, Now } from "@convoz/api-client";
 import { create } from "zustand";
-import { call, client } from "../../shared/api.ts";
+import { ApiError, call, client, isRevoking } from "../../shared/api.ts";
+import { unreachable } from "../../shared/connection.ts";
+import { recall, remember } from "../../shared/offline.ts";
 
 interface NowState {
   now: Now | null;
@@ -19,7 +21,13 @@ const DEFAULT_POLL = 5000;
 let watchers = 0;
 let timer: ReturnType<typeof setTimeout> | undefined;
 
+const REMEMBERED = "now";
+
 export const useNow = create<NowState>()((set, get) => {
+  // The last answer is kept on the device: a warm start shows Now before the network answers, and offline it still shows (design §9).
+  void recall<Now>(REMEMBERED).then((held) => {
+    if (held && !get().now) set({ now: held, machineRequests: held.machine_requests });
+  });
   const tick = () => {
     clearTimeout(timer);
     if (!watchers) return;
@@ -35,9 +43,18 @@ export const useNow = create<NowState>()((set, get) => {
     skew: 0,
     machineRequests: null,
     load: async () => {
-      const now = await call(client.GET("/api/now"));
-      set({ now, skew: now.now - Date.now(), machineRequests: now.machine_requests });
-      return now;
+      try {
+        const now = await call(client.GET("/api/now"));
+        set({ now, skew: now.now - Date.now(), machineRequests: now.machine_requests });
+        void remember(REMEMBERED, now);
+        return now;
+      } catch (err) {
+        // Only the cached Now stands in for a link that is down or a refusal that leaves the device signed in.
+        const held = get().now;
+        if (!held || (err instanceof ApiError && (err.handled || err.status === 404 || err.status === 403 || (err.status === 401 && isRevoking(err.code))))) throw err;
+        unreachable();
+        return held;
+      }
     },
     loadMachineRequests: async () => (await get().load()).machine_requests,
     start: () => {

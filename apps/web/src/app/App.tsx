@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 import { page } from "../shared/api.ts";
 import { FocusFrame, ShellFrame } from "./frames.tsx";
 import type { PageDef } from "./routes.tsx";
+import { Status } from "./Status.tsx";
 
 /**
  * prepare readies the document for a page before the first render: the body attributes the stylesheet keys on, the tab
@@ -27,11 +28,17 @@ export function prepare(def: PageDef): void {
 
 /** App frames the page of this URL. Navigation between pages is a full load: the server owns sign-in redirects and 404s. */
 export function App({ def, Page }: { def: PageDef; Page: ComponentType }) {
-  if (def.frame === "chat") return <Page />;
   const Frame = def.frame === "shell" ? ShellFrame : FocusFrame;
   return (
-    <Frame def={def}>
-      <Page />
-    </Frame>
+    <>
+      {def.frame === "chat" ? (
+        <Page />
+      ) : (
+        <Frame def={def}>
+          <Page />
+        </Frame>
+      )}
+      <Status />
+    </>
   );
 }

@@ -5,6 +5,7 @@ import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties,
 import { stripCf, whenLabel } from "../../shared/chat.ts";
 import { humanError } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
+import { markUseful } from "../../shared/perf.ts";
 import { data, useData, useLive } from "../../shared/data.ts";
 import { markAllRead } from "./actions.ts";
 
@@ -28,6 +29,9 @@ export function Conversations() {
   const [menu, setMenu] = useState<{ id: number; x: number; y: number } | null>(null);
   const ready = list !== null && me !== undefined;
   const rows = ready ? list : [];
+  useEffect(() => {
+    if (ready) markUseful();
+  }, [ready]);
 
   // A long press or a right click on a row opens its menu: Mark all read.
   const onContextMenu = (event: MouseEvent<HTMLDivElement>) => {

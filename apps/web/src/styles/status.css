@@ -1,0 +1,13 @@
+/* The app-wide status strips (app/Status.tsx): the offline note slides in at the top and never takes a tap; the update note sits above the tab bar. */
+@layer components {
+  .linkbar {
+    position: fixed; top: calc(var(--top) + 2px); left: 50%; transform: translateX(-50%); z-index: 30; margin: 0; padding: 3px 12px; max-width: calc(100vw - 24px);
+    border-radius: 999px; background: var(--color-raised); border: 1px solid var(--color-border); box-shadow: var(--float);
+    color: var(--color-muted); font-size: 12px; font-weight: 600; pointer-events: none;
+  }
+  .updatebar {
+    position: fixed; left: 50%; bottom: calc(var(--bottom) + 88px); transform: translateX(-50%); z-index: 30; margin: 0; padding: 6px 8px 6px 16px; border-radius: 999px;
+    font-size: 14px; font-weight: 600; white-space: nowrap;
+  }
+  .updatebar button { min-height: 44px; padding: 0 18px; border: 0; border-radius: 999px; background: var(--grad); color: var(--color-on-accent); font: inherit; font-weight: 600; cursor: pointer; }
+}
