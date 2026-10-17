@@ -8,6 +8,9 @@ const (
 	MessageBudget = "/__test/message-budget"
 	// Project runs the Go plain-text projection over one fixture message, for the Go and web twins to be compared.
 	Project = "/__test/project"
+	// PostMany posts many bodies as one person through the real post path (message.Post) in one transaction, for a scenario whose
+	// subject is what every body does and not how fast one post commits.
+	PostMany = "/__test/post-many"
 )
 
-func init() { All = append(All, SystemLine, MessageBudget, Project) }
+func init() { All = append(All, SystemLine, MessageBudget, Project, PostMany) }

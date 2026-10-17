@@ -71,6 +71,49 @@ func registerMessageHooks(mux *http.ServeMux, s *Server) {
 		}
 		reply(w, nil, nil)
 	})
+	mux.HandleFunc("POST "+testroutes.PostMany, func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			Conversation int64  `json:"conversation"`
+			Author       string `json:"author"`
+			Messages     []struct {
+				Body   string `json:"body"`
+				Format string `json:"format"`
+			} `json:"messages"`
+		}
+		if json.NewDecoder(r.Body).Decode(&in) != nil {
+			http.Error(w, "bad body", http.StatusBadRequest)
+			return
+		}
+		now, ids := s.Clock.Now(), make([]int64, 0, len(in.Messages))
+		err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
+			dir, err := loadDirectory(ctx, tx.DBTX())
+			if err != nil {
+				return err
+			}
+			var author int64
+			for id, e := range dir {
+				if e.Handle == in.Author {
+					author = id
+				}
+			}
+			p := authz.Principal{Authenticated: true, HumanID: author, Role: "owner"}
+			for i, m := range in.Messages {
+				posted, err := message.Post(ctx, tx.DBTX(), messagePorts(p), now, message.Draft{
+					Conversation: in.Conversation, Author: author, ClientID: "postmany-" + strconv.FormatInt(in.Conversation, 10) + "-" + strconv.Itoa(i) + "-" + strconv.FormatInt(now.UnixNano(), 36),
+					Body: m.Body, Format: m.Format,
+				})
+				if err != nil {
+					return err
+				}
+				ids = append(ids, posted.Message.ID)
+			}
+			return nil
+		})
+		if err == nil {
+			s.Bus.Notify()
+		}
+		reply(w, err, map[string][]int64{"ids": ids})
+	})
 	mux.HandleFunc("POST "+testroutes.Project, func(w http.ResponseWriter, r *http.Request) {
 		var in struct {
 			Message message.Projectable `json:"message"`

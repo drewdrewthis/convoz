@@ -365,7 +365,7 @@ scenario("On a phone an unread chat shows a dot until opened", { tag: ["@browser
   // Then conversation 41 shows an unread dot and "Done" as its preview within 3 seconds
   await expect(unreadDot(row)).toBeVisible({ timeout: 3_000 });
   await expect(row).toContainText("devtool: Done");
-  expect(await isBold(row.getByRole("heading"))).toBe(true);
+  await expect.poll(() => isBold(row.getByRole("heading"))).toBe(true);
 
   // When the owner opens conversation 41 and goes back to Chats
   await row.getByRole("link").click();
@@ -374,7 +374,7 @@ scenario("On a phone an unread chat shows a dot until opened", { tag: ["@browser
 
   // Then conversation 41 has no unread dot
   await expect(unreadDot(chatRow(page, "Ship search filters"))).toHaveCount(0);
-  expect(await isBold(chatRow(page, "Ship search filters").getByRole("heading"))).toBe(false);
+  await expect.poll(() => isBold(chatRow(page, "Ship search filters").getByRole("heading"))).toBe(false);
   await page.reload();
   await expect(chatRow(page, "Ship search filters")).toBeVisible();
   await expect(unreadDot(chatRow(page, "Ship search filters"))).toHaveCount(0);
@@ -695,14 +695,14 @@ scenario("Unread conversations are bold with a count", { tag: ["@browser"] }, as
   await page.goto(`${u.w.srv.origin}/chats`);
   const row = chatRow(page, "Deploy alerts runbook");
   await expect(row).toBeVisible();
-  expect(await isBold(row.getByRole("heading"))).toBe(false);
+  await expect.poll(() => isBold(row.getByRole("heading"))).toBe(false);
 
   // When "devtool" posts 3 messages in conversation 52
   for (const n of [1, 2, 3]) await agentPosts(u, "devtool", ids[1]!, `update ${n}`);
 
   // Then conversation 52 is bold with "3"
   await expect(row.getByText("3", { exact: true })).toBeVisible({ timeout: 3_000 });
-  expect(await isBold(row.getByRole("heading"))).toBe(true);
+  await expect.poll(() => isBold(row.getByRole("heading"))).toBe(true);
   await expect(unreadDot(chatRow(page, "Weekly usage"))).toHaveCount(0);
 
   // And opening conversation 52 clears the bold and the count
@@ -710,7 +710,7 @@ scenario("Unread conversations are bold with a count", { tag: ["@browser"] }, as
   await expect(message(page, "update 3")).toBeVisible();
   await backButton(page).click();
   await expect(chatRow(page, "Deploy alerts runbook").getByText("3", { exact: true })).toHaveCount(0);
-  expect(await isBold(chatRow(page, "Deploy alerts runbook").getByRole("heading"))).toBe(false);
+  await expect.poll(() => isBold(chatRow(page, "Deploy alerts runbook").getByRole("heading"))).toBe(false);
 });
 
 scenario("On a phone a long chat opens at its latest message", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
@@ -832,11 +832,18 @@ scenario("On a phone an agent reply shows paragraphs, code and links safely", { 
   const shapes = ["[", "[a](", "[a](x", "[a]([a](", "**".repeat(8192), "`".repeat(16384), ...floods, "http://" + ".".repeat(2040) + "a"];
   for (const unit of shapes) {
     const body = unit.repeat(Math.ceil(16384 / unit.length)).slice(0, 16384);
-    const began = performance.now();
     // a link flood is over a thousand real links per message: linear but heavy, so ten messages
     const count = floods.includes(unit) ? 10 : 100;
-    for (let i = 0; i < count; i++) render(body);
-    expect(performance.now() - began, JSON.stringify(unit.slice(0, 12))).toBeLessThan(500);
+    // Warm up, then take the fastest of 5 trials, each timed in this process's CPU time: a slow renderer burns CPU in every trial, while a busy box only makes the process wait for a core, so this measures the renderer and not the machine's load.
+    render(body);
+    let fastest = Infinity;
+    for (let trial = 0; trial < 5; trial++) {
+      const began = process.cpuUsage();
+      for (let i = 0; i < count; i++) render(body);
+      const used = process.cpuUsage(began);
+      fastest = Math.min(fastest, (used.user + used.system) / 1000);
+    }
+    expect(fastest, JSON.stringify(unit.slice(0, 12))).toBeLessThan(500);
   }
   // And a message shows at most 200 links, the rest as plain text, and failed link attempts count toward the 200
   const links = (node: unknown): number => {

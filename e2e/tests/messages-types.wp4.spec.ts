@@ -63,6 +63,7 @@ import { expect, scenario } from "../lib/scenario.ts";
  *   event conversation.paused.v1); a person's message (not one sent through an app) or Resume sets the count to 0.
  *
  * TEST BUILD  POST /__test/system-line {conversation, t, identity?, by?, via?, history?, reason?, streak?} (handles, not ids),
+ *   POST /__test/post-many {conversation, author, messages:[{body,format}]} -> {ids} (message.Post, one transaction),
  *   POST /__test/message-budget {machine, count}, POST /__test/project {message} -> {short,long}. CONVOZ_TEST_PLAINTEXT=1 opens the data file.
  *
  * Where a scenario starts from an action of another work package (adding a participant, a rename, an ask, an upload, an app result,
@@ -420,22 +421,20 @@ scenario("Mentions inside code and quotes are ignored", { tag: ["@api"] }, async
 });
 
 scenario("The server and the web app agree on mentions", { tag: ["@api"] }, async ({ server, dataDir }, info) => {
-  info.setTimeout(240_000);
-  // Given the shared markdown fixtures and 10000 fuzzed message bodies
+  info.setTimeout(120_000); // 10000 posts take 50 s on a busy box
   const w = await msgWorld({ server, dataDir, agents: ["devtool", "docs", "ops-bot"], participants: [] });
   const known = new Set(["drew", "devtool", "docs", "ops-bot"]);
   const render = createRenderer(null);
   const cases = [...mentionFixtures().map(({ body, format }) => ({ body, format })), ...fuzzBodies(10_000)];
 
   // When each body is posted through the API and rendered by the web app
+  // The bodies go through the same post path as the API (message.Post), 500 to a transaction: 10000 separate commits are not what is under test.
   const ids: number[] = [];
-  for (let from = 0; from < cases.length; from += 16) {
-    const batch = cases.slice(from, from + 16);
-    const sent = await Promise.all(batch.map((c) => ownerPostWith(w.owner, w.conv, { body: c.body, format: c.format })));
-    sent.forEach((res, i) => {
-      expect(res.status, `body ${JSON.stringify(batch[i]!.body)}: ${res.text}`).toBe(201);
-      ids.push(res.json().id);
-    });
+  for (let from = 0; from < cases.length; from += 500) {
+    const batch = cases.slice(from, from + 500).map(({ body, format }) => ({ body, format }));
+    const res = await send(w.srv.target, "POST", "/__test/post-many", { json: { conversation: w.conv, author: "drew", messages: batch } });
+    expect(res.status, res.text).toBe(200);
+    ids.push(...(res.json().ids as number[]));
   }
   const db = w.db();
   const stored = new Map<number, string[]>();
