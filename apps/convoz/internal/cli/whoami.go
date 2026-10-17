@@ -42,7 +42,7 @@ func Whoami(args []string, io IO) int {
 	}
 	s, err := loadSession(dir, *sid)
 	if err != nil {
-		return fail(io, err)
+		return sessionEnded(io, err)
 	}
 	var me wire.MeResponse
 	if err := c.call(context.Background(), "GET", wire.RouteMe, s.Lease, nil, &me); err != nil {
