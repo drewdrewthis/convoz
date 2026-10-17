@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """AC-1: a slice PR shows its scenarios red first and green at head.
 
-Usage: python3 -I scripts/red_green.py <base> <head> [--runner PATH] [--scratch DIR] [--phase P] [--shard K/N]
-                                                                                    (run inside the git repo)
+Usage: python3 -I scripts/red_green.py <base> <head> [--runner PATH] [--scratch DIR]
+                                  [--phase red|green|overlay|all] [--shard K/N]      (run inside the git repo)
        python3 -I scripts/red_green.py --self-test
 
   - The slice is every scenario bound at <head> (no @unimplemented, no @needs-owner) that was not bound at
@@ -28,9 +28,12 @@ Usage: python3 -I scripts/red_green.py <base> <head> [--runner PATH] [--scratch 
   - --shard K/N: check only the titles whose sha256 mod N is K-1 (stable across runs and machines).
     A sharded or single-phase run proves only its part; the verdict of the whole proof is the AND of every
     phase x shard job (CI runs them as a matrix). Exceptions are validated against the whole slice in every job.
+  - Every subprocess gets an allow-listed environment (child_env), runs in its own process group, and on a
+    timeout that whole group is killed (a hung build cannot leave a grandchild behind).
   - --scratch DIR: parent for the checkouts (default: a fresh mkdtemp). Nothing in it is deleted.
 
-Prints "test-only commit: <sha>", then "red: <title>" and "green: <title>" per title. A break prints
+Prints "test-only commit: <sha>"; with --shard, "shard K/N: <n> title(s)"; then, per title, one line for each phase
+that ran and passed: "red: <title>", "green: <title>", "overlay: <title>" (no overlay line for an excepted title). A break prints
 "FAIL: <title>: passed on the test-only commit" | "FAIL: <title>: failed at head" |
 "FAIL: <title>: failed on the test-only tests over head's production" | "FAIL: no test-only commit" | "FAIL: exception ...".
 A title is "failed" only if it ran and Playwright reported it unexpected. A build or install failure,
@@ -45,10 +48,12 @@ import io
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -121,28 +126,55 @@ def checkout(sha, dest, tests_from=None):
     extract(tests_from, dest, "e2e", "specs")
 
 
+ENV_ALLOW = ("PATH", "HOME", "GO_BIN", "PNPM_BIN", "GOFLAGS", "GOPATH", "GOCACHE", "GOMODCACHE", "GOROOT", "GOTOOLCHAIN",
+             "PNPM_HOME", "COREPACK_HOME", "PLAYWRIGHT_BROWSERS_PATH", "CI", "TMPDIR", "LANG", "LC_ALL", "TERM",
+             "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "SSL_CERT_FILE", "NODE_EXTRA_CA_CERTS")
+
+
+def child_env(extra=None):
+    """The environment a build or test subprocess gets: an allow-list of this one, plus `extra`."""
+    env = {k: v for k, v in os.environ.items() if k in ENV_ALLOW or k.startswith("XDG_")}
+    env.update(extra or {})
+    return env
+
+
+def run_group(cmd, timeout, **kw):
+    """subprocess.run in its own session. On a timeout the child's whole process group is killed, then
+    TimeoutExpired is raised: a hung step cannot leave a grandchild running."""
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True, **kw)
+    try:
+        out, err = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGKILL)  # the child's own group (it is the session leader), nothing else
+        proc.communicate()
+        raise
+    return subprocess.CompletedProcess(cmd, proc.returncode, out, err)
+
+
 def default_runner(directory, titles):
     """Build the testhooks binary in `directory` and run `titles` with Playwright; title -> passed|failed."""
     gotool = load(os.path.join(HERE, "gotool.py"), "gotool")
     pnpm = os.environ.get("PNPM_BIN", "pnpm")
 
-    def build(label, cmd, cwd, **kw):
-        r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=900, **kw)
+    def build(label, cmd, cwd, timeout=900, env=None):
+        r = run_group(cmd, timeout, cwd=cwd, env=child_env(env))
         if r.returncode != 0:
             raise RunnerError(f"{label} failed: " + (r.stderr or r.stdout).strip()[-500:])
 
     build("pnpm install", [pnpm, "install", "--frozen-lockfile"], directory)
-    # packages/tokens/dist is gitignored, so a checkout never has it.
-    build("tokens build", [pnpm, "--filter", "@convoz/tokens", "build"], directory)
+    # packages/tokens/dist is gitignored, so a checkout never has it. `@convoz/web...` already builds the
+    # tokens it depends on, so tokens are built on their own only while there is no web app.
     if os.path.isdir(os.path.join(directory, "apps", "web")):
-        build("web build", [pnpm, "--filter", "@convoz/web...", "build"], directory)
+        build("web build", [pnpm, "--filter", "@convoz/web...", "--fail-if-no-match", "build"], directory)
+    else:
+        build("tokens build", [pnpm, "--filter", "@convoz/tokens", "--fail-if-no-match", "build"], directory)
     build("go build", [gotool.go_bin(), "build", "-trimpath", "-tags", "testhooks", "-o", "bin/convoz-test", "./cmd/convoz"],
-          os.path.join(directory, "apps", "convoz"), env=dict(os.environ, GOFLAGS="-mod=readonly"))
+          os.path.join(directory, "apps", "convoz"), timeout=600, env={"GOFLAGS": "-mod=readonly"})
     grep = "|".join(re.escape(t) for t in titles)
     # The e2e config writes the JSON report to e2e/report/results.json. A red run exits non-zero, so the
     # exit code is not checked: the report decides.
-    subprocess.run([pnpm, "--filter", "@convoz/e2e", "exec", "playwright", "test", "-g", grep],
-                   cwd=directory, capture_output=True, timeout=1800)
+    run_group([pnpm, "--filter", "@convoz/e2e", "--fail-if-no-match", "exec", "playwright", "test", "-g", grep],
+              1800, cwd=directory, env=child_env())
     return results_from_report(os.path.join(directory, "e2e", "report", "results.json"), titles)
 
 
@@ -196,12 +228,12 @@ def parse_runner_output(res, titles):
     return check_complete({t: out.get(t, "missing") for t in titles})
 
 
-def call_runner(runner, directory, titles):
+def call_runner(runner, directory, titles, timeout=3600):
     """Run `runner` (or the default) in `directory`; a hang is a RunnerError, never a traceback."""
     try:
         if runner is None:
             return default_runner(directory, titles)
-        res = subprocess.run([runner, directory, *titles], cwd=directory, capture_output=True, text=True, timeout=3600)
+        res = run_group([runner, directory, *titles], timeout, cwd=directory, env=child_env())
     except subprocess.TimeoutExpired as err:
         raise RunnerError(f"timed out after {err.timeout}s: {' '.join(map(str, err.cmd))[:120]}")
     return parse_runner_output(res, titles)
@@ -248,7 +280,7 @@ def in_shard(title, shard):
 def parse_shard(text):
     """(k, n) from 'K/N'; ValueError unless 1 <= K <= N."""
     k, _, n = text.partition("/")
-    if not (k.isdigit() and n.isdigit() and 1 <= int(k) <= int(n)):
+    if not (k.isascii() and k.isdigit() and n.isascii() and n.isdigit() and 1 <= int(k) <= int(n)):
         raise ValueError(f"--shard wants K/N with 1 <= K <= N, got {text!r}")
     return int(k), int(n)
 
@@ -277,29 +309,46 @@ def prove(titles, exceptions, titles_at_first, run_red, run_green, run_overlay, 
         out.append(f"shard {shard[0]}/{shard[1]}: {len(titles)} title(s)")
     if not titles:
         return 0, out
+    red_of = lambda t: red_name.get(t, t)
+    # (phase, runner, titles it runs): only the requested phases run; an empty overlay set is not run.
+    plan = [("red", run_red, [red_of(t) for t in titles]), ("green", run_green, titles),
+            ("overlay", run_overlay, [red_of(t) for t in titles if red_of(t) not in skipped])]
     try:
-        red = run_red([red_name.get(t, t) for t in titles]) if "red" in phases else None
-        green = run_green(titles) if "green" in phases else None
-        overlay_titles = [red_name.get(t, t) for t in titles if red_name.get(t, t) not in skipped]
-        overlay = run_overlay(overlay_titles) if "overlay" in phases and overlay_titles else {}
+        results = {phase: (run(ts) if ts else {}) for phase, run, ts in plan if phase in phases}
     except RunnerError as err:
         out.append(f"ERROR: {err}")
         return 3, out
+    # (phase, the title's name in that phase, wanted status, fail message) for the phases that ran.
+    checks = [c for c in (("red", red_of, "failed", "passed on the test-only commit"),
+                          ("green", lambda t: t, "passed", "failed at head"),
+                          ("overlay", red_of, "passed", "failed on the test-only tests over head's production"))
+              if c[0] in results]
     for t in titles:
-        old = red_name.get(t, t)
-        if red is not None and red.get(old) != "failed":
-            out.append(f"FAIL: {t}: passed on the test-only commit")
-            bad = True
-        elif green is not None and green.get(t) != "passed":
-            out.append(f"FAIL: {t}: failed at head")
-            bad = True
-        elif "overlay" in phases and old not in skipped and overlay.get(old) != "passed":
-            out.append(f"FAIL: {t}: failed on the test-only tests over head's production")
-            bad = True
+        lines = []
+        for phase, name, want, message in checks:
+            if phase == "overlay" and red_of(t) in skipped:
+                continue
+            if results[phase].get(name(t)) != want:
+                out.append(f"FAIL: {t}: {message}")
+                bad = True
+                break
+            lines.append(f"{phase}: {name(t)}")
         else:
-            out += ([f"red: {old}"] if red is not None else []) + ([f"green: {t}"] if green is not None else []) \
-                + ([f"overlay: {old}"] if "overlay" in phases and old not in skipped else [])
+            out += lines
     return (1 if bad else 0), out
+
+
+def process_gone(pid):
+    """True when `pid` no longer runs (a zombie nobody reaped counts as gone)."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return True
+    try:
+        with open(f"/proc/{pid}/stat", encoding="utf-8") as fh:
+            return fh.read().rpartition(")")[2].split()[0] == "Z"
+    except (OSError, IndexError):
+        return False
 
 
 def self_test():
@@ -311,6 +360,9 @@ def self_test():
         try:
             fn()
         except RunnerError:
+            return
+        except subprocess.TimeoutExpired:
+            failures.append(label + ": TimeoutExpired escaped")
             return
         failures.append(label)
 
@@ -401,22 +453,28 @@ def self_test():
     code, _ = prove(["a"], [], {"a"}, spy("red", "passed"), spy("green", "passed"), spy("overlay", "failed"), phases=("overlay",))
     if code != 1 or ran != ["overlay"]:
         failures.append("phase overlay runs and judges overlay only")
+    ran.clear()
+    code, _ = prove(["a"], [], {"a"}, spy("red", "passed"), spy("green", "failed"), spy("overlay", "passed"), phases=("green",))
+    if code != 1 or ran != ["green"]:
+        failures.append("phase green runs and fails when the title failed at head")
     # shard: stable, disjoint, covers every title; a job proves only its own titles
     names = [f"scenario {i}" for i in range(40)]
     owners = [[t for t in names if in_shard(t, (k, 3))] for k in (1, 2, 3)]
     if sorted(sum(owners, [])) != sorted(names) or not all(owners):
         failures.append("shards partition the titles")
-    if in_shard("x", (1, 3)) != in_shard("x", (1, 3)) or in_shard("a", (1, 1)) is not True:
-        failures.append("shard is stable and 1/1 owns everything")
+    if [in_shard("scenario 0", (k, 3)) for k in (1, 2, 3)] != [False, False, True] or in_shard("a", (1, 1)) is not True:
+        failures.append("shard is stable (pinned: sha256 of 'scenario 0' is shard 3/3) and 1/1 owns everything")
     seen = []
     mine = owners[0]
     code, _ = prove(names, [], set(names), lambda ts: seen.extend(ts) or {t: "failed" for t in ts}, fake({}), fake({}),
                     phases=("red",), shard=(1, 3))
     if code != 0 or sorted(seen) != sorted(mine):
         failures.append("a shard runs only its own titles")
-    code, log = prove(["a"], [], {"a"}, failed, fake({}), fake({}), shard=(2, 2) if in_shard("a", (1, 2)) else (1, 2))
-    if code != 0 or any(l.startswith(("red:", "green:")) for l in log):
-        failures.append("an empty shard passes without running")
+    empty = (1, 3)  # "a" belongs to shard 2/3
+    ran.clear()
+    code, log = prove(["a"], [], {"a"}, spy("red", "failed"), spy("green", "passed"), spy("overlay", "passed"), shard=empty)
+    if in_shard("a", empty) or code != 0 or ran or log != ["shard 1/3: 0 title(s)"]:
+        failures.append("an empty shard passes and runs no phase")
     for bad_shard in ("0/3", "4/3", "x", "1/", "1/0"):
         try:
             parse_shard(bad_shard)
@@ -425,18 +483,28 @@ def self_test():
             pass
     if parse_shard("2/3") != (2, 3):
         failures.append("parse shard")
-    # timeout: a hung build or runner is a clean ERROR (exit 3), never a traceback
+    # timeout: a hung build or runner is a clean ERROR (exit 3), never a traceback, and its whole process group dies
     with tempfile.TemporaryDirectory(prefix="red-green-self-test-") as tmp:
+        pidfile = os.path.join(tmp, "grandchild.pid")
         hang = os.path.join(tmp, "hang.py")
         with open(hang, "w", encoding="utf-8") as fh:
-            fh.write("#!/usr/bin/env python3\nimport time\ntime.sleep(60)\n")
+            fh.write("#!/usr/bin/env python3\nimport subprocess, sys, time\n"
+                     "g = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)\n"
+                     f"open({pidfile!r}, 'w').write(str(g.pid))\ntime.sleep(60)\n")
         os.chmod(hang, 0o755)
-        real_run = subprocess.run
-        subprocess.run = lambda cmd, **kw: real_run(cmd, **dict(kw, timeout=0.5))
+        expect_error("runner timeout", lambda: call_runner(hang, tmp, ["a"], timeout=3))
         try:
-            expect_error("runner timeout", lambda: call_runner(hang, tmp, ["a"]))
-        finally:
-            subprocess.run = real_run
+            with open(pidfile, encoding="utf-8") as fh:
+                grandchild = int(fh.read())
+        except (OSError, ValueError):
+            failures.append("the hung runner recorded its grandchild pid")
+        else:
+            deadline = time.monotonic() + 5
+            while not process_gone(grandchild) and time.monotonic() < deadline:
+                time.sleep(0.1)
+            if not process_gone(grandchild):
+                failures.append("the grandchild of a timed-out runner is killed")
+                os.kill(grandchild, signal.SIGKILL)  # do not leave it behind
     def hung(ts):
         raise RunnerError("timed out")
     code, log = prove(["a"], [], {"a"}, hung, fake({}), fake({}))

@@ -78,8 +78,8 @@ jobs:
       - name: Proof page
         if: github.event_name == 'pull_request'
         env:
-          BASE_REF: ${{ github.base_ref }}
-        run: pnpm proof "origin/$BASE_REF"
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: pnpm proof "$BASE_SHA"
       - name: Proof leak-scan self-test
         run: python3 -I scripts/proof_report.py --self-test
       - name: Red-green self-test
@@ -91,13 +91,13 @@ jobs:
       - name: Spec diff
         if: github.event_name == 'pull_request'
         env:
-          BASE_REF: ${{ github.base_ref }}
-        run: python3 -I specs/scripts/spec_diff.py "origin/$BASE_REF" HEAD
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: python3 -I specs/scripts/spec_diff.py "$BASE_SHA" HEAD
 
   # AC-1: the slice's scenarios fail on the test-only commit and pass at head.
-  # A matrix of phase x shard; the PR is proven when every cell is green.
-  red-green:
-    name: red-green (${{ matrix.phase }} ${{ matrix.shard }})
+  # A matrix of phase x shard; the `red-green` job below is the one required check.
+  red-green-cell:
+    name: red-green-cell (${{ matrix.phase }} ${{ matrix.shard }})
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -129,9 +129,21 @@ jobs:
         run: pnpm --filter @convoz/e2e exec playwright install --with-deps chromium
       - name: Red first, green at head
         env:
-          BASE_REF: ${{ github.base_ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PHASE: ${{ matrix.phase }}
           SHARD: ${{ matrix.shard }}
         run: |
           scratch="$(mktemp -d)"
-          python3 -I scripts/red_green.py --phase "$PHASE" --shard "$SHARD" --scratch "$scratch" "origin/$BASE_REF" HEAD
+          python3 -I scripts/red_green.py --phase "$PHASE" --shard "$SHARD" --scratch "$scratch" "$BASE_SHA" HEAD
+
+  # The single required check: a failed, cancelled or skipped cell all fail it.
+  red-green:
+    if: always() && github.event_name == 'pull_request'
+    needs: red-green-cell
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Every cell is green
+        env:
+          RESULT: ${{ needs.red-green-cell.result }}
+        run: test "$RESULT" = success

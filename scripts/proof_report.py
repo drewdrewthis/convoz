@@ -2,7 +2,7 @@
 """Render the e2e JSON report into one HTML page of use-proof (commands, HTTP calls, output and exit status per scenario).
 
 Usage: proof_report.py <results.json> <out.html> <base> | --self-test
-<base>: the branch the PR targets (CI passes origin/$BASE_REF), as for red_green.py.
+<base>: the branch the PR targets (CI passes the PR base commit sha), as for red_green.py.
 Exit 1 if any transcript is empty (EMPTY) or looks like it leaks a credential (LEAK); no page is left then.
 """
 import base64
