@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """AC-1: a slice PR shows its scenarios red first and green at head.
 
-Usage: python3 -I scripts/red_green.py <base> <head> [--runner PATH] [--scratch DIR]      (run inside the git repo)
+Usage: python3 -I scripts/red_green.py <base> <head> [--runner PATH] [--scratch DIR]
+                                  [--phase red|green|overlay|all] [--shard K/N]
+                                  (run inside the git repo)
        python3 -I scripts/red_green.py --self-test
 
   - The slice is every scenario bound at <head> (no @unimplemented, no @needs-owner) that was not bound at
@@ -22,30 +24,44 @@ Usage: python3 -I scripts/red_green.py <base> <head> [--runner PATH] [--scratch 
         <title at the test-only commit> | <title at head> | <reason>
                                                                  same, and red is taken from the old title, green from the new
     Every exception is printed in the log. An exception whose old title is absent at the test-only commit, whose
-    new title is not in the slice, or (a skip line) whose title is not in the slice, is a FAIL.
+    new title is not in the slice, or (a skip line) whose title is not in the slice, is a FAIL. So is a rename whose
+    old title is itself in the slice (its red would be borrowed from another scenario).
+  - --phase red|green|overlay|all (default all): run and check only that part of the proof.
+  - --shard K/N: check only the titles whose sha256 mod N is K-1 (stable across runs and machines).
+    A sharded or single-phase run proves only its part; the verdict of the whole proof is the AND of every
+    phase x shard job (CI runs them as a matrix). Exceptions are validated against the whole slice in every job.
+  - Every subprocess gets an allow-listed environment (child_env), runs in its own process group, and on a
+    timeout that whole group is killed (a hung build cannot leave a grandchild behind; a descendant that calls
+    setsid or setpgid leaves the group and is not killed). The proxy variables are not passed because they can carry
+    credentials, so a runner behind a proxy fails `pnpm install` with a RunnerError.
   - --scratch DIR: parent for the checkouts (default: a fresh mkdtemp). Nothing in it is deleted.
 
-Prints "test-only commit: <sha>", then "red: <title>" and "green: <title>" per title. A break prints
+Prints "test-only commit: <sha>"; with --shard, "shard K/N: <n> title(s)"; then, per title, one line for each phase
+that ran and passed: "red: <title>", "green: <title>", "overlay: <title>" (no overlay line for an excepted title). A break prints
 "FAIL: <title>: passed on the test-only commit" | "FAIL: <title>: failed at head" |
 "FAIL: <title>: failed on the test-only tests over head's production" | "FAIL: no test-only commit" | "FAIL: exception ...".
 A title is "failed" only if it ran and Playwright reported it unexpected. A build or install failure,
-a crash, a missing report or a missing/skipped title prints "ERROR: ..." and exits 3 (never "red").
+a timeout, a crash, a missing report or a missing/skipped title prints "ERROR: ..." and exits 3 (never "red").
 A "flaky" title (it failed, then passed on a retry) counts as an error too: only "expected" is green and only
 "unexpected" is red, so a flake can neither prove a slice nor fail it.
 Exit 0 when the slice is proven (or empty), 1 on any FAIL.
 """
+import hashlib
 import importlib.util
 import io
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
+CI_PATH = os.path.join(ROOT, ".github", "workflows", "ci.yml")
 TEST_ONLY_DIRS = ("e2e/", "specs/", "docs/owner-checks/")
 
 
@@ -115,22 +131,72 @@ def checkout(sha, dest, tests_from=None):
     extract(tests_from, dest, "e2e", "specs")
 
 
+ENV_ALLOW = ("PATH", "HOME", "GO_BIN", "PNPM_BIN", "GOFLAGS", "GOPATH", "GOCACHE", "GOMODCACHE", "GOROOT", "GOTOOLCHAIN",
+             "PNPM_HOME", "COREPACK_HOME", "PLAYWRIGHT_BROWSERS_PATH", "CI", "TMPDIR", "LANG", "LC_ALL", "TERM",
+             "SSL_CERT_FILE", "NODE_EXTRA_CA_CERTS")
+
+
+def child_env(extra=None):
+    """The environment a build or test subprocess gets: an allow-list of this one, plus `extra`."""
+    env = {k: v for k, v in os.environ.items() if k in ENV_ALLOW or k.startswith("XDG_")}
+    env.update(extra or {})
+    return env
+
+
+def run_group(cmd, timeout, **kw):
+    """subprocess.run in its own session. On a timeout the child's whole process group is killed, then
+    TimeoutExpired is raised. Limit: a descendant that calls setsid or setpgid leaves the group and is not killed.
+    A command that cannot start is a RunnerError."""
+    try:
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True, **kw)
+    except OSError as exc:
+        raise RunnerError(f"cannot start {cmd[0]}: {exc}") from exc
+    try:
+        out, err = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)  # the child's own group (it is the session leader), nothing else
+        except ProcessLookupError:
+            pass
+        try:
+            proc.communicate(timeout=10)
+        except subprocess.TimeoutExpired:
+            # a setsid descendant still holds the pipes; give up on its output
+            try:
+                proc.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                pass  # the child itself is not reaping (already SIGKILLed); stop waiting rather than hang the job
+        raise
+    finally:  # free the pipe fds on every path (success, timeout, give-up); a leaked pair per step adds up in a long run
+        proc.stdout.close()
+        proc.stderr.close()
+    return subprocess.CompletedProcess(cmd, proc.returncode, out, err)
+
+
 def default_runner(directory, titles):
     """Build the testhooks binary in `directory` and run `titles` with Playwright; title -> passed|failed."""
     gotool = load(os.path.join(HERE, "gotool.py"), "gotool")
-    env = dict(os.environ, GOFLAGS="-mod=readonly")
-    built = subprocess.run([gotool.go_bin(), "build", "-trimpath", "-tags", "testhooks", "-o", "bin/convoz-test", "./cmd/convoz"],
-                           cwd=os.path.join(directory, "apps", "convoz"), env=env, capture_output=True, text=True, timeout=600)
-    if built.returncode != 0:
-        raise RunnerError("go build failed: " + built.stderr.strip()[-500:])
     pnpm = os.environ.get("PNPM_BIN", "pnpm")
-    if subprocess.run([pnpm, "install", "--frozen-lockfile"], cwd=directory, capture_output=True, timeout=900).returncode != 0:
-        raise RunnerError("pnpm install failed")
+
+    def build(label, cmd, cwd, timeout=900, env=None):
+        r = run_group(cmd, timeout, cwd=cwd, env=child_env(env))
+        if r.returncode != 0:
+            raise RunnerError(f"{label} failed: " + (r.stderr or r.stdout).strip()[-500:])
+
+    build("pnpm install", [pnpm, "install", "--frozen-lockfile"], directory)
+    # packages/tokens/dist is gitignored, so a checkout never has it. `@convoz/web...` already builds the
+    # tokens it depends on, so tokens are built on their own only while there is no web app.
+    if os.path.isdir(os.path.join(directory, "apps", "web")):
+        build("web build", [pnpm, "--filter", "@convoz/web...", "--fail-if-no-match", "build"], directory)
+    else:
+        build("tokens build", [pnpm, "--filter", "@convoz/tokens", "--fail-if-no-match", "build"], directory)
+    build("go build", [gotool.go_bin(), "build", "-trimpath", "-tags", "testhooks", "-o", "bin/convoz-test", "./cmd/convoz"],
+          os.path.join(directory, "apps", "convoz"), timeout=600, env={"GOFLAGS": "-mod=readonly"})
     grep = "|".join(re.escape(t) for t in titles)
     # The e2e config writes the JSON report to e2e/report/results.json. A red run exits non-zero, so the
     # exit code is not checked: the report decides.
-    subprocess.run([pnpm, "--filter", "@convoz/e2e", "exec", "playwright", "test", "-g", grep],
-                   cwd=directory, capture_output=True, timeout=1800)
+    run_group([pnpm, "--filter", "@convoz/e2e", "--fail-if-no-match", "exec", "playwright", "test", "-g", grep],
+              1800, cwd=directory, env=child_env())
     return results_from_report(os.path.join(directory, "e2e", "report", "results.json"), titles)
 
 
@@ -184,13 +250,22 @@ def parse_runner_output(res, titles):
     return check_complete({t: out.get(t, "missing") for t in titles})
 
 
+def call_runner(runner, directory, titles, timeout=3600):
+    """Run `runner` (or the default) in `directory`; a hang is a RunnerError, never a traceback.
+    `timeout` (3600 s) applies to a custom runner only; the default runner has a timeout per step."""
+    try:
+        if runner is None:
+            return default_runner(directory, titles)
+        res = run_group([runner, directory, *titles], timeout, cwd=directory, env=child_env())
+    except subprocess.TimeoutExpired as err:
+        raise RunnerError(f"timed out after {err.timeout}s: {' '.join(map(str, err.cmd))[:120]}")
+    return parse_runner_output(res, titles)
+
+
 def run_at(sha, titles, runner, scratch, tests_from=None):
     tmp = tempfile.mkdtemp(prefix="red-green-", dir=scratch)
     checkout(sha, tmp, tests_from)
-    if runner is None:
-        return default_runner(tmp, titles)
-    res = subprocess.run([runner, tmp, *titles], cwd=tmp, capture_output=True, text=True, timeout=3600)
-    return parse_runner_output(res, titles)
+    return call_runner(runner, tmp, titles)
 
 
 EXCEPTIONS_PATH = "specs/red-green-exceptions.txt"
@@ -216,8 +291,26 @@ def added_lines(diff_text):
     return "\n".join(ln[1:] for ln in diff_text.splitlines() if ln.startswith("+") and not ln.startswith("+++"))
 
 
-def prove(titles, exceptions, titles_at_first, run_red, run_green, run_overlay):
-    """(exit code, log lines). run_* take titles and return title -> passed|failed, or raise RunnerError."""
+PHASES = ("red", "green", "overlay")
+
+
+def in_shard(title, shard):
+    """True when `title` belongs to shard (k, n), k in 1..n. sha256 keeps the split stable across runs and machines."""
+    k, n = shard
+    return int(hashlib.sha256(title.encode("utf-8")).hexdigest(), 16) % n == k - 1
+
+
+def parse_shard(text):
+    """(k, n) from 'K/N'; ValueError unless 1 <= K <= N."""
+    k, _, n = text.partition("/")
+    if not (k.isascii() and k.isdigit() and n.isascii() and n.isdigit() and 1 <= int(k) <= int(n)):
+        raise ValueError(f"--shard wants K/N with 1 <= K <= N, got {text!r}")
+    return int(k), int(n)
+
+
+def prove(titles, exceptions, titles_at_first, run_red, run_green, run_overlay, phases=PHASES, shard=None):
+    """(exit code, log lines). run_* take titles and return title -> passed|failed, or raise RunnerError.
+    `phases` and `shard` limit which checks run; this job's verdict covers only those."""
     out, bad = [], False
     for old, new, reason in exceptions:
         out.append(f"exception: {old}" + (f" -> {new}" if new else "") + f" | {reason}")
@@ -230,32 +323,75 @@ def prove(titles, exceptions, titles_at_first, run_red, run_green, run_overlay):
         if new is not None and new not in titles:
             out.append(f"FAIL: exception renames to a title that is not in the slice: {new}")
             bad = True
+        if new is not None and old in titles:
+            out.append(f"FAIL: exception renames from a title that is itself in the slice (red would be borrowed): {old}")
+            bad = True
     if bad:
         return 1, out
     red_name = {new: old for old, new, _ in exceptions if new}
     skipped = {old for old, _, _ in exceptions}
+    if shard:
+        titles = [t for t in titles if in_shard(t, shard)]
+        out.append(f"shard {shard[0]}/{shard[1]}: {len(titles)} title(s)")
+    if not titles:
+        return 0, out
+    def red_of(t):
+        return red_name.get(t, t)
+
+    # (phase, runner, titles it runs): only the requested phases run; an empty overlay set is not run.
+    plan = [("red", run_red, [red_of(t) for t in titles]), ("green", run_green, titles),
+            ("overlay", run_overlay, [red_of(t) for t in titles if red_of(t) not in skipped])]
     try:
-        red = run_red([red_name.get(t, t) for t in titles])
-        green = run_green(titles)
-        overlay_titles = [red_name.get(t, t) for t in titles if red_name.get(t, t) not in skipped]
-        overlay = run_overlay(overlay_titles) if overlay_titles else {}
+        results = {phase: (run(ts) if ts else {}) for phase, run, ts in plan if phase in phases}
     except RunnerError as err:
         out.append(f"ERROR: {err}")
         return 3, out
+    # (phase, the title's name in that phase, wanted status, fail message) for the phases that ran.
+    checks = [c for c in (("red", red_of, "failed", "passed on the test-only commit"),
+                          ("green", lambda t: t, "passed", "failed at head"),
+                          ("overlay", red_of, "passed", "failed on the test-only tests over head's production"))
+              if c[0] in results]
     for t in titles:
-        old = red_name.get(t, t)
-        if red.get(old) != "failed":
-            out.append(f"FAIL: {t}: passed on the test-only commit")
-            bad = True
-        elif green.get(t) != "passed":
-            out.append(f"FAIL: {t}: failed at head")
-            bad = True
-        elif old not in skipped and overlay.get(old) != "passed":
-            out.append(f"FAIL: {t}: failed on the test-only tests over head's production")
-            bad = True
+        lines = []
+        for phase, name, want, message in checks:
+            if phase == "overlay" and red_of(t) in skipped:
+                continue
+            if results[phase].get(name(t)) != want:
+                out.append(f"FAIL: {t}: {message}")
+                bad = True
+                break
+            lines.append(f"{phase}: {name(t)}")
         else:
-            out += [f"red: {old}", f"green: {t}"] + ([] if old in skipped else [f"overlay: {old}"])
+            out += lines
     return (1 if bad else 0), out
+
+
+CI_SHA256 = "43f740f99a4028bb639560e093992687bb85304abdad9c7557e67705f21f27e0"
+
+
+def ci_gate_problems(text):
+    """[message] when ci.yml is not the pinned file, else []. The whole file is pinned because the red-green jobs can
+    be weakened from outside their own text (on, env, defaults, a comment line that splits a job, the verify step
+    that runs this self-test). This guards against accidents, not a hostile author: branch protection is what makes
+    the gate binding."""
+    have = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    if have == CI_SHA256:
+        return []
+    return [f"ci.yml changed (sha256 {have}, pinned {CI_SHA256}). If the edit is intended, review the red-green jobs "
+            "and update CI_SHA256 in scripts/red_green.py in the same commit."]
+
+
+def process_gone(pid):
+    """True when `pid` no longer runs (a zombie nobody reaped counts as gone)."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return True
+    try:
+        with open(f"/proc/{pid}/stat", encoding="utf-8") as fh:
+            return fh.read().rpartition(")")[2].split()[0] == "Z"
+    except (OSError, IndexError):
+        return False
 
 
 def self_test():
@@ -267,6 +403,9 @@ def self_test():
         try:
             fn()
         except RunnerError:
+            return
+        except subprocess.TimeoutExpired:
+            failures.append(label + ": TimeoutExpired escaped")
             return
         failures.append(label)
 
@@ -344,6 +483,125 @@ def self_test():
             failures.append("malformed exception line: " + bad_line)
         except ValueError:
             pass
+    # phase: a single-phase job runs and judges only its phase
+    ran = []
+    spy = lambda name, res: (lambda ts: ran.append(name) or {t: res for t in ts})
+    code, log = prove(["a"], [], {"a"}, spy("red", "failed"), spy("green", "failed"), spy("overlay", "failed"), phases=("red",))
+    if code != 0 or ran != ["red"] or log != ["red: a"]:
+        failures.append("phase red runs and judges red only")
+    code, _ = prove(["a"], [], {"a"}, spy("red", "passed"), spy("green", "passed"), spy("overlay", "passed"), phases=("red",))
+    if code != 1:
+        failures.append("phase red fails when the title passed on the test-only commit")
+    ran.clear()
+    code, _ = prove(["a"], [], {"a"}, spy("red", "passed"), spy("green", "passed"), spy("overlay", "failed"), phases=("overlay",))
+    if code != 1 or ran != ["overlay"]:
+        failures.append("phase overlay runs and judges overlay only")
+    ran.clear()
+    code, _ = prove(["a"], [], {"a"}, spy("red", "passed"), spy("green", "failed"), spy("overlay", "passed"), phases=("green",))
+    if code != 1 or ran != ["green"]:
+        failures.append("phase green runs and fails when the title failed at head")
+    # shard: stable, disjoint, covers every title; a job proves only its own titles
+    names = [f"scenario {i}" for i in range(40)]
+    owners = [[t for t in names if in_shard(t, (k, 3))] for k in (1, 2, 3)]
+    if sorted(sum(owners, [])) != sorted(names) or not all(owners):
+        failures.append("shards partition the titles")
+    if [in_shard("scenario 0", (k, 3)) for k in (1, 2, 3)] != [False, False, True] or in_shard("a", (1, 1)) is not True:
+        failures.append("shard is stable (pinned: sha256 of 'scenario 0' is shard 3/3) and 1/1 owns everything")
+    seen = []
+    mine = owners[0]
+    code, _ = prove(names, [], set(names), lambda ts: seen.extend(ts) or {t: "failed" for t in ts}, fake({}), fake({}),
+                    phases=("red",), shard=(1, 3))
+    if code != 0 or sorted(seen) != sorted(mine):
+        failures.append("a shard runs only its own titles")
+    empty = (1, 3)  # "a" belongs to shard 2/3
+    ran.clear()
+    code, log = prove(["a"], [], {"a"}, spy("red", "failed"), spy("green", "passed"), spy("overlay", "passed"), shard=empty)
+    if in_shard("a", empty) or code != 0 or ran or log != ["shard 1/3: 0 title(s)"]:
+        failures.append("an empty shard passes and runs no phase")
+    for bad_shard in ("0/3", "4/3", "x", "1/", "1/0"):
+        try:
+            parse_shard(bad_shard)
+            failures.append("malformed shard: " + bad_shard)
+        except ValueError:
+            pass
+    if parse_shard("2/3") != (2, 3):
+        failures.append("parse shard")
+    code, log = prove(["a", "b"], [("a", "b", "why")], {"a", "b"}, fake({"a": "failed", "b": "failed"}), fake({}), fake({}))
+    if code != 1 or not any("renames from a title that is itself in the slice" in l for l in log):
+        failures.append("a rename whose old title is a slice title fails")
+    # the required-check gate in ci.yml
+    with open(CI_PATH, encoding="utf-8", newline="") as fh:
+        ci = fh.read()
+    problems = ci_gate_problems(ci)
+    if problems:
+        failures.append("the real ci.yml matches CI_SHA256: " + "; ".join(problems))
+    gate_step = 'run: test "$RESULT" = success'
+    cell_cmd = '--scratch "$scratch" "$base" HEAD'
+    cell_step, gate_name = "      - name: Red first, green at head\n", "      - name: Every cell is green\n"
+    for label, edits in (
+            ("a gate step that is `true`", [(gate_step, "run: true")]),
+            ("`|| true` on the gate step", [(gate_step, gate_step + " || true")]),
+            ("continue-on-error on the gate step", [(gate_name, gate_name + "        continue-on-error: true\n")]),
+            ("continue-on-error on the gate job", [("    timeout-minutes: 5\n", "    timeout-minutes: 5\n    continue-on-error: true\n")]),
+            ("continue-on-error on the cell job", [("    timeout-minutes: 45\n    strategy:",
+                                                    "    timeout-minutes: 45\n    continue-on-error: true\n    strategy:")]),
+            ("a changed needs", [("    needs: red-green-cell\n", "    needs: verify\n")]),
+            ("needs in list form", [("    needs: red-green-cell\n", "    needs: [red-green-cell]\n")]),
+            ("always() dropped", [("if: always() && github", "if: github")]),
+            ("always() || x", [("if: always() && github", "if: always() || github")]),
+            ("a shortened phase list", [("phase: [red, green, overlay]", "phase: [red, green]")]),
+            ("a shortened shard list", [("shard: [1/3, 2/3, 3/3]", "shard: [1/3, 2/3]")]),
+            ("`|| true` on the cell command", [(cell_cmd, cell_cmd + " || true")]),
+            ("a matrix exclude", [("        shard: [1/3, 2/3, 3/3]\n",
+                                   "        shard: [1/3, 2/3, 3/3]\n        exclude:\n          - phase: red\n            shard: 1/3\n")]),
+            ("`if: false` on the cell step", [(cell_step, cell_step + "        if: false\n")]),
+            ("`if: false` on the gate step", [(gate_name, gate_name + "        if: false\n")]),
+            ("a pinned PHASE: green", [("          PHASE: ${{ matrix.phase }}", "          PHASE: green")]),
+            ("set +e and exit 0 in the cell step", [('          scratch="$(mktemp -d)"\n', '          set +e\n          scratch="$(mktemp -d)"\n'),
+                                                   (cell_cmd, cell_cmd + "\n          exit 0")]),
+            ("an extra step in the cell job", [(cell_cmd, cell_cmd + "\n      - run: true")]),
+            ("a comment line, then continue-on-error", [("    timeout-minutes: 5\n",
+                                                         "    timeout-minutes: 5\n  # note\n    continue-on-error: true\n")]),
+            ("a top-level defaults.run.shell", [("jobs:\n", "defaults:\n  run:\n    shell: bash {0}\n\njobs:\n")]),
+            ("a top-level env BASH_ENV", [("  GOFLAGS: -mod=readonly\n", "  GOFLAGS: -mod=readonly\n  BASH_ENV: /dev/null\n")]),
+            ("on: without pull_request", [("  pull_request:\n  push:", "  push:")]),
+            ("an extra step in the gate job", [(gate_step, gate_step + "\n      - run: true")])):
+        mutated = ci
+        for old, new in edits:
+            if old not in mutated:
+                failures.append(f"ci.yml mutation ({label}) did not apply: anchor {old!r} not found")
+                break
+            mutated = mutated.replace(old, new, 1)
+        else:
+            if not ci_gate_problems(mutated):
+                failures.append("ci.yml gate check accepts " + label)
+    # timeout: a hung build or runner is a clean ERROR (exit 3), never a traceback, and its whole process group dies
+    with tempfile.TemporaryDirectory(prefix="red-green-self-test-") as tmp:
+        pidfile = os.path.join(tmp, "grandchild.pid")
+        hang = os.path.join(tmp, "hang.py")
+        with open(hang, "w", encoding="utf-8") as fh:
+            fh.write("#!/usr/bin/env python3\nimport subprocess, sys, time\n"
+                     "g = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)\n"
+                     f"open({pidfile!r}, 'w').write(str(g.pid))\ntime.sleep(60)\n")
+        os.chmod(hang, 0o755)
+        expect_error("runner timeout", lambda: call_runner(hang, tmp, ["a"], timeout=3))
+        try:
+            with open(pidfile, encoding="utf-8") as fh:
+                grandchild = int(fh.read())
+        except (OSError, ValueError):
+            failures.append("the hung runner recorded its grandchild pid")
+        else:
+            deadline = time.monotonic() + 5
+            while not process_gone(grandchild) and time.monotonic() < deadline:
+                time.sleep(0.1)
+            if not process_gone(grandchild):
+                failures.append("the grandchild of a timed-out runner is killed")
+                os.kill(grandchild, signal.SIGKILL)  # do not leave it behind
+    def hung(ts):
+        raise RunnerError("timed out")
+    code, log = prove(["a"], [], {"a"}, hung, fake({}), fake({}))
+    if code != 3 or not log[-1].startswith("ERROR:"):
+        failures.append("a timeout exits 3 with ERROR")
     for f in failures:
         print("FAIL:", f, file=sys.stderr)
     print("self-test failed" if failures else "self-test ok", file=sys.stderr if failures else sys.stdout)
@@ -363,6 +621,22 @@ def main(argv):
         i = args.index("--scratch")
         scratch = os.path.abspath(args[i + 1])
         args = args[:i] + args[i + 2:]
+    phases, shard = PHASES, None
+    try:
+        if "--phase" in args:
+            i = args.index("--phase")
+            phase = args[i + 1]
+            args = args[:i] + args[i + 2:]
+            if phase not in PHASES + ("all",):
+                raise ValueError(f"--phase wants red|green|overlay|all, got {phase!r}")
+            phases = PHASES if phase == "all" else (phase,)
+        if "--shard" in args:
+            i = args.index("--shard")
+            shard = parse_shard(args[i + 1])
+            args = args[:i] + args[i + 2:]
+    except (ValueError, IndexError) as err:
+        print(f"red_green: {err}", file=sys.stderr)
+        return 2
     if len(args) != 2:
         print(__doc__)
         return 2
@@ -391,7 +665,8 @@ def main(argv):
         titles, exceptions, titles_at_first,
         lambda ts: run_at(first, ts, runner, scratch),
         lambda ts: run_at(head_sha, ts, runner, scratch),
-        lambda ts: run_at(head_sha, ts, runner, scratch, tests_from=first))
+        lambda ts: run_at(head_sha, ts, runner, scratch, tests_from=first),
+        phases, shard)
     print("\n".join(log))
     return code
 
