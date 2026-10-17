@@ -78,7 +78,9 @@ jobs:
       - name: Proof page
         if: github.event_name == 'pull_request'
         run: |
-          # The merge-ref checkout: its first parent is the base the PR merges into.
+          # Merge-ref checkout: HEAD^1 is the base the PR merges into, HEAD^2 the PR head. The other
+          # steps that compute a base do the same check ("Proof page" explains it).
+          git rev-parse --verify -q HEAD^2 >/dev/null || { echo "not a merge-ref checkout" >&2; exit 1; }
           base="$(git rev-parse HEAD^1)"
           pnpm proof "$base"
       - name: Proof leak-scan self-test
@@ -92,6 +94,8 @@ jobs:
       - name: Spec diff
         if: github.event_name == 'pull_request'
         run: |
+          # Merge-ref base, as in "Proof page".
+          git rev-parse --verify -q HEAD^2 >/dev/null || { echo "not a merge-ref checkout" >&2; exit 1; }
           base="$(git rev-parse HEAD^1)"
           python3 -I specs/scripts/spec_diff.py "$base" HEAD
 
@@ -133,6 +137,8 @@ jobs:
           PHASE: ${{ matrix.phase }}
           SHARD: ${{ matrix.shard }}
         run: |
+          # Merge-ref base, as in "Proof page" of the verify job.
+          git rev-parse --verify -q HEAD^2 >/dev/null || { echo "not a merge-ref checkout" >&2; exit 1; }
           base="$(git rev-parse HEAD^1)"
           scratch="$(mktemp -d)"
           python3 -I scripts/red_green.py --phase "$PHASE" --shard "$SHARD" --scratch "$scratch" "$base" HEAD

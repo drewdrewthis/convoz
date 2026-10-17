@@ -24,13 +24,16 @@ Usage: python3 -I scripts/red_green.py <base> <head> [--runner PATH] [--scratch 
         <title at the test-only commit> | <title at head> | <reason>
                                                                  same, and red is taken from the old title, green from the new
     Every exception is printed in the log. An exception whose old title is absent at the test-only commit, whose
-    new title is not in the slice, or (a skip line) whose title is not in the slice, is a FAIL.
+    new title is not in the slice, or (a skip line) whose title is not in the slice, is a FAIL. So is a rename whose
+    old title is itself in the slice (its red would be borrowed from another scenario).
   - --phase red|green|overlay|all (default all): run and check only that part of the proof.
   - --shard K/N: check only the titles whose sha256 mod N is K-1 (stable across runs and machines).
     A sharded or single-phase run proves only its part; the verdict of the whole proof is the AND of every
     phase x shard job (CI runs them as a matrix). Exceptions are validated against the whole slice in every job.
   - Every subprocess gets an allow-listed environment (child_env), runs in its own process group, and on a
-    timeout that whole group is killed (a hung build cannot leave a grandchild behind).
+    timeout that whole group is killed (a hung build cannot leave a grandchild behind; a descendant that calls
+    setsid leaves the group and is not killed). The proxy variables are not passed because they can carry
+    credentials, so a runner behind a proxy fails `pnpm install` with a RunnerError.
   - --scratch DIR: parent for the checkouts (default: a fresh mkdtemp). Nothing in it is deleted.
 
 Prints "test-only commit: <sha>"; with --shard, "shard K/N: <n> title(s)"; then, per title, one line for each phase
@@ -58,6 +61,7 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
+CI_PATH = os.path.join(ROOT, ".github", "workflows", "ci.yml")
 TEST_ONLY_DIRS = ("e2e/", "specs/", "docs/owner-checks/")
 
 
@@ -129,7 +133,7 @@ def checkout(sha, dest, tests_from=None):
 
 ENV_ALLOW = ("PATH", "HOME", "GO_BIN", "PNPM_BIN", "GOFLAGS", "GOPATH", "GOCACHE", "GOMODCACHE", "GOROOT", "GOTOOLCHAIN",
              "PNPM_HOME", "COREPACK_HOME", "PLAYWRIGHT_BROWSERS_PATH", "CI", "TMPDIR", "LANG", "LC_ALL", "TERM",
-             "NO_PROXY", "SSL_CERT_FILE", "NODE_EXTRA_CA_CERTS")
+             "SSL_CERT_FILE", "NODE_EXTRA_CA_CERTS")
 
 
 def child_env(extra=None):
@@ -145,8 +149,8 @@ def run_group(cmd, timeout, **kw):
     A command that cannot start is a RunnerError."""
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True, **kw)
-    except OSError as err:
-        raise RunnerError(f"cannot start {cmd[0]}: {err}")
+    except OSError as exc:
+        raise RunnerError(f"cannot start {cmd[0]}: {exc}") from exc
     try:
         out, err = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -157,8 +161,15 @@ def run_group(cmd, timeout, **kw):
         try:
             proc.communicate(timeout=10)
         except subprocess.TimeoutExpired:
-            pass  # a setsid descendant still holds the pipes; give up on its output
+            # a setsid descendant still holds the pipes; give up on its output
+            try:
+                proc.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                pass
         raise
+    finally:
+        proc.stdout.close()
+        proc.stderr.close()
     return subprocess.CompletedProcess(cmd, proc.returncode, out, err)
 
 
@@ -355,16 +366,24 @@ def prove(titles, exceptions, titles_at_first, run_red, run_green, run_overlay, 
     return (1 if bad else 0), out
 
 
-CI_PATH = os.path.join(ROOT, ".github", "workflows", "ci.yml")
+def ci_job(text, name):
+    """The body of the top-level job `name` in a workflow's text ("" if absent)."""
+    m = re.search(rf"^  {re.escape(name)}:\n(.*?)(?=^  \S|\Z)", text, re.M | re.S)
+    return m.group(1) if m else ""
 
 
 def ci_gate_ok(text):
-    """True when ci.yml's `red-green` job needs the cells, runs always, and fails unless their result is success."""
-    m = re.search(r"^  red-green:\n(.*?)(?=^  \S|\Z)", text, re.M | re.S)
-    job = m.group(1) if m else ""
-    return all(re.search(pattern, job, re.M) for pattern in (
-        r"^    needs: red-green-cell$", r"^    if: always\(\)", r"^          RESULT: \$\{\{ needs\.red-green-cell\.result \}\}$",
-        r'^        run: test "\$RESULT" = success$'))
+    """True when ci.yml's `red-green` gate and `red-green-cell` matrix are exactly as the proof needs them: the gate
+    needs the cells, runs always on pull requests and fails unless their result is success; neither job continues
+    on error; the matrix is phase x shard as pinned; the cell runs red_green.py with no `||`.
+    This is a text check that fails closed on any reformat: update it together with ci.yml."""
+    gate, cell = ci_job(text, "red-green"), ci_job(text, "red-green-cell")
+    gate_lines = (r"^    needs: red-green-cell$", r"^    if: always\(\) && github\.event_name == 'pull_request'$",
+                  r"^          RESULT: \$\{\{ needs\.red-green-cell\.result \}\}$", r'^        run: test "\$RESULT" = success$')
+    cell_lines = (r"^        phase: \[red, green, overlay\]$", r"^        shard: \[1/3, 2/3, 3/3\]$",
+                  r'^          python3 -I scripts/red_green\.py --phase "\$PHASE" --shard "\$SHARD" --scratch "\$scratch" "\$base" HEAD$')
+    return (all(re.search(p, gate, re.M) for p in gate_lines) and all(re.search(p, cell, re.M) for p in cell_lines)
+            and "continue-on-error" not in gate and "continue-on-error" not in cell)
 
 
 def process_gone(pid):
@@ -520,8 +539,28 @@ def self_test():
         ci = fh.read()
     if not ci_gate_ok(ci):
         failures.append("ci.yml red-green gate needs red-green-cell, runs always and requires result success")
-    if ci_gate_ok(ci.replace('run: test "$RESULT" = success', "run: true")):
-        failures.append("ci.yml gate check accepts a gate step that is `true`")
+    gate_step = 'run: test "$RESULT" = success'
+    cell_cmd = '--scratch "$scratch" "$base" HEAD'
+    for label, old, new in (
+            ("a gate step that is `true`", gate_step, "run: true"),
+            ("`|| true` on the gate step", gate_step, gate_step + " || true"),
+            ("continue-on-error on the gate step", "      - name: Every cell is green\n",
+             "      - name: Every cell is green\n        continue-on-error: true\n"),
+            ("continue-on-error on the gate job", "    timeout-minutes: 5\n", "    timeout-minutes: 5\n    continue-on-error: true\n"),
+            ("continue-on-error on the cell job", "    timeout-minutes: 45\n    strategy:",
+             "    timeout-minutes: 45\n    continue-on-error: true\n    strategy:"),
+            ("a changed needs", "    needs: red-green-cell\n", "    needs: verify\n"),
+            ("needs in list form", "    needs: red-green-cell\n", "    needs: [red-green-cell]\n"),
+            ("always() dropped", "if: always() && github", "if: github"),
+            ("always() || x", "if: always() && github", "if: always() || github"),
+            ("a shortened phase list", "phase: [red, green, overlay]", "phase: [red, green]"),
+            ("a shortened shard list", "shard: [1/3, 2/3, 3/3]", "shard: [1/3, 2/3]"),
+            ("`|| true` on the cell command", cell_cmd, cell_cmd + " || true")):
+        mutated = ci.replace(old, new)
+        if mutated == ci:
+            failures.append("ci.yml mutation did not apply: " + label)
+        elif ci_gate_ok(mutated):
+            failures.append("ci.yml gate check accepts " + label)
     # timeout: a hung build or runner is a clean ERROR (exit 3), never a traceback, and its whole process group dies
     with tempfile.TemporaryDirectory(prefix="red-green-self-test-") as tmp:
         pidfile = os.path.join(tmp, "grandchild.pid")
