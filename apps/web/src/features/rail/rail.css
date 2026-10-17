@@ -3,7 +3,7 @@
   .rail { display: none; }
   /* The desktop canvas behind the sidebar: soft blends of the palette's three tints over a quiet base, and grain (prototype v41). */
   :root {
-    --canvas: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.06 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"),
+    --canvas: url("/assets/grain-dark.svg"),
       radial-gradient(60% 55% at 0% 0%, color-mix(in srgb, var(--color-m1) 34%, transparent) 0%, transparent 70%),
       radial-gradient(55% 55% at 100% 100%, color-mix(in srgb, var(--color-m2) 30%, transparent) 0%, transparent 70%),
       radial-gradient(40% 40% at 100% 0%, color-mix(in srgb, var(--color-m3) 16%, transparent) 0%, transparent 70%),
@@ -12,7 +12,7 @@
   :root[data-mode="light"] { --canvas: var(--canvas-light); }
   @media (prefers-color-scheme: light) { :root:not([data-mode="light"]):not([data-mode="dark"]) { --canvas: var(--canvas-light); } }
   :root {
-    --canvas-light: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.07 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"),
+    --canvas-light: url("/assets/grain-light.svg"),
       radial-gradient(60% 55% at 0% 0%, color-mix(in srgb, var(--color-m1) 62%, transparent) 0%, transparent 70%),
       radial-gradient(55% 55% at 100% 100%, color-mix(in srgb, var(--color-m2) 55%, transparent) 0%, transparent 70%),
       radial-gradient(40% 40% at 100% 0%, color-mix(in srgb, var(--color-m3) 34%, transparent) 0%, transparent 70%),

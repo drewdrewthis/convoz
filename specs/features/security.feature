@@ -117,14 +117,14 @@ Feature: Security walls
     And machine "box-2" is logged in with allow-list "devtool"
     And machine "laptop-1" is logged in with allow-list "devtool"
 
-    @v1 @browser @I-46 @AC-25 @unimplemented
+    @v1 @browser @I-46 @AC-25
     Scenario: An app cannot send without the owner's tap
       Given a Tier-2 app message from "devtool" whose script posts a result on load
       When the owner opens the conversation and taps nothing
       Then no message is sent
       And a confirm sheet drawn by the host shows the proposed result
 
-    @v1 @browser @cli @I-46 @AC-25 @unimplemented
+    @v1 @browser @cli @I-46 @AC-25
     Scenario: A message sent through an app is attributed
       Given a Tier-2 app message from "devtool"
       When the owner confirms its result on the host sheet

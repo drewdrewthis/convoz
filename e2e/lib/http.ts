@@ -30,6 +30,8 @@ export interface ReqOpts {
   json?: unknown;
   /** Raw body. */
   body?: string;
+  /** Raw bytes (an app bundle, an image); the caller sets the Content-Type header. */
+  bytes?: Buffer;
   headers?: Record<string, string>;
   /** Browser-write headers: `Origin` = target.origin, `X-Convoz: 1`, JSON content type (body `{}` if none). */
   csrf?: boolean;
@@ -59,9 +61,10 @@ export function send(target: Target, method: string, path: string, o: ReqOpts = 
     if (!o.noConvozHeader) headers["X-Convoz"] = "1";
     if (body === undefined && method !== "GET") body = "{}";
   }
-  if (body !== undefined) {
+  const payload = o.bytes ?? (body === undefined ? undefined : Buffer.from(body));
+  if (payload !== undefined) {
     headers["Content-Type"] = "application/json";
-    headers["Content-Length"] = String(Buffer.byteLength(body));
+    headers["Content-Length"] = String(payload.length);
   }
   Object.assign(headers, o.headers ?? {});
   if (o.cookie) headers["Cookie"] = o.cookie;
@@ -87,7 +90,7 @@ export function send(target: Target, method: string, path: string, o: ReqOpts = 
             text,
             json: <T>() => JSON.parse(text) as T,
           };
-          record(`HTTP ${method} ${path}${body === undefined ? "" : " " + body}`, text, "", `status=${out.status}`);
+          record(`HTTP ${method} ${path}${o.bytes ? ` <${o.bytes.length} bytes>` : body === undefined ? "" : " " + body}`, text, "", `status=${out.status}`);
           resolve(out);
         });
         res.on("error", reject);
@@ -95,7 +98,7 @@ export function send(target: Target, method: string, path: string, o: ReqOpts = 
     );
     req.setTimeout(o.timeoutMs ?? 10_000, () => req.destroy(new Error(`${method} ${path}: no answer in ${o.timeoutMs ?? 10_000} ms`)));
     req.on("error", reject);
-    if (body !== undefined) req.write(body);
+    if (payload !== undefined) req.write(payload);
     req.end();
   });
 }

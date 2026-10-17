@@ -82,7 +82,10 @@ func (s *Server) createUpload(w http.ResponseWriter, r *http.Request, c *call) {
 	}
 	switch {
 	case !upload.ValidKind(in.Kind):
-		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "kind", "The kind is audio, image or file.")
+		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "kind", "The kind is audio, image, file or app.")
+		return
+	case in.Kind == upload.KindApp && in.Size > upload.MaxAppBytes:
+		writeErr(w, http.StatusRequestEntityTooLarge, wire.CodeAppTooLarge, "A bundle has at most 524288 bytes.")
 		return
 	case in.Filename == "" || len(in.Filename) > 255 || strings.ContainsFunc(in.Filename, func(r rune) bool { return r < 0x20 }):
 		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "filename", "The file name is 1 to 255 characters.")
@@ -302,7 +305,7 @@ func (s *Server) getFile(w http.ResponseWriter, r *http.Request, c *call) {
 		s.internalError(w, r, err)
 		return
 	}
-	if !found || !row.Complete() {
+	if !found || !row.Complete() || row.Kind == upload.KindApp { // a bundle is served only by its frame route
 		writeErr(w, http.StatusNotFound, "not_found", "No such file.")
 		return
 	}

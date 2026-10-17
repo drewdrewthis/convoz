@@ -16,6 +16,11 @@ import (
 type inboxPort struct{}
 
 func (inboxPort) FanOut(ctx context.Context, d pdb.DBTX, now time.Time, identity, conv, messageID, sourceSeq int64) error {
+	if m, found, err := message.Get(ctx, d, messageID); err != nil {
+		return err
+	} else if found && m.ViaAgentID == identity {
+		return inbox.AppResult(ctx, d, now, identity, conv, messageID, sourceSeq) // the agent whose app it was: its own item, never merged
+	}
 	reason, err := reasonFor(ctx, d, identity, messageID)
 	if err != nil {
 		return err

@@ -1,6 +1,7 @@
 import type { Message } from "@convoz/api-client";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { AppHost, ViaAppMark } from "../apps-host/index.ts";
 import { AskInline } from "../now/index.ts";
 import { clock, initials, paletteOf, stripCf } from "../../shared/chat.ts";
 import { useData } from "../../shared/data.ts";
@@ -300,7 +301,8 @@ const MessageRow = memo(function MessageRow({ row, threaded, me, paused, convers
         {files}
       </>
     );
-    const edited = m.edited_at ? <EditedMark id={m.id} /> : null;
+    const app = m.app && m.kind !== "ask" ? <AppHost app={m.app} messageId={m.id} agent={m.author} conversation={conversation} threadRoot={m.thread_root_id} /> : null;
+    const edited = m.edited_at ? <><ViaAppMark message={m} />{app}<EditedMark id={m.id} /></> : <><ViaAppMark message={m} />{app}</>;
     const menu = <MessageMenu message={m} mine={m.author.handle === me} conversation={conversation} />;
     const detail = onDetails && m.author.kind === "agent" ? () => onDetails(m) : undefined;
     const replies = threaded || m.thread_root_id ? null : <ReplyLine message={m} conversation={conversation} />;

@@ -51,6 +51,11 @@ Ask:
     created_at: { type: integer, format: int64 }
     snoozed_until: { type: integer, format: int64 }
     history: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/AskHistoryRow" } }
+    app:
+      description: "The app shown with the question: the app itself when it is at most 4096 bytes, else a stub."
+      oneOf:
+        - { $ref: "../openapi.yaml#/components/schemas/App" }
+        - { $ref: "../openapi.yaml#/components/schemas/AppStub" }
 AskConversation:
   type: object
   required: [id, title]
@@ -69,6 +74,7 @@ AskRequest:
     recommended: { $ref: "../openapi.yaml#/components/schemas/AskOption" }
     alternatives: { type: array, minItems: 1, maxItems: 4, items: { $ref: "../openapi.yaml#/components/schemas/AskOption" } }
     urgent: { type: boolean }
+    app: { $ref: "../openapi.yaml#/components/schemas/App", description: "An app shown with the question (a chart, a table, a diff). It helps the owner decide and never answers: no picker, form or select checklist (400 app_type_not_allowed_on_ask)." }
 AskAnswerRequest:
   type: object
   required: [choice]

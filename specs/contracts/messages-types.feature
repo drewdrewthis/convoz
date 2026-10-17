@@ -124,7 +124,7 @@ Feature: Messages and their types (contracts)
       Then the server answers 429
       And an ask from "devtool" also answers 429
 
-    @v1 @api @I-16 @I-46 @AC-5 @unimplemented
+    @v1 @api @I-16 @I-46 @AC-5
     Scenario: A message sent through an app does not reset the loop counter
       Given conversation 41 is paused after 20 agent messages
       When the owner confirms an app result that posts a via_app message

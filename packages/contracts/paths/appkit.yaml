@@ -1,5 +1,54 @@
 # Paths of the appkit module (design §13). Only the work package that owns appkit edits this file; the root
 # openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
-/api/apps/validate: {}  # not specified yet
-/api/messages/{id}/app: {}  # not specified yet
-/api/apps/{message_id}/frame: {}  # not specified yet
+/api/apps/validate:
+  post:
+    operationId: validateApp
+    summary: Check an app against app.v1 and the semantic checks without posting it.
+    description: |
+      Any signed-in caller (owner cookie or lease). The body is the app itself. 200 `{ok, type, bytes}`; 400 `app_invalid` names the
+      JSON pointer in `path` ("/props/colour") and says what is wrong in `message`; 400 `app_too_large` over 65536 bytes (frame data over 32768).
+      Nothing is written. A frame app is checked in its wire form (bundle.upload, sha256, size); the authoring form (bundle.file) is refused.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "../openapi.yaml#/components/schemas/App" }
+    responses:
+      "200":
+        description: The app is valid.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/AppChecked" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/messages/{id}/app:
+  get:
+    operationId: getMessageApp
+    summary: The full app of a message, for anyone who may see the message.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    responses:
+      "200":
+        description: The app.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/OneApp" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/apps/{message_id}/frame:
+  get:
+    operationId: getAppFrame
+    summary: The Tier-2 bundle of an app message, with the frame CSP.
+    description: |
+      Owner cookie only (a lease answers 403). The request must come from an iframe (`Sec-Fetch-Dest: iframe`, else 400). `h` is the
+      SHA-256 of the bundle as the app names it; a wrong `h`, a message without a frame app or a deleted message answers 404.
+      The document is immutable by its hash (`Cache-Control: private, max-age=31536000, immutable`), `nosniff`, with the frame CSP
+      (`sandbox allow-scripts`, no network, no navigation; I-46).
+    parameters:
+      - { name: message_id, in: path, required: true, schema: { type: integer, format: int64 } }
+      - { name: h, in: query, required: true, schema: { type: string } }
+    responses:
+      "200":
+        description: The bundle.
+        content:
+          text/html:
+            schema: { type: string }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }

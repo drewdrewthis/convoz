@@ -163,3 +163,8 @@ WHERE state IN ('ready','claimed') AND created_at < sqlc.arg(before);
 -- name: DeleteExpiredBefore :exec
 -- Retention: an expired row is deleted after 60 days.
 DELETE FROM inbox_items WHERE state = 'expired' AND updated_at < sqlc.arg(before);
+
+-- name: InsertAppResultItem :exec
+-- The agent whose app got a result is told (design 3.8): one item per result, ids only. It never merges.
+INSERT INTO inbox_items (identity_id, reason, conversation_id, first_message_id, message_id, count, mention_count, source_seq, state, created_at, updated_at)
+VALUES (sqlc.arg(identity_id), 'app_result', sqlc.arg(conversation_id), sqlc.arg(message_id), sqlc.arg(message_id), 1, 0, sqlc.arg(source_seq), 'ready', sqlc.arg(now), sqlc.arg(now));

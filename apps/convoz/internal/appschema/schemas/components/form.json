@@ -1,0 +1,243 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.convoz.dev/v1/components/form.json",
+  "title": "Tier 1 form props v1",
+  "description": "Host-rendered fields. Submit opens the host confirm sheet with every value; only Send in that sheet posts a via_app reply {fields:{id:value}}. Semantic checks: field ids unique; a select default is one of its option ids; min <= max. Rejected on an ask message. Never use a form for secrets: the reply is a normal message.",
+  "type": "object",
+  "required": [
+    "fields",
+    "submitLabel"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "intro": {
+      "allOf": [
+        {
+          "$ref": "../common.json#/$defs/multiline"
+        }
+      ],
+      "minLength": 1,
+      "maxLength": 280,
+      "type": "string"
+    },
+    "submitLabel": {
+      "$ref": "../common.json#/$defs/line24"
+    },
+    "fields": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "items": {
+        "$ref": "#/$defs/field"
+      }
+    }
+  },
+  "$defs": {
+    "field": {
+      "type": "object",
+      "required": [
+        "id",
+        "label",
+        "kind"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "../common.json#/$defs/id"
+        },
+        "label": {
+          "$ref": "../common.json#/$defs/line60"
+        },
+        "kind": {
+          "enum": [
+            "text",
+            "textarea",
+            "number",
+            "select",
+            "toggle",
+            "date"
+          ]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "placeholder": {
+          "$ref": "../common.json#/$defs/line60"
+        },
+        "help": {
+          "$ref": "../common.json#/$defs/line140"
+        },
+        "default": {},
+        "options": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "label"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "$ref": "../common.json#/$defs/id"
+              },
+              "label": {
+                "$ref": "../common.json#/$defs/line60"
+              }
+            }
+          }
+        },
+        "min": {
+          "$ref": "../common.json#/$defs/num"
+        },
+        "max": {
+          "$ref": "../common.json#/$defs/num"
+        },
+        "step": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1000000000000000
+        },
+        "maxLength": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2000
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "text",
+                  "textarea"
+                ]
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "default": {
+                "allOf": [
+                  {
+                    "$ref": "../common.json#/$defs/multiline"
+                  }
+                ],
+                "maxLength": 2000,
+                "type": "string"
+              },
+              "options": false,
+              "min": false,
+              "max": false,
+              "step": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "number"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "default": {
+                "$ref": "../common.json#/$defs/num"
+              },
+              "options": false,
+              "maxLength": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "select"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "options"
+            ],
+            "properties": {
+              "default": {
+                "$ref": "../common.json#/$defs/id"
+              },
+              "min": false,
+              "max": false,
+              "step": false,
+              "maxLength": false,
+              "placeholder": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "toggle"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "default": {
+                "type": "boolean"
+              },
+              "options": false,
+              "min": false,
+              "max": false,
+              "step": false,
+              "maxLength": false,
+              "placeholder": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "date"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "default": {
+                "type": "string",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+              },
+              "options": false,
+              "min": false,
+              "max": false,
+              "step": false,
+              "maxLength": false
+            }
+          }
+        }
+      ]
+    }
+  }
+}

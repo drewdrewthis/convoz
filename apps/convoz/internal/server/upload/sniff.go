@@ -8,6 +8,7 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
+	"unicode/utf8"
 )
 
 // sniffed is what the first bytes of a file say it is.
@@ -32,6 +33,19 @@ func sniff(r io.ReadSeeker, asked string) (sniffed, error) {
 		return sniffed{}, err
 	}
 	other := sniffed{Kind: KindFile, Mime: "application/octet-stream"}
+	if asked == KindApp {
+		whole, err := io.ReadAll(io.LimitReader(r, MaxAppBytes+1))
+		if err != nil {
+			return sniffed{}, err
+		}
+		if _, err := r.Seek(0, io.SeekStart); err != nil {
+			return sniffed{}, err
+		}
+		if len(whole) > 0 && utf8.Valid(whole) {
+			return sniffed{Kind: KindApp, Mime: "text/html; charset=utf-8"}, nil
+		}
+		return other, nil
+	}
 	if mime := imageMime(head); mime != "" {
 		w, h, ok := dimensions(r, mime)
 		if _, err := r.Seek(0, io.SeekStart); err != nil {

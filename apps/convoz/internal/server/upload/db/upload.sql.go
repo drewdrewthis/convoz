@@ -38,6 +38,25 @@ func (q *Queries) AllStorageNames(ctx context.Context) ([]string, error) {
 	return items, nil
 }
 
+const bindAppUpload = `-- name: BindAppUpload :execrows
+UPDATE uploads SET message_id = ?1, bound_at = ?2, in_app = 1
+WHERE id = ?3 AND message_id IS NULL AND state = 'complete'
+`
+
+type BindAppUploadParams struct {
+	MessageID sql.NullInt64
+	Now       sql.NullInt64
+	ID        int64
+}
+
+func (q *Queries) BindAppUpload(ctx context.Context, arg BindAppUploadParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, bindAppUpload, arg.MessageID, arg.Now, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const bindUpload = `-- name: BindUpload :execrows
 UPDATE uploads SET message_id = ?1, bound_at = ?2
 WHERE id = ?3 AND message_id IS NULL AND state = 'complete'
@@ -373,7 +392,7 @@ func (q *Queries) SumUploadedSince(ctx context.Context, arg SumUploadedSincePara
 
 const uploadsOfMessages = `-- name: UploadsOfMessages :many
 SELECT id, public_id, message_id, kind, declared_size, mime_sniffed, serve_inline, filename, width, height, duration_ms, waveform
-FROM uploads WHERE message_id IN (/*SLICE:message_ids*/?) AND state = 'complete' ORDER BY id
+FROM uploads WHERE message_id IN (/*SLICE:message_ids*/?) AND state = 'complete' AND in_app = 0 ORDER BY id
 `
 
 type UploadsOfMessagesRow struct {

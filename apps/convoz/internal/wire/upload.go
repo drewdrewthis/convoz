@@ -4,7 +4,7 @@ package wire
 // note still recording: the last PATCH then carries Upload-Length and Upload-Checksum.
 type CreateUploadRequest struct {
 	ConversationID int64  `json:"conversation_id"`
-	Kind           string `json:"kind"` // audio, image or file: what the client believes; the server decides from the bytes (I-44)
+	Kind           string `json:"kind"` // audio, image, file or app: what the client believes; the server decides from the bytes (I-44)
 	Filename       string `json:"filename"`
 	Size           int64  `json:"size,omitempty"`
 	SHA256         string `json:"sha256,omitempty"`

@@ -256,6 +256,7 @@ components:
             code: { type: string }
             message: { type: string }
             field: { type: string }
+            path: { type: string, description: "JSON pointer into the body, set by app_invalid (\"/props/colour\")." }
             retry_after: { type: integer }
     ClientId:
       type: string
@@ -286,6 +287,14 @@ components:
     Replies: { $ref: "components/readstate.yaml#/RepliesResponse" }
     EditRequest: { $ref: "components/message.yaml#/EditRequest" }
     EditHistory: { $ref: "components/message.yaml#/EditHistory" }
+    App: { $ref: "components/appkit.yaml#/App" }
+    AppStub: { $ref: "components/appkit.yaml#/AppStub" }
+    AppResult: { $ref: "components/appkit.yaml#/AppResult" }
+    ViaApp: { $ref: "components/appkit.yaml#/ViaApp" }
+    ViaAppRequest: { $ref: "components/appkit.yaml#/ViaAppRequest" }
+    AppChecked: { $ref: "components/appkit.yaml#/AppChecked" }
+    AppBundle: { $ref: "components/appkit.yaml#/AppBundle" }
+    OneApp: { $ref: "components/appkit.yaml#/OneApp" }
     InboxItem: { $ref: "components/inbox.yaml#/InboxItem" }
     InboxResponse: { $ref: "components/inbox.yaml#/InboxResponse" }
     ClaimRequest: { $ref: "components/inbox.yaml#/ClaimRequest" }

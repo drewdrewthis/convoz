@@ -470,6 +470,31 @@ func (q *Queries) HoldsLiveClaim(ctx context.Context, arg HoldsLiveClaimParams) 
 	return exists, err
 }
 
+const insertAppResultItem = `-- name: InsertAppResultItem :exec
+INSERT INTO inbox_items (identity_id, reason, conversation_id, first_message_id, message_id, count, mention_count, source_seq, state, created_at, updated_at)
+VALUES (?1, 'app_result', ?2, ?3, ?3, 1, 0, ?4, 'ready', ?5, ?5)
+`
+
+type InsertAppResultItemParams struct {
+	IdentityID     int64
+	ConversationID sql.NullInt64
+	MessageID      sql.NullInt64
+	SourceSeq      int64
+	Now            int64
+}
+
+// The agent whose app got a result is told (design 3.8): one item per result, ids only. It never merges.
+func (q *Queries) InsertAppResultItem(ctx context.Context, arg InsertAppResultItemParams) error {
+	_, err := q.db.ExecContext(ctx, insertAppResultItem,
+		arg.IdentityID,
+		arg.ConversationID,
+		arg.MessageID,
+		arg.SourceSeq,
+		arg.Now,
+	)
+	return err
+}
+
 const insertAskResolvedItem = `-- name: InsertAskResolvedItem :exec
 INSERT INTO inbox_items (identity_id, reason, conversation_id, first_message_id, message_id, ask_message_id, count, mention_count, source_seq, state, created_at, updated_at)
 VALUES (?1, 'ask_resolved', ?2, ?3, ?3, ?3, 1, 0, ?4, 'ready', ?5, ?5)

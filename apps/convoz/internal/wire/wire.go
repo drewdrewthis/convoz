@@ -22,6 +22,7 @@ type ErrorDetail struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 	Field   string `json:"field,omitempty"` // the request field a 400 is about
+	Path    string `json:"path,omitempty"`  // the JSON pointer inside an app or a result a 400 is about ("/props/colour")
 	// RetryAfter is how many seconds until a 429 may pass; the Retry-After header says the same.
 	RetryAfter int `json:"retry_after,omitempty"`
 }

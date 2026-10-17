@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.convoz.dev/v1/components/kv.json",
+  "title": "Tier 1 key-value props v1",
+  "type": "object",
+  "required": [
+    "pairs"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "pairs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 40,
+      "items": {
+        "type": "object",
+        "required": [
+          "k",
+          "v"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "k": {
+            "$ref": "../common.json#/$defs/line40"
+          },
+          "v": {
+            "anyOf": [
+              {
+                "$ref": "../common.json#/$defs/line200"
+              },
+              {
+                "$ref": "../common.json#/$defs/num"
+              }
+            ]
+          },
+          "tone": {
+            "$ref": "../common.json#/$defs/tone"
+          }
+        }
+      }
+    },
+    "columns": {
+      "enum": [
+        1,
+        2
+      ]
+    }
+  }
+}

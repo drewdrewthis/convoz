@@ -10,6 +10,12 @@ Message:
     created_at: { type: integer, format: int64 }
     kind: { type: string, enum: [ask, system], description: "An agent's question (ask) or a line the conversation says about itself (system). Absent for a text message." }
     ask: { $ref: "../openapi.yaml#/components/schemas/Ask", description: "The ask a message of kind ask carries: its question, options, state and history." }
+    app:
+      description: "The app of the message: the app itself when it is at most 4096 bytes, else a stub (GET /api/messages/{id}/app has the full app)."
+      oneOf:
+        - { $ref: "../openapi.yaml#/components/schemas/App" }
+        - { $ref: "../openapi.yaml#/components/schemas/AppStub" }
+    via_app: { $ref: "../openapi.yaml#/components/schemas/ViaApp", description: "Set on a message the owner sent through an app of an agent (I-46)." }
     thread_root_id: { type: integer, format: int64 }
     broadcast: { type: boolean }
     reply_count: { type: integer, format: int64 }

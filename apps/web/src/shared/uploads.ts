@@ -188,7 +188,7 @@ export function streamUpload(req: CreateUpload): StreamUpload {
 /** asUpload is the file as a message carries it, made from the finished upload so a sent message shows it at once. */
 export const asUpload = (s: UploadState, more?: Partial<Upload>): Upload => ({
   id: s.id,
-  kind: s.kind,
+  kind: s.kind === "app" ? "file" : s.kind, // a bundle never shows as a file of a message
   name: s.name,
   size: s.size ?? s.offset,
   mime: s.mime ?? "",

@@ -109,7 +109,7 @@ func (q *Queries) GetIDByClient(ctx context.Context, arg GetIDByClientParams) (i
 }
 
 const getMessage = `-- name: GetMessage :one
-SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine, last_reply_at FROM message_rows WHERE id = ?1
+SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine, last_reply_at, app_json, via_app_agent_id, app_result_json FROM message_rows WHERE id = ?1
 `
 
 func (q *Queries) GetMessage(ctx context.Context, id int64) (MessageRow, error) {
@@ -139,6 +139,9 @@ func (q *Queries) GetMessage(ctx context.Context, id int64) (MessageRow, error) 
 		&i.OriginLabel,
 		&i.OriginMachine,
 		&i.LastReplyAt,
+		&i.AppJson,
+		&i.ViaAppAgentID,
+		&i.AppResultJson,
 	)
 	return i, err
 }
@@ -183,29 +186,32 @@ func (q *Queries) InsertMention(ctx context.Context, arg InsertMentionParams) er
 
 const insertMessage = `-- name: InsertMessage :one
 INSERT INTO messages (conversation_id, author_id, kind, format, body, thread_root_id, broadcast, answers_ask_id, app_json, session_id, device_id, client_id,
-                      origin_label, origin_machine, created_at)
+                      origin_label, origin_machine, via_app_agent_id, via_app_message_id, app_result_json, created_at)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,
         ?9, ?10, ?11, ?12, ?13, ?14,
-        ?15)
+        ?15, ?16, ?17, ?18)
 RETURNING id
 `
 
 type InsertMessageParams struct {
-	ConversationID int64
-	AuthorID       sql.NullInt64
-	Kind           string
-	Format         string
-	Body           string
-	ThreadRootID   sql.NullInt64
-	Broadcast      int64
-	AnswersAskID   sql.NullInt64
-	AppJson        sql.NullString
-	SessionID      sql.NullInt64
-	DeviceID       sql.NullInt64
-	ClientID       sql.NullString
-	OriginLabel    sql.NullString
-	OriginMachine  sql.NullString
-	CreatedAt      int64
+	ConversationID  int64
+	AuthorID        sql.NullInt64
+	Kind            string
+	Format          string
+	Body            string
+	ThreadRootID    sql.NullInt64
+	Broadcast       int64
+	AnswersAskID    sql.NullInt64
+	AppJson         sql.NullString
+	SessionID       sql.NullInt64
+	DeviceID        sql.NullInt64
+	ClientID        sql.NullString
+	OriginLabel     sql.NullString
+	OriginMachine   sql.NullString
+	ViaAppAgentID   sql.NullInt64
+	ViaAppMessageID sql.NullInt64
+	AppResultJson   sql.NullString
+	CreatedAt       int64
 }
 
 func (q *Queries) InsertMessage(ctx context.Context, arg InsertMessageParams) (int64, error) {
@@ -224,6 +230,9 @@ func (q *Queries) InsertMessage(ctx context.Context, arg InsertMessageParams) (i
 		arg.ClientID,
 		arg.OriginLabel,
 		arg.OriginMachine,
+		arg.ViaAppAgentID,
+		arg.ViaAppMessageID,
+		arg.AppResultJson,
 		arg.CreatedAt,
 	)
 	var id int64
@@ -335,7 +344,7 @@ func (q *Queries) MarkDeleted(ctx context.Context, arg MarkDeletedParams) (int64
 }
 
 const pageAfter = `-- name: PageAfter :many
-SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine, last_reply_at FROM message_rows
+SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine, last_reply_at, app_json, via_app_agent_id, app_result_json FROM message_rows
 WHERE conversation_id = ?1 AND in_main = 1 AND id > ?2
 ORDER BY id LIMIT ?3
 `
@@ -379,6 +388,9 @@ func (q *Queries) PageAfter(ctx context.Context, arg PageAfterParams) ([]Message
 			&i.OriginLabel,
 			&i.OriginMachine,
 			&i.LastReplyAt,
+			&i.AppJson,
+			&i.ViaAppAgentID,
+			&i.AppResultJson,
 		); err != nil {
 			return nil, err
 		}
@@ -394,7 +406,7 @@ func (q *Queries) PageAfter(ctx context.Context, arg PageAfterParams) ([]Message
 }
 
 const pageBefore = `-- name: PageBefore :many
-SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine, last_reply_at FROM message_rows
+SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine, last_reply_at, app_json, via_app_agent_id, app_result_json FROM message_rows
 WHERE conversation_id = ?1 AND in_main = 1 AND id < ?2 AND id > ?3
 ORDER BY id DESC LIMIT ?4
 `
@@ -444,6 +456,9 @@ func (q *Queries) PageBefore(ctx context.Context, arg PageBeforeParams) ([]Messa
 			&i.OriginLabel,
 			&i.OriginMachine,
 			&i.LastReplyAt,
+			&i.AppJson,
+			&i.ViaAppAgentID,
+			&i.AppResultJson,
 		); err != nil {
 			return nil, err
 		}
@@ -459,7 +474,7 @@ func (q *Queries) PageBefore(ctx context.Context, arg PageBeforeParams) ([]Messa
 }
 
 const pageNewest = `-- name: PageNewest :many
-SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine, last_reply_at FROM message_rows
+SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine, last_reply_at, app_json, via_app_agent_id, app_result_json FROM message_rows
 WHERE conversation_id = ?1 AND in_main = 1 AND id > ?2
 ORDER BY id DESC LIMIT ?3
 `
@@ -503,6 +518,9 @@ func (q *Queries) PageNewest(ctx context.Context, arg PageNewestParams) ([]Messa
 			&i.OriginLabel,
 			&i.OriginMachine,
 			&i.LastReplyAt,
+			&i.AppJson,
+			&i.ViaAppAgentID,
+			&i.AppResultJson,
 		); err != nil {
 			return nil, err
 		}

@@ -32,4 +32,7 @@ type MessageRow struct {
 	OriginLabel     sql.NullString
 	OriginMachine   sql.NullString
 	LastReplyAt     sql.NullInt64
+	AppJson         string
+	ViaAppAgentID   sql.NullInt64
+	AppResultJson   string
 }

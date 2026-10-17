@@ -7,6 +7,7 @@ import (
 	"time"
 	_ "time/tzdata" // Tonight and Tomorrow are read in the person's zone, and a bare container has no zone files
 
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/appkit"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/ask"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
@@ -63,6 +64,20 @@ func (s *Server) postAsk(w http.ResponseWriter, r *http.Request, c *call) {
 	}
 	if s.askRefused(w, r, c, n.Check()) {
 		return
+	}
+	if len(in.App) > 0 && string(in.App) != "null" {
+		checked, err := appkit.Check(r.Context(), s.reader(), uploadFiles{}, n.Asker, in.App)
+		if err == nil {
+			err = onAsk(checked)
+		}
+		if appRefused(w, err) {
+			return
+		}
+		if err != nil {
+			s.internalError(w, r, err)
+			return
+		}
+		n.App = checked.Canonical()
 	}
 	// The cap comes before the budgets, so a full agent is told so and not "slow down".
 	open, err := ask.OpenCount(r.Context(), s.reader(), n.Asker)

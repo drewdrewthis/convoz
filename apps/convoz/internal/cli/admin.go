@@ -11,6 +11,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
@@ -55,6 +56,8 @@ func exitCode(err error) int {
 		return ExitConflict
 	case se.status == http.StatusTooManyRequests:
 		return ExitRateLimited
+	case se.status == http.StatusBadRequest && strings.HasPrefix(se.code, "app_"):
+		return ExitUsage // the app is wrong, not the server: fix it and post again
 	}
 	return ExitFailure
 }

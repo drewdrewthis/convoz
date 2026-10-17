@@ -53,6 +53,7 @@ func hydrateMessage(name string) hydrator {
 			}
 			if err == nil {
 				v.Ask = ptr(dir.askBase(a))
+				v.Ask.App = v.App
 			}
 		}
 		if err := attachUploads(ctx, d, []*wire.Message{&v}); err != nil {

@@ -5,6 +5,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/appschema"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/appkit"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/settings"
@@ -21,7 +23,7 @@ var files atomic.Pointer[upload.Service]
 type uploadPort struct{}
 
 func (uploadPort) BindUploads(ctx context.Context, d pdb.DBTX, now time.Time, m message.Message, ids []string) error {
-	bound, err := upload.Bind(ctx, d, now, upload.BindArgs{MessageID: m.ID, ConversationID: m.ConversationID, Author: m.AuthorID, PublicIDs: ids})
+	bound, err := upload.Bind(ctx, d, now, upload.BindArgs{MessageID: m.ID, ConversationID: m.ConversationID, Author: m.AuthorID, PublicIDs: ids, AppIDs: appUploadIDs(m.App)})
 	if err != nil {
 		return err
 	}
@@ -158,4 +160,16 @@ func attachSlice(ctx context.Context, d pdb.DBTX, page []wire.Message) error {
 		ptrs[i] = &page[i]
 	}
 	return attachUploads(ctx, d, ptrs)
+}
+
+// appUploadIDs are the uploads the app of a message names.
+func appUploadIDs(raw []byte) []string {
+	if len(raw) == 0 {
+		return nil
+	}
+	a, issue := appschema.Check(raw)
+	if issue != nil {
+		return nil
+	}
+	return appkit.UploadIDs(a)
 }

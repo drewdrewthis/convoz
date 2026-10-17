@@ -8,7 +8,7 @@ CreateUpload:
   additionalProperties: false
   properties:
     conversation_id: { type: integer, format: int64 }
-    kind: { type: string, enum: [audio, image, file], description: "What the client believes. The server decides from the bytes (I-44): a file called an image that is not one becomes a plain file." }
+    kind: { type: string, enum: [audio, image, file, app], description: "What the client believes. The server decides from the bytes (I-44): a file called an image that is not one becomes a plain file." }
     filename: { type: string, minLength: 1, maxLength: 255 }
     size: { type: integer, format: int64, minimum: 1, maximum: 26214400 }
     sha256: { type: string, pattern: "^[0-9a-f]{64}$", description: The SHA-256 of the file, hex. Checked when the last byte arrives. }
@@ -20,7 +20,7 @@ UploadState:
     state: { type: string, enum: [receiving, complete] }
     offset: { type: integer, format: int64, description: "Where the next chunk starts: the whole segments sealed plus the partial one the server holds. After a restart it falls back to the last whole segment." }
     size: { type: integer, format: int64, description: Known from the start, or once the last chunk came. }
-    kind: { type: string, enum: [audio, image, file] }
+    kind: { type: string, enum: [audio, image, file, app] }
     name: { type: string }
     mime: { type: string, description: What the bytes are. Set when complete. }
     inline: { type: boolean, description: True for a safe image or audio type, which the browser may show in the page (I-44). }

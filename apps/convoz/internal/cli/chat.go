@@ -9,7 +9,6 @@ import (
 	stdio "io"
 	"math"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -146,14 +145,15 @@ func Post(args []string, io IO) int {
 
 // postFlags are the flags `post` and `reply` share.
 type postFlags struct {
-	format, appFile, clientID *string
-	broadcast                 bool // reply only: also show the reply in the main thread
+	format, clientID *string
+	app              appOpts
+	broadcast        bool // reply only: also show the reply in the main thread
 }
 
 func newPostFlags(f *chatFlags) postFlags {
 	return postFlags{
 		format:   f.fs.String("format", "", "markdown, markdownv2 or plain"),
-		appFile:  f.fs.String("app", "", "a file holding an app (app.v1 JSON) to send with the text"),
+		app:      newAppOpts(f, "a file holding an app (app.v1 JSON) to send with the text"),
 		clientID: f.fs.String("client-id", "", "the id that makes a retry safe; random when not given"),
 	}
 }
@@ -171,12 +171,13 @@ func (o postFlags) send(f *chatFlags, io IO, conv, thread int64, text string) in
 		return usageError(io, "the message is empty")
 	}
 	var app json.RawMessage
-	if *o.appFile != "" {
-		raw, err := os.ReadFile(*o.appFile)
-		if err != nil || !json.Valid(raw) {
-			return usageError(io, fmt.Sprintf("--app %s is not a file of JSON", *o.appFile))
+	var bundle string
+	if o.app.set() {
+		raw, b, code := o.app.check(io)
+		if code != ExitOK {
+			return code
 		}
-		app = raw
+		app, bundle = raw, b
 	}
 	if *o.clientID == "" {
 		*o.clientID = "convoz-" + randomHex(8)
@@ -185,7 +186,6 @@ func (o postFlags) send(f *chatFlags, io IO, conv, thread int64, text string) in
 	if k == nil {
 		return code
 	}
-	req := wire.PostRequest{ClientID: *o.clientID, Body: text, Format: *o.format, ThreadRoot: thread, Broadcast: o.broadcast, App: app}
 	if conv == 0 { // a reply names only the message: the conversation is the one of its thread
 		var found wire.RepliesResponse
 		if err := k.callRetry("GET", fmt.Sprintf("/api/messages/%d/replies?limit=1", thread), nil, &found); err != nil {
@@ -193,6 +193,13 @@ func (o postFlags) send(f *chatFlags, io IO, conv, thread int64, text string) in
 		}
 		conv = found.ConversationID
 	}
+	if o.app.set() {
+		var code int
+		if app, code = o.app.send(k, conv, app, bundle); code != ExitOK {
+			return code
+		}
+	}
+	req := wire.PostRequest{ClientID: *o.clientID, Body: text, Format: *o.format, ThreadRoot: thread, Broadcast: o.broadcast, App: app}
 	out, err := k.sendPost(conv, req)
 	if err != nil {
 		return k.fail(err)
@@ -284,10 +291,11 @@ func Read(args []string, io IO) int {
 		case m.Kind == "system":
 			fmt.Fprintf(k.io.Stdout, "#%d [system] %s\n  %s\n", m.ID, when, plain(m.Text))
 		default:
-			fmt.Fprintf(k.io.Stdout, "#%d %s %s\n", m.ID, authorOf(m), when)
+			fmt.Fprintf(k.io.Stdout, "#%d %s%s %s\n", m.ID, authorOf(m), viaAppMark(m), when)
 			for _, line := range strings.Split(wordsOf(m), "\n") {
 				fmt.Fprintf(k.io.Stdout, "  %s\n", plain(line))
 			}
+			printApp(k.io, m)
 			if m.Ask != nil {
 				printAsk(k.io, *m.Ask)
 			}
@@ -505,4 +513,33 @@ func historyLine(h wire.AskHistoryRow, a wire.AskView) string {
 		return "Withdrawn by " + who
 	}
 	return "Closed (" + strings.ReplaceAll(a.CloseReason, "_", " ") + ")"
+}
+
+// viaAppMark says a message was sent through an app: " (via app by @devtool, from #9123)" (I-46).
+func viaAppMark(m wire.Message) string {
+	if m.ViaApp == nil {
+		return ""
+	}
+	return fmt.Sprintf(" (via app by @%s, from #%d)", m.ViaApp.Agent.Handle, m.ViaApp.MessageID)
+}
+
+// printApp shows the app a message carries as one line and its fallback, and the result a message sent through an app holds.
+func printApp(io IO, m wire.Message) {
+	if m.ViaApp != nil {
+		fmt.Fprintf(io.Stdout, "  result: %s\n", plain(string(m.ViaApp.Result)))
+	}
+	if len(m.App) == 0 {
+		return
+	}
+	var a struct {
+		Type, Title, Fallback string
+		V                     int
+	}
+	if json.Unmarshal(m.App, &a) != nil {
+		return
+	}
+	fmt.Fprintf(io.Stdout, "  [app %s %q v%d]\n", a.Type, a.Title, a.V)
+	for _, line := range strings.Split(a.Fallback, "\n") {
+		fmt.Fprintf(io.Stdout, "    %s\n", plain(line))
+	}
 }

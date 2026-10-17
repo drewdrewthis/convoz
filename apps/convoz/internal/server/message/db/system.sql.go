@@ -11,7 +11,7 @@ import (
 )
 
 const threadReplies = `-- name: ThreadReplies :many
-SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine, last_reply_at FROM message_rows
+SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine, last_reply_at, app_json, via_app_agent_id, app_result_json FROM message_rows
 WHERE conversation_id = ?1 AND thread_root_id = ?2 AND id > ?3
 ORDER BY id LIMIT ?4
 `
@@ -61,6 +61,9 @@ func (q *Queries) ThreadReplies(ctx context.Context, arg ThreadRepliesParams) ([
 			&i.OriginLabel,
 			&i.OriginMachine,
 			&i.LastReplyAt,
+			&i.AppJson,
+			&i.ViaAppAgentID,
+			&i.AppResultJson,
 		); err != nil {
 			return nil, err
 		}

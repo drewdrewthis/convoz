@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"slices"
 	"time"
 
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
@@ -19,6 +20,8 @@ const (
 	SegmentSize = 1 << 20
 	// MaxSize is the biggest file: 25 MiB. It is also the cap of an upload whose length is not known yet.
 	MaxSize = 26214400
+	// MaxAppBytes is the biggest app bundle.
+	MaxAppBytes = 524288
 	// MaxPixels and MaxSide bound an image before anything decodes it (I-44).
 	MaxPixels = 40_000_000
 	MaxSide   = 16384
@@ -42,6 +45,8 @@ const (
 	KindAudio = "audio"
 	KindImage = "image"
 	KindFile  = "file"
+	// KindApp is a Tier-2 app bundle: one UTF-8 HTML document, served only by the frame route.
+	KindApp = "app"
 )
 
 // Errors the HTTP layer maps to an answer.
@@ -134,8 +139,10 @@ type NewRequest struct {
 	SHA256                          []byte // nil when the length is not known
 }
 
-// ValidKind reports whether k is a kind a client may ask for (an app bundle is made by the app module, not uploaded here).
-func ValidKind(k string) bool { return k == KindAudio || k == KindImage || k == KindFile }
+// ValidKind reports whether k is a kind a client may ask for.
+func ValidKind(k string) bool {
+	return k == KindAudio || k == KindImage || k == KindFile || k == KindApp
+}
 
 // Create starts an upload: the daily byte quota of the identity (I-31) is checked first, then the row is written. The file is
 // created with the first segment. machineUsed is what the caller's machine started today, counted by the service.
@@ -143,9 +150,16 @@ func (s *Service) Create(ctx context.Context, d pdb.DBTX, now time.Time, in NewR
 	if !ValidKind(in.Kind) || in.Filename == "" || len(in.Filename) > 255 || in.Size < 0 || in.Size > MaxSize || (in.Size > 0 && len(in.SHA256) != 32) {
 		return Row{}, ErrBadRequest
 	}
+	limit := int64(MaxSize)
+	if in.Kind == KindApp {
+		limit = MaxAppBytes
+	}
+	if in.Size > limit {
+		return Row{}, ErrTooLarge
+	}
 	size, sum := in.Size, in.SHA256
 	if size == 0 {
-		size, sum = MaxSize, make([]byte, 32) // the cap now, the real length with the last chunk
+		size, sum = limit, make([]byte, 32) // the cap now, the real length with the last chunk
 	}
 	q := db.New(d)
 	used, err := q.SumUploadedSince(ctx, db.SumUploadedSinceParams{UploaderID: in.Uploader, Since: now.Add(-24 * time.Hour).UnixMilli()})
@@ -222,6 +236,8 @@ func Delete(ctx context.Context, d pdb.DBTX, id int64) error { return db.New(d).
 type BindArgs struct {
 	MessageID, ConversationID, Author int64
 	PublicIDs                         []string
+	// AppIDs are the ones of PublicIDs that belong to the message's app: they are bound as its files, not shown as files of the message.
+	AppIDs []string
 }
 
 // Bound is an upload now part of a message.
@@ -256,7 +272,13 @@ func Bind(ctx context.Context, d pdb.DBTX, now time.Time, a BindArgs) ([]Bound, 
 		case !r.Complete():
 			return nil, ErrUnfinished
 		}
-		if n, err := q.BindUpload(ctx, db.BindUploadParams{MessageID: nullInt(a.MessageID), Now: sql.NullInt64{Int64: now.UnixMilli(), Valid: true}, ID: r.ID}); err != nil {
+		var n int64
+		if slices.Contains(a.AppIDs, pub) {
+			n, err = q.BindAppUpload(ctx, db.BindAppUploadParams(bindArgs(a.MessageID, now, r.ID)))
+		} else {
+			n, err = q.BindUpload(ctx, db.BindUploadParams(bindArgs(a.MessageID, now, r.ID)))
+		}
+		if err != nil {
 			return nil, err
 		} else if n == 0 {
 			return nil, ErrBound
@@ -271,6 +293,16 @@ func Bind(ctx context.Context, d pdb.DBTX, now time.Time, a BindArgs) ([]Bound, 
 		}
 	}
 	return out, nil
+}
+
+type bindParams struct {
+	MessageID sql.NullInt64
+	Now       sql.NullInt64
+	ID        int64
+}
+
+func bindArgs(message int64, now time.Time, id int64) bindParams {
+	return bindParams{MessageID: nullInt(message), Now: sql.NullInt64{Int64: now.UnixMilli(), Valid: true}, ID: id}
 }
 
 // Attached is an upload of a message as a reader sees it.

@@ -32,15 +32,16 @@
         application/json:
           schema:
             type: object
-            required: [client_id, body]
+            required: [client_id]
             properties:
               client_id: { $ref: "../openapi.yaml#/components/schemas/ClientId" }
-              body: { type: string }
+              body: { type: string, description: "Required unless via_app is set; a via_app message has the result's summary as its body." }
               format: { type: string, enum: [plain, markdown, markdownv2] }
               thread_root_id: { type: integer, format: int64 }
               broadcast: { type: boolean }
               upload_ids: { type: array, items: { type: string } }
-              app: { type: object, description: Agents only; at most 65536 bytes. }
+              app: { $ref: "../openapi.yaml#/components/schemas/App", description: "Agents only; at most 65536 bytes; checked against app.v1 (400 app_invalid with the path)." }
+              via_app: { $ref: "../openapi.yaml#/components/schemas/ViaAppRequest", description: "The owner only (a lease answers 403): send the result of an app (I-46)." }
     responses:
       "200": { $ref: "../openapi.yaml#/components/responses/Posted" }
       "201": { $ref: "../openapi.yaml#/components/responses/Posted" }

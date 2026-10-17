@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.convoz.dev/v1/components/frame.json",
+  "title": "Tier 2 frame props v1 (wire form)",
+  "description": "A sandboxed custom app. bundle.upload is an upload of kind app bound to this message, whose stored SHA-256 and size equal bundle.sha256 and bundle.size (semantic check). data is any JSON, <= 32768 bytes canonical (semantic check), passed to the frame in init. The CLI authoring form uses bundle.file instead; the CLI uploads the file and rewrites it to this form, and the server rejects bundle.file.",
+  "type": "object",
+  "required": [
+    "bundle",
+    "manifest"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "bundle": {
+      "type": "object",
+      "required": [
+        "upload",
+        "sha256",
+        "size"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "upload": {
+          "$ref": "../common.json#/$defs/uploadRef"
+        },
+        "sha256": {
+          "$ref": "../common.json#/$defs/sha256"
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 524288
+        }
+      }
+    },
+    "manifest": {
+      "$ref": "../manifest.json"
+    },
+    "data": {}
+  }
+}

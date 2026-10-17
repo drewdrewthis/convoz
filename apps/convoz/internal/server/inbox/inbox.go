@@ -47,6 +47,8 @@ const (
 	ReasonActivity = "activity"
 	// ReasonAskResolved tells an agent its ask was answered, dismissed or deleted. It never merges with another item.
 	ReasonAskResolved = "ask_resolved"
+	// ReasonAppResult tells an agent the owner sent a result through its app. One item per result; it never merges.
+	ReasonAppResult = "app_result"
 )
 
 // FanOut records one new main message for one agent participant: the ready item of that conversation takes the
@@ -148,6 +150,13 @@ func mergeExpiredClaims(ctx context.Context, q *db.Queries, identityID, nowMs in
 func AskResolved(ctx context.Context, d pdb.DBTX, now time.Time, identityID, conversationID, askMessageID, sourceSeq int64) error {
 	return db.New(d).InsertAskResolvedItem(ctx, db.InsertAskResolvedItemParams{
 		IdentityID: identityID, ConversationID: nullInt(conversationID), AskMessageID: nullInt(askMessageID), SourceSeq: sourceSeq, Now: now.UnixMilli(),
+	})
+}
+
+// AppResult tells an agent that the owner sent the result of its app (the via_app message): one item per result.
+func AppResult(ctx context.Context, d pdb.DBTX, now time.Time, identityID, conversationID, messageID, sourceSeq int64) error {
+	return db.New(d).InsertAppResultItem(ctx, db.InsertAppResultItemParams{
+		IdentityID: identityID, ConversationID: nullInt(conversationID), MessageID: nullInt(messageID), SourceSeq: sourceSeq, Now: now.UnixMilli(),
 	})
 }
 
