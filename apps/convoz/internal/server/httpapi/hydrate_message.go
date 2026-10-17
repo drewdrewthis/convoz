@@ -52,6 +52,7 @@ func hydrateMessage(name string) hydrator {
 			}
 			if err == nil {
 				v.Ask = ptr(dir.askBase(a))
+				v.Ask.App = v.App
 			}
 		}
 		data, err := json.Marshal(messageFrame{Message: v, ConversationID: ev.Conversation, AuthorHandle: v.Author.Handle})

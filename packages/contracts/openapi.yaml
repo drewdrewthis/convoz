@@ -87,6 +87,7 @@ paths:
   /api/messages/{id}/replies: { $ref: "paths/message.yaml#/~1api~1messages~1{id}~1replies" }
   # ---- appkit
   /api/apps/validate: { $ref: "paths/appkit.yaml#/~1api~1apps~1validate" }
+  /api/apps/bundles: { $ref: "paths/appkit.yaml#/~1api~1apps~1bundles" }
   /api/messages/{id}/app: { $ref: "paths/appkit.yaml#/~1api~1messages~1{id}~1app" }
   /api/apps/{message_id}/frame: { $ref: "paths/appkit.yaml#/~1api~1apps~1{message_id}~1frame" }
   # ---- unfurl
@@ -254,6 +255,7 @@ components:
             code: { type: string }
             message: { type: string }
             field: { type: string }
+            path: { type: string, description: "JSON pointer into the body, set by app_invalid (\"/props/colour\")." }
             retry_after: { type: integer }
     ClientId:
       type: string
@@ -279,6 +281,14 @@ components:
     Replies: { $ref: "components/readstate.yaml#/RepliesResponse" }
     EditRequest: { $ref: "components/message.yaml#/EditRequest" }
     EditHistory: { $ref: "components/message.yaml#/EditHistory" }
+    App: { $ref: "components/appkit.yaml#/App" }
+    AppStub: { $ref: "components/appkit.yaml#/AppStub" }
+    AppResult: { $ref: "components/appkit.yaml#/AppResult" }
+    ViaApp: { $ref: "components/appkit.yaml#/ViaApp" }
+    ViaAppRequest: { $ref: "components/appkit.yaml#/ViaAppRequest" }
+    AppChecked: { $ref: "components/appkit.yaml#/AppChecked" }
+    AppBundle: { $ref: "components/appkit.yaml#/AppBundle" }
+    OneApp: { $ref: "components/appkit.yaml#/OneApp" }
     InboxItem: { $ref: "components/inbox.yaml#/InboxItem" }
     InboxResponse: { $ref: "components/inbox.yaml#/InboxResponse" }
     ClaimRequest: { $ref: "components/inbox.yaml#/ClaimRequest" }

@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.convoz.dev/v1/common.json",
+  "title": "Convoz shared definitions v1",
+  "description": "Shared string, number and reference shapes. Patterns use JSON \\u escapes so the regex engine sees literal characters; this keeps them valid for both ECMA-262 (ajv) and RE2 (Go).",
+  "$defs": {
+    "id": {
+      "description": "Author-chosen id inside one app (option, item, field). Unique within its list (semantic check).",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$"
+    },
+    "uploadRef": {
+      "description": "uploads.public_id of an upload bound to the SAME message (semantic check).",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{22}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "semver": {
+      "type": "string",
+      "maxLength": 32,
+      "pattern": "^(0|[1-9][0-9]{0,4})\\.(0|[1-9][0-9]{0,4})\\.(0|[1-9][0-9]{0,5})$"
+    },
+    "num": {
+      "type": "number",
+      "minimum": -1000000000000000,
+      "maximum": 1000000000000000
+    },
+    "tone": {
+      "enum": [
+        "default",
+        "muted",
+        "accent",
+        "good",
+        "warn",
+        "bad"
+      ]
+    },
+    "line": {
+      "description": "One line of plain text: no control characters, no markup is parsed.",
+      "type": "string",
+      "pattern": "^[^\u0000-\u001f\u007f]*$"
+    },
+    "line24": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/line"
+        }
+      ],
+      "minLength": 1,
+      "maxLength": 24,
+      "type": "string"
+    },
+    "line40": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/line"
+        }
+      ],
+      "minLength": 1,
+      "maxLength": 40,
+      "type": "string"
+    },
+    "line60": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/line"
+        }
+      ],
+      "minLength": 1,
+      "maxLength": 60,
+      "type": "string"
+    },
+    "line80": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/line"
+        }
+      ],
+      "minLength": 1,
+      "maxLength": 80,
+      "type": "string"
+    },
+    "line120": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/line"
+        }
+      ],
+      "minLength": 1,
+      "maxLength": 120,
+      "type": "string"
+    },
+    "line140": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/line"
+        }
+      ],
+      "minLength": 1,
+      "maxLength": 140,
+      "type": "string"
+    },
+    "line200": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/line"
+        }
+      ],
+      "minLength": 1,
+      "maxLength": 200,
+      "type": "string"
+    },
+    "multiline": {
+      "description": "Plain text that may contain newlines and tabs; other control characters are rejected.",
+      "type": "string",
+      "pattern": "^[^\u0000-\b\u000b\f\u000e-\u001f\u007f]*$"
+    },
+    "fallback": {
+      "description": "Required plain-text version of the app. Used by old clients, push, search, convoz read, screen readers before load.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/multiline"
+        }
+      ],
+      "minLength": 1,
+      "maxLength": 2000,
+      "type": "string"
+    },
+    "summary": {
+      "description": "Plain text shown in the host confirm sheet and stored as the via_app message body.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/multiline"
+        }
+      ],
+      "minLength": 1,
+      "maxLength": 280,
+      "type": "string"
+    }
+  }
+}

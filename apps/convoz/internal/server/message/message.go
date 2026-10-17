@@ -60,7 +60,10 @@ type Message struct {
 	System         string // a system line's system_json: ids only
 	SessionID      int64
 	AnswersAskID   int64
-	ViaAppID       int64 // the app message a result came through
+	ViaAppID       int64  // the app message a result came through
+	ViaAgentID     int64  // the agent whose app it was (server-derived, I-46)
+	AppResult      []byte // the result an app sent back (app-result.v1), only on a via_app message
+	App            []byte // the app.v1 JSON; empty for none and for a deleted message
 	HasApp         bool
 	OriginLabel    string // the agent session that wrote it, and its machine (I-40)
 	OriginMachine  string
@@ -85,9 +88,24 @@ type Draft struct {
 	Broadcast    bool     // a reply also shown in the main list
 	App          []byte   // an app message's app.v1 JSON (appkit); nil for none
 	UploadIDs    []string // public ids of the uploads the message carries; nil for none
+	ViaApp       *ViaApp  // set when the owner sends the result of an app (I-46)
+}
+
+// ViaApp says which app message a result came through, the agent that wrote it and the result (app-result.v1).
+type ViaApp struct {
+	Message, Agent int64
+	Result         []byte
 }
 
 func nullInt(v int64) sql.NullInt64 { return sql.NullInt64{Int64: v, Valid: v != 0} }
+
+// textBytes is the bytes of a view column that is empty for none.
+func textBytes(s string) []byte {
+	if s == "" {
+		return nil
+	}
+	return []byte(s)
+}
 
 func nullStr(s string) sql.NullString { return sql.NullString{String: s, Valid: s != ""} }
 
@@ -96,7 +114,8 @@ func fromRow(r db.MessageRow) Message {
 		ID: r.ID, ConversationID: r.ConversationID, AuthorID: r.AuthorID.Int64, Kind: r.Kind, Format: r.Format, Body: r.Body, CreatedAt: r.CreatedAt,
 		ThreadRootID: r.ThreadRootID.Int64, Broadcast: r.Broadcast == 1, ReplyCount: r.ReplyCount, LastReplyAt: r.LastReplyAt.Int64, EditedAt: r.EditedAt.Int64,
 		Deleted: r.DeletedAt.Valid, Purged: r.PurgedAt.Valid, System: r.SystemJson.String, SessionID: r.SessionID.Int64,
-		AnswersAskID: r.AnswersAskID.Int64, ViaAppID: r.ViaAppMessageID.Int64, HasApp: r.HasApp == 1,
+		AnswersAskID: r.AnswersAskID.Int64, ViaAppID: r.ViaAppMessageID.Int64, ViaAgentID: r.ViaAppAgentID.Int64, HasApp: r.HasApp == 1,
+		App: textBytes(r.AppJson), AppResult: textBytes(r.AppResultJson),
 		OriginLabel: r.OriginLabel.String, OriginMachine: r.OriginMachine.String,
 	}
 }
@@ -181,15 +200,23 @@ func insert(ctx context.Context, tx pdb.DBTX, now time.Time, d Draft) (m Message
 	if len(d.App) > 0 {
 		p.AppJson = sql.NullString{String: string(d.App), Valid: true}
 	}
+	if v := d.ViaApp; v != nil {
+		p.ViaAppAgentID, p.ViaAppMessageID = nullInt(v.Agent), nullInt(v.Message)
+		p.AppResultJson = sql.NullString{String: string(v.Result), Valid: len(v.Result) > 0}
+	}
 	id, err := q.InsertMessage(ctx, p)
 	if err != nil {
 		return Message{}, false, err
 	}
-	return Message{
+	m = Message{
 		ID: id, ConversationID: d.Conversation, AuthorID: d.Author, Kind: kind, Format: d.Format, Body: d.Body, CreatedAt: at, AnswersAskID: d.AnswersAsk,
-		ThreadRootID: d.ThreadRoot, Broadcast: d.Broadcast, SessionID: d.Session, HasApp: len(d.App) > 0,
+		ThreadRootID: d.ThreadRoot, Broadcast: d.Broadcast, SessionID: d.Session, HasApp: len(d.App) > 0, App: d.App,
 		OriginLabel: d.Origin.Label, OriginMachine: d.Origin.Machine,
-	}, false, nil
+	}
+	if v := d.ViaApp; v != nil {
+		m.ViaAppID, m.ViaAgentID, m.AppResult = v.Message, v.Agent, v.Result
+	}
+	return m, false, nil
 }
 
 func boolInt(b bool) int64 {

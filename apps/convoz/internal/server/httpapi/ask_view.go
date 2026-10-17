@@ -62,7 +62,7 @@ func askViews(ctx context.Context, d pdb.DBTX, dir directory, list []ask.Ask, sn
 		if m, found, err := message.GetAny(ctx, d, a.ID); err != nil {
 			return nil, err
 		} else if found {
-			v.ThreadRootID = m.ThreadRootID
+			v.ThreadRootID, v.App = m.ThreadRootID, appView(m.App)
 		}
 		v.SnoozedUntil = snoozed[a.ID]
 		out = append(out, v)

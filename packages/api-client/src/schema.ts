@@ -1001,7 +1001,35 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
+        /**
+         * Check an app against app.v1 and the semantic checks without posting it.
+         * @description Any signed-in caller (owner cookie or lease). The body is the app itself. 200 `{ok, type, bytes}`; 400 `app_invalid` names the
+         *     JSON pointer in `path` ("/props/colour") and says what is wrong in `message`; 400 `app_too_large` over 65536 bytes (frame data over 32768).
+         *     Nothing is written. A frame app is checked in its wire form (bundle.upload, sha256, size); the authoring form (bundle.file) is refused.
+         */
+        post: operations["validateApp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/apps/bundles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Store a file an app will name - a Tier-2 bundle (one HTML document, at most 524288 bytes) or a gallery image (kind=image, at most 5 MB).
+         * @description Lease callers with the `post` scope. The raw bytes are the body. 413 `app_too_large` over the limit. Answers the wire form of
+         *     props.bundle (an image uses `upload` for props.images[].upload). Images are read back at GET /api/files/{public_id}. The upload
+         *     module's kind `app` and `image` uploads replace this route and that one when they land.
+         */
+        post: operations["putAppBundle"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1015,7 +1043,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** The full app of a message, for anyone who may see the message. */
+        get: operations["getMessageApp"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1031,7 +1060,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * The Tier-2 bundle of an app message, with the frame CSP.
+         * @description Owner cookie only (a lease answers 403). The request must come from an iframe (`Sec-Fetch-Dest: iframe`, else 400). `h` is the
+         *     SHA-256 of the bundle as the app names it; a wrong `h`, a message without a frame app or a deleted message answers 404.
+         *     The document is immutable by its hash (`Cache-Control: private, max-age=31536000, immutable`), `nosniff`, with the frame CSP
+         *     (`sandbox allow-scripts`, no network, no navigation; I-46).
+         */
+        get: operations["getAppFrame"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1592,6 +1628,8 @@ export interface components {
                 code: string;
                 message: string;
                 field?: string;
+                /** @description JSON pointer into the body, set by app_invalid ("/props/colour"). */
+                path?: string;
                 retry_after?: number;
             };
         };
@@ -1794,6 +1832,10 @@ export interface components {
             kind?: "ask" | "system";
             /** @description The ask a message of kind ask carries: its question, options, state and history. */
             ask?: components["schemas"]["Ask"];
+            /** @description The app of the message: the app itself when it is at most 4096 bytes, else a stub (GET /api/messages/{id}/app has the full app). */
+            app?: components["schemas"]["App"] | components["schemas"]["AppStub"];
+            /** @description Set on a message the owner sent through an app of an agent (I-46). */
+            via_app?: components["schemas"]["ViaApp"];
             /** Format: int64 */
             thread_root_id?: number;
             broadcast?: boolean;
@@ -1844,6 +1886,70 @@ export interface components {
                 edited_at: number;
                 by?: string;
             }[];
+        };
+        /** @description app.v1 (schemas/app.json): {v:1, type, title?, fallback, height?, props}. Unknown keys are refused. */
+        App: {
+            v: number;
+            /** @enum {string} */
+            type: "chart" | "table" | "checklist" | "kv" | "picker" | "form" | "progress" | "code" | "gallery" | "frame";
+            title?: string;
+            fallback: string;
+            height?: number;
+            props: {
+                [key: string]: unknown;
+            };
+        } & {
+            [key: string]: unknown;
+        };
+        /** @description What a message page carries instead of an app over 4096 bytes. GET /api/messages/{id}/app returns the full app. */
+        AppStub: {
+            /** @enum {boolean} */
+            stub: true;
+            v: number;
+            type: string;
+            title?: string;
+            fallback: string;
+            /** @description Size of the full app in bytes. */
+            bytes: number;
+        };
+        /** @description app-result.v1 (schemas/app-result.json): what an app sent back. value is checked against the app it came from. */
+        AppResult: {
+            /** @enum {integer} */
+            v: 1;
+            /** @enum {string} */
+            source: "picker" | "checklist" | "form" | "frame";
+            summary: string;
+            value: unknown;
+        };
+        /** @description A message the owner sent through an app (I-46): the app message, the agent that wrote it and the result. */
+        ViaApp: {
+            /** Format: int64 */
+            message_id: number;
+            agent: components["schemas"]["Person"];
+            result: components["schemas"]["AppResult"];
+        };
+        ViaAppRequest: {
+            /**
+             * Format: int64
+             * @description The app message the result comes from.
+             */
+            message_id: number;
+            result: components["schemas"]["AppResult"];
+        };
+        AppChecked: {
+            /** @enum {boolean} */
+            ok: true;
+            type: string;
+            bytes: number;
+        };
+        /** @description A stored Tier-2 bundle: the wire form of props.bundle. */
+        AppBundle: {
+            upload: string;
+            sha256: string;
+            size: number;
+        };
+        OneApp: {
+            app: components["schemas"]["App"];
         };
         /** @description One inbox item with its newest message. claim_token is set only on an item the calling session holds. */
         InboxItem: {
@@ -2140,6 +2246,8 @@ export interface components {
             /** Format: int64 */
             snoozed_until?: number;
             history?: components["schemas"]["AskHistoryRow"][];
+            /** @description The app shown with the question: the app itself when it is at most 4096 bytes, else a stub. */
+            app?: components["schemas"]["App"] | components["schemas"]["AppStub"];
         };
         AskConversation: {
             /** Format: int64 */
@@ -2156,6 +2264,8 @@ export interface components {
             recommended: components["schemas"]["AskOption"];
             alternatives: components["schemas"]["AskOption"][];
             urgent?: boolean;
+            /** @description An app shown with the question (a chart, a table, a diff). It helps the owner decide and never answers: no picker, form or select checklist (400 app_type_not_allowed_on_ask). */
+            app?: components["schemas"]["App"];
         };
         AskAnswerRequest: {
             /** @enum {string} */
@@ -3531,15 +3641,18 @@ export interface operations {
             content: {
                 "application/json": {
                     client_id: components["schemas"]["ClientId"];
-                    body: string;
+                    /** @description Required unless via_app is set; a via_app message has the result's summary as its body. */
+                    body?: string;
                     /** @enum {string} */
                     format?: "plain" | "markdown" | "markdownv2";
                     /** Format: int64 */
                     thread_root_id?: number;
                     broadcast?: boolean;
                     upload_ids?: string[];
-                    /** @description Agents only; at most 65536 bytes. */
-                    app?: Record<string, never>;
+                    /** @description Agents only; at most 65536 bytes; checked against app.v1 (400 app_invalid with the path). */
+                    app?: components["schemas"]["App"];
+                    /** @description The owner only (a lease answers 403): send the result of an app (I-46). */
+                    via_app?: components["schemas"]["ViaAppRequest"];
                 };
             };
         };
@@ -3672,6 +3785,106 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RepliesResponse"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    validateApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["App"];
+            };
+        };
+        responses: {
+            /** @description The app is valid. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppChecked"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    putAppBundle: {
+        parameters: {
+            query?: {
+                kind?: "app" | "image";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "text/html": string;
+            };
+        };
+        responses: {
+            /** @description The stored bundle. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppBundle"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getMessageApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The app. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OneApp"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getAppFrame: {
+        parameters: {
+            query: {
+                h: string;
+            };
+            header?: never;
+            path: {
+                message_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The bundle. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": string;
                 };
             };
             default: components["responses"]["Error"];

@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.convoz.dev/v1/components/progress.json",
+  "title": "Tier 1 progress props v1",
+  "description": "A bar (value 0..1, or done/total) and/or a step list. Semantic check: done <= total. A message is immutable, so live progress belongs in agent status (agent_status.app_json uses this same schema).",
+  "type": "object",
+  "additionalProperties": false,
+  "anyOf": [
+    {
+      "required": [
+        "value"
+      ]
+    },
+    {
+      "required": [
+        "done"
+      ]
+    },
+    {
+      "required": [
+        "steps"
+      ]
+    }
+  ],
+  "dependentRequired": {
+    "done": [
+      "total"
+    ],
+    "total": [
+      "done"
+    ]
+  },
+  "properties": {
+    "label": {
+      "$ref": "../common.json#/$defs/line80"
+    },
+    "value": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "done": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000000
+    },
+    "total": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000000000
+    },
+    "tone": {
+      "$ref": "../common.json#/$defs/tone"
+    },
+    "etaAt": {
+      "description": "Unix ms UTC.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 253402300799000
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "required": [
+          "label",
+          "state"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "$ref": "../common.json#/$defs/line60"
+          },
+          "state": {
+            "enum": [
+              "todo",
+              "doing",
+              "done",
+              "failed",
+              "skipped"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "not": {
+    "required": [
+      "value",
+      "done"
+    ],
+    "properties": {
+      "value": true,
+      "done": true
+    }
+  }
+}

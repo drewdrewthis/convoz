@@ -19,6 +19,7 @@ type New struct {
 	Recommended                              Option
 	Alternatives                             []Option
 	Urgent                                   bool
+	App                                      []byte // the checked app shown with the question (compact JSON); nil for none
 }
 
 // Check refuses an ask that is not complete or is too long, naming the field (I-11, AC-13).
@@ -70,7 +71,7 @@ func Create(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, n New) (a A
 	}
 	id, replayed, err := p.Messages.PostAsk(ctx, d, now, AskMessage{
 		Conversation: n.Conversation, ThreadRoot: n.ThreadRoot, Author: n.Asker, Session: n.Session,
-		OriginLabel: n.OriginLabel, OriginMachine: n.OriginMachine, ClientID: n.ClientID, Question: n.Question,
+		OriginLabel: n.OriginLabel, OriginMachine: n.OriginMachine, ClientID: n.ClientID, Question: n.Question, App: n.App,
 	})
 	if err != nil || replayed {
 		if err == nil {

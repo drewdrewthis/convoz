@@ -63,19 +63,29 @@ func (c *client) withTimeout(d time.Duration) *client {
 // it (an ack that lost a claim says which items it acked); a failure to reach the server wraps errUnreachable.
 func (c *client) call(ctx context.Context, method, path, token string, in, out any) error {
 	var body io.Reader
+	contentType := ""
 	if in != nil {
 		raw, err := json.Marshal(in)
 		if err != nil {
 			return err
 		}
-		body = bytes.NewReader(raw)
+		body, contentType = bytes.NewReader(raw), "application/json"
 	}
+	return c.do(ctx, method, path, token, contentType, body, out)
+}
+
+// callRaw is call for a body that is not JSON (an app bundle); the answer is JSON.
+func (c *client) callRaw(ctx context.Context, method, path, token, contentType string, body []byte, out any) error {
+	return c.do(ctx, method, path, token, contentType, bytes.NewReader(body), out)
+}
+
+func (c *client) do(ctx context.Context, method, path, token, contentType string, body io.Reader, out any) error {
 	req, err := http.NewRequestWithContext(ctx, method, c.base+path, body)
 	if err != nil {
 		return err
 	}
-	if in != nil {
-		req.Header.Set("Content-Type", "application/json")
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
 	}
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
@@ -95,7 +105,11 @@ func (c *client) call(ctx context.Context, method, path, token string, in, out a
 		}
 		var e wire.Error
 		if json.Unmarshal(raw, &e) == nil && e.Error.Code != "" {
-			return &statusError{status: res.StatusCode, code: e.Error.Code, msg: e.Error.Message, retryAfter: retryAfter(res)}
+			msg := e.Error.Message
+			if e.Error.Path != "" {
+				msg = e.Error.Path + ": " + msg // an app the server refused names the place inside it
+			}
+			return &statusError{status: res.StatusCode, code: e.Error.Code, msg: msg, retryAfter: retryAfter(res)}
 		}
 		return &statusError{status: res.StatusCode, msg: fmt.Sprintf("the server answered %d", res.StatusCode)}
 	}

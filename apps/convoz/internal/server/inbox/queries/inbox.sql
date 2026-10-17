@@ -130,3 +130,8 @@ SELECT ask_message_id FROM inbox_items WHERE id = sqlc.arg(id) AND identity_id =
 -- A repeat of an ack that went through: the item is acked, by this session.
 SELECT EXISTS (SELECT 1 FROM inbox_items WHERE id = sqlc.arg(id) AND identity_id = sqlc.arg(identity_id) AND reason = 'ask_resolved'
                AND state = 'acked' AND acked_by_session = sqlc.arg(session_id));
+
+-- name: InsertAppResultItem :exec
+-- The agent whose app got a result is told (design 3.8): one item per result, ids only. It never merges.
+INSERT INTO inbox_items (identity_id, reason, conversation_id, first_message_id, message_id, count, mention_count, source_seq, state, created_at, updated_at)
+VALUES (sqlc.arg(identity_id), 'app_result', sqlc.arg(conversation_id), sqlc.arg(message_id), sqlc.arg(message_id), 1, 0, sqlc.arg(source_seq), 'ready', sqlc.arg(now), sqlc.arg(now));

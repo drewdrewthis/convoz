@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.convoz.dev/v1/components/picker.json",
+  "title": "Tier 1 picker props v1",
+  "description": "Single (default): one tap on a host-rendered option posts a via_app reply {selected:[id]}. Multi: ticks, then the host Send button. Semantic checks: option ids unique; 1 <= min <= max <= options.length. Rejected on an ask message (the ask buttons are the answer path).",
+  "type": "object",
+  "required": [
+    "options"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "prompt": {
+      "$ref": "../common.json#/$defs/line140"
+    },
+    "options": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "../common.json#/$defs/id"
+          },
+          "label": {
+            "$ref": "../common.json#/$defs/line60"
+          },
+          "hint": {
+            "$ref": "../common.json#/$defs/line140"
+          }
+        }
+      }
+    },
+    "multi": {
+      "type": "boolean"
+    },
+    "min": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 12
+    },
+    "max": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 12
+    },
+    "submitLabel": {
+      "$ref": "../common.json#/$defs/line24"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "not": {
+          "properties": {
+            "multi": {
+              "const": true
+            }
+          },
+          "required": [
+            "multi"
+          ]
+        }
+      },
+      "then": {
+        "properties": {
+          "min": false,
+          "max": false,
+          "submitLabel": false
+        }
+      }
+    }
+  ]
+}

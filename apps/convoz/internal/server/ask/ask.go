@@ -127,6 +127,7 @@ type AskMessage struct {
 	Conversation, ThreadRoot, Author, Session int64
 	OriginLabel, OriginMachine                string
 	ClientID, Question                        string
+	App                                       []byte // the app shown with the question; nil for none
 }
 
 // AnswerMessage is the text message that carries an answer, written by the person who answered. It goes where the ask was

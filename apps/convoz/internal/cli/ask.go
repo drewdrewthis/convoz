@@ -1,9 +1,7 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 
@@ -31,7 +29,7 @@ func Ask(args []string, io IO) int {
 	f.fs.Var(&altWhys, "alt-why", "why that alternative is on the table (once for each --alt, in order)")
 	urgent := f.fs.Bool("urgent", false, "the owner is waiting on it")
 	thread := f.fs.Int64("thread", 0, "ask in the thread of this root message")
-	appFile := f.fs.String("app", "", "a file holding an app (app.v1 JSON) to show with the question")
+	appOpt := newAppOpts(f, "a file holding an app (app.v1 JSON) to show with the question")
 	clientID := f.fs.String("client-id", "", "the id that makes a retry safe; random when not given")
 	pos, ok := f.parse(args, io)
 	if !ok {
@@ -62,17 +60,24 @@ func Ask(args []string, io IO) int {
 	}
 	for i, label := range alts {
 		req.Alternatives = append(req.Alternatives, wire.AskOptionRequest{Label: label, Why: altWhys[i]})
-		if *appFile != "" {
-			raw, err := os.ReadFile(*appFile)
-			if err != nil || !json.Valid(raw) {
-				return usageError(io, fmt.Sprintf("--app %s is not a file of JSON", *appFile))
-			}
-			req.App = raw
+	}
+	var bundle string
+	if appOpt.set() {
+		raw, b, code := appOpt.check(io)
+		if code != ExitOK {
+			return code
 		}
+		req.App, bundle = raw, b
 	}
 	k, code := f.open(io)
 	if k == nil {
 		return code
+	}
+	if appOpt.set() {
+		var code int
+		if req.App, code = appOpt.send(k, req.App, bundle); code != ExitOK {
+			return code
+		}
 	}
 	var out wire.OneAsk
 	if err := k.callRetry("POST", wire.RouteAsks, req, &out); err != nil {

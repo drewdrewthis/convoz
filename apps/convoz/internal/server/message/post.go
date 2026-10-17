@@ -221,8 +221,8 @@ func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) 
 	if err != nil {
 		return Posted{}, err
 	}
-	// An answer to an ask never marks the conversation read: the answerer may not have read what came before it (I-15).
-	if inMain && draft.AnswersAsk == 0 {
+	// An answer to an ask or a result sent through an app never marks the conversation read: the owner may not have read what came before it (I-15).
+	if inMain && draft.AnswersAsk == 0 && draft.ViaApp == nil {
 		moved, err := p.Reads.MoveForOwnPost(ctx, d, now, draft.Author, draft.Conversation, prevMain, m.ID)
 		if err != nil {
 			return Posted{}, err

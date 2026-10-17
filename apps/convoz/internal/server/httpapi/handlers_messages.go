@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/appkit"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/ask"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/audit"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
@@ -45,12 +46,34 @@ func (s *Server) postMessage(w http.ResponseWriter, r *http.Request, c *call) {
 		writeFieldErr(w, http.StatusForbidden, "forbidden", "app", "Only an agent posts an app.")
 		return
 	}
+	if in.ViaApp != nil && (isAgent || len(app) > 0) {
+		writeFieldErr(w, http.StatusForbidden, "forbidden", "via_app", "Only the owner sends a result through an app.")
+		return
+	}
 	if isAgent && !s.agentMayPost(w, c, now) {
 		return
+	}
+	if len(app) > 0 {
+		checked, err := appkit.Check(r.Context(), s.reader(), who, app)
+		if appRefused(w, err) {
+			return
+		}
+		if err != nil {
+			s.internalError(w, r, err)
+			return
+		}
+		app = checked.Canonical()
 	}
 	draft := message.Draft{
 		Conversation: convID, Author: who, Session: c.p.SessionID, Device: c.dev.ID, ClientID: in.ClientID, Body: in.Body, Format: in.Format,
 		ThreadRoot: in.ThreadRoot, Broadcast: in.Broadcast, App: app, UploadIDs: in.UploadIDs,
+	}
+	if in.ViaApp != nil {
+		via, ok := s.viaApp(w, r, c, convID, *in.ViaApp)
+		if !ok {
+			return
+		}
+		draft.ViaApp, draft.Body, draft.Format = &message.ViaApp{Message: via.Message, Agent: via.Agent, Result: via.Result}, via.Summary, "plain"
 	}
 	if isAgent {
 		draft.Origin = message.Origin{Label: c.lease.Label, Machine: c.lease.Machine}
@@ -136,6 +159,7 @@ func (s *Server) messageRefused(w http.ResponseWriter, err error) bool {
 		return false
 	case errors.Is(err, message.ErrTooLarge):
 		writeFieldErr(w, http.StatusBadRequest, "too_large", "body", "A message body has at most 16384 bytes.")
+	case appRefused(w, err):
 	case errors.Is(err, message.ErrAppTooLarge):
 		writeFieldErr(w, http.StatusBadRequest, "too_large", "app", "An app has at most 65536 bytes.")
 	case errors.Is(err, message.ErrTooManyUploads):
@@ -283,6 +307,7 @@ func (s *Server) listMessages(w http.ResponseWriter, r *http.Request, c *call) {
 	out := viewMessages(dir, page)
 	for i, m := range page {
 		if v, ok := asks[m.ID]; ok {
+			v.App = out[i].App
 			out[i].Ask = &v
 		}
 	}

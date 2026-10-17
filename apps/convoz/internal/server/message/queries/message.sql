@@ -1,9 +1,9 @@
 -- name: InsertMessage :one
 INSERT INTO messages (conversation_id, author_id, kind, format, body, thread_root_id, broadcast, answers_ask_id, app_json, session_id, device_id, client_id,
-                      origin_label, origin_machine, created_at)
+                      origin_label, origin_machine, via_app_agent_id, via_app_message_id, app_result_json, created_at)
 VALUES (sqlc.arg(conversation_id), sqlc.arg(author_id), sqlc.arg(kind), sqlc.arg(format), sqlc.arg(body), sqlc.narg(thread_root_id), sqlc.arg(broadcast), sqlc.narg(answers_ask_id),
         sqlc.narg(app_json), sqlc.narg(session_id), sqlc.narg(device_id), sqlc.arg(client_id), sqlc.narg(origin_label), sqlc.narg(origin_machine),
-        sqlc.arg(created_at))
+        sqlc.narg(via_app_agent_id), sqlc.narg(via_app_message_id), sqlc.narg(app_result_json), sqlc.arg(created_at))
 RETURNING id;
 
 -- name: InsertSystem :one

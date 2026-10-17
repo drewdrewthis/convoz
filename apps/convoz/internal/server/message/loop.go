@@ -25,7 +25,7 @@ type Loop interface {
 // the limit pauses the conversation with a system line. A message sent through an app is not a person's (I-46), and the
 // app route says so by passing no human.
 func countLoop(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft, isAgent bool) (paused bool, err error) {
-	if p.Loop == nil {
+	if p.Loop == nil || draft.ViaApp != nil {
 		return false, nil
 	}
 	if !isAgent {

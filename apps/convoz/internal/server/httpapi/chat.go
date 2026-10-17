@@ -56,7 +56,11 @@ func (dir directory) message(m message.Message) wire.Message {
 		sys, words := systemView(dir, m)
 		return wire.Message{ID: m.ID, Author: systemAuthor, Body: words, Format: "plain", CreatedAt: m.CreatedAt, System: sys, Text: words}
 	}
-	return wire.Message{ID: m.ID, Author: dir.person(m.AuthorID), Body: m.Body, Format: m.Format, CreatedAt: m.CreatedAt}
+	v := wire.Message{ID: m.ID, Author: dir.person(m.AuthorID), Body: m.Body, Format: m.Format, CreatedAt: m.CreatedAt, App: appView(m.App)}
+	if m.ViaAppID != 0 {
+		v.ViaApp = &wire.ViaApp{MessageID: m.ViaAppID, Agent: dir.person(m.ViaAgentID), Result: m.AppResult}
+	}
+	return v
 }
 
 // conversationView builds the list row of one conversation for the caller p, who may see messages above floor.

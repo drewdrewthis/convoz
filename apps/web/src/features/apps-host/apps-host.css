@@ -1,0 +1,11 @@
+/* Apps: the card of an app inside a message (prototype: raised card, 13px text). */
+@layer components {
+  .appcard { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-top: 6px; padding: 10px 12px; max-width: 100%; box-sizing: border-box; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-raised); font-size: 13px; }
+  .appcard > :is(div, table, dl, form, ul) { align-self: stretch; }
+  .appcard iframe { align-self: stretch; border-radius: 8px; }
+  .apptitle strong { font-size: 14px; }
+  .appmeta { font-size: 12px; color: var(--color-muted); }
+  .appfallback { margin: 0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; color: var(--color-text); overflow-wrap: anywhere; }
+  .appcard[data-app-state="expanded"] .appfallback, .appcard[data-app-state="fallback"] .appfallback, .appcard[data-app-state="closed"] .appfallback { display: block; -webkit-line-clamp: unset; }
+  .viaapp { margin-top: 2px; }
+}

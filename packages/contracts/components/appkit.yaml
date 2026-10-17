@@ -1,2 +1,69 @@
 # Schemas of the appkit module. Only the work package that owns appkit edits this file; the root lists each by name.
-{}
+# An app is the JSON of schemas/app.json (app.v1). A message carries it in full when it is at most 4096 bytes, else as a stub.
+App:
+  type: object
+  description: "app.v1 (schemas/app.json): {v:1, type, title?, fallback, height?, props}. Unknown keys are refused."
+  required: [v, type, fallback, props]
+  additionalProperties: true
+  properties:
+    v: { type: integer }
+    type: { type: string, enum: [chart, table, checklist, kv, picker, form, progress, code, gallery, frame] }
+    title: { type: string }
+    fallback: { type: string }
+    height: { type: integer }
+    props: { type: object, additionalProperties: true }
+AppStub:
+  type: object
+  description: "What a message page carries instead of an app over 4096 bytes. GET /api/messages/{id}/app returns the full app."
+  required: [stub, v, type, fallback, bytes]
+  properties:
+    stub: { type: boolean, enum: [true] }
+    v: { type: integer }
+    type: { type: string }
+    title: { type: string }
+    fallback: { type: string }
+    bytes: { type: integer, description: Size of the full app in bytes. }
+AppResult:
+  type: object
+  description: "app-result.v1 (schemas/app-result.json): what an app sent back. value is checked against the app it came from."
+  required: [v, source, summary, value]
+  properties:
+    v: { type: integer, enum: [1] }
+    source: { type: string, enum: [picker, checklist, form, frame] }
+    summary: { type: string, maxLength: 280 }
+    value: {}
+ViaApp:
+  type: object
+  description: "A message the owner sent through an app (I-46): the app message, the agent that wrote it and the result."
+  required: [message_id, agent, result]
+  properties:
+    message_id: { type: integer, format: int64 }
+    agent: { $ref: "../openapi.yaml#/components/schemas/Person" }
+    result: { $ref: "../openapi.yaml#/components/schemas/AppResult" }
+ViaAppRequest:
+  type: object
+  required: [message_id, result]
+  additionalProperties: false
+  properties:
+    message_id: { type: integer, format: int64, description: The app message the result comes from. }
+    result: { $ref: "../openapi.yaml#/components/schemas/AppResult" }
+AppChecked:
+  type: object
+  required: [ok, type, bytes]
+  properties:
+    ok: { type: boolean, enum: [true] }
+    type: { type: string }
+    bytes: { type: integer }
+AppBundle:
+  type: object
+  description: "A stored Tier-2 bundle: the wire form of props.bundle."
+  required: [upload, sha256, size]
+  properties:
+    upload: { type: string }
+    sha256: { type: string }
+    size: { type: integer }
+OneApp:
+  type: object
+  required: [app]
+  properties:
+    app: { $ref: "../openapi.yaml#/components/schemas/App" }

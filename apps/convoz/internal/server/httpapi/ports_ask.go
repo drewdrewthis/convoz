@@ -37,7 +37,7 @@ type askMessages struct {
 func (m askMessages) PostAsk(ctx context.Context, d pdb.DBTX, now time.Time, a ask.AskMessage) (int64, bool, error) {
 	posted, err := message.Post(ctx, d, messagePorts(m.p), now, message.Draft{
 		Conversation: a.Conversation, Author: a.Author, Session: a.Session, Origin: message.Origin{Label: a.OriginLabel, Machine: a.OriginMachine},
-		ClientID: a.ClientID, Body: a.Question, Format: "plain", ThreadRoot: a.ThreadRoot, Kind: "ask",
+		ClientID: a.ClientID, Body: a.Question, Format: "plain", ThreadRoot: a.ThreadRoot, Kind: "ask", App: a.App,
 	})
 	if err != nil {
 		return 0, false, err

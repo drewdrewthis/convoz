@@ -56,6 +56,7 @@ type AskView struct {
 	CreatedAt      int64            `json:"created_at"`
 	SnoozedUntil   int64            `json:"snoozed_until,omitempty"`
 	History        []AskHistoryRow  `json:"history,omitempty"`
+	App            json.RawMessage  `json:"app,omitempty"` // the app shown with the question, or its stub
 }
 
 // AskOptionRequest is one option of a new ask.
@@ -73,7 +74,7 @@ type AskRequest struct {
 	Recommended    AskOptionRequest   `json:"recommended"`
 	Alternatives   []AskOptionRequest `json:"alternatives"`
 	Urgent         bool               `json:"urgent,omitempty"`
-	App            json.RawMessage    `json:"app,omitempty"` // the app.v1 an agent shows with the question; the server does not keep it yet
+	App            json.RawMessage    `json:"app,omitempty"` // the app.v1 an agent shows with the question
 }
 
 // OneAsk is the answer of the ask routes.

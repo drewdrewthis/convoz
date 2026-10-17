@@ -325,6 +325,9 @@ func (s *Server) deliver(ctx context.Context, d pdb.DBTX, now time.Time, p authz
 				return nil, err
 			}
 		}
+		if it.Reason == inbox.ReasonAppResult {
+			wi.Message = viewMessage(dir, m)
+		}
 		if it.ClaimToken != nil {
 			wi.ClaimToken = hex.EncodeToString(it.ClaimToken)
 		}
@@ -339,6 +342,7 @@ func (s *Server) askMessageView(ctx context.Context, d pdb.DBTX, dir directory, 
 	a, err := ask.Get(ctx, d, m.ID)
 	if err == nil {
 		v.Ask = ptr(dir.askBase(a))
+		v.Ask.App = v.App
 	}
 	if errors.Is(err, ask.ErrNotFound) {
 		err = nil

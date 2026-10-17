@@ -89,6 +89,10 @@ type Message struct {
 	Text         string   `json:"text,omitempty"` // a system line's words, the plain-text projection
 	SessionLabel string   `json:"session_label,omitempty"`
 	Machine      string   `json:"machine,omitempty"`
+	// App is the app of the message in full when it is at most AppInlineBytes, else an AppStub (GET /api/messages/:id/app has the full app).
+	App json.RawMessage `json:"app,omitempty"`
+	// ViaApp is set on a message the owner sent through an app of an agent (I-46).
+	ViaApp *ViaApp `json:"via_app,omitempty"`
 }
 
 // PostRequest is POST /api/conversations/:id/messages. The author is never in it: the server takes it from the credential.
@@ -99,7 +103,8 @@ type PostRequest struct {
 	ThreadRoot int64           `json:"thread_root_id,omitempty"`
 	Broadcast  bool            `json:"broadcast,omitempty"`
 	UploadIDs  []string        `json:"upload_ids,omitempty"`
-	App        json.RawMessage `json:"app,omitempty"` // agents only
+	App        json.RawMessage `json:"app,omitempty"`     // agents only
+	ViaApp     *ViaAppRequest  `json:"via_app,omitempty"` // the owner only
 }
 
 // PostResponse is the answer to a post: 201 for a new message, 200 with the same ids for a repeat.

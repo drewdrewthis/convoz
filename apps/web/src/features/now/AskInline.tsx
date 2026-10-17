@@ -1,6 +1,7 @@
 import type { Ask } from "@convoz/api-client";
 import { AskCard, type Answer } from "@convoz/app-kit";
 import { useState } from "react";
+import { AppHost } from "../apps-host/index.ts";
 import { data } from "../../shared/data.ts";
 import { humanError } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
@@ -31,6 +32,7 @@ export function AskInline({ ask, labelId }: { ask: Ask; labelId: string }) {
   };
   const answer = (a: Answer) => run(() => answerAsk(ask.id, { ...a, if_version: ask.version, via: "inline" }));
   return (
+    <>
     <AskCard
       ask={ask}
       where="conversation"
@@ -43,5 +45,7 @@ export function AskInline({ ask, labelId }: { ask: Ask; labelId: string }) {
       onUndismiss={() => void run(() => undismissAsk(ask.id, ask.version))}
       onSnooze={(preset) => void run(() => snoozeAsk(ask.id, preset))}
     />
+    {ask.app ? <AppHost app={ask.app} messageId={ask.id} agent={ask.asker} conversation={ask.conversation_id} threadRoot={ask.thread_root_id} onAsk /> : null}
+    </>
   );
 }
