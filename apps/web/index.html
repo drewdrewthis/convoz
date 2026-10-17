@@ -13,9 +13,9 @@
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="preload" href="/src/fonts/atkinson-hyperlegible-next.woff2" as="font" type="font/woff2" crossorigin>
 <script src="/assets/settings/theme-boot.js"></script>
-<script src="/assets/lookalikes.js" defer></script>
+<!-- Deferred scripts run in order, so the app waits for this one: it is tiny, and asked for first on a busy link. -->
+<script src="/assets/lookalikes.js" defer fetchpriority="high"></script>
 <script type="module" src="/src/main.tsx"></script>
 </head>
 <body>

@@ -3,10 +3,14 @@ import { registerHandler, registerResync } from "@convoz/api-client";
 import { data, source } from "../../shared/data.ts";
 import { useConversations } from "./store.ts";
 
-export { Conversation } from "./Conversation.tsx";
 export { Conversations } from "./Conversations.tsx";
-export { NotFound } from "./NotFound.tsx";
-export { Trash } from "./Trash.tsx";
+
+// The list is a first screen, so this chunk holds only it; one conversation, its 404 and the trash are a chunk of their own
+// (design §12.2). The route loads the page before the first render, as with any other page.
+const pages = () => import("./pages.ts");
+export const loadConversation = () => pages().then((p) => p.Conversation);
+export const loadNotFound = () => pages().then((p) => p.NotFound);
+export const loadTrash = () => pages().then((p) => p.Trash);
 
 registerHandler("message.", (frame) => {
   if (frame.name !== "message.created") return;

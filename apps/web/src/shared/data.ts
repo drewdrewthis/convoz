@@ -7,6 +7,7 @@ import { ApiError, call, client, isRevoking } from "./api.ts";
 import { onResume } from "./chat.ts";
 import { unreachable } from "./connection.ts";
 import { offline } from "./offline.ts";
+import { afterFirstScreen } from "./perf.ts";
 
 /** network reads and writes through the generated API client. */
 export const source: DataSource = {
@@ -73,8 +74,9 @@ const readable: DataSource = {
 
 export const data: DataCache = createDataCache(readable);
 // What the cache holds is kept in IndexedDB and read back at the next start, so the rail and the last messages show before the
-// network answers; the sync cursor is kept with it, so a warm start reads only the delta (design §9).
-const ready = startOfflineCache(data, offline());
+// network answers; the sync cursor is kept with it, so a warm start reads only the delta (design §9). The stored messages, the
+// largest read, wait until the first screen shows (Now and the list do not show them; a conversation page has no mark to wait for).
+const ready = startOfflineCache(data, offline(), { messagesAfter: afterFirstScreen() });
 export const sync = createSync(data, readable, { cursor: cursorStore(offline()) });
 /** The sends the server has not confirmed; they survive a closed page and go out again with the same client id. */
 export const outbox = idbOutbox(offline());

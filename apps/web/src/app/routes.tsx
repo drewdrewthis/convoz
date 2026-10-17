@@ -24,6 +24,8 @@ export interface PageDef {
   open?: boolean;
   /** Loads the page's feature chunk and picks its page. */
   load: () => Promise<ComponentType>;
+  /** The page sets the `tfus` mark once it shows what the person came for (shared/perf.ts); other work waits for that. */
+  useful?: boolean;
 }
 
 const page = (def: PageDef) => def;
@@ -33,11 +35,11 @@ export const PAGES = {
   signin: page({ name: "signin", title: "Sign in", heading: "Sign in", frame: "focus", public: true, load: () => import("../features/auth/index.ts").then((f) => f.SignIn) }),
   recover: page({ name: "recover", title: "Use a recovery code", heading: "Use a recovery code", frame: "focus", public: true, load: () => import("../features/auth/index.ts").then((f) => f.Recover) }),
   onboarding: page({ name: "onboarding", title: "Set up a second way in", heading: "Set up a second way in", frame: "focus", load: () => import("../features/onboarding/index.ts").then((f) => f.Onboarding) }),
-  now: page({ name: "now", title: "Now", heading: "Now", frame: "shell", tab: "now", open: true, load: () => import("../features/now/index.ts").then((f) => f.Now) }),
-  chats: page({ name: "chats", title: "Conversations", heading: "Conversations", frame: "shell", tab: "chats", newChat: true, back: "/", load: () => import("../features/conversations/index.ts").then((f) => f.Conversations) }),
-  chat: page({ name: "chat", title: "Chat", heading: "Chat", frame: "chat", load: () => import("../features/conversations/index.ts").then((f) => f.Conversation) }),
-  notfound: page({ name: "notfound", title: "Chat not found", heading: "Chat not found", frame: "shell", tab: "chats", back: "/chats", load: () => import("../features/conversations/index.ts").then((f) => f.NotFound) }),
-  trash: page({ name: "trash", title: "Trash", heading: "Trash", frame: "shell", back: "/account", load: () => import("../features/conversations/index.ts").then((f) => f.Trash) }),
+  now: page({ name: "now", title: "Now", heading: "Now", frame: "shell", tab: "now", open: true, useful: true, load: () => import("../features/now/index.ts").then((f) => f.Now) }),
+  chats: page({ name: "chats", title: "Conversations", heading: "Conversations", frame: "shell", tab: "chats", newChat: true, back: "/", useful: true, load: () => import("../features/conversations/index.ts").then((f) => f.Conversations) }),
+  chat: page({ name: "chat", title: "Chat", heading: "Chat", frame: "chat", load: () => import("../features/conversations/index.ts").then((f) => f.loadConversation()) }),
+  notfound: page({ name: "notfound", title: "Chat not found", heading: "Chat not found", frame: "shell", tab: "chats", back: "/chats", load: () => import("../features/conversations/index.ts").then((f) => f.loadNotFound()) }),
+  trash: page({ name: "trash", title: "Trash", heading: "Trash", frame: "shell", back: "/account", load: () => import("../features/conversations/index.ts").then((f) => f.loadTrash()) }),
   crew: page({ name: "crew", title: "Crew", heading: "Crew", frame: "shell", tab: "crew", back: "/", load: () => import("../features/crew/index.ts").then((f) => f.Crew) }),
   agent: page({ name: "agent", title: "Agent", heading: "Agent", frame: "shell", tab: "crew", back: "/crew", load: () => import("../features/crew/index.ts").then((f) => f.AgentProfile) }),
   machines: page({ name: "machines", title: "Machines", heading: "Machines", frame: "shell", tab: "crew", back: "/crew", load: () => import("../features/crew/index.ts").then((f) => f.Machines) }),
