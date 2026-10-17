@@ -14,7 +14,7 @@ Feature: Platform rules every module relies on (contracts)
 
   Rule: A change is one transaction with its event
 
-    @v1 @api @invariant @I-4 @unimplemented
+    @v1 @api @invariant @I-4
     Scenario: A failed write leaves no event behind
       Given the owner's event cursor is at the newest event
       When the owner posts a message that the server refuses with 400
@@ -58,7 +58,7 @@ Feature: Platform rules every module relies on (contracts)
       And no event payload contains any seeded string
       And the hydrated frames on the event stream do show the content
 
-    @v1 @api @invariant @I-23 @AC-22 @unimplemented
+    @v1 @api @invariant @I-23 @AC-22
     Scenario: Stored events cannot be changed
       Given the server runs as the encryption-off test build
       When the test tries to update a stored event row in the data file
@@ -73,13 +73,13 @@ Feature: Platform rules every module relies on (contracts)
       Then she gets no event from conversation 52
       And the returned cursor is the highest sequence scanned, past those 30 events
 
-    @v1 @api @I-23 @unimplemented
+    @v1 @api @I-23
     Scenario: A cursor from another epoch gets a reset
       Given a client holds a cursor from an earlier epoch
       When it syncs with that cursor
       Then the server answers with a "reset" and the client loads a fresh snapshot
 
-    @v1 @browser @I-23 @unimplemented
+    @v1 @browser @I-23
     Scenario: A slow client gets a reset and resyncs
       Given a browser that stops reading the event stream
       When more than 256 frames queue for it
@@ -110,7 +110,7 @@ Feature: Platform rules every module relies on (contracts)
       Then every old event keeps its id, payload and time, and its type ends in ".v1"
       And the events table has the final columns, an autoincrement id and no update path
 
-    @v1 @cli @unimplemented
+    @v1 @cli
     Scenario: The server is serving within 500 ms of start
       Given a data dir with the 1M-message fixture
       When "convoz serve" starts

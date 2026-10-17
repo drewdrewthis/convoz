@@ -19,7 +19,7 @@ var credentialInURL = regexp.MustCompile(`cvz_[a-z]_`)
 
 // chain wraps the route table in the wall, in this order (design I-41):
 // Host (421) -> funnel (403) -> credential in the query (400) -> strip untrusted headers ->
-// CSRF -> machine credential (401). Authentication and the route's own requirements run per route.
+// CSRF -> machine credential (401). Authentication and the route's own requirements run per route. Compression wraps them all.
 func (s *Server) chain(next http.Handler) http.Handler {
 	h := rejectForeignCredential(next)
 	h = s.csrf(h)
@@ -28,6 +28,7 @@ func (s *Server) chain(next http.Handler) http.Handler {
 	h = s.rejectFunnel(h)
 	h = s.checkHost(h)
 	h = securityHeaders(h)
+	h = compress(h)
 	return s.logRequests(h)
 }
 

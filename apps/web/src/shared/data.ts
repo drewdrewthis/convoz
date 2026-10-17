@@ -1,10 +1,11 @@
-// The app's one shared data cache and sync engine (packages/api-client), over the network. Features read server data
+// The app's one shared data cache and sync engine (packages/api-client), over the network and the offline cache. Features read server data
 // with useData and keep their UI state in their own store (features/<f>/store.ts).
-import { createDataCache, createSync, type DataSource, type DataState } from "@convoz/api-client";
+import { createDataCache, createSync, cursorStore, idbOutbox, startOfflineCache, type DataSource, type DataState } from "@convoz/api-client";
 import { useEffect, useRef } from "react";
 import { useStore } from "zustand";
 import { call, client } from "./api.ts";
 import { onResume } from "./chat.ts";
+import { offline } from "./offline.ts";
 
 /** source reads and writes through the generated API client. */
 export const source: DataSource = {
@@ -25,10 +26,17 @@ export const source: DataSource = {
       return false;
     }
   },
+  snapshot: () => call(client.GET("/api/sync/snapshot")),
+  delta: (cursor, wait, signal) => call(client.GET("/api/sync", { params: { query: { cursor, wait } }, signal })),
 };
 
 export const data = createDataCache(source);
-export const sync = createSync(data, source);
+// What the cache holds is kept in IndexedDB and read back at the next start, so the rail and the last messages show before the
+// network answers; the sync cursor is kept with it, so a warm start reads only the delta (design §9).
+void startOfflineCache(data, offline());
+export const sync = createSync(data, source, { cursor: cursorStore(offline()) });
+/** The sends the server has not confirmed; they survive a closed page and go out again with the same client id. */
+export const outbox = idbOutbox(offline());
 
 /** useData reads the shared cache; the component renders again when the selected part changes. */
 export function useData<T>(select: (s: DataState) => T): T {

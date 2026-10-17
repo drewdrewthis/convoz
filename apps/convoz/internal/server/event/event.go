@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/event/db"
@@ -28,6 +30,19 @@ var versioned = regexp.MustCompile(`^[a-z][a-z_.]*\.v[0-9]+$`)
 
 // Epoch names this log in a stream id (`<epoch>:<seq>`). It changes only if the log is ever rebuilt or restored.
 const Epoch = "1"
+
+// FormatCursor is the id of a place in the log: the SSE `id:` of a frame and the `cursor` of GET /api/sync.
+func FormatCursor(seq int64) string { return Epoch + ":" + strconv.FormatInt(seq, 10) }
+
+// ParseCursor splits "<epoch>:<seq>"; ok is false for anything else. It does not judge the epoch: that is the caller's reset.
+func ParseCursor(s string) (epoch string, seq int64, ok bool) {
+	epoch, n, found := strings.Cut(s, ":")
+	if !found || epoch == "" {
+		return "", 0, false
+	}
+	seq, err := strconv.ParseInt(n, 10, 64)
+	return epoch, seq, err == nil && seq >= 0
+}
 
 // Entry is one event to write. A zero id means none.
 type Entry struct {

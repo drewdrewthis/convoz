@@ -69,7 +69,7 @@ Feature: Poor connections
 
   Rule: The app is fast on a mid-range phone (AC-10)
 
-    @v1 @browser @lossy @unimplemented
+    @v1 @browser @lossy
     Scenario: An agent message reaches the owner's open browser with no reload
       Given the owner's browser shows conversation 41 on the lossy profile
       When "devtool" runs "convoz post 41 hi"

@@ -1239,7 +1239,9 @@ export interface paths {
         };
         /**
          * Server-sent events: message.created, read.moved, conversation.created (ids "epoch:seq", resumable with Last-Event-ID),
-         *     and the live-only agent.working. Frame payloads are the StreamFrame schemas.
+         *     and the live-only agent.working. Frame payloads are the StreamFrame schemas; each stored frame also carries
+         *     `prev_seq_for_you`, the seq of the frame before it on this stream. A comment `: hb` is sent every 15 s. A stream that
+         *     cannot keep up gets `event: reset` with `{"reason":"slow"}` and ends; the client loads /api/sync/snapshot.
          */
         get: operations["stream"];
         put?: never;
@@ -1257,7 +1259,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * The events after a cursor that the caller may see (the delta). With `wait` and nothing new the request is held up to 25 s:
+         *     the long-poll fallback of a stream that keeps failing. A cursor of another epoch, or ahead of the log, gets a reset: the
+         *     client loads /api/sync/snapshot and reads its state again.
+         */
+        get: operations["syncDelta"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1273,7 +1280,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Where the log stands now. After a reset the client reads its state over the plain routes, then continues from this cursor. */
+        get: operations["syncSnapshot"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1433,7 +1441,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** The smallest answer there is, for a client to time the link (median RTT of the last heartbeats, design §12.3). */
+        get: operations["ping"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1624,6 +1633,11 @@ export interface components {
             /** Format: int64 */
             conversation_id: number;
             author_handle: string;
+            /**
+             * Format: int64
+             * @description The seq of the frame sent before this one on the stream.
+             */
+            prev_seq_for_you?: number;
         };
         /** @description SSE read.moved (the caller's own cursor). */
         ReadMovedFrame: {
@@ -1631,6 +1645,8 @@ export interface components {
             conversation_id: number;
             /** Format: int64 */
             main_id: number;
+            /** Format: int64 */
+            prev_seq_for_you?: number;
         };
         /** @description SSE agent.working (live only, never replayed). */
         AgentWorkingFrame: {
@@ -1645,6 +1661,41 @@ export interface components {
              * @description Epoch ms; the screen hides the note then.
              */
             until?: number;
+        };
+        /** @description One stored event, thin (ids and enums, at most 1 KB, never content). */
+        SyncEvent: {
+            /** Format: int64 */
+            seq: number;
+            /** @example message.created.v1 */
+            type: string;
+            /** Format: int64 */
+            conversation_id?: number;
+            /** Format: int64 */
+            message_id?: number;
+            payload: {
+                [key: string]: unknown;
+            };
+        };
+        /** @description The delta since a cursor, or a reset. */
+        SyncAnswer: components["schemas"]["SyncDelta"] | components["schemas"]["SyncReset"];
+        SyncDelta: {
+            /** @description The highest seq scanned */
+            cursor: string;
+            events: components["schemas"]["SyncEvent"][];
+            /** @description The scan stopped at its limit; ask again at once. */
+            more: boolean;
+        };
+        SyncReset: {
+            /** @enum {boolean} */
+            reset: true;
+            /** @enum {string} */
+            reason: "epoch";
+        };
+        SyncSnapshot: {
+            epoch: string;
+            /** Format: int64 */
+            as_of_seq: number;
+            cursor: string;
         };
     };
     responses: {
@@ -2493,6 +2544,80 @@ export interface operations {
                 };
                 content: {
                     "text/event-stream": string;
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    syncDelta: {
+        parameters: {
+            query: {
+                /** @description `<epoch>:<seq>`, as the stream's `id:` or an earlier answer's `cursor`. */
+                cursor: string;
+                /** @description Seconds to hold the request when nothing is new. */
+                wait?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The delta, or a reset. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncAnswer"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    syncSnapshot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The snapshot. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncSnapshot"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    ping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The server time. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * Format: int64
+                         * @description Server unix time in milliseconds.
+                         */
+                        t: number;
+                    };
                 };
             };
             default: components["responses"]["Error"];

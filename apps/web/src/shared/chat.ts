@@ -17,8 +17,14 @@ export function whenLabel(ms: number): string {
   return at.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+let timeFormat: Intl.DateTimeFormat | undefined;
+const timeFormatter = () => (timeFormat ??= new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }));
+// Building the formatter takes tens of milliseconds the first time. It is done as soon as the script has run, before the
+// owner can type, so that the first message they send shows in the next frame (design §12.2: send to own bubble in 16 ms).
+setTimeout(timeFormatter, 0);
+
 /** clock is the time shown next to a name: "5:25 AM". */
-export const clock = (ms: number): string => new Date(ms).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+export const clock = (ms: number): string => timeFormatter().format(ms);
 
 /** onResume runs fn when the app comes back: bfcache restore, tab visible again, network back. Returns the undo. */
 export function onResume(fn: () => void): () => void {

@@ -8,6 +8,7 @@ MessageCreatedFrame:
       properties:
         conversation_id: { type: integer, format: int64 }
         author_handle: { type: string }
+        prev_seq_for_you: { type: integer, format: int64, description: The seq of the frame sent before this one on the stream. }
 ReadMovedFrame:
   description: SSE read.moved (the caller's own cursor).
   type: object
@@ -15,6 +16,7 @@ ReadMovedFrame:
   properties:
     conversation_id: { type: integer, format: int64 }
     main_id: { type: integer, format: int64 }
+    prev_seq_for_you: { type: integer, format: int64 }
 AgentWorkingFrame:
   description: SSE agent.working (live only, never replayed).
   type: object
@@ -25,3 +27,40 @@ AgentWorkingFrame:
     conversation_id: { type: integer, format: int64 }
     working: { type: boolean }
     until: { type: integer, format: int64, description: Epoch ms; the screen hides the note then. }
+SyncEvent:
+  description: One stored event, thin (ids and enums, at most 1 KB, never content).
+  type: object
+  required: [seq, type, payload]
+  properties:
+    seq: { type: integer, format: int64 }
+    type: { type: string, example: message.created.v1 }
+    conversation_id: { type: integer, format: int64 }
+    message_id: { type: integer, format: int64 }
+    payload: { type: object, additionalProperties: true }
+SyncAnswer:
+  description: The delta since a cursor, or a reset.
+  oneOf:
+    - { $ref: "../openapi.yaml#/components/schemas/SyncDelta" }
+    - { $ref: "../openapi.yaml#/components/schemas/SyncReset" }
+SyncDelta:
+  type: object
+  required: [cursor, events, more]
+  properties:
+    cursor: { type: string, description: The highest seq scanned, visible or not; continue from here. }
+    events:
+      type: array
+      items: { $ref: "../openapi.yaml#/components/schemas/SyncEvent" }
+    more: { type: boolean, description: The scan stopped at its limit; ask again at once. }
+SyncReset:
+  type: object
+  required: [reset, reason]
+  properties:
+    reset: { type: boolean, enum: [true] }
+    reason: { type: string, enum: [epoch] }
+SyncSnapshot:
+  type: object
+  required: [epoch, as_of_seq, cursor]
+  properties:
+    epoch: { type: string }
+    as_of_seq: { type: integer, format: int64 }
+    cursor: { type: string }

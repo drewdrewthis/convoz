@@ -35,6 +35,12 @@ type streamRig struct {
 // openRig signs in the owner; role is the role the stream treats the caller as ("owner" sees every conversation).
 func openRig(t *testing.T, role string) *streamRig {
 	t.Helper()
+	return openRigBeat(t, role, 50*time.Millisecond)
+}
+
+// openRigBeat is openRig with the stream's heartbeat set before the stream opens: the handler reads it from its own goroutine.
+func openRigBeat(t *testing.T, role string, beat time.Duration) *streamRig {
+	t.Helper()
 	store := dbtest.Store(t)
 	now := platform.SystemClock{}.Now()
 	boot, err := runBootstrap(store, bootstrapPorts, mintLink(t, store, now), "one", now)
@@ -50,7 +56,7 @@ func openRig(t *testing.T, role string) *streamRig {
 		c:    &call{p: authz.Principal{Authenticated: true, HumanID: boot.Owner.ID, DeviceID: dev.ID, Role: role}, dev: dev, human: boot.Owner, token: boot.DeviceToken},
 		done: make(chan struct{}),
 	}
-	rig.s.heartbeat = 50 * time.Millisecond
+	rig.s.heartbeat = beat
 	rig.inTx(t, func(ctx context.Context, d pdb.DBTX) error {
 		cv, err := conversation.Create(ctx, d, now, conversation.New{By: boot.Owner.ID})
 		rig.conv = cv.ID
@@ -153,9 +159,8 @@ func TestStreamClosesOnLogoutAndGetsNoBodyAfterIt(t *testing.T) {
 }
 
 func TestStreamChecksItsDeviceOnEveryWake(t *testing.T) {
-	rig := openRig(t, "owner")
-	rig.s.heartbeat = time.Hour // only a commit wakes it
-	rig.revoke(t)               // nothing cancels the stream: the re-check on the wake must
+	rig := openRigBeat(t, "owner", time.Hour) // only a commit wakes it
+	rig.revoke(t)                             // nothing cancels the stream: the re-check on the wake must
 	rig.ownerPosts(t, true)
 	rig.mustClose(t)
 }

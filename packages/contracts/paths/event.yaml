@@ -5,7 +5,9 @@
     operationId: stream
     summary: |
       Server-sent events: message.created, read.moved, conversation.created (ids "epoch:seq", resumable with Last-Event-ID),
-      and the live-only agent.working. Frame payloads are the StreamFrame schemas.
+      and the live-only agent.working. Frame payloads are the StreamFrame schemas; each stored frame also carries
+      `prev_seq_for_you`, the seq of the frame before it on this stream. A comment `: hb` is sent every 15 s. A stream that
+      cannot keep up gets `event: reset` with `{"reason":"slow"}` and ends; the client loads /api/sync/snapshot.
     responses:
       "200":
         description: The event stream.
@@ -13,5 +15,31 @@
           text/event-stream:
             schema: { type: string }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
-/api/sync: {}  # not specified yet
-/api/sync/snapshot: {}  # not specified yet
+/api/sync:
+  get:
+    operationId: syncDelta
+    summary: |
+      The events after a cursor that the caller may see (the delta). With `wait` and nothing new the request is held up to 25 s:
+      the long-poll fallback of a stream that keeps failing. A cursor of another epoch, or ahead of the log, gets a reset: the
+      client loads /api/sync/snapshot and reads its state again.
+    parameters:
+      - { name: cursor, in: query, required: true, schema: { type: string, example: "1:57" }, description: "`<epoch>:<seq>`, as the stream's `id:` or an earlier answer's `cursor`." }
+      - { name: wait, in: query, required: false, schema: { type: integer, minimum: 0, maximum: 25 }, description: Seconds to hold the request when nothing is new. }
+    responses:
+      "200":
+        description: The delta, or a reset.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/SyncAnswer" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/sync/snapshot:
+  get:
+    operationId: syncSnapshot
+    summary: Where the log stands now. After a reset the client reads its state over the plain routes, then continues from this cursor.
+    responses:
+      "200":
+        description: The snapshot.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/SyncSnapshot" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }

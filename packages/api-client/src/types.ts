@@ -20,6 +20,10 @@ export type ApiErrorBody = S["Error"];
 export type MessageCreatedFrame = S["MessageCreatedFrame"];
 export type ReadMovedFrame = S["ReadMovedFrame"];
 export type AgentWorkingFrame = S["AgentWorkingFrame"];
+export type SyncEvent = S["SyncEvent"];
+export type SyncAnswer = S["SyncAnswer"];
+export type SyncDelta = S["SyncDelta"];
+export type SyncSnapshot = S["SyncSnapshot"];
 
 /** The named frames of GET /api/stream and their payloads. */
 export interface StreamFrames {
