@@ -1,11 +1,11 @@
 package cli
 
 import (
-	"context"
-	"errors"
+	"encoding/json"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
-	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
@@ -21,7 +21,7 @@ func (r *repeated) Set(v string) error { *r = append(*r, v); return nil }
 // It prints the ask id. A lost answer is retried with the same client id, so the server opens the ask once. There is no command to
 // answer an ask: a person answers it (design §8.1, C-3).
 func Ask(args []string, io IO) int {
-	usage := "usage: convoz ask --question Q --recommend L --why W --alt L --alt-why W [--alt L --alt-why W]... [--urgent] [--thread ROOT] [--client-id C] <conv>"
+	usage := "usage: convoz ask --question Q --recommend L --why W --alt L --alt-why W [--alt L --alt-why W]... [--urgent] [--thread ROOT] [--app FILE] [--client-id C] <conv>"
 	f := newChatFlags("ask", io)
 	question := f.fs.String("question", "", "the question (at most 500 characters)")
 	recommend := f.fs.String("recommend", "", "the option you recommend")
@@ -31,10 +31,14 @@ func Ask(args []string, io IO) int {
 	f.fs.Var(&altWhys, "alt-why", "why that alternative is on the table (once for each --alt, in order)")
 	urgent := f.fs.Bool("urgent", false, "the owner is waiting on it")
 	thread := f.fs.Int64("thread", 0, "ask in the thread of this root message")
+	appFile := f.fs.String("app", "", "a file holding an app (app.v1 JSON) to show with the question")
 	clientID := f.fs.String("client-id", "", "the id that makes a retry safe; random when not given")
 	pos, ok := f.parse(args, io)
 	if !ok {
 		return ExitUsage
+	}
+	if len(pos) == 2 && pos[0] == "withdraw" {
+		return askWithdraw(f, io, pos[1])
 	}
 	if len(pos) != 1 {
 		return usageError(io, usage)
@@ -58,35 +62,45 @@ func Ask(args []string, io IO) int {
 	}
 	for i, label := range alts {
 		req.Alternatives = append(req.Alternatives, wire.AskOptionRequest{Label: label, Why: altWhys[i]})
+		if *appFile != "" {
+			raw, err := os.ReadFile(*appFile)
+			if err != nil || !json.Valid(raw) {
+				return usageError(io, fmt.Sprintf("--app %s is not a file of JSON", *appFile))
+			}
+			req.App = raw
+		}
 	}
 	k, code := f.open(io)
 	if k == nil {
 		return code
 	}
 	var out wire.OneAsk
-	var err error
-	slowUntil := time.Now().Add(maxSlowDown)
-	for try := 1; ; {
-		ctx, cancel := context.WithTimeout(context.Background(), k.timeout)
-		err = k.call(ctx, "POST", wire.RouteAsks, req, &out)
-		cancel()
-		if wait := slowDown(err); wait > 0 && time.Now().Add(wait).Before(slowUntil) {
-			time.Sleep(wait)
-			continue
-		}
-		if !errors.Is(err, errUnreachable) || try >= 3 {
-			break
-		}
-		time.Sleep(time.Duration(try) * 300 * time.Millisecond)
-		try++
-	}
-	if err != nil {
+	if err := k.callRetry("POST", wire.RouteAsks, req, &out); err != nil {
 		return k.fail(err)
 	}
 	if k.asJSON {
 		k.printJSON(map[string]any{"id": out.Ask.ID, "conversation_id": out.Ask.ConversationID, "state": out.Ask.State})
 	} else {
 		fmt.Fprintln(k.io.Stdout, out.Ask.ID)
+	}
+	return ExitOK
+}
+
+// askWithdraw runs `convoz ask withdraw <id>`: the asker takes back its open ask.
+func askWithdraw(f *chatFlags, io IO, rawID string) int {
+	id, err := strconv.ParseInt(rawID, 10, 64)
+	if err != nil || id <= 0 {
+		return usageError(io, rawID+" is not an ask id")
+	}
+	k, code := f.open(io)
+	if k == nil {
+		return code
+	}
+	if err := k.callRetry("POST", fmt.Sprintf("%s/%d/withdraw", wire.RouteAsks, id), struct{}{}, nil); err != nil {
+		return k.fail(err)
+	}
+	if k.asJSON {
+		k.printJSON(map[string]any{"id": id, "withdrawn": true})
 	}
 	return ExitOK
 }

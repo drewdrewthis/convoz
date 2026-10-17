@@ -116,6 +116,9 @@ type MeResponse struct {
 		Handle      string `json:"handle"`
 		DisplayName string `json:"display_name"`
 		Kind        string `json:"kind"`
+		// Description and Capabilities are the agent's own words about itself (convoz profile).
+		Description  string   `json:"description,omitempty"`
+		Capabilities []string `json:"capabilities,omitempty"`
 	} `json:"identity"`
 	Machine struct {
 		ID   int64  `json:"id"`

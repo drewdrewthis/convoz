@@ -75,6 +75,12 @@ func (s *Server) leaseMe(w http.ResponseWriter, r *http.Request, c *call) {
 	}
 	var out wire.MeResponse
 	out.Identity.ID, out.Identity.Handle, out.Identity.DisplayName, out.Identity.Kind = who.ID, who.Handle, who.DisplayName, "agent"
+	if p, found, err := identity.ProfileOf(ctx, s.reader(), who.ID); err != nil {
+		s.internalError(w, r, err)
+		return
+	} else if found {
+		out.Identity.Description, out.Identity.Capabilities = p.Description, p.Capabilities
+	}
 	out.Machine.ID, out.Machine.Name = c.lease.MachineID, c.lease.Machine
 	out.Session.ID, out.Session.ClientID, out.Session.Label, out.Session.ExpiresAt = c.lease.SessionID, c.lease.ClientID, c.lease.Label, c.lease.ExpiresAt
 	out.Scopes, out.LiveSessions = auth.ScopeNames(c.lease.Scopes), live

@@ -49,11 +49,11 @@ func Whoami(args []string, io IO) int {
 		return sessionEnded(io, err)
 	}
 	if *asJSON {
-		raw, _ := json.Marshal(map[string]any{"identity": me.Identity.Handle, "machine": me.Machine.Name, "session": *sid, "live_sessions": me.LiveSessions, "scopes": me.Scopes})
+		raw, _ := json.Marshal(map[string]any{"identity": me.Identity.Handle, "machine": me.Machine.Name, "session": *sid, "label": me.Session.Label, "live_sessions": me.LiveSessions, "scopes": me.Scopes})
 		fmt.Fprintln(io.Stdout, string(raw))
 		return ExitOK
 	}
-	fmt.Fprintf(io.Stdout, "identity: %s\nmachine: %s\nsession: %s\nlive sessions: %d\nscopes: %s\n", me.Identity.Handle, me.Machine.Name, *sid, me.LiveSessions, strings.Join(me.Scopes, ", "))
+	fmt.Fprintf(io.Stdout, "identity: %s\nmachine: %s\nsession: %s (%s)\nlive sessions: %d\nscopes: %s\n", me.Identity.Handle, me.Machine.Name, *sid, plain(me.Session.Label), me.LiveSessions, strings.Join(me.Scopes, ", "))
 	return ExitOK
 }
 

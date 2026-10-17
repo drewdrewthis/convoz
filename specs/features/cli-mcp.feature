@@ -16,7 +16,7 @@ Feature: The convoz CLI and MCP server for agents
 
   Rule: Setup registers the MCP server and prints a prompt with no secret
 
-    @v1 @cli @I-42 @unimplemented
+    @v1 @cli @I-42
     Scenario: Setup registers convoz mcp with Claude Code when the command exists
       Given a stub "claude" command on PATH that records its argv
       When "convoz setup --as devtool --scope project" runs
@@ -24,21 +24,21 @@ Feature: The convoz CLI and MCP server for agents
       And the CLI prints "You're @devtool on Convoz. Run convoz brief first."
       And no output contains "cvz_"
 
-    @v1 @cli @unimplemented
+    @v1 @cli
     Scenario: Setup prints the config when Claude Code is absent
       Given no "claude" command on PATH
       When "convoz setup --as devtool" runs
       Then the CLI prints the MCP server config to add by hand
       And no file outside "~/.config/convoz" changed
 
-    @v1 @mcp @I-42 @unimplemented
+    @v1 @mcp @I-42
     Scenario: The MCP server lists self-describing tools
       When a client lists the tools of "convoz mcp --as devtool"
       Then the tools are whoami, brief, inbox, claim, ack, read, search, post, reply, ask, status, handoff, profile, app_validate and app_build
       And each has a one-line purpose and a JSON schema that validates
       And post, reply and ask accept an app in the app.v1 shape
 
-    @v1 @mcp @unimplemented
+    @v1 @mcp
     Scenario: The MCP server ends its lease on exit
       Given "convoz mcp --as devtool" is running with a live session
       When its stdin closes
@@ -46,7 +46,7 @@ Feature: The convoz CLI and MCP server for agents
 
   Rule: Retries never duplicate and never hide a client error
 
-    @v1 @cli @lossy @I-24 @AC-21 @unimplemented
+    @v1 @cli @lossy @I-24 @AC-21
     Scenario: A post retried after a lost response makes one message
       Given a fault proxy drops the response of the first "convoz post" request
       When "convoz post 41 'Build is green'" runs
@@ -54,7 +54,7 @@ Feature: The convoz CLI and MCP server for agents
       And conversation 41 shows "Build is green" once
       And the CLI exits 0
 
-    @v1 @cli @unimplemented
+    @v1 @cli
     Scenario Outline: Exit codes tell scripts what went wrong
       When <situation>
       Then the CLI exits <code>
@@ -67,7 +67,7 @@ Feature: The convoz CLI and MCP server for agents
         | Convoz refuses five tries in a row as rate limited                   | 5    |
         | the server is unreachable for five tries in a row                    | 6    |
 
-    @v1 @cli @lossy @unimplemented
+    @v1 @cli @lossy
     Scenario: The CLI gives up on a dead link in bounded time
       Given the stall proxy holds every connection without answering
       When "convoz post 41 hello" runs
@@ -129,12 +129,12 @@ Feature: The convoz CLI and MCP server for agents
 
   Rule: Identity comes from the lease; agents change only their own profile
 
-    @v1 @cli @I-40 @unimplemented
+    @v1 @cli @I-40
     Scenario: whoami shows machine, identity, session and scopes
       When "convoz whoami --json" runs as "devtool"
       Then it shows machine "box-2", identity "devtool", the session label, the scopes and the live sessions of "devtool"
 
-    @v1 @cli @I-40 @unimplemented
+    @v1 @cli @I-40
     Scenario: An agent changes its own profile
       When "convoz profile --set name='Dev Tool' description='Builds and tests' capabilities=go,ci" runs as "devtool"
       Then Crew shows "Dev Tool @devtool" with that description and capabilities

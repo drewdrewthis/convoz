@@ -9,6 +9,7 @@ import (
 	stdio "io"
 	"math"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -123,25 +124,42 @@ func convArg(io IO, s string) (int64, bool) {
 
 // ---- post ---------------------------------------------------------------------------------------------
 
-// Post runs `convoz post [--format F] [--client-id C] <conv> <text|->`. It prints the message id. A lost answer is
-// retried with the same client id, up to 3 tries of --timeout each, so the server stores the message once. When Convoz says
-// to slow down (429 with Retry-After) it waits that long and sends again, for at most maxSlowDown in all.
+// Post runs `convoz post [--format F] [--app FILE] [--client-id C] <conv> <text|->`. It prints the message id. A lost answer
+// is retried with the same client id (see callRetry), so the server stores the message once. When Convoz says to slow down
+// (429 with Retry-After) it waits that long and sends again.
 func Post(args []string, io IO) int {
 	f := newChatFlags("post", io)
-	format := f.fs.String("format", "", "markdown, markdownv2 or plain")
-	clientID := f.fs.String("client-id", "", "the id that makes a retry safe; random when not given")
+	opt := newPostFlags(f)
 	pos, ok := f.parse(args, io)
 	if !ok {
 		return ExitUsage
 	}
 	if len(pos) != 2 {
-		return usageError(io, "usage: convoz post [--format F] [--client-id C] <conv> <text|->")
+		return usageError(io, "usage: convoz post [--format F] [--app FILE] [--client-id C] <conv> <text|->")
 	}
 	conv, ok := convArg(io, pos[0])
 	if !ok {
 		return ExitUsage
 	}
-	text := pos[1]
+	return opt.send(f, io, conv, 0, pos[1])
+}
+
+// postFlags are the flags `post` and `reply` share.
+type postFlags struct {
+	format, appFile, clientID *string
+	broadcast                 bool // reply only: also show the reply in the main thread
+}
+
+func newPostFlags(f *chatFlags) postFlags {
+	return postFlags{
+		format:   f.fs.String("format", "", "markdown, markdownv2 or plain"),
+		appFile:  f.fs.String("app", "", "a file holding an app (app.v1 JSON) to send with the text"),
+		clientID: f.fs.String("client-id", "", "the id that makes a retry safe; random when not given"),
+	}
+}
+
+// send posts text (or standard input for "-") to conversation conv, as a reply to thread when thread is not 0.
+func (o postFlags) send(f *chatFlags, io IO, conv, thread int64, text string) int {
 	if text == "-" {
 		raw, err := readAll(io)
 		if err != nil {
@@ -152,14 +170,30 @@ func Post(args []string, io IO) int {
 	if strings.TrimSpace(text) == "" {
 		return usageError(io, "the message is empty")
 	}
-	if *clientID == "" {
-		*clientID = "convoz-" + randomHex(8)
+	var app json.RawMessage
+	if *o.appFile != "" {
+		raw, err := os.ReadFile(*o.appFile)
+		if err != nil || !json.Valid(raw) {
+			return usageError(io, fmt.Sprintf("--app %s is not a file of JSON", *o.appFile))
+		}
+		app = raw
+	}
+	if *o.clientID == "" {
+		*o.clientID = "convoz-" + randomHex(8)
 	}
 	k, code := f.open(io)
 	if k == nil {
 		return code
 	}
-	out, err := k.sendPost(conv, wire.PostRequest{ClientID: *clientID, Body: text, Format: *format})
+	req := wire.PostRequest{ClientID: *o.clientID, Body: text, Format: *o.format, ThreadRoot: thread, Broadcast: o.broadcast, App: app}
+	if conv == 0 { // a reply names only the message: the conversation is the one of its thread
+		var found wire.RepliesResponse
+		if err := k.callRetry("GET", fmt.Sprintf("/api/messages/%d/replies?limit=1", thread), nil, &found); err != nil {
+			return k.fail(err)
+		}
+		conv = found.ConversationID
+	}
+	out, err := k.sendPost(conv, req)
 	if err != nil {
 		return k.fail(err)
 	}
@@ -171,36 +205,11 @@ func Post(args []string, io IO) int {
 	return ExitOK
 }
 
-// sendPost sends one message and returns its ids. A lost answer is retried with the same client id (up to 3 tries) and a 429 with
-// Retry-After is waited out, so the server stores the message once; see Post.
+// sendPost sends one message and returns its ids. The retry rule (callRetry) keeps one client id for all tries, so the server
+// stores the message once, and a 429 with Retry-After is waited out.
 func (k *chatCmd) sendPost(conv int64, req wire.PostRequest) (out wire.PostResponse, err error) {
-	slowUntil := time.Now().Add(maxSlowDown) // the one budget for all the waiting that Convoz asks for
-	for try := 1; ; {
-		ctx, cancel := context.WithTimeout(context.Background(), k.timeout)
-		err = k.call(ctx, "POST", convPath(conv, "messages"), req, &out)
-		cancel()
-		if wait := slowDown(err); wait > 0 && time.Now().Add(wait).Before(slowUntil) {
-			time.Sleep(wait) // Convoz asked the agent to slow down: wait as told, then send the same message again
-			continue
-		}
-		if !errors.Is(err, errUnreachable) || try >= 3 {
-			return out, err
-		}
-		time.Sleep(time.Duration(try) * 300 * time.Millisecond)
-		try++
-	}
-}
-
-// maxSlowDown is the longest `convoz post` waits in all for a busy server before it gives up.
-const maxSlowDown = 90 * time.Second
-
-// slowDown is how long Convoz asked the caller to wait (a 429 with Retry-After), or 0 for any other outcome.
-func slowDown(err error) time.Duration {
-	var se *statusError
-	if errors.As(err, &se) && se.status == 429 {
-		return se.retryAfter
-	}
-	return 0
+	err = k.callRetry("POST", convPath(conv, "messages"), req, &out)
+	return out, err
 }
 
 func convPath(conv int64, tail string) string {

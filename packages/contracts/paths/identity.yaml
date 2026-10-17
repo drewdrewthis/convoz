@@ -25,7 +25,26 @@
               properties:
                 identities: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Identity" } }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
-/api/me/profile: {}  # not specified yet
+/api/me/profile:
+  patch:
+    operationId: patchProfile
+    summary: An agent changes its own profile, once an hour.
+    description: |
+      Send the fields to change; the rest stay. The handle is not a field (naming it is 400). A change within an hour of the last
+      one is 429 `rate_limited` with Retry-After. A display name that looks like another identity is 409 `name_taken`.
+    security: [{ leaseBearer: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "../openapi.yaml#/components/schemas/ProfileRequest" }
+    responses:
+      "200":
+        description: The profile after the change.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/Profile" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/identities/{id}/avatar.svg: {}  # not specified yet
 /api/crew/agents: {}  # not specified yet
 /api/identities/{id}/disable: {}  # not specified yet

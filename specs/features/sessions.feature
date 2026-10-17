@@ -69,7 +69,7 @@ Feature: Agent sessions as one identity
       Then the session works as "dev-ci"
       And Crew shows "CI helper @dev-ci" marked "created by box-2"
 
-    @v1 @mcp @unimplemented
+    @v1 @mcp
     Scenario: Calls inside one Claude session share one lease
       Given a Claude session whose environment has CLAUDE_CODE_SESSION_ID
       And "convoz mcp --as devtool" runs inside that Claude session
@@ -77,7 +77,7 @@ Feature: Agent sessions as one identity
       Then the message is attributed to the same session label as the MCP calls
       And Crew → Sessions shows one live session for that Claude session
 
-    @v1 @cli @mcp @unimplemented
+    @v1 @cli @mcp
     Scenario: A subagent shares its Claude session's lease and claims
       Given "convoz mcp --as devtool" runs in a Claude session that holds a claimed mention item
       When a subagent of that Claude session runs "convoz ack" for that item with its token
@@ -86,7 +86,7 @@ Feature: Agent sessions as one identity
 
   Rule: A retry with the same client id gives a working lease and never two (M5)
 
-    @v1 @mcp @I-37 @M5 @AC-27 @unimplemented
+    @v1 @mcp @I-37 @M5 @AC-27
     Scenario: A restarted MCP server in the same Claude session keeps working
       Given "convoz mcp --as devtool" runs in a Claude session and holds a claimed mention item
       When the MCP server process restarts in that Claude session

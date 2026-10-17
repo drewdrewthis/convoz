@@ -1,5 +1,7 @@
 package wire
 
+import "encoding/json"
+
 // Route of the ask API, as the CLI calls it.
 const RouteAsks = "/api/asks"
 
@@ -71,6 +73,7 @@ type AskRequest struct {
 	Recommended    AskOptionRequest   `json:"recommended"`
 	Alternatives   []AskOptionRequest `json:"alternatives"`
 	Urgent         bool               `json:"urgent,omitempty"`
+	App            json.RawMessage    `json:"app,omitempty"` // the app.v1 an agent shows with the question; the server does not keep it yet
 }
 
 // OneAsk is the answer of the ask routes.

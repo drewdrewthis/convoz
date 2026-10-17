@@ -19,6 +19,8 @@ Me:
         display_name: { type: string }
         role: { type: string }
         kind: { type: string, enum: [human, agent] }
+        description: { type: string, description: An agent's own line about itself. }
+        capabilities: { type: array, items: { type: string }, description: What an agent says it can do. }
     device:
       type: object
       required: [id, limited]
@@ -43,6 +45,8 @@ Identity:
     role: { type: string }
     created_at: { type: integer, format: int64 }
     disabled: { type: boolean }
+    description: { type: string, description: "Agents only: the agent's own line about itself." }
+    capabilities: { type: array, items: { type: string }, description: "Agents only: what the agent says it can do." }
     online: { type: boolean, description: Agents only. True while the agent has a live session. }
     created_by:
       type: object
@@ -58,3 +62,19 @@ Person:
     handle: { type: string }
     display_name: { type: string }
     kind: { type: string, enum: [human, agent, system], description: A line the conversation says about itself has the kind system and no handle. }
+ProfileRequest:
+  type: object
+  additionalProperties: false
+  minProperties: 1
+  properties:
+    display_name: { type: string, minLength: 1, maxLength: 80 }
+    description: { type: string, maxLength: 80 }
+    capabilities: { type: array, maxItems: 20, items: { type: string, minLength: 1, maxLength: 40 } }
+Profile:
+  type: object
+  required: [handle, display_name, description, capabilities]
+  properties:
+    handle: { type: string }
+    display_name: { type: string }
+    description: { type: string }
+    capabilities: { type: array, items: { type: string } }
