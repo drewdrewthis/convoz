@@ -1,2 +1,9 @@
 # Schemas of the readstate module. Only the work package that owns readstate edits this file; the root lists each by name.
-{}
+RepliesResponse:
+  type: object
+  required: [conversation_id, root, messages, as_of_seq]
+  properties:
+    conversation_id: { type: integer, format: int64 }
+    root: { $ref: "../openapi.yaml#/components/schemas/Message" }
+    messages: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Message" } }
+    as_of_seq: { type: integer, format: int64 }

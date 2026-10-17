@@ -109,7 +109,7 @@ func (q *Queries) GetIDByClient(ctx context.Context, arg GetIDByClientParams) (i
 }
 
 const getMessage = `-- name: GetMessage :one
-SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine FROM message_rows WHERE id = ?1
+SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine, last_reply_at FROM message_rows WHERE id = ?1
 `
 
 func (q *Queries) GetMessage(ctx context.Context, id int64) (MessageRow, error) {
@@ -138,6 +138,7 @@ func (q *Queries) GetMessage(ctx context.Context, id int64) (MessageRow, error) 
 		&i.HasApp,
 		&i.OriginLabel,
 		&i.OriginMachine,
+		&i.LastReplyAt,
 	)
 	return i, err
 }
@@ -330,7 +331,7 @@ func (q *Queries) MarkDeleted(ctx context.Context, arg MarkDeletedParams) (int64
 }
 
 const pageAfter = `-- name: PageAfter :many
-SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine FROM message_rows
+SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine, last_reply_at FROM message_rows
 WHERE conversation_id = ?1 AND in_main = 1 AND id > ?2
 ORDER BY id LIMIT ?3
 `
@@ -373,6 +374,7 @@ func (q *Queries) PageAfter(ctx context.Context, arg PageAfterParams) ([]Message
 			&i.HasApp,
 			&i.OriginLabel,
 			&i.OriginMachine,
+			&i.LastReplyAt,
 		); err != nil {
 			return nil, err
 		}
@@ -388,7 +390,7 @@ func (q *Queries) PageAfter(ctx context.Context, arg PageAfterParams) ([]Message
 }
 
 const pageBefore = `-- name: PageBefore :many
-SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine FROM message_rows
+SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine, last_reply_at FROM message_rows
 WHERE conversation_id = ?1 AND in_main = 1 AND id < ?2 AND id > ?3
 ORDER BY id DESC LIMIT ?4
 `
@@ -437,6 +439,7 @@ func (q *Queries) PageBefore(ctx context.Context, arg PageBeforeParams) ([]Messa
 			&i.HasApp,
 			&i.OriginLabel,
 			&i.OriginMachine,
+			&i.LastReplyAt,
 		); err != nil {
 			return nil, err
 		}
@@ -452,7 +455,7 @@ func (q *Queries) PageBefore(ctx context.Context, arg PageBeforeParams) ([]Messa
 }
 
 const pageNewest = `-- name: PageNewest :many
-SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine FROM message_rows
+SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine, last_reply_at FROM message_rows
 WHERE conversation_id = ?1 AND in_main = 1 AND id > ?2
 ORDER BY id DESC LIMIT ?3
 `
@@ -495,6 +498,7 @@ func (q *Queries) PageNewest(ctx context.Context, arg PageNewestParams) ([]Messa
 			&i.HasApp,
 			&i.OriginLabel,
 			&i.OriginMachine,
+			&i.LastReplyAt,
 		); err != nil {
 			return nil, err
 		}

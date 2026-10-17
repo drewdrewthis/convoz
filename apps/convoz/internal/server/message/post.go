@@ -43,6 +43,21 @@ type Reads interface {
 	MoveForOwnPost(ctx context.Context, d pdb.DBTX, now time.Time, reader, conv, prevLastMain, mainID int64) (bool, error)
 }
 
+// Reply is the fact "a reply was written", for the module that keeps who is involved in a thread.
+type Reply struct {
+	Conversation, Root, RootAuthor, Author, ID int64
+	// PrevLast is the newest reply before this one, 0 for none: where the thread stood.
+	PrevLast int64
+	// Mentioned are the identities the reply @mentions.
+	Mentioned []int64
+}
+
+// Threads keeps who is involved in a thread (readstate module, I-14).
+type Threads interface {
+	// Replied makes the root's author, the reply's author and the people it @mentions involved, and applies the author's cursor rule.
+	Replied(ctx context.Context, d pdb.DBTX, now time.Time, r Reply) error
+}
+
 // InboxFanOut queues the new message for one agent (inbox module).
 type InboxFanOut interface {
 	FanOut(ctx context.Context, d pdb.DBTX, now time.Time, identity, conv, messageID, sourceSeq int64) error
@@ -117,6 +132,7 @@ type Events interface {
 type Ports struct {
 	Conversations Conversations
 	Reads         Reads
+	Threads       Threads
 	Inbox         InboxFanOut
 	Journal       Journal
 	Search        Indexer
@@ -188,8 +204,14 @@ func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) 
 			return Posted{}, err
 		}
 	}
-	if err := afterInsert(ctx, d, p, now, draft, m); err != nil {
+	mentioned, err := afterInsert(ctx, d, p, now, draft, m)
+	if err != nil {
 		return Posted{}, err
+	}
+	if draft.ThreadRoot != 0 && p.Threads != nil {
+		if err := involve(ctx, d, p, now, draft, m, mentioned); err != nil {
+			return Posted{}, err
+		}
 	}
 	seq, err := p.Journal.MessageCreated(ctx, d, now, Created{
 		Actor: draft.Author, Session: draft.Session, Conversation: draft.Conversation, Message: m.ID,
@@ -261,29 +283,45 @@ func bumpReplies(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, reply 
 
 // afterInsert runs the ports that follow a new message in the same transaction: mentions, the search index, the uploads
 // it carries, its link preview and its audit line. Any error rolls the whole post back.
-func afterInsert(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft, m Message) error {
+func afterInsert(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft, m Message) (mentioned []int64, err error) {
 	if p.Mentions != nil {
-		if _, err := p.Mentions.RecordMentions(ctx, d, now, m); err != nil {
-			return err
+		if mentioned, err = p.Mentions.RecordMentions(ctx, d, now, m); err != nil {
+			return nil, err
 		}
 	}
 	if p.Search != nil {
 		if err := p.Search.IndexMessage(ctx, d, now, m); err != nil {
-			return err
+			return nil, err
 		}
 	}
 	if len(draft.UploadIDs) > 0 && p.Uploads != nil {
 		if err := p.Uploads.BindUploads(ctx, d, now, m, draft.UploadIDs); err != nil {
-			return err
+			return nil, err
 		}
 	}
 	if p.Unfurls != nil {
 		if err := p.Unfurls.QueueUnfurl(ctx, d, now, m); err != nil {
-			return err
+			return nil, err
 		}
 	}
 	if p.Audit != nil {
-		return p.Audit.MessagePosted(ctx, d, now, draft.Session, m)
+		return mentioned, p.Audit.MessagePosted(ctx, d, now, draft.Session, m)
 	}
-	return nil
+	return mentioned, nil
+}
+
+// involve tells the threads port about a reply: who wrote the root, where the thread stood before it, who it mentions.
+func involve(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft, reply Message, mentioned []int64) error {
+	root, _, err := get(ctx, d, draft.ThreadRoot)
+	if err != nil {
+		return err
+	}
+	prev, err := PrevReplyID(ctx, d, draft.ThreadRoot, reply.ID)
+	if err != nil {
+		return err
+	}
+	return p.Threads.Replied(ctx, d, now, Reply{
+		Conversation: draft.Conversation, Root: draft.ThreadRoot, RootAuthor: root.AuthorID, Author: draft.Author, ID: reply.ID,
+		PrevLast: max(prev, draft.ThreadRoot), Mentioned: mentioned,
+	})
 }

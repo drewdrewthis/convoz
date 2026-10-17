@@ -32,6 +32,8 @@ export interface ThreadUpdatedFrame {
   root_id: number;
   reply_count: number;
   last_reply_id: number;
+  /** When the newest reply came (ms); absent from a server that does not send it. */
+  last_reply_at?: number;
 }
 
 /** The named frames of GET /api/stream and their payloads. */

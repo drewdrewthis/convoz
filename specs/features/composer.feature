@@ -59,7 +59,7 @@ Feature: Composer
       And the browser comes back online
       Then conversation 41 shows "first" and then "second", each once, on a second browser
 
-    @v1 @browser @unimplemented
+    @v1 @browser
     Scenario Outline: Enter sends or adds a new line
       Given the device setting "enter to send" is "<setting>" and the device <keyboard>
       When the owner presses Enter in the composer
@@ -74,21 +74,21 @@ Feature: Composer
 
   Rule: Mentions bring agents in (I-18)
 
-    @v1 @browser @I-18 @AC-13 @unimplemented
+    @v1 @browser @I-18 @AC-13
     Scenario: Picking an agent from the mention list adds it
       When the owner types "@do" in conversation 41 and picks "docs" from the list
       And sends "@docs please write the release note"
       Then "docs" is a participant of conversation 41 from that message
       And "docs" gets a mention item
 
-    @v1 @browser @I-18 @unimplemented
+    @v1 @browser @I-18
     Scenario: A disabled agent is not offered and not added
       Given the owner disabled "release-bot"
       When the owner sends "@release-bot ship it" in conversation 41
       Then the mention list did not offer "release-bot"
       And "release-bot" is not a participant
 
-    @v1 @browser @I-18 @unimplemented
+    @v1 @browser @I-18
     Scenario: A mention inside code does not add an agent
       When the owner sends "run `@docs build`" in conversation 41
       Then "docs" is not a participant

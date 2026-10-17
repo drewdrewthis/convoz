@@ -5,11 +5,12 @@ import { ApiError } from "../../shared/api.ts";
 import { initials, paletteOf, setRegistry, stripCf } from "../../shared/chat.ts";
 import { data, useData, useLive } from "../../shared/data.ts";
 import { Composer } from "../composer/index.ts";
+import { ThreadPane, useThreads } from "../threads/index.ts";
 import { resume } from "./actions.ts";
 import { Details } from "./Details.tsx";
 import { MessageDetails } from "./MessageDetails.tsx";
 import { useConversations, type PendingSend } from "./store.ts";
-import { Transcript, type TranscriptControl } from "./Transcript.tsx";
+import { ThreadBubbles, Transcript, type TranscriptControl } from "./Transcript.tsx";
 
 const NEW = "new";
 const GONE = "This chat does not exist, or it is not yours.";
@@ -37,6 +38,7 @@ export function Conversation() {
   const [gone, setGone] = useState(false);
   const [info, setInfo] = useState(false);
   const [inspected, setInspected] = useState<Message | null>(null);
+  const threadOpen = useThreads((s) => s.open !== null);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const frame = useRef<HTMLDivElement>(null);
   const control = useRef<TranscriptControl>(null);
@@ -53,6 +55,15 @@ export function Conversation() {
   }, [title]);
 
   const fit = useFitFrame(frame);
+
+  // The details and a thread share the right edge: opening one closes the other. A thread belongs to this page.
+  useEffect(() => {
+    if (threadOpen) setInfo(false);
+  }, [threadOpen]);
+  useEffect(() => {
+    if (info) useThreads.getState().close();
+  }, [info]);
+  useEffect(() => () => useThreads.getState().close(), []);
 
   // "I" shows or hides the details, unless the person is typing.
   useEffect(() => {
@@ -221,12 +232,13 @@ export function Conversation() {
             onRetry={retry}
             onDetails={setInspected}
           />
-          <Composer agent={agent?.handle ?? null} label={label} onSend={send} textRef={textRef} mentions={isNew ? { crew, onPick: pick } : undefined} />
+          <Composer agent={agent?.handle ?? null} label={label} onSend={send} textRef={textRef} mentions={isNew ? { crew, onPick: pick } : convId ? { crew } : undefined} />
         </section>
         <p id="chat-error" className="chat-error" role="alert" hidden={!error}>
           {error}
         </p>
       </main>
+      <ThreadPane title={title} bubbles={(list, pending) => <ThreadBubbles messages={list} pending={pending} me={me} conversation={convId} onRetry={(cid) => useThreads.getState().retry(cid)} />} />
       {info && conversation ? <Details row={conversation} onClose={() => setInfo(false)} /> : null}
       {inspected ? <MessageDetails conversationId={convId} message={inspected} done={() => setInspected(null)} /> : null}
     </div>

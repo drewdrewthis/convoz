@@ -56,7 +56,7 @@ export const maxId = (m: MessageList | undefined): number => (m?.list.length ? m
 
 /** changed says whether an incoming copy of a held message is newer: edited, deleted, purged or with more replies. */
 const changed = (a: Message, b: Message) =>
-  a.edited_at !== b.edited_at || !!a.deleted !== !!b.deleted || !!a.purged !== !!b.purged || a.reply_count !== b.reply_count;
+  a.edited_at !== b.edited_at || !!a.deleted !== !!b.deleted || !!a.purged !== !!b.purged || a.reply_count !== b.reply_count || a.last_reply_at !== b.last_reply_at;
 
 function merge(have: Message[], more: Message[]): Message[] {
   const byId = new Map(have.map((m) => [m.id, m]));
@@ -124,6 +124,8 @@ export function createDataCache(source: DataSource): DataCache {
     apply: (frame) => {
       switch (frame.name) {
         case "message.created": {
+          // A reply stays in its thread (features/threads); only the list row follows it, since the unread count changed.
+          if (frame.data.thread_root_id && !frame.data.broadcast) break;
           const held = get().messages[frame.data.conversation_id];
           if (held?.list.some((m) => m.id === frame.data.id)) return false;
           if (held) cache.putMessages(frame.data.conversation_id, [frame.data]);
@@ -133,15 +135,15 @@ export function createDataCache(source: DataSource): DataCache {
         case "message.deleted":
         case "message.purged": {
           const held = get().messages[frame.data.conversation_id];
-          if (!held) return true;
+          if (!held || (frame.data.thread_root_id && !frame.data.broadcast)) return true; // a reply is changed in its thread
           const mine = held.list.find((m) => m.id === frame.data.id);
           if (mine && !changed(mine, frame.data)) return false;
           setList(frame.data.conversation_id, (m) => ({ ...m, list: merge(m.list, [frame.data]) }));
           break;
         }
         case "thread.updated": {
-          const { conversation_id: conv, root_id, reply_count } = frame.data;
-          setList(conv, (m) => ({ ...m, list: m.list.map((x) => (x.id === root_id ? { ...x, reply_count } : x)) }));
+          const { conversation_id: conv, root_id, reply_count, last_reply_at } = frame.data;
+          setList(conv, (m) => ({ ...m, list: m.list.map((x) => (x.id === root_id ? { ...x, reply_count, last_reply_at: last_reply_at ?? x.last_reply_at } : x)) }));
           return true;
         }
         case "agent.working":

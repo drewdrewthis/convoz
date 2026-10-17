@@ -10,7 +10,6 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
-	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/readstate"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
 
@@ -112,20 +111,6 @@ func pickupView(ctx context.Context, d pdb.DBTX, dir directory, cv conversation.
 	}
 	who := dir.person(a.Agent)
 	return wire.PickupTaken, &who, nil
-}
-
-// unreadOf is the main-thread part of design §8.2: messages after the reader's cursor that someone else wrote.
-// A conversation the reader has no cursor for counts none.
-func unreadOf(ctx context.Context, d pdb.DBTX, reader int64, cv conversation.Conversation, floor int64) (int64, error) {
-	cursor, found, err := readstate.Cursor(ctx, d, reader, cv.ID)
-	if err != nil || !found {
-		return 0, err
-	}
-	after := max(cursor, floor)
-	if cv.LastMainID <= after {
-		return 0, nil
-	}
-	return message.CountUnread(ctx, d, cv.ID, after, reader)
 }
 
 // publishWorking sends the live-only "agent.working" frame: an agent started or stopped on a conversation.

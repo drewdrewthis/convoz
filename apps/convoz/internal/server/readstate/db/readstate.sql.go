@@ -32,6 +32,31 @@ func (q *Queries) CreateCursor(ctx context.Context, arg CreateCursorParams) erro
 	return err
 }
 
+const createThreadRead = `-- name: CreateThreadRead :exec
+INSERT INTO thread_reads (identity_id, conversation_id, root_id, last_read_id, involved_at)
+VALUES (?1, ?2, ?3, ?4, ?5)
+ON CONFLICT (identity_id, conversation_id, root_id) DO NOTHING
+`
+
+type CreateThreadReadParams struct {
+	IdentityID     int64
+	ConversationID int64
+	RootID         int64
+	LastReadID     int64
+	At             int64
+}
+
+func (q *Queries) CreateThreadRead(ctx context.Context, arg CreateThreadReadParams) error {
+	_, err := q.db.ExecContext(ctx, createThreadRead,
+		arg.IdentityID,
+		arg.ConversationID,
+		arg.RootID,
+		arg.LastReadID,
+		arg.At,
+	)
+	return err
+}
+
 const getCursor = `-- name: GetCursor :one
 SELECT last_read_main_id FROM read_cursors WHERE identity_id = ?1 AND conversation_id = ?2
 `
@@ -46,6 +71,76 @@ func (q *Queries) GetCursor(ctx context.Context, arg GetCursorParams) (int64, er
 	var last_read_main_id int64
 	err := row.Scan(&last_read_main_id)
 	return last_read_main_id, err
+}
+
+const getThreadFloor = `-- name: GetThreadFloor :one
+SELECT thread_floor_id FROM read_cursors WHERE identity_id = ?1 AND conversation_id = ?2
+`
+
+type GetThreadFloorParams struct {
+	IdentityID     int64
+	ConversationID int64
+}
+
+func (q *Queries) GetThreadFloor(ctx context.Context, arg GetThreadFloorParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getThreadFloor, arg.IdentityID, arg.ConversationID)
+	var thread_floor_id int64
+	err := row.Scan(&thread_floor_id)
+	return thread_floor_id, err
+}
+
+const getThreadRead = `-- name: GetThreadRead :one
+SELECT last_read_id FROM thread_reads WHERE identity_id = ?1 AND conversation_id = ?2 AND root_id = ?3
+`
+
+type GetThreadReadParams struct {
+	IdentityID     int64
+	ConversationID int64
+	RootID         int64
+}
+
+func (q *Queries) GetThreadRead(ctx context.Context, arg GetThreadReadParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getThreadRead, arg.IdentityID, arg.ConversationID, arg.RootID)
+	var last_read_id int64
+	err := row.Scan(&last_read_id)
+	return last_read_id, err
+}
+
+const listThreadReads = `-- name: ListThreadReads :many
+SELECT root_id, last_read_id FROM thread_reads WHERE identity_id = ?1 AND conversation_id = ?2
+`
+
+type ListThreadReadsParams struct {
+	IdentityID     int64
+	ConversationID int64
+}
+
+type ListThreadReadsRow struct {
+	RootID     int64
+	LastReadID int64
+}
+
+func (q *Queries) ListThreadReads(ctx context.Context, arg ListThreadReadsParams) ([]ListThreadReadsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listThreadReads, arg.IdentityID, arg.ConversationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListThreadReadsRow
+	for rows.Next() {
+		var i ListThreadReadsRow
+		if err := rows.Scan(&i.RootID, &i.LastReadID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const moveCursor = `-- name: MoveCursor :execrows
@@ -94,6 +189,85 @@ func (q *Queries) MoveCursorIfCaughtUp(ctx context.Context, arg MoveCursorIfCaug
 		arg.IdentityID,
 		arg.ConversationID,
 		arg.PrevLastMainID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const moveThreadFloor = `-- name: MoveThreadFloor :execrows
+UPDATE read_cursors SET thread_floor_id = ?1, updated_at = ?2
+WHERE identity_id = ?3 AND conversation_id = ?4 AND thread_floor_id < ?1
+`
+
+type MoveThreadFloorParams struct {
+	FloorID        int64
+	At             int64
+	IdentityID     int64
+	ConversationID int64
+}
+
+func (q *Queries) MoveThreadFloor(ctx context.Context, arg MoveThreadFloorParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, moveThreadFloor,
+		arg.FloorID,
+		arg.At,
+		arg.IdentityID,
+		arg.ConversationID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const moveThreadRead = `-- name: MoveThreadRead :execrows
+UPDATE thread_reads SET last_read_id = ?1
+WHERE identity_id = ?2 AND conversation_id = ?3 AND root_id = ?4
+  AND last_read_id < ?1
+`
+
+type MoveThreadReadParams struct {
+	ReplyID        int64
+	IdentityID     int64
+	ConversationID int64
+	RootID         int64
+}
+
+func (q *Queries) MoveThreadRead(ctx context.Context, arg MoveThreadReadParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, moveThreadRead,
+		arg.ReplyID,
+		arg.IdentityID,
+		arg.ConversationID,
+		arg.RootID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const moveThreadReadIfCaughtUp = `-- name: MoveThreadReadIfCaughtUp :execrows
+UPDATE thread_reads SET last_read_id = ?1
+WHERE identity_id = ?2 AND conversation_id = ?3 AND root_id = ?4
+  AND last_read_id >= ?5 AND last_read_id < ?1
+`
+
+type MoveThreadReadIfCaughtUpParams struct {
+	ReplyID        int64
+	IdentityID     int64
+	ConversationID int64
+	RootID         int64
+	PrevLastID     int64
+}
+
+func (q *Queries) MoveThreadReadIfCaughtUp(ctx context.Context, arg MoveThreadReadIfCaughtUpParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, moveThreadReadIfCaughtUp,
+		arg.ReplyID,
+		arg.IdentityID,
+		arg.ConversationID,
+		arg.RootID,
+		arg.PrevLastID,
 	)
 	if err != nil {
 		return 0, err

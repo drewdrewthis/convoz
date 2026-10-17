@@ -1,3 +1,16 @@
-// Threads: replies under a message, the thread panel and its read state.
-// Owned by the threads work package. It draws inside a conversation, not at a URL of its own; its page parts, store.ts and frame handlers go here.
-export {};
+// Threads: replies under a message, the thread pane and its read state.
+// Owned by the threads work package. It draws inside a conversation, not at a URL of its own.
+import { registerHandler, registerResync } from "@convoz/api-client";
+import { useThreads } from "./store.ts";
+
+export { ReplyLine, replyWords } from "./ReplyLine.tsx";
+export { ThreadPane, type ThreadPaneProps } from "./ThreadPane.tsx";
+export { useThreads, type PendingReply } from "./store.ts";
+
+// A reply of the open thread comes by the stream: taken in, changed or shown as deleted.
+registerHandler("message.", (frame) => {
+  if (frame.name === "message.created" || frame.name === "message.edited" || frame.name === "message.deleted" || frame.name === "message.purged") {
+    useThreads.getState().received(frame.data, frame.data.conversation_id);
+  }
+});
+registerResync(() => void useThreads.getState().refresh());

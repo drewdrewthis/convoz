@@ -18,6 +18,7 @@ Message:
     thread_root_id: { type: integer, format: int64 }
     broadcast: { type: boolean }
     reply_count: { type: integer, format: int64 }
+    last_reply_at: { type: integer, format: int64, description: When the newest reply came, for a thread root. }
     edited_at: { type: integer, format: int64 }
     deleted: { type: boolean }
     purged: { type: boolean }

@@ -15,12 +15,12 @@ Feature: Threads (contracts)
 
   Rule: A thread hangs off one top-level message
 
-    @v1 @cli @unimplemented
+    @v1 @cli
     Scenario: An agent answers inside the thread
       When "devtool" runs "convoz reply 900 'Yes, it works without the API'"
       Then the owner sees the reply in thread 900 and not in the main list
 
-    @v1 @api @invariant @I-8 @unimplemented
+    @v1 @api @invariant @I-8
     Scenario Outline: Thread structure rules
       When a client posts a reply to <root>
       Then the server answers 400
@@ -33,7 +33,7 @@ Feature: Threads (contracts)
 
   Rule: Thread replies count as unread only where the owner is involved (DA-3)
 
-    @v1 @browser @I-14 @unimplemented
+    @v1 @browser @I-14
     Scenario: The unread count caps at 99+
       Given the owner has read conversation 41
       When "devtool" posts 150 messages and the owner posts through the API after every 15 to keep the loop breaker off

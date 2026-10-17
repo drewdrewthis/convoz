@@ -187,7 +187,7 @@ func viewMessage(dir directory, m message.Message) wire.Message {
 	if m.Kind != "text" {
 		v.Kind = m.Kind
 	}
-	v.ThreadRootID, v.Broadcast, v.ReplyCount, v.EditedAt = m.ThreadRootID, m.Broadcast, m.ReplyCount, m.EditedAt
+	v.ThreadRootID, v.Broadcast, v.ReplyCount, v.LastReplyAt, v.EditedAt = m.ThreadRootID, m.Broadcast, m.ReplyCount, m.LastReplyAt, m.EditedAt
 	v.Deleted, v.Purged = m.Deleted, m.Purged
 	v.SessionLabel, v.Machine = m.OriginLabel, m.OriginMachine
 	return v

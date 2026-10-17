@@ -79,6 +79,7 @@ type Message struct {
 	ThreadRootID int64     `json:"thread_root_id,omitempty"`
 	Broadcast    bool      `json:"broadcast,omitempty"`
 	ReplyCount   int64     `json:"reply_count,omitempty"`
+	LastReplyAt  int64     `json:"last_reply_at,omitempty"` // when the newest reply came, for a thread root
 	EditedAt     int64     `json:"edited_at,omitempty"`
 	Deleted      bool      `json:"deleted,omitempty"` // a tombstone: Body is empty
 	Purged       bool      `json:"purged,omitempty"`
@@ -117,10 +118,13 @@ type MessagesResponse struct {
 	AsOfSeq  int64     `json:"as_of_seq"`
 }
 
-// ReadRequest is POST /api/conversations/:id/read.
+// ReadRequest is POST /api/conversations/:id/read: the main list up to MainID, or one thread (RootID with ReplyID), or All.
 type ReadRequest struct {
 	MainID int64 `json:"main_id"`
-	// All marks everything read: the main thread up to its newest message.
+	// RootID and ReplyID mark one thread read up to a reply (I-14). Both or neither.
+	RootID  int64 `json:"root_id,omitempty"`
+	ReplyID int64 `json:"reply_id,omitempty"`
+	// All marks everything read: the main thread up to its newest message, and every thread up to now.
 	All bool `json:"all,omitempty"`
 }
 

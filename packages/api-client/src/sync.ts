@@ -102,7 +102,7 @@ export function createSync(cache: DataCache, source: DataSource, options: SyncOp
     let listChanged = false;
     for (const ev of answer.events) {
       if (ev.type === "message.created.v1" && ev.conversation_id) talked.add(ev.conversation_id);
-      else listChanged = true; // conversation.created and read.moved change the rail
+      listChanged = true; // a new message (a reply is not in the main list, but it moves the unread count), a new conversation or a read changes the rail
     }
     await Promise.all([...talked].map(catchUp));
     if (listChanged) cache.resync();
