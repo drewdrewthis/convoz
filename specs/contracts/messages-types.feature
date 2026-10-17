@@ -167,13 +167,13 @@ Feature: Messages and their types (contracts)
 
   Rule: Links show a preview to people, the address to agents
 
-    @v1 @api @I-6 @unimplemented
+    @v1 @api @I-6
     Scenario: An unfurl card is served only to those who can see the message
       Given "devtool" posted "https://github.com/acme/app/pull/415" in conversation 41
       When "docs", who is not in conversation 41, asks GET /api/messages/:id/unfurl
       Then the server answers 403
 
-    @v1 @api @unimplemented
+    @v1 @api
     Scenario Outline: The unfurl worker never fetches a private address
       When a message links to <target>
       Then the unfurl ends "unavailable" and the test listener on that address gets no request
