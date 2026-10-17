@@ -1,5 +1,5 @@
 "use strict";
-// Chat pages: the Chats list, New chat and a conversation. Loaded after console.js, whose $, el, api and ApiError it uses.
+// Chat pages: Conversations, New conversation, a conversation and Crew. Loaded after console.js, whose $, el, api and ApiError it uses.
 // Text goes in with textContent only. Agent markdown is parsed by renderMarkdown into elements we build ourselves,
 // so no message can bring markup, an image, or a script URL (CSP forbids inline script as well).
 
@@ -98,10 +98,29 @@
     };
   }
 
-  /** initials is the avatar text: the first two letters of a handle, so @devtool and @docs differ. */
+  /** initials is the avatar letter: the first letter of a handle (CSS upper-cases it). */
   function initials(handle) {
-    return (handle || "?").slice(0, 2);
+    return (handle || "?").slice(0, 1);
   }
+
+  // The prototype tints an agent by its place in the agent registry (index mod 6). The server lists agents in the order they were made,
+  // so a page sets the order once it has the crew; an agent not in it (not expected) falls back to a hash of its handle.
+  let registry = [];
+  const setRegistry = (people) => {
+    registry = people.filter((p) => p.kind === "agent").map((p) => p.handle);
+  };
+
+  /** paletteOf is the avatar tint (0 to 5) of an agent: its index in the registry, mod 6. */
+  function paletteOf(handle) {
+    const at = registry.indexOf(handle);
+    if (at >= 0) return at % 6;
+    let h = 0x811c9dc5;
+    for (const ch of handle || "") h = Math.imul(h ^ ch.charCodeAt(0), 0x01000193) >>> 0;
+    return h % 6;
+  }
+
+  /** clock is the time shown next to a name: "5:25 AM". */
+  const clock = (ms) => new Date(ms).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 
   /** stripCf drops format characters (bidi controls, zero-width) so text cannot reorder or hide what the owner reads.
    *  The server strips them from previews and rejects them in display names; titles and bodies are stored as sent, so they are stripped here.
@@ -111,23 +130,22 @@
   // ---- Chats ------------------------------------------------------------------------------------------
 
   function chatRow(c, mine) {
-    const agent = c.participants.find((p) => p.kind === "agent");
     const unread = c.unread > 0;
-    const preview = c.last ? `${c.last.author_handle === mine ? "You" : `@${c.last.author_handle}`}: ${c.last.preview}` : "No messages yet";
-    const flag = unread ? el("span", { class: "flag" }, el("span", { class: "dot", role: "img", "aria-label": "Unread" }), el("span", { class: "count" }, c.unread > 99 ? "99+" : String(c.unread))) : null;
+    const preview = c.last ? `${c.last.author_handle === mine ? "You" : c.last.author_handle}: ${c.last.preview}` : "No messages yet";
+    const count = unread ? el("span", { class: "count" }, el("span", { class: "sr" }, "Unread: "), el("span", null, c.unread > 99 ? "99+" : String(c.unread))) : null;
     return el(
       "li",
       { class: unread ? "unread" : null },
       el(
         "a",
         { class: "chatrow", href: `/chats/${c.id}` },
-        el("div", { class: "ava", "aria-hidden": "true" }, initials(agent && agent.handle)),
         el(
           "div",
           { class: "rowbody" },
-          el("div", { class: "rowtop" }, el("h2", { class: "rowtitle" }, stripCf(c.title) || "New chat"), el("time", { class: "when" }, whenLabel(c.last_activity_at))),
-          el("div", { class: "rowbot" }, el("span", { class: "preview" }, preview), flag),
+          el("div", { class: "rowtop" }, el("h2", { class: "rowtitle" }, stripCf(c.title) || "New conversation"), el("span", { class: "sp" }), el("time", { class: "when" }, whenLabel(c.last_activity_at))),
+          el("div", { class: "preview" }, preview),
         ),
+        count,
       ),
     );
   }
@@ -152,6 +170,7 @@
       });
       while (list.children.length > next.size) list.lastElementChild.remove();
       list.hidden = conversations.length === 0;
+      $("#chats-head").hidden = conversations.length === 0;
       empty.hidden = conversations.length !== 0;
       $("#chats").removeAttribute("aria-busy");
     });
@@ -339,17 +358,31 @@
       root.append(p);
       para = [];
     };
+    let list = null; // the open bullet list
+    const endList = () => {
+      list = null;
+    };
     for (let i = 0; i < lines.length; i++) {
       if (/^\s{0,3}```/.test(lines[i])) {
         flush();
         const code = [];
         for (i++; i < lines.length && !/^\s{0,3}```/.test(lines[i]); i++) code.push(lines[i]);
         root.append(el("pre", null, el("code", null, code.join("\n"))));
+      } else if (/^\s{0,3}[-*] +\S/.test(lines[i]) && !para.length) {
+        if (!list) {
+          list = el("ul");
+          root.append(list);
+        }
+        const li = el("li");
+        inline(li, lines[i].replace(/^\s{0,3}[-*] +/, ""), budget);
+        list.append(li);
+        continue;
       } else if (lines[i].trim() === "") {
         flush();
       } else {
         para.push(lines[i]);
       }
+      endList();
     }
     flush();
     return root;
@@ -377,7 +410,7 @@
     let workTimer = 0;
 
     function setTitle(title) {
-      heading.textContent = stripCf(title) || "New chat";
+      heading.textContent = stripCf(title) || "New conversation";
       document.title = `${heading.textContent} - Convoz`;
       titled = Boolean(title);
     }
@@ -412,13 +445,20 @@
       heading.textContent = title;
       document.title = `${title} - Convoz`;
       $("#picker").hidden = true;
+      $("#hint").hidden = true;
       $("#convo").hidden = true;
+      $("#people").hidden = true;
       const box = $("#chat-error");
       box.textContent = message;
       box.hidden = false;
     }
 
-    return { setTitle, paintSubtitle, setWorking, refresh, gone, hasTitle: () => titled };
+    /** paintPeople shows the agents of the chat as small avatars under the title. */
+    function paintPeople(handles) {
+      $("#people").replaceChildren(...handles.map((h) => el("span", { class: "chip", role: "img", "aria-label": h }, el("span", { class: `ava p${paletteOf(h)}`, "aria-hidden": "true" }, initials(h)))));
+    }
+
+    return { setTitle, paintSubtitle, paintPeople, setWorking, refresh, gone, hasTitle: () => titled };
   }
 
   function transcript(chat) {
@@ -442,19 +482,33 @@
       hidePill();
     }
 
+    /** row lays out one message the prototype's way: avatar, name and time, then the body. A run of messages by one author shows them once. */
+    function row(author, first, body, stamp, extra) {
+      const mine = author.handle === chat.me.handle;
+      const handle = author.handle;
+      const avatar = mine ? el("span", { class: "ava you", "aria-hidden": "true", "data-l": "Y" }) : el("span", { class: `ava p${paletteOf(handle)}`, "aria-hidden": "true", "data-l": initials(handle) });
+      const name = mine ? el("span", { class: "who" }, "You") : el("span", { class: "who" }, el("span", { class: "sr" }, "@"), handle);
+      return el(
+        "article",
+        { class: `msg ${mine ? "mine" : "theirs"}${first ? " first" : ""}` },
+        el("div", { class: "gut" }, first ? avatar : null),
+        el("div", { class: "main" }, first ? el("div", { class: "byline" }, name, " ", stamp ? el("time", { class: "stamp" }, stamp) : null) : null, " ", body, extra || null),
+      );
+    }
+
     function messageNode(m, first) {
       const mine = isMine(m);
       const text = stripCf(m.body);
       const body = !mine && m.format === "markdown" ? renderMarkdown(text) : el("div", { class: "text" }, text);
-      return el("article", { class: `msg ${mine ? "mine" : "theirs"}${first ? " first" : ""}` }, !mine && first ? el("div", { class: "byline" }, `@${m.author.handle}`) : null, " ", body);
+      return row(m.author, first, body, clock(m.created_at));
     }
 
-    function pendingNode(p) {
+    function pendingNode(p, first) {
       const bad = p.state === "failed";
       const state = bad
         ? el("div", { class: "sendstate bad" }, "Not sent", el("button", { class: "retry", type: "button", onclick: () => chat.composer.deliver(p) }, "Retry"))
         : el("div", { class: "sendstate" }, "Sending…");
-      return el("article", { class: "msg mine" }, el("div", { class: "text" }, stripCf(p.body)), state);
+      return row(chat.me, first, el("div", { class: "text" }, stripCf(p.body)), clock(Date.now()), state);
     }
 
     /** render makes the list match msgs and pending, reusing the nodes that did not change so a selection survives. */
@@ -463,11 +517,15 @@
       const want = [];
       let prev = null;
       for (const m of [...msgs.values()].sort((a, b) => a.id - b.id)) {
-        const first = isMine(m) ? false : !prev || prev !== m.author.handle;
+        const first = !prev || prev !== m.author.handle;
         want.push({ key: `m${m.id}`, sig: String(first), make: () => messageNode(m, first) });
-        prev = isMine(m) ? null : m.author.handle;
+        prev = m.author.handle;
       }
-      for (const p of pending) want.push({ key: `p${p.cid}`, sig: p.state, make: () => pendingNode(p) });
+      for (const p of pending) {
+        const first = prev !== chat.me.handle;
+        want.push({ key: `p${p.cid}`, sig: `${p.state}${first}`, make: () => pendingNode(p, first) });
+        prev = chat.me.handle;
+      }
 
       const keep = new Set(want.map((w) => w.key));
       for (const [key, v] of shown) {
@@ -637,8 +695,9 @@
 
     function autosize() {
       text.style.height = "auto";
-      text.style.height = `${Math.min(text.scrollHeight + 2, 180)}px`; // +2: the border, which scrollHeight leaves out
-      send.disabled = text.value.trim() === "";
+      // An empty box keeps its one line: scrollHeight would count the wrapped placeholder.
+      text.style.height = text.value === "" ? "" : `${Math.min(text.scrollHeight, 180)}px`;
+      send.disabled = text.value.trim() === "" || !chat.agent;
     }
 
     function ensureConversation() {
@@ -671,11 +730,10 @@
       }
     }
 
-    /** paintLabel names the message box and its placeholder: "Message @agent", or "Message" when several agents are in the chat. */
+    /** paintLabel names the message box: "Message @agent", or "Message" when several agents are in the chat (the placeholder stays the prototype's). */
     function paintLabel(agents) {
-      const label = agents > 1 ? "Message" : `Message @${chat.agent.handle}`;
-      text.setAttribute("aria-label", label);
-      text.setAttribute("placeholder", label);
+      text.setAttribute("aria-label", agents > 1 ? "Message" : `Message @${chat.agent.handle}`);
+      autosize();
     }
 
     text.addEventListener("input", autosize);
@@ -688,7 +746,7 @@
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       const body = text.value.trim();
-      if (!body) return;
+      if (!body || !chat.agent) return;
       text.value = "";
       autosize();
       text.focus(); // the keyboard stays up
@@ -724,35 +782,70 @@
 
   const agentOf = (p) => ({ handle: p.handle, display_name: p.display_name, online: Boolean(p.online) });
 
-  /** pickAgent fills the New chat picker; choosing an agent (or ?with=) opens the composer through open(agent). */
-  function pickAgent(crew, open) {
+  /** mentionMenu is the prototype's @ menu: typing "@" (and letters) above the empty composer lists the agents; picking one starts the chat with it. */
+  function mentionMenu(crew, open) {
+    const box = $("#picker");
     const list = $("#agents");
-    for (const who of crew) {
-      const choose = () => {
-        history.replaceState(null, "", `/chats/new?with=${encodeURIComponent(who.handle)}`);
-        open(agentOf(who));
-      };
-      list.append(
-        el(
-          "li",
-          null,
+    const text = $("#text");
+    let shown = [];
+    let active = 0;
+    const close = () => {
+      box.hidden = true;
+    };
+    const pick = (who) => {
+      text.value = "";
+      text.dispatchEvent(new Event("input"));
+      close();
+      history.replaceState(null, "", `/chats/new?with=${encodeURIComponent(who.handle)}`);
+      open(agentOf(who));
+    };
+    const paint = () => {
+      list.replaceChildren(
+        ...shown.map((who, i) =>
           el(
-            "button",
-            { class: "agentbtn", type: "button", onclick: choose },
-            el("span", { class: "ava", "aria-hidden": "true" }, initials(who.handle)),
-            el("span", { class: "who" }, el("span", { class: "handle" }, `@${who.handle}`), " ", el("span", { class: "name" }, stripCf(who.display_name))),
-            " ",
-            el("span", { class: `state${who.online ? " on" : ""}` }, who.online ? "Online" : "Offline"),
+            "li",
+            { role: "presentation" },
+            el(
+              "button",
+              { class: "agentbtn", type: "button", tabindex: "-1", "aria-selected": String(i === active), onclick: () => pick(who), onmousedown: (e) => e.preventDefault() },
+              el("span", { class: `ava p${paletteOf(who.handle)}`, "aria-hidden": "true", "data-l": initials(who.handle) }),
+              el("span", { class: "who" }, el("span", { class: "handle", "aria-label": `@${who.handle}` }, who.handle), el("span", { class: "name" }, stripCf(who.display_name))),
+              " ",
+              el("span", { class: `state${who.online ? " on" : ""}` }, el("i", { "aria-hidden": "true" }), el("span", null, who.online ? "Online" : "Offline")),
+            ),
           ),
         ),
       );
-    }
+    };
+    text.addEventListener("input", () => {
+      const m = /(?:^|\s)@([a-z0-9-]*)$/.exec(text.value);
+      if (!m || !crew.length) {
+        close();
+        return;
+      }
+      shown = crew.filter((p) => p.handle.startsWith(m[1]));
+      active = 0;
+      paint();
+      box.hidden = shown.length === 0;
+    });
+    text.addEventListener("keydown", (event) => {
+      if (box.hidden) return;
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        active = (active + (event.key === "ArrowDown" ? 1 : -1) + shown.length) % shown.length;
+        paint();
+      } else if (event.key === "Enter" && !event.isComposing) {
+        event.preventDefault();
+        pick(shown[active]);
+      } else if (event.key === "Escape") {
+        close();
+      }
+    });
     if (!crew.length) {
-      const noteBox = $("#picker-note");
-      noteBox.textContent = "No agents yet. Connect a machine and add an agent first.";
-      noteBox.hidden = false;
+      const note = $("#picker-note");
+      note.textContent = "No agents yet. Connect a machine and add an agent first.";
+      note.hidden = false;
     }
-    $("#picker").hidden = false;
     const wanted = crew.find((p) => p.handle === new URLSearchParams(location.search).get("with"));
     if (wanted) open(agentOf(wanted));
   }
@@ -773,6 +866,7 @@
 
     const [meRes, people] = await Promise.all([api("GET", "/api/me"), identities()]);
     chat.me = { handle: meRes.identity.handle, display_name: meRes.identity.display_name, kind: "human" };
+    setRegistry(people);
     const crew = people.filter((p) => p.kind === "agent" && !p.disabled);
     chat.transcript = transcript(chat);
     chat.cursor = readCursor(chat);
@@ -784,15 +878,18 @@
       chat.agent = who;
       chat.composer.paintLabel(agents);
       chat.header.paintSubtitle();
+      chat.header.paintPeople([who.handle]);
       $("#picker").hidden = true;
-      $("#convo").hidden = false;
+      $("#hint").hidden = true;
       fit();
       chat.composer.focus();
     }
 
     if (isNew) {
       chat.header.setTitle("");
-      pickAgent(crew, openComposer);
+      $("#hint").hidden = false;
+      chat.composer.focus(); // the gradient ring shows at once, as in the prototype
+      mentionMenu(crew, openComposer);
       return;
     }
 
@@ -806,7 +903,7 @@
     chat.header.setTitle(conversation.title);
     const who = conversation.participants.find((p) => p.kind === "agent") || { handle: "agent", display_name: "Agent" };
     const known = crew.find((p) => p.handle === who.handle);
-    $("#convo").hidden = false;
+    chat.header.paintPeople(conversation.participants.filter((p) => p.kind === "agent").map((p) => p.handle));
     chat.agent = { handle: who.handle, display_name: who.display_name, online: Boolean(known && known.online) };
     chat.composer.paintLabel(conversation.participants.filter((p) => p.kind === "agent").length);
     chat.header.paintSubtitle();
@@ -816,7 +913,45 @@
     chat.cursor.markRead();
   }
 
-  const start = { chats: chatsPage, chat: chatPage }[PAGE];
+  // ---- Crew -------------------------------------------------------------------------------------------
+
+  /** crewPage lists the agents. The server knows only whether an agent has a live session, so every agent is Idle: online and ready, or offline. */
+  async function crewPage() {
+    const everyone = await identities();
+    setRegistry(everyone);
+    const people = everyone.filter((p) => p.kind === "agent" && !p.disabled);
+    const q = $("#crew-q");
+    const ring = (h, cls) => el("span", { class: `ring ${cls}`, "aria-hidden": "true" }, el("span", { class: `in p${paletteOf(h)}` }, initials(h)));
+    const online = people.filter((p) => p.online).length;
+    $("#crew-faces").replaceChildren(...people.slice(0, 5).map((p) => ring(p.handle, `p${paletteOf(p.handle)}`)));
+    $("#crew-sum").textContent = people.length ? `${online} online` : "";
+    const paint = () => {
+      const want = q.value.trim().toLowerCase();
+      const shown = people.filter((p) => p.handle.includes(want));
+      $("#crew-list").replaceChildren(
+        ...shown.map((p) =>
+          el(
+            "li",
+            null,
+            el(
+              "a",
+              { class: "crow", href: `/chats/new?with=${encodeURIComponent(p.handle)}` },
+              ring(p.handle, `p${paletteOf(p.handle)}`),
+              el("span", { class: "txt" }, el("span", { class: "nm" }, p.handle), el("span", { class: "st" }, `Idle · ${p.online ? "Online and ready" : "Offline"}`)),
+            ),
+          ),
+        ),
+      );
+      $("#crew-count").textContent = `· ${shown.length}`;
+      $("#crew-idle").hidden = shown.length === 0;
+      $("#crew-empty").hidden = people.length !== 0;
+    };
+    q.addEventListener("input", paint);
+    paint();
+    $("#crew").removeAttribute("aria-busy");
+  }
+
+  const start = { chats: chatsPage, chat: chatPage, crew: crewPage }[PAGE];
   if (start) {
     Promise.resolve(start()).catch((err) => {
       if (err && err.handled) return;

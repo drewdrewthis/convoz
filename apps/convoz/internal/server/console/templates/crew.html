@@ -1,0 +1,12 @@
+{{define "body"}}
+<div id="crew" class="crew" aria-busy="true">
+<div class="crew-top"><div id="crew-faces" class="stack-av"></div><span id="crew-sum" class="sum"></span></div>
+<div><label class="fld"><span class="sr">Find an agent</span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><input id="crew-q" type="text" placeholder="Find an agent" autocomplete="off"></label></div>
+<section id="crew-idle" class="cgrp" aria-label="Idle" hidden>
+<h3><i aria-hidden="true"></i><span>Idle</span> <b id="crew-count"></b></h3>
+<ul id="crew-list" role="list" aria-label="Agents"></ul>
+</section>
+<p id="crew-empty" class="empty" hidden>No agents yet. Connect a machine and add an agent first.</p>
+<a class="dashed" href="/crew/machines"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>Machines</a>
+</div>
+{{end}}

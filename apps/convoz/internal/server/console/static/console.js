@@ -549,7 +549,7 @@ const pages = {
   // ---- sign in ----------------------------------------------------------------------------------------
   async signin() {
     const params = new URLSearchParams(location.search);
-    const next = params.has("next") ? safeNext(params.get("next")) : "/chats"; // the app opens on Chats
+    const next = params.has("next") ? safeNext(params.get("next")) : "/"; // the app opens on Now
     if (params.has("signed_out")) say("Signed out");
     api("GET", "/api/me").then((me) => {
       if (!me.device.limited) location.replace(next);
@@ -598,7 +598,6 @@ const pages = {
   // ---- Now --------------------------------------------------------------------------------------------
   async now() {
     const me = await api("GET", "/api/me");
-    $("#greeting").textContent = `Hello, ${me.identity.display_name}.`;
     const notes = $("#notes");
     if (me.recovery && me.recovery.hold_until) {
       notes.append(el("p", { class: "banner", role: "status" }, `You signed in with a recovery code. Codes left: ${me.recovery.codes_left}. Some actions are paused for 24 hours.`));
@@ -742,13 +741,28 @@ function requestCard(req, pending, reload) {
   );
 }
 
+/** showCount paints how many asks wait: "N open" in the top bar of Now and the badge on the Now tab (hidden at zero). */
+function showCount(n) {
+  const open = $("#open-count");
+  if (open) {
+    open.textContent = `${n} open`;
+    open.hidden = false;
+  }
+  const badge = $("#now-badge");
+  badge.textContent = n ? String(n) : "";
+  badge.hidden = n === 0;
+}
+
 async function showRequests() {
   const list = $("#requests");
   const denyAll = $("#deny-all");
   const reload = async () => {
     const { machine_requests: pending } = await api("GET", "/api/now");
+    $("#requests-block").hidden = pending.length === 0;
+    $("#allclear").hidden = pending.length !== 0;
     denyAll.hidden = pending.length === 0;
-    list.replaceChildren(...(pending.length ? pending.map((req) => requestCard(req, pending, reload)) : [el("p", { class: "empty" }, "No machine requests")]));
+    list.replaceChildren(...pending.map((req) => requestCard(req, pending, reload)));
+    showCount(pending.length);
   };
   denyAll.addEventListener("click", async () => {
     try {
@@ -858,5 +872,9 @@ document.addEventListener("keydown", (event) => {
 });
 
 wireMenu();
+// The Now tab counts what waits for the owner on every signed-in page; Now itself paints it from its own answer.
+if ("shell" in body.dataset && PAGE !== "now") {
+  api("GET", "/api/now").then((now) => showCount(now.machine_requests.length)).catch(() => {});
+}
 const start = pages[PAGE];
 if (start) Promise.resolve(start()).catch((err) => fail(humanError(err)));
