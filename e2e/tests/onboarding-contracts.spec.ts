@@ -116,8 +116,8 @@ scenario("Sign in sets a strict device cookie", { tag: ["@browser"] }, async ({ 
   const value = line.split(";")[0]!.slice(DEVICE_COOKIE.length + 1);
   expect(value).toMatch(/^cvz_d_/);
   expect(value).not.toContain(owner.soft.lastCredentialId);
-  // Sign-in lands on Chats (console-mobile contract), not Now
-  await page.getByRole("heading", { name: "Chats", exact: true }).waitFor();
+  // Sign-in lands on Now (console-mobile contract)
+  await page.getByRole("heading", { name: "Now", exact: true }).waitFor();
   expect((await context.cookies()).find((c) => c.name === DEVICE_COOKIE)?.sameSite).toBe("Strict");
 });
 

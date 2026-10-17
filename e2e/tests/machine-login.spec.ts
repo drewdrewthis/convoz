@@ -112,7 +112,7 @@
  *
  * CONSOLE (role and text locators only, so S-U screens must pass the same bindings)
  *   /  heading "Now". Per pending request an article named "<name> wants to connect" with the user code, text "Reported by the machine",
- *      "Source: <node> (<ip>)" or "Source: unknown", buttons "Approve" and "Deny". Button "Deny all" in the page. No requests: text "No machine requests".
+ *      "Source: <node> (<ip>)" or "Source: unknown", buttons "Approve" and "Deny". Button "Deny all" in the page. No requests: text "All clear. Nothing needs you." (the prototype's empty Now).
  *   Approve opens a dialog named "Approve <name>": textbox "Allowed identities" (comma separated handles and globs, e.g. "devtool, dev-*"),
  *      textbox "Type the code" (only when more than one request is pending), button "Approve". It asks for the passkey by itself.
  *      Errors show in role=alert: "The code does not match"; "The name \"box-2\" is taken. Use Reveal or Regenerate on \"box-2\", or revoke it first."
@@ -491,7 +491,7 @@ scenario("The owner denies every pending request at once", { tag: ["@browser", "
 
   // Then Now shows no machine request
   await expect(page.getByRole("article")).toHaveCount(0);
-  await expect(page.getByText("No machine requests")).toBeVisible();
+  await expect(page.getByText("All clear. Nothing needs you.")).toBeVisible();
 
   // And each waiting "convoz login" exits 3 with a message that the owner denied the request
   const results = await Promise.all(logins.map((l) => l.done));

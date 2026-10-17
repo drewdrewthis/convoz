@@ -1,4 +1,4 @@
-import { agentPosts, appReturns, agentChoice, backButton, chatList, chatRow, chatsHeading, composer, dropStreams, fromBottom, hasBubble, isBold, mainNav, message, messageLog, newChat, newMessagePill, pushFrame, rowTitles, sendButton, smallChatTargets, uiWorld, unreadDot, workingNote } from "../lib/chat-ui.ts";
+import { agentPosts, appReturns, agentChoice, chooseAgent, openMentions, backButton, chatList, chatRow, chatsHeading, composer, nowHeading, dropStreams, fromBottom, hasBubble, isBold, mainNav, message, messageLog, newChat, newMessagePill, pushFrame, rowTitles, sendButton, smallChatTargets, uiWorld, unreadDot, workingNote } from "../lib/chat-ui.ts";
 import { convoz, createConversation, listConversations, messagesOf, ownerSays, startWatch, unreadOf, watchLines, chatWorld } from "../lib/chat.ts";
 import { loadRenderMarkdown } from "../lib/chat-markdown.ts";
 import { backgroundLuminance, box, overflowX } from "../lib/mobile.ts";
@@ -14,24 +14,25 @@ import { webauthn } from "../lib/webauthn-browser.ts";
  * can pass the same tests. Scenarios tagged @phone run only in the "mobile" project (390x844, touch, coarse pointer); the others
  * run in "chromium" (desktop) and in "mobile". The ceremony guard of the mobile project applies as before.
  *
- * SHELL (every signed-in page)
- *   navigation "Main" (bottom): links "Chats" (/chats), "Now" (/), "Account" (/account), in that order, no listitem. aria-current="page"
- *   on the current tab only (/chats and /chats/new -> Chats). The bar is pinned to the bottom edge and has the safe-area padding.
+ * SHELL (every signed-in page; prototype v41, see tests/prototype-parity.spec.ts)
+ *   navigation "Main" (bottom, a floating bar): links "Now" (/), "Conversations" (/chats), "Crew" (/crew), in that order, no listitem.
+ *   aria-current="page" on the current tab only (/chats and /chats/new -> Conversations). The bar floats 12 px above the bottom edge
+ *   (safe-area padding). Account is not a tab: the "Account menu" button sits in the top bar.
  *   Inside an open chat (/chats/:id, /chats/new) the bar is hidden and the app bar shows link "Back" instead (plan D-2).
- *   After a good sign-in at /signin the browser lands on /chats (heading "Chats"); opening /signin while signed in goes to /chats.
+ *   After a good sign-in at /signin the browser lands on / (heading "Now"); opening /signin while signed in goes to /.
  *   <meta name="viewport"> contains viewport-fit=cover and interactive-widget=resizes-content.
  *
- * CHATS  /chats   heading "Chats" (exact, level 1). Link "New chat" (to /chats/new) in the app bar.
+ * CHATS  /chats   heading "Conversations" (exact, level 1). Link "New conversation" (to /chats/new), a button that floats above the bar.
  *   Empty (no conversation): no list. Text /no chats yet/i and text /agent/i (a chat starts with an agent). The page body (main) also
- *   has link "New chat". With chats: list "Chats" with one listitem per conversation, newest ACTIVITY first (last_activity_at DESC, id
+ *   has link "New conversation". With chats: list "Conversations" with one listitem per conversation, newest ACTIVITY first (last_activity_at DESC, id
  *   DESC; plan DA amendment 3). A listitem has: a link to /chats/:id that fills the row (the whole row is the tap target, >= 44 px
- *   tall); heading (level 2) = the title ("New chat" while untitled); a preview line "@devtool: Done" (agent) or "You: ..." (owner);
- *   when unread > 0: an img named "Unread" (the dot), the count as text (for example "3"), and the title heading is bold (weight >= 600).
+ *   tall); heading (level 2) = the title ("New conversation" while untitled); a preview line "devtool: Done" (agent) or "You: ..." (owner);
+ *   when unread > 0: the count pill (text "Unread: 3": a hidden "Unread: " and the count; prototype v41 has no dot), and the title heading is bold (weight >= 600).
  *   Read rows: no dot, no count, normal weight. Live: SSE frames (message.created, read.moved, conversation.created) update the rows
  *   and the order with no reload. Opening a chat marks it read (POST read), so a reload keeps it cleared.
  *
- * NEW CHAT  /chats/new   app bar: link "Back", heading "New chat" (level 1). Heading "Chat with" (level 2) and list "Agents" with one
- *   button per enabled crew agent (GET /api/identities). The button's name holds "@<handle>" and the word "Online" (agent has a live
+ * NEW CHAT  /chats/new   app bar: link "Back", heading "New conversation" (level 1) over a blank chat: the hint "Type @ to bring in an agent." and the composer. List "Agents" with one
+ *   button per enabled crew agent (GET /api/identities), in the menu that opens above the composer when the text ends in "@" (list "Agents"). The button's name holds "@<handle>" and the word "Online" (agent has a live
  *   lease: `online:true`) or "Offline"; the display name may be there too. One tap picks one agent: the picker is replaced by the empty
  *   chat of that agent (the URL may carry ?with=<handle>; no conversation exists yet) and the composer has focus. The message log is empty.
  *   The first Send makes POST /api/conversations then POST .../messages (a client id for each) and then shows /chats/:id.
@@ -40,9 +41,9 @@ import { webauthn } from "../lib/webauthn-browser.ts";
  * CHAT  /chats/:id   app bar: link "Back" (to /chats; with history it goes back one step), heading (level 1) = title, and under it the
  *   text "@<handle>" of the agent. Browser back goes to the page before. Not a conversation of the owner -> 404 page.
  *   log "Messages": the scroll container (the app bar and the composer stay fixed; the page itself does not scroll). It holds one
- *   article per message in id order. Owner message: the article is a right-aligned grey bubble (background not transparent, right edge
- *   within 24 px of the screen edge, max 80% wide, 20 px radius). Agent message: the article is plain text on the left with NO
- *   background, full width, and starts with the text "@<handle>" (once per run of messages from the same author). The body is text
+ *   article per message in id order. Every message is laid out as the prototype does: the article is plain text with NO background, full
+ *   width, an avatar on the left, the name and the time, then the body (once per run of messages from the same author). The owner is "You"
+ *   with a round grey avatar; an agent's name reads "@<handle>" (the "@" is read, not shown). The body is text
  *   (white-space pre-wrap): never HTML. Agent bodies in format markdown are rendered: paragraphs (p), fenced code (pre > code, scrolls
  *   sideways inside itself), inline code (code), links (a with href http/https/mailto only, target=_blank, rel containing noopener and
  *   noreferrer), line breaks. Anything else, including <img onerror>, shows as literal text. Owner bodies are always plain text.
@@ -73,7 +74,7 @@ import { webauthn } from "../lib/webauthn-browser.ts";
 const VIEW = { width: 390, height: 844 };
 const FIRST = "Is the build green?";
 
-scenario("On a phone the first page after sign-in is Chats", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
+scenario("On a phone the first page after sign-in is Now", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
   // Given the owner has a passkey on a phone
   const w = await chatWorld(server, { agents: ["devtool"] });
   const wa = await webauthn(context, page);
@@ -83,35 +84,35 @@ scenario("On a phone the first page after sign-in is Chats", { tag: ["@browser",
   await page.goto(`${w.srv.origin}/signin`);
   await page.getByRole("button", { name: "Sign in with a passkey" }).click();
 
-  // Then the app shows Chats
-  await expect(chatsHeading(page)).toBeVisible();
-  await expect(page).toHaveURL(`${w.srv.origin}/chats`);
+  // Then the app shows Now
+  await expect(nowHeading(page)).toBeVisible();
+  await expect(page).toHaveURL(`${w.srv.origin}/`);
 
-  // And "Chats" is marked as the current tab
-  await expect(mainNav(page).getByRole("link", { name: "Chats" })).toHaveAttribute("aria-current", "page");
+  // And "Now" is marked as the current tab
+  await expect(mainNav(page).getByRole("link", { name: "Now" })).toHaveAttribute("aria-current", "page");
 });
 
-scenario("On a phone the bottom bar leads to Chats, Now and Account", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
+scenario("On a phone the bottom bar leads to Now, Conversations and Crew", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
   // Given the owner opens Convoz on a phone
   const u = await uiWorld({ server, page, context });
   await page.goto(`${u.w.srv.origin}/`);
 
-  // Then a bottom bar shows "Chats", "Now" and "Account"
+  // Then a bottom bar shows "Now", "Conversations" and "Crew"
   const nav = mainNav(page);
-  await expect(nav.getByRole("link")).toHaveText(["Chats", "Now", "Account"]);
+  await expect(nav.getByRole("link")).toHaveText(["Now", "Conversations", "Crew"]);
   await expect(nav.getByRole("link", { name: "Now" })).toHaveAttribute("aria-current", "page");
   const bar = await box(nav);
-  expect(bar.y + bar.height).toBeGreaterThanOrEqual(VIEW.height - 1);
+  expect(bar.y + bar.height).toBeGreaterThanOrEqual(VIEW.height - 12.5); // the bar floats 12 px above the edge
 
-  // When the owner taps "Chats"
-  await nav.getByRole("link", { name: "Chats" }).click();
+  // When the owner taps "Conversations"
+  await nav.getByRole("link", { name: "Conversations" }).click();
 
-  // Then the Chats list shows with a "New chat" button
+  // Then the Conversations list shows with a "New conversation" button
   await expect(chatsHeading(page)).toBeVisible();
   await expect(newChat(page)).toBeVisible();
 
-  // And "Chats" is marked as the current tab
-  await expect(nav.getByRole("link", { name: "Chats" })).toHaveAttribute("aria-current", "page");
+  // And "Conversations" is marked as the current tab
+  await expect(nav.getByRole("link", { name: "Conversations" })).toHaveAttribute("aria-current", "page");
   await expect(nav.getByRole("link", { name: "Now" })).not.toHaveAttribute("aria-current", "page");
   await expect(page.locator('meta[name="viewport"]')).toHaveAttribute("content", /viewport-fit=cover/);
   await expect(page.locator('meta[name="viewport"]')).toHaveAttribute("content", /interactive-widget=resizes-content/);
@@ -131,8 +132,8 @@ scenario("On a phone an empty Chats list explains itself and offers New chat", {
   await expect(chatList(page)).toHaveCount(0);
 
   // And the page offers "New chat"
-  await expect(body.getByRole("link", { name: "New chat" })).toBeVisible();
-  await body.getByRole("link", { name: "New chat" }).click();
+  await expect(body.getByRole("link", { name: "New conversation" })).toBeVisible();
+  await body.getByRole("link", { name: "New conversation" }).click();
   await expect(page).toHaveURL(`${u.w.srv.origin}/chats/new`);
 });
 
@@ -141,11 +142,11 @@ scenario("On a phone New chat lists the crew agents and opens a focused composer
   const u = await uiWorld({ server, page, context, live: ["devtool"] });
   await page.goto(`${u.w.srv.origin}/chats`);
 
-  // When the owner taps "New chat"
+  // When the owner taps "New chat" and types "@"
   await newChat(page).click();
+  await openMentions(page);
 
   // Then the list shows "devtool" as online and "docs" as offline
-  await expect(page.getByRole("heading", { name: "Chat with" })).toBeVisible();
   await expect(page.getByRole("list", { name: "Agents" }).getByRole("button")).toHaveCount(2);
   await expect(agentChoice(page, "devtool")).toContainText(/\bonline\b/i);
   await expect(agentChoice(page, "docs")).toContainText(/\boffline\b/i);
@@ -167,7 +168,7 @@ scenario("A new conversation starts blank and takes a title from its first messa
   // When the owner starts a new conversation with Cmd+J and sends "Plan the search filters launch"
   await page.keyboard.press("ControlOrMeta+j");
   await expect(page).toHaveURL(`${u.w.srv.origin}/chats/new`);
-  await agentChoice(page, "devtool").click();
+  await chooseAgent(page, "devtool");
   await expect(messageLog(page).getByRole("article")).toHaveCount(0);
   await composer(page).fill("Plan the search filters launch");
   await sendButton(page).click();
@@ -188,7 +189,7 @@ scenario("On a phone a new chat takes its title from the first message and goes 
 
   // When the owner taps "New chat", picks "devtool" and sends "Plan the search filters launch"
   await newChat(page).click();
-  await agentChoice(page, "devtool").click();
+  await chooseAgent(page, "devtool");
   await composer(page).fill("Plan the search filters launch");
   await sendButton(page).click();
 
@@ -224,7 +225,7 @@ scenario("On a phone back returns from a chat to Chats", { tag: ["@browser", "@p
   // Then the Chats list shows
   await expect(page).toHaveURL(`${u.w.srv.origin}/chats`);
   await expect(chatList(page)).toBeVisible();
-  await expect(mainNav(page).getByRole("link", { name: "Chats" })).toHaveAttribute("aria-current", "page");
+  await expect(mainNav(page).getByRole("link", { name: "Conversations" })).toHaveAttribute("aria-current", "page");
 
   // When the owner opens the chat again and uses the browser back
   await chatRow(page, "Ship search filters").getByRole("link").click();
@@ -245,18 +246,18 @@ scenario("On a phone the owner starts a chat with an agent and sees its reply", 
 
     // When the owner taps "New chat", picks "devtool" and sends "Is the build green?"
     await newChat(page).click();
-    await agentChoice(page, "devtool").click();
+    await chooseAgent(page, "devtool");
     await composer(page).fill(FIRST);
     await sendButton(page).click();
 
-    // Then the message shows in a bubble on the right
+    // Then the message shows with the name "You" and an avatar on the left
     const mine = message(page, FIRST);
     await expect(mine).toBeVisible();
+    await expect(mine).toContainText("You");
     const m = await box(mine);
-    expect(m.x + m.width / 2).toBeGreaterThan(VIEW.width / 2);
-    expect(VIEW.width - (m.x + m.width)).toBeLessThanOrEqual(24);
-    expect(m.width).toBeLessThanOrEqual(VIEW.width * 0.8 + 1);
-    expect(await hasBubble(mine)).toBe(true);
+    expect(m.x).toBeLessThanOrEqual(24);
+    expect(m.width).toBeGreaterThan(VIEW.width * 0.8);
+    expect(await hasBubble(mine)).toBe(false);
 
     // And the watch stream prints one JSON line with "Is the build green?" within 3 seconds
     const [line] = await watchLines(watch, 1, 3_000);
@@ -363,7 +364,7 @@ scenario("On a phone an unread chat shows a dot until opened", { tag: ["@browser
 
   // Then conversation 41 shows an unread dot and "Done" as its preview within 3 seconds
   await expect(unreadDot(row)).toBeVisible({ timeout: 3_000 });
-  await expect(row).toContainText("@devtool: Done");
+  await expect(row).toContainText("devtool: Done");
   expect(await isBold(row.getByRole("heading"))).toBe(true);
 
   // When the owner opens conversation 41 and goes back to Chats
@@ -380,7 +381,7 @@ scenario("On a phone an unread chat shows a dot until opened", { tag: ["@browser
   await expect.poll(() => unreadOf(u.w.owner, conv)).toBe(0);
 });
 
-scenario("On a phone Chats shows plain previews and avatars that differ, and the composer names the agent", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
+scenario("On a phone Conversations shows plain previews, and the composer names the agent", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
   // Given "devtool" replied in one chat with markdown and the owner wrote in another chat with "docs"
   const u = await uiWorld({ server, page, context });
   const first = await createConversation(u.w.owner, { participants: ["devtool"], title: "Ship search filters" });
@@ -388,20 +389,16 @@ scenario("On a phone Chats shows plain previews and avatars that differ, and the
   await ownerSays(u.w.owner, second, "Please draft it");
   await agentPosts(u, "devtool", first, "**Done**: see [the docs](https://example.com) and `make test`\n\n```\nmake test\n```");
 
-  // When the owner opens Chats
+  // When the owner opens Conversations
   await page.goto(`${u.w.srv.origin}/chats`);
 
   // Then the preview is plain text: no markers, the link as its text and the code block as "code"
   const row = chatRow(page, "Ship search filters");
-  await expect(row.getByText("@devtool: Done: see the docs and make test code", { exact: true })).toBeVisible();
-
-  // And the two avatars show different letters
-  await expect(row.getByText("de", { exact: true })).toBeVisible();
-  await expect(chatRow(page, "Write the runbook").getByText("do", { exact: true })).toBeVisible();
+  await expect(row.getByText("devtool: Done: see the docs and make test code", { exact: true })).toBeVisible();
 
   // And the message box is named after the agent
   await row.getByRole("link").click();
-  await expect(composer(page)).toHaveAttribute("placeholder", "Message @devtool");
+  await expect(composer(page)).toHaveAccessibleName("Message @devtool");
 });
 
 scenario("On a phone a chat that does not exist shows a not-found page with a way back", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
@@ -415,7 +412,7 @@ scenario("On a phone a chat that does not exist shows a not-found page with a wa
     // Then the page says the chat was not found, in the console style, with a link back to Chats
     expect(response?.status()).toBe(404);
     await expect(page.getByRole("heading", { level: 1, name: "Chat not found" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Back to Chats" })).toHaveAttribute("href", "/chats");
+    await expect(page.getByRole("link", { name: "Back to Conversations" })).toHaveAttribute("href", "/chats");
     await expect(mainNav(page)).toBeVisible();
   }
 });
@@ -531,7 +528,8 @@ scenario("On a phone the composer stays above the keyboard and grows to a limit"
     const b = await box(form);
     return b.y + b.height;
   };
-  expect(await bottomOf()).toBeGreaterThanOrEqual(VIEW.height - 1);
+  // the prototype's composer floats 10 px above the bottom edge (safe-area padding on a phone with a home bar)
+  expect(await bottomOf()).toBeGreaterThanOrEqual(VIEW.height - 10.5);
   expect(await bottomOf()).toBeLessThanOrEqual(VIEW.height + 0.5);
   const oneLine = (await box(composer(page))).height;
   expect(oneLine).toBeGreaterThanOrEqual(44);
@@ -547,7 +545,7 @@ scenario("On a phone the composer stays above the keyboard and grows to a limit"
 
   // Then the message box stays in view above the keyboard
   await expect.poll(bottomOf).toBeLessThanOrEqual(500.5);
-  await expect.poll(bottomOf).toBeGreaterThanOrEqual(499);
+  await expect.poll(bottomOf).toBeGreaterThanOrEqual(489);
 
   // And it grew to about 6 lines and then scrolls inside itself
   const twelve = await box(composer(page));
@@ -563,7 +561,7 @@ scenario("On a phone the composer stays above the keyboard and grows to a limit"
   });
   await page.setViewportSize({ width: 390, height: 480 });
   await expect.poll(bottomOf).toBeLessThanOrEqual(480.5);
-  await expect.poll(bottomOf).toBeGreaterThanOrEqual(479);
+  await expect.poll(bottomOf).toBeGreaterThanOrEqual(469);
 });
 
 scenario("On a phone Enter adds a line and Send sends", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
@@ -868,7 +866,7 @@ scenario("On a phone the chat pages fit a 320 px screen with large tap targets",
   const small: string[] = [];
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 844 });
-    for (const [name, path] of [["Chats", "/chats"], ["New chat", "/chats/new"], ["Conversation", `/chats/${conv}`]] as const) {
+    for (const [name, path] of [["Conversations", "/chats"], ["New conversation", "/chats/new"], ["Conversation", `/chats/${conv}`]] as const) {
       await page.goto(`${u.w.srv.origin}${path}`);
       await page.waitForLoadState("networkidle");
       // the page is the chat UI, not an error page: its own heading shows
