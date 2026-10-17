@@ -121,6 +121,7 @@ paths:
   /api/settings: { $ref: "paths/settings.yaml#/~1api~1settings" }
   # ---- ops
   /api/me/export: { $ref: "paths/ops.yaml#/~1api~1me~1export" }
+  /api/me/export/{id}: { $ref: "paths/ops.yaml#/~1api~1me~1export~1{id}" }
   /api/me/delete: { $ref: "paths/ops.yaml#/~1api~1me~1delete" }
   /api/admin/health: { $ref: "paths/ops.yaml#/~1api~1admin~1health" }
   # ---- audit

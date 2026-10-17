@@ -1,2 +1,9 @@
-# Schemas of the ops module. Only the work package that owns ops edits this file; the root lists each by name.
-{}
+# Schemas of the ops module. Only the work package that owns ops edits this file; paths/ops.yaml refers to them by path.
+ExportJob:
+  type: object
+  description: An export of everything the caller can see. The archive is held in memory for an hour.
+  required: [id, status]
+  properties:
+    id: { type: string }
+    status: { type: string, enum: [running, done, failed] }
+    size: { type: integer, description: Archive bytes, set once the job is done. }

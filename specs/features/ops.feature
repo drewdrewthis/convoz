@@ -28,13 +28,13 @@ Feature: Data at rest, backups and deletion
     Given a fresh Convoz server with owner "drew" signed in with a virtual passkey
     And machine "box-2" is logged in with allow-list "devtool"
 
-    @v1 @cli @AC-12 @unimplemented
+    @v1 @cli @AC-12
     Scenario: A signed backup restores with the key and the age identity
       Given a nightly backup of a data dir with seeded conversations
       When it is restored into a new `mktemp -d` dir with the KEK and the age identity
       Then the restored server shows the same conversations, messages and files
 
-    @v1 @cli @AC-12 @unimplemented
+    @v1 @cli @AC-12
     Scenario Outline: A restore fails clearly when something is wrong
       Given a nightly backup of a data dir with seeded conversations
       When it is restored with <fault>
@@ -46,7 +46,7 @@ Feature: Data at rest, backups and deletion
         | the wrong KEK                 | cannot unwrap the keyring  |
         | the wrong age identity        | cannot decrypt the backup  |
 
-    @v1 @cli @unimplemented
+    @v1 @cli
     Scenario: A backup made before a KEK rotation still restores
       Given a backup made with KEK 1
       When the owner runs "convoz keys rotate-kek" and later restores that backup
@@ -77,7 +77,7 @@ Feature: Data at rest, backups and deletion
     Given a fresh Convoz server with owner "drew" signed in with a virtual passkey
     And machine "box-2" is logged in with allow-list "devtool"
 
-    @v1 @cli @unimplemented
+    @v1 @cli
     Scenario: Destroying the workspace shreds the keys
       Given a workspace with seeded conversations
       When the owner runs "convoz workspace destroy" with the KEK
@@ -95,7 +95,7 @@ Feature: Data at rest, backups and deletion
     Given a fresh Convoz server with owner "drew" signed in with a virtual passkey
     And machine "box-2" is logged in with allow-list "devtool"
 
-    @v1 @browser @unimplemented
+    @v1 @browser
     Scenario: The owner exports the workspace with a passkey
       When the owner starts an export with a passkey
       Then a download is offered when the job is done

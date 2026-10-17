@@ -25,6 +25,7 @@ var StepUpActions = map[string]bool{
 	"machine.allow":       true,
 	"identity.create":     true,
 	"identity.disable":    true,
+	"data.export":         true,
 }
 
 // ErrStepUp means the step-up is unknown, used, expired, or for another device, action or target.

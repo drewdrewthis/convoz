@@ -100,39 +100,48 @@ func OpenKeyring(dataDir string, kek []byte, dbPath string, now time.Time) (*Key
 	if err != nil {
 		return nil, keyErr("cannot read %s: %v", path, err)
 	}
+	doc, ring, g, err := unwrapKeyring(path, raw, kek)
+	if err != nil {
+		return nil, err
+	}
+	if err := ring.addMissing(doc, g, dataDir, path); err != nil {
+		return nil, keyErr("cannot update %s: %v", path, err)
+	}
+	return ring, nil
+}
+
+// unwrapKeyring parses a keyring file and unwraps every DEK in it under kek. Every failure is ErrKey.
+func unwrapKeyring(path string, raw, kek []byte) (*keyringDoc, *Keyring, cipher.AEAD, error) {
 	var doc keyringDoc
 	if err := json.Unmarshal(raw, &doc); err != nil {
-		return nil, keyErr("%s is not valid: %v", path, err)
+		return nil, nil, nil, keyErr("%s is not valid: %v", path, err)
 	}
 	if doc.Version != keyringVersion {
-		return nil, keyErr("%s has version %d, this build reads version %d", path, doc.Version, keyringVersion)
+		return nil, nil, nil, keyErr("%s has version %d, this build reads version %d", path, doc.Version, keyringVersion)
 	}
 	if doc.KEKID != kekID(kek) {
-		return nil, keyErr("%s was written under a different KEK", path)
+		return nil, nil, nil, keyErr("%s was written under a different KEK", path)
 	}
 	g, err := aead(kek)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	ring := &Keyring{deks: map[string][]byte{}}
 	for _, d := range doc.DEKs {
 		blob, err := base64.StdEncoding.DecodeString(d.Wrapped)
 		if err != nil || len(blob) < g.NonceSize() {
-			return nil, keyErr("%s has a malformed key %s", path, d.DEKID)
+			return nil, nil, nil, keyErr("%s has a malformed key %s", path, d.DEKID)
 		}
 		key, err := g.Open(nil, blob[:g.NonceSize()], blob[g.NonceSize():], aad(d.DEKID, d.Purpose))
 		if err != nil {
-			return nil, keyErr("cannot unwrap key %s in %s", d.DEKID, path)
+			return nil, nil, nil, keyErr("cannot unwrap key %s in %s", d.DEKID, path)
 		}
 		ring.deks[d.Purpose] = key
 	}
 	if _, ok := ring.deks[PurposeDB]; !ok {
-		return nil, keyErr("%s has no %s key", path, PurposeDB)
+		return nil, nil, nil, keyErr("%s has no %s key", path, PurposeDB)
 	}
-	if err := ring.addMissing(&doc, g, dataDir, path); err != nil {
-		return nil, keyErr("cannot update %s: %v", path, err)
-	}
-	return ring, nil
+	return &doc, ring, g, nil
 }
 
 // addMissing gives the keyring a DEK for every purpose it lacks and, if it added any, replaces the file

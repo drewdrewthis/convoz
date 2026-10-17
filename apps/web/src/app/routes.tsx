@@ -41,6 +41,7 @@ export const PAGES = {
   machines: page({ name: "machines", title: "Machines", heading: "Machines", frame: "shell", tab: "crew", back: "/crew", load: () => import("../features/crew/index.ts").then((f) => f.Machines) }),
   passkeys: page({ name: "passkeys", title: "Passkeys", heading: "Passkeys", frame: "shell", back: "/", load: () => import("../features/settings/index.ts").then((f) => f.Passkeys) }),
   recovery: page({ name: "recovery", title: "Recovery codes", heading: "Recovery codes", frame: "shell", back: "/", load: () => import("../features/settings/index.ts").then((f) => f.RecoveryCodes) }),
+  exportData: page({ name: "export", title: "Export your data", heading: "Export your data", frame: "shell", back: "/account", load: () => import("../features/settings/index.ts").then((f) => f.ExportData) }),
   account: page({ name: "account", title: "Account", heading: "Account", frame: "shell", back: "/", load: () => import("../features/settings/index.ts").then((f) => f.Account) }),
 };
 
@@ -56,6 +57,7 @@ const EXACT: Record<string, PageDef> = {
   "/crew/machines": PAGES.machines,
   "/settings/passkeys": PAGES.passkeys,
   "/settings/recovery": PAGES.recovery,
+  "/settings/export": PAGES.exportData,
   "/account": PAGES.account,
 };
 
