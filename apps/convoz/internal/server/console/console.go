@@ -92,19 +92,31 @@ var hashedTypes = map[string]string{
 }
 
 // Asset serves web/assets/<file>, a content-hashed build file: it never changes under its name, so it is cached for a year.
-func Asset(w http.ResponseWriter, r *http.Request) {
+// When the client takes brotli (`br`, decided by the caller) and the build compressed the file ahead (<file>.br, at the
+// highest quality, design §12.3), that copy goes out as it is: on a slow link the first load is bound by these bytes.
+func Asset(w http.ResponseWriter, r *http.Request, br bool) {
 	name := r.PathValue("file")
 	contentType, known := hashedTypes[path.Ext(name)]
 	if !known || name == "" || strings.ContainsAny(name, `/\`) || strings.HasPrefix(name, ".") {
 		http.NotFound(w, r)
 		return
 	}
+	h := w.Header()
+	if packed, err := fs.ReadFile(dist, "web/assets/"+name+".br"); err == nil {
+		h.Add("Vary", "Accept-Encoding")
+		if br {
+			h.Set("Content-Type", contentType)
+			h.Set("Content-Encoding", "br")
+			h.Set("Cache-Control", "public, max-age=31536000, immutable")
+			_, _ = w.Write(packed)
+			return
+		}
+	}
 	body, err := fs.ReadFile(dist, "web/assets/"+name)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
-	h := w.Header()
 	h.Set("Content-Type", contentType)
 	h.Set("Cache-Control", "public, max-age=31536000, immutable")
 	_, _ = w.Write(body)

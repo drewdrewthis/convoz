@@ -2,9 +2,11 @@
 // Components never fetch; they call the store or a feature's own functions, which use `client` here.
 import { createConvozClient, type ApiErrorBody } from "@convoz/api-client";
 import { reachable, unreachable } from "./connection.ts";
+import { takeEarly } from "./early.ts";
 import { forgetOffline } from "./offline.ts";
 
-export const client = createConvozClient();
+// A read the page started before the app loaded (src/early.ts) is answered from that head start.
+export const client = createConvozClient("", (request) => takeEarly(request) ?? globalThis.fetch(request));
 // The offline banner follows what the requests find: an answer means the link works, no answer means it does not.
 client.use({
   // A 502, 503 or 504 is a gateway with nothing behind it: the link works but nothing useful answers, which the offline note also says.

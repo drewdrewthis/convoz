@@ -39,14 +39,24 @@ const NOTHING: Stored = { owner: null, ids: new Map() };
 
 /**
  * hydrate reads the stored cache into the shared cache, for what the network has not filled yet, and drops what the offline
- * shell does not keep (messages of old conversations, and all but the newest 200 of a conversation).
+ * shell does not keep (messages of old conversations, and all but the newest 200 of a conversation). Who is signed in, the crew
+ * and the conversation list come first; the messages (up to 20 x 200, the largest read) wait for `messagesAfter`, so a first
+ * screen that does not show them (Now, the list) is not held up by reading them.
  */
-export async function hydrate(cache: DataCache, dbp: Promise<CacheDb | null>): Promise<Stored> {
+export async function hydrate(cache: DataCache, dbp: Promise<CacheDb | null>, messagesAfter: Promise<unknown> = Promise.resolve()): Promise<Stored> {
   const db = await dbp;
   if (!db) return NOTHING;
   try {
-    const [me, identities, conversations, stored] = await Promise.all([db.get("me", "me"), db.getAll("identities"), db.getAll("conversations"), db.getAllFromIndex("messages", "conversation")]);
+    const [me, identities, conversations] = await Promise.all([db.get("me", "me"), db.getAll("identities"), db.getAll("conversations")]);
     conversations.sort(newestFirst);
+    cache.store.setState((s) => ({
+      me: s.me ?? me ?? null,
+      identities: s.identities ?? (identities.length ? identities : null),
+      conversations: s.conversations ?? (conversations.length ? conversations : null),
+      rows: { ...Object.fromEntries(conversations.map((c) => [c.id, c])), ...s.rows },
+    }));
+    await messagesAfter;
+    const stored = await db.getAllFromIndex("messages", "conversation");
     const kept = new Set(conversations.slice(0, KEEP_CONVERSATIONS).map((c) => c.id));
     const byConversation = new Map<number, (Message & { conversation_id: number })[]>();
     const drop: number[] = [];
@@ -62,12 +72,6 @@ export async function hydrate(cache: DataCache, dbp: Promise<CacheDb | null>): P
       const tx = db.transaction("messages", "readwrite");
       await Promise.all([...drop.map((id) => tx.store.delete(id)), tx.done]);
     }
-    cache.store.setState((s) => ({
-      me: s.me ?? me ?? null,
-      identities: s.identities ?? (identities.length ? identities : null),
-      conversations: s.conversations ?? (conversations.length ? conversations : null),
-      rows: { ...Object.fromEntries(conversations.map((c) => [c.id, c])), ...s.rows },
-    }));
     for (const [id, list] of byConversation) cache.putMessages(id, list);
     return { owner: me?.identity.id ?? null, ids: new Map([...byConversation].map(([id, list]) => [id, new Set(list.map((m) => m.id))])) };
   } catch {
@@ -110,7 +114,9 @@ export function persist(cache: DataCache, dbp: Promise<CacheDb | null>, stored: 
     }
     if (s.conversations !== wrote.conversations || s.rows !== wrote.rows) {
       if (s.conversations && s.conversations !== wrote.conversations) void tx.objectStore("conversations").clear();
-      for (const c of [...(s.conversations ?? []), ...Object.values(s.rows)]) void tx.objectStore("conversations").put(c);
+      // The list goes last: it is the server's newest word on every conversation it holds, and a row read back from the store at
+      // start (hydrate) must not overwrite it, or a conversation that has since moved up looks old and its messages are dropped.
+      for (const c of [...Object.values(s.rows), ...(s.conversations ?? [])]) void tx.objectStore("conversations").put(c);
       wrote.conversations = s.conversations;
       wrote.rows = s.rows;
     }
@@ -155,9 +161,12 @@ export function persist(cache: DataCache, dbp: Promise<CacheDb | null>, stored: 
   };
 }
 
-/** startOfflineCache fills the shared cache from the store, then keeps the store in step with it. Returns the function that stops that. */
-export async function startOfflineCache(cache: DataCache, dbp: Promise<CacheDb | null>): Promise<() => void> {
-  return persist(cache, dbp, await hydrate(cache, dbp));
+/**
+ * startOfflineCache fills the shared cache from the store, then keeps the store in step with it. Returns the function that stops that.
+ * `messagesAfter`: when the stored messages may be read (see hydrate); at once by default.
+ */
+export async function startOfflineCache(cache: DataCache, dbp: Promise<CacheDb | null>, o: { messagesAfter?: Promise<unknown> } = {}): Promise<() => void> {
+  return persist(cache, dbp, await hydrate(cache, dbp, o.messagesAfter));
 }
 
 /** cursorStore keeps the sync cursor in the `meta` store. */

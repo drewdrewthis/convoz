@@ -8,9 +8,9 @@ import { cachedMessages, installed, pageLink, stored, world } from "../lib/wp17.
  * PWA AND POOR NETWORK (WP17), poor connections. Read with specs/features/poor-network.feature and specs/contracts/poor-network.feature.
  * "Offline" is the browser's own emulation: a page's link by CDP (the other page of the context stays online), or the whole context
  * for the scenarios that open the app from the service worker. The lossy profile is 400 ms, 400 kbps (lib/wp17.ts).
- * Left unbound here: "A voice note upload cut halfway resumes" (it needs WP10's upload code), "With Save-Data on, no media loads
- * until tapped" (the base has no image, unfurl or app-preview rendering to hold back) and "The first useful screen appears in
- * budget" (measured with the `tfus` mark on a 4x slowed CPU: warm 1.5 to 2 s against 300 ms, so the budget is not met yet).
+ * Left unbound here: "A voice note upload cut halfway resumes" (it needs WP10's upload code) and "With Save-Data on, no media loads
+ * until tapped" (the base has no image, unfurl or app-preview rendering to hold back). "The first useful screen appears in budget"
+ * is bound in poor-network.perf.spec.ts.
  */
 
 const SHIP = "Ship search filters";

@@ -1,6 +1,8 @@
 package console
 
 import (
+	"bytes"
+	"io"
 	"io/fs"
 	"math"
 	"net/http"
@@ -9,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/andybalholm/brotli"
 )
 
 // builtCSS is the stylesheet the web build ships.
@@ -91,9 +95,39 @@ func TestPageNeedsNoInlineCodeAndItsAssetsAreServed(t *testing.T) {
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest("GET", "/assets/"+m[1], nil)
 		req.SetPathValue("file", m[1])
-		Asset(rec, req)
+		Asset(rec, req, false)
 		if rec.Code != http.StatusOK || !strings.Contains(rec.Header().Get("Cache-Control"), "immutable") {
 			t.Fatalf("/assets/%s: %d %q", m[1], rec.Code, rec.Header().Get("Cache-Control"))
+		}
+	}
+}
+
+func TestAssetSendsTheBrotliCopyToAClientThatTakesIt(t *testing.T) {
+	requireBuild(t)
+	m := regexp.MustCompile(`src="/assets/(main-[^"/]+\.js)"`).FindStringSubmatch(string(index))
+	if m == nil {
+		t.Fatal("index.html loads no main bundle")
+	}
+	plain, err := fs.ReadFile(dist, "web/assets/"+m[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, br := range []bool{true, false} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/assets/"+m[1], nil)
+		req.SetPathValue("file", m[1])
+		Asset(rec, req, br)
+		body := rec.Body.Bytes()
+		if br {
+			if rec.Header().Get("Content-Encoding") != "br" || len(body) >= len(plain) {
+				t.Fatalf("br: %q, %d of %d bytes", rec.Header().Get("Content-Encoding"), len(body), len(plain))
+			}
+			if body, err = io.ReadAll(brotli.NewReader(bytes.NewReader(body))); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if rec.Code != http.StatusOK || !bytes.Equal(body, plain) || rec.Header().Get("Vary") != "Accept-Encoding" {
+			t.Fatalf("br=%v: %d, same body %v, Vary %q", br, rec.Code, bytes.Equal(body, plain), rec.Header().Get("Vary"))
 		}
 	}
 }
@@ -112,7 +146,7 @@ func TestAssetRefusesNamesThatAreNotBuildFiles(t *testing.T) {
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest("GET", "/assets/x", nil)
 		req.SetPathValue("file", name)
-		Asset(rec, req)
+		Asset(rec, req, true)
 		if rec.Code != http.StatusNotFound {
 			t.Errorf("%q: %d", name, rec.Code)
 		}

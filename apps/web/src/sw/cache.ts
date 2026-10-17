@@ -15,8 +15,21 @@ const MAX_FRAMES = 40;
 
 const pause = (ms: number) => new Promise<null>((resolve) => setTimeout(() => resolve(null), ms));
 
+/**
+ * slowLink says the server cannot answer a page URL in time: an answer takes at least one round trip, and the browser's estimate of
+ * it (Network Information API) is already over the wait. Waiting would only hold the first screen. Unknown (no API): not slow.
+ */
+function slowLink(): boolean {
+  const rtt = (navigator as WorkerNavigator & { connection?: { rtt?: number } }).connection?.rtt;
+  return typeof rtt === "number" && rtt >= SERVER_WAIT_MS;
+}
+
 /** openApp answers a page URL: the server when it answers in time (sign-in redirects and the 404 page stay the server's), else the cached shell. */
 async function openApp(request: Request): Promise<Response> {
+  if (slowLink()) {
+    const shell = await matchPrecache(SHELL);
+    if (shell) return shell;
+  }
   const network = fetch(request);
   network.catch(() => {}); // when the shell answers first, a later failure is nobody's news
   const quick = await Promise.race([network.catch(() => null), pause(SERVER_WAIT_MS)]);
@@ -37,12 +50,32 @@ async function cachedFrame(request: Request): Promise<Response> {
   return response;
 }
 
+/** The Static Routing API (Chromium): routes the browser applies itself, before (or instead of) waking the worker. */
+type RoutingEvent = ExtendableEvent & { addRoutes?: (rules: { condition: unknown; source: "cache" | "network" }) => Promise<void> };
+type Pattern = new (init: { pathname: string }) => unknown;
+
+/**
+ * serveFromCache asks the browser to answer the build's hashed files straight from the precache, without starting this script for
+ * each one: on a slow phone every file of a warm start then arrives in a moment. Only hashed files (revision null: the name is the
+ * version) are routed so; a file missing from the cache goes to the network. A browser without the API uses the fetch listener,
+ * which gives the same answers.
+ */
+function serveFromCache(event: RoutingEvent, manifest: { url: string; revision: string | null }[]): void {
+  const URLPatternOf = (globalThis as { URLPattern?: Pattern }).URLPattern;
+  const hashed = manifest.filter((e) => e.revision === null && e.url.startsWith("/assets/"));
+  if (!event.addRoutes || !URLPatternOf || !hashed.length) return;
+  const condition = { or: hashed.map((e) => ({ urlPattern: new URLPatternOf({ pathname: e.url }) })) };
+  event.waitUntil(event.addRoutes({ condition, source: "cache" }).catch((err) => console.warn("service worker routes:", err)));
+}
+
 const isFrame = (url: URL) => /^\/api\/apps\/[^/]+\/frame$/.test(url.pathname) && url.searchParams.has("h");
 
 const cache: SwModule = {
   name: "cache",
   install(scope) {
-    precache(self.__WB_MANIFEST ?? []);
+    const manifest = self.__WB_MANIFEST ?? []; // the build replaces the first self.__WB_MANIFEST only (vite.config.ts)
+    precache(manifest);
+    scope.addEventListener("install", (event) => serveFromCache(event, manifest));
     scope.addEventListener("fetch", (event) => {
       const { request } = event;
       const url = new URL(request.url);

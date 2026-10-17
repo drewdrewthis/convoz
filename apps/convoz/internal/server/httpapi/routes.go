@@ -50,7 +50,9 @@ var Routes = slices.Concat(
 
 func appPage(_ *Server, w http.ResponseWriter, r *http.Request, _ *call) { console.Page(w, r) }
 
-func appAsset(_ *Server, w http.ResponseWriter, r *http.Request, _ *call) { console.Asset(w, r) }
+func appAsset(_ *Server, w http.ResponseWriter, r *http.Request, _ *call) {
+	console.Asset(w, r, chooseEncoding(r.Header.Get("Accept-Encoding")) == "br")
+}
 
 func file(name, contentType string) handler {
 	serve := console.File(name, contentType)

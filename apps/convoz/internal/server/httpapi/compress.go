@@ -5,6 +5,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -122,7 +123,9 @@ func (c *compressWriter) decide(big bool) error {
 	c.decided = true
 	h := c.Header()
 	if compressible(h.Get("Content-Type")) && c.status == http.StatusOK {
-		h.Add("Vary", "Accept-Encoding")
+		if !slices.Contains(h.Values("Vary"), "Accept-Encoding") { // a handler that serves its own encodings set it already
+			h.Add("Vary", "Accept-Encoding")
+		}
 		if big && h.Get("Content-Encoding") == "" && !strings.Contains(h.Get("Cache-Control"), "no-transform") {
 			h.Set("Content-Encoding", c.enc)
 			h.Del("Content-Length")
