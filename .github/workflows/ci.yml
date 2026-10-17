@@ -95,10 +95,17 @@ jobs:
         run: python3 -I specs/scripts/spec_diff.py "origin/$BASE_REF" HEAD
 
   # AC-1: the slice's scenarios fail on the test-only commit and pass at head.
+  # A matrix of phase x shard; the PR is proven when every cell is green.
   red-green:
+    name: red-green (${{ matrix.phase }} ${{ matrix.shard }})
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        phase: [red, green, overlay]
+        shard: [1/3, 2/3, 3/3]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -123,6 +130,8 @@ jobs:
       - name: Red first, green at head
         env:
           BASE_REF: ${{ github.base_ref }}
+          PHASE: ${{ matrix.phase }}
+          SHARD: ${{ matrix.shard }}
         run: |
           scratch="$(mktemp -d)"
-          python3 -I scripts/red_green.py --scratch "$scratch" "origin/$BASE_REF" HEAD
+          python3 -I scripts/red_green.py --phase "$PHASE" --shard "$SHARD" --scratch "$scratch" "origin/$BASE_REF" HEAD

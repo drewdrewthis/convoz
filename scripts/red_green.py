@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """AC-1: a slice PR shows its scenarios red first and green at head.
 
-Usage: python3 -I scripts/red_green.py <base> <head> [--runner PATH] [--scratch DIR]      (run inside the git repo)
+Usage: python3 -I scripts/red_green.py <base> <head> [--runner PATH] [--scratch DIR] [--phase P] [--shard K/N]
+                                                                                    (run inside the git repo)
        python3 -I scripts/red_green.py --self-test
 
   - The slice is every scenario bound at <head> (no @unimplemented, no @needs-owner) that was not bound at
@@ -23,17 +24,22 @@ Usage: python3 -I scripts/red_green.py <base> <head> [--runner PATH] [--scratch 
                                                                  same, and red is taken from the old title, green from the new
     Every exception is printed in the log. An exception whose old title is absent at the test-only commit, whose
     new title is not in the slice, or (a skip line) whose title is not in the slice, is a FAIL.
+  - --phase red|green|overlay|all (default all): run and check only that part of the proof.
+  - --shard K/N: check only the titles whose sha256 mod N is K-1 (stable across runs and machines).
+    A sharded or single-phase run proves only its part; the verdict of the whole proof is the AND of every
+    phase x shard job (CI runs them as a matrix). Exceptions are validated against the whole slice in every job.
   - --scratch DIR: parent for the checkouts (default: a fresh mkdtemp). Nothing in it is deleted.
 
 Prints "test-only commit: <sha>", then "red: <title>" and "green: <title>" per title. A break prints
 "FAIL: <title>: passed on the test-only commit" | "FAIL: <title>: failed at head" |
 "FAIL: <title>: failed on the test-only tests over head's production" | "FAIL: no test-only commit" | "FAIL: exception ...".
 A title is "failed" only if it ran and Playwright reported it unexpected. A build or install failure,
-a crash, a missing report or a missing/skipped title prints "ERROR: ..." and exits 3 (never "red").
+a timeout, a crash, a missing report or a missing/skipped title prints "ERROR: ..." and exits 3 (never "red").
 A "flaky" title (it failed, then passed on a retry) counts as an error too: only "expected" is green and only
 "unexpected" is red, so a flake can neither prove a slice nor fail it.
 Exit 0 when the slice is proven (or empty), 1 on any FAIL.
 """
+import hashlib
 import importlib.util
 import io
 import json
@@ -118,14 +124,20 @@ def checkout(sha, dest, tests_from=None):
 def default_runner(directory, titles):
     """Build the testhooks binary in `directory` and run `titles` with Playwright; title -> passed|failed."""
     gotool = load(os.path.join(HERE, "gotool.py"), "gotool")
-    env = dict(os.environ, GOFLAGS="-mod=readonly")
-    built = subprocess.run([gotool.go_bin(), "build", "-trimpath", "-tags", "testhooks", "-o", "bin/convoz-test", "./cmd/convoz"],
-                           cwd=os.path.join(directory, "apps", "convoz"), env=env, capture_output=True, text=True, timeout=600)
-    if built.returncode != 0:
-        raise RunnerError("go build failed: " + built.stderr.strip()[-500:])
     pnpm = os.environ.get("PNPM_BIN", "pnpm")
-    if subprocess.run([pnpm, "install", "--frozen-lockfile"], cwd=directory, capture_output=True, timeout=900).returncode != 0:
-        raise RunnerError("pnpm install failed")
+
+    def build(label, cmd, cwd, **kw):
+        r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=900, **kw)
+        if r.returncode != 0:
+            raise RunnerError(f"{label} failed: " + (r.stderr or r.stdout).strip()[-500:])
+
+    build("pnpm install", [pnpm, "install", "--frozen-lockfile"], directory)
+    # packages/tokens/dist is gitignored, so a checkout never has it.
+    build("tokens build", [pnpm, "--filter", "@convoz/tokens", "build"], directory)
+    if os.path.isdir(os.path.join(directory, "apps", "web")):
+        build("web build", [pnpm, "--filter", "@convoz/web...", "build"], directory)
+    build("go build", [gotool.go_bin(), "build", "-trimpath", "-tags", "testhooks", "-o", "bin/convoz-test", "./cmd/convoz"],
+          os.path.join(directory, "apps", "convoz"), env=dict(os.environ, GOFLAGS="-mod=readonly"))
     grep = "|".join(re.escape(t) for t in titles)
     # The e2e config writes the JSON report to e2e/report/results.json. A red run exits non-zero, so the
     # exit code is not checked: the report decides.
@@ -184,13 +196,21 @@ def parse_runner_output(res, titles):
     return check_complete({t: out.get(t, "missing") for t in titles})
 
 
+def call_runner(runner, directory, titles):
+    """Run `runner` (or the default) in `directory`; a hang is a RunnerError, never a traceback."""
+    try:
+        if runner is None:
+            return default_runner(directory, titles)
+        res = subprocess.run([runner, directory, *titles], cwd=directory, capture_output=True, text=True, timeout=3600)
+    except subprocess.TimeoutExpired as err:
+        raise RunnerError(f"timed out after {err.timeout}s: {' '.join(map(str, err.cmd))[:120]}")
+    return parse_runner_output(res, titles)
+
+
 def run_at(sha, titles, runner, scratch, tests_from=None):
     tmp = tempfile.mkdtemp(prefix="red-green-", dir=scratch)
     checkout(sha, tmp, tests_from)
-    if runner is None:
-        return default_runner(tmp, titles)
-    res = subprocess.run([runner, tmp, *titles], cwd=tmp, capture_output=True, text=True, timeout=3600)
-    return parse_runner_output(res, titles)
+    return call_runner(runner, tmp, titles)
 
 
 EXCEPTIONS_PATH = "specs/red-green-exceptions.txt"
@@ -216,8 +236,26 @@ def added_lines(diff_text):
     return "\n".join(ln[1:] for ln in diff_text.splitlines() if ln.startswith("+") and not ln.startswith("+++"))
 
 
-def prove(titles, exceptions, titles_at_first, run_red, run_green, run_overlay):
-    """(exit code, log lines). run_* take titles and return title -> passed|failed, or raise RunnerError."""
+PHASES = ("red", "green", "overlay")
+
+
+def in_shard(title, shard):
+    """True when `title` belongs to shard (k, n), k in 1..n. sha256 keeps the split stable across runs and machines."""
+    k, n = shard
+    return int(hashlib.sha256(title.encode("utf-8")).hexdigest(), 16) % n == k - 1
+
+
+def parse_shard(text):
+    """(k, n) from 'K/N'; ValueError unless 1 <= K <= N."""
+    k, _, n = text.partition("/")
+    if not (k.isdigit() and n.isdigit() and 1 <= int(k) <= int(n)):
+        raise ValueError(f"--shard wants K/N with 1 <= K <= N, got {text!r}")
+    return int(k), int(n)
+
+
+def prove(titles, exceptions, titles_at_first, run_red, run_green, run_overlay, phases=PHASES, shard=None):
+    """(exit code, log lines). run_* take titles and return title -> passed|failed, or raise RunnerError.
+    `phases` and `shard` limit which checks run; this job's verdict covers only those."""
     out, bad = [], False
     for old, new, reason in exceptions:
         out.append(f"exception: {old}" + (f" -> {new}" if new else "") + f" | {reason}")
@@ -234,27 +272,33 @@ def prove(titles, exceptions, titles_at_first, run_red, run_green, run_overlay):
         return 1, out
     red_name = {new: old for old, new, _ in exceptions if new}
     skipped = {old for old, _, _ in exceptions}
+    if shard:
+        titles = [t for t in titles if in_shard(t, shard)]
+        out.append(f"shard {shard[0]}/{shard[1]}: {len(titles)} title(s)")
+    if not titles:
+        return 0, out
     try:
-        red = run_red([red_name.get(t, t) for t in titles])
-        green = run_green(titles)
+        red = run_red([red_name.get(t, t) for t in titles]) if "red" in phases else None
+        green = run_green(titles) if "green" in phases else None
         overlay_titles = [red_name.get(t, t) for t in titles if red_name.get(t, t) not in skipped]
-        overlay = run_overlay(overlay_titles) if overlay_titles else {}
+        overlay = run_overlay(overlay_titles) if "overlay" in phases and overlay_titles else {}
     except RunnerError as err:
         out.append(f"ERROR: {err}")
         return 3, out
     for t in titles:
         old = red_name.get(t, t)
-        if red.get(old) != "failed":
+        if red is not None and red.get(old) != "failed":
             out.append(f"FAIL: {t}: passed on the test-only commit")
             bad = True
-        elif green.get(t) != "passed":
+        elif green is not None and green.get(t) != "passed":
             out.append(f"FAIL: {t}: failed at head")
             bad = True
-        elif old not in skipped and overlay.get(old) != "passed":
+        elif "overlay" in phases and old not in skipped and overlay.get(old) != "passed":
             out.append(f"FAIL: {t}: failed on the test-only tests over head's production")
             bad = True
         else:
-            out += [f"red: {old}", f"green: {t}"] + ([] if old in skipped else [f"overlay: {old}"])
+            out += ([f"red: {old}"] if red is not None else []) + ([f"green: {t}"] if green is not None else []) \
+                + ([f"overlay: {old}"] if "overlay" in phases and old not in skipped else [])
     return (1 if bad else 0), out
 
 
@@ -344,6 +388,60 @@ def self_test():
             failures.append("malformed exception line: " + bad_line)
         except ValueError:
             pass
+    # phase: a single-phase job runs and judges only its phase
+    ran = []
+    spy = lambda name, res: (lambda ts: ran.append(name) or {t: res for t in ts})
+    code, log = prove(["a"], [], {"a"}, spy("red", "failed"), spy("green", "failed"), spy("overlay", "failed"), phases=("red",))
+    if code != 0 or ran != ["red"] or log != ["red: a"]:
+        failures.append("phase red runs and judges red only")
+    code, _ = prove(["a"], [], {"a"}, spy("red", "passed"), spy("green", "passed"), spy("overlay", "passed"), phases=("red",))
+    if code != 1:
+        failures.append("phase red fails when the title passed on the test-only commit")
+    ran.clear()
+    code, _ = prove(["a"], [], {"a"}, spy("red", "passed"), spy("green", "passed"), spy("overlay", "failed"), phases=("overlay",))
+    if code != 1 or ran != ["overlay"]:
+        failures.append("phase overlay runs and judges overlay only")
+    # shard: stable, disjoint, covers every title; a job proves only its own titles
+    names = [f"scenario {i}" for i in range(40)]
+    owners = [[t for t in names if in_shard(t, (k, 3))] for k in (1, 2, 3)]
+    if sorted(sum(owners, [])) != sorted(names) or not all(owners):
+        failures.append("shards partition the titles")
+    if in_shard("x", (1, 3)) != in_shard("x", (1, 3)) or in_shard("a", (1, 1)) is not True:
+        failures.append("shard is stable and 1/1 owns everything")
+    seen = []
+    mine = owners[0]
+    code, _ = prove(names, [], set(names), lambda ts: seen.extend(ts) or {t: "failed" for t in ts}, fake({}), fake({}),
+                    phases=("red",), shard=(1, 3))
+    if code != 0 or sorted(seen) != sorted(mine):
+        failures.append("a shard runs only its own titles")
+    code, log = prove(["a"], [], {"a"}, failed, fake({}), fake({}), shard=(2, 2) if in_shard("a", (1, 2)) else (1, 2))
+    if code != 0 or any(l.startswith(("red:", "green:")) for l in log):
+        failures.append("an empty shard passes without running")
+    for bad_shard in ("0/3", "4/3", "x", "1/", "1/0"):
+        try:
+            parse_shard(bad_shard)
+            failures.append("malformed shard: " + bad_shard)
+        except ValueError:
+            pass
+    if parse_shard("2/3") != (2, 3):
+        failures.append("parse shard")
+    # timeout: a hung build or runner is a clean ERROR (exit 3), never a traceback
+    with tempfile.TemporaryDirectory(prefix="red-green-self-test-") as tmp:
+        hang = os.path.join(tmp, "hang.py")
+        with open(hang, "w", encoding="utf-8") as fh:
+            fh.write("#!/usr/bin/env python3\nimport time\ntime.sleep(60)\n")
+        os.chmod(hang, 0o755)
+        real_run = subprocess.run
+        subprocess.run = lambda cmd, **kw: real_run(cmd, **dict(kw, timeout=0.5))
+        try:
+            expect_error("runner timeout", lambda: call_runner(hang, tmp, ["a"]))
+        finally:
+            subprocess.run = real_run
+    def hung(ts):
+        raise RunnerError("timed out")
+    code, log = prove(["a"], [], {"a"}, hung, fake({}), fake({}))
+    if code != 3 or not log[-1].startswith("ERROR:"):
+        failures.append("a timeout exits 3 with ERROR")
     for f in failures:
         print("FAIL:", f, file=sys.stderr)
     print("self-test failed" if failures else "self-test ok", file=sys.stderr if failures else sys.stdout)
@@ -363,6 +461,22 @@ def main(argv):
         i = args.index("--scratch")
         scratch = os.path.abspath(args[i + 1])
         args = args[:i] + args[i + 2:]
+    phases, shard = PHASES, None
+    try:
+        if "--phase" in args:
+            i = args.index("--phase")
+            phase = args[i + 1]
+            args = args[:i] + args[i + 2:]
+            if phase not in PHASES + ("all",):
+                raise ValueError(f"--phase wants red|green|overlay|all, got {phase!r}")
+            phases = PHASES if phase == "all" else (phase,)
+        if "--shard" in args:
+            i = args.index("--shard")
+            shard = parse_shard(args[i + 1])
+            args = args[:i] + args[i + 2:]
+    except (ValueError, IndexError) as err:
+        print(f"red_green: {err}", file=sys.stderr)
+        return 2
     if len(args) != 2:
         print(__doc__)
         return 2
@@ -391,7 +505,8 @@ def main(argv):
         titles, exceptions, titles_at_first,
         lambda ts: run_at(first, ts, runner, scratch),
         lambda ts: run_at(head_sha, ts, runner, scratch),
-        lambda ts: run_at(head_sha, ts, runner, scratch, tests_from=first))
+        lambda ts: run_at(head_sha, ts, runner, scratch, tests_from=first),
+        phases, shard)
     print("\n".join(log))
     return code
 
