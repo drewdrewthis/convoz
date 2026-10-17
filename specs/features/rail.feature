@@ -79,7 +79,7 @@ Feature: Rail
         | "All checks green" from "devtool"   | devtool: All checks green        |
         | nothing                             | No messages yet                  |
 
-    @v1 @browser @I-14 @unimplemented
+    @v1 @browser @I-14
     Scenario: Unread conversations are bold with a count
       Given the owner has read every conversation
       When "devtool" posts 3 messages in conversation 52

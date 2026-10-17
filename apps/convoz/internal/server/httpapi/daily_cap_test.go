@@ -15,10 +15,20 @@ func agentCall(identity, machine int64) *call {
 	return &call{lease: auth.Lease{IdentityID: identity, MachineID: machine, Scopes: auth.ScopePost}}
 }
 
-func mayPost(s *Server, c *call, now time.Time) *httptest.ResponseRecorder {
+// checkPost is the check a handler makes before it stores a post.
+func checkPost(s *Server, c *call, now time.Time) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
 	if s.agentMayPost(w, c, now) {
 		w.WriteHeader(http.StatusNoContent)
+	}
+	return w
+}
+
+// mayPost is checkPost for a post that then gets stored, which spends the day.
+func mayPost(s *Server, c *call, now time.Time) *httptest.ResponseRecorder {
+	w := checkPost(s, c, now)
+	if w.Code == http.StatusNoContent {
+		s.countDailyPost(c, now)
 	}
 	return w
 }
@@ -61,5 +71,25 @@ func TestAMachineWithoutThePostScopeMayNotPost(t *testing.T) {
 	c.lease.Scopes = auth.ScopeRead
 	if w := mayPost(s, c, time.Unix(1_800_000_000, 0)); w.Code != http.StatusForbidden {
 		t.Errorf("scope check: %d", w.Code)
+	}
+}
+
+func TestADailyCapCountsOnlyStoredPosts(t *testing.T) {
+	s := NewServer(nil, nil, nil, nil, Config{}, nil)
+	s.postLimit = auth.Limiter{Window: time.Second, Max: 1000}
+	s.dayIdentityLimit = auth.Limiter{Window: 24 * time.Hour, Max: 2}
+	s.dayMachineLimit = auth.Limiter{Window: 24 * time.Hour, Max: 2}
+	t0 := time.Unix(1_800_000_000, 0)
+	c := agentCall(1, 1)
+
+	for i := range 5 { // checked but never stored (400, 403, a replay): the day is not spent
+		if w := checkPost(s, c, t0.Add(time.Duration(i)*time.Second)); w.Code != http.StatusNoContent {
+			t.Fatalf("check %d: %d", i, w.Code)
+		}
+	}
+	s.countDailyPost(c, t0)
+	s.countDailyPost(c, t0)
+	if w := checkPost(s, c, t0.Add(time.Minute)); w.Code != http.StatusTooManyRequests {
+		t.Errorf("two stored posts spend a cap of 2: %d", w.Code)
 	}
 }

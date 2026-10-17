@@ -1,2 +1,6 @@
 # A red/green exception skips a proof; the owner reviews every change to the list.
 /specs/red-green-exceptions.txt @drewdrewthis
+# The proof scripts decide what a PR may skip or show; the owner reviews every change to them and to this file.
+/scripts/red_green.py @drewdrewthis
+/scripts/proof_report.py @drewdrewthis
+/.github/CODEOWNERS @drewdrewthis

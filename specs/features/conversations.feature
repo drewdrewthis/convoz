@@ -15,10 +15,62 @@ Feature: Conversations
 
   Rule: The owner starts and names conversations
 
-    @v1 @browser @unimplemented
+    @v1 @browser
     Scenario: A new conversation starts blank and takes a title from its first message
       When the owner starts a new conversation with Cmd+J and sends "Plan the search filters launch"
-      Then the rail shows the conversation at the top titled "Plan the search filters launch"
+      Then the Chats list shows the conversation at the top titled "Plan the search filters launch"
+
+    @v1 @browser @phone
+    Scenario: On a phone the first page after sign-in is Chats
+      Given the owner has a passkey on a phone
+      When the owner signs in
+      Then the app shows Chats
+      And "Chats" is marked as the current tab
+
+    @v1 @browser @phone
+    Scenario: On a phone an empty Chats list explains itself and offers New chat
+      Given the owner has no chats yet
+      When the owner opens Chats on a phone
+      Then the page says there are no chats yet and that a chat starts with an agent
+      And the page offers "New chat"
+
+    @v1 @browser @phone
+    Scenario: On a phone New chat lists the crew agents and opens a focused composer
+      Given "devtool" has a live session and "docs" has none
+      When the owner taps "New chat"
+      Then the list shows "devtool" as online and "docs" as offline
+      When the owner picks "docs"
+      Then the message box for "docs" has focus
+
+    @v1 @browser @phone
+    Scenario: On a phone a new chat takes its title from the first message and goes to the top of Chats
+      Given the owner has chats "Ship search filters" and "Deploy alerts runbook" on a phone
+      When the owner taps "New chat", picks "devtool" and sends "Plan the search filters launch"
+      Then the chat is titled "Plan the search filters launch" and names "@devtool"
+      And a reload shows the same chat with the message
+      And Chats lists "Plan the search filters launch" above the other two
+
+    @v1 @browser @phone
+    Scenario: On a phone back returns from a chat to Chats
+      Given the owner opened a chat from the Chats list on a phone
+      When the owner taps the back button
+      Then the Chats list shows
+      When the owner opens the chat again and uses the browser back
+      Then the Chats list shows
+
+    @v1 @browser @phone
+    Scenario: On a phone Chats shows plain previews and avatars that differ, and the composer names the agent
+      Given "devtool" replied in one chat with markdown and the owner wrote in another chat with "docs"
+      When the owner opens Chats
+      Then the preview is plain text: no markers, the link as its text and the code block as "code"
+      And the two avatars show different letters
+      And the message box is named after the agent
+
+    @v1 @browser @phone
+    Scenario: On a phone a chat that does not exist shows a not-found page with a way back
+      Given the owner is signed in on a phone
+      When the owner opens a chat id that is missing, not a number, or not a whole number
+      Then the page says the chat was not found, in the console style, with a link back to Chats
 
     @v1 @browser @unimplemented
     Scenario: The details sidebar shows who is here and how the conversation is set
@@ -132,7 +184,7 @@ Feature: Conversations
 
   Rule: Messages arrive live
 
-    @v1 @browser @phone @unimplemented
+    @v1 @browser @phone
     Scenario: On a phone the bottom bar leads to Chats, Now and Account
       Given the owner opens Convoz on a phone
       Then a bottom bar shows "Chats", "Now" and "Account"
@@ -140,7 +192,7 @@ Feature: Conversations
       Then the Chats list shows with a "New chat" button
       And "Chats" is marked as the current tab
 
-    @v1 @browser @phone @unimplemented
+    @v1 @browser @phone
     Scenario: On a phone the owner starts a chat with an agent and sees its reply
       Given "devtool" runs "convoz watch --json"
       When the owner taps "New chat", picks "devtool" and sends "Is the build green?"
@@ -150,7 +202,7 @@ Feature: Conversations
       Then the reply shows on the left within 3 seconds with no reload
       And the Chats list shows the conversation with no unread dot
 
-    @v1 @browser @phone @unimplemented
+    @v1 @browser @phone
     Scenario: On a phone an unread chat shows a dot until opened
       Given the owner is on the Chats list on a phone
       When "devtool" posts "Done" in conversation 41
@@ -158,7 +210,7 @@ Feature: Conversations
       When the owner opens conversation 41 and goes back to Chats
       Then conversation 41 has no unread dot
 
-    @v1 @browser @phone @unimplemented
+    @v1 @browser @phone
     Scenario: On a phone a chat catches up after the connection comes back
       Given the owner has conversation 41 open on a phone
       And the phone goes offline
@@ -166,13 +218,40 @@ Feature: Conversations
       And the phone comes back online
       Then conversation 41 shows "one", "two" and "three" once each, in that order, within 5 seconds
 
+    @v1 @browser @phone
+    Scenario: On a phone a working agent shows a note until it replies
+      Given "devtool" runs "convoz watch --json" and the owner has a chat with "devtool" open on a phone
+      When the owner sends "Is the build green?"
+      Then the chat shows "@devtool is working…" within 3 seconds
+      When "devtool" runs "convoz post" in that chat with "Yes"
+      Then the note is gone and the reply shows
+
+    @v1 @browser @phone
+    Scenario: On a phone the working note goes away when the agent finishes without a reply
+      Given "devtool" runs "convoz watch --json" and the owner has a chat with "devtool" open on a phone
+      When the owner sends "Is the build green?" and "devtool" runs "convoz ack" without a reply
+      Then the chat shows no working note
+
+    @v1 @browser @phone
+    Scenario: On a phone the working note goes away when its time runs out
+      Given the owner has a chat open on a phone and "devtool" is shown as working for 2 seconds
+      When 2 seconds pass with no reply
+      Then the chat shows no working note
+
+    @v1 @browser @phone
+    Scenario: On a phone a chat catches up when the app returns to the foreground
+      Given the owner has conversation 41 open on a phone
+      And the phone stops the live connection without telling the page
+      When "devtool" posts "four" in conversation 41 and the app returns to the foreground
+      Then conversation 41 shows "four" once within 5 seconds
+
     @v1 @cli
     Scenario: An agent reads what the owner wrote
       Given the owner sent "Is the build green?" in conversation 41
       When "devtool" runs "convoz read 41"
       Then the output shows "@drew" and "Is the build green?"
 
-    @v1 @browser @unimplemented
+    @v1 @browser
     Scenario: An agent message reaches the owner's open browser fast
       Given the owner has conversation 41 open
       When "devtool" runs "convoz post 41 'Build is green'"
@@ -190,3 +269,58 @@ Feature: Conversations
       Given member "mia" is in conversation 41 only
       When "mia" opens the rail
       Then she sees conversation 41 and no other
+
+  Rule: The Chats list puts the latest activity first
+
+    # DEFAULT (owner to confirm): the phone Chats list orders by latest activity, so I-21 ("activity never reorders") holds for the desktop rail only.
+    @v1 @browser
+    Scenario: A new conversation goes to the top of the Chats list
+      Given conversations 41 "Ship search filters", 52 "Deploy alerts runbook" and 60 "Weekly usage" were created in that order with "devtool"
+      Then the Chats list shows 60, 52, 41 in that order
+
+    @v1 @browser
+    Scenario: A new message moves its conversation to the top of the list
+      Given conversations 41 "Ship search filters", 52 "Deploy alerts runbook" and 60 "Weekly usage" were created in that order with "devtool"
+      And the owner opened the Chats list
+      When "devtool" posts in conversation 41
+      Then the Chats list shows 41, 60, 52 in that order without a reload
+
+  Rule: A conversation reads well on a phone
+
+    @v1 @browser @phone
+    Scenario: On a phone a long chat opens at its latest message
+      Given conversation 41 holds 60 messages
+      When the owner opens conversation 41 on a phone
+      Then the latest message is in view
+
+    @v1 @browser @phone
+    Scenario: On a phone a new reply while reading older messages shows a pill instead of jumping
+      Given the owner scrolled up in a long conversation 41 on a phone
+      When "devtool" posts "Fresh news" in conversation 41
+      Then the page does not move and a "New message ↓" pill shows
+      When the owner taps the pill
+      Then "Fresh news" is in view and the pill is gone
+
+    @v1 @browser @phone
+    Scenario: On a phone an agent reply shows paragraphs, code and links safely
+      Given the owner has conversation 41 open on a phone
+      When "devtool" posts a reply with two paragraphs, a code block, a link and an image tag written as text
+      Then the reply shows two paragraphs, a code block and a link that opens a new tab safely
+      And the image tag shows as text and no image is made
+      And the owner's own message with an image tag shows as text too
+      And a link whose label is blank shows the real site, and a link whose label is more than plain words of one script and is not the real site shows the real site after it, and without the lookalike list from the server any label that is not plain ASCII shows the real site after it
+      And hidden text-direction marks in a title or a message are not shown
+      And a hundred messages of 16384 characters each of "[", "[a](", "[a](x", "[a]([a](", "**", a backtick or "http://" and 2040 dots and "a", and ten of "[a](http://a.b) ", "[é1](http://a.b) ", "http://a:b " or "[a](http://[) ", render, each shape in under half a second
+      And a message shows at most 200 links, the rest as plain text, and failed link attempts count toward the 200
+
+    @v1 @browser @phone
+    Scenario: On a phone the chat pages fit a 320 px screen with large tap targets
+      Given the owner has a long conversation with long words and a wide code line
+      When the owner opens Chats, New chat and the conversation at 320 px and at 390 px
+      Then no page scrolls sideways and every button, link and field is at least 44 px tall
+
+    @v1 @browser @phone
+    Scenario: On a phone the chat pages look right in dark and light
+      Given the owner has a conversation with messages from both sides
+      When the owner opens Chats, New chat and the conversation in dark and in light
+      Then the dark pages are dark and the light pages are light

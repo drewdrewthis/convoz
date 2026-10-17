@@ -15,11 +15,42 @@ Feature: Composer
 
   Rule: Sending is instant and safe to repeat
 
-    @v1 @browser @unimplemented
+    @v1 @browser
     Scenario: A sent message shows at once and then confirms
       When the owner sends "on it" in conversation 41
       Then the bubble shows at once as "sending"
       And it shows as sent when the server confirms
+
+    @v1 @browser @phone
+    Scenario: On a phone the composer stays above the keyboard and grows to a limit
+      Given the owner has conversation 41 open on a phone
+      When the keyboard opens and the owner types 12 lines
+      Then the message box stays in view above the keyboard
+      And it grew to about 6 lines and then scrolls inside itself
+
+    @v1 @browser @phone
+    Scenario: On a phone Enter adds a line and Send sends
+      Given the owner has conversation 41 open on a phone
+      Then Send is disabled while the message box is empty
+      When the owner types "one", presses Enter and types "two"
+      Then the message box holds two lines and nothing is sent
+      When the owner taps Send
+      Then the chat shows one message with two lines
+
+    @v1 @browser
+    Scenario: Enter sends on a desktop and adds a line on a phone
+      Given the owner has conversation 41 open
+      When the owner types "one", adds a line the way the device does and types "two"
+      Then the message box holds two lines and nothing is sent
+      When the owner sends the way the device does
+      Then the chat shows one message with two lines
+
+    @v1 @browser @phone
+    Scenario: On a phone a failed send is retried once without a duplicate
+      Given the owner has conversation 41 open on a phone and the network drops the next send
+      When the owner sends "retry me" and then taps Retry
+      Then the bubble first says "Not sent"
+      And conversation 41 holds "retry me" once
 
     @v1 @browser @I-24 @unimplemented
     Scenario: An offline send is replayed once when back online

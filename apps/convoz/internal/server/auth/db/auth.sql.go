@@ -251,9 +251,10 @@ func (q *Queries) EndExpiredSessionsOfClient(ctx context.Context, arg EndExpired
 	return err
 }
 
-const endOpenSessionsOfClient = `-- name: EndOpenSessionsOfClient :exec
+const endOpenSessionsOfClient = `-- name: EndOpenSessionsOfClient :many
 UPDATE sessions SET ended_at = ?1, end_reason = 'replaced'
 WHERE identity_id = ?2 AND machine_id = ?3 AND client_id = ?4 AND ended_at IS NULL
+RETURNING id
 `
 
 type EndOpenSessionsOfClientParams struct {
@@ -263,14 +264,32 @@ type EndOpenSessionsOfClientParams struct {
 	ClientID   string
 }
 
-func (q *Queries) EndOpenSessionsOfClient(ctx context.Context, arg EndOpenSessionsOfClientParams) error {
-	_, err := q.db.ExecContext(ctx, endOpenSessionsOfClient,
+func (q *Queries) EndOpenSessionsOfClient(ctx context.Context, arg EndOpenSessionsOfClientParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, endOpenSessionsOfClient,
 		arg.Now,
 		arg.IdentityID,
 		arg.MachineID,
 		arg.ClientID,
 	)
-	return err
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const endSession = `-- name: EndSession :execrows

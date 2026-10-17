@@ -75,12 +75,15 @@ export async function signIn(client: Client, soft: SoftAuthenticator): Promise<R
 
 /**
  * Console page contract used by @browser scenarios (role and text locators only):
- *  /signin     button "Sign in with a passkey"; on success the browser lands on "/".
+ *  /signin     button "Sign in with a passkey"; on success the browser lands on "/chats" (heading "Chats"). This helper then
+ *              opens "/" so the scenarios that work from Now keep their start. Scenarios about the landing page sign in by hand.
  *  /           heading "Now" (signed in). Signed out, the page goes to /signin.
  *  /signin     heading "Sign in".
  */
 export async function uiSignIn(page: Page, origin: string): Promise<void> {
   await page.goto(`${origin}/signin`);
   await page.getByRole("button", { name: "Sign in with a passkey" }).click();
+  await page.getByRole("navigation", { name: "Main" }).waitFor();
+  await page.goto(`${origin}/`);
   await page.getByRole("heading", { name: "Now", exact: true }).waitFor();
 }

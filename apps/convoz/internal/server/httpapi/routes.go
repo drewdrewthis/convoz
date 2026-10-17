@@ -1,10 +1,17 @@
 package httpapi
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/console"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity"
 )
 
 // handler is one route's code. c carries the caller already authenticated for the route's Auth class.
@@ -42,6 +49,9 @@ var Routes = []Route{
 	{Method: "GET", Pattern: "/signin", Auth: authz.Pub, handle: page("signin")},
 	{Method: "GET", Pattern: "/recover", Auth: authz.Pub, handle: page("recover")},
 	{Method: "GET", Pattern: "/", Auth: authz.Human, Page: true, handle: page("now")},
+	{Method: "GET", Pattern: "/chats", Auth: authz.Human, Page: true, handle: page("chats")},
+	{Method: "GET", Pattern: "/chats/new", Auth: authz.Human, Page: true, handle: page("chat")},
+	{Method: "GET", Pattern: "/chats/:id", Auth: authz.Human, Page: true, handle: (*Server).chatPage},
 	{Method: "GET", Pattern: "/crew/machines", Auth: authz.Human, Page: true, handle: page("machines")},
 	{Method: "GET", Pattern: "/onboarding", Auth: authz.Human, Page: true, handle: page("onboarding")},
 	{Method: "GET", Pattern: "/settings/passkeys", Auth: authz.Human, Page: true, handle: page("passkeys")},
@@ -49,6 +59,8 @@ var Routes = []Route{
 	{Method: "GET", Pattern: "/account", Auth: authz.Human, Page: true, handle: page("account")},
 	{Method: "GET", Pattern: "/assets/console.js", Auth: authz.Pub, handle: asset("console.js", "text/javascript; charset=utf-8")},
 	{Method: "GET", Pattern: "/assets/console.css", Auth: authz.Pub, handle: asset("console.css", "text/css; charset=utf-8")},
+	{Method: "GET", Pattern: "/assets/chat.js", Auth: authz.Pub, handle: asset("chat.js", "text/javascript; charset=utf-8")},
+	{Method: "GET", Pattern: "/assets/lookalikes.js", Auth: authz.Pub, handle: lookalikesAsset},
 	{Method: "GET", Pattern: "/assets/icon-192.png", Auth: authz.Pub, handle: asset("icon-192.png", "image/png")},
 	{Method: "GET", Pattern: "/assets/icon-512.png", Auth: authz.Pub, handle: asset("icon-512.png", "image/png")},
 	{Method: "GET", Pattern: "/favicon.ico", Auth: authz.Pub, handle: asset("favicon.ico", "image/vnd.microsoft.icon")},
@@ -120,6 +132,25 @@ func page(name string) handler {
 func asset(name, contentType string) handler {
 	serve := console.Asset(name, contentType)
 	return func(_ *Server, w http.ResponseWriter, r *http.Request, _ *call) { serve(w, r) }
+}
+
+// lookalikes is the asset body and its strong ETag, built once: the table is pinned at build time and never changes.
+var lookalikes = sync.OnceValues(func() ([]byte, string) {
+	set, _ := json.Marshal(identity.PunctuationLookalikes())
+	body := append([]byte("globalThis.CONVOZ_LOOKALIKES="), append(set, ';')...)
+	sum := sha256.Sum256(body)
+	return body, `"` + hex.EncodeToString(sum[:]) + `"`
+})
+
+// lookalikesAsset hands the confusable-punctuation set to chat.js, so the identity table stays its only owner.
+// no-cache with an ETag: the browser revalidates every time and gets a 304 while the table is unchanged.
+func lookalikesAsset(_ *Server, w http.ResponseWriter, r *http.Request, _ *call) {
+	body, etag := lookalikes()
+	h := w.Header()
+	h.Set("Content-Type", "text/javascript; charset=utf-8")
+	h.Set("Cache-Control", "no-cache")
+	h.Set("ETag", etag)
+	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(body)) // answers If-None-Match (weak, lists, "*") and HEAD
 }
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request, _ *call) {

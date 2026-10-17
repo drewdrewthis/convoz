@@ -50,13 +50,14 @@ var handleRE = regexp.MustCompile(`^[a-z][a-z0-9-]{1,39}$`)
 // ValidHandle reports whether s can be a handle (2 to 40 of a-z 0-9 -, starting with a letter).
 func ValidHandle(s string) bool { return handleRE.MatchString(s) }
 
-// ValidDisplayName reports whether s is 1 to 80 characters without control characters.
+// ValidDisplayName reports whether s is 1 to 80 characters without control or format characters
+// (bidi marks, zero-width), which could reorder or hide what a reader sees next to a name.
 func ValidDisplayName(s string) bool {
 	n := utf8.RuneCountInString(s)
 	if n < 1 || n > 80 || strings.TrimSpace(s) == "" {
 		return false
 	}
-	return !strings.ContainsFunc(s, unicode.IsControl)
+	return !strings.ContainsFunc(s, func(r rune) bool { return unicode.IsControl(r) || unicode.Is(unicode.Cf, r) })
 }
 
 // newIdentity inserts one identities row for a valid handle and display name and returns its id.

@@ -137,12 +137,13 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request, c *call) {
 			if !open || !s.deviceLive(ctx, c) {
 				return
 			}
-			if f.Conversation != 0 {
-				if _, visible, err := canSee(ctx, s.reader(), c.p, f.Conversation); err != nil {
-					return
-				} else if !visible {
-					continue
-				}
+			if f.Conversation == 0 {
+				continue // fail closed: a frame must name its conversation
+			}
+			if _, visible, err := canSee(ctx, s.reader(), c.p, f.Conversation); err != nil {
+				return
+			} else if !visible {
+				continue
 			}
 			if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", f.Event, f.Data); err != nil || rc.Flush() != nil {
 				return

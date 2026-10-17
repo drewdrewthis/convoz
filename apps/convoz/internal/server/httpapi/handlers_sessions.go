@@ -23,9 +23,14 @@ func (s *Server) mintSession(w http.ResponseWriter, r *http.Request, c *call) {
 		req.Create = &auth.CreateIdentity{DisplayName: in.Create.DisplayName}
 	}
 	var minted auth.MintedSession
+	var released []inbox.Released
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
+		now := s.Clock.Now()
 		var err error
-		minted, err = auth.MintSession(ctx, tx.DBTX(), flowPorts, req, s.Clock.Now())
+		if minted, err = auth.MintSession(ctx, tx.DBTX(), flowPorts, req, now); err != nil {
+			return err
+		}
+		released, err = inbox.ReleaseSessions(ctx, tx.DBTX(), now, minted.Replaced)
 		return err
 	})
 	var limited *auth.RateLimitedError
@@ -50,6 +55,7 @@ func (s *Server) mintSession(w http.ResponseWriter, r *http.Request, c *call) {
 	case err != nil:
 		s.internalError(w, r, err)
 	default:
+		s.publishReleased(r.Context(), released)
 		writeJSON(w, http.StatusCreated, wire.MintResponse{Lease: minted.Lease, Session: wire.SessionInfo{
 			ID: minted.ID, Identity: minted.Handle, Machine: minted.Machine, ClientID: minted.ClientID, Label: minted.Label, ExpiresAt: minted.ExpiresAt,
 		}})

@@ -1,5 +1,11 @@
 package wire
 
+import (
+	"strings"
+	"unicode"
+	"unicode/utf8"
+)
+
 // Routes of the chat API, as the CLI calls them.
 const (
 	RouteConversations = "/api/conversations" // + "/<id>/messages", "/<id>/read"
@@ -128,4 +134,11 @@ type WatchLine struct {
 	Author            string  `json:"author"`
 	Body              string  `json:"body"`
 	CreatedAt         string  `json:"created_at"`
+}
+
+// ValidClientID reports whether s is a well-formed client id: 8 to 64 characters, no space or control character.
+// A client id keys the replay of a post or a session mint, so the server and the CLI judge it the same way.
+func ValidClientID(s string) bool {
+	n := utf8.RuneCountInString(s)
+	return n >= 8 && n <= 64 && !strings.ContainsFunc(s, func(r rune) bool { return unicode.IsControl(r) || unicode.IsSpace(r) })
 }

@@ -26,7 +26,7 @@ func (s *Server) postMessage(w http.ResponseWriter, r *http.Request, c *call) {
 	if !decode(w, r, &in) {
 		return
 	}
-	if !auth.ValidClientID(in.ClientID) {
+	if !wire.ValidClientID(in.ClientID) {
 		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "client_id", "The client id must be 8 to 64 characters without spaces.")
 		return
 	}
@@ -60,6 +60,7 @@ func (s *Server) postMessage(w http.ResponseWriter, r *http.Request, c *call) {
 		} else {
 			s.Bus.Notify(posted.Wake...)
 			if isAgent {
+				s.countDailyPost(c, now)
 				s.publishWorking(r.Context(), who, convID, false, 0)
 			}
 		}
@@ -68,12 +69,13 @@ func (s *Server) postMessage(w http.ResponseWriter, r *http.Request, c *call) {
 }
 
 // agentMayPost applies the post scope and the three rate limits to an agent's post. It writes the refusal itself.
+// It only reads the daily caps; countDailyPost spends them once the message is stored.
 func (s *Server) agentMayPost(w http.ResponseWriter, c *call, now time.Time) bool {
 	if c.lease.Scopes&auth.ScopePost == 0 {
 		writeErr(w, http.StatusForbidden, "forbidden", "This machine may not post.")
 		return false
 	}
-	identityKey, machineKey := strconv.FormatInt(c.lease.IdentityID, 10), strconv.FormatInt(c.lease.MachineID, 10)
+	identityKey, machineKey := capKeys(c)
 	if !s.postLimit.Allow(identityKey, now) {
 		tooMany(w, time.Second, "Too many messages. Slow down.")
 		return false
@@ -82,9 +84,20 @@ func (s *Server) agentMayPost(w http.ResponseWriter, c *call, now time.Time) boo
 		tooMany(w, wait, "The daily message limit is reached.")
 		return false
 	}
+	return true
+}
+
+// countDailyPost counts one stored message against the daily caps. A refused or replayed post is not counted,
+// so a bad request or a retry cannot use up an agent's day.
+func (s *Server) countDailyPost(c *call, now time.Time) {
+	identityKey, machineKey := capKeys(c)
 	s.dayIdentityLimit.Allow(identityKey, now)
 	s.dayMachineLimit.Allow(machineKey, now)
-	return true
+}
+
+// capKeys are the rate-limit keys of the calling agent: its identity and its machine.
+func capKeys(c *call) (identityKey, machineKey string) {
+	return strconv.FormatInt(c.lease.IdentityID, 10), strconv.FormatInt(c.lease.MachineID, 10)
 }
 
 // tooMany answers 429 with the wait in the Retry-After header and in the body, whole seconds, at least 1.

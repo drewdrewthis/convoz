@@ -180,3 +180,13 @@ func TestWorkingFrameReachesOnlyReadersWhoSeeTheConversation(t *testing.T) {
 		t.Errorf("a frame for a conversation the reader cannot see was written: %q", rig.text()[before:])
 	}
 }
+
+func TestLiveFrameWithoutConversationIsRefused(t *testing.T) {
+	rig := openRig(t, "owner")
+	rig.s.Bus.Publish(platform.Frame{Event: "test.unscoped", Data: []byte(`{}`)})
+	rig.s.Bus.Publish(platform.Frame{Event: "test.scoped", Data: []byte(`{}`), Conversation: rig.conv})
+	rig.waitSeen(t, "event: test.scoped") // frames arrive in order, so the first one was decided by now
+	if strings.Contains(rig.text(), "test.unscoped") {
+		t.Errorf("a frame that names no conversation was written: %q", rig.text())
+	}
+}

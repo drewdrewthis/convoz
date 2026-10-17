@@ -54,6 +54,7 @@ type MintedSession struct {
 	Lease  string
 	Session
 	MachineID int64
+	Replaced  []int64 // ids of the leases this one replaced; the caller lets go of what they held
 }
 
 // mintLease makes a lease in one transaction (the caller's): it ends that client's expired lease, enforces
@@ -99,7 +100,8 @@ func mintLease(ctx context.Context, d pdb.DBTX, in leaseInput, now time.Time) (M
 	if byMachine.N >= MintsPerMachineHr {
 		return MintedSession{}, &RateLimitedError{RetryAfter: retryAfter(byMachine.Oldest, time.Hour, now)}
 	}
-	if err := q.EndOpenSessionsOfClient(ctx, db.EndOpenSessionsOfClientParams{Now: sql.NullInt64{Int64: nowMs, Valid: true}, IdentityID: in.IdentityID, MachineID: m.ID, ClientID: in.ClientID}); err != nil {
+	replacedIDs, err := q.EndOpenSessionsOfClient(ctx, db.EndOpenSessionsOfClientParams{Now: sql.NullInt64{Int64: nowMs, Valid: true}, IdentityID: in.IdentityID, MachineID: m.ID, ClientID: in.ClientID})
+	if err != nil {
 		return MintedSession{}, err
 	}
 	lease := newToken(PrefixSession)
@@ -120,7 +122,7 @@ func mintLease(ctx context.Context, d pdb.DBTX, in leaseInput, now time.Time) (M
 	if err := q.TouchMachine(ctx, db.TouchMachineParams{LastUsedAt: sql.NullInt64{Int64: nowMs, Valid: true}, ID: m.ID}); err != nil {
 		return MintedSession{}, err
 	}
-	return MintedSession{Lease: lease, MachineID: m.ID, Session: Session{ID: id, IdentityID: in.IdentityID, Machine: m.Name, ClientID: in.ClientID, Label: in.Label, Live: true, LastSeenAt: nowMs, ExpiresAt: expires}}, nil
+	return MintedSession{Lease: lease, MachineID: m.ID, Replaced: replacedIDs, Session: Session{ID: id, IdentityID: in.IdentityID, Machine: m.Name, ClientID: in.ClientID, Label: in.Label, Live: true, LastSeenAt: nowMs, ExpiresAt: expires}}, nil
 }
 
 // Lease is the authenticated lease behind a bearer token.

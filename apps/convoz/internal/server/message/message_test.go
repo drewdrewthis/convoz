@@ -253,6 +253,22 @@ func TestPreviewIsOneLineOfAtMost140Runes(t *testing.T) {
 	}
 }
 
+func TestPreviewIsPlainText(t *testing.T) {
+	for in, want := range map[string]string{
+		"**bold** and *it* and _it_ and snake_case": "bold and it and it and snake_case",
+		"run `go test` now":                         "run go test now",
+		"see [the docs](https://x.example/a) ok":    "see the docs ok",
+		"# Title\n- one\n2. two\n> quoted":          "Title one two quoted",
+		"before\n```go\nx := 1\n```\nafter":         "before code after",
+		"open ```fence never closed":                "open code",
+		"a\u202eb\u200bc":                           "abc",
+	} {
+		if got := message.Preview(in); got != want {
+			t.Errorf("Preview(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestClampLimit(t *testing.T) {
 	for in, want := range map[int]int{-5: message.DefaultPage, 0: message.DefaultPage, 1: 1, 100: 100, 101: message.MaxPage, 5000: message.MaxPage} {
 		if got := message.ClampLimit(in); got != want {
