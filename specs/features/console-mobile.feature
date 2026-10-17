@@ -20,7 +20,7 @@ Feature: Console on a phone
       Given the owner has a passkey on this device
       When the owner opens the sign-in page and taps "Sign in with a passkey"
       Then one passkey prompt opens at once, with no network call waited on between the tap and the prompt
-      And the app shows Chats
+      And the app shows Now
 
     @v1 @browser
     Scenario: Adding a passkey takes a check and then a create, one prompt each
@@ -101,10 +101,10 @@ Feature: Console on a phone
   Rule: Signing in again, and signing back in
 
     @v1 @browser
-    Scenario: Opening sign-in while signed in goes to Chats
+    Scenario: Opening sign-in while signed in goes to Now
       Given the owner is signed in
       When the owner opens the sign-in page
-      Then the app shows Chats
+      Then the app shows Now
 
     @v1 @browser
     Scenario: An expired session sends the owner to sign in and back
@@ -179,7 +179,7 @@ Feature: Console on a phone
       Given the owner is signed in on a phone
       When the owner opens the account menu
       Then the menu lists "Passkeys", "Recovery codes" and "Sign out"
-      And the bottom nav shows "Chats", "Now" and "Account"
+      And the bottom nav shows "Now", "Conversations" and "Crew"
 
     @v1 @browser @phone
     Scenario: Sign out from the account menu ends the session
@@ -243,7 +243,7 @@ Feature: Console on a phone
     Scenario: A real iPhone signs in with one tap
       Given the iPhone has a Convoz passkey
       When the owner taps "Sign in with a passkey"
-      Then Face ID or Touch ID opens at once and the app shows Chats
+      Then Face ID or Touch ID opens at once and the app shows Now
 
     @v1 @browser @phone @needs-owner
     Scenario: The main button stays in view with the keyboard open on a real iPhone

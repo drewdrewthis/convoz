@@ -83,14 +83,17 @@ export async function appReturns(page: Page): Promise<void> {
 // ---- locators ------------------------------------------------------------------------------------------
 
 export const mainNav = (page: Page): Locator => page.getByRole("navigation", { name: "Main" });
-export const chatsHeading = (page: Page): Locator => page.getByRole("heading", { name: "Chats", exact: true });
-/** "New chat": the app bar link, and in the empty state also the one in the page body. */
-export const newChat = (page: Page): Locator => page.getByRole("link", { name: "New chat" }).first();
-export const chatList = (page: Page): Locator => page.getByRole("list", { name: "Chats" });
+export const nowHeading = (page: Page): Locator => page.getByRole("heading", { name: "Now", exact: true });
+/** The Conversations list heading (prototype v41 names the Chats list "Conversations"). */
+export const chatsHeading = (page: Page): Locator => page.getByRole("heading", { name: "Conversations", exact: true });
+/** "New conversation": the button that floats above the bar, and in the empty state also the link in the page body. */
+export const newChat = (page: Page): Locator => page.getByRole("link", { name: "New conversation" }).first();
+export const chatList = (page: Page): Locator => page.getByRole("list", { name: "Conversations" });
 export const chatRow = (page: Page, title: string): Locator => chatList(page).getByRole("listitem").filter({ has: page.getByRole("heading", { name: title, exact: true }) });
 /** Titles in list order. */
 export const rowTitles = (page: Page): Promise<string[]> => chatList(page).getByRole("heading").allTextContents();
-export const unreadDot = (row: Locator): Locator => row.getByRole("img", { name: "Unread" });
+/** The unread count pill of a row (prototype v41 has no dot): its text is "Unread: 3". */
+export const unreadDot = (row: Locator): Locator => row.getByText(/^Unread: \d/);
 export const messageLog = (page: Page): Locator => page.getByRole("log", { name: "Messages" });
 /** A message in the open chat, found by text. */
 export const message = (page: Page, text: string | RegExp): Locator => messageLog(page).getByRole("article").filter({ hasText: text });
@@ -100,13 +103,24 @@ export const backButton = (page: Page): Locator => page.getByRole("link", { name
 export const workingNote = (page: Page): Locator => page.getByRole("status").filter({ hasText: "is working" });
 export const newMessagePill = (page: Page): Locator => page.getByRole("button", { name: "New message ↓" });
 
-/** The agent button on the New chat page. */
+/** The agent button in the @ menu of New conversation (open it with `openMentions`). */
 export const agentChoice = (page: Page, handle: string): Locator => page.getByRole("list", { name: "Agents" }).getByRole("button", { name: new RegExp(`@${handle}\\b`) });
 
 // ---- measures ------------------------------------------------------------------------------------------
 
 /** True when the element's text is bold (weight 600 or more). */
 export const isBold = (l: Locator): Promise<boolean> => l.evaluate((e) => Number(getComputedStyle(e).fontWeight) >= 600);
+
+/** Type "@" in the empty message box of New conversation: the prototype's menu of agents opens above it. */
+export async function openMentions(page: Page): Promise<void> {
+  await page.getByRole("textbox", { name: "Message", exact: true }).fill("@");
+}
+
+/** Bring an agent into a new conversation: type "@", then pick it from the menu. */
+export async function chooseAgent(page: Page, handle: string): Promise<void> {
+  await openMentions(page);
+  await agentChoice(page, handle).click();
+}
 
 /** How far the log is from its bottom edge, in CSS px (0 = at the latest message). */
 export const fromBottom = (log: Locator): Promise<number> => log.evaluate((e) => Math.round(e.scrollHeight - e.scrollTop - e.clientHeight));

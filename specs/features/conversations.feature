@@ -21,11 +21,11 @@ Feature: Conversations
       Then the Chats list shows the conversation at the top titled "Plan the search filters launch"
 
     @v1 @browser @phone
-    Scenario: On a phone the first page after sign-in is Chats
+    Scenario: On a phone the first page after sign-in is Now
       Given the owner has a passkey on a phone
       When the owner signs in
-      Then the app shows Chats
-      And "Chats" is marked as the current tab
+      Then the app shows Now
+      And "Now" is marked as the current tab
 
     @v1 @browser @phone
     Scenario: On a phone an empty Chats list explains itself and offers New chat
@@ -37,7 +37,7 @@ Feature: Conversations
     @v1 @browser @phone
     Scenario: On a phone New chat lists the crew agents and opens a focused composer
       Given "devtool" has a live session and "docs" has none
-      When the owner taps "New chat"
+      When the owner taps "New chat" and types "@"
       Then the list shows "devtool" as online and "docs" as offline
       When the owner picks "docs"
       Then the message box for "docs" has focus
@@ -59,11 +59,10 @@ Feature: Conversations
       Then the Chats list shows
 
     @v1 @browser @phone
-    Scenario: On a phone Chats shows plain previews and avatars that differ, and the composer names the agent
+    Scenario: On a phone Conversations shows plain previews, and the composer names the agent
       Given "devtool" replied in one chat with markdown and the owner wrote in another chat with "docs"
-      When the owner opens Chats
+      When the owner opens Conversations
       Then the preview is plain text: no markers, the link as its text and the code block as "code"
-      And the two avatars show different letters
       And the message box is named after the agent
 
     @v1 @browser @phone
@@ -185,18 +184,18 @@ Feature: Conversations
   Rule: Messages arrive live
 
     @v1 @browser @phone
-    Scenario: On a phone the bottom bar leads to Chats, Now and Account
+    Scenario: On a phone the bottom bar leads to Now, Conversations and Crew
       Given the owner opens Convoz on a phone
-      Then a bottom bar shows "Chats", "Now" and "Account"
-      When the owner taps "Chats"
-      Then the Chats list shows with a "New chat" button
-      And "Chats" is marked as the current tab
+      Then a bottom bar shows "Now", "Conversations" and "Crew"
+      When the owner taps "Conversations"
+      Then the Conversations list shows with a "New conversation" button
+      And "Conversations" is marked as the current tab
 
     @v1 @browser @phone
     Scenario: On a phone the owner starts a chat with an agent and sees its reply
       Given "devtool" runs "convoz watch --json"
       When the owner taps "New chat", picks "devtool" and sends "Is the build green?"
-      Then the message shows in a bubble on the right
+      Then the message shows with the name "You" and an avatar on the left
       And the watch stream prints one JSON line with "Is the build green?" within 3 seconds
       When "devtool" runs "convoz post" in that conversation with "Yes, all 11 checks pass"
       Then the reply shows on the left within 3 seconds with no reload

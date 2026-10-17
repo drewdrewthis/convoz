@@ -1,0 +1,271 @@
+{
+ "conversations": [
+  {
+   "name": "Search (no backend)",
+   "x": 336,
+   "y": 8,
+   "w": 44,
+   "h": 44
+  },
+  {
+   "name": "Now badge (asks have no backend)",
+   "x": 76,
+   "y": 727,
+   "w": 30,
+   "h": 24
+  },
+  {
+   "name": "muted title (no mute)",
+   "x": 18,
+   "y": 428,
+   "w": 110,
+   "h": 24
+  },
+  {
+   "name": "time",
+   "x": 286,
+   "y": 240,
+   "w": 54,
+   "h": 20
+  },
+  {
+   "name": "time",
+   "x": 286,
+   "y": 304,
+   "w": 54,
+   "h": 20
+  },
+  {
+   "name": "time",
+   "x": 286,
+   "y": 368,
+   "w": 54,
+   "h": 20
+  },
+  {
+   "name": "time",
+   "x": 286,
+   "y": 496,
+   "w": 54,
+   "h": 20
+  },
+  {
+   "name": "time",
+   "x": 286,
+   "y": 560,
+   "w": 54,
+   "h": 20
+  },
+  {
+   "name": "time",
+   "x": 320,
+   "y": 112,
+   "w": 54,
+   "h": 20
+  },
+  {
+   "name": "time",
+   "x": 320,
+   "y": 176,
+   "w": 54,
+   "h": 20
+  },
+  {
+   "name": "time",
+   "x": 320,
+   "y": 432,
+   "w": 54,
+   "h": 20
+  },
+  {
+   "name": "time",
+   "x": 320,
+   "y": 624,
+   "w": 54,
+   "h": 20
+  },
+  {
+   "name": "time",
+   "x": 320,
+   "y": 688,
+   "w": 54,
+   "h": 20
+  }
+ ],
+ "new-conversation": [
+  {
+   "name": "Show details (no backend)",
+   "x": 340,
+   "y": 4,
+   "w": 44,
+   "h": 44
+  },
+  {
+   "name": "Star and mute (no backend)",
+   "x": 290,
+   "y": 53,
+   "w": 88,
+   "h": 44
+  },
+  {
+   "name": "Attach (no backend)",
+   "x": 21,
+   "y": 738,
+   "w": 44,
+   "h": 44
+  },
+  {
+   "name": "Voice (no backend)",
+   "x": 327,
+   "y": 738,
+   "w": 44,
+   "h": 44
+  }
+ ],
+ "now": [
+  {
+   "name": "Search (no backend)",
+   "x": 336,
+   "y": 3,
+   "w": 44,
+   "h": 44
+  },
+  {
+   "name": "Snoozed and Answered today (no backend)",
+   "x": 12,
+   "y": 55,
+   "w": 295,
+   "h": 44
+  }
+ ],
+ "crew": [
+  {
+   "name": "Search (no backend)",
+   "x": 336,
+   "y": 8,
+   "w": 44,
+   "h": 44
+  },
+  {
+   "name": "Now badge (asks have no backend)",
+   "x": 76,
+   "y": 727,
+   "w": 30,
+   "h": 24
+  },
+  {
+   "name": "usage-bot avatar (agent images)",
+   "x": 14,
+   "y": 282,
+   "w": 56,
+   "h": 56
+  },
+  {
+   "name": "Working summary (no status)",
+   "x": 16,
+   "y": 66,
+   "w": 330,
+   "h": 42
+  },
+  {
+   "name": "status line",
+   "x": 74,
+   "y": 311,
+   "w": 215,
+   "h": 20
+  },
+  {
+   "name": "status line",
+   "x": 74,
+   "y": 451,
+   "w": 215,
+   "h": 20
+  },
+  {
+   "name": "status line",
+   "x": 74,
+   "y": 521,
+   "w": 215,
+   "h": 20
+  },
+  {
+   "name": "asks chip",
+   "x": 312,
+   "y": 293,
+   "w": 66,
+   "h": 34
+  },
+  {
+   "name": "asks chip",
+   "x": 312,
+   "y": 363,
+   "w": 66,
+   "h": 34
+  },
+  {
+   "name": "Invite agent (no backend)",
+   "x": 8,
+   "y": 566,
+   "w": 374,
+   "h": 50
+  }
+ ],
+ "conversation-thread": [
+  {
+   "name": "Show details (no backend)",
+   "x": 340,
+   "y": 4,
+   "w": 44,
+   "h": 44
+  },
+  {
+   "name": "Star and mute (no backend)",
+   "x": 290,
+   "y": 53,
+   "w": 88,
+   "h": 44
+  },
+  {
+   "name": "time",
+   "x": 95,
+   "y": 122,
+   "w": 56,
+   "h": 20
+  },
+  {
+   "name": "time",
+   "x": 150,
+   "y": 214,
+   "w": 56,
+   "h": 20
+  },
+  {
+   "name": "lane-search avatar (agent images)",
+   "x": 18,
+   "y": 204,
+   "w": 32,
+   "h": 52
+  },
+  {
+   "name": "lane-search chip (agent images)",
+   "x": 12,
+   "y": 53,
+   "w": 44,
+   "h": 44
+  },
+  {
+   "name": "Attach (no backend)",
+   "x": 21,
+   "y": 738,
+   "w": 44,
+   "h": 44
+  },
+  {
+   "name": "Voice (no backend)",
+   "x": 327,
+   "y": 738,
+   "w": 44,
+   "h": 44
+  }
+ ]
+}
