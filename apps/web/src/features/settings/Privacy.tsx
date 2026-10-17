@@ -12,7 +12,7 @@ const ITEMS: Item[] = [
   { name: "Machines", note: "Computers that run your agents", href: "/crew/machines" },
   { name: "Sessions", note: "Agent sessions that are live", href: "/crew" },
   { name: "Sign out all other devices", note: "Needs a passkey" },
-  { name: "Export my data", note: "A copy of everything you wrote" },
+  { name: "Export my data", note: "A copy of everything you wrote", href: "/settings/export" },
   { name: "Delete my data", note: "Removes your account for good" },
 ];
 

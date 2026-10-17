@@ -11,6 +11,7 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/ops"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
@@ -57,6 +58,7 @@ type Server struct {
 	dayMachineLimit  auth.Limiter
 	streams          streamSet
 	maintainedAt     atomic.Int64  // server time (unix ms) of the last clean-up run Maintain made on a list read
+	exports          ops.Exports   // export jobs; the zero value is ready
 	heartbeat        time.Duration // how often a quiet stream sends ": hb" and checks its device; heartbeatEvery unless a test shortens it
 }
 

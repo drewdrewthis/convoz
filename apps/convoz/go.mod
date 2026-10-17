@@ -3,6 +3,7 @@ module github.com/drewdrewthis/convoz/apps/convoz
 go 1.27.1
 
 require (
+	filippo.io/age v1.2.1
 	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/andybalholm/brotli v1.2.6
 	github.com/evanw/esbuild v0.28.2

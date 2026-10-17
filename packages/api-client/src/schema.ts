@@ -1409,6 +1409,24 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** Start an export (design §14). Needs a passkey check (data.export); the answer is the job. */
+        post: operations["startExport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/export/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The job's state, or with download=1 the finished zip (manifest.json and conversations/<id>.json). */
+        get: operations["getExport"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -1528,7 +1546,7 @@ export interface components {
         /** @description Made once per command and reused on a retry, so a retry never makes a second one. */
         ClientId: string;
         /** @enum {string} */
-        StepUpAction: "passkey.add" | "passkey.remove" | "recovery.regenerate" | "machine.approve" | "machine.reveal" | "machine.regenerate" | "machine.revoke" | "machine.allow" | "identity.create" | "identity.disable";
+        StepUpAction: "passkey.add" | "passkey.remove" | "recovery.regenerate" | "machine.approve" | "machine.reveal" | "machine.regenerate" | "machine.revoke" | "machine.allow" | "identity.create" | "identity.disable" | "data.export";
         Owner: {
             /** Format: int64 */
             id: number;
@@ -1906,6 +1924,14 @@ export interface components {
             key: string;
             /** @description Checked against the registry before it is stored. */
             value: unknown;
+        };
+        /** @description An export of everything the caller can see. The archive is held in memory for an hour. */
+        ExportJob: {
+            id: string;
+            /** @enum {string} */
+            status: "running" | "done" | "failed";
+            /** @description Archive bytes */
+            size?: number;
         };
     };
     responses: {
@@ -3320,6 +3346,56 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SettingEntry"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    startExport: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description The step_up_id of a fresh passkey check for this action. */
+                "X-Convoz-Step-Up": components["parameters"]["StepUp"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: components["requestBodies"]["Empty"];
+        responses: {
+            /** @description The job is running; poll it with GET /api/me/export/{id}. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportJob"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getExport: {
+        parameters: {
+            query?: {
+                download?: "1";
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The job, or the archive when download=1 and the job is done. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportJob"];
+                    "application/zip": string;
                 };
             };
             default: components["responses"]["Error"];

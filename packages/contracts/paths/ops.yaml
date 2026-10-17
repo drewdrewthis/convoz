@@ -1,5 +1,40 @@
 # Paths of the ops module (design §13). Only the work package that owns ops edits this file; the root
 # openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
-/api/me/export: {}  # not specified yet
+/api/me/export:
+  post:
+    operationId: startExport
+    summary: Start an export (design §14). Needs a passkey check (data.export); the answer is the job.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/StepUp"
+    requestBody: { $ref: "../openapi.yaml#/components/requestBodies/Empty" }
+    responses:
+      "202":
+        description: The job is running; poll it with GET /api/me/export/{id}.
+        content:
+          application/json:
+            schema: { $ref: "../components/ops.yaml#/ExportJob" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/me/export/{id}:
+  get:
+    operationId: getExport
+    summary: The job's state, or with download=1 the finished zip (manifest.json and conversations/<id>.json).
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+      - name: download
+        in: query
+        required: false
+        schema: { type: string, enum: ["1"] }
+    responses:
+      "200":
+        description: The job, or the archive when download=1 and the job is done.
+        content:
+          application/json:
+            schema: { $ref: "../components/ops.yaml#/ExportJob" }
+          application/zip:
+            schema: { type: string, format: binary }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/me/delete: {}  # not specified yet
 /api/admin/health: {}  # not specified yet

@@ -26,6 +26,7 @@ var StepUpActions = map[string]bool{
 	"identity.create":     true,
 	"identity.disable":    true,
 	"message.purge":       true,
+	"data.export":         true,
 }
 
 // ErrStepUp means the step-up is unknown, used, expired, or for another device, action or target.
