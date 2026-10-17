@@ -93,7 +93,7 @@ func (f *chatFlags) open(io IO) (*chatCmd, int) {
 	}
 	s, err := loadSession(dir, sid)
 	if err != nil {
-		return nil, fail(io, err)
+		return nil, sessionEnded(io, err)
 	}
 	return &chatCmd{io: io, c: c, lease: s.Lease, asJSON: *f.asJSON, timeout: *f.timeout}, 0
 }

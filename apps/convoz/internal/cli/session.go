@@ -8,6 +8,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -22,12 +23,20 @@ const sessionsDir = "sessions"
 var sidRE = regexp.MustCompile(`^[0-9a-f]{6,32}$`)
 
 // sessionFile is what a started session leaves on disk (mode 0600). The lease is the only secret in it.
+//
+// `convoz session end` does not remove the file: it drops the lease and keeps Ended, the reason in words. A command
+// that got the sid before the end but opens the file after it (a watch started a moment earlier) then says the
+// session ended, as it would had it reached the server first, instead of claiming there never was a session.
 type sessionFile struct {
-	Lease    string `json:"lease"`
+	Lease    string `json:"lease,omitempty"`
 	Identity string `json:"identity"`
 	Machine  string `json:"machine"`
 	ClientID string `json:"client_id"`
+	Ended    string `json:"ended,omitempty"`
 }
+
+// endedHere is the reason kept when `convoz session end` itself ended the lease (the server's words for a logout).
+const endedHere = "The session was ended."
 
 func randomHex(nBytes int) string {
 	b := make([]byte, nBytes)
@@ -58,10 +67,41 @@ func loadSession(dir, sid string) (sessionFile, error) {
 		return sessionFile{}, err
 	}
 	var s sessionFile
-	if err := json.Unmarshal(raw, &s); err != nil || s.Lease == "" {
+	if err := json.Unmarshal(raw, &s); err != nil || (s.Lease == "") == (s.Ended == "") {
 		return sessionFile{}, fmt.Errorf("%s is not a session file", path)
 	}
+	if s.Ended != "" {
+		return s, endedSessionError(s.Ended)
+	}
 	return s, nil
+}
+
+// endedSessionError is the answer the server gives an ended lease, so sessionEnded prints it the same way.
+func endedSessionError(reason string) error {
+	return &statusError{status: http.StatusUnauthorized, code: wire.CodeSessionEnded, msg: reason}
+}
+
+// isEnded reports whether err is a lease that no longer works, from the server or from the local marker.
+func isEnded(err error) bool {
+	_, code := statusCode(err)
+	return code == wire.CodeSessionEnded
+}
+
+// markSessionEnded replaces the session file with one that keeps who it was for and why it ended, but not the lease.
+func markSessionEnded(dir, sid, reason string) error {
+	path, ok := sessionPath(dir, sid)
+	if !ok {
+		return fmt.Errorf("%q is not a session id", sid)
+	}
+	s, err := loadSession(dir, sid)
+	if err != nil {
+		return err
+	}
+	raw, err := json.Marshal(sessionFile{Identity: s.Identity, Machine: s.Machine, ClientID: s.ClientID, Ended: reason})
+	if err != nil {
+		return err
+	}
+	return writePrivate(path, raw)
 }
 
 // unknownSessionError is a --sid with no session file; it is an auth failure (exit 3): there is no lease to use.
@@ -96,7 +136,7 @@ func forgetSessions(dir, identity, clientID string) {
 		return
 	}
 	for _, e := range entries {
-		if s, err := loadSession(dir, e.Name()); err == nil && s.Identity == identity && s.ClientID == clientID {
+		if s, err := loadSession(dir, e.Name()); (err == nil || isEnded(err)) && s.Identity == identity && s.ClientID == clientID {
 			path, _ := sessionPath(dir, e.Name())
 			_ = os.Remove(path)
 		}
@@ -184,14 +224,22 @@ func SessionEnd(args []string, io IO) int {
 		return fail(io, err)
 	}
 	s, err := loadSession(dir, *sid)
+	if isEnded(err) {
+		return ExitOK
+	}
 	if err != nil {
 		return fail(io, err)
 	}
+	reason := endedHere
 	err = newClient(creds.Server).call(context.Background(), "DELETE", wire.RouteSessionsMe, s.Lease, nil, nil)
-	if _, code := statusCode(err); err != nil && code != wire.CodeSessionEnded {
+	if err != nil {
+		if !isEnded(err) {
+			return fail(io, err)
+		}
+		reason = err.Error()
+	}
+	if err := markSessionEnded(dir, *sid, reason); err != nil {
 		return fail(io, err)
 	}
-	path, _ := sessionPath(dir, *sid)
-	_ = os.Remove(path)
 	return ExitOK
 }
