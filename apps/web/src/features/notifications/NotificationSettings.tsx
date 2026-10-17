@@ -80,7 +80,9 @@ export function NotificationSettings() {
     <>
       <h2>Notifications</h2>
       {needsHomeScreen() ? (
-        <p className="sub">To turn push on, add Convoz to your Home Screen first: Share → Add to Home Screen.</p>
+        <section className="group" aria-label="Add to Home Screen">
+          <p className="sub row stacked">To turn push on, add Convoz to your Home Screen first: Share → Add to Home Screen.</p>
+        </section>
       ) : !pushSupported() ? (
         <p className="sub">This browser cannot receive push.</p>
       ) : (

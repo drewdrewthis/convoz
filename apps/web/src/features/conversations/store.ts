@@ -9,6 +9,8 @@ import { data, outbox, source, sync } from "../../shared/data.ts";
 
 /** How long a working note stays without an `until` from the server. */
 const WORKING_DEFAULT_MS = 300_000;
+/** A send waiting for the link looks again this often even if no `online` event comes. */
+const OFFLINE_RECHECK_MS = 10_000;
 
 /** An owner message not yet confirmed by the server. `base` is the newest id held when it was written. */
 export interface PendingSend {
@@ -77,40 +79,68 @@ export const useConversations = create<ConversationsState>()((set, get) => {
   const keysOf = (convId: number) => Object.keys(get().threads).filter((k) => convId !== 0 && get().threads[k]!.convId === convId);
   const untitled = (convId: number) => !data.store.getState().rows[convId]?.title;
 
+  /** The browser says it has no link: a send then waits in the outbox (design §9) instead of failing. */
+  const linkDown = (err: unknown) => err instanceof TypeError && navigator.onLine === false;
+  /** backOnline resolves when the link returns; the timer is a net for an `online` event the browser never sent. */
+  const backOnline = () =>
+    new Promise<void>((resolve) => {
+      const done = () => {
+        removeEventListener("online", done);
+        clearTimeout(timer);
+        resolve();
+      };
+      const timer = setTimeout(done, OFFLINE_RECHECK_MS);
+      addEventListener("online", done);
+    });
+
   async function deliver(key: string, cid: string) {
     const setState = (state: PendingSend["state"]) => patch(key, (t) => ({ pending: t.pending.map((p) => (p.cid === cid ? { ...p, state } : p)) }));
     setState("sending");
-    try {
-      let t = thread(key)!;
-      if (!t.convId) {
-        const made = await source.createConversation(t.start!.clientId, [t.start!.handle]);
-        data.putConversation(made);
-        data.track(made.id);
-        patch(key, () => ({ convId: made.id }));
-        t = thread(key)!;
+    let queued = false;
+    for (;;) {
+      try {
+        let t = thread(key)!;
+        if (!t.convId) {
+          const made = await source.createConversation(t.start!.clientId, [t.start!.handle]);
+          data.putConversation(made);
+          data.track(made.id);
+          patch(key, () => ({ convId: made.id }));
+          t = thread(key)!;
+        }
+        const p = t.pending.find((x) => x.cid === cid)!;
+        if (!queued) void outbox.put({ cid, conversationId: t.convId, body: p.body, uploadIds: p.uploadIds, createdAt: Date.now() }); // before the post: a cut-off send is found again
+        queued = true;
+        const sent = await source.post(t.convId, cid, p.body, p.uploadIds);
+        void outbox.remove(cid);
+        const me = data.store.getState().me!.identity;
+        const files = p.files?.length ? { uploads: p.files } : {};
+        data.putMessages(t.convId, [{ id: sent.id, author: { handle: me.handle, display_name: me.display_name, kind: "human" }, body: p.body, format: "plain", created_at: sent.created_at, ...files }]);
+        patch(key, (now) => ({ pending: now.pending.filter((x) => x.cid !== cid) }));
+        void get().markRead(key);
+        if (untitled(t.convId)) data.loadConversation(t.convId).catch(() => {});
+        return;
+      } catch (err) {
+        if (err instanceof ApiError && err.handled) return;
+        if (!linkDown(err)) return setState("failed");
+        await backOnline(); // the same client id goes out again, so a send that did arrive is not made twice (I-24)
       }
-      const p = t.pending.find((x) => x.cid === cid)!;
-      void outbox.put({ cid, conversationId: t.convId, body: p.body, uploadIds: p.uploadIds, createdAt: Date.now() }); // before the post: a cut-off send is found again
-      const sent = await source.post(t.convId, cid, p.body, p.uploadIds);
-      void outbox.remove(cid);
-      const me = data.store.getState().me!.identity;
-      const files = p.files?.length ? { uploads: p.files } : {};
-      data.putMessages(t.convId, [{ id: sent.id, author: { handle: me.handle, display_name: me.display_name, kind: "human" }, body: p.body, format: "plain", created_at: sent.created_at, ...files }]);
-      patch(key, (now) => ({ pending: now.pending.filter((x) => x.cid !== cid) }));
-      void get().markRead(key);
-      if (untitled(t.convId)) data.loadConversation(t.convId).catch(() => {});
-    } catch (err) {
-      if (err instanceof ApiError && err.handled) return;
-      setState("failed");
     }
   }
+
+  /** deliver one at a time per page, in the order the owner sent: twenty sends over an unstable link arrive in order. */
+  const queues = new Map<string, Promise<void>>();
+  const enqueue = (key: string, cid: string) => {
+    const run = (queues.get(key) ?? Promise.resolve()).then(() => deliver(key, cid));
+    queues.set(key, run);
+    return run;
+  };
 
   /** Sends of this conversation that a closed page or a dead link left in the outbox go out again with their client ids. */
   async function restoreSends(key: string, convId: number) {
     for (const item of await outbox.list()) {
       if (item.conversationId !== convId || thread(key)?.pending.some((p) => p.cid === item.cid)) continue;
       patch(key, (t) => ({ pending: [...t.pending, { cid: item.cid, body: item.body, uploadIds: item.uploadIds, state: "sending", base: newest(convId) }] }));
-      void deliver(key, item.cid);
+      void enqueue(key, item.cid);
     }
   }
 
@@ -153,9 +183,9 @@ export const useConversations = create<ConversationsState>()((set, get) => {
       const cid = newId();
       const carried = files?.length ? { files, uploadIds: files.map((f) => f.id) } : {};
       patch(key, (now) => ({ pending: [...now.pending, { cid, body, state: "sending", base: newest(now.convId), ...carried }] }));
-      void deliver(key, cid);
+      void enqueue(key, cid);
     },
-    retry: (key, cid) => void deliver(key, cid),
+    retry: (key, cid) => void enqueue(key, cid),
     markRead: (key) => {
       let job = readJobs.get(key);
       if (!job) {

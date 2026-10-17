@@ -86,13 +86,13 @@ Feature: Onboarding and sign in
 
   Rule: Installing the app
 
-    @v1 @browser @phone @unimplemented
+    @v1 @browser @phone
     Scenario: iPhone users get an Add to Home Screen guide
       Given an iPhone browser that is not in standalone mode
       When the owner opens Settings → Notifications
       Then a guide card explains "Share → Add to Home Screen" before push can be turned on
 
-    @v1 @browser @unimplemented
+    @v1 @browser
     Scenario: An update waits for the owner's tap
       Given a new build is deployed while the app is open
       Then the app shows "Update ready · Reload"

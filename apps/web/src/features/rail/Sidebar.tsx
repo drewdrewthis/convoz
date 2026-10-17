@@ -130,9 +130,9 @@ export default function Sidebar() {
         ) : null}
         {g.mid.length || !g.starred.length ? (
           <div className="rgroup" role="group" aria-label="Conversations">
-            <div className="rghdr" data-ghdr="mid">
+            <a className="rghdr" data-ghdr="mid" href="/chats" style={{ textDecoration: "none" }}>
               Conversations
-            </div>
+            </a>
             {g.mid.map((c) => row(c, "mid"))}
           </div>
         ) : null}

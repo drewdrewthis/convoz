@@ -3,6 +3,7 @@
 import { AccountIcon, BackIcon, ChatIcon, CrewIcon, NowIcon, PlusIcon } from "@convoz/ui/icons";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { signOut } from "../shared/api.ts";
+import { keepForOffline } from "../shared/data.ts";
 import { Banners, useNoticeState } from "../shared/notice.tsx";
 import { PageHeadContext, type PageHead } from "../shared/page-head.tsx";
 import { openCount, useNow } from "../features/now/index.ts";
@@ -59,6 +60,7 @@ export function ShellFrame({ def, children }: { def: PageDef; children: ReactNod
     useNow.getState().load().catch(() => {});
   }, [def.name]);
   const account = useAccountMenu(notice.fail);
+  useEffect(() => void keepForOffline(), []);
   return (
     <Provider value={notice}>
       <header className="appbar">

@@ -5,6 +5,7 @@ import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties,
 import { stripCf, whenLabel } from "../../shared/chat.ts";
 import { humanError } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
+import { markUseful } from "../../shared/perf.ts";
 import { data, useData, useLive } from "../../shared/data.ts";
 import { ChevronIcon, groups, setMute, setStar } from "../rail/index.ts";
 import { toast } from "../pins-stars/index.ts";
@@ -35,6 +36,9 @@ export function Conversations() {
   const rows = ready ? list : [];
   const g = groups(rows, "activity");
   const [olderOpen, setOlderOpen] = useState(false);
+  useEffect(() => {
+    if (ready) markUseful();
+  }, [ready]);
 
   // A long press or a right click on a row opens its menu: Mark all read.
   const onContextMenu = (event: MouseEvent<HTMLDivElement>) => {

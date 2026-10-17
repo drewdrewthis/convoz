@@ -52,7 +52,7 @@ Feature: Composer
       Then the bubble first says "Not sent"
       And conversation 41 holds "retry me" once
 
-    @v1 @browser @I-24 @unimplemented
+    @v1 @browser @I-24
     Scenario: An offline send is replayed once when back online
       Given the browser is offline
       When the owner sends "first" and then "second"

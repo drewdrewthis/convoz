@@ -5,6 +5,7 @@ import { Sidebar, ShortcutsHost, useRailShortcuts } from "../features/rail/index
 import { SearchHost, useSearchShortcut } from "../features/search/index.ts";
 import { FocusFrame, ShellFrame } from "./frames.tsx";
 import type { PageDef } from "./routes.tsx";
+import { Status } from "./Status.tsx";
 
 /**
  * prepare readies the document for a page before the first render: the body attributes the stylesheet keys on, the tab
@@ -72,6 +73,7 @@ export function App({ def, Page }: { def: PageDef; Page: ComponentType }) {
       <>
         <Desk />
         <Page />
+        <Status />
       </>
     );
   }
@@ -82,6 +84,7 @@ export function App({ def, Page }: { def: PageDef; Page: ComponentType }) {
       <Frame def={def}>
         <Page />
       </Frame>
+      <Status />
     </>
   );
 }

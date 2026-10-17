@@ -1,13 +1,14 @@
 // The app's one shared data cache and sync engine (packages/api-client), over the network and the offline cache. Features read server data
 // with useData and keep their UI state in their own store (features/<f>/store.ts).
-import { createDataCache, createSync, cursorStore, idbOutbox, startOfflineCache, type DataSource, type DataState } from "@convoz/api-client";
+import { createDataCache, createSync, cursorStore, idbOutbox, startOfflineCache, type DataCache, type DataSource, type DataState } from "@convoz/api-client";
 import { useEffect, useRef } from "react";
 import { useStore } from "zustand";
-import { call, client } from "./api.ts";
+import { ApiError, call, client, isRevoking } from "./api.ts";
 import { onResume } from "./chat.ts";
+import { unreachable } from "./connection.ts";
 import { offline } from "./offline.ts";
 
-/** source reads and writes through the generated API client. */
+/** network reads and writes through the generated API client. */
 export const source: DataSource = {
   me: () => call(client.GET("/api/me")),
   identities: async () => (await call(client.GET("/api/identities"))).identities,
@@ -31,11 +32,50 @@ export const source: DataSource = {
   delta: (cursor, wait, signal) => call(client.GET("/api/sync", { params: { query: { cursor, wait } }, signal })),
 };
 
-export const data = createDataCache(source);
+/** A refusal the cached copy must not cover: the person is gone (sign in), or the thing is (404), or it is not theirs (403). */
+const final = (err: unknown): boolean =>
+  err instanceof ApiError && (err.handled || err.status === 404 || err.status === 403 || (err.status === 401 && isRevoking(err.code)));
+
+/**
+ * fromCache is "network first, IndexedDB second" (design §9): when the server cannot be reached, or refuses for a reason that
+ * leaves the device signed in (a 502, a bad token), the copy the cache holds stands in, and the offline banner says so.
+ */
+async function fromCache<T>(read: Promise<T>, held: () => T | null | undefined): Promise<T> {
+  try {
+    return await read;
+  } catch (err) {
+    if (final(err)) throw err;
+    await ready;
+    const have = held();
+    if (have == null) throw err;
+    unreachable();
+    return have;
+  }
+}
+
+const cached = () => data.store.getState();
+const NO_MESSAGES = { messages: [] };
+
+/** readable is the network source with a cached answer behind every read the pages make. Sends and the sync engine's own reads still fail. */
+const readable: DataSource = {
+  ...source,
+  me: () => fromCache(source.me(), () => cached().me),
+  identities: () => fromCache(source.identities(), () => cached().identities),
+  conversations: () => fromCache(source.conversations(), () => cached().conversations),
+  conversation: (id) => fromCache(source.conversation(id), () => cached().rows[id]),
+  messages: (id, page) =>
+    fromCache(source.messages(id, page), () => {
+      const held = cached().messages[id];
+      if (!held) return null;
+      return page.before || page.after ? NO_MESSAGES : { messages: held.list.slice(-page.limit) };
+    }),
+};
+
+export const data: DataCache = createDataCache(readable);
 // What the cache holds is kept in IndexedDB and read back at the next start, so the rail and the last messages show before the
 // network answers; the sync cursor is kept with it, so a warm start reads only the delta (design §9).
-void startOfflineCache(data, offline());
-export const sync = createSync(data, source, { cursor: cursorStore(offline()) });
+const ready = startOfflineCache(data, offline());
+export const sync = createSync(data, readable, { cursor: cursorStore(offline()) });
 /** The sends the server has not confirmed; they survive a closed page and go out again with the same client id. */
 export const outbox = idbOutbox(offline());
 
@@ -62,4 +102,31 @@ export function useLive(resume: () => void): void {
       release();
     };
   }, []);
+}
+
+/** What the offline shell keeps (design §9): the newest conversations, each with its last messages. */
+const KEEP_CONVERSATIONS = 20;
+const KEEP_MESSAGES = 200;
+let kept = false;
+
+/**
+ * keepForOffline reads who is signed in, the crew, and the 20 newest conversations with their last 200 messages into the cache (and so into IndexedDB), once per
+ * page load and only where a service worker can open the app offline. It waits for the worker so it never competes with the first
+ * screen, and skips a link that asked to save data.
+ */
+export async function keepForOffline(): Promise<void> {
+  if (kept || !("serviceWorker" in navigator)) return;
+  kept = true;
+  try {
+    await navigator.serviceWorker.ready;
+    if ((navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData) return;
+    await Promise.all([data.loadMe(), data.loadIdentities(), data.loadConversations()]);
+    for (const c of (data.store.getState().conversations ?? []).slice(0, KEEP_CONVERSATIONS)) {
+      await data.loadNewest(c.id);
+      const held = data.store.getState().messages[c.id];
+      if (held?.hasEarlier && held.list.length < KEEP_MESSAGES) await data.loadEarlier(c.id);
+    }
+  } catch {
+    /* offline or refused: the next visit tries again */
+  }
 }

@@ -1,9 +1,22 @@
 // The app's one way to the server: the generated client (@convoz/api-client), its answers unwrapped by `call`.
 // Components never fetch; they call the store or a feature's own functions, which use `client` here.
 import { createConvozClient, type ApiErrorBody } from "@convoz/api-client";
+import { reachable, unreachable } from "./connection.ts";
 import { forgetOffline } from "./offline.ts";
 
 export const client = createConvozClient();
+// The offline banner follows what the requests find: an answer means the link works, no answer means it does not.
+client.use({
+  // A 502, 503 or 504 is a gateway with nothing behind it: the link works but nothing useful answers, which the offline note also says.
+  onResponse: ({ request, response }) => (response.status >= 502 ? unreachable() : reachable(request.method === "GET" && response.ok)),
+  onError: () => unreachable(),
+});
+
+/**
+ * isRevoking says whether a 401 code means the device or its session is gone. "unauthorized" is what the server answers a cookie it
+ * no longer knows (a revoked device); the other two are the named forms. Any other code (a bad token) leaves the cache alone.
+ */
+export const isRevoking = (code: string | undefined): boolean => code === "device_revoked" || code === "session_expired" || code === "unauthorized";
 
 /** An answer that was not 2xx. `code` is the server's error code (error.code). */
 export class ApiError extends Error {
@@ -50,10 +63,12 @@ export async function call<T>(request: Promise<Answer<T>>): Promise<T> {
     const err = new ApiError(body?.error?.message || response.statusText, response.status, body?.error?.code);
     // Only a 401 that says the device or its session is gone clears the offline cache; a network error or any other
     // refusal never does, so a poor connection cannot wipe it (design §9).
-    if (response.status === 401 && (err.code === "device_revoked" || err.code === "session_expired")) void forgetOffline();
-    if (response.status === 401 && err.code === "unauthorized" && !page.public) {
-      toSignin();
-      err.handled = true;
+    if (response.status === 401 && isRevoking(err.code)) {
+      await forgetOffline();
+      if (!page.public) {
+        toSignin();
+        err.handled = true;
+      }
     }
     throw err;
   }

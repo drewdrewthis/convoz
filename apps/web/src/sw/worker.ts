@@ -1,5 +1,6 @@
-// The service worker (built to /sw.js). It installs every module file in this folder (each default-exports a SwModule)
-// and takes over at once, so a new build's worker serves the next load.
+// The service worker (built to /sw.js). It installs every module file in this folder (each default-exports a SwModule).
+// A new build's worker installs and then waits: it takes over only when the owner taps Reload (update.ts), so a page
+// never runs half on old code and half on new. The first worker has nothing to wait for and takes over at once.
 import type { SwModule } from "./module.ts";
 
 declare const self: ServiceWorkerGlobalScope;
@@ -7,5 +8,4 @@ declare const self: ServiceWorkerGlobalScope;
 const modules = import.meta.glob<SwModule>(["./*.ts", "!./index.ts", "!./worker.ts", "!./module.ts"], { eager: true, import: "default" });
 for (const mod of Object.values(modules)) mod.install(self);
 
-self.addEventListener("install", () => void self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));

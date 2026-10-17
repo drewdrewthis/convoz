@@ -8,3 +8,21 @@ export const offline = (): Promise<CacheDb | null> => (opened ??= openOfflineCac
 
 /** forgetOffline empties it: the person signed out, or the device was revoked. */
 export const forgetOffline = (): Promise<void> => forgetOfflineData(offline());
+
+/** remember keeps one small fact (the last Now, the last sync time) in the `meta` store. A refusing disk loses it, nothing more. */
+export async function remember(key: string, value: unknown): Promise<void> {
+  try {
+    await (await offline())?.put("meta", value, key);
+  } catch {
+    /* the offline copy is a convenience */
+  }
+}
+
+/** recall reads what remember kept; undefined when there is none. */
+export async function recall<T>(key: string): Promise<T | undefined> {
+  try {
+    return (await (await offline())?.get("meta", key)) as T | undefined;
+  } catch {
+    return undefined;
+  }
+}
