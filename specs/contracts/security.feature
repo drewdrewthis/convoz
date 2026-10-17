@@ -275,13 +275,13 @@ Feature: Security walls (contracts)
     And machine "box-2" is logged in with allow-list "devtool"
     And machine "laptop-1" is logged in with allow-list "devtool"
 
-    @v1 @api @I-17 @AC-26 @unimplemented
+    @v1 @api @I-17 @AC-26
     Scenario: People an agent lists in a new conversation are pending
       When "devtool" creates a conversation listing "@docs"
       Then "docs" is listed as pending
       And "docs" cannot read the conversation until the owner approves
 
-    @v1 @api @I-47 @AC-26 @unimplemented
+    @v1 @api @I-47 @AC-26
     Scenario: A conversation not opened for pickup cannot be picked up
       Given machine "box-2" has the pickup scope
       When "devtool" runs "convoz pickup 41" for a conversation nobody opened for pickup

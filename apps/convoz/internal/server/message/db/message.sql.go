@@ -140,7 +140,7 @@ func (q *Queries) InsertMessage(ctx context.Context, arg InsertMessageParams) (i
 const pageAfter = `-- name: PageAfter :many
 SELECT id, conversation_id, author_id, kind, format, body, created_at
 FROM messages
-WHERE conversation_id = ?1 AND in_main = 1 AND kind <> 'system' AND deleted_at IS NULL AND id > ?2
+WHERE conversation_id = ?1 AND in_main = 1 AND deleted_at IS NULL AND id > ?2
 ORDER BY id LIMIT ?3
 `
 
@@ -194,7 +194,7 @@ func (q *Queries) PageAfter(ctx context.Context, arg PageAfterParams) ([]PageAft
 const pageBefore = `-- name: PageBefore :many
 SELECT id, conversation_id, author_id, kind, format, body, created_at
 FROM messages
-WHERE conversation_id = ?1 AND in_main = 1 AND kind <> 'system' AND deleted_at IS NULL
+WHERE conversation_id = ?1 AND in_main = 1 AND deleted_at IS NULL
   AND id < ?2 AND id > ?3
 ORDER BY id DESC LIMIT ?4
 `
@@ -255,7 +255,7 @@ func (q *Queries) PageBefore(ctx context.Context, arg PageBeforeParams) ([]PageB
 const pageNewest = `-- name: PageNewest :many
 SELECT id, conversation_id, author_id, kind, format, body, created_at
 FROM messages
-WHERE conversation_id = ?1 AND in_main = 1 AND kind <> 'system' AND deleted_at IS NULL AND id > ?2
+WHERE conversation_id = ?1 AND in_main = 1 AND deleted_at IS NULL AND id > ?2
 ORDER BY id DESC LIMIT ?3
 `
 

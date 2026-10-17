@@ -4,7 +4,8 @@
 INSERT INTO inbox_items (identity_id, reason, conversation_id, first_message_id, message_id, count, mention_count, source_seq, state, created_at, updated_at)
 VALUES (sqlc.arg(identity_id), 'activity', sqlc.arg(conversation_id), sqlc.arg(message_id), sqlc.arg(message_id), 1, 0, sqlc.arg(source_seq), 'ready', sqlc.arg(now), sqlc.arg(now))
 ON CONFLICT (identity_id, conversation_id) WHERE state = 'ready' AND reason IN ('mention','thread','activity')
-DO UPDATE SET message_id = excluded.message_id, count = inbox_items.count + 1, source_seq = excluded.source_seq, updated_at = excluded.updated_at;
+-- an @mention may have made the item for this very message first: it counts once
+DO UPDATE SET count = CASE WHEN inbox_items.message_id = excluded.message_id THEN inbox_items.count ELSE inbox_items.count + 1 END, message_id = excluded.message_id, source_seq = excluded.source_seq, updated_at = excluded.updated_at;
 
 -- name: HeldItems :many
 -- (1) M1: items this session already holds come back first, same tokens, no delivery counted.

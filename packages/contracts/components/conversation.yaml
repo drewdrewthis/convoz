@@ -20,3 +20,21 @@ Conversation:
         - $ref: "../openapi.yaml#/components/schemas/LastMessage"
         - type: "null"
     unread: { type: integer }
+    started_by: { $ref: "../openapi.yaml#/components/schemas/Person" }
+    link_url: { type: string, description: The linked pull request (https). }
+    muted_until: { type: integer, format: int64 }
+    paused: { type: boolean, description: The loop breaker stopped the agents after 20 messages in a row. }
+    pickup: { type: string, enum: [closed, open, taken] }
+    picked_up_by: { $ref: "../openapi.yaml#/components/schemas/Person" }
+    pending:
+      type: array
+      description: Agents that wait for a person to add them, and the agent that asked.
+      items:
+        type: object
+        required: [person, at]
+        properties:
+          person: { $ref: "../openapi.yaml#/components/schemas/Person" }
+          requested_by: { $ref: "../openapi.yaml#/components/schemas/Person" }
+          at: { type: integer, format: int64 }
+    deleted_at: { type: integer, format: int64, description: In the trash since. }
+    purges_at: { type: integer, format: int64, description: When the trash removes it for good. }

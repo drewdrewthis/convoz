@@ -1,0 +1,51 @@
+/* Conversations: the details panel, the add-agent sheet, system lines, the pause bar, the trash and the row menu. */
+@layer components {
+  /* ---- details: a panel at the right edge on a wide screen, the whole screen on a phone ---- */
+  .details {
+    position: absolute; top: 0; right: 0; bottom: 0; z-index: 7; width: min(100%, 22rem); display: flex; flex-direction: column;
+    background: var(--color-surface); border-left: 1px solid var(--color-border); box-shadow: var(--float);
+  }
+  @media (max-width: 600px) { .details { width: 100%; border-left: 0; } }
+  .detailsbar { flex: none; display: flex; align-items: center; gap: 8px; padding: calc(var(--top) + 8px) 8px 8px 16px; border-bottom: 1px solid var(--color-border); }
+  .detailsbar .titles { padding: 0; }
+  .detailsbar h2 { margin: 0; }
+  .detailsbar .iconbtn span { font-size: 26px; line-height: 1; color: var(--color-muted); }
+  .detailsbody { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding: 8px 16px calc(24px + var(--bottom)); }
+  .detsec { display: flex; flex-direction: column; padding: 0 14px 6px; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-raised); }
+  .detsec.actions-sec { gap: 8px; padding: 14px; }
+  .dethead { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; }
+  .detsub { margin: 8px 0 0; font-size: 12px; font-weight: 600; color: var(--color-muted); }
+  .plist { list-style: none; margin: 0; padding: 0; }
+  .prow { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--color-border); }
+  .prow .who { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 10px; }
+  .prow .ava { width: 28px; height: 28px; font-size: 13px; }
+  .prow .ava::before { content: attr(data-l); }
+  .prow .whotext { display: flex; flex-direction: column; min-width: 0; }
+  .prow .nm { font-size: 14px; font-weight: 600; }
+  .convrows { margin: 0; display: flex; flex-direction: column; }
+  .convrow { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-height: 40px; padding: 8px 0; border-top: 1px solid var(--color-border); font-size: 14px; }
+  .convrow dt { color: var(--color-muted); }
+  .convrow dd { margin: 0; min-width: 0; text-align: right; overflow-wrap: anywhere; }
+  .historyset { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; border: 0; }
+  .historyset legend { padding: 0; margin-bottom: 8px; font-weight: 600; }
+
+  /* ---- messages: a line the conversation says about itself, the state of an ask, the time as a button ---- */
+  .msg.system { display: block; padding: 8px 12px; }
+  .sysline { text-align: center; font-size: 13px; color: var(--color-muted); }
+  .askstate { align-self: flex-start; padding: 1px 10px; border-radius: 999px; background: var(--color-soft); color: var(--color-accent-text); font-size: 12px; font-weight: 600; }
+  .askstate.closed, .askstate.dismissed { background: var(--color-selection); color: var(--color-muted); }
+  .msg .stampbtn { padding: 15px 4px; margin: -15px -4px; border: 0; background: none; font: inherit; font-size: 12px; line-height: normal; color: var(--color-muted); }
+  .stampbtn time { font-variant-numeric: tabular-nums; }
+
+  /* ---- the pause bar under the app bar ---- */
+  .pausebar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 12px 0; }
+  .pausebar .btn { flex: none; }
+
+  /* ---- the row menu ---- */
+  .rowmenu { z-index: 9; right: auto; }
+  .rowmenu > button { color: var(--color-text); }
+
+  /* ---- trash ---- */
+  .trash .group .row { cursor: default; }
+  .trashtitle, .trashwhen { display: block; }
+}

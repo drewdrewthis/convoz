@@ -3,3 +3,51 @@
 //   sqlc v1.31.1
 
 package db
+
+import (
+	"database/sql"
+)
+
+type Assignment struct {
+	ConversationID int64
+	AgentID        int64
+	SessionID      sql.NullInt64
+	Fence          int64
+	PickedUpAt     int64
+	LeaseUntil     int64
+}
+
+type Conversation struct {
+	ID             int64
+	Title          sql.NullString
+	TitleSource    string
+	CreatedBy      int64
+	CreatedAt      int64
+	LinkUrl        sql.NullString
+	LastMessageID  int64
+	LastMainID     int64
+	LastActivityAt int64
+	MessageCount   int64
+	OpenAskCount   int64
+	AgentStreak    int64
+	PausedAt       sql.NullInt64
+	PickupOpenedAt sql.NullInt64
+	PickupOpenedBy sql.NullInt64
+	AssignVersion  int64
+	DeletedAt      sql.NullInt64
+	DeletedBy      sql.NullInt64
+}
+
+type Participant struct {
+	ConversationID    int64
+	IdentityID        int64
+	Status            string
+	JoinedMessageID   int64
+	JoinedSeq         int64
+	AddedBy           int64
+	RequestedBy       sql.NullInt64
+	DecidedBy         sql.NullInt64
+	LastPostSessionID sql.NullInt64
+	AddedAt           int64
+	StatusAt          int64
+}

@@ -57,6 +57,8 @@ type Draft struct {
 
 func nullInt(v int64) sql.NullInt64 { return sql.NullInt64{Int64: v, Valid: v != 0} }
 
+func nullString(v string) sql.NullString { return sql.NullString{String: v, Valid: v != ""} }
+
 // insert writes d once per (author, client id), inside the caller's transaction. A repeat of the same message returns
 // the stored one with replayed true and changes nothing; the same client id with another body, format or
 // conversation is ErrClientIDConflict (I-24).

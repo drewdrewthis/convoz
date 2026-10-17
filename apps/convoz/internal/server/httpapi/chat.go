@@ -44,11 +44,18 @@ func loadDirectory(ctx context.Context, d pdb.DBTX) (directory, error) {
 
 func (dir directory) person(id int64) wire.Person {
 	e := dir[id]
-	return wire.Person{Handle: e.Handle, DisplayName: e.DisplayName, Kind: e.Kind}
+	return wire.Person{ID: e.ID, Handle: e.Handle, DisplayName: e.DisplayName, Kind: e.Kind}
 }
 
+// systemAuthor is the author of a line the conversation says about itself: no handle, the kind "system".
+var systemAuthor = wire.Person{Kind: "system"}
+
 func (dir directory) message(m message.Message) wire.Message {
-	return wire.Message{ID: m.ID, Author: dir.person(m.AuthorID), Body: m.Body, Format: m.Format, CreatedAt: m.CreatedAt}
+	author := dir.person(m.AuthorID)
+	if m.Kind == "system" {
+		author = systemAuthor
+	}
+	return wire.Message{ID: m.ID, Author: author, Body: m.Body, Format: m.Format, CreatedAt: m.CreatedAt}
 }
 
 // conversationView builds the list row of one conversation for the caller p, who may see messages above floor.
@@ -77,7 +84,32 @@ func conversationView(ctx context.Context, d pdb.DBTX, p authz.Principal, dir di
 		}
 	}
 	out.Unread, err = unreadOf(ctx, d, p.Identity(), cv, floor)
-	return out, err
+	if err != nil {
+		return wire.Conversation{}, err
+	}
+	out.Paused = cv.Paused()
+	if out.Pickup, out.PickedUpBy, err = pickupView(ctx, d, dir, cv); err != nil {
+		return wire.Conversation{}, err
+	}
+	if cv.DeletedAt != 0 {
+		out.DeletedAt, out.PurgesAt = ptr(cv.DeletedAt), ptr(cv.DeletedAt+conversation.TrashRetention.Milliseconds())
+	}
+	return out, nil
+}
+
+func ptr[T any](v T) *T { return &v }
+
+// pickupView is the pickup state of a conversation and the agent holding it.
+func pickupView(ctx context.Context, d pdb.DBTX, dir directory, cv conversation.Conversation) (string, *wire.Person, error) {
+	if cv.PickupOpenedAt == 0 {
+		return wire.PickupClosed, nil, nil
+	}
+	a, held, err := conversation.AssignmentOf(ctx, d, cv.ID)
+	if err != nil || !held {
+		return wire.PickupOpen, nil, err
+	}
+	who := dir.person(a.Agent)
+	return wire.PickupTaken, &who, nil
 }
 
 // unreadOf is the main-thread part of design §8.2: messages after the reader's cursor that someone else wrote.

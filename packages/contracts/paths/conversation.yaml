@@ -3,7 +3,9 @@
 /api/conversations:
   get:
     operationId: listConversations
-    summary: The caller's conversations, newest activity first.
+    summary: The caller's conversations, newest activity first. ?deleted=1 lists the trash (the owner).
+    parameters:
+      - { name: deleted, in: query, schema: { type: string, enum: ["1"] } }
     responses:
       "200":
         description: The list.
@@ -36,17 +38,183 @@
 /api/conversations/{id}:
   get:
     operationId: getConversation
+    summary: One conversation with its details (who started it, the link, pending adds, pickup).
     parameters:
       - $ref: "../openapi.yaml#/components/parameters/Id"
     responses:
       "200": { $ref: "../openapi.yaml#/components/responses/OneConversation" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
-/api/conversations/{id}/restore: {}  # not specified yet
-/api/conversations/{id}/participants: {}  # not specified yet
-/api/conversations/{id}/participants/{iid}: {}  # not specified yet
-/api/conversations/{id}/participants/{iid}/approve: {}  # not specified yet
-/api/conversations/{id}/participants/{iid}/decline: {}  # not specified yet
-/api/conversations/{id}/leave: {}  # not specified yet
-/api/conversations/{id}/resume: {}  # not specified yet
-/api/conversations/{id}/pickup/open: {}  # not specified yet
-/api/conversations/{id}/pickup: {}  # not specified yet
+  patch:
+    operationId: patchConversation
+    summary: Rename the conversation or link its pull request. A chosen title is never changed by a later message.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              title: { type: string, minLength: 1, maxLength: 120 }
+              link_url: { type: string, description: An https link, or an empty string to clear it. }
+    responses:
+      "200": { $ref: "../openapi.yaml#/components/responses/OneConversation" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+  delete:
+    operationId: deleteConversation
+    summary: Move the conversation to the trash for 30 days. Agents lose sight of it at once.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    responses:
+      "200": { $ref: "../openapi.yaml#/components/responses/Empty" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/conversations/{id}/restore:
+  post:
+    operationId: restoreConversation
+    summary: Bring a conversation back from the trash with all its messages.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody:
+      content:
+        application/json:
+          schema: { type: object }
+    responses:
+      "200": { $ref: "../openapi.yaml#/components/responses/OneConversation" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/conversations/{id}/participants:
+  post:
+    operationId: addParticipant
+    summary: Add an agent at once and say what history it sees. An agent can only ask; its request waits for a person.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              identity_id: { type: integer, format: int64 }
+              handle: { type: string }
+              history: { type: string, enum: [since_now, full], default: since_now }
+    responses:
+      "200": &participant
+        description: The agent and where it stands (active, or pending a person).
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [participant]
+              properties:
+                participant:
+                  type: object
+                  required: [identity_id, handle, status]
+                  properties:
+                    identity_id: { type: integer, format: int64 }
+                    handle: { type: string }
+                    status: { type: string, enum: [active, pending] }
+      "201": *participant
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/conversations/{id}/participants/{iid}:
+  delete:
+    operationId: removeParticipant
+    summary: Take an agent out. It gets one notice, and nothing more from the conversation.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+      - { name: iid, in: path, required: true, schema: { type: integer, format: int64 } }
+    responses:
+      "200": { $ref: "../openapi.yaml#/components/responses/Empty" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/conversations/{id}/participants/{iid}/approve:
+  post:
+    operationId: approveParticipant
+    summary: Approve an add an agent asked for.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+      - { name: iid, in: path, required: true, schema: { type: integer, format: int64 } }
+    requestBody:
+      content:
+        application/json:
+          schema: { type: object }
+    responses:
+      "200": { $ref: "../openapi.yaml#/components/responses/Empty" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/conversations/{id}/participants/{iid}/decline:
+  post:
+    operationId: declineParticipant
+    summary: Decline an add an agent asked for.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+      - { name: iid, in: path, required: true, schema: { type: integer, format: int64 } }
+    requestBody:
+      content:
+        application/json:
+          schema: { type: object }
+    responses:
+      "200": { $ref: "../openapi.yaml#/components/responses/Empty" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/conversations/{id}/leave:
+  post:
+    operationId: leaveConversation
+    summary: An agent takes itself out of the conversation.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody:
+      content:
+        application/json:
+          schema: { type: object }
+    responses:
+      "200": { $ref: "../openapi.yaml#/components/responses/Empty" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/conversations/{id}/resume:
+  post:
+    operationId: resumeConversation
+    summary: Let paused agents post again.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody:
+      content:
+        application/json:
+          schema: { type: object }
+    responses:
+      "200": { $ref: "../openapi.yaml#/components/responses/Empty" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/conversations/{id}/pickup/open:
+  post:
+    operationId: openPickup
+    summary: Offer the conversation to any agent that has the pickup scope.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody:
+      content:
+        application/json:
+          schema: { type: object }
+    responses:
+      "200": { $ref: "../openapi.yaml#/components/responses/Empty" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/conversations/{id}/pickup:
+  post:
+    operationId: pickupConversation
+    summary: An agent with the pickup scope takes an open conversation (exactly one wins). With a fence it renews its hold.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody:
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              fence: { type: integer, format: int64 }
+    responses:
+      "200":
+        description: The agent holds the conversation under this fence.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [conversation_id, fence]
+              properties:
+                conversation_id: { type: integer, format: int64 }
+                fence: { type: integer, format: int64 }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }

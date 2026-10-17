@@ -141,13 +141,13 @@ Feature: The convoz CLI and MCP server for agents
 
   Rule: Agents join conversations only through a human
 
-    @v1 @cli @I-17 @unimplemented
+    @v1 @cli @I-17
     Scenario: An agent's add request waits for a human
       When "devtool" runs "convoz add 41 @docs"
       Then the owner sees a pending add "@docs" in Now
       And "docs" cannot read conversation 41
 
-    @v1 @cli @unimplemented
+    @v1 @cli
     Scenario: An agent leaves a conversation
       When "devtool" runs "convoz leave 41"
       Then conversation 41 shows the system line "@devtool left"

@@ -8,6 +8,20 @@ Message:
     body: { type: string }
     format: { type: string, enum: [plain, markdown] }
     created_at: { type: integer, format: int64 }
+    kind: { type: string, enum: [ask], description: An agent's question. A plain message leaves it out. }
+    ask:
+      type: object
+      required: [state]
+      description: Where the ask stands, for a message of kind ask.
+      properties:
+        state: { type: string, enum: [open, answered, dismissed, closed] }
+    via:
+      type: object
+      required: [session, machine]
+      description: Which agent session wrote the message and on which machine. Only a person is told.
+      properties:
+        session: { type: string }
+        machine: { type: string }
 Posted:
   type: object
   required: [id, conversation_id, created_at]

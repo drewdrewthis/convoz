@@ -1,10 +1,12 @@
 import type { Conversation } from "@convoz/api-client";
 import { ChatIcon } from "@convoz/ui/icons";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { stripCf, whenLabel } from "../../shared/chat.ts";
+import { humanError } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { data, useData, useLive } from "../../shared/data.ts";
+import { markAllRead } from "./actions.ts";
 
 /** Lists longer than this are virtualized (design §12.2): only the rows near the screen are in the page. */
 const VIRTUAL_ABOVE = 100;
@@ -23,10 +25,29 @@ export function Conversations() {
       .catch((err) => fail((err && err.message) || "Something went wrong. Try again."));
   }, [fail]);
 
+  const [menu, setMenu] = useState<{ id: number; x: number; y: number } | null>(null);
   const ready = list !== null && me !== undefined;
   const rows = ready ? list : [];
+
+  // A long press or a right click on a row opens its menu: Mark all read.
+  const onContextMenu = (event: MouseEvent<HTMLDivElement>) => {
+    const row = (event.target as HTMLElement).closest<HTMLElement>("li[data-id]");
+    if (!row) return;
+    event.preventDefault();
+    const box = row.getBoundingClientRect();
+    setMenu({ id: Number(row.dataset.id), x: event.clientX || box.left + 16, y: event.clientY || box.bottom - 8 });
+  };
+  const read = async (id: number) => {
+    setMenu(null);
+    try {
+      await markAllRead(id);
+    } catch (err) {
+      fail(humanError(err));
+    }
+  };
   return (
-    <div id="chats" className="chats" aria-busy={ready ? undefined : true}>
+    <div id="chats" className="chats" aria-busy={ready ? undefined : true} onContextMenu={onContextMenu}>
+      {menu ? <RowMenu at={menu} onRead={() => void read(menu.id)} onClose={() => setMenu(null)} /> : null}
       <p id="chats-head" className="ghdr" hidden={!rows.length}>
         Conversations
       </p>
@@ -90,7 +111,7 @@ const Row = memo(function Row({ c, me, index, measure, style }: RowProps) {
   const unread = c.unread > 0;
   const preview = c.last ? `${c.last.author_handle === me ? "You" : c.last.author_handle}: ${c.last.preview}` : "No messages yet";
   return (
-    <li className={unread ? "unread" : undefined} data-index={index} ref={measure} style={style}>
+    <li className={unread ? "unread" : undefined} data-id={c.id} data-index={index} ref={measure} style={style}>
       <a className="chatrow" href={`/chats/${c.id}`}>
         <div className="rowbody">
           <div className="rowtop">
@@ -110,3 +131,28 @@ const Row = memo(function Row({ c, me, index, measure, style }: RowProps) {
     </li>
   );
 });
+
+/** RowMenu is the little menu of a conversation row. Escape or a click anywhere else closes it. */
+function RowMenu({ at, onRead, onClose }: { at: { x: number; y: number }; onRead(): void; onClose(): void }) {
+  const first = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    first.current?.focus();
+    const away = (event: Event) => {
+      if (!(event.target as HTMLElement).closest(".rowmenu")) onClose();
+    };
+    const key = (event: KeyboardEvent) => event.key === "Escape" && onClose();
+    document.addEventListener("pointerdown", away);
+    document.addEventListener("keydown", key);
+    return () => {
+      document.removeEventListener("pointerdown", away);
+      document.removeEventListener("keydown", key);
+    };
+  }, [onClose]);
+  return (
+    <div className="menu rowmenu" role="menu" aria-label="Conversation actions" style={{ position: "fixed", left: Math.min(at.x, innerWidth - 240), top: at.y }}>
+      <button ref={first} type="button" role="menuitem" onClick={onRead}>
+        Mark all read
+      </button>
+    </div>
+  );
+}

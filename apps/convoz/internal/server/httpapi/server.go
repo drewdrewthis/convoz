@@ -5,6 +5,7 @@ package httpapi
 import (
 	"log"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -55,6 +56,7 @@ type Server struct {
 	dayIdentityLimit auth.Limiter
 	dayMachineLimit  auth.Limiter
 	streams          streamSet
+	maintainedAt     atomic.Int64  // server time (unix ms) of the last clean-up run Maintain made on a list read
 	heartbeat        time.Duration // how often a quiet stream sends ": hb" and checks its device; heartbeatEvery unless a test shortens it
 }
 

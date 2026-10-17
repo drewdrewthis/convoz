@@ -165,6 +165,17 @@ func (s *Server) deliver(ctx context.Context, d pdb.DBTX, now time.Time, p authz
 	}
 	out := make([]wire.InboxItem, 0, len(items))
 	for _, it := range items {
+		if it.Reason == "membership" {
+			// The removal notice is exempt from the can-see check: the agent can no longer see the conversation (C-1).
+			wi, ok, err := s.membershipNotice(ctx, d, dir, it)
+			if err != nil {
+				return nil, err
+			}
+			if ok {
+				out = append(out, wi)
+			}
+			continue
+		}
 		cv, found, err := conversation.Get(ctx, d, it.ConversationID)
 		if err != nil {
 			return nil, err
@@ -240,4 +251,24 @@ func (s *Server) ackInbox(w http.ResponseWriter, r *http.Request, c *call) {
 		s.publishWorking(r.Context(), c.lease.IdentityID, conv, false, 0)
 	}
 	writeJSON(w, http.StatusOK, wire.AckResponse{Results: results})
+}
+
+// membershipNotice builds the wire item of a membership notice: the system line that says the agent was removed, with
+// the conversation's title. ok is false when the line is gone (the conversation was purged).
+func (s *Server) membershipNotice(ctx context.Context, d pdb.DBTX, dir directory, it inbox.Item) (wire.InboxItem, bool, error) {
+	m, have, err := message.Get(ctx, d, it.MessageID)
+	if err != nil || !have {
+		return wire.InboxItem{}, false, err
+	}
+	wi := wire.InboxItem{ID: it.ID, State: it.State, Reason: it.Reason, Count: it.Count, Conversation: wire.InboxConversation{ID: it.ConversationID}, Message: dir.message(m)}
+	if cv, found, err := conversation.GetAny(ctx, d, it.ConversationID); err != nil {
+		return wire.InboxItem{}, false, err
+	} else if found && cv.Title != "" {
+		title := cv.Title
+		wi.Conversation.Title = &title
+	}
+	if it.ClaimToken != nil {
+		wi.ClaimToken = hex.EncodeToString(it.ClaimToken)
+	}
+	return wi, true, nil
 }

@@ -58,14 +58,14 @@ Feature: Data at rest, backups and deletion
     Given a fresh Convoz server with owner "drew" signed in with a virtual passkey
     And machine "box-2" is logged in with allow-list "devtool"
 
-    @v1 @browser @I-49 @unimplemented
+    @v1 @browser @I-49
     Scenario: A deleted conversation goes to the trash and can come back
       Given conversation 41 with 12 messages
       When the owner deletes conversation 41
       Then it is gone from the rail and appears in Trash with "deleted forever in 30 days"
       And the owner restores it with all 12 messages
 
-    @v1 @api @I-49 @unimplemented
+    @v1 @api @I-49
     Scenario: An agent cannot see a conversation in the trash
       Given "devtool" is in conversation 41 and the owner deleted it
       When "devtool" runs "convoz read 41"

@@ -66,7 +66,7 @@ Feature: Security walls
       Then every command of the "box-2" sessions exits 3
       And the "laptop-1" sessions keep working
 
-    @v1 @api @I-38 @I-47 @unimplemented
+    @v1 @api @I-38 @I-47
     Scenario: Revoking a machine releases its pickups
       Given a "devtool" session on "box-2" picked up conversation 60
       When the owner revokes "box-2"
@@ -131,7 +131,7 @@ Feature: Security walls
       Then the conversation shows the message with "via app by @devtool"
       And "convoz read 41" shows the same attribution
 
-    @v1 @cli @I-47 @AC-26 @unimplemented
+    @v1 @cli @I-47 @AC-26
     Scenario: A pickup gives no history before the pickup
       Given machine "box-2" has the pickup scope
       And the owner opened conversation 60 with 12 messages for pickup

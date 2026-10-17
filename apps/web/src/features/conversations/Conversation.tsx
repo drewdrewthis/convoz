@@ -1,10 +1,13 @@
 import type { Identity, Message } from "@convoz/api-client";
-import { BackIcon } from "@convoz/ui/icons";
+import { BackIcon, DetailsIcon } from "@convoz/ui/icons";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type RefObject } from "react";
 import { ApiError } from "../../shared/api.ts";
 import { initials, paletteOf, setRegistry, stripCf } from "../../shared/chat.ts";
 import { data, useData, useLive } from "../../shared/data.ts";
 import { Composer } from "../composer/index.ts";
+import { resume } from "./actions.ts";
+import { Details } from "./Details.tsx";
+import { MessageDetails } from "./MessageDetails.tsx";
 import { useConversations, type PendingSend } from "./store.ts";
 import { Transcript, type TranscriptControl } from "./Transcript.tsx";
 
@@ -32,6 +35,8 @@ export function Conversation() {
   const [opened, setOpened] = useState(false);
   const [error, setError] = useState("");
   const [gone, setGone] = useState(false);
+  const [info, setInfo] = useState(false);
+  const [inspected, setInspected] = useState<Message | null>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const frame = useRef<HTMLDivElement>(null);
   const control = useRef<TranscriptControl>(null);
@@ -48,6 +53,19 @@ export function Conversation() {
   }, [title]);
 
   const fit = useFitFrame(frame);
+
+  // "I" shows or hides the details, unless the person is typing.
+  useEffect(() => {
+    if (!convId) return;
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (event.key.toLowerCase() !== "i" || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (target?.closest("input, textarea, select, [contenteditable=''], [contenteditable='true'], dialog")) return;
+      setInfo((on) => !on);
+    };
+    addEventListener("keydown", onKey);
+    return () => removeEventListener("keydown", onKey);
+  }, [convId]);
 
   const openWith = useCallback(
     (handle: string) => {
@@ -162,8 +180,22 @@ export function Conversation() {
             ) : null}
           </p>
         </div>
-        <span className="slot" aria-hidden="true" />
+        {conversation && !isNew ? (
+          <button type="button" className="iconbtn" aria-label="Show details" aria-pressed={info} aria-keyshortcuts="I" title="Show details · I" onClick={() => setInfo((on) => !on)}>
+            <DetailsIcon />
+          </button>
+        ) : (
+          <span className="slot" aria-hidden="true" />
+        )}
       </header>
+      {conversation?.paused ? (
+        <div className="banner pausebar" role="status">
+          <span>Agents are paused after 20 messages in a row.</span>
+          <button type="button" className="btn small" onClick={() => void resume(convId).catch((err) => setError((err && err.message) || "Something went wrong. Try again."))}>
+            Resume
+          </button>
+        </div>
+      ) : null}
       <div id="people" className="subbar" hidden={gone}>
         {chips.map((h) => (
           <span key={h} className="chip" role="img" aria-label={h}>
@@ -186,6 +218,7 @@ export function Conversation() {
             control={control}
             onEarlier={() => actions().loadEarlier(key)}
             onRetry={retry}
+            onDetails={setInspected}
           />
           <Composer agent={agent?.handle ?? null} label={label} onSend={send} textRef={textRef} mentions={isNew ? { crew, onPick: pick } : undefined} />
         </section>
@@ -193,6 +226,8 @@ export function Conversation() {
           {error}
         </p>
       </main>
+      {info && conversation ? <Details row={conversation} onClose={() => setInfo(false)} /> : null}
+      {inspected ? <MessageDetails conversationId={convId} message={inspected} done={() => setInspected(null)} /> : null}
     </div>
   );
 

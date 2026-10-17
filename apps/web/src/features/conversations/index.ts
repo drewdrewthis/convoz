@@ -1,15 +1,37 @@
 // Conversations: the list, one conversation (and a new one), and the page for one that does not exist.
 import { registerHandler, registerResync } from "@convoz/api-client";
+import { data, source } from "../../shared/data.ts";
 import { useConversations } from "./store.ts";
 
 export { Conversation } from "./Conversation.tsx";
 export { Conversations } from "./Conversations.tsx";
 export { NotFound } from "./NotFound.tsx";
+export { Trash } from "./Trash.tsx";
 
 registerHandler("message.", (frame) => {
-  if (frame.name === "message.created") useConversations.getState().received(frame.data.conversation_id, frame.data);
+  if (frame.name !== "message.created") return;
+  useConversations.getState().received(frame.data.conversation_id, frame.data);
+  // A line the conversation says about itself (someone was added, removed, the agents paused) changed the details.
+  const id = frame.data.conversation_id;
+  if (frame.data.author.kind === "system" && data.store.getState().rows[id]) {
+    void data.loadConversation(id).catch(() => {});
+    void refreshAsks(id).catch(() => {}); // a removal closes the agent's asks
+  }
 });
 registerHandler("agent.", (frame) => {
   if (frame.name === "agent.working") useConversations.getState().setWorking(frame.data.conversation_id, frame.data.handle, Boolean(frame.data.working), frame.data.until);
 });
 registerResync(() => void useConversations.getState().drainOutbox());
+
+/** refreshAsks takes the newest state of the asks the page holds: a change of an ask is not a new message, so no frame brings it. */
+async function refreshAsks(convId: number): Promise<void> {
+  const held = data.store.getState().messages[convId];
+  if (!held?.list.some((m) => m.kind === "ask")) return;
+  const { messages } = await source.messages(convId, { limit: 100 });
+  const fresh = new Map(messages.filter((m) => m.kind === "ask").map((m) => [m.id, m]));
+  data.store.setState((s) => {
+    const now = s.messages[convId];
+    if (!now) return s;
+    return { messages: { ...s.messages, [convId]: { ...now, list: now.list.map((m) => (m.kind === "ask" && fresh.has(m.id) ? fresh.get(m.id)! : m)) } } };
+  });
+}
