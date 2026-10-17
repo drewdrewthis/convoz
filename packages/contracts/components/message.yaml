@@ -24,9 +24,13 @@ Message:
       additionalProperties: true
       properties:
         t: { type: string }
-    text: { type: string, description: "The words of a system line." }
+    text: { type: string, description: "The words of a system line, or the plain-text form of a message that carries files." }
     session_label: { type: string, description: "The session an agent wrote the message from (I-40)." }
     machine: { type: string, description: "The machine that session ran on (I-40)." }
+    uploads:
+      type: array
+      description: "The files the message carries. Then `text` is the plain-text form of the whole message (a voice note reads Voice note 0:20, then the words)."
+      items: { $ref: "../openapi.yaml#/components/schemas/Upload" }
 Posted:
   type: object
   required: [id, conversation_id, created_at]

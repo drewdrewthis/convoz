@@ -382,6 +382,30 @@ func (q *Queries) HeldItems(ctx context.Context, arg HeldItemsParams) ([]HeldIte
 	return items, nil
 }
 
+const holdItemsFor = `-- name: HoldItemsFor :exec
+UPDATE inbox_items SET not_before = ?1, updated_at = ?2
+WHERE conversation_id = ?3 AND state = 'ready' AND reason IN ('mention','thread','activity')
+  AND first_message_id <= ?4 AND message_id >= ?4
+`
+
+type HoldItemsForParams struct {
+	Until          sql.NullInt64
+	Now            int64
+	ConversationID sql.NullInt64
+	MessageID      sql.NullInt64
+}
+
+// E-5: the ready items that carry a voice note wait until its transcript is done or the wait ends.
+func (q *Queries) HoldItemsFor(ctx context.Context, arg HoldItemsForParams) error {
+	_, err := q.db.ExecContext(ctx, holdItemsFor,
+		arg.Until,
+		arg.Now,
+		arg.ConversationID,
+		arg.MessageID,
+	)
+	return err
+}
+
 const holdsLiveClaim = `-- name: HoldsLiveClaim :one
 SELECT EXISTS (SELECT 1 FROM inbox_items WHERE claim_session_id = ?1 AND state = 'claimed' AND claim_until >= ?2)
 `
@@ -591,6 +615,23 @@ func (q *Queries) ReleaseClaims(ctx context.Context, arg ReleaseClaimsParams) ([
 		return nil, err
 	}
 	return items, nil
+}
+
+const releaseItemsFor = `-- name: ReleaseItemsFor :exec
+UPDATE inbox_items SET not_before = NULL, updated_at = ?1
+WHERE conversation_id = ?2 AND not_before IS NOT NULL
+  AND first_message_id <= ?3 AND message_id >= ?3
+`
+
+type ReleaseItemsForParams struct {
+	Now            int64
+	ConversationID sql.NullInt64
+	MessageID      sql.NullInt64
+}
+
+func (q *Queries) ReleaseItemsFor(ctx context.Context, arg ReleaseItemsForParams) error {
+	_, err := q.db.ExecContext(ctx, releaseItemsFor, arg.Now, arg.ConversationID, arg.MessageID)
+	return err
 }
 
 const transferClaims = `-- name: TransferClaims :exec

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://convoz.dev/events/upload.transcribed.v1.json",
+  "title": "upload.transcribed.v1",
+  "description": "The transcript of a voice note is done (ids only, I-23). The stream sends the message as it reads now under the name upload.transcribed.",
+  "type": "object",
+  "required": [
+    "id",
+    "upload"
+  ],
+  "properties": {
+    "id": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The message."
+    },
+    "upload": {
+      "type": "string",
+      "description": "The public id of the voice note."
+    }
+  },
+  "additionalProperties": false
+}

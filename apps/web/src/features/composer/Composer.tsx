@@ -1,7 +1,10 @@
-import type { Identity } from "@convoz/api-client";
-import { SendIcon } from "@convoz/ui/icons";
-import { useEffect, useLayoutEffect, useState, type KeyboardEvent, type RefObject } from "react";
+import type { Identity, Upload } from "@convoz/api-client";
+import { AttachIcon, CloseIcon, FileIcon, MicIcon, SendIcon } from "@convoz/ui/icons";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { initials, paletteOf, stripCf } from "../../shared/chat.ts";
+import { fileSize } from "../../shared/uploads.ts";
+import { loadRecorder, type VoiceRecording } from "../voice/index.ts";
+import type { Attachments } from "./attachments.ts";
 import { enterSends } from "./enterToSend.ts";
 
 export interface ComposerProps {
@@ -9,7 +12,12 @@ export interface ComposerProps {
   agent: string | null;
   /** The message box's accessible name: "Message @agent", or "Message" with several agents or none yet. */
   label: string;
-  onSend(body: string): void;
+  /** The conversation files upload to; 0 for a new one, where Attach and the microphone are disabled. */
+  conversationId: number;
+  /** The files to send, owned by the page (a drop on the conversation adds to them). */
+  attachments: Attachments;
+  /** The body (may be empty when there are files) and the finished uploads. */
+  onSend(body: string, files: Upload[]): void;
   /** The text box, for the page to focus. */
   textRef: RefObject<HTMLTextAreaElement | null>;
   /**
@@ -19,10 +27,42 @@ export interface ComposerProps {
   mentions?: { crew: Identity[]; onPick?(who: Identity): void };
 }
 
-/** Composer is the pinned message box: it grows to about six lines, then scrolls inside itself. */
-export function Composer({ agent, label, onSend, textRef, mentions }: ComposerProps) {
+type Recorder = Awaited<ReturnType<typeof loadRecorder>>;
+
+/**
+ * Composer is the pinned message box: it grows to about six lines, then scrolls inside itself. Attach adds files above it; the
+ * microphone (in Send's place while there is nothing to send) swaps the box for the recording bar.
+ */
+export function Composer({ agent, label, conversationId, attachments, onSend, textRef, mentions }: ComposerProps) {
   const [text, setText] = useState("");
   const [menu, setMenu] = useState<{ shown: Identity[]; active: number } | null>(null);
+  const [voice, setVoice] = useState<{ Bar: Recorder["RecordingBar"]; recording: VoiceRecording } | null>(null);
+  const [micError, setMicError] = useState(false);
+  const picker = useRef<HTMLInputElement>(null);
+  const mic = useRef<HTMLButtonElement>(null);
+  const files = attachments.items;
+  const empty = text.trim() === "" && files.length === 0;
+  const canSend = Boolean(agent) && !empty && files.every((f) => f.state === "done");
+
+  const starting = useRef(false);
+  const startVoice = async () => {
+    if (starting.current) return; // a second tap while the microphone prompt is open
+    starting.current = true;
+    setMicError(false);
+    try {
+      const recorder = await loadRecorder(); // the recorder's code loads on the first tap
+      setVoice({ Bar: recorder.RecordingBar, recording: await recorder.startRecording(conversationId) });
+    } catch {
+      setMicError(true);
+    } finally {
+      starting.current = false;
+    }
+  };
+  const endVoice = (sent?: Upload) => {
+    setVoice(null);
+    if (sent) onSend("", [sent]);
+    requestAnimationFrame(() => mic.current?.focus());
+  };
 
   useLayoutEffect(() => {
     const box = textRef.current;
@@ -39,6 +79,7 @@ export function Composer({ agent, label, onSend, textRef, mentions }: ComposerPr
   };
   const change = (value: string) => {
     setText(value);
+    setMicError(false);
     if (mentions) setMenu(menuFor(value, mentions.crew));
   };
 
@@ -111,7 +152,39 @@ export function Composer({ agent, label, onSend, textRef, mentions }: ComposerPr
           </p>
         </div>
       ) : null}
+      {files.length ? (
+        <div role="list" aria-label="Files to send" className="tosend">
+          {files.map((f) => (
+            <span key={f.key} role="listitem" className={`fin${f.state === "failed" ? " bad" : ""}`}>
+              <span className="fic" aria-hidden="true">
+                <FileIcon />
+              </span>
+              <span className="fname">{f.file.name}</span>
+              <span className="fsize">{fileSize(f.file.size)}</span>
+              {f.state === "uploading" ? <Progress name={f.file.name} pct={f.file.size ? Math.round((f.sent / f.file.size) * 100) : 0} /> : null}
+              {f.state === "failed" ? (
+                <>
+                  <span className="fbad">Upload failed</span>
+                  <button type="button" className="fretry" onClick={() => attachments.retry(f.key)}>
+                    Retry
+                  </button>
+                </>
+              ) : null}
+              <button type="button" className="fx" aria-label={`Remove ${f.file.name}`} title="Remove" onClick={() => attachments.remove(f.key)}>
+                <CloseIcon />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {attachments.note ? (
+        <p role="status" className="fnote">
+          {attachments.note}
+        </p>
+      ) : null}
+      {voice ? <voice.Bar recording={voice.recording} onDone={endVoice} /> : null}
       <form
+        hidden={Boolean(voice)}
         id="composer"
         className="composer glass"
         aria-label="Composer"
@@ -119,13 +192,28 @@ export function Composer({ agent, label, onSend, textRef, mentions }: ComposerPr
         onSubmit={(event) => {
           event.preventDefault();
           const body = text.trim();
-          if (!body || !agent) return;
+          if (!canSend) return;
+          const sent = files.map((f) => f.upload!);
           setText("");
+          attachments.clear();
           textRef.current?.focus(); // the keyboard stays up
-          onSend(body);
+          onSend(body, sent);
         }}
       >
-        <span className="slot" aria-hidden="true" />
+        <button type="button" className="attachbtn" aria-label="Attach a file" title="Attach a file" disabled={!conversationId} onClick={() => picker.current?.click()}>
+          <AttachIcon />
+        </button>
+        <input
+          ref={picker}
+          type="file"
+          multiple
+          aria-label="Attach files"
+          hidden
+          onChange={(e) => {
+            attachments.add(Array.from(e.target.files ?? []));
+            e.target.value = ""; // the same file can be chosen again
+          }}
+        />
         <textarea
           ref={textRef}
           id="text"
@@ -138,10 +226,29 @@ export function Composer({ agent, label, onSend, textRef, mentions }: ComposerPr
           onChange={(e) => change(e.target.value)}
           onKeyDown={keyDown}
         />
-        <button id="send" className="sendbtn" type="submit" aria-label="Send" disabled={text.trim() === "" || !agent}>
-          <SendIcon />
-        </button>
+        <span className="sendslot">
+          {/* Send stays in the page (and disabled) under the microphone while there is nothing to send. */}
+          <button id="send" className={`sendbtn${empty ? " under" : ""}`} type="submit" aria-label="Send" disabled={!canSend}>
+            <SendIcon />
+          </button>
+          <button ref={mic} type="button" className="sendbtn mic" aria-label="Record a voice message" title="Record a voice message" hidden={!empty} disabled={!conversationId} onClick={() => void startVoice()}>
+            <MicIcon />
+          </button>
+        </span>
       </form>
+      {micError ? (
+        <p role="alert" className="micnote">
+          The microphone is not available.
+        </p>
+      ) : null}
     </div>
+  );
+}
+
+function Progress({ name, pct }: { name: string; pct: number }) {
+  return (
+    <span className="fbar" role="progressbar" aria-label={`Uploading ${name}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+      <i style={{ width: `${pct}%` }} />
+    </span>
   );
 }

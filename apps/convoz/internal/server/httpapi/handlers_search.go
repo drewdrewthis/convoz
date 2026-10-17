@@ -68,7 +68,7 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request, c *call) {
 		}
 		res := wire.SearchResult{
 			MessageID: m.ID, ConversationID: m.ConversationID, ConversationTitle: titles[m.ConversationID], Author: dir.person(m.AuthorID),
-			CreatedAt: m.CreatedAt, ThreadRootID: m.ThreadRootID, App: m.HasApp, Snippet: snippetParts(plainText(m), q),
+			CreatedAt: m.CreatedAt, ThreadRootID: m.ThreadRootID, App: m.HasApp, Snippet: snippetParts(plainText(ctx, d, m), q),
 		}
 		if m.Kind == "ask" {
 			res.Kind = "ask"
@@ -90,7 +90,7 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request, c *call) {
 			preview := ""
 			if id := last[v.ID]; id > v.Floor {
 				if m, ok, err := message.Get(ctx, d, id); err == nil && ok {
-					preview = message.Preview(plainText(m))
+					preview = message.Preview(plainText(ctx, d, m))
 				}
 			}
 			out.Conversations = append(out.Conversations, wire.SearchConversation{ID: v.ID, Title: v.Title, Starred: starred[v.ID], Preview: preview, Snippet: snippetParts(v.Title, q)})

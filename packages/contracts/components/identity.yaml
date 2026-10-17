@@ -47,6 +47,7 @@ Identity:
     disabled: { type: boolean }
     description: { type: string, description: "Agents only: the agent's own line about itself." }
     capabilities: { type: array, items: { type: string }, description: "Agents only: what the agent says it can do." }
+    avatar_url: { type: string, description: "Where the identity's own SVG avatar is served; absent for the letter on a tint (I-32). Show it only in an img." }
     online: { type: boolean, description: Agents only. True while the agent has a live session. }
     created_by:
       type: object
@@ -70,11 +71,12 @@ ProfileRequest:
     display_name: { type: string, minLength: 1, maxLength: 80 }
     description: { type: string, maxLength: 80 }
     capabilities: { type: array, maxItems: 20, items: { type: string, minLength: 1, maxLength: 40 } }
+    avatar_svg: { type: ["string", "null"], description: "SVG text, rebuilt from an allow-list (no DOCTYPE or ENTITY, at most 4096 characters once cleaned). null goes back to the letter on a tint. Any caller." }
 Profile:
   type: object
-  required: [handle, display_name, description, capabilities]
   properties:
     handle: { type: string }
     display_name: { type: string }
     description: { type: string }
     capabilities: { type: array, items: { type: string } }
+    avatar_url: { type: string, description: "Present when the caller set an avatar." }

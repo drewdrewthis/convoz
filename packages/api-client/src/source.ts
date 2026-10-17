@@ -13,8 +13,9 @@ export interface DataSource {
   createConversation(clientId: string, participants: string[]): Promise<Conversation>;
   /** A page of messages, oldest first: the newest page, or the page before or after an id. */
   messages(id: number, cursor: { before?: number; after?: number; limit: number }): Promise<MessagePage>;
-  /** Post with a client id made once per message: a retry with the same id never makes a second one. */
-  post(id: number, clientId: string, body: string): Promise<Posted>;
+  /** Post with a client id made once per message: a retry with the same id never makes a second one. `uploadIds` are finished
+   *  uploads the message carries; the body may be empty when there are some. */
+  post(id: number, clientId: string, body: string, uploadIds?: string[]): Promise<Posted>;
   /** Move the read cursor; true when the server took it. Never throws: a lost cursor is sent again later.
    *  `keepalive` lets the request outlive the page (it is leaving). */
   markRead(id: number, mainId: number, keepalive?: boolean): Promise<boolean>;

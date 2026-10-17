@@ -283,21 +283,21 @@ func bumpReplies(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, reply 
 	return p.Events.ThreadUpdated(ctx, d, now, reply.ConversationID, root.ID, reply.ID, root.ReplyCount)
 }
 
-// afterInsert runs the ports that follow a new message in the same transaction: mentions, the search index, the uploads
-// it carries, its link preview and its audit line. Any error rolls the whole post back.
+// afterInsert runs the ports that follow a new message in the same transaction: mentions, the uploads it carries (before the
+// search index, which reads them), the search index, its link preview and its audit line. Any error rolls the whole post back.
 func afterInsert(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft, m Message) (mentioned []int64, err error) {
 	if p.Mentions != nil {
 		if mentioned, err = p.Mentions.RecordMentions(ctx, d, now, m); err != nil {
 			return nil, err
 		}
 	}
-	if p.Search != nil {
-		if err := p.Search.IndexMessage(ctx, d, now, m); err != nil {
+	if len(draft.UploadIDs) > 0 && p.Uploads != nil {
+		if err := p.Uploads.BindUploads(ctx, d, now, m, draft.UploadIDs); err != nil {
 			return nil, err
 		}
 	}
-	if len(draft.UploadIDs) > 0 && p.Uploads != nil {
-		if err := p.Uploads.BindUploads(ctx, d, now, m, draft.UploadIDs); err != nil {
+	if p.Search != nil {
+		if err := p.Search.IndexMessage(ctx, d, now, m); err != nil {
 			return nil, err
 		}
 	}

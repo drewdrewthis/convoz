@@ -24,7 +24,7 @@ WHERE i.handle = sqlc.arg(handle);
 
 -- name: ListIdentities :many
 SELECT i.id, i.kind, i.handle, i.display_name, CAST(COALESCE(h.role, 'agent') AS TEXT) AS role, i.created_at, i.disabled_at,
-  a.created_by_human, a.created_by_machine, CAST(COALESCE(a.description, '') AS TEXT) AS description, CAST(COALESCE(a.capabilities_json, '[]') AS TEXT) AS capabilities_json
+  a.created_by_human, a.created_by_machine, CAST(COALESCE(a.description, '') AS TEXT) AS description, CAST(COALESCE(a.capabilities_json, '[]') AS TEXT) AS capabilities_json, CAST(i.avatar_svg IS NOT NULL AS INTEGER) AS has_avatar
 FROM identities i
 LEFT JOIN humans h ON h.identity_id = i.id
 LEFT JOIN agents a ON a.identity_id = i.id
@@ -65,3 +65,9 @@ WHERE id = sqlc.arg(id) AND kind = 'agent';
 -- name: SetProfileFields :exec
 UPDATE agents SET description = sqlc.arg(description), capabilities_json = sqlc.arg(capabilities_json), profile_changed_at = sqlc.arg(now)
 WHERE identity_id = sqlc.arg(id);
+
+-- name: SetAvatarSVG :exec
+UPDATE identities SET avatar_svg = sqlc.narg(svg) WHERE id = sqlc.arg(id);
+
+-- name: GetAvatarSVG :one
+SELECT avatar_svg FROM identities WHERE id = sqlc.arg(id) AND avatar_svg IS NOT NULL;

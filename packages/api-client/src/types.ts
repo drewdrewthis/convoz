@@ -35,6 +35,9 @@ export type Ask = S["Ask"];
 export type AskAnswerRequest = S["AskAnswerRequest"];
 export type Now = S["Now"];
 export type NowPendingAdd = S["NowPendingAdd"];
+export type Upload = S["Upload"];
+export type UploadState = S["UploadState"];
+export type CreateUpload = S["CreateUpload"];
 /** A message frame after the message changed: the message as it is now, with the conversation it is in. */
 export type MessageChangedFrame = Message & { conversation_id: number; author_handle: string };
 export interface ThreadUpdatedFrame {
@@ -58,6 +61,8 @@ export interface StreamFrames {
   "agent.working": AgentWorkingFrame;
   /** An ask changed (asked, answered, dismissed, snoozed, woke): the ask as this reader sees it now. */
   "ask.changed": Ask;
+  /** A voice note got its words: the message as it reads now. */
+  "upload.transcribed": MessageChangedFrame;
 }
 export type FrameName = keyof StreamFrames;
 /** One frame: its name and its payload, so a switch on `name` narrows `data`. */
@@ -74,4 +79,5 @@ export const FRAME_NAMES = [
   "conversation.created",
   "agent.working",
   "ask.changed",
+  "upload.transcribed",
 ] as const satisfies readonly FrameName[];

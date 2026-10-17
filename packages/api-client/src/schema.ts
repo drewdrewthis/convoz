@@ -518,7 +518,7 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * An agent changes its own profile, once an hour.
+         * Change the caller's own profile: an agent its words (once an hour), any caller its avatar.
          * @description Send the fields to change; the rest stay. The handle is not a field (naming it is 400). A change within an hour of the last
          *     one is 429 `rate_limited` with Retry-After. A display name that looks like another identity is 409 `name_taken`.
          */
@@ -549,7 +549,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * An identity's SVG avatar, served so it can only draw (I-32).
+         * @description `Content-Security-Policy: default-src 'none'; sandbox` and nosniff. Render it only through an img.
+         */
+        get: operations["getAvatar"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1265,7 +1269,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
+        /**
+         * Start a resumable upload in a conversation the caller can write in.
+         * @description Lease callers need the `upload` scope. 60 starts an hour per identity; 500 MB a day per identity and 2 GB a day per machine
+         *     (429). Chunks follow with PATCH /api/uploads/{id}.
+         */
+        post: operations["createUpload"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1276,7 +1285,10 @@ export interface paths {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                /** @description The public id of the upload. */
+                id: string;
+            };
             cookie?: never;
         };
         get?: never;
@@ -1284,8 +1296,20 @@ export interface paths {
         post?: never;
         delete?: never;
         options?: never;
-        head?: never;
-        patch?: never;
+        /**
+         * Where to resume from.
+         * @description Upload-Offset is what the server holds now (sealed segments plus the partial one in memory). Upload-Length is set when the size is known. Upload-State is receiving or complete.
+         */
+        head: operations["headUpload"];
+        /**
+         * Send one chunk of the file at Upload-Offset.
+         * @description Content-Type is application/offset+octet-stream. The server seals each whole 1 MB segment as it arrives and keeps only the
+         *     partial one in memory (I-27). A chunk that does not start at the server's offset answers 409 with the offset in Upload-Offset.
+         *     More bytes than the declared size end the upload with 413 (I-31). A 30000 by 30000 image is refused before decode with 413
+         *     `image_too_large`. The last chunk of an upload whose length was not known carries Upload-Length and Upload-Checksum
+         *     ("sha256 <hex>"); a voice note also sends Upload-Duration-Ms and Upload-Waveform (base64 of up to 64 peaks).
+         */
+        patch: operations["patchUpload"];
         trace?: never;
     };
     "/api/files/{public_id}": {
@@ -1295,7 +1319,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * A file, decrypted, with Range support.
+         * @description Inline only for a safe image or audio type decided from the bytes; everything else is an attachment. Always
+         *     `X-Content-Type-Options: nosniff` and `Content-Security-Policy: sandbox; default-src 'none'` (I-44). A file of a message is read by
+         *     whoever may see the message; one not yet in a message only by the one who uploaded it.
+         */
+        get: operations["getFile"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1673,6 +1703,8 @@ export interface components {
             description?: string;
             /** @description Agents only: what the agent says it can do. */
             capabilities?: string[];
+            /** @description Where the identity's own SVG avatar is served; absent for the letter on a tint (I-32). Show it only in an img. */
+            avatar_url?: string;
             /** @description Agents only. True while the agent has a live session. */
             online?: boolean;
             created_by?: {
@@ -1685,12 +1717,16 @@ export interface components {
             display_name?: string;
             description?: string;
             capabilities?: string[];
+            /** @description SVG text, rebuilt from an allow-list (no DOCTYPE or ENTITY, at most 4096 characters once cleaned). null goes back to the letter on a tint. Any caller. */
+            avatar_svg?: string | null;
         };
         Profile: {
-            handle: string;
-            display_name: string;
-            description: string;
-            capabilities: string[];
+            handle?: string;
+            display_name?: string;
+            description?: string;
+            capabilities?: string[];
+            /** @description Present when the caller set an avatar. */
+            avatar_url?: string;
         };
         Passkey: {
             /** Format: int64 */
@@ -1837,12 +1873,92 @@ export interface components {
             } & {
                 [key: string]: unknown;
             };
-            /** @description The words of a system line. */
+            /** @description The words of a system line, or the plain-text form of a message that carries files. */
             text?: string;
             /** @description The session an agent wrote the message from (I-40). */
             session_label?: string;
             /** @description The machine that session ran on (I-40). */
             machine?: string;
+            /** @description The files the message carries. Then `text` is the plain-text form of the whole message (a voice note reads Voice note 0:20, then the words). */
+            uploads?: components["schemas"]["Upload"][];
+        };
+        /**
+         * @description Start an upload. Size and sha256 are left out for a file whose length is not known yet (a voice note still recording):
+         *     the last chunk then carries Upload-Length and Upload-Checksum. Without a size the cap is 25 MB.
+         */
+        CreateUpload: {
+            /** Format: int64 */
+            conversation_id: number;
+            /**
+             * @description What the client believes. The server decides from the bytes (I-44): a file called an image that is not one becomes a plain file.
+             * @enum {string}
+             */
+            kind: "audio" | "image" | "file";
+            filename: string;
+            /** Format: int64 */
+            size?: number;
+            /** @description The SHA-256 of the file */
+            sha256?: string;
+        };
+        UploadState: {
+            /** @description The public id (22 characters). Put it in upload_ids of a message to bind it. */
+            id: string;
+            /** @enum {string} */
+            state: "receiving" | "complete";
+            /**
+             * Format: int64
+             * @description Where the next chunk starts: the whole segments sealed plus the partial one the server holds. After a restart it falls back to the last whole segment.
+             */
+            offset: number;
+            /**
+             * Format: int64
+             * @description Known from the start
+             */
+            size?: number;
+            /** @enum {string} */
+            kind: "audio" | "image" | "file";
+            name: string;
+            /** @description What the bytes are. Set when complete. */
+            mime?: string;
+            /** @description True for a safe image or audio type */
+            inline?: boolean;
+            /** Format: int64 */
+            width?: number;
+            /** Format: int64 */
+            height?: number;
+            /** Format: int64 */
+            duration_ms?: number;
+            /**
+             * Format: int64
+             * @description The size of one sealed segment (1 MB).
+             */
+            segment?: number;
+        };
+        /** @description A file of a message. It is read from /api/files/{id}. */
+        Upload: {
+            id: string;
+            /** @enum {string} */
+            kind: "audio" | "image" | "file";
+            name: string;
+            /** Format: int64 */
+            size: number;
+            mime: string;
+            inline: boolean;
+            /** Format: int64 */
+            width?: number;
+            /** Format: int64 */
+            height?: number;
+            /** Format: int64 */
+            duration_ms?: number;
+            /** @description Up to 64 peaks of a voice note. */
+            waveform?: number[];
+            transcript?: components["schemas"]["Transcript"];
+        };
+        /** @description The words of a voice note. Absent when no transcription engine is set. */
+        Transcript: {
+            /** @enum {string} */
+            state: "pending" | "done" | "failed";
+            text?: string;
         };
         Posted: {
             /** Format: int64 */
@@ -3034,6 +3150,29 @@ export interface operations {
             default: components["responses"]["Error"];
         };
     };
+    getAvatar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The SVG. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/svg+xml": string;
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
     pollInbox: {
         parameters: {
             query?: {
@@ -4055,6 +4194,121 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Now"];
                 };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    createUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateUpload"];
+            };
+        };
+        responses: {
+            /** @description The upload, at offset 0. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadState"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    headUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The public id of the upload. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The offset. */
+            200: {
+                headers: {
+                    "Upload-Offset"?: number;
+                    "Upload-Length"?: number;
+                    "Upload-State"?: "receiving" | "complete";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    patchUpload: {
+        parameters: {
+            query?: never;
+            header: {
+                "Upload-Offset": number;
+                "Upload-Length"?: number;
+                "Upload-Checksum"?: string;
+                "Upload-Duration-Ms"?: number;
+                "Upload-Waveform"?: string;
+            };
+            path: {
+                /** @description The public id of the upload. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/offset+octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description Where the upload stands now. When complete, the facts the server found. */
+            200: {
+                headers: {
+                    "Upload-Offset"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadState"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The bytes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": string;
+                };
+            };
+            /** @description A range of the bytes. */
+            206: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             default: components["responses"]["Error"];
         };

@@ -1,10 +1,10 @@
-import type { Identity, Message } from "@convoz/api-client";
-import { BackIcon, DetailsIcon } from "@convoz/ui/icons";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type RefObject } from "react";
+import type { Identity, Message, Upload } from "@convoz/api-client";
+import { AttachIcon, BackIcon, DetailsIcon } from "@convoz/ui/icons";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type RefObject } from "react";
 import { ApiError } from "../../shared/api.ts";
 import { initials, paletteOf, setRegistry, stripCf } from "../../shared/chat.ts";
 import { data, useData, useLive } from "../../shared/data.ts";
-import { Composer } from "../composer/index.ts";
+import { Composer, useAttachments } from "../composer/index.ts";
 import { rememberChat } from "../search/index.ts";
 import { ThreadPane, useThreads } from "../threads/index.ts";
 import { resume } from "./actions.ts";
@@ -41,6 +41,8 @@ export function Conversation() {
   const [gone, setGone] = useState(false);
   const [info, setInfo] = useState(false);
   const [inspected, setInspected] = useState<Message | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const attachments = useAttachments(convId);
   const threadOpen = useThreads((s) => s.open !== null);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const frame = useRef<HTMLDivElement>(null);
@@ -166,9 +168,23 @@ export function Conversation() {
     }
   };
 
-  const send = (body: string) => {
+  const send = (body: string, files: Upload[]) => {
     control.current?.stick();
-    actions().send(key, body);
+    actions().send(key, body, files);
+  };
+
+  // Files dragged onto the conversation attach to the message being written (none before the conversation exists).
+  const carriesFiles = (event: DragEvent) => convId !== 0 && Boolean(event.dataTransfer?.types.includes("Files") || event.dataTransfer?.files.length);
+  const dragOver = (event: DragEvent) => {
+    if (!carriesFiles(event)) return;
+    event.preventDefault();
+    setDragging(true);
+  };
+  const drop = (event: DragEvent) => {
+    setDragging(false);
+    if (!carriesFiles(event)) return;
+    event.preventDefault();
+    attachments.add(Array.from(event.dataTransfer.files));
   };
 
   const pick = (who: Identity) => {
@@ -224,7 +240,26 @@ export function Conversation() {
         ))}
       </div>
       <main className="chatmain">
-        <section id="convo" className="convo" hidden={gone}>
+        <section
+          id="convo"
+          className="convo"
+          aria-label="Conversation"
+          hidden={gone}
+          onDragEnter={dragOver}
+          onDragOver={dragOver}
+          onDragLeave={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false);
+          }}
+          onDrop={drop}
+        >
+          {dragging ? (
+            <div className="dropov" aria-hidden="true">
+              <span>
+                <AttachIcon />
+                Drop to attach
+              </span>
+            </div>
+          ) : null}
           <Transcript
             messages={held?.list ?? NONE}
             pending={thread?.pending ?? NO_SENDS}
@@ -240,7 +275,15 @@ export function Conversation() {
             onDetails={setInspected}
             focus={target || undefined}
           />
-          <Composer agent={agent?.handle ?? null} label={label} onSend={send} textRef={textRef} mentions={isNew ? { crew, onPick: pick } : convId ? { crew } : undefined} />
+          <Composer
+            agent={agent?.handle ?? null}
+            label={label}
+            conversationId={convId}
+            attachments={attachments}
+            onSend={send}
+            textRef={textRef}
+            mentions={isNew ? { crew, onPick: pick } : convId ? { crew } : undefined}
+          />
         </section>
         <p id="chat-error" className="chat-error" role="alert" hidden={!error}>
           {error}

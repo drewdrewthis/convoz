@@ -82,6 +82,17 @@ func (q *Queries) DisableAgent(ctx context.Context, arg DisableAgentParams) (int
 	return result.RowsAffected()
 }
 
+const getAvatarSVG = `-- name: GetAvatarSVG :one
+SELECT avatar_svg FROM identities WHERE id = ?1 AND avatar_svg IS NOT NULL
+`
+
+func (q *Queries) GetAvatarSVG(ctx context.Context, id int64) (sql.NullString, error) {
+	row := q.db.QueryRowContext(ctx, getAvatarSVG, id)
+	var avatar_svg sql.NullString
+	err := row.Scan(&avatar_svg)
+	return avatar_svg, err
+}
+
 const getHuman = `-- name: GetHuman :one
 SELECT i.id, i.handle, i.display_name, h.role
 FROM humans h JOIN identities i ON i.id = h.identity_id
@@ -307,7 +318,7 @@ func (q *Queries) InsertIdentity(ctx context.Context, arg InsertIdentityParams) 
 
 const listIdentities = `-- name: ListIdentities :many
 SELECT i.id, i.kind, i.handle, i.display_name, CAST(COALESCE(h.role, 'agent') AS TEXT) AS role, i.created_at, i.disabled_at,
-  a.created_by_human, a.created_by_machine, CAST(COALESCE(a.description, '') AS TEXT) AS description, CAST(COALESCE(a.capabilities_json, '[]') AS TEXT) AS capabilities_json
+  a.created_by_human, a.created_by_machine, CAST(COALESCE(a.description, '') AS TEXT) AS description, CAST(COALESCE(a.capabilities_json, '[]') AS TEXT) AS capabilities_json, CAST(i.avatar_svg IS NOT NULL AS INTEGER) AS has_avatar
 FROM identities i
 LEFT JOIN humans h ON h.identity_id = i.id
 LEFT JOIN agents a ON a.identity_id = i.id
@@ -326,6 +337,7 @@ type ListIdentitiesRow struct {
 	CreatedByMachine sql.NullInt64
 	Description      string
 	CapabilitiesJson string
+	HasAvatar        int64
 }
 
 func (q *Queries) ListIdentities(ctx context.Context) ([]ListIdentitiesRow, error) {
@@ -349,6 +361,7 @@ func (q *Queries) ListIdentities(ctx context.Context) ([]ListIdentitiesRow, erro
 			&i.CreatedByMachine,
 			&i.Description,
 			&i.CapabilitiesJson,
+			&i.HasAvatar,
 		); err != nil {
 			return nil, err
 		}
@@ -361,6 +374,20 @@ func (q *Queries) ListIdentities(ctx context.Context) ([]ListIdentitiesRow, erro
 		return nil, err
 	}
 	return items, nil
+}
+
+const setAvatarSVG = `-- name: SetAvatarSVG :exec
+UPDATE identities SET avatar_svg = ?1 WHERE id = ?2
+`
+
+type SetAvatarSVGParams struct {
+	Svg sql.NullString
+	ID  int64
+}
+
+func (q *Queries) SetAvatarSVG(ctx context.Context, arg SetAvatarSVGParams) error {
+	_, err := q.db.ExecContext(ctx, setAvatarSVG, arg.Svg, arg.ID)
+	return err
 }
 
 const setDisplayName = `-- name: SetDisplayName :exec

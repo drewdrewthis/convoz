@@ -23,19 +23,19 @@ Feature: Composer (contracts)
 
   Rule: Files attach by button or drop and bind once (I-31)
 
-    @v1 @api @I-31 @unimplemented
+    @v1 @api @I-31
     Scenario: An upload binds to one message only
       Given the owner uploaded "chart.png" and posted it in conversation 41
       When a client posts another message with the same upload id
       Then the server answers 409
 
-    @v1 @api @I-31 @unimplemented
+    @v1 @api @I-31
     Scenario: An upload cannot be used in another conversation
       Given the owner uploaded "chart.png" for conversation 41
       When a client posts it in conversation 52
       Then the server answers 400
 
-    @v1 @api @I-31 @unimplemented
+    @v1 @api @I-31
     Scenario: An unfinished upload cannot be posted
       Given an upload of "big.zip" that is half done
       When a client posts a message with it

@@ -1,0 +1,36 @@
+/* Composer: Attach, the files to send, the microphone in Send's place, and the drop overlay (prototype v41, phone). */
+@layer components {
+  .attachbtn { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--color-muted); }
+  .attachbtn:disabled, .sendbtn.mic:disabled { cursor: default; }
+  .attachbtn svg, .fin svg, .dropov svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .sendslot { position: relative; flex: 0 0 auto; width: 44px; height: 44px; }
+  .sendbtn.under { opacity: 0; pointer-events: none; }
+  .sendbtn.mic { position: absolute; inset: 0; background: var(--color-selection); color: var(--color-accent-text); }
+
+  .tosend { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 4px 8px; }
+  .fin {
+    display: inline-flex; align-items: center; gap: 8px; max-width: 100%; min-height: 40px; padding: 4px 4px 4px 6px; border-radius: 999px;
+    border: 1px solid var(--color-edge); background: var(--glass); box-shadow: var(--glass-shadow); font-size: 13px; animation: finIn 180ms ease-out;
+  }
+  .fin .fic { width: 28px; height: 28px; flex: none; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--color-selection); color: var(--color-accent-text); }
+  .fin .fic svg { width: 14px; height: 14px; }
+  .fin .fname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+  .fin .fsize { flex: none; color: var(--color-muted); }
+  .fin .fbad { flex: none; color: var(--color-danger); font-weight: 600; }
+  .fbar { flex: none; width: 40px; height: 4px; border-radius: 2px; background: var(--color-border); overflow: hidden; }
+  .fbar i { display: block; height: 100%; background: var(--color-accent); }
+  .fretry { flex: none; min-height: 32px; padding: 0 10px; border: 1px solid var(--color-edge); border-radius: 999px; background: var(--color-raised); color: var(--color-text); font: inherit; font-weight: 600; }
+  .fin .fx { width: 44px; height: 44px; flex: none; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--color-muted); }
+  .fin .fx svg { width: 12px; height: 12px; }
+  .fnote { margin: 0 4px 8px; font-size: 13px; color: var(--color-muted); }
+  .micnote { margin: 8px 4px 0; font-size: 13px; color: var(--color-danger); }
+  @keyframes finIn { from { transform: translateY(-4px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+  .convo { position: relative; }
+  .dropov {
+    position: absolute; inset: 10px; z-index: 20; display: flex; align-items: flex-start; justify-content: center; padding-top: 120px; border-radius: 14px;
+    outline: 2px dashed var(--color-grad-1); outline-offset: -8px; pointer-events: none; font-size: 16px; font-weight: 600; color: var(--color-text); animation: popIn 140ms ease-out;
+  }
+  .dropov span { display: inline-flex; align-items: center; gap: 10px; height: 44px; padding: 0 20px; border-radius: 999px; background: var(--color-raised); box-shadow: var(--glass-shadow); }
+  @keyframes popIn { from { transform: translateY(4px) scale(.985); opacity: 0; } to { transform: none; opacity: 1; } }
+}

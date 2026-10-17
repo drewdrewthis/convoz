@@ -1,0 +1,35 @@
+/* Voice: the recording bar that takes the composer's place, and the voice bubble of a message (prototype v41, phone). */
+@layer components {
+  .recin { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 6px 6px 6px 8px; border-radius: 999px; animation: recIn 200ms cubic-bezier(.2, .8, .2, 1); }
+  .recbtn { width: 44px; height: 44px; flex: none; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--color-muted); }
+  .recbtn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .recsend { background: var(--color-accent); color: var(--color-on-accent); }
+  .recsend svg { stroke-width: 2; }
+  .recsend:disabled { opacity: .6; cursor: default; }
+  .rdot { width: 10px; height: 10px; flex: none; border-radius: 999px; background: var(--color-danger); animation: pulse 1.2s ease-in-out infinite; }
+  .rtime { font-size: 14px; font-variant-numeric: tabular-nums; color: var(--color-text); }
+  .vlvl { flex: 1 1 auto; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 3px; height: 24px; }
+  .vlvl i { display: block; width: 3px; height: 100%; border-radius: 2px; background: var(--color-text); opacity: .6; animation: vlvl 900ms ease-in-out infinite; }
+  .vlvl i:nth-child(2) { animation-delay: -700ms; } .vlvl i:nth-child(3) { animation-delay: -300ms; } .vlvl i:nth-child(4) { animation-delay: -550ms; }
+  .vlvl i:nth-child(5) { animation-delay: -100ms; } .vlvl i:nth-child(6) { animation-delay: -800ms; } .vlvl i:nth-child(7) { animation-delay: -400ms; }
+  .vlvl i:nth-child(8) { animation-delay: -650ms; } .vlvl i:nth-child(9) { animation-delay: -200ms; }
+  @keyframes vlvl { 0%, 100% { transform: scaleY(.25); } 50% { transform: scaleY(1); } }
+  @keyframes recIn { from { transform: scale(.96); opacity: 0; } to { transform: none; opacity: 1; } }
+  /* Still bars of different heights instead of the moving level. */
+  @media (prefers-reduced-motion: reduce) {
+    .vlvl i:nth-child(3n+1) { transform: scaleY(.45); } .vlvl i:nth-child(3n+2) { transform: scaleY(.85); } .vlvl i:nth-child(3n) { transform: scaleY(.65); }
+  }
+
+  .voice { display: flex; flex-direction: column; align-items: flex-start; max-width: 360px; }
+  .vbubble { width: 100%; display: flex; align-items: center; gap: 10px; padding: 3px 14px 3px 3px; border-radius: 999px; border: 1px solid var(--color-border); background: var(--glass); }
+  .vplay { width: 36px; height: 36px; flex: none; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 999px; background: var(--color-accent); color: var(--color-on-accent); }
+  .vplay svg { width: 16px; height: 16px; fill: currentColor; stroke: none; }
+  .vbars { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; justify-content: space-between; height: 28px; }
+  .vbars i { width: 3px; flex: none; border-radius: 2px; background: var(--color-muted); opacity: .55; }
+  .vbars i.on { background: var(--color-accent-text); opacity: 1; }
+  .vtime { flex: none; font-size: 13px; color: var(--color-muted); font-variant-numeric: tabular-nums; }
+  .vtx { min-height: 28px; display: inline-flex; align-items: center; gap: 4px; margin-left: 4px; padding: 0 8px; border: 0; border-radius: 999px; background: transparent; color: var(--color-muted); font: inherit; font-size: 13px; }
+  .vtx svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; transition: transform 160ms ease; }
+  .vtx[aria-expanded="true"] svg { transform: rotate(90deg); }
+  .vwords { margin: 0 0 4px 12px; max-width: 340px; font-size: 14px; line-height: 1.45; color: var(--color-text); }
+}

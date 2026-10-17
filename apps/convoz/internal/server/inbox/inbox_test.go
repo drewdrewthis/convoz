@@ -332,3 +332,37 @@ func TestHoldsLiveClaimIsTrueOnlyWhileTheClaimLasts(t *testing.T) {
 		}
 	})
 }
+
+func TestAVoiceItemWaitsForItsWordsThenIsReleased(t *testing.T) {
+	s := seeded(t)
+	fan(t, s, t0, conv1, 1)
+	run(t, s, func(ctx context.Context, d pdb.DBTX) {
+		if err := inbox.HoldForVoice(ctx, d, t0, conv1, 1); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if got := claim(t, s, t0.Add(time.Second), sessA, false); len(got) != 0 {
+		t.Fatalf("a held item was claimed: %v", got)
+	}
+	run(t, s, func(ctx context.Context, d pdb.DBTX) {
+		if err := inbox.ReleaseVoice(ctx, d, t0.Add(2*time.Second), conv1, 1); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if got := claim(t, s, t0.Add(3*time.Second), sessA, false); len(got) != 1 {
+		t.Fatalf("a released item: got %d", len(got))
+	}
+}
+
+func TestAVoiceItemIsClaimedWhenTheWaitEnds(t *testing.T) {
+	s := seeded(t)
+	fan(t, s, t0, conv1, 1)
+	run(t, s, func(ctx context.Context, d pdb.DBTX) {
+		if err := inbox.HoldForVoice(ctx, d, t0, conv1, 1); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if got := claim(t, s, t0.Add(inbox.VoiceWait+time.Second), sessA, false); len(got) != 1 {
+		t.Fatalf("after the wait the item is claimable: got %d", len(got))
+	}
+}

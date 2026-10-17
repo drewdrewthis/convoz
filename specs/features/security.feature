@@ -104,7 +104,7 @@ Feature: Security walls
       Then the owner sees the host "evil.example" next to "docs"
       And the link has rel "noopener noreferrer"
 
-    @v1 @browser @I-45 @unimplemented
+    @v1 @browser @I-45
     Scenario: An image from an own upload renders inline
       Given "devtool" uploaded "chart.png"
       When it posts markdown that shows that upload as an image

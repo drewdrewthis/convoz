@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"io/fs"
 	"net/http"
 	"strings"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/event"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/prefs"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/upload"
 )
 
 // answerChange ends a route that changes a conversation: 200 {}, or the "not there" answer when the transaction
@@ -160,18 +162,41 @@ func (s *Server) Maintain(ctx context.Context) error {
 	}
 	now := s.Clock.Now()
 	var purged int64
+	var expired []string
 	err := s.Store.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) (err error) {
 		d := tx.DBTX()
 		starred := func(conv int64) (bool, error) { return prefs.StarredByAnyone(ctx, d, conv) }
 		if _, err = conversation.CleanEmpty(ctx, d, now, starred); err != nil {
 			return err
 		}
-		purged, err = conversation.PurgeTrash(ctx, d, now)
+		if purged, err = conversation.PurgeTrash(ctx, d, now); err != nil {
+			return err
+		}
+		expired, err = upload.Expire(ctx, d, now) // an upload nobody bound within 24 hours (a cancelled recording) goes
 		return err
 	})
+	if err == nil {
+		err = s.sweepFiles(ctx, now, expired)
+	}
 	if err == nil && purged > 0 {
 		s.Bus.Notify()
 		err = s.Store.Writer.CheckpointTruncate(ctx)
 	}
 	return err
+}
+
+// sweepFiles unlinks the sealed files of expired uploads, and any file in the blob directory that no row names and that is over an
+// hour old (a crash between a delete and its unlink).
+func (s *Server) sweepFiles(ctx context.Context, now time.Time, expired []string) error {
+	svc := files.Load()
+	if svc == nil {
+		return nil
+	}
+	svc.Remove(expired...)
+	known, err := upload.KnownFiles(ctx, s.reader())
+	if err != nil {
+		return err
+	}
+	svc.Blobs.Sweep(known, func(info fs.FileInfo) bool { return now.Sub(info.ModTime()) > time.Hour })
+	return nil
 }

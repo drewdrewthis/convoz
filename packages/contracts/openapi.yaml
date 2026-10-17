@@ -276,6 +276,10 @@ components:
     LastMessage: { $ref: "components/conversation.yaml#/LastMessage" }
     Conversation: { $ref: "components/conversation.yaml#/Conversation" }
     Message: { $ref: "components/message.yaml#/Message" }
+    CreateUpload: { $ref: "components/upload.yaml#/CreateUpload" }
+    UploadState: { $ref: "components/upload.yaml#/UploadState" }
+    Upload: { $ref: "components/upload.yaml#/Upload" }
+    Transcript: { $ref: "components/upload.yaml#/Transcript" }
     Posted: { $ref: "components/message.yaml#/Posted" }
     Replies: { $ref: "components/readstate.yaml#/RepliesResponse" }
     EditRequest: { $ref: "components/message.yaml#/EditRequest" }

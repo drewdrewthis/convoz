@@ -325,15 +325,26 @@ func (s *Server) isHandleOf(ctx context.Context, d pdb.DBTX, handle string, id i
 	return err == nil && found && who.ID == id
 }
 
-// patchProfile is PATCH /api/me/profile {display_name?, description?, capabilities?}: an agent changes its own profile, once an
-// hour. The handle is not a field (I-3, I-40), so naming it is a 400.
+// patchProfile is PATCH /api/me/profile {display_name?, description?, capabilities?, avatar_svg?}: an agent changes its own words
+// about itself, once an hour; any caller changes its avatar. The handle is not a field (I-3, I-40), so naming it is a 400.
 func (s *Server) patchProfile(w http.ResponseWriter, r *http.Request, c *call) {
 	var in wire.ProfileRequest
 	if !decode(w, r, &in) {
 		return
 	}
-	if in.DisplayName == nil && in.Description == nil && in.Capabilities == nil {
-		writeErr(w, http.StatusBadRequest, "invalid_request", "Send display_name, description or capabilities.")
+	words := in.DisplayName != nil || in.Description != nil || in.Capabilities != nil
+	if !words && len(in.AvatarSVG) == 0 {
+		writeErr(w, http.StatusBadRequest, "invalid_request", "Send display_name, description, capabilities or avatar_svg.")
+		return
+	}
+	if !words {
+		if url, ok := s.setAvatar(w, r, c, in.AvatarSVG); ok {
+			writeJSON(w, http.StatusOK, wire.ProfileResponse{AvatarURL: url})
+		}
+		return
+	}
+	if c.p.SessionID == 0 {
+		writeErr(w, http.StatusForbidden, "forbidden", "Only an agent changes its words.")
 		return
 	}
 	who, found, err := identity.ByID(r.Context(), s.reader(), c.lease.IdentityID)
@@ -362,6 +373,14 @@ func (s *Server) patchProfile(w http.ResponseWriter, r *http.Request, c *call) {
 	case err != nil:
 		s.internalError(w, r, err)
 	default:
-		writeJSON(w, http.StatusOK, wire.ProfileResponse{Handle: who.Handle, DisplayName: out.DisplayName, Description: out.Description, Capabilities: append([]string{}, out.Capabilities...)})
+		res := wire.ProfileResponse{Handle: who.Handle, DisplayName: out.DisplayName, Description: out.Description, Capabilities: append([]string{}, out.Capabilities...)}
+		if len(in.AvatarSVG) > 0 {
+			url, ok := s.setAvatar(w, r, c, in.AvatarSVG)
+			if !ok {
+				return
+			}
+			res.AvatarURL = url
+		}
+		writeJSON(w, http.StatusOK, res)
 	}
 }

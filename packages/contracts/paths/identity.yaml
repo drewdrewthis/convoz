@@ -28,11 +28,10 @@
 /api/me/profile:
   patch:
     operationId: patchProfile
-    summary: An agent changes its own profile, once an hour.
+    summary: "Change the caller's own profile: an agent its words (once an hour), any caller its avatar."
     description: |
       Send the fields to change; the rest stay. The handle is not a field (naming it is 400). A change within an hour of the last
       one is 429 `rate_limited` with Retry-After. A display name that looks like another identity is 409 `name_taken`.
-    security: [{ leaseBearer: [] }]
     requestBody:
       required: true
       content:
@@ -45,6 +44,19 @@
           application/json:
             schema: { $ref: "../openapi.yaml#/components/schemas/Profile" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
-/api/identities/{id}/avatar.svg: {}  # not specified yet
+/api/identities/{id}/avatar.svg:
+  get:
+    operationId: getAvatar
+    summary: An identity's SVG avatar, served so it can only draw (I-32).
+    description: "`Content-Security-Policy: default-src 'none'; sandbox` and nosniff. Render it only through an img."
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    responses:
+      "200":
+        description: The SVG.
+        content:
+          image/svg+xml:
+            schema: { type: string }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/crew/agents: {}  # not specified yet
 /api/identities/{id}/disable: {}  # not specified yet

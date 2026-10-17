@@ -1,5 +1,83 @@
 # Paths of the upload module (design §13). Only the work package that owns upload edits this file; the root
 # openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
-/api/uploads: {}  # not specified yet
-/api/uploads/{id}: {}  # not specified yet
-/api/files/{public_id}: {}  # not specified yet
+/api/uploads:
+  post:
+    operationId: createUpload
+    summary: Start a resumable upload in a conversation the caller can write in.
+    description: |
+      Lease callers need the `upload` scope. 60 starts an hour per identity; 500 MB a day per identity and 2 GB a day per machine
+      (429). Chunks follow with PATCH /api/uploads/{id}.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "../openapi.yaml#/components/schemas/CreateUpload" }
+    responses:
+      "201":
+        description: The upload, at offset 0.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/UploadState" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/uploads/{id}:
+  parameters:
+    - { name: id, in: path, required: true, schema: { type: string }, description: The public id of the upload. }
+  head:
+    operationId: headUpload
+    summary: Where to resume from.
+    description: "Upload-Offset is what the server holds now (sealed segments plus the partial one in memory). Upload-Length is set when the size is known. Upload-State is receiving or complete."
+    responses:
+      "200":
+        description: The offset.
+        headers:
+          Upload-Offset: { schema: { type: integer, format: int64 } }
+          Upload-Length: { schema: { type: integer, format: int64 } }
+          Upload-State: { schema: { type: string, enum: [receiving, complete] } }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+  patch:
+    operationId: patchUpload
+    summary: Send one chunk of the file at Upload-Offset.
+    description: |
+      Content-Type is application/offset+octet-stream. The server seals each whole 1 MB segment as it arrives and keeps only the
+      partial one in memory (I-27). A chunk that does not start at the server's offset answers 409 with the offset in Upload-Offset.
+      More bytes than the declared size end the upload with 413 (I-31). A 30000 by 30000 image is refused before decode with 413
+      `image_too_large`. The last chunk of an upload whose length was not known carries Upload-Length and Upload-Checksum
+      ("sha256 <hex>"); a voice note also sends Upload-Duration-Ms and Upload-Waveform (base64 of up to 64 peaks).
+    parameters:
+      - { name: Upload-Offset, in: header, required: true, schema: { type: integer, format: int64 } }
+      - { name: Upload-Length, in: header, required: false, schema: { type: integer, format: int64 } }
+      - { name: Upload-Checksum, in: header, required: false, schema: { type: string } }
+      - { name: Upload-Duration-Ms, in: header, required: false, schema: { type: integer, format: int64 } }
+      - { name: Upload-Waveform, in: header, required: false, schema: { type: string } }
+    requestBody:
+      required: true
+      content:
+        application/offset+octet-stream:
+          schema: { type: string, format: binary }
+    responses:
+      "200":
+        description: Where the upload stands now. When complete, the facts the server found.
+        headers:
+          Upload-Offset: { schema: { type: integer, format: int64 } }
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/UploadState" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/files/{public_id}:
+  get:
+    operationId: getFile
+    summary: A file, decrypted, with Range support.
+    description: |
+      Inline only for a safe image or audio type decided from the bytes; everything else is an attachment. Always
+      `X-Content-Type-Options: nosniff` and `Content-Security-Policy: sandbox; default-src 'none'` (I-44). A file of a message is read by
+      whoever may see the message; one not yet in a message only by the one who uploaded it.
+    parameters:
+      - { name: public_id, in: path, required: true, schema: { type: string } }
+    responses:
+      "200":
+        description: The bytes.
+        content:
+          "*/*":
+            schema: { type: string, format: binary }
+      "206": { description: A range of the bytes. }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }

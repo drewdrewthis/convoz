@@ -1,6 +1,6 @@
 // The conversations feature's UI state: for each open conversation page, the sends not yet confirmed, the agent at work
 // and the read cursor the server took. Server data (rows, messages, identities) is in the shared cache (shared/data.ts).
-import type { Message } from "@convoz/api-client";
+import type { Message, Upload } from "@convoz/api-client";
 import { coalesce, maxId } from "@convoz/api-client";
 import { create } from "zustand";
 import { ApiError } from "../../shared/api.ts";
@@ -16,6 +16,10 @@ export interface PendingSend {
   body: string;
   state: "sending" | "failed";
   base: number;
+  /** The finished uploads the message carries. */
+  uploadIds?: string[];
+  /** Those uploads as the message shows them; absent for a send restored from the outbox (only the ids are kept there). */
+  files?: Upload[];
 }
 
 /** An agent at work in a conversation, until a message from it, a stop frame, or `until` (epoch ms). */
@@ -45,7 +49,8 @@ export interface ConversationsState {
   catchUp(key: string): Promise<void>;
   /** A new server message: the owner's own copy replaces its pending send; one from the working agent ends the note. */
   received(convId: number, m: Message): void;
-  send(key: string, body: string): void;
+  /** Send a message; `files` are finished uploads (the body may then be empty). */
+  send(key: string, body: string, files?: Upload[]): void;
   retry(key: string, cid: string): void;
   markRead(key: string): Promise<void>;
   /** Send the unconfirmed sends of conversations no page has open (the outbox), after the link came back. */
@@ -85,11 +90,12 @@ export const useConversations = create<ConversationsState>()((set, get) => {
         t = thread(key)!;
       }
       const p = t.pending.find((x) => x.cid === cid)!;
-      void outbox.put({ cid, conversationId: t.convId, body: p.body, createdAt: Date.now() }); // before the post: a cut-off send is found again
-      const sent = await source.post(t.convId, cid, p.body);
+      void outbox.put({ cid, conversationId: t.convId, body: p.body, uploadIds: p.uploadIds, createdAt: Date.now() }); // before the post: a cut-off send is found again
+      const sent = await source.post(t.convId, cid, p.body, p.uploadIds);
       void outbox.remove(cid);
       const me = data.store.getState().me!.identity;
-      data.putMessages(t.convId, [{ id: sent.id, author: { handle: me.handle, display_name: me.display_name, kind: "human" }, body: p.body, format: "plain", created_at: sent.created_at }]);
+      const files = p.files?.length ? { uploads: p.files } : {};
+      data.putMessages(t.convId, [{ id: sent.id, author: { handle: me.handle, display_name: me.display_name, kind: "human" }, body: p.body, format: "plain", created_at: sent.created_at, ...files }]);
       patch(key, (now) => ({ pending: now.pending.filter((x) => x.cid !== cid) }));
       void get().markRead(key);
       if (untitled(t.convId)) data.loadConversation(t.convId).catch(() => {});
@@ -103,7 +109,7 @@ export const useConversations = create<ConversationsState>()((set, get) => {
   async function restoreSends(key: string, convId: number) {
     for (const item of await outbox.list()) {
       if (item.conversationId !== convId || thread(key)?.pending.some((p) => p.cid === item.cid)) continue;
-      patch(key, (t) => ({ pending: [...t.pending, { cid: item.cid, body: item.body, state: "sending", base: newest(convId) }] }));
+      patch(key, (t) => ({ pending: [...t.pending, { cid: item.cid, body: item.body, uploadIds: item.uploadIds, state: "sending", base: newest(convId) }] }));
       void deliver(key, item.cid);
     }
   }
@@ -141,11 +147,12 @@ export const useConversations = create<ConversationsState>()((set, get) => {
         void get().markRead(key);
       }
     },
-    send: (key, body) => {
+    send: (key, body, files) => {
       const t = thread(key);
       if (!t) return;
       const cid = newId();
-      patch(key, (now) => ({ pending: [...now.pending, { cid, body, state: "sending", base: newest(now.convId) }] }));
+      const carried = files?.length ? { files, uploadIds: files.map((f) => f.id) } : {};
+      patch(key, (now) => ({ pending: [...now.pending, { cid, body, state: "sending", base: newest(now.convId), ...carried }] }));
       void deliver(key, cid);
     },
     retry: (key, cid) => void deliver(key, cid),
@@ -167,7 +174,7 @@ export const useConversations = create<ConversationsState>()((set, get) => {
       for (const item of await outbox.list()) {
         if (Object.values(get().threads).some((t) => t.convId === item.conversationId)) continue; // its page sends it
         try {
-          await source.post(item.conversationId, item.cid, item.body);
+          await source.post(item.conversationId, item.cid, item.body, item.uploadIds);
         } catch (err) {
           // a refusal that a retry cannot change is dropped; a dead link keeps the send for the next time
           if (!(err instanceof ApiError) || err.status === 401 || err.status === 408 || err.status === 429 || err.status >= 500) continue;

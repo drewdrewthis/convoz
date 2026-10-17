@@ -28,7 +28,7 @@ export function Crew() {
       <div className="crew-top">
         <div id="crew-faces" className="stack-av">
           {(people ?? []).slice(0, 5).map((p) => (
-            <Ring key={p.handle} handle={p.handle} />
+            <Ring key={p.handle} handle={p.handle} avatar={p.avatar_url} />
           ))}
         </div>
         <span id="crew-sum" className="sum">
@@ -51,7 +51,7 @@ export function Crew() {
           {shown.map((p) => (
             <li key={p.handle}>
               <a className="crow" href={`/chats/new?with=${encodeURIComponent(p.handle)}`}>
-                <Ring handle={p.handle} />
+                <Ring handle={p.handle} avatar={p.avatar_url} />
                 <span className="txt">
                   <span className="nm">{p.handle}</span>
                   <span className="st">{`Idle · ${p.online ? "Online and ready" : "Offline"}`}</span>

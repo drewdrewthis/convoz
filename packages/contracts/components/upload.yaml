@@ -1,2 +1,53 @@
 # Schemas of the upload module. Only the work package that owns upload edits this file; the root lists each by name.
-{}
+CreateUpload:
+  type: object
+  required: [conversation_id, kind, filename]
+  description: |
+    Start an upload. Size and sha256 are left out for a file whose length is not known yet (a voice note still recording):
+    the last chunk then carries Upload-Length and Upload-Checksum. Without a size the cap is 25 MB.
+  additionalProperties: false
+  properties:
+    conversation_id: { type: integer, format: int64 }
+    kind: { type: string, enum: [audio, image, file], description: "What the client believes. The server decides from the bytes (I-44): a file called an image that is not one becomes a plain file." }
+    filename: { type: string, minLength: 1, maxLength: 255 }
+    size: { type: integer, format: int64, minimum: 1, maximum: 26214400 }
+    sha256: { type: string, pattern: "^[0-9a-f]{64}$", description: The SHA-256 of the file, hex. Checked when the last byte arrives. }
+UploadState:
+  type: object
+  required: [id, state, offset, kind, name]
+  properties:
+    id: { type: string, description: "The public id (22 characters). Put it in upload_ids of a message to bind it." }
+    state: { type: string, enum: [receiving, complete] }
+    offset: { type: integer, format: int64, description: "Where the next chunk starts: the whole segments sealed plus the partial one the server holds. After a restart it falls back to the last whole segment." }
+    size: { type: integer, format: int64, description: Known from the start, or once the last chunk came. }
+    kind: { type: string, enum: [audio, image, file] }
+    name: { type: string }
+    mime: { type: string, description: What the bytes are. Set when complete. }
+    inline: { type: boolean, description: True for a safe image or audio type, which the browser may show in the page (I-44). }
+    width: { type: integer, format: int64 }
+    height: { type: integer, format: int64 }
+    duration_ms: { type: integer, format: int64 }
+    segment: { type: integer, format: int64, description: The size of one sealed segment (1 MB). }
+Transcript:
+  type: object
+  required: [state]
+  description: The words of a voice note. Absent when no transcription engine is set.
+  properties:
+    state: { type: string, enum: [pending, done, failed] }
+    text: { type: string }
+Upload:
+  type: object
+  required: [id, kind, name, size, mime, inline]
+  description: A file of a message. It is read from /api/files/{id}.
+  properties:
+    id: { type: string }
+    kind: { type: string, enum: [audio, image, file] }
+    name: { type: string }
+    size: { type: integer, format: int64 }
+    mime: { type: string }
+    inline: { type: boolean }
+    width: { type: integer, format: int64 }
+    height: { type: integer, format: int64 }
+    duration_ms: { type: integer, format: int64 }
+    waveform: { type: array, maxItems: 64, items: { type: integer, minimum: 0, maximum: 255 }, description: Up to 64 peaks of a voice note. }
+    transcript: { $ref: "../openapi.yaml#/components/schemas/Transcript" }

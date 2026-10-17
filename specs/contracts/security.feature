@@ -205,7 +205,7 @@ Feature: Security walls (contracts)
     And machine "box-2" is logged in with allow-list "devtool"
     And machine "laptop-1" is logged in with allow-list "devtool"
 
-    @v1 @api @I-44 @AC-25 @unimplemented
+    @v1 @api @I-44 @AC-25
     Scenario Outline: Only safe images and audio are shown inline
       Given "devtool" uploaded <file>
       When the owner fetches the file
@@ -220,24 +220,24 @@ Feature: Security walls (contracts)
         | "note.ogg"                   | inline      |
         | "evil.png" that holds HTML   | attachment  |
 
-    @v1 @api @I-44 @AC-25 @unimplemented
+    @v1 @api @I-44 @AC-25
     Scenario: A pixel bomb is refused before decode
       When "devtool" uploads a 30000 by 30000 PNG
       Then the server refuses it with "image too large"
       And the server's memory stays under its limit
 
-    @v1 @api @I-31 @I-44 @unimplemented
+    @v1 @api @I-31 @I-44
     Scenario: The size cap applies to the bytes streamed
       When "devtool" streams more bytes than the size it declared
       Then the server stops the upload at the cap and answers 413
 
-    @v1 @api @I-31 @unimplemented
+    @v1 @api @I-31
     Scenario: Uploads have a daily byte quota per identity
       Given "devtool" uploaded 500 MB today
       When it starts another upload
       Then the server answers 429
 
-    @v1 @api @I-32 @unimplemented
+    @v1 @api @I-32
     Scenario Outline: Avatar SVGs are cleaned and fenced
       When "devtool" sets an avatar SVG that <content>
       Then <result>
@@ -249,7 +249,7 @@ Feature: Security walls (contracts)
         | holds an ENTITY declaration   | the server answers 400                                      |
         | is plain shapes               | the avatar is served with "default-src 'none'; sandbox" and nosniff |
 
-    @v1 @api @invariant @I-27 @unimplemented
+    @v1 @api @invariant @I-27
     Scenario: A blob moved to another file id cannot be read
       Given two uploaded files on disk
       When the test swaps their encrypted blob files

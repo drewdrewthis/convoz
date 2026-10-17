@@ -130,3 +130,14 @@ SELECT ask_message_id FROM inbox_items WHERE id = sqlc.arg(id) AND identity_id =
 -- A repeat of an ack that went through: the item is acked, by this session.
 SELECT EXISTS (SELECT 1 FROM inbox_items WHERE id = sqlc.arg(id) AND identity_id = sqlc.arg(identity_id) AND reason = 'ask_resolved'
                AND state = 'acked' AND acked_by_session = sqlc.arg(session_id));
+
+-- name: HoldItemsFor :exec
+-- E-5: the ready items that carry a voice note wait until its transcript is done or the wait ends.
+UPDATE inbox_items SET not_before = sqlc.arg(until), updated_at = sqlc.arg(now)
+WHERE conversation_id = sqlc.arg(conversation_id) AND state = 'ready' AND reason IN ('mention','thread','activity')
+  AND first_message_id <= sqlc.arg(message_id) AND message_id >= sqlc.arg(message_id);
+
+-- name: ReleaseItemsFor :exec
+UPDATE inbox_items SET not_before = NULL, updated_at = sqlc.arg(now)
+WHERE conversation_id = sqlc.arg(conversation_id) AND not_before IS NOT NULL
+  AND first_message_id <= sqlc.arg(message_id) AND message_id >= sqlc.arg(message_id);

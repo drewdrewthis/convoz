@@ -1,5 +1,7 @@
 package wire
 
+import "encoding/json"
+
 // Routes of the agent surface: the brief, the handoff notes, the agent's own profile, and the asks and status routes the
 // ask and status work packages serve.
 const (
@@ -55,6 +57,8 @@ type ProfileRequest struct {
 	DisplayName  *string   `json:"display_name,omitempty"`
 	Description  *string   `json:"description,omitempty"`
 	Capabilities *[]string `json:"capabilities,omitempty"`
+	// AvatarSVG is the SVG text of the caller's avatar, or null to go back to the letter on a tint (any caller, I-32).
+	AvatarSVG json.RawMessage `json:"avatar_svg,omitempty"`
 }
 
 // ProfileResponse is the profile after the change.
@@ -63,6 +67,7 @@ type ProfileResponse struct {
 	DisplayName  string   `json:"display_name"`
 	Description  string   `json:"description"`
 	Capabilities []string `json:"capabilities"`
+	AvatarURL    string   `json:"avatar_url,omitempty"`
 }
 
 // StatusRequest is PUT /api/status.

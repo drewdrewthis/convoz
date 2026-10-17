@@ -32,7 +32,10 @@ const PurposePushTopic = "push_topic"
 
 // purposes are the DEKs every keyring holds. A keyring written by an older build lacks the newer ones;
 // OpenKeyring adds them.
-var purposes = []string{PurposeDB, PurposeMachineKey, PurposeVAPID, PurposePushTopic}
+var purposes = []string{PurposeDB, PurposeMachineKey, PurposeVAPID, PurposePushTopic, PurposeBlob}
+
+// PurposeBlob is the purpose of the DEK that wraps the random key of each uploaded file (design §6.2).
+const PurposeBlob = "blob"
 
 // KeyringFile is the keyring's file name inside the data dir.
 const KeyringFile = "keyring.json"

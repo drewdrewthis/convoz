@@ -9,6 +9,7 @@ import { resume } from "./actions.ts";
 import { hasLink, LinkPreview } from "./messages/LinkPreview.tsx";
 import { EditedMark, MessageMenu } from "./messages/MessageMenu.tsx";
 import { NoticeRow, pausedNow } from "./messages/Notice.tsx";
+import { PendingFiles, Uploads } from "./messages/Uploads.tsx";
 import { ReplyLine } from "../threads/index.ts";
 
 /** A message that arrives while the log is within this many px of its bottom keeps the log at the bottom. */
@@ -285,7 +286,17 @@ const MessageRow = memo(function MessageRow({ row, threaded, me, paused, convers
   if (m) {
     const text = stripCf(m.body);
     const label = `ask-${m.id}`;
-    const body = m.kind === "ask" && m.ask ? <AskInline ask={m.ask} labelId={label} /> : m.author.handle !== me && m.format !== "plain" ? <Markdown text={text} format={m.format} /> : <div className="text">{text}</div>;
+    const format = m.author.handle !== me && m.format !== "plain" ? m.format : null;
+    // only markdown draws an image of an upload in the body; plain text and markdownv2 leave it to the file list
+    const files = m.uploads?.length ? <Uploads uploads={m.uploads} body={format === "markdown" ? m.body : ""} /> : null;
+    const said = !text && files ? null : format ? <Markdown text={text} format={format} /> : <div className="text">{text}</div>;
+    const askCard = m.kind === "ask" && m.ask ? <AskInline ask={m.ask} labelId={label} /> : null;
+    const body = askCard ?? (
+      <>
+        {said}
+        {files}
+      </>
+    );
     const edited = m.edited_at ? <EditedMark id={m.id} /> : null;
     const menu = <MessageMenu message={m} mine={m.author.handle === me} conversation={conversation} />;
     const detail = onDetails && m.author.kind === "agent" ? () => onDetails(m) : undefined;
@@ -304,7 +315,13 @@ const MessageRow = memo(function MessageRow({ row, threaded, me, paused, convers
     ) : (
       <div className="sendstate">sending</div>
     );
-  return <Article author={me} me={me} first={row.first} stamp={clock(Date.now())} body={<div className="text">{stripCf(p!.body)}</div>} extra={state} />;
+  const body = (
+    <>
+      {p!.body || !p!.files?.length ? <div className="text">{stripCf(p!.body)}</div> : null}
+      {p!.files?.length ? <PendingFiles files={p!.files} /> : null}
+    </>
+  );
+  return <Article author={me} me={me} first={row.first} stamp={clock(Date.now())} body={body} extra={state} />;
 }, sameRow);
 
 /** Article is one message: avatar, name and time (once per run), then the body. The letter is drawn, so it reads "@devtool 5:25 AM Hello". */

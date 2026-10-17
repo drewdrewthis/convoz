@@ -89,6 +89,32 @@ type Message struct {
 	Text         string   `json:"text,omitempty"` // a system line's words, the plain-text projection
 	SessionLabel string   `json:"session_label,omitempty"`
 	Machine      string   `json:"machine,omitempty"`
+	// Uploads are the files the message carries; Text is then the plain-text form of the whole message (a voice note reads
+	// "Voice note 0:20: <words>"), which `convoz read` prints.
+	Uploads []Upload `json:"uploads,omitempty"`
+}
+
+// Upload is a file of a message. It is fetched from /api/files/<ID>.
+type Upload struct {
+	ID         string `json:"id"`
+	Kind       string `json:"kind"` // audio, image or file
+	Name       string `json:"name"`
+	Size       int64  `json:"size"`
+	Mime       string `json:"mime"`
+	Inline     bool   `json:"inline"` // a safe image or audio type the browser may show in the page (I-44)
+	Width      int64  `json:"width,omitempty"`
+	Height     int64  `json:"height,omitempty"`
+	DurationMS int64  `json:"duration_ms,omitempty"`
+	// Waveform is up to 64 peaks, 0 to 255, of a voice note.
+	Waveform []int `json:"waveform,omitempty"`
+	// Transcript is set for a voice note while an engine works on it or when it has finished; with no engine it is absent.
+	Transcript *Transcript `json:"transcript,omitempty"`
+}
+
+// Transcript is the words of a voice note: State is pending, done or failed; Text is set when done.
+type Transcript struct {
+	State string `json:"state"`
+	Text  string `json:"text,omitempty"`
 }
 
 // PostRequest is POST /api/conversations/:id/messages. The author is never in it: the server takes it from the credential.

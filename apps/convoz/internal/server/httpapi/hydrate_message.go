@@ -22,6 +22,7 @@ var frameHydrators = map[string]hydrator{
 	eventDeleted:         hydrateMessage("message.deleted"),
 	eventPurged:          hydrateMessage("message.purged"),
 	eventThreadUpdated:   hydrateThread,
+	eventTranscribed:     hydrateMessage("upload.transcribed"),
 }
 
 // messageFrame is a message with the conversation it is in, as every message frame carries it.
@@ -53,6 +54,9 @@ func hydrateMessage(name string) hydrator {
 			if err == nil {
 				v.Ask = ptr(dir.askBase(a))
 			}
+		}
+		if err := attachUploads(ctx, d, []*wire.Message{&v}); err != nil {
+			return name, nil, err
 		}
 		data, err := json.Marshal(messageFrame{Message: v, ConversationID: ev.Conversation, AuthorHandle: v.Author.Handle})
 		return name, data, err

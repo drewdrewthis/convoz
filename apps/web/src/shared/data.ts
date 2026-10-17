@@ -17,7 +17,8 @@ export const source: DataSource = {
     (await call(client.POST("/api/conversations", { body: { client_id: clientId, participants } }))).conversation,
   messages: (id, { before, after, limit }) =>
     call(client.GET("/api/conversations/{id}/messages", { params: { path: { id }, query: { before, after, limit } } })),
-  post: (id, clientId, body) => call(client.POST("/api/conversations/{id}/messages", { params: { path: { id } }, body: { client_id: clientId, body } })),
+  post: (id, clientId, body, uploadIds) =>
+    call(client.POST("/api/conversations/{id}/messages", { params: { path: { id } }, body: { client_id: clientId, body, upload_ids: uploadIds?.length ? uploadIds : undefined } })),
   markRead: async (id, mainId, keepalive = false) => {
     try {
       const { response } = await client.POST("/api/conversations/{id}/read", { params: { path: { id } }, body: { main_id: mainId }, keepalive });

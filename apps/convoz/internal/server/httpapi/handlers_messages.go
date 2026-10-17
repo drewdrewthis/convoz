@@ -16,6 +16,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/event"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/upload"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
 
@@ -154,6 +155,10 @@ func (s *Server) messageRefused(w http.ResponseWriter, err error) bool {
 		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "thread_root_id", "A reply goes under a top-level message of the same conversation.")
 	case errors.Is(err, message.ErrClientIDConflict):
 		writeFieldErr(w, http.StatusConflict, "client_id_conflict", "client_id", "That client id was used for a different message.")
+	case errors.Is(err, upload.ErrBound), errors.Is(err, upload.ErrUnfinished):
+		writeFieldErr(w, http.StatusConflict, "upload_unavailable", "upload_ids", "An upload joins one message, and only when it is finished.")
+	case errors.Is(err, upload.ErrNotYours), errors.Is(err, upload.ErrAudioAlone):
+		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "upload_ids", "An upload must be yours, from this conversation. A voice note goes alone.")
 	case errors.Is(err, message.ErrPaused):
 		writeErr(w, http.StatusTooManyRequests, "conversation_paused", "This conversation is paused after 20 agent messages in a row. A person must write or resume it.")
 	case errors.Is(err, message.ErrDenied):
@@ -285,6 +290,10 @@ func (s *Server) listMessages(w http.ResponseWriter, r *http.Request, c *call) {
 		if v, ok := asks[m.ID]; ok {
 			out[i].Ask = &v
 		}
+	}
+	if err := attachSlice(ctx, d, out); err != nil {
+		s.internalError(w, r, err)
+		return
 	}
 	if hasThread {
 		out = threadWithStub(out, root, floor)
@@ -421,7 +430,12 @@ func (s *Server) writeEdited(w http.ResponseWriter, r *http.Request, m message.M
 		s.internalError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, wire.EditResponse{Message: viewMessage(dir, m)})
+	v := viewMessage(dir, m)
+	if err := attachUploads(r.Context(), s.reader(), []*wire.Message{&v}); err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, wire.EditResponse{Message: v})
 }
 
 // deleteMessage is DELETE /api/messages/:id: the author deletes their own, the owner any. It leaves a tombstone and hides

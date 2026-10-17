@@ -77,6 +77,7 @@ export interface WireMessage {
   purged?: boolean;
   system?: { t: string; identity?: { handle: string; display_name: string }; by?: { handle: string; display_name: string }; [k: string]: unknown };
   text?: string;
+  uploads?: { id: string; kind: string; name: string; size: number; mime: string; inline: boolean; duration_ms?: number; transcript?: { state: string; text?: string } }[];
   session_label?: string;
   machine?: string;
 }

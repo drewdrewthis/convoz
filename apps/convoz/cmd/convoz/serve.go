@@ -87,7 +87,7 @@ func serve(args []string) int {
 		return fail(1, err)
 	}
 	defer lock.Close()
-	store, keys, push, code := openStore(dir, kek, clock)
+	store, keys, push, blobDEK, code := openStore(dir, kek, clock)
 	if store == nil {
 		return code
 	}
@@ -114,7 +114,7 @@ func serve(args []string) int {
 		}
 	}
 
-	cfg := httpapi.Config{Host: name, Unix: spec.unix, PublicPort: publicPort, Version: version, TailscaleBin: *tailscaleBin, TailscaleOn: *tailscaleMode == "check"}
+	cfg := httpapi.Config{Host: name, Unix: spec.unix, PublicPort: publicPort, Version: version, TailscaleBin: *tailscaleBin, TailscaleOn: *tailscaleMode == "check", DataDir: dir, BlobKey: blobDEK}
 	if !spec.unix {
 		cfg.Port = pub.Addr().(*net.TCPAddr).Port
 	}
@@ -247,48 +247,52 @@ func loadKEK(kekFlag string) ([]byte, int) {
 
 // openStore unlocks the key hierarchy, opens the database and migrates it. It returns the box that seals the
 // stored copy of machine keys. On failure it returns a nil store and the exit code.
-func openStore(dataDir string, kek []byte, clock platform.Clock) (*db.Store, *auth.KeyBox, notify.Keys, int) {
+func openStore(dataDir string, kek []byte, clock platform.Clock) (*db.Store, *auth.KeyBox, notify.Keys, []byte, int) {
 	dbPath := filepath.Join(dataDir, "convoz.db")
 	ring, err := crypto.OpenKeyring(dataDir, kek, dbPath, clock.Now())
 	if err != nil {
-		return nil, nil, notify.Keys{}, fail(exitKey, err)
+		return nil, nil, notify.Keys{}, nil, fail(exitKey, err)
 	}
 	dek, ok := ring.DEK(crypto.PurposeDB)
 	if !ok {
-		return nil, nil, notify.Keys{}, fail(exitKey, errors.New("keyring has no database key"))
+		return nil, nil, notify.Keys{}, nil, fail(exitKey, errors.New("keyring has no database key"))
 	}
 	machineDEK, ok := ring.DEK(crypto.PurposeMachineKey)
 	if !ok {
-		return nil, nil, notify.Keys{}, fail(exitKey, errors.New("keyring has no machine key key"))
+		return nil, nil, notify.Keys{}, nil, fail(exitKey, errors.New("keyring has no machine key key"))
+	}
+	blobDEK, ok := ring.DEK(crypto.PurposeBlob)
+	if !ok {
+		return nil, nil, notify.Keys{}, nil, fail(exitKey, errors.New("keyring has no blob key"))
 	}
 	keys, err := auth.NewKeyBox(machineDEK)
 	if err != nil {
-		return nil, nil, notify.Keys{}, fail(exitKey, err)
+		return nil, nil, notify.Keys{}, nil, fail(exitKey, err)
 	}
 	vapidDEK, _ := ring.DEK(crypto.PurposeVAPID)
 	topicDEK, _ := ring.DEK(crypto.PurposePushTopic)
 	push, err := notify.NewKeys(vapidDEK, topicDEK)
 	if err != nil {
-		return nil, nil, notify.Keys{}, fail(exitKey, err)
+		return nil, nil, notify.Keys{}, nil, fail(exitKey, err)
 	}
 	store, err := db.Open(dbPath, dek)
 	if errors.Is(err, db.ErrWrongKey) {
-		return nil, nil, notify.Keys{}, fail(exitKey, err)
+		return nil, nil, notify.Keys{}, nil, fail(exitKey, err)
 	}
 	if err != nil {
-		return nil, nil, notify.Keys{}, fail(1, err)
+		return nil, nil, notify.Keys{}, nil, fail(1, err)
 	}
 	err = platform.Migrate(context.Background(), store, platform.MigrateOptions{DataDir: dataDir, Clock: clock, MaxVersion: platform.MaxMigrationCap()})
 	var newer *platform.NewerSchemaError
 	switch {
 	case errors.As(err, &newer):
 		store.Close()
-		return nil, nil, notify.Keys{}, fail(exitSchema, err)
+		return nil, nil, notify.Keys{}, nil, fail(exitSchema, err)
 	case err != nil:
 		store.Close()
-		return nil, nil, notify.Keys{}, fail(1, err)
+		return nil, nil, notify.Keys{}, nil, fail(1, err)
 	}
-	return store, keys, push, 0
+	return store, keys, push, blobDEK, 0
 }
 
 // writeReady publishes the addresses atomically so a watcher never reads half a file.

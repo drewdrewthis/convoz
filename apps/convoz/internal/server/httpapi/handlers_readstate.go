@@ -158,6 +158,14 @@ func (s *Server) listReplies(w http.ResponseWriter, r *http.Request, c *call) {
 	if v, ok := asks[root.ID]; ok {
 		head.Ask = &v
 	}
+	if err := attachSlice(ctx, d, out); err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	if err := attachUploads(ctx, d, []*wire.Message{&head}); err != nil {
+		s.internalError(w, r, err)
+		return
+	}
 	if root.ID <= floor {
 		head = wire.Message{ID: root.ID, Author: systemAuthor, Body: threadStubWords, Format: "plain"}
 	}

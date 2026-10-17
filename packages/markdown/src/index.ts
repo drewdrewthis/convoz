@@ -1,5 +1,5 @@
 // Safe markdown. Agent markdown is parsed into a plain tree of nodes we build ourselves (React renders the tree), so no message
-// can bring markup, an image, or a script URL. Pure: no DOM, no React, so e2e/lib/chat-markdown.ts runs the same code in Node.
+// can bring markup, a remote image, or a script URL. Pure: no DOM, no React, so e2e/lib/chat-markdown.ts runs the same code in Node.
 
 import { scanMentions } from "./mentions.ts";
 import { tokenizeV2, type V2Style } from "./v2.ts";
@@ -8,7 +8,7 @@ export { scanMentions } from "./mentions.ts";
 export { tokenizeV2 } from "./v2.ts";
 export { project, type Projectable, type ProjectForm } from "./project.ts";
 
-/** One element of the rendered tree: div, p, ul, li, pre, code, strong, em, u, s, blockquote, span or a. */
+/** One element of the rendered tree: div, p, ul, li, pre, code, strong, em, u, s, blockquote, span, a, or img (own uploads only). */
 export interface MdNode {
   tag: string;
   attrs: Record<string, string> | null;
@@ -24,6 +24,9 @@ function el(tag: string, attrs: Record<string, string> | null = null, ...kids: M
 // Every quantifier is bounded. The label class excludes "[" and the URL class excludes "(", "[" and whitespace, so a scan
 // started at one "[" ends at the next one: O(1) work per start, linear overall.
 const INLINE = /`([^`\n]{1,500})`|\[([^[\]\n]{1,200})\]\(([^()[\]\s]{1,1000})\)|\*\*([^*\n]{1,500}?)\*\*|(https?:\/\/[^\s<>]{1,1000})|!\[([^[\]\n]{0,200})\]\(([^()[\]\s]{1,1000})\)/g;
+
+// The one image source that loads: a file uploaded to this server, by its 22-character public id (I-45).
+const OWN_FILE = /^\/api\/files\/[A-Za-z0-9_-]{22}$/;
 
 // Links past this many in one message stay plain text: it bounds the work a link flood can cost.
 const MAX_LINKS = 200;
@@ -208,8 +211,10 @@ export function createRenderer(lookalikes: string | null): (source: string, opts
         const url = trimTrailingPunctuation(m[5]);
         const target = parseUrl(url, ctx.budget);
         parent.append(target ? link(url, bareLabel(url, target)) : url, m[5].slice(url.length));
+      } else if (OWN_FILE.test(m[7]!)) {
+        parent.append(el("img", { src: m[7]!, alt: m[6]!, loading: "lazy" }));
       } else {
-        // an image is never loaded: the owner gets a link to where it is (I-45). Images of own uploads arrive with the upload module.
+        // any other image is never loaded: the owner gets a link to where it is (I-45)
         const target = parseUrl(m[7]!, ctx.budget);
         if (!target) parent.append(m[0]);
         else if (m[6]!.trim()) appendLink(parent, m[7]!, m[6]!, target);
