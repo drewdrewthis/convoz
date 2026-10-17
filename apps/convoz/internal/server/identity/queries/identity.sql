@@ -24,7 +24,7 @@ WHERE i.handle = sqlc.arg(handle);
 
 -- name: ListIdentities :many
 SELECT i.id, i.kind, i.handle, i.display_name, CAST(COALESCE(h.role, 'agent') AS TEXT) AS role, i.created_at, i.disabled_at,
-  a.created_by_human, a.created_by_machine
+  a.created_by_human, a.created_by_machine, CAST(i.avatar_svg IS NOT NULL AS INTEGER) AS has_avatar
 FROM identities i
 LEFT JOIN humans h ON h.identity_id = i.id
 LEFT JOIN agents a ON a.identity_id = i.id
@@ -53,3 +53,9 @@ SELECT handle, display_skeleton FROM identities WHERE disabled_at IS NULL;
 SELECT COUNT(*) AS n, CAST(COALESCE(MIN(i.created_at), 0) AS INTEGER) AS oldest
 FROM agents a JOIN identities i ON i.id = a.identity_id
 WHERE a.created_by_machine = sqlc.arg(machine_id) AND i.created_at > sqlc.arg(since);
+
+-- name: SetAvatarSVG :exec
+UPDATE identities SET avatar_svg = sqlc.narg(svg) WHERE id = sqlc.arg(id);
+
+-- name: GetAvatarSVG :one
+SELECT avatar_svg FROM identities WHERE id = sqlc.arg(id) AND avatar_svg IS NOT NULL;

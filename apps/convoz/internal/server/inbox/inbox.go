@@ -256,3 +256,18 @@ func Release(ctx context.Context, d pdb.DBTX, now time.Time, sessionID int64) ([
 func ExpireNotVisible(ctx context.Context, d pdb.DBTX, now time.Time, id int64) error {
 	return db.New(d).ExpireNotVisible(ctx, db.ExpireNotVisibleParams{Now: now.UnixMilli(), ID: id})
 }
+
+// VoiceWait is how long an item waits for the words of a voice note (E-5).
+const VoiceWait = 120 * time.Second
+
+// HoldForVoice makes the ready items that carry a message wait VoiceWait for its transcript. A claim skips an item until its time.
+func HoldForVoice(ctx context.Context, d pdb.DBTX, now time.Time, conversationID, messageID int64) error {
+	return db.New(d).HoldItemsFor(ctx, db.HoldItemsForParams{
+		Until: sql.NullInt64{Int64: now.Add(VoiceWait).UnixMilli(), Valid: true}, Now: now.UnixMilli(), ConversationID: nullInt(conversationID), MessageID: nullInt(messageID),
+	})
+}
+
+// ReleaseVoice lets the held items that carry a message be claimed at once: its transcript is done or has failed.
+func ReleaseVoice(ctx context.Context, d pdb.DBTX, now time.Time, conversationID, messageID int64) error {
+	return db.New(d).ReleaseItemsFor(ctx, db.ReleaseItemsForParams{Now: now.UnixMilli(), ConversationID: nullInt(conversationID), MessageID: nullInt(messageID)})
+}

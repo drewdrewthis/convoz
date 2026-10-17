@@ -24,7 +24,7 @@ func (searchPort) IndexMessage(ctx context.Context, d pdb.DBTX, _ time.Time, m m
 	}
 	return search.Index(ctx, d, search.Entry{
 		MessageID: m.ID, ConversationID: m.ConversationID, AuthorID: m.AuthorID, Kind: m.Kind, App: m.HasApp,
-		Link: search.HasLink(m.Body), CreatedAt: m.CreatedAt, Text: plainText(m),
+		Link: search.HasLink(m.Body), CreatedAt: m.CreatedAt, Text: plainText(ctx, d, m),
 	})
 }
 
@@ -36,9 +36,15 @@ func (searchPort) MessagePurged(ctx context.Context, d pdb.DBTX, _ time.Time, m 
 	return search.Remove(ctx, d, m.ID)
 }
 
-// plainText is the words of a message as search indexes and shows them.
-func plainText(m message.Message) string {
-	return message.Project(message.Projectable{Format: m.Format, Body: m.Body}, message.Long)
+// plainText is the words of a message as search indexes and shows them: its text, and for a message with files their names and, for a
+// voice note, the words of its transcript.
+func plainText(ctx context.Context, d pdb.DBTX, m message.Message) string {
+	by, err := attachmentsOf(ctx, d, []int64{m.ID})
+	if err != nil {
+		by = nil // a failed read must not stop a post; the entry is made again when the transcript lands
+	}
+	ups, words := projection(by[m.ID])
+	return message.Project(message.Projectable{Format: m.Format, Body: m.Body, Uploads: ups, Transcript: words}, message.Long)
 }
 
 // searchScope tells search what the caller may see (I-6): the conversations the caller is in and not in the trash (the owner

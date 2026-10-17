@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"hash/fnv"
 	"regexp"
 	"strings"
@@ -33,6 +34,8 @@ type Entry struct {
 	Role        string `json:"role"`
 	CreatedAt   int64  `json:"created_at"`
 	Disabled    bool   `json:"disabled"`
+	// AvatarURL is where the identity's own SVG avatar is served (I-32); empty for the letter on a tint.
+	AvatarURL string `json:"avatar_url,omitempty"`
 	// CreatedByHuman and CreatedByMachine are the ids that made an agent; the composition root turns
 	// them into names (the machine is auth's).
 	CreatedByHuman   int64 `json:"-"`
@@ -131,8 +134,26 @@ func List(ctx context.Context, d pdb.DBTX) ([]Entry, error) {
 	}
 	out := make([]Entry, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, Entry{ID: r.ID, Kind: r.Kind, Handle: r.Handle, DisplayName: r.DisplayName, Role: r.Role, CreatedAt: r.CreatedAt, Disabled: r.DisabledAt.Valid,
-			CreatedByHuman: r.CreatedByHuman.Int64, CreatedByMachine: r.CreatedByMachine.Int64})
+		e := Entry{ID: r.ID, Kind: r.Kind, Handle: r.Handle, DisplayName: r.DisplayName, Role: r.Role, CreatedAt: r.CreatedAt, Disabled: r.DisabledAt.Valid,
+			CreatedByHuman: r.CreatedByHuman.Int64, CreatedByMachine: r.CreatedByMachine.Int64}
+		if r.HasAvatar == 1 {
+			e.AvatarURL = fmt.Sprintf("/api/identities/%d/avatar.svg", r.ID)
+		}
+		out = append(out, e)
 	}
 	return out, nil
+}
+
+// SetAvatar stores an identity's sanitized SVG avatar (the caller cleaned it, I-32); an empty string clears it.
+func SetAvatar(ctx context.Context, d pdb.DBTX, id int64, svg string) error {
+	return db.New(d).SetAvatarSVG(ctx, db.SetAvatarSVGParams{ID: id, Svg: sql.NullString{String: svg, Valid: svg != ""}})
+}
+
+// Avatar returns an identity's SVG avatar. ok is false when it has none.
+func Avatar(ctx context.Context, d pdb.DBTX, id int64) (svg string, ok bool, err error) {
+	v, err := db.New(d).GetAvatarSVG(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	return v.String, err == nil && v.Valid, err
 }

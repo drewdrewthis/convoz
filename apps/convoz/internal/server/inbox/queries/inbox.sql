@@ -116,3 +116,14 @@ WHERE claim_session_id = sqlc.arg(from_session) AND state = 'claimed';
 
 -- name: HoldsLiveClaim :one
 SELECT EXISTS (SELECT 1 FROM inbox_items WHERE claim_session_id = sqlc.arg(session_id) AND state = 'claimed' AND claim_until >= sqlc.arg(now));
+
+-- name: HoldItemsFor :exec
+-- E-5: the ready items that carry a voice note wait until its transcript is done or the wait ends.
+UPDATE inbox_items SET not_before = sqlc.arg(until), updated_at = sqlc.arg(now)
+WHERE conversation_id = sqlc.arg(conversation_id) AND state = 'ready' AND reason IN ('mention','thread','activity')
+  AND first_message_id <= sqlc.arg(message_id) AND message_id >= sqlc.arg(message_id);
+
+-- name: ReleaseItemsFor :exec
+UPDATE inbox_items SET not_before = NULL, updated_at = sqlc.arg(now)
+WHERE conversation_id = sqlc.arg(conversation_id) AND not_before IS NOT NULL
+  AND first_message_id <= sqlc.arg(message_id) AND message_id >= sqlc.arg(message_id);

@@ -54,9 +54,11 @@ export interface DataCache {
 /** maxId is the newest message id held for a conversation, 0 for none. */
 export const maxId = (m: MessageList | undefined): number => (m?.list.length ? m.list[m.list.length - 1]!.id : 0);
 
-/** changed says whether an incoming copy of a held message is newer: edited, deleted, purged or with more replies. */
+/** changed says whether an incoming copy of a held message is newer: edited, deleted, purged, with more replies, or with files
+ *  that changed (a transcript came; the local copy made at send time is replaced by the server's). */
 const changed = (a: Message, b: Message) =>
-  a.edited_at !== b.edited_at || !!a.deleted !== !!b.deleted || !!a.purged !== !!b.purged || a.reply_count !== b.reply_count || a.last_reply_at !== b.last_reply_at;
+  a.edited_at !== b.edited_at || !!a.deleted !== !!b.deleted || !!a.purged !== !!b.purged || a.reply_count !== b.reply_count || a.last_reply_at !== b.last_reply_at ||
+  JSON.stringify(a.uploads) !== JSON.stringify(b.uploads);
 
 function merge(have: Message[], more: Message[]): Message[] {
   const byId = new Map(have.map((m) => [m.id, m]));
@@ -132,6 +134,7 @@ export function createDataCache(source: DataSource): DataCache {
           break;
         }
         case "message.edited":
+        case "upload.transcribed":
         case "message.deleted":
         case "message.purged": {
           const held = get().messages[frame.data.conversation_id];

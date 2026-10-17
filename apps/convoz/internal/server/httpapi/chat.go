@@ -81,7 +81,7 @@ func conversationView(ctx context.Context, d pdb.DBTX, p authz.Principal, dir di
 			return wire.Conversation{}, err
 		}
 		if ok {
-			out.Last = &wire.LastMessage{ID: m.ID, AuthorHandle: dir[m.AuthorID].Handle, Preview: message.Preview(dir.message(m).Body)}
+			out.Last = &wire.LastMessage{ID: m.ID, AuthorHandle: dir[m.AuthorID].Handle, Preview: message.Preview(previewWords(ctx, d, m))}
 		}
 	}
 	out.Unread, err = unreadOf(ctx, d, p.Identity(), cv, floor)
@@ -129,4 +129,15 @@ func (s *Server) publishWorking(ctx context.Context, agentID, conversationID int
 	}
 	data, _ := json.Marshal(frame)
 	s.Bus.Publish(platform.Frame{Event: "agent.working", Data: data, Conversation: conversationID})
+}
+
+// previewWords is the text the list previews for a message: its body, or for one with files the plain form that names them
+// ("Voice note · 0:20").
+func previewWords(ctx context.Context, d pdb.DBTX, m message.Message) string {
+	by, err := attachmentsOf(ctx, d, []int64{m.ID})
+	if err != nil || len(by[m.ID]) == 0 {
+		return m.Body
+	}
+	ups, _ := projection(by[m.ID])
+	return message.Project(message.Projectable{Format: m.Format, Body: m.Body, Uploads: ups}, message.Short)
 }

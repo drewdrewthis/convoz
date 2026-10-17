@@ -15,13 +15,13 @@ Feature: Voice notes (contracts)
 
   Rule: Audio is stored and served safely
 
-    @v1 @api @I-44 @unimplemented
+    @v1 @api @I-44
     Scenario: Audio is served inline with safe headers
       Given the owner sent a voice note
       When a client fetches its file
       Then it is served inline with "nosniff" and the sandbox CSP
 
-    @v1 @cli @invariant @I-27 @unimplemented
+    @v1 @cli @invariant @I-27
     Scenario: No plain audio touches the disk while uploading
       Given the server runs with a data dir the test can scan
       When the owner records and sends a voice note with a known audio fixture

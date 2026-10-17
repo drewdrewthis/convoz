@@ -95,19 +95,19 @@ Feature: Composer
 
   Rule: Files attach by button or drop and bind once (I-31)
 
-    @v1 @browser @I-31 @unimplemented
+    @v1 @browser @I-31
     Scenario: Dropping files attaches them to the next message
       When the owner drops "chart.png" and "deploy.log" on conversation 41
       Then the composer shows both under "Files to send"
       And sending posts one message with both files
 
-    @v1 @browser @unimplemented
+    @v1 @browser
     Scenario: The owner removes a file before sending
       Given "chart.png" and "deploy.log" wait under "Files to send"
       When the owner removes "deploy.log"
       Then sending posts one message with only "chart.png"
 
-    @v1 @browser @unimplemented
+    @v1 @browser
     Scenario: More than 10 attachments are refused in the composer
       When the owner drops 11 files on conversation 41
       Then the composer keeps 10 and says that 10 is the most per message

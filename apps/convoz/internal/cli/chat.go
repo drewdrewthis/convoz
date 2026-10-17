@@ -276,7 +276,7 @@ func Read(args []string, io IO) int {
 			fmt.Fprintf(k.io.Stdout, "#%d [system] %s\n  %s\n", m.ID, when, plain(m.Text))
 		default:
 			fmt.Fprintf(k.io.Stdout, "#%d %s %s\n", m.ID, authorOf(m), when)
-			for _, line := range strings.Split(m.Body, "\n") {
+			for _, line := range strings.Split(wordsOf(m), "\n") {
 				fmt.Fprintf(k.io.Stdout, "  %s\n", plain(line))
 			}
 		}
@@ -367,8 +367,17 @@ func itemLine(it wire.InboxItem) string {
 	if it.Conversation.Title != nil {
 		title = *it.Conversation.Title
 	}
-	first, _, _ := strings.Cut(it.Message.Body, "\n")
+	first, _, _ := strings.Cut(wordsOf(it.Message), "\n")
 	return fmt.Sprintf("%s conv %d %q %s x%d #%d @%s: %s", ref, it.Conversation.ID, title, it.Reason, it.Count, it.Message.ID, it.Message.Author.Handle, plain(first))
+}
+
+// wordsOf is what a message says: its body, or for a message with files the plain form the server made of it ("Voice note 0:20:
+// ship the filters", "[Image: chart.png]"), which holds the body and names the files.
+func wordsOf(m wire.Message) string {
+	if len(m.Uploads) > 0 && m.Text != "" {
+		return m.Text
+	}
+	return m.Body
 }
 
 // plain drops control characters except newline and tab, and format characters (Unicode Cf: bidi overrides such as

@@ -25,7 +25,35 @@
               properties:
                 identities: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Identity" } }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
-/api/me/profile: {}  # not specified yet
-/api/identities/{id}/avatar.svg: {}  # not specified yet
+/api/me/profile:
+  patch:
+    operationId: patchProfile
+    summary: Change the caller's own profile. Only the avatar so far.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "../openapi.yaml#/components/schemas/Profile" }
+    responses:
+      "200":
+        description: The profile as it is now.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/ProfileChanged" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/identities/{id}/avatar.svg:
+  get:
+    operationId: getAvatar
+    summary: An identity's SVG avatar, served so it can only draw (I-32).
+    description: "`Content-Security-Policy: default-src 'none'; sandbox` and nosniff. Render it only through an img."
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    responses:
+      "200":
+        description: The SVG.
+        content:
+          image/svg+xml:
+            schema: { type: string }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/crew/agents: {}  # not specified yet
 /api/identities/{id}/disable: {}  # not specified yet

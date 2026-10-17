@@ -8,6 +8,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/inbox"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/transcript"
 )
 
 // inboxPort queues a new message for one agent with the strongest reason it gives (C-10).
@@ -18,7 +19,24 @@ func (inboxPort) FanOut(ctx context.Context, d pdb.DBTX, now time.Time, identity
 	if err != nil {
 		return err
 	}
-	return inbox.FanOut(ctx, d, now, identity, conv, messageID, sourceSeq, reason)
+	if err := inbox.FanOut(ctx, d, now, identity, conv, messageID, sourceSeq, reason); err != nil {
+		return err
+	}
+	return holdForWords(ctx, d, now, conv, messageID)
+}
+
+// holdForWords makes the item of a voice note wait for its transcript (E-5): only while an engine works on it.
+func holdForWords(ctx context.Context, d pdb.DBTX, now time.Time, conv, messageID int64) error {
+	by, err := attachmentsOf(ctx, d, []int64{messageID})
+	if err != nil {
+		return err
+	}
+	for _, a := range by[messageID] {
+		if a.Transcript != nil && a.Transcript.State == transcript.Pending {
+			return inbox.HoldForVoice(ctx, d, now, conv, messageID)
+		}
+	}
+	return nil
 }
 
 // reasonFor is "mention" when the message mentions the agent (the mentions table, written when the message was), "thread"

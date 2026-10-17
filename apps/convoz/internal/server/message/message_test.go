@@ -114,6 +114,24 @@ func TestPostRefusesABodyOrFormatItCannotStore(t *testing.T) {
 	}
 }
 
+func TestAMessageOfFilesAloneNeedsNoWordsButAnEmptyOneStillFails(t *testing.T) {
+	s := seeded(t)
+	files := draft("client-f1", "")
+	files.UploadIDs = []string{"aaaaaaaaaaaaaaaaaaaaaa"}
+	if _, err := post(t, s, &fakes{}, files); err != nil {
+		t.Fatalf("a message of files alone: %v", err)
+	}
+	files = draft("client-f2", "")
+	files.UploadIDs = []string{"aaaaaaaaaaaaaaaaaaaaaa"}
+	files.Format = "html"
+	if _, err := post(t, s, &fakes{}, files); !errors.Is(err, message.ErrFormat) {
+		t.Fatalf("the format still counts: %v", err)
+	}
+	if _, err := post(t, s, &fakes{}, draft("client-f3", " ")); !errors.Is(err, message.ErrEmpty) {
+		t.Fatalf("no files and no words: %v", err)
+	}
+}
+
 func TestPostStopsBeforeWritingWhenTheCallerMayNotPost(t *testing.T) {
 	for access, want := range map[message.Access]error{message.Denied: message.ErrDenied, message.Missing: message.ErrMissing} {
 		f := &fakes{access: access}

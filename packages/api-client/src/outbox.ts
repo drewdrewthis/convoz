@@ -7,6 +7,8 @@ export interface OutboxItem {
   cid: string;
   conversationId: number;
   body: string;
+  /** The finished uploads the message carries (ids only: the files are on the server already). */
+  uploadIds?: string[];
   createdAt: number;
 }
 

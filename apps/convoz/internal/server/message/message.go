@@ -130,12 +130,25 @@ func checkText(body, format string) error {
 	return nil
 }
 
+// checkFiles is checkText for a message whose words may be empty: the format and the NUL rule still hold.
+func checkFiles(body, format string) error {
+	switch {
+	case format != "markdown" && format != "markdownv2" && format != "plain":
+		return ErrFormat
+	case strings.ContainsRune(body, 0):
+		return ErrNUL
+	}
+	return nil
+}
+
 func checkDraft(d Draft) error {
 	switch {
 	case len(d.App) > MaxAppBytes:
 		return ErrAppTooLarge
 	case len(d.UploadIDs) > MaxUploads:
 		return ErrTooManyUploads
+	case len(d.UploadIDs) > 0 && strings.TrimSpace(d.Body) == "":
+		return checkFiles(d.Body, d.Format) // a message of files alone (a voice note, a picture) needs no words
 	}
 	return checkText(d.Body, d.Format)
 }

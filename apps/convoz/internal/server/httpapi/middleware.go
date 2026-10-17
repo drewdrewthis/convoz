@@ -125,7 +125,9 @@ func (s *Server) csrf(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api/") && r.Method != http.MethodGet && r.Method != http.MethodHead && r.Header.Get("Authorization") == "" && !s.csrfExempt[r.Method+" "+r.URL.Path] {
 			media, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
-			if r.Header.Get("Origin") != s.Cfg.Origin || r.Header.Get("X-Convoz") != "1" || media != "application/json" {
+			// A chunk of an upload is bytes, not JSON; its type is no form type either, so a page of another origin still cannot send it.
+			chunk := r.Method == http.MethodPatch && strings.HasPrefix(r.URL.Path, "/api/uploads/") && media == "application/offset+octet-stream"
+			if r.Header.Get("Origin") != s.Cfg.Origin || r.Header.Get("X-Convoz") != "1" || (media != "application/json" && !chunk) {
 				writeErr(w, http.StatusForbidden, "csrf", "This request did not come from the Convoz app.")
 				return
 			}

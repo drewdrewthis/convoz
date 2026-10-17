@@ -3,6 +3,7 @@ package settings
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -29,6 +30,8 @@ var registry = map[string]def{
 	"palette":                  {User, "iris", oneOf("iris", "ember", "mono", "tide")},
 	"inbox.visibility_default": {Workspace, "5m", duration(30*time.Second, 30*time.Minute)},
 	"brief.max_bytes":          {Workspace, int64(12288), integer(4096, 65536)},
+	// The engine that turns voice notes into words: "none", or the name of an engine the build has (the transcript module resolves it).
+	"transcription.engine": {Workspace, "none", engineName},
 }
 
 // Keys lists every registry key in a fixed order.
@@ -39,6 +42,14 @@ func Keys() []string {
 	}
 	slices.Sort(keys)
 	return keys
+}
+
+// engineName accepts 1 to 32 characters of a-z, 0-9 and "-"; whether the build has that engine is the transcript module's to say.
+func engineName(v any) (any, error) {
+	if s, ok := v.(string); ok && s != "" && len(s) <= 32 && strings.Trim(s, "abcdefghijklmnopqrstuvwxyz0123456789-") == "" {
+		return s, nil
+	}
+	return nil, fmt.Errorf("must be an engine name such as \"none\"")
 }
 
 func boolean(v any) (any, error) {

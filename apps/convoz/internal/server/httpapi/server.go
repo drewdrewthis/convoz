@@ -14,6 +14,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/ops"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/upload"
 )
 
 // Config says who this server is, as the wall sees it.
@@ -29,6 +30,10 @@ type Config struct {
 	// Node identity comes from `tailscale whois`; it is shown to the owner and never trusted as a login.
 	TailscaleBin string
 	TailscaleOn  bool
+
+	// DataDir and BlobKey (the keyring's blob DEK) open the sealed upload files under <DataDir>/blobs. Without them there are no uploads.
+	DataDir string
+	BlobKey []byte
 }
 
 // Server is the state the public handlers share. There is one per process and public listener.
@@ -76,6 +81,13 @@ func NewServer(store *db.Store, clock platform.Clock, wa *webauthn.WebAuthn, key
 			exempt[r.Method+" "+r.Pattern] = true
 		}
 	}
+	if len(cfg.BlobKey) == 32 && cfg.DataDir != "" {
+		if blobs, err := upload.NewBlobs(cfg.DataDir, cfg.BlobKey); err != nil {
+			logger.Printf("uploads are off: %v", err)
+		} else {
+			files.Store(upload.NewService(blobs))
+		}
+	}
 	return &Server{
 		Store: store, Clock: clock, WA: wa, Keys: keys, Cfg: cfg, Log: logger, csrfExempt: exempt, userCodes: auth.NewUserCode,
 		publicLimit:      auth.Limiter{Window: time.Minute, Max: 20},
@@ -99,5 +111,6 @@ func (s *Server) Handler() http.Handler {
 		writeErr(w, http.StatusNotFound, "not_found", "No such route.")
 	})
 	registerTestHooks(mux, s)
+	s.startTranscriber()
 	return s.chain(mux)
 }

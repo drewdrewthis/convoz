@@ -23,9 +23,12 @@ const PurposeDB = "db"
 // PurposeMachineKey is the purpose of the DEK that seals the recoverable copy of each machine key (I-25).
 const PurposeMachineKey = "machine_key"
 
+// PurposeBlob is the purpose of the DEK that wraps the random key of each uploaded file (design §6.2).
+const PurposeBlob = "blob"
+
 // purposes are the DEKs every keyring holds. A keyring written by an older build lacks the newer ones;
 // OpenKeyring adds them.
-var purposes = []string{PurposeDB, PurposeMachineKey}
+var purposes = []string{PurposeDB, PurposeMachineKey, PurposeBlob}
 
 // KeyringFile is the keyring's file name inside the data dir.
 const KeyringFile = "keyring.json"

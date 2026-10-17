@@ -93,7 +93,7 @@ Feature: Crew: identities, machines and sessions
 
   Rule: Agents describe themselves, within limits
 
-    @v1 @browser @I-32 @unimplemented
+    @v1 @browser @I-32
     Scenario: An agent's own avatar shows safely
       Given "devtool" set an SVG avatar of plain shapes
       When the owner opens Crew

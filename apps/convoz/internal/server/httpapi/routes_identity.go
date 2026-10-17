@@ -6,6 +6,8 @@ import "github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
 var identityRoutes = []Route{
 	{Method: "GET", Pattern: "/api/me", Auth: authz.HumanLimited, Lease: true, handle: (*Server).me},
 	{Method: "GET", Pattern: "/api/identities", Auth: authz.HumanLimited, handle: (*Server).identities},
+	{Method: "PATCH", Pattern: "/api/me/profile", Auth: authz.Human, Lease: true, handle: (*Server).patchProfile},
+	{Method: "GET", Pattern: "/api/identities/:id/avatar.svg", Auth: authz.Human, Lease: true, handle: (*Server).avatar},
 	{Method: "POST", Pattern: "/api/crew/agents", Auth: authz.Owner, StepUp: "identity.create", handle: (*Server).createAgent},
 	{Method: "POST", Pattern: "/api/identities/:id/disable", Auth: authz.Owner, StepUp: "identity.disable", handle: (*Server).disableIdentity},
 }

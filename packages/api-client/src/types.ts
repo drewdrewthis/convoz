@@ -30,6 +30,9 @@ export type SearchResult = S["SearchResult"];
 export type SearchConversation = S["SearchConversation"];
 export type SearchFilter = S["SearchFilter"];
 export type SearchPart = S["SearchPart"];
+export type Upload = S["Upload"];
+export type UploadState = S["UploadState"];
+export type CreateUpload = S["CreateUpload"];
 /** A message frame after the message changed: the message as it is now, with the conversation it is in. */
 export type MessageChangedFrame = Message & { conversation_id: number; author_handle: string };
 export interface ThreadUpdatedFrame {
@@ -51,6 +54,8 @@ export interface StreamFrames {
   "read.moved": ReadMovedFrame;
   "conversation.created": Conversation;
   "agent.working": AgentWorkingFrame;
+  /** A voice note got its words: the message as it reads now. */
+  "upload.transcribed": MessageChangedFrame;
 }
 export type FrameName = keyof StreamFrames;
 /** One frame: its name and its payload, so a switch on `name` narrows `data`. */
@@ -66,4 +71,5 @@ export const FRAME_NAMES = [
   "read.moved",
   "conversation.created",
   "agent.working",
+  "upload.transcribed",
 ] as const satisfies readonly FrameName[];
