@@ -76,10 +76,20 @@ scenario("A reload in dark mode paints dark from the first frame", { tag: ["@bro
   await expect(page.getByRole("heading", { name: "Settings", level: 1 })).toBeVisible();
 
   // Then the first painted frame is dark: the theme was set before the first paint, to dark, and nothing changed it after
-  const seen = await page.evaluate(() => {
+  const seen = await page.evaluate(async () => {
     const w = window as any;
-    const paint = performance.getEntriesByName("first-paint")[0];
-    return { first: w.__themeSeen[0], paintAt: paint?.startTime, now: document.documentElement.getAttribute("data-theme") };
+    // The paint entry can arrive late on a loaded machine: wait for it (buffered keeps an early one) instead of reading once.
+    const paintAt = await new Promise<number>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("no first-paint entry within 20s")), 20_000);
+      new PerformanceObserver((list, obs) => {
+        const paint = list.getEntriesByName("first-paint")[0];
+        if (!paint) return;
+        clearTimeout(timer);
+        obs.disconnect();
+        resolve(paint.startTime);
+      }).observe({ type: "paint", buffered: true });
+    });
+    return { first: w.__themeSeen[0], paintAt, now: document.documentElement.getAttribute("data-theme") };
   });
   expect(seen.first?.v).toBe("dark");
   expect(seen.paintAt).toBeDefined();
