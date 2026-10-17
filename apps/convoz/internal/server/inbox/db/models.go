@@ -3,3 +3,12 @@
 //   sqlc v1.31.1
 
 package db
+
+type Handoff struct {
+	ID         int64
+	IdentityID int64
+	SessionID  int64
+	Body       string
+	ClientID   string
+	CreatedAt  int64
+}

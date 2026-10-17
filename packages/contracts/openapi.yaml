@@ -264,6 +264,8 @@ components:
     Owner: { $ref: "components/identity.yaml#/Owner" }
     Me: { $ref: "components/identity.yaml#/Me" }
     Identity: { $ref: "components/identity.yaml#/Identity" }
+    ProfileRequest: { $ref: "components/identity.yaml#/ProfileRequest" }
+    Profile: { $ref: "components/identity.yaml#/Profile" }
     Passkey: { $ref: "components/auth.yaml#/Passkey" }
     HostInfo: { $ref: "components/auth.yaml#/HostInfo" }
     MachineRequest: { $ref: "components/auth.yaml#/MachineRequest" }
@@ -281,6 +283,11 @@ components:
     ClaimRequest: { $ref: "components/inbox.yaml#/ClaimRequest" }
     AckRequest: { $ref: "components/inbox.yaml#/AckRequest" }
     AckResponse: { $ref: "components/inbox.yaml#/AckResponse" }
+    BriefSection: { $ref: "components/brief.yaml#/BriefSection" }
+    BriefResponse: { $ref: "components/brief.yaml#/BriefResponse" }
+    HandoffRequest: { $ref: "components/brief.yaml#/HandoffRequest" }
+    Handoff: { $ref: "components/brief.yaml#/Handoff" }
+    HandoffsResponse: { $ref: "components/brief.yaml#/HandoffsResponse" }
     MessageCreatedFrame: { $ref: "components/event.yaml#/MessageCreatedFrame" }
     ReadMovedFrame: { $ref: "components/event.yaml#/ReadMovedFrame" }
     AgentWorkingFrame: { $ref: "components/event.yaml#/AgentWorkingFrame" }

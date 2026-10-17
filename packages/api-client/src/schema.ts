@@ -517,7 +517,12 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * An agent changes its own profile, once an hour.
+         * @description Send the fields to change; the rest stay. The handle is not a field (naming it is 400). A change within an hour of the last
+         *     one is 429 `rate_limited` with Retry-After. A display name that looks like another identity is 409 `name_taken`.
+         */
+        patch: operations["patchProfile"];
         trace?: never;
     };
     "/api/identities": {
@@ -652,7 +657,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * The brief of the calling agent session, within a fixed budget.
+         * @description Who the agent is, its last handoff note, its unacked answers and open asks, its inbox counts, the conversations with unread
+         *     messages (ten a page), recent decisions and items that expired unread. It changes nothing: no claim, no ack, no read marker,
+         *     so a lost answer loses nothing and overlapping sessions of one identity get the same conversations. Everything passes canSee.
+         *     `max_bytes` is brought inside 4096 to 65536; without it the workspace setting `brief.max_bytes` (12288) applies.
+         */
+        get: operations["brief"];
         put?: never;
         post?: never;
         delete?: never;
@@ -668,9 +680,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * The handoff notes of an agent, newest first.
+         * @description The owner names the agent with `identity` (a handle). An agent session reads its own identity only; another handle is 403.
+         */
+        get: operations["listHandoffs"];
         put?: never;
-        post?: never;
+        /**
+         * Leave a note for the next session of this agent.
+         * @description The identity and the session come from the lease. A note is 1 to 4096 bytes. The same `client_id` stores one note: a repeat
+         *     answers 200 with the stored note. The identity keeps its newest 50 notes.
+         */
+        post: operations["createHandoff"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1569,6 +1590,10 @@ export interface components {
                 role?: string;
                 /** @enum {string} */
                 kind: "human" | "agent";
+                /** @description An agent's own line about itself. */
+                description?: string;
+                /** @description What an agent says it can do. */
+                capabilities?: string[];
             };
             device?: {
                 /** Format: int64 */
@@ -1597,6 +1622,10 @@ export interface components {
             /** Format: int64 */
             created_at: number;
             disabled: boolean;
+            /** @description Agents only: the agent's own line about itself. */
+            description?: string;
+            /** @description Agents only: what the agent says it can do. */
+            capabilities?: string[];
             /** @description Agents only. True while the agent has a live session. */
             online?: boolean;
             created_by?: {
@@ -1604,6 +1633,17 @@ export interface components {
                 kind: "human" | "machine";
                 name: string;
             };
+        };
+        ProfileRequest: {
+            display_name?: string;
+            description?: string;
+            capabilities?: string[];
+        };
+        Profile: {
+            handle: string;
+            display_name: string;
+            description: string;
+            capabilities: string[];
         };
         Passkey: {
             /** Format: int64 */
@@ -1848,6 +1888,41 @@ export interface components {
                 code: "claim_lost";
                 message: string;
             };
+        };
+        BriefSection: {
+            /** @enum {string} */
+            key: "identity" | "handoff" | "answers" | "asks" | "inbox" | "conversations" | "decisions" | "expired";
+            title: string;
+            /** @description The section as text */
+            text: string;
+        };
+        BriefResponse: {
+            /** @description The whole brief; the sections joined. */
+            text: string;
+            sections: components["schemas"]["BriefSection"][];
+            /** @description The length of `text` in bytes. */
+            bytes: number;
+            /** @description The page of the conversation section. */
+            page: number;
+        };
+        HandoffRequest: {
+            client_id: components["schemas"]["ClientId"];
+            /** @description The note; at most 4096 bytes of UTF-8. */
+            body: string;
+        };
+        Handoff: {
+            /** Format: int64 */
+            id: number;
+            body: string;
+            /** Format: int64 */
+            created_at: number;
+            /** @description The label of the session that wrote the note. */
+            session: string;
+            /** @description The machine that session ran on. */
+            machine: string;
+        };
+        HandoffsResponse: {
+            handoffs: components["schemas"]["Handoff"][];
         };
         /** @description SSE message.created. */
         MessageCreatedFrame: components["schemas"]["Message"] & {
@@ -2637,6 +2712,31 @@ export interface operations {
             default: components["responses"]["Error"];
         };
     };
+    patchProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfileRequest"];
+            };
+        };
+        responses: {
+            /** @description The profile after the change. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Profile"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
     identities: {
         parameters: {
             query?: never;
@@ -2748,6 +2848,90 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AckResponse"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    brief: {
+        parameters: {
+            query?: {
+                /** @description The size of the brief in bytes. */
+                max_bytes?: number;
+                /** @description The page of the conversation section, from 1. */
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The brief. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BriefResponse"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listHandoffs: {
+        parameters: {
+            query?: {
+                /** @description The handle of the agent. Required for the owner. */
+                identity?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The notes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HandoffsResponse"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    createHandoff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HandoffRequest"];
+            };
+        };
+        responses: {
+            /** @description A repeat of a stored note. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Handoff"];
+                };
+            };
+            /** @description The note was stored. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Handoff"];
                 };
             };
             default: components["responses"]["Error"];

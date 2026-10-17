@@ -24,7 +24,7 @@ WHERE i.handle = sqlc.arg(handle);
 
 -- name: ListIdentities :many
 SELECT i.id, i.kind, i.handle, i.display_name, CAST(COALESCE(h.role, 'agent') AS TEXT) AS role, i.created_at, i.disabled_at,
-  a.created_by_human, a.created_by_machine
+  a.created_by_human, a.created_by_machine, CAST(COALESCE(a.description, '') AS TEXT) AS description, CAST(COALESCE(a.capabilities_json, '[]') AS TEXT) AS capabilities_json
 FROM identities i
 LEFT JOIN humans h ON h.identity_id = i.id
 LEFT JOIN agents a ON a.identity_id = i.id
@@ -53,3 +53,15 @@ SELECT handle, display_skeleton FROM identities WHERE disabled_at IS NULL;
 SELECT COUNT(*) AS n, CAST(COALESCE(MIN(i.created_at), 0) AS INTEGER) AS oldest
 FROM agents a JOIN identities i ON i.id = a.identity_id
 WHERE a.created_by_machine = sqlc.arg(machine_id) AND i.created_at > sqlc.arg(since);
+
+-- name: GetProfile :one
+SELECT i.display_name, a.description, a.capabilities_json, a.profile_changed_at
+FROM agents a JOIN identities i ON i.id = a.identity_id WHERE a.identity_id = sqlc.arg(id);
+
+-- name: SetDisplayName :exec
+UPDATE identities SET display_name = sqlc.arg(display_name), display_skeleton = sqlc.arg(display_skeleton), avatar_letter = sqlc.arg(avatar_letter)
+WHERE id = sqlc.arg(id) AND kind = 'agent';
+
+-- name: SetProfileFields :exec
+UPDATE agents SET description = sqlc.arg(description), capabilities_json = sqlc.arg(capabilities_json), profile_changed_at = sqlc.arg(now)
+WHERE identity_id = sqlc.arg(id);

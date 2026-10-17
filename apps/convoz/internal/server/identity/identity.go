@@ -33,6 +33,9 @@ type Entry struct {
 	Role        string `json:"role"`
 	CreatedAt   int64  `json:"created_at"`
 	Disabled    bool   `json:"disabled"`
+	// Description and Capabilities are an agent's own words about itself (PATCH /api/me/profile); empty for a human.
+	Description  string   `json:"description,omitempty"`
+	Capabilities []string `json:"capabilities,omitempty"`
 	// CreatedByHuman and CreatedByMachine are the ids that made an agent; the composition root turns
 	// them into names (the machine is auth's).
 	CreatedByHuman   int64 `json:"-"`
@@ -132,7 +135,7 @@ func List(ctx context.Context, d pdb.DBTX) ([]Entry, error) {
 	out := make([]Entry, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, Entry{ID: r.ID, Kind: r.Kind, Handle: r.Handle, DisplayName: r.DisplayName, Role: r.Role, CreatedAt: r.CreatedAt, Disabled: r.DisabledAt.Valid,
-			CreatedByHuman: r.CreatedByHuman.Int64, CreatedByMachine: r.CreatedByMachine.Int64})
+			CreatedByHuman: r.CreatedByHuman.Int64, CreatedByMachine: r.CreatedByMachine.Int64, Description: r.Description, Capabilities: capabilitiesOf(r.CapabilitiesJson)})
 	}
 	return out, nil
 }

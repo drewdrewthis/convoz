@@ -207,6 +207,30 @@ func (q *Queries) GetOwner(ctx context.Context) (GetOwnerRow, error) {
 	return i, err
 }
 
+const getProfile = `-- name: GetProfile :one
+SELECT i.display_name, a.description, a.capabilities_json, a.profile_changed_at
+FROM agents a JOIN identities i ON i.id = a.identity_id WHERE a.identity_id = ?1
+`
+
+type GetProfileRow struct {
+	DisplayName      string
+	Description      string
+	CapabilitiesJson string
+	ProfileChangedAt sql.NullInt64
+}
+
+func (q *Queries) GetProfile(ctx context.Context, id int64) (GetProfileRow, error) {
+	row := q.db.QueryRowContext(ctx, getProfile, id)
+	var i GetProfileRow
+	err := row.Scan(
+		&i.DisplayName,
+		&i.Description,
+		&i.CapabilitiesJson,
+		&i.ProfileChangedAt,
+	)
+	return i, err
+}
+
 const handleWasUsed = `-- name: HandleWasUsed :one
 SELECT EXISTS (SELECT 1 FROM retired_handles WHERE handle = ?1)
 `
@@ -283,7 +307,7 @@ func (q *Queries) InsertIdentity(ctx context.Context, arg InsertIdentityParams) 
 
 const listIdentities = `-- name: ListIdentities :many
 SELECT i.id, i.kind, i.handle, i.display_name, CAST(COALESCE(h.role, 'agent') AS TEXT) AS role, i.created_at, i.disabled_at,
-  a.created_by_human, a.created_by_machine
+  a.created_by_human, a.created_by_machine, CAST(COALESCE(a.description, '') AS TEXT) AS description, CAST(COALESCE(a.capabilities_json, '[]') AS TEXT) AS capabilities_json
 FROM identities i
 LEFT JOIN humans h ON h.identity_id = i.id
 LEFT JOIN agents a ON a.identity_id = i.id
@@ -300,6 +324,8 @@ type ListIdentitiesRow struct {
 	DisabledAt       sql.NullInt64
 	CreatedByHuman   sql.NullInt64
 	CreatedByMachine sql.NullInt64
+	Description      string
+	CapabilitiesJson string
 }
 
 func (q *Queries) ListIdentities(ctx context.Context) ([]ListIdentitiesRow, error) {
@@ -321,6 +347,8 @@ func (q *Queries) ListIdentities(ctx context.Context) ([]ListIdentitiesRow, erro
 			&i.DisabledAt,
 			&i.CreatedByHuman,
 			&i.CreatedByMachine,
+			&i.Description,
+			&i.CapabilitiesJson,
 		); err != nil {
 			return nil, err
 		}
@@ -333,4 +361,48 @@ func (q *Queries) ListIdentities(ctx context.Context) ([]ListIdentitiesRow, erro
 		return nil, err
 	}
 	return items, nil
+}
+
+const setDisplayName = `-- name: SetDisplayName :exec
+UPDATE identities SET display_name = ?1, display_skeleton = ?2, avatar_letter = ?3
+WHERE id = ?4 AND kind = 'agent'
+`
+
+type SetDisplayNameParams struct {
+	DisplayName     string
+	DisplaySkeleton string
+	AvatarLetter    string
+	ID              int64
+}
+
+func (q *Queries) SetDisplayName(ctx context.Context, arg SetDisplayNameParams) error {
+	_, err := q.db.ExecContext(ctx, setDisplayName,
+		arg.DisplayName,
+		arg.DisplaySkeleton,
+		arg.AvatarLetter,
+		arg.ID,
+	)
+	return err
+}
+
+const setProfileFields = `-- name: SetProfileFields :exec
+UPDATE agents SET description = ?1, capabilities_json = ?2, profile_changed_at = ?3
+WHERE identity_id = ?4
+`
+
+type SetProfileFieldsParams struct {
+	Description      string
+	CapabilitiesJson string
+	Now              sql.NullInt64
+	ID               int64
+}
+
+func (q *Queries) SetProfileFields(ctx context.Context, arg SetProfileFieldsParams) error {
+	_, err := q.db.ExecContext(ctx, setProfileFields,
+		arg.Description,
+		arg.CapabilitiesJson,
+		arg.Now,
+		arg.ID,
+	)
+	return err
 }
