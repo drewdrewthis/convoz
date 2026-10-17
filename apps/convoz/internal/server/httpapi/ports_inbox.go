@@ -5,6 +5,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/inbox"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
@@ -19,7 +20,11 @@ func (inboxPort) FanOut(ctx context.Context, d pdb.DBTX, now time.Time, identity
 	if err != nil {
 		return err
 	}
-	if err := inbox.FanOut(ctx, d, now, identity, conv, messageID, sourceSeq, reason); err != nil {
+	prefer, err := conversation.LastPostSession(ctx, d, conv, identity)
+	if err != nil {
+		return err
+	}
+	if err := inbox.FanOut(ctx, d, now, identity, conv, messageID, sourceSeq, prefer, reason); err != nil {
 		return err
 	}
 	return holdForWords(ctx, d, now, conv, messageID)

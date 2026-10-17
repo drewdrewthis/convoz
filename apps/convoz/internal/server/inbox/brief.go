@@ -290,7 +290,11 @@ func expiredSection(groups []BriefExpired, budget int) string {
 			since = g.Since
 		}
 	}
-	lines := []string{fmt.Sprintf("%d items expired unread since %s", count, time.UnixMilli(since).UTC().Format("2006-01-02"))}
+	noun := "items"
+	if count == 1 {
+		noun = "item"
+	}
+	lines := []string{fmt.Sprintf("%d %s expired unread since %s", count, noun, time.UnixMilli(since).UTC().Format("2006-01-02"))}
 	for _, g := range groups {
 		lines = append(lines, clip(fmt.Sprintf("- conversation %d %s: %d", g.Conversation, quoted(g.Title, 60), g.Count), 160))
 	}

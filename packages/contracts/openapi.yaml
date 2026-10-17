@@ -31,6 +31,7 @@ paths:
   /api/auth/step-up/options: { $ref: "paths/auth.yaml#/~1api~1auth~1step-up~1options" }
   /api/auth/step-up/verify: { $ref: "paths/auth.yaml#/~1api~1auth~1step-up~1verify" }
   /api/auth/logout: { $ref: "paths/auth.yaml#/~1api~1auth~1logout" }
+  /api/auth/signout-all: { $ref: "paths/auth.yaml#/~1api~1auth~1signout-all" }
   /api/me/devices: { $ref: "paths/auth.yaml#/~1api~1me~1devices" }
   /api/me/devices/{id}: { $ref: "paths/auth.yaml#/~1api~1me~1devices~1{id}" }
   /api/me/passkeys: { $ref: "paths/auth.yaml#/~1api~1me~1passkeys" }

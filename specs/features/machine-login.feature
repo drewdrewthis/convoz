@@ -127,7 +127,7 @@ Feature: Machine login with a device flow
 
   Rule: A lost credential costs nothing but a reveal or a new login (AC-15)
 
-    @v1 @cli @browser @I-38 @AC-15 @M7 @unimplemented
+    @v1 @cli @browser @I-38 @AC-15 @M7
     Scenario: Reveal and login with stdin restore the same agent state
       Given "devtool" on "box-2" has unread items, an unacked answer, an open ask, a handoff note and read positions
       And the output of "convoz brief --as devtool" is saved
@@ -136,7 +136,7 @@ Feature: Machine login with a device flow
       And the revealed key is piped into "convoz login --stdin"
       Then "convoz brief --as devtool" shows the same sections as the saved brief
 
-    @v1 @cli @browser @I-38 @AC-15 @unimplemented
+    @v1 @cli @browser @I-38 @AC-15
     Scenario: Regenerating a lost key keeps the agent state
       Given machine "box-2" lost its credentials file
       When the owner regenerates the key of "box-2" with a passkey

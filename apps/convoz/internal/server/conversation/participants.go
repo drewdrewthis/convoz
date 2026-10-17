@@ -151,3 +151,20 @@ func End(ctx context.Context, d pdb.DBTX, now time.Time, conv, identityID int64,
 // FirstFloor is the floor a person re-added "with the original history" gets: the floor they had the first time.
 // Zero for a person who never was here.
 func FirstFloor(s Seat) int64 { return s.JoinedMessageID }
+
+// NoteAgentPost records which session of the agent posted last in the conversation: its inbox items for that conversation
+// go to that session first (design §3.8).
+func NoteAgentPost(ctx context.Context, d pdb.DBTX, conv, identityID, sessionID int64) error {
+	return db.New(d).SetLastPostSession(ctx, db.SetLastPostSessionParams{
+		SessionID: sql.NullInt64{Int64: sessionID, Valid: sessionID != 0}, ConversationID: conv, IdentityID: identityID,
+	})
+}
+
+// LastPostSession is the session of the agent that posted last in the conversation; 0 when none did or it was not a session.
+func LastPostSession(ctx context.Context, d pdb.DBTX, conv, identityID int64) (int64, error) {
+	r, err := db.New(d).GetParticipantFull(ctx, db.GetParticipantFullParams{ConversationID: conv, IdentityID: identityID})
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	return r.LastPostSessionID.Int64, err
+}

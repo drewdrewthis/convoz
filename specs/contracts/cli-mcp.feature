@@ -14,20 +14,20 @@ Feature: The convoz CLI and MCP server for agents (contracts)
 
   Rule: Setup registers the MCP server and prints a prompt with no secret
 
-    @v1 @mcp @I-42 @unimplemented
+    @v1 @mcp @I-42
     Scenario: No MCP tool result contains a secret
       When every MCP tool is called once with valid input
       Then no result contains "cvz_m_", "cvz_s_" or "cvz_c_"
 
   Rule: Retries never duplicate and never hide a client error
 
-    @v1 @cli @AC-21 @unimplemented
+    @v1 @cli @AC-21
     Scenario: A client error is not retried
       When "convoz post 999 hello" runs against a conversation that does not exist
       Then the proxy log shows 1 request
       And the CLI exits 3
 
-    @v1 @cli @unimplemented
+    @v1 @cli
     Scenario: A rate limit is retried after Retry-After
       Given the server answers the first post with 429 and "Retry-After: 2"
       When "convoz post 41 hello" runs
@@ -36,7 +36,7 @@ Feature: The convoz CLI and MCP server for agents (contracts)
 
   Rule: Identity comes from the lease; agents change only their own profile
 
-    @v1 @api @I-40 @unimplemented
+    @v1 @api @I-40
     Scenario Outline: Profile changes outside the allowed fields are refused
       When the "devtool" session sends PATCH /api/me/profile with <body>
       Then the server answers <status>
@@ -47,13 +47,13 @@ Feature: The convoz CLI and MCP server for agents (contracts)
         | {"mood": "happy"}                     | 400    |
         | {"capabilities": 21 short strings}    | 400    |
 
-    @v1 @api @I-40 @unimplemented
+    @v1 @api @I-40
     Scenario: An agent cannot change another identity's profile
       When the "devtool" session sends a profile change that targets identity "docs"
       Then the server refuses it
       And Crew shows the profile of "docs" unchanged
 
-    @v1 @api @unimplemented
+    @v1 @api
     Scenario: Profile changes are limited to one per hour
       Given "devtool" changed its profile 10 minutes ago
       When it changes its display name again

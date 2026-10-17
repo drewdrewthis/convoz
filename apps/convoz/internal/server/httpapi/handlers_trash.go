@@ -9,6 +9,7 @@ import (
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/event"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/inbox"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/prefs"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/upload"
@@ -172,8 +173,10 @@ func (s *Server) Maintain(ctx context.Context) error {
 		if purged, err = conversation.PurgeTrash(ctx, d, now); err != nil {
 			return err
 		}
-		expired, err = upload.Expire(ctx, d, now) // an upload nobody bound within 24 hours (a cancelled recording) goes
-		return err
+		if expired, err = upload.Expire(ctx, d, now); err != nil { // an upload nobody bound within 24 hours (a cancelled recording) goes
+			return err
+		}
+		return inbox.Sweep(ctx, d, now)
 	})
 	if err == nil {
 		err = s.sweepFiles(ctx, now, expired)

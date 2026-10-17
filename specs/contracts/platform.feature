@@ -21,7 +21,7 @@ Feature: Platform rules every module relies on (contracts)
       Then GET /api/sync from that cursor returns no new event
       And conversation 41 shows no new message
 
-    @v1 @api @invariant @I-4 @unimplemented
+    @v1 @api @invariant @I-4
     Scenario: A write and its event, inbox item, search entry and audit row appear together
       When the owner posts "@devtool rotate the deploy key" in conversation 41
       Then in the same response sequence the event stream has the message event
@@ -42,7 +42,7 @@ Feature: Platform rules every module relies on (contracts)
         | to attach an app message of conversation 52 to a via_app message in 41 |
         | to start a lease as an identity the machine's allow-list lacks  |
 
-    @v1 @api @invariant @I-9 @unimplemented
+    @v1 @api @invariant @I-9
     Scenario: Counters match the messages after any sequence of actions
       Given a random sequence of 1000 posts, replies, deletes, asks, answers and removals across 5 conversations
       When the rail and each conversation are loaded

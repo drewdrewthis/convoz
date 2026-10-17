@@ -1,7 +1,7 @@
 # Schemas of the auth module. Only the work package that owns auth edits this file; the root lists each by name.
 StepUpAction:
   type: string
-  enum: [passkey.add, passkey.remove, recovery.regenerate, machine.approve, machine.reveal, machine.regenerate, machine.revoke, machine.allow, identity.create, identity.disable, data.export]
+  enum: [passkey.add, passkey.remove, recovery.regenerate, machine.approve, machine.reveal, machine.regenerate, machine.revoke, machine.allow, identity.create, identity.disable, data.export, signout.all]
 Passkey:
   type: object
   required: [id, label, registered_via, created_at, last_used_at, this_device]

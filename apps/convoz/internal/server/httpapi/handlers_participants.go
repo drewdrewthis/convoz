@@ -320,7 +320,9 @@ func (s *Server) endSeat(w http.ResponseWriter, r *http.Request, c *call, convID
 // addMentioned brings in the agents a person's message @mentions, at once (I-18): each sees the message itself and
 // what follows, and its inbox gets a mention. It runs inside the post's transaction, after the message is stored.
 // An agent that cannot be added (unknown, disabled, a full conversation) is skipped; the message is still sent.
-func addMentioned(ctx context.Context, d pdb.DBTX, now time.Time, conv, author, messageID int64, handles []string) error {
+// skip is an identity that gets no mention from this message (0 for none): the asker of an ask that the message answers, which
+// gets its ask_resolved item instead (one message makes one item, I-43).
+func addMentioned(ctx context.Context, d pdb.DBTX, now time.Time, conv, author, messageID, skip int64, handles []string) error {
 	if len(handles) == 0 {
 		return nil
 	}
@@ -334,7 +336,7 @@ func addMentioned(ctx context.Context, d pdb.DBTX, now time.Time, conv, author, 
 		if err != nil {
 			return err
 		}
-		if !found || target.Kind != "agent" || target.Disabled {
+		if !found || target.Kind != "agent" || target.Disabled || target.ID == skip {
 			continue
 		}
 		changed, err := conversation.Add(ctx, d, now, conversation.Join{

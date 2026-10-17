@@ -15,8 +15,12 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/inbox"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/settings"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
+
+// preferenceRecheck is how often a waiting poll looks again for an item whose preferred session did not take it.
+const preferenceRecheck = 5 * time.Second
 
 // inboxPoll is GET /api/inbox?wait=&claim=&visibility=&peek=&held=&conv=.
 //
@@ -30,7 +34,7 @@ func (s *Server) inboxPoll(w http.ResponseWriter, r *http.Request, c *call) {
 	if !ok {
 		return
 	}
-	n, vis, ok := claimLimits(w, q.Get("claim"), q.Get("visibility"))
+	n, vis, ok := s.claimLimits(w, r, q.Get("claim"), q.Get("visibility"))
 	if !ok {
 		return
 	}
@@ -46,6 +50,9 @@ func (s *Server) inboxPoll(w http.ResponseWriter, r *http.Request, c *call) {
 
 	hold := time.NewTimer(wait)
 	defer hold.Stop()
+	// An item kept for another session (AC-28) opens to this one after 30 s, with no event to say so: look again now and then.
+	recheck := time.NewTicker(preferenceRecheck)
+	defer recheck.Stop()
 	for {
 		changed := s.Bus.ChangedFor(req.Identity) // before the claim, so an item that lands meanwhile wakes the next wait
 		anyChange := s.Bus.Changed()
@@ -73,6 +80,8 @@ func (s *Server) inboxPoll(w http.ResponseWriter, r *http.Request, c *call) {
 				if s.answerIfEnded(w, r, c) {
 					return
 				}
+			case <-recheck.C:
+				waiting = false
 			case <-hold.C:
 				writeJSON(w, http.StatusOK, wire.InboxResponse{Items: []wire.InboxItem{}})
 				return
@@ -93,7 +102,7 @@ func (s *Server) claimInbox(w http.ResponseWriter, r *http.Request, c *call) {
 	if in.N != 0 {
 		rawN = strconv.Itoa(in.N)
 	}
-	n, vis, ok := claimLimits(w, rawN, in.Visibility)
+	n, vis, ok := s.claimLimits(w, r, rawN, in.Visibility)
 	if !ok {
 		return
 	}
@@ -118,9 +127,10 @@ func (s *Server) publishFresh(ctx context.Context, identity int64, fresh []inbox
 	}
 }
 
-// claimLimits reads claim= (1 to 20, default 20) and visibility= (30s to 30m, default 5m). It answers 400 itself.
-func claimLimits(w http.ResponseWriter, rawN, rawVis string) (n int, vis time.Duration, ok bool) {
-	n, vis = inbox.MaxClaim, inbox.DefaultVisibility
+// claimLimits reads claim= (1 to 20, default 20) and visibility= (30s to 30m, default: the workspace setting inbox.visibility_default).
+// It answers 400 itself.
+func (s *Server) claimLimits(w http.ResponseWriter, r *http.Request, rawN, rawVis string) (n int, vis time.Duration, ok bool) {
+	n = inbox.MaxClaim
 	if rawN != "" {
 		v, err := strconv.Atoi(rawN)
 		if err != nil || v < 1 || v > inbox.MaxClaim {
@@ -129,15 +139,36 @@ func claimLimits(w http.ResponseWriter, rawN, rawVis string) (n int, vis time.Du
 		}
 		n = v
 	}
-	if rawVis != "" {
-		v, err := time.ParseDuration(rawVis)
-		if err != nil || v < inbox.MinVisibility || v > inbox.MaxVisibility {
-			writeFieldErr(w, http.StatusBadRequest, "invalid_request", "visibility", "visibility is a duration from 30s to 30m.")
+	if rawVis == "" {
+		var err error
+		if vis, err = s.visibilityDefault(r.Context()); err != nil {
+			s.internalError(w, r, err)
 			return 0, 0, false
 		}
-		vis = v
+		return n, vis, true
 	}
-	return n, vis, true
+	v, err := time.ParseDuration(rawVis)
+	if err != nil || v < inbox.MinVisibility || v > inbox.MaxVisibility {
+		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "visibility", "visibility is a duration from 30s to 30m.")
+		return 0, 0, false
+	}
+	return n, v, true
+}
+
+// visibilityDefault is how long a claim holds its items when the caller names no visibility: the workspace setting, else 5 minutes.
+func (s *Server) visibilityDefault(ctx context.Context) (time.Duration, error) {
+	all, err := settings.All(ctx, s.reader(), 0)
+	if err != nil {
+		return 0, err
+	}
+	for _, e := range all {
+		if text, ok := e.Value.(string); ok && e.Key == "inbox.visibility_default" {
+			if d, err := time.ParseDuration(text); err == nil {
+				return d, nil
+			}
+		}
+	}
+	return inbox.DefaultVisibility, nil
 }
 
 // convParam reads conv=: a conversation id, or 0 for every conversation.
