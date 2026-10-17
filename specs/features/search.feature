@@ -15,31 +15,31 @@ Feature: Search
 
   Rule: Search finds what was just written, newest first
 
-    @v1 @browser @unimplemented
+    @v1 @browser
     Scenario: A new message is searchable at once
       When "devtool" posts "retry budget is 3 attempts" in conversation 41
       And the owner searches "budget" right away
       Then the first result is that message with "budget" highlighted
 
-    @v1 @api @unimplemented
+    @v1 @api
     Scenario: Results are newest first
       Given 5 messages that contain "rollback" posted on 5 different days
       When the owner searches "rollback"
       Then the results are ordered from newest to oldest
 
-    @v1 @api @unimplemented
+    @v1 @api
     Scenario: A two-letter prefix works
       When the owner searches "ro"
       Then results include messages with "rollback" and "router"
 
-    @v1 @browser @unimplemented
+    @v1 @browser
     Scenario: A result opens in its conversation
       When the owner searches "runbook" and opens the first result
       Then conversation 52 opens scrolled to that message with it highlighted
 
   Rule: Filters narrow the results (AC-13)
 
-    @v1 @api @AC-13 @unimplemented
+    @v1 @api @AC-13
     Scenario Outline: Each filter narrows the results
       When the owner searches "<query>"
       Then every result <matches>
@@ -55,7 +55,7 @@ Feature: Search
         | has:file                 | has an attachment                         |
         | has:link                 | has a link                                |
 
-    @v1 @browser @unimplemented
+    @v1 @browser
     Scenario: Filter chips show and can be removed
       When the owner searches "from:@devtool has:file chart"
       Then "Active filters" shows "from @devtool" and "has file"
@@ -63,19 +63,19 @@ Feature: Search
 
   Rule: Search shows only what the searcher can see (I-6)
 
-    @v1 @api @I-6 @unimplemented
+    @v1 @api @I-6
     Scenario: Deleted and purged messages are not found
       Given the owner deleted a message with "ZQX-deleted" and purged one with "ZQX-purged"
       When the owner searches "ZQX"
       Then no result is returned
 
-    @v1 @api @I-6 @unimplemented
+    @v1 @api @I-6
     Scenario: A conversation in the trash is not found
       Given the owner deleted conversation 52
       When the owner searches "runbook"
       Then no result is from conversation 52
 
-    @v1 @cli @I-6 @unimplemented
+    @v1 @cli @I-6
     Scenario: An agent finds only conversations it is in
       Given "docs" is in conversation 52 only
       When "docs" runs "convoz search filters"

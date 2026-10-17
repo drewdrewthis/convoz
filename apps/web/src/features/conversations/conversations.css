@@ -31,6 +31,8 @@
 
   /* ---- messages: a line the conversation says about itself, the state of an ask, the time as a button ---- */
   .msg.system { display: block; padding: 8px 12px; }
+  /* a message opened from a search result: tinted and ringed for a moment (prototype: hlBg and hlRing) */
+  .msg[data-hl] { background: var(--color-soft); box-shadow: 0 0 0 2px var(--color-accent); }
   .sysline { text-align: center; font-size: 13px; color: var(--color-muted); }
   .askstate { align-self: flex-start; padding: 1px 10px; border-radius: 999px; background: var(--color-soft); color: var(--color-accent-text); font-size: 12px; font-weight: 600; }
   .askstate.closed, .askstate.dismissed { background: var(--color-selection); color: var(--color-muted); }

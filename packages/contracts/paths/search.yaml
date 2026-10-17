@@ -1,3 +1,21 @@
 # Paths of the search module (design §13). Only the work package that owns search edits this file; the root
 # openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
-/api/search: {}  # not specified yet
+/api/search:
+  get:
+    operationId: search
+    summary: Search the messages the caller may see, newest first, and the conversations whose title the words name (I-6).
+    description: |
+      The text q holds words and these filters, all optional: from:@handle (or a bare @handle), in:"conversation title" (or in:<id>),
+      is:ask, is:pinned, is:starred, is:app, has:file and has:link. Every word matches as the start of a word ("ro" finds rollback
+      and router). A person and an agent get the same answer for the conversations each may see. A deleted or purged message is
+      found by nobody; a conversation in the trash is not searched.
+    parameters:
+      - { name: q, in: query, required: true, schema: { type: string, maxLength: 200 } }
+      - { name: limit, in: query, description: "At most this many messages. Default 20, most 50.", schema: { type: integer, minimum: 0 } }
+    responses:
+      "200":
+        description: The results.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/SearchResponse" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }

@@ -1265,7 +1265,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Search the messages the caller may see, newest first, and the conversations whose title the words name (I-6).
+         * @description The text q holds words and these filters, all optional: from:@handle (or a bare @handle), in:"conversation title" (or in:<id>),
+         *     is:ask, is:pinned, is:starred, is:app, has:file and has:link. Every word matches as the start of a word ("ro" finds rollback
+         *     and router). A person and an agent get the same answer for the conversations each may see. A deleted or purged message is
+         *     found by nobody; a conversation in the trash is not searched.
+         */
+        get: operations["search"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1910,6 +1917,57 @@ export interface components {
             /** Format: int64 */
             as_of_seq: number;
             cursor: string;
+        };
+        /** @description A run of a snippet. A run the query matched has hit set, so a page marks it with weight as well as a tint. */
+        SearchPart: {
+            text: string;
+            hit?: boolean;
+        };
+        SearchResult: {
+            /** Format: int64 */
+            message_id: number;
+            /** Format: int64 */
+            conversation_id: number;
+            /** @description Empty for a conversation with no title yet. */
+            conversation_title: string;
+            author: components["schemas"]["Person"];
+            /** Format: int64 */
+            created_at: number;
+            /**
+             * @description Set for an ask; absent for text.
+             * @enum {string}
+             */
+            kind?: "ask";
+            /** @description The message carries an app. */
+            app?: boolean;
+            /**
+             * Format: int64
+             * @description Set for a reply: the message its thread hangs from.
+             */
+            thread_root_id?: number;
+            /** @description A window of the message's plain words around the first match. */
+            snippet: components["schemas"]["SearchPart"][];
+        };
+        SearchConversation: {
+            /** Format: int64 */
+            id: number;
+            title: string;
+            starred?: boolean;
+            /** @description The newest message the caller may see, as the conversation list shows it. Empty for none. */
+            preview: string;
+            snippet: components["schemas"]["SearchPart"][];
+        };
+        /** @description One filter the text carries, as the "Active filters" row shows it. Take token out of the text to remove the filter. */
+        SearchFilter: {
+            token: string;
+            label: string;
+        };
+        SearchResponse: {
+            /** @description Messages, newest first. */
+            results: components["schemas"]["SearchResult"][];
+            /** @description Conversations whose title the words name, latest activity first. */
+            conversations: components["schemas"]["SearchConversation"][];
+            filters: components["schemas"]["SearchFilter"][];
         };
         SettingEntry: {
             /** @enum {string} */
@@ -3230,6 +3288,31 @@ export interface operations {
                     "application/json": {
                         machine_requests: components["schemas"]["MachineRequest"][];
                     };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    search: {
+        parameters: {
+            query: {
+                q: string;
+                /** @description At most this many messages. Default 20, most 50. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The results. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResponse"];
                 };
             };
             default: components["responses"]["Error"];

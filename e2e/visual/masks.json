@@ -131,6 +131,13 @@
    "h": 44
   },
   {
+   "name": "Open count and the Search button left of the account menu",
+   "x": 214,
+   "y": 3,
+   "w": 122,
+   "h": 44
+  },
+  {
    "name": "Snoozed and Answered today (no backend)",
    "x": 12,
    "y": 55,
