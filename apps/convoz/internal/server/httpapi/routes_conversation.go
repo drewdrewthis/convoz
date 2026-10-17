@@ -15,7 +15,6 @@ var conversationRoutes = []Route{
 	{Method: "POST", Pattern: "/api/conversations/:id/participants/:iid/decline", Auth: authz.Human, handle: decideParticipant(false)},
 	{Method: "DELETE", Pattern: "/api/conversations/:id/participants/:iid", Auth: authz.Human, handle: (*Server).removeParticipant},
 	{Method: "POST", Pattern: "/api/conversations/:id/leave", Auth: authz.Human, Lease: true, handle: (*Server).leaveConversation},
-	{Method: "POST", Pattern: "/api/conversations/:id/resume", Auth: authz.Human, handle: (*Server).resumeConversation},
 	{Method: "POST", Pattern: "/api/conversations/:id/pickup/open", Auth: authz.Human, handle: (*Server).openPickup},
 	{Method: "POST", Pattern: "/api/conversations/:id/pickup", Auth: authz.Lease, handle: (*Server).pickupConversation},
 }

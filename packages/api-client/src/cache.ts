@@ -54,16 +54,21 @@ export interface DataCache {
 /** maxId is the newest message id held for a conversation, 0 for none. */
 export const maxId = (m: MessageList | undefined): number => (m?.list.length ? m.list[m.list.length - 1]!.id : 0);
 
+/** changed says whether an incoming copy of a held message is newer: edited, deleted, purged or with more replies. */
+const changed = (a: Message, b: Message) =>
+  a.edited_at !== b.edited_at || !!a.deleted !== !!b.deleted || !!a.purged !== !!b.purged || a.reply_count !== b.reply_count;
+
 function merge(have: Message[], more: Message[]): Message[] {
   const byId = new Map(have.map((m) => [m.id, m]));
-  let changed = false;
+  let touched = false;
   for (const m of more) {
-    if (!byId.has(m.id)) {
+    const held = byId.get(m.id);
+    if (!held || changed(held, m)) {
       byId.set(m.id, m);
-      changed = true;
+      touched = true;
     }
   }
-  return changed ? [...byId.values()].sort((a, b) => a.id - b.id) : have;
+  return touched ? [...byId.values()].sort((a, b) => a.id - b.id) : have;
 }
 
 /** createDataCache builds the cache over a data source. */
@@ -123,6 +128,21 @@ export function createDataCache(source: DataSource): DataCache {
           if (held?.list.some((m) => m.id === frame.data.id)) return false;
           if (held) cache.putMessages(frame.data.conversation_id, [frame.data]);
           break;
+        }
+        case "message.edited":
+        case "message.deleted":
+        case "message.purged": {
+          const held = get().messages[frame.data.conversation_id];
+          if (!held) return true;
+          const mine = held.list.find((m) => m.id === frame.data.id);
+          if (mine && !changed(mine, frame.data)) return false;
+          setList(frame.data.conversation_id, (m) => ({ ...m, list: merge(m.list, [frame.data]) }));
+          break;
+        }
+        case "thread.updated": {
+          const { conversation_id: conv, root_id, reply_count } = frame.data;
+          setList(conv, (m) => ({ ...m, list: m.list.map((x) => (x.id === root_id ? { ...x, reply_count } : x)) }));
+          return true;
         }
         case "agent.working":
           return true; // presence only: nothing cached

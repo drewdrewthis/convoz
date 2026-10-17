@@ -30,26 +30,18 @@ func (a conversationPort) Access(ctx context.Context, d pdb.DBTX, conv int64) (m
 	return message.Denied, nil // an agent is told 403 whether or not the conversation exists
 }
 
-// RecordMainPost moves the counters, then applies what the post means for the conversation: an agent's message counts
-// toward the loop breaker (the 20th in a row pauses the conversation, I-16), a person's resets it and may bring in the
-// agents it @mentions (I-18). An agent's @mention never adds anyone.
+// RecordMainPost moves the counters, then brings in the agents a person's message @mentions (I-18); an agent's @mention
+// never adds anyone. The loop breaker is not here: message.Post counts every post toward it (I-16).
 func (a conversationPort) RecordMainPost(ctx context.Context, d pdb.DBTX, now time.Time, conv, messageID int64, body string) (int64, error) {
 	prev, err := conversation.RecordMainPost(ctx, d, now, conv, messageID, body)
-	if err != nil {
-		return 0, err
-	}
-	if a.p.SessionID != 0 {
-		paused, err := conversation.AgentPosted(ctx, d, now, conv)
-		if err != nil || !paused {
-			return prev, err
-		}
-		_, _, err = sayLine(ctx, d, now, a.p.Identity(), conv, "Agents are paused after 20 messages in a row.", "conversation.paused", nil)
+	if err != nil || a.p.SessionID != 0 {
 		return prev, err
 	}
-	if _, err := conversation.HumanPosted(ctx, d, conv); err != nil {
-		return 0, err
+	m, ok, err := message.Get(ctx, d, messageID)
+	if err != nil || !ok {
+		return prev, err
 	}
-	return prev, addMentioned(ctx, d, now, conv, a.p.Identity(), messageID, body)
+	return prev, addMentioned(ctx, d, now, conv, a.p.Identity(), messageID, message.ParseMentions(m.Body, m.Format))
 }
 
 func (conversationPort) AgentRecipients(ctx context.Context, d pdb.DBTX, conv, author int64) ([]int64, error) {

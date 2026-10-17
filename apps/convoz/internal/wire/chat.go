@@ -1,6 +1,7 @@
 package wire
 
 import (
+	"encoding/json"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -64,37 +65,43 @@ type Conversation struct {
 	PurgesAt   *int64       `json:"purges_at,omitempty"`
 }
 
-// Origin says which agent session wrote a message and where it ran. Only a person sees it.
-type Origin struct {
-	Session string `json:"session"`
-	Machine string `json:"machine"`
-}
-
-// Message is one message of a page.
+// Message is one message of a page. The fields after CreatedAt are set only when they apply (a system line, a reply, an
+// edited, deleted or agent-written message); see message.go.
 type Message struct {
 	ID        int64  `json:"id"`
 	Author    Person `json:"author"`
 	Body      string `json:"body"`
 	Format    string `json:"format"`
 	CreatedAt int64  `json:"created_at"`
-	// Via is set on an agent's message when the reader is a person: its session label and machine.
-	Via *Origin `json:"via,omitempty"`
-	// Kind is "ask" for an agent's question; a plain message leaves it out.
-	Kind string `json:"kind,omitempty"`
-	// Ask is where an ask stands (open, answered, dismissed or closed), for a message of kind ask.
-	Ask *AskState `json:"ask,omitempty"`
+
+	Kind         string    `json:"kind,omitempty"` // text, ask or system
+	Ask          *AskState `json:"ask,omitempty"`  // where an ask stands, for a message of kind ask
+	ThreadRootID int64     `json:"thread_root_id,omitempty"`
+	Broadcast    bool      `json:"broadcast,omitempty"`
+	ReplyCount   int64     `json:"reply_count,omitempty"`
+	EditedAt     int64     `json:"edited_at,omitempty"`
+	Deleted      bool      `json:"deleted,omitempty"` // a tombstone: Body is empty
+	Purged       bool      `json:"purged,omitempty"`
+	System       *System   `json:"system,omitempty"`
+	Text         string    `json:"text,omitempty"` // a system line's words, the plain-text projection
+	SessionLabel string    `json:"session_label,omitempty"`
+	Machine      string    `json:"machine,omitempty"`
 }
 
-// AskState is the state of the ask a message carries.
+// AskState is the state of the ask a message carries (open, answered, dismissed or closed).
 type AskState struct {
 	State string `json:"state"`
 }
 
 // PostRequest is POST /api/conversations/:id/messages. The author is never in it: the server takes it from the credential.
 type PostRequest struct {
-	ClientID string `json:"client_id"`
-	Body     string `json:"body"`
-	Format   string `json:"format,omitempty"`
+	ClientID   string          `json:"client_id"`
+	Body       string          `json:"body"`
+	Format     string          `json:"format,omitempty"`
+	ThreadRoot int64           `json:"thread_root_id,omitempty"`
+	Broadcast  bool            `json:"broadcast,omitempty"`
+	UploadIDs  []string        `json:"upload_ids,omitempty"`
+	App        json.RawMessage `json:"app,omitempty"` // agents only
 }
 
 // PostResponse is the answer to a post: 201 for a new message, 200 with the same ids for a repeat.

@@ -29,15 +29,15 @@ export function MessageDetails({ conversationId, message, done }: { conversation
           <dt>From</dt>
           <dd>{who}</dd>
         </div>
-        {full.via ? (
+        {full.session_label ? (
           <>
             <div className="convrow">
               <dt>Session</dt>
-              <dd>{full.via.session}</dd>
+              <dd>{full.session_label}</dd>
             </div>
             <div className="convrow">
               <dt>Machine</dt>
-              <dd>{full.via.machine}</dd>
+              <dd>{full.machine}</dd>
             </div>
           </>
         ) : null}

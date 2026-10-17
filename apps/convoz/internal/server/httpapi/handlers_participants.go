@@ -12,6 +12,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/event"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/inbox"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/readstate"
 )
@@ -101,12 +102,12 @@ func (s *Server) addParticipant(w http.ResponseWriter, r *http.Request, c *call)
 			return nil
 		}
 		status = conversation.StatusActive
-		words, kind := at(target.Handle)+" was added", "participant.added"
+		line := message.SystemLine{T: "member.added", Identity: target.ID, By: c.p.Identity(), Via: "add", History: in.History}
 		if asAgent {
 			status = conversation.StatusPending
-			words, kind = at(dirHandle(ctx, d, c.p.Identity()))+" asked to add "+at(target.Handle), "participant.requested"
+			line = message.SystemLine{T: "member.requested", Identity: target.ID, By: c.p.Identity()}
 		}
-		lineID, seq, err := sayLine(ctx, d, now, c.p.Identity(), convID, words, kind, map[string]int64{"identity": target.ID})
+		lineID, seq, err := sayLine(ctx, d, now, c.p.Identity(), convID, line)
 		if err != nil {
 			return err
 		}
@@ -194,7 +195,7 @@ func decideParticipant(approve bool) handler {
 				status = conversation.StatusActive
 			}
 			if approve {
-				if _, _, err := sayLine(ctx, d, now, c.p.HumanID, convID, at(dirHandle(ctx, d, iid))+" was added", "participant.added", map[string]int64{"identity": iid}); err != nil {
+				if _, _, err := sayLine(ctx, d, now, c.p.HumanID, convID, message.SystemLine{T: "member.added", Identity: iid, By: c.p.HumanID, Via: "add"}); err != nil {
 					return err
 				}
 			}
@@ -283,11 +284,11 @@ func (s *Server) endSeat(w http.ResponseWriter, r *http.Request, c *call, convID
 		if err := conversation.AddOpenAsks(ctx, d, convID, -wasOpen); err != nil {
 			return err
 		}
-		words, kind := at(target.Handle)+" was removed", "participant.removed"
+		line := message.SystemLine{T: "member.removed", Identity: who, By: c.p.Identity()}
 		if status == conversation.StatusLeft {
-			words, kind = at(target.Handle)+" left", "participant.left"
+			line = message.SystemLine{T: "member.left", Identity: who}
 		}
-		lineID, seq, err := sayLine(ctx, d, now, c.p.Identity(), convID, words, kind, map[string]int64{"identity": who})
+		lineID, seq, err := sayLine(ctx, d, now, c.p.Identity(), convID, line)
 		if err != nil {
 			return err
 		}
@@ -320,8 +321,7 @@ func (s *Server) endSeat(w http.ResponseWriter, r *http.Request, c *call, convID
 // addMentioned brings in the agents a person's message @mentions, at once (I-18): each sees the message itself and
 // what follows, and its inbox gets a mention. It runs inside the post's transaction, after the message is stored.
 // An agent that cannot be added (unknown, disabled, a full conversation) is skipped; the message is still sent.
-func addMentioned(ctx context.Context, d pdb.DBTX, now time.Time, conv, author, messageID int64, body string) error {
-	handles := conversation.Mentioned(body)
+func addMentioned(ctx context.Context, d pdb.DBTX, now time.Time, conv, author, messageID int64, handles []string) error {
 	if len(handles) == 0 {
 		return nil
 	}

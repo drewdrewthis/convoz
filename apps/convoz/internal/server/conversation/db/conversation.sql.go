@@ -24,29 +24,6 @@ func (q *Queries) AddOpenAsks(ctx context.Context, arg AddOpenAsksParams) error 
 	return err
 }
 
-const bumpAgentStreak = `-- name: BumpAgentStreak :one
-UPDATE conversations SET agent_streak = min(agent_streak + 1, 20),
-  paused_at = CASE WHEN agent_streak + 1 >= 20 AND paused_at IS NULL THEN ?1 ELSE paused_at END
-WHERE id = ?2 RETURNING agent_streak, paused_at
-`
-
-type BumpAgentStreakParams struct {
-	At sql.NullInt64
-	ID int64
-}
-
-type BumpAgentStreakRow struct {
-	AgentStreak int64
-	PausedAt    sql.NullInt64
-}
-
-func (q *Queries) BumpAgentStreak(ctx context.Context, arg BumpAgentStreakParams) (BumpAgentStreakRow, error) {
-	row := q.db.QueryRowContext(ctx, bumpAgentStreak, arg.At, arg.ID)
-	var i BumpAgentStreakRow
-	err := row.Scan(&i.AgentStreak, &i.PausedAt)
-	return i, err
-}
-
 const countAgentConversationsSince = `-- name: CountAgentConversationsSince :one
 SELECT COUNT(*) FROM conversations WHERE created_by = ?1 AND created_at >= ?2
 `
@@ -810,15 +787,6 @@ func (q *Queries) RenewAssignment(ctx context.Context, arg RenewAssignmentParams
 		return 0, err
 	}
 	return result.RowsAffected()
-}
-
-const resetAgentStreak = `-- name: ResetAgentStreak :exec
-UPDATE conversations SET agent_streak = 0, paused_at = NULL WHERE id = ?1 AND (agent_streak <> 0 OR paused_at IS NOT NULL)
-`
-
-func (q *Queries) ResetAgentStreak(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, resetAgentStreak, id)
-	return err
 }
 
 const restore = `-- name: Restore :execrows

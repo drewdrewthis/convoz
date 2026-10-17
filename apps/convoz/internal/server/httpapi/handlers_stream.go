@@ -272,6 +272,9 @@ func withPrev(object []byte, prev int64) []byte {
 
 // frameFor hydrates one event for the caller; data is nil for an event the stream does not carry or the caller may not see.
 func (s *Server) frameFor(ctx context.Context, c *call, dir directory, ev event.Event) (name string, data []byte, err error) {
+	if hydrate, ok := frameHydrators[ev.Type]; ok { // the module that owns the event type hydrates it (hydrate_*.go)
+		return hydrate(ctx, s, c, dir, ev)
+	}
 	d := s.reader()
 	switch ev.Type {
 	case event.MessageCreated:

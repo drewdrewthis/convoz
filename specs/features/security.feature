@@ -86,7 +86,7 @@ Feature: Security walls
     And machine "box-2" is logged in with allow-list "devtool"
     And machine "laptop-1" is logged in with allow-list "devtool"
 
-    @v1 @browser @I-45 @AC-25 @unimplemented
+    @v1 @browser @I-45 @AC-25
     Scenario Outline: Dangerous link schemes render as text
       When "devtool" posts a link to <target>
       Then the owner sees it as plain text, not a link
@@ -98,7 +98,7 @@ Feature: Security walls
         | "java\tscript:alert(1)"         |
         | "data:text/html,<b>x</b>"       |
 
-    @v1 @browser @I-45 @unimplemented
+    @v1 @browser @I-45
     Scenario: An external link shows its real host
       When "devtool" posts "[docs](https://evil.example/login)"
       Then the owner sees the host "evil.example" next to "docs"

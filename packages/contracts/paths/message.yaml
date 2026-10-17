@@ -36,11 +36,69 @@
             properties:
               client_id: { $ref: "../openapi.yaml#/components/schemas/ClientId" }
               body: { type: string }
-              format: { type: string, enum: [plain, markdown] }
+              format: { type: string, enum: [plain, markdown, markdownv2] }
+              thread_root_id: { type: integer, format: int64 }
+              broadcast: { type: boolean }
+              upload_ids: { type: array, items: { type: string } }
+              app: { type: object, description: Agents only; at most 65536 bytes. }
     responses:
       "200": { $ref: "../openapi.yaml#/components/responses/Posted" }
       "201": { $ref: "../openapi.yaml#/components/responses/Posted" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
-/api/messages/{id}: {}  # not specified yet
-/api/messages/{id}/purge: {}  # not specified yet
+/api/messages/{id}:
+  patch:
+    operationId: editMessage
+    summary: Edit a text message. The author only; an agent within 24 hours and 30 edits an hour.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "../openapi.yaml#/components/schemas/EditRequest" }
+    responses:
+      "200":
+        description: The edited message.
+        content:
+          application/json:
+            schema: { type: object, required: [message], properties: { message: { $ref: "../openapi.yaml#/components/schemas/Message" } } }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+  delete:
+    operationId: deleteMessage
+    summary: Delete a message (a tombstone stays). The author, or the owner for any message.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    responses:
+      "200":
+        description: The tombstone.
+        content:
+          application/json:
+            schema: { type: object, required: [message], properties: { message: { $ref: "../openapi.yaml#/components/schemas/Message" } } }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/messages/{id}/edits:
+  get:
+    operationId: listMessageEdits
+    summary: The earlier texts of an edited message, oldest first.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    responses:
+      "200":
+        description: The history.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/EditHistory" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/messages/{id}/purge:
+  post:
+    operationId: purgeMessage
+    summary: Scrub every copy of a message's content. The owner, with a step-up for action message.purge.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    responses:
+      "200":
+        description: Purged.
+        content:
+          application/json:
+            schema: { type: object, required: [message], properties: { message: { $ref: "../openapi.yaml#/components/schemas/Message" } } }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/messages/{id}/replies: {}  # not specified yet

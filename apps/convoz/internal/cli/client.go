@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -90,7 +91,7 @@ func (c *client) call(ctx context.Context, method, path, token string, in, out a
 	if res.StatusCode < 200 || res.StatusCode > 299 {
 		var e wire.Error
 		if json.Unmarshal(raw, &e) == nil && e.Error.Code != "" {
-			return &statusError{status: res.StatusCode, code: e.Error.Code, msg: e.Error.Message}
+			return &statusError{status: res.StatusCode, code: e.Error.Code, msg: e.Error.Message, retryAfter: retryAfter(res)}
 		}
 		return &statusError{status: res.StatusCode, msg: fmt.Sprintf("the server answered %d", res.StatusCode)}
 	}
@@ -110,4 +111,13 @@ func statusCode(err error) (int, string) {
 		return se.status, se.code
 	}
 	return 0, ""
+}
+
+// retryAfter reads the Retry-After header as whole seconds; a missing or odd value is 0.
+func retryAfter(res *http.Response) time.Duration {
+	n, err := strconv.Atoi(res.Header.Get("Retry-After"))
+	if err != nil || n < 0 {
+		return 0
+	}
+	return time.Duration(n) * time.Second
 }

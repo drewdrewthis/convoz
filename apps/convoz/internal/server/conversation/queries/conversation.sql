@@ -60,14 +60,6 @@ ORDER BY id LIMIT sqlc.arg(max_rows);
 DELETE FROM conversations
 WHERE id = sqlc.arg(id) AND message_count = 0 AND title_source = 'auto' AND title IS NULL AND deleted_at IS NULL AND created_at < sqlc.arg(before);
 
--- name: BumpAgentStreak :one
-UPDATE conversations SET agent_streak = min(agent_streak + 1, 20),
-  paused_at = CASE WHEN agent_streak + 1 >= 20 AND paused_at IS NULL THEN sqlc.arg(at) ELSE paused_at END
-WHERE id = sqlc.arg(id) RETURNING agent_streak, paused_at;
-
--- name: ResetAgentStreak :exec
-UPDATE conversations SET agent_streak = 0, paused_at = NULL WHERE id = sqlc.arg(id) AND (agent_streak <> 0 OR paused_at IS NOT NULL);
-
 -- name: OpenPickup :exec
 UPDATE conversations SET pickup_opened_at = sqlc.arg(at), pickup_opened_by = sqlc.arg(by) WHERE id = sqlc.arg(id);
 

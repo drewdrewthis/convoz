@@ -1,0 +1,311 @@
+[
+ {
+  "name": "deleted",
+  "message": {
+   "deleted": true,
+   "format": "markdown",
+   "body": "secret"
+  },
+  "short": "Message deleted",
+  "long": "Message deleted"
+ },
+ {
+  "name": "system: added",
+  "message": {
+   "system": {
+    "t": "member.added",
+    "identity": {
+     "handle": "docs",
+     "name": "Docs"
+    },
+    "by": {
+     "handle": "drew",
+     "name": "Drew"
+    },
+    "history": "since_now"
+   }
+  },
+  "short": "Added @docs",
+  "long": "Added @docs"
+ },
+ {
+  "name": "system: added with full history",
+  "message": {
+   "system": {
+    "t": "member.added",
+    "identity": {
+     "handle": "docs",
+     "name": "Docs"
+    },
+    "by": {
+     "handle": "drew",
+     "name": "Drew"
+    },
+    "history": "full"
+   }
+  },
+  "short": "Added @docs · full history",
+  "long": "Added @docs · full history"
+ },
+ {
+  "name": "system: a display name that says more than the handle",
+  "message": {
+   "system": {
+    "t": "member.added",
+    "identity": {
+     "handle": "devtool",
+     "name": "Dev Tool"
+    },
+    "by": {
+     "handle": "drew",
+     "name": "Drew"
+    }
+   }
+  },
+  "short": "Added Dev Tool @devtool",
+  "long": "Added Dev Tool @devtool"
+ },
+ {
+  "name": "system: requested",
+  "message": {
+   "system": {
+    "t": "member.requested",
+    "identity": {
+     "handle": "docs",
+     "name": "Docs"
+    },
+    "by": {
+     "handle": "devtool",
+     "name": "Devtool"
+    }
+   }
+  },
+  "short": "@devtool wants to add @docs",
+  "long": "@devtool wants to add @docs"
+ },
+ {
+  "name": "system: paused",
+  "message": {
+   "system": {
+    "t": "conversation.paused",
+    "identity": {
+     "handle": "",
+     "name": ""
+    },
+    "by": {
+     "handle": "",
+     "name": ""
+    },
+    "streak": 20
+   }
+  },
+  "short": "Paused after 20 agent messages in a row. Resume to let agents post.",
+  "long": "Paused after 20 agent messages in a row. Resume to let agents post."
+ },
+ {
+  "name": "system: resumed",
+  "message": {
+   "system": {
+    "t": "conversation.resumed",
+    "identity": {
+     "handle": "",
+     "name": ""
+    },
+    "by": {
+     "handle": "drew",
+     "name": "Drew"
+    }
+   }
+  },
+  "short": "@drew resumed the conversation",
+  "long": "@drew resumed the conversation"
+ },
+ {
+  "name": "system: released",
+  "message": {
+   "system": {
+    "t": "pickup.released",
+    "identity": {
+     "handle": "devtool",
+     "name": "Devtool"
+    },
+    "by": {
+     "handle": "",
+     "name": ""
+    },
+    "reason": "key_revoked"
+   }
+  },
+  "short": "@devtool released this conversation (key revoked)",
+  "long": "@devtool released this conversation (key revoked)"
+ },
+ {
+  "name": "ask",
+  "message": {
+   "ask": {
+    "question": "Which runner?",
+    "options": [
+     {
+      "label": "Built-in",
+      "why": "Zero config"
+     },
+     {
+      "label": "vitest",
+      "why": "Faster"
+     }
+    ]
+   }
+  },
+  "short": "Ask: Which runner?",
+  "long": "Ask: Which runner?\n* Built-in (recommended) — Zero config\n- vitest — Faster"
+ },
+ {
+  "name": "answer: a choice",
+  "message": {
+   "answer": {
+    "custom": false,
+    "text": "vitest"
+   }
+  },
+  "short": "Answered: vitest",
+  "long": "Answered: vitest"
+ },
+ {
+  "name": "answer: the person's own words",
+  "message": {
+   "answer": {
+    "custom": true,
+    "text": "use jest"
+   }
+  },
+  "short": "Replied: use jest",
+  "long": "Replied: use jest"
+ },
+ {
+  "name": "via_app",
+  "message": {
+   "format": "plain",
+   "body": "Picked vitest",
+   "via_app": {
+    "handle": "devtool",
+    "name": "Devtool"
+   }
+  },
+  "short": "Picked vitest (via app by @devtool)",
+  "long": "Picked vitest (via app by @devtool)"
+ },
+ {
+  "name": "app",
+  "message": {
+   "format": "markdown",
+   "body": "Post-deploy report",
+   "app": {
+    "title": "Deploy report",
+    "fallback": "box-3 deploy ok"
+   }
+  },
+  "short": "App: Deploy report — box-3 deploy ok",
+  "long": "Post-deploy report\n[App: Deploy report] box-3 deploy ok"
+ },
+ {
+  "name": "voice with its transcript",
+  "message": {
+   "uploads": [
+    {
+     "kind": "audio",
+     "name": "note.m4a",
+     "size": 1000,
+     "duration_ms": 14000
+    }
+   ],
+   "transcript": "Start with the ask guard"
+  },
+  "short": "Voice note · 0:14",
+  "long": "Voice note 0:14: Start with the ask guard"
+ },
+ {
+  "name": "voice with the transcript pending",
+  "message": {
+   "uploads": [
+    {
+     "kind": "audio",
+     "name": "note.m4a",
+     "size": 1000,
+     "duration_ms": 75000
+    }
+   ]
+  },
+  "short": "Voice note · 1:15",
+  "long": "Voice note 1:15"
+ },
+ {
+  "name": "image with a caption",
+  "message": {
+   "format": "markdown",
+   "body": "Error rate during the deploy window.",
+   "uploads": [
+    {
+     "kind": "image",
+     "name": "error-rate.png",
+     "size": 88000,
+     "duration_ms": 0
+    }
+   ]
+  },
+  "short": "Image · error-rate.png",
+  "long": "Error rate during the deploy window. [Image: error-rate.png]"
+ },
+ {
+  "name": "three images",
+  "message": {
+   "uploads": [
+    {
+     "kind": "image",
+     "name": "a.png",
+     "size": 1,
+     "duration_ms": 0
+    },
+    {
+     "kind": "image",
+     "name": "b.png",
+     "size": 1,
+     "duration_ms": 0
+    },
+    {
+     "kind": "image",
+     "name": "c.png",
+     "size": 1,
+     "duration_ms": 0
+    }
+   ]
+  },
+  "short": "3 images",
+  "long": "[3 images]"
+ },
+ {
+  "name": "file",
+  "message": {
+   "format": "markdown",
+   "body": "",
+   "uploads": [
+    {
+     "kind": "file",
+     "name": "deploy-5-29.log",
+     "size": 49152,
+     "duration_ms": 0
+    }
+   ]
+  },
+  "short": "File · deploy-5-29.log",
+  "long": "[File: deploy-5-29.log, 48 KB]"
+ },
+ {
+  "name": "text",
+  "message": {
+   "format": "markdown",
+   "body": "Plain **words**"
+  },
+  "short": "Plain words",
+  "long": "Plain words"
+ }
+]

@@ -20,6 +20,13 @@
     "conversation_id": {
       "type": "integer",
       "minimum": 1
+    },
+    "thread_root_id": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "broadcast": {
+      "type": "boolean"
     }
   },
   "additionalProperties": false

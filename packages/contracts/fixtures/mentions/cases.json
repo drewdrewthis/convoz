@@ -1,0 +1,190 @@
+[
+ {
+  "name": "a mention",
+  "format": "markdown",
+  "body": "@docs can you review?",
+  "mentions": [
+   "docs"
+  ]
+ },
+ {
+  "name": "inline code",
+  "format": "markdown",
+  "body": "`@docs` is a handle",
+  "mentions": []
+ },
+ {
+  "name": "a fenced block",
+  "format": "markdown",
+  "body": "```\n@docs\n```",
+  "mentions": []
+ },
+ {
+  "name": "an unclosed fence runs to the end",
+  "format": "markdown",
+  "body": "```\n@docs",
+  "mentions": []
+ },
+ {
+  "name": "a quote",
+  "format": "markdown",
+  "body": "> @docs said this before",
+  "mentions": []
+ },
+ {
+  "name": "a quote does not hide the next paragraph",
+  "format": "markdown",
+  "body": "> quoted\n\n@docs now",
+  "mentions": [
+   "docs"
+  ]
+ },
+ {
+  "name": "an e-mail address",
+  "format": "markdown",
+  "body": "mail me a@docs.com",
+  "mentions": []
+ },
+ {
+  "name": "inside a URL",
+  "format": "markdown",
+  "body": "see https://x.test/@docs",
+  "mentions": []
+ },
+ {
+  "name": "a link label and its URL",
+  "format": "markdown",
+  "body": "[@docs](https://x.test/@devtool)",
+  "mentions": []
+ },
+ {
+  "name": "an image",
+  "format": "markdown",
+  "body": "![@docs](https://x.test/p.png)",
+  "mentions": []
+ },
+ {
+  "name": "bold keeps its mention",
+  "format": "markdown",
+  "body": "**@docs**",
+  "mentions": [
+   "docs"
+  ]
+ },
+ {
+  "name": "bullets",
+  "format": "markdown",
+  "body": "- @docs and @devtool\n- @drew",
+  "mentions": [
+   "docs",
+   "devtool",
+   "drew"
+  ]
+ },
+ {
+  "name": "the same handle twice",
+  "format": "markdown",
+  "body": "@docs @docs",
+  "mentions": [
+   "docs"
+  ]
+ },
+ {
+  "name": "punctuation after",
+  "format": "markdown",
+  "body": "@docs, ok (@devtool). .@drew",
+  "mentions": [
+   "docs",
+   "devtool",
+   "drew"
+  ]
+ },
+ {
+  "name": "a word character after",
+  "format": "markdown",
+  "body": "@docs_x @docsX",
+  "mentions": []
+ },
+ {
+  "name": "one letter is not a handle",
+  "format": "markdown",
+  "body": "@d",
+  "mentions": []
+ },
+ {
+  "name": "a handle with a dash",
+  "format": "markdown",
+  "body": "@ops-bot",
+  "mentions": [
+   "ops-bot"
+  ]
+ },
+ {
+  "name": "capitals are not handles",
+  "format": "markdown",
+  "body": "@Docs",
+  "mentions": []
+ },
+ {
+  "name": "two at signs",
+  "format": "markdown",
+  "body": "@@docs",
+  "mentions": [
+   "docs"
+  ]
+ },
+ {
+  "name": "a mention on a later line",
+  "format": "markdown",
+  "body": "line one\n@docs",
+  "mentions": [
+   "docs"
+  ]
+ },
+ {
+  "name": "an unclosed code span",
+  "format": "markdown",
+  "body": "`@docs",
+  "mentions": [
+   "docs"
+  ]
+ },
+ {
+  "name": "markdownv2: styled and escaped",
+  "format": "markdownv2",
+  "body": "*@docs* and `@devtool` and \\@drew",
+  "mentions": [
+   "docs",
+   "drew"
+  ]
+ },
+ {
+  "name": "markdownv2: a quote",
+  "format": "markdownv2",
+  "body": ">@docs",
+  "mentions": []
+ },
+ {
+  "name": "markdownv2: a link and code with extra backticks",
+  "format": "markdownv2",
+  "body": "[@docs](https://x.test) ```@devtool```",
+  "mentions": []
+ },
+ {
+  "name": "markdownv2: a fenced block",
+  "format": "markdownv2",
+  "body": "```\n@docs\n```\n@devtool",
+  "mentions": [
+   "devtool"
+  ]
+ },
+ {
+  "name": "plain: nothing is code or a quote",
+  "format": "plain",
+  "body": "> @docs `@devtool`",
+  "mentions": [
+   "docs",
+   "devtool"
+  ]
+ }
+]

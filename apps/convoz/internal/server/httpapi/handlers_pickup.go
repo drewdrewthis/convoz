@@ -10,6 +10,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/event"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/inbox"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/readstate"
 )
@@ -79,7 +80,7 @@ func (s *Server) pickupConversation(w http.ResponseWriter, r *http.Request, c *c
 			failed = err
 			return nil
 		}
-		line, seq, err := sayLine(ctx, d, now, who, convID, at(dirHandle(ctx, d, who))+" picked up this conversation", "pickup.taken", map[string]int64{"identity": who})
+		line, seq, err := sayLine(ctx, d, now, who, convID, message.SystemLine{T: "pickup.taken", Identity: who})
 		if err != nil {
 			return err
 		}
@@ -118,27 +119,4 @@ func releaseEnded(ctx context.Context, d pdb.DBTX, now time.Time, ended []int64)
 		return nil, err
 	}
 	return inbox.ReleaseSessions(ctx, d, now, ended)
-}
-
-// resumeConversation is POST /api/conversations/:id/resume: the owner lets paused agents post again (I-16).
-func (s *Server) resumeConversation(w http.ResponseWriter, r *http.Request, c *call) {
-	convID, ok := pathID(w, r)
-	if !ok {
-		return
-	}
-	now := s.Clock.Now()
-	var found bool
-	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) (err error) {
-		d := tx.DBTX()
-		if _, found, err = conversation.Get(ctx, d, convID); err != nil || !found {
-			return err
-		}
-		resumed, err := conversation.HumanPosted(ctx, d, convID)
-		if err != nil || !resumed {
-			return err
-		}
-		_, _, err = sayLine(ctx, d, now, c.p.HumanID, convID, "Agents can post again.", "conversation.resumed", nil)
-		return err
-	})
-	s.answerChange(w, r, c, err, found)
 }

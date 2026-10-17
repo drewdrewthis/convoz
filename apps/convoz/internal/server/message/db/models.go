@@ -3,3 +3,32 @@
 //   sqlc v1.31.1
 
 package db
+
+import (
+	"database/sql"
+)
+
+type MessageRow struct {
+	ID              int64
+	ConversationID  int64
+	AuthorID        sql.NullInt64
+	Kind            string
+	Format          string
+	Body            string
+	ThreadRootID    sql.NullInt64
+	Broadcast       int64
+	InMain          sql.NullInt64
+	ReplyCount      int64
+	LastReplyID     sql.NullInt64
+	CreatedAt       int64
+	EditedAt        sql.NullInt64
+	DeletedAt       sql.NullInt64
+	PurgedAt        sql.NullInt64
+	SystemJson      sql.NullString
+	SessionID       sql.NullInt64
+	AnswersAskID    sql.NullInt64
+	ViaAppMessageID sql.NullInt64
+	HasApp          int64
+	OriginLabel     sql.NullString
+	OriginMachine   sql.NullString
+}

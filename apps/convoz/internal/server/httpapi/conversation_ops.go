@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
@@ -17,28 +16,22 @@ const (
 	eventConversationChanged = "conversation.changed.v1"
 )
 
-// sayLine writes a line the conversation says about itself, moves the conversation up the list and records the
-// thin event that makes the stream send it. kind and ids go to the line's system JSON. It returns the line's id and
-// the event's seq.
-func sayLine(ctx context.Context, d pdb.DBTX, now time.Time, actor, conv int64, words, kind string, ids map[string]int64) (lineID, seq int64, err error) {
-	raw, err := json.Marshal(struct {
-		Type string           `json:"type"`
-		IDs  map[string]int64 `json:"ids,omitempty"`
-	}{kind, ids})
+// sayLine writes a system line the conversation says about itself (ids only, system.v1), moves the conversation up the
+// list and records the thin event that makes the stream send it. It returns the line's id and the event's seq.
+func sayLine(ctx context.Context, d pdb.DBTX, now time.Time, actor, conv int64, line message.SystemLine) (lineID, seq int64, err error) {
+	// No Events port: this function writes the event itself, with the actor and the seq the caller needs.
+	m, err := message.WriteSystem(ctx, d, message.Ports{}, now, conv, line)
 	if err != nil {
-		return 0, 0, err
-	}
-	if lineID, err = message.AddSystemLine(ctx, d, now, conv, words, string(raw)); err != nil {
 		return 0, 0, err
 	}
 	if err = conversation.Touch(ctx, d, now, conv); err != nil {
 		return 0, 0, err
 	}
 	seq, err = event.Write(ctx, d, now, event.Entry{
-		Type: event.MessageCreated, Actor: actor, Conversation: conv, Message: lineID,
-		Payload: map[string]any{"id": lineID, "kind": "system", "conversation_id": conv},
+		Type: event.MessageCreated, Actor: actor, Conversation: conv, Message: m.ID,
+		Payload: map[string]any{"id": m.ID, "kind": "system", "conversation_id": conv},
 	})
-	return lineID, seq, err
+	return m.ID, seq, err
 }
 
 // journalChange records that someone's standing in a conversation changed.

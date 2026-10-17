@@ -123,7 +123,8 @@ func convArg(io IO, s string) (int64, bool) {
 // ---- post ---------------------------------------------------------------------------------------------
 
 // Post runs `convoz post [--format F] [--client-id C] <conv> <text|->`. It prints the message id. A lost answer is
-// retried with the same client id, up to 3 tries within --timeout, so the server stores the message once.
+// retried with the same client id, up to 3 tries of --timeout each, so the server stores the message once. When Convoz says
+// to slow down (429 with Retry-After) it waits that long and sends again, for at most maxSlowDown in all.
 func Post(args []string, io IO) int {
 	f := newChatFlags("post", io)
 	format := f.fs.String("format", "", "markdown, markdownv2 or plain")
@@ -157,16 +158,23 @@ func Post(args []string, io IO) int {
 	if k == nil {
 		return code
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), k.timeout)
-	defer cancel()
 	var out wire.PostResponse
 	req := wire.PostRequest{ClientID: *clientID, Body: text, Format: *format}
 	var err error
-	for try := 1; try <= 3; try++ {
-		if err = k.call(ctx, "POST", convPath(conv, "messages"), req, &out); !errors.Is(err, errUnreachable) || ctx.Err() != nil {
+	slowUntil := time.Now().Add(maxSlowDown) // the one budget for all the waiting that Convoz asks for
+	for try := 1; ; {
+		ctx, cancel := context.WithTimeout(context.Background(), k.timeout)
+		err = k.call(ctx, "POST", convPath(conv, "messages"), req, &out)
+		cancel()
+		if wait := slowDown(err); wait > 0 && time.Now().Add(wait).Before(slowUntil) {
+			time.Sleep(wait) // Convoz asked the agent to slow down: wait as told, then send the same message again
+			continue
+		}
+		if !errors.Is(err, errUnreachable) || try >= 3 {
 			break
 		}
 		time.Sleep(time.Duration(try) * 300 * time.Millisecond)
+		try++
 	}
 	if err != nil {
 		return k.fail(err)
@@ -177,6 +185,18 @@ func Post(args []string, io IO) int {
 		fmt.Fprintln(k.io.Stdout, out.ID)
 	}
 	return ExitOK
+}
+
+// maxSlowDown is the longest `convoz post` waits in all for a busy server before it gives up.
+const maxSlowDown = 90 * time.Second
+
+// slowDown is how long Convoz asked the caller to wait (a 429 with Retry-After), or 0 for any other outcome.
+func slowDown(err error) time.Duration {
+	var se *statusError
+	if errors.As(err, &se) && se.status == 429 {
+		return se.retryAfter
+	}
+	return 0
 }
 
 func convPath(conv int64, tail string) string {
@@ -244,9 +264,17 @@ func Read(args []string, io IO) int {
 		return ExitOK
 	}
 	for _, m := range page.Messages {
-		fmt.Fprintf(k.io.Stdout, "#%d %s %s\n", m.ID, authorOf(m), time.UnixMilli(m.CreatedAt).UTC().Format(time.RFC3339))
-		for _, line := range strings.Split(m.Body, "\n") {
-			fmt.Fprintf(k.io.Stdout, "  %s\n", plain(line))
+		when := time.UnixMilli(m.CreatedAt).UTC().Format(time.RFC3339)
+		switch {
+		case m.Deleted:
+			fmt.Fprintf(k.io.Stdout, "#%d [deleted] %s\n", m.ID, when)
+		case m.Kind == "system":
+			fmt.Fprintf(k.io.Stdout, "#%d [system] %s\n  %s\n", m.ID, when, plain(m.Text))
+		default:
+			fmt.Fprintf(k.io.Stdout, "#%d %s %s\n", m.ID, authorOf(m), when)
+			for _, line := range strings.Split(m.Body, "\n") {
+				fmt.Fprintf(k.io.Stdout, "  %s\n", plain(line))
+			}
 		}
 	}
 	return ExitOK

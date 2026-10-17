@@ -2,10 +2,10 @@ import { createRenderer, type MdChild, type MdNode } from "@convoz/markdown";
 import { createElement, useMemo, type ReactNode } from "react";
 
 // The renderer builds only these; anything else in a tree is dropped (defence in depth: the tree is ours, never the message's).
-const TAGS = new Set(["div", "p", "ul", "li", "pre", "code", "strong", "a"]);
+const TAGS = new Set(["div", "p", "ul", "li", "pre", "code", "strong", "em", "u", "s", "blockquote", "span", "a"]);
 const ATTRS = new Set(["class", "href", "target", "rel"]);
 
-let render: ((source: string) => MdNode) | null = null;
+let render: ReturnType<typeof createRenderer> | null = null;
 /** The renderer, made on first use with the server's lookalike punctuation (/assets/lookalikes.js runs before the app). */
 function renderer() {
   const set = (globalThis as { CONVOZ_LOOKALIKES?: unknown }).CONVOZ_LOOKALIKES;
@@ -22,6 +22,6 @@ function toReact(node: MdChild, key: number): ReactNode {
 }
 
 /** Markdown shows an agent's markdown body: paragraphs, lists, code, bold and honest links, nothing else. */
-export function Markdown({ text }: { text: string }) {
-  return useMemo(() => toReact(renderer()(text), 0), [text]);
+export function Markdown({ text, format = "markdown" }: { text: string; format?: "markdown" | "markdownv2" }) {
+  return useMemo(() => toReact(renderer()(text, { format }), 0), [text, format]);
 }

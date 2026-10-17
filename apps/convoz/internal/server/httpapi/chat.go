@@ -51,11 +51,13 @@ func (dir directory) person(id int64) wire.Person {
 var systemAuthor = wire.Person{Kind: "system"}
 
 func (dir directory) message(m message.Message) wire.Message {
-	author := dir.person(m.AuthorID)
 	if m.Kind == "system" {
-		author = systemAuthor
+		// A system line holds ids only; its words are built now from the current names, so every reader (page, inbox, stream)
+		// gets the same text.
+		sys, words := systemView(dir, m)
+		return wire.Message{ID: m.ID, Author: systemAuthor, Body: words, Format: "plain", CreatedAt: m.CreatedAt, System: sys, Text: words}
 	}
-	return wire.Message{ID: m.ID, Author: author, Body: m.Body, Format: m.Format, CreatedAt: m.CreatedAt}
+	return wire.Message{ID: m.ID, Author: dir.person(m.AuthorID), Body: m.Body, Format: m.Format, CreatedAt: m.CreatedAt}
 }
 
 // conversationView builds the list row of one conversation for the caller p, who may see messages above floor.
@@ -80,7 +82,7 @@ func conversationView(ctx context.Context, d pdb.DBTX, p authz.Principal, dir di
 			return wire.Conversation{}, err
 		}
 		if ok {
-			out.Last = &wire.LastMessage{ID: m.ID, AuthorHandle: dir[m.AuthorID].Handle, Preview: message.Preview(m.Body)}
+			out.Last = &wire.LastMessage{ID: m.ID, AuthorHandle: dir[m.AuthorID].Handle, Preview: message.Preview(dir.message(m).Body)}
 		}
 	}
 	out.Unread, err = unreadOf(ctx, d, p.Identity(), cv, floor)

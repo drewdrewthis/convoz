@@ -3,7 +3,6 @@ package conversation_test
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 	"time"
 
@@ -11,23 +10,6 @@ import (
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/dbtest"
 )
-
-func TestMentionedIgnoresCodeQuotesAndAddresses(t *testing.T) {
-	cases := map[string][]string{
-		"@devtool please look":             {"devtool"},
-		"hi @devtool and @docs, @devtool":  {"devtool", "docs"},
-		"mail me at a@devtool.com":         nil,
-		"`@devtool` in code":               nil,
-		"```\n@devtool\n```\nthen @docs":   {"docs"},
-		"> @devtool quoted\nand @docs":     {"docs"},
-		"a path /@devtool and @@devtool x": nil,
-	}
-	for body, want := range cases {
-		if got := conversation.Mentioned(body); !reflect.DeepEqual(got, want) {
-			t.Errorf("Mentioned(%q) = %v, want %v", body, got, want)
-		}
-	}
-}
 
 func TestPickupIsForOneAgentAndTheFenceCountsUpForEver(t *testing.T) {
 	s := seeded(t)

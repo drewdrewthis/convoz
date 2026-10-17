@@ -24,10 +24,23 @@ export type SyncEvent = S["SyncEvent"];
 export type SyncAnswer = S["SyncAnswer"];
 export type SyncDelta = S["SyncDelta"];
 export type SyncSnapshot = S["SyncSnapshot"];
+export type EditHistory = S["EditHistory"];
+/** A message frame after the message changed: the message as it is now, with the conversation it is in. */
+export type MessageChangedFrame = Message & { conversation_id: number; author_handle: string };
+export interface ThreadUpdatedFrame {
+  conversation_id: number;
+  root_id: number;
+  reply_count: number;
+  last_reply_id: number;
+}
 
 /** The named frames of GET /api/stream and their payloads. */
 export interface StreamFrames {
   "message.created": MessageCreatedFrame;
+  "message.edited": MessageChangedFrame;
+  "message.deleted": MessageChangedFrame;
+  "message.purged": MessageChangedFrame;
+  "thread.updated": ThreadUpdatedFrame;
   "read.moved": ReadMovedFrame;
   "conversation.created": Conversation;
   "agent.working": AgentWorkingFrame;
@@ -37,4 +50,13 @@ export type FrameName = keyof StreamFrames;
 export type Frame<N extends FrameName = FrameName> = { [K in N]: { name: K; data: StreamFrames[K] } }[N];
 
 /** Every frame name the stream sends, for the sync engine to listen to. */
-export const FRAME_NAMES = ["message.created", "read.moved", "conversation.created", "agent.working"] as const satisfies readonly FrameName[];
+export const FRAME_NAMES = [
+  "message.created",
+  "message.edited",
+  "message.deleted",
+  "message.purged",
+  "thread.updated",
+  "read.moved",
+  "conversation.created",
+  "agent.working",
+] as const satisfies readonly FrameName[];

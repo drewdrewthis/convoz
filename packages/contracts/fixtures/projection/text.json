@@ -1,0 +1,166 @@
+[
+ {
+  "name": "markdown: bold, code and a link",
+  "message": {
+   "format": "markdown",
+   "body": "**Build** is `green`, see [PR](https://github.com/acme/app/pull/415)"
+  },
+  "short": "Build is green, see PR (github.com)",
+  "long": "Build is green, see PR (github.com)"
+ },
+ {
+  "name": "markdown: heading, bullets, task list and a bare link",
+  "message": {
+   "format": "markdown",
+   "body": "# Status\n- [x] Server\n* [ ] Web\n\nSee https://example.com/a"
+  },
+  "short": "Status - [x] Server - [ ] Web See https://example.com/a",
+  "long": "Status\n- [x] Server\n- [ ] Web\n\nSee https://example.com/a"
+ },
+ {
+  "name": "markdown: a fenced block keeps its code, not its fences",
+  "message": {
+   "format": "markdown",
+   "body": "Run:\n```sh\nmake test\n```\nDone"
+  },
+  "short": "Run: make test Done",
+  "long": "Run:\nmake test\nDone"
+ },
+ {
+  "name": "markdown: an image, a spoiler and a mention",
+  "message": {
+   "format": "markdown",
+   "body": "![chart](https://x.test/c.png) ||secret|| ping @docs"
+  },
+  "short": "[image] [spoiler] ping @docs",
+  "long": "[image] [spoiler] ping @docs"
+ },
+ {
+  "name": "markdown: a quote loses its marker",
+  "message": {
+   "format": "markdown",
+   "body": "> earlier\nreply"
+  },
+  "short": "earlier reply",
+  "long": "earlier\nreply"
+ },
+ {
+  "name": "markdown: a link to a mail address or a script shows its text only",
+  "message": {
+   "format": "markdown",
+   "body": "[mail](mailto:a@b.test) and [x](javascript:run)"
+  },
+  "short": "mail and x",
+  "long": "mail and x"
+ },
+ {
+  "name": "markdown: strike and italic",
+  "message": {
+   "format": "markdown",
+   "body": "~~old~~ *new* 2 * 3 * 4"
+  },
+  "short": "old new 2 * 3 * 4",
+  "long": "old new 2 * 3 * 4"
+ },
+ {
+  "name": "markdownv2: bold and an escaped period",
+  "message": {
+   "format": "markdownv2",
+   "body": "Picked up *bug 8642*\\. Reproducing"
+  },
+  "short": "Picked up bug 8642. Reproducing",
+  "long": "Picked up bug 8642. Reproducing"
+ },
+ {
+  "name": "markdownv2: every style, code and a link",
+  "message": {
+   "format": "markdownv2",
+   "body": "__under__ _it_ ~gone~ ||spoil|| `code` [docs](https://docs.test/x)"
+  },
+  "short": "under it gone [spoiler] code docs (docs.test)",
+  "long": "under it gone [spoiler] code docs (docs.test)"
+ },
+ {
+  "name": "markdownv2: escapes and an opener without a closer stay as typed",
+  "message": {
+   "format": "markdownv2",
+   "body": "price: 5 \\* 3 and *unclosed"
+  },
+  "short": "price: 5 * 3 and *unclosed",
+  "long": "price: 5 * 3 and *unclosed"
+ },
+ {
+  "name": "markdownv2: a quote and a one-line pre",
+  "message": {
+   "format": "markdownv2",
+   "body": ">quoted\n```x = 1```"
+  },
+  "short": "quoted x = 1",
+  "long": "quoted\nx = 1"
+ },
+ {
+  "name": "plain: no parsing, newlines kept",
+  "message": {
+   "format": "plain",
+   "body": "**not bold**\nsecond line"
+  },
+  "short": "**not bold** second line",
+  "long": "**not bold**\nsecond line"
+ },
+ {
+  "name": "short is cut at 140 characters, long at 4000",
+  "message": {
+   "format": "plain",
+   "body": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  },
+  "short": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "long": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+ },
+ {
+  "name": "format characters are dropped",
+  "message": {
+   "format": "markdown",
+   "body": "a‮b​c"
+  },
+  "short": "abc",
+  "long": "abc"
+ },
+ {
+  "name": "a reply starts with an arrow in the short form",
+  "message": {
+   "format": "markdown",
+   "body": "ok",
+   "reply": true
+  },
+  "short": "↳ ok",
+  "long": "ok"
+ },
+ {
+  "name": "a broadcast reply reads like a reply",
+  "message": {
+   "format": "markdown",
+   "body": "ok too",
+   "reply": true
+  },
+  "short": "↳ ok too",
+  "long": "ok too"
+ },
+ {
+  "name": "an edited message reads as its new text",
+  "message": {
+   "format": "markdown",
+   "body": "Build is green, @docs please check"
+  },
+  "short": "Build is green, @docs please check",
+  "long": "Build is green, @docs please check"
+ },
+ {
+  "name": "a message with a link to unfurl reads with the link",
+  "message": {
+   "format": "markdown",
+   "body": "https://github.com/acme/app/pull/415"
+  },
+  "short": "https://github.com/acme/app/pull/415",
+  "long": "https://github.com/acme/app/pull/415"
+ }
+]

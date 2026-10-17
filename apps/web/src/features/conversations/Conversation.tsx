@@ -214,6 +214,7 @@ export function Conversation() {
             me={me}
             opened={opened}
             hint={isNew && !agent && !gone}
+            conversation={convId}
             working={working ? `@${working.handle} is working…` : null}
             control={control}
             onEarlier={() => actions().loadEarlier(key)}

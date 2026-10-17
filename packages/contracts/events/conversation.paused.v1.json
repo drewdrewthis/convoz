@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://convoz.dev/events/conversation.paused.v1.json",
+  "title": "conversation.paused.v1",
+  "description": "The loop breaker paused the conversation after 20 agent messages in a row (I-16).",
+  "type": "object",
+  "required": [
+    "streak"
+  ],
+  "properties": {
+    "streak": {
+      "const": 20
+    }
+  },
+  "additionalProperties": false
+}
