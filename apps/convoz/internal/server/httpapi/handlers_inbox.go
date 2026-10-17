@@ -298,7 +298,7 @@ func (s *Server) deliver(ctx context.Context, d pdb.DBTX, now time.Time, p authz
 			}
 			continue
 		}
-		wi := wire.InboxItem{ID: it.ID, State: it.State, Reason: it.Reason, Count: it.Count, MentionCount: it.MentionCount, Conversation: wire.InboxConversation{ID: cv.ID}, Message: dir.message(m)}
+		wi := wire.InboxItem{ID: it.ID, State: it.State, Reason: it.Reason, Count: it.Count, MentionCount: it.MentionCount, Deliveries: it.Deliveries, Conversation: wire.InboxConversation{ID: cv.ID}, Message: dir.message(m)}
 		if cv.Title != "" {
 			title := cv.Title
 			wi.Conversation.Title = &title

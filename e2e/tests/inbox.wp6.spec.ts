@@ -130,7 +130,7 @@ scenario("An ack with an old claim token is refused", { tag: ["@cli"] }, async (
   const ack = await convoz(w.box, s1.sid, ["ack", `${old!.id}:${old!.claim_token}`]);
 
   // Then the CLI exits 4 with the code "claim_lost"
-  expect({ code: ack.code, says: ack.stdout.includes("claim_lost") }).toEqual({ code: 4, says: true });
+  expect({ code: ack.code, stdout: ack.stdout.includes("claim_lost"), stderr: ack.stderr.includes("claim_lost") }).toEqual({ code: 4, stdout: true, stderr: true });
 
   // And the item is still held by "s2"
   const [held] = await inboxItems(w.box, s2.sid, ["--peek"]);
@@ -149,19 +149,20 @@ scenario("A lost long-poll response loses nothing", { tag: ["@cli"] }, async ({ 
     const lost = await convoz(viaProxy, s1.sid, ["inbox", "--json", "--claim", "1"]);
     expect({ dropped: proxy.drops(), failed: lost.code !== 0 }).toEqual({ dropped: 1, failed: true });
     const db = plainDb(dataDir);
-    const row = () => db.prepare("SELECT id, lower(hex(claim_token)) AS token, deliveries FROM inbox_items").all() as { id: number; token: string; deliveries: number }[];
-    const before = row();
+    const stored = db.prepare("SELECT id, lower(hex(claim_token)) AS token FROM inbox_items").all() as { id: number; token: string }[];
+    db.close();
+    const peekBefore = asItems(await inboxItems(viaProxy, s1.sid, ["--peek"]));
 
     // When "s1" polls again
     const again = await inboxItems(viaProxy, s1.sid, ["--claim", "1"]);
 
     // Then "s1" gets the same item with the same claim token
-    expect(again.map((i) => [i.id, i.claim_token])).toEqual(before.map((r) => [r.id, r.token]));
+    expect(again.map((i) => [i.id, i.claim_token])).toEqual(stored.map((r) => [r.id, r.token]));
 
     // And "convoz inbox --peek" shows its delivery count unchanged
-    expect(row().map((r) => r.deliveries)).toEqual([1]);
-    expect(before.map((r) => r.deliveries)).toEqual([1]);
-    db.close();
+    const peekAfter = asItems(await inboxItems(viaProxy, s1.sid, ["--peek"]));
+    expect(peekBefore.map((i) => i.deliveries)).toEqual([1]);
+    expect(peekAfter.map((i) => i.deliveries)).toEqual([1]);
   } finally {
     await proxy.close();
   }

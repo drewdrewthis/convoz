@@ -1,2 +1,67 @@
 # Schemas of the inbox module. Only the work package that owns inbox edits this file; the root lists each by name.
-{}
+InboxItem:
+  type: object
+  required: [id, state, reason, count, mention_count, deliveries, conversation, message]
+  description: One inbox item with its newest message. claim_token is set only on an item the calling session holds.
+  properties:
+    id: { type: integer, format: int64 }
+    claim_token: { type: string, description: "32 hex characters; the fence an ack must carry." }
+    state: { type: string, enum: [ready, claimed] }
+    reason: { type: string, enum: [mention, thread, activity, ask_resolved, membership, app_result] }
+    count: { type: integer, format: int64, description: How many messages the item covers. }
+    mention_count: { type: integer, format: int64, description: How many of those messages mention the agent. }
+    deliveries: { type: integer, format: int64, description: "How many times a claim handed the item out; at 5 it leaves the queue." }
+    conversation:
+      type: object
+      required: [id, title]
+      properties:
+        id: { type: integer, format: int64 }
+        title: { type: [string, "null"] }
+    message: { $ref: "../openapi.yaml#/components/schemas/Message" }
+InboxResponse:
+  type: object
+  required: [items]
+  properties:
+    items: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/InboxItem" } }
+ClaimRequest:
+  type: object
+  additionalProperties: false
+  properties:
+    n: { type: integer, minimum: 1, maximum: 20, description: Default 20. }
+    visibility: { type: string, description: "A duration, 30s to 30m. Default 5m.", examples: ["5m"] }
+    conv: { type: integer, format: int64, description: Claim only the items of this conversation. }
+AckRequest:
+  type: object
+  additionalProperties: false
+  required: [items]
+  properties:
+    items:
+      type: array
+      minItems: 1
+      maxItems: 20
+      items:
+        type: object
+        additionalProperties: false
+        required: [id, claim_token]
+        properties:
+          id: { type: integer, format: int64 }
+          claim_token: { type: string, description: The token the claim returned. }
+AckResponse:
+  type: object
+  required: [results]
+  description: The result of every item. When any claim was lost the status is 409 and the body also holds `error` with code claim_lost.
+  properties:
+    results:
+      type: array
+      items:
+        type: object
+        required: [id, result]
+        properties:
+          id: { type: integer, format: int64 }
+          result: { type: string, enum: [ok, claim_lost] }
+    error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, enum: [claim_lost] }
+        message: { type: string }

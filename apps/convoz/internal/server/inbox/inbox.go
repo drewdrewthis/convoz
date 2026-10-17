@@ -29,6 +29,7 @@ type Item struct {
 	MessageID      int64 // the newest message of the item
 	Count          int64
 	MentionCount   int64 // how many of the item's messages mention the agent
+	Deliveries     int64 // how many times a claim handed the item out
 	Reason         string
 	State          string // "ready" or "claimed"; a claim that has run out reads as "ready"
 	ClaimToken     []byte // nil unless the item is claimed
@@ -79,7 +80,7 @@ func Claim(ctx context.Context, d pdb.DBTX, now time.Time, r Request) ([]Item, e
 		}
 		for _, h := range held {
 			out = append(out, Item{ID: h.ID, ConversationID: h.ConversationID.Int64, FirstMessageID: h.FirstMessageID.Int64, MessageID: h.MessageID.Int64,
-				Count: h.Count, MentionCount: h.MentionCount, Reason: h.Reason, State: h.State, ClaimToken: h.ClaimToken, ClaimSession: r.Session, ClaimUntil: h.ClaimUntil.Int64, Held: true})
+				Count: h.Count, MentionCount: h.MentionCount, Deliveries: h.Deliveries, Reason: h.Reason, State: h.State, ClaimToken: h.ClaimToken, ClaimSession: r.Session, ClaimUntil: h.ClaimUntil.Int64, Held: true})
 		}
 	}
 	if len(out) >= n {
@@ -103,7 +104,7 @@ func Claim(ctx context.Context, d pdb.DBTX, now time.Time, r Request) ([]Item, e
 	}
 	for _, c := range claimed {
 		out = append(out, Item{ID: c.ID, ConversationID: c.ConversationID.Int64, FirstMessageID: c.FirstMessageID.Int64, MessageID: c.MessageID.Int64,
-			Count: c.Count, MentionCount: c.MentionCount, Reason: c.Reason, State: c.State, ClaimToken: c.ClaimToken, ClaimSession: r.Session, ClaimUntil: c.ClaimUntil.Int64})
+			Count: c.Count, MentionCount: c.MentionCount, Deliveries: c.Deliveries, Reason: c.Reason, State: c.State, ClaimToken: c.ClaimToken, ClaimSession: r.Session, ClaimUntil: c.ClaimUntil.Int64})
 	}
 	return out, nil
 }
@@ -160,7 +161,7 @@ func Peek(ctx context.Context, d pdb.DBTX, now time.Time, identityID, sessionID 
 	}
 	out := make([]Item, 0, len(rows))
 	for _, r := range rows {
-		it := Item{ID: r.ID, ConversationID: r.ConversationID.Int64, FirstMessageID: r.FirstMessageID.Int64, MessageID: r.MessageID.Int64, Count: r.Count, MentionCount: r.MentionCount, Reason: r.Reason, State: "ready"}
+		it := Item{ID: r.ID, ConversationID: r.ConversationID.Int64, FirstMessageID: r.FirstMessageID.Int64, MessageID: r.MessageID.Int64, Count: r.Count, MentionCount: r.MentionCount, Deliveries: r.Deliveries, Reason: r.Reason, State: "ready"}
 		if r.State == "claimed" && r.ClaimUntil.Int64 >= now.UnixMilli() {
 			it.State, it.ClaimSession, it.ClaimUntil = "claimed", r.ClaimSessionID.Int64, r.ClaimUntil.Int64
 			if r.ClaimSessionID.Int64 == sessionID {

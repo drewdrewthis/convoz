@@ -392,6 +392,7 @@ func Ack(args []string, io IO) int {
 		}
 	}
 	if lost {
+		fmt.Fprintln(k.io.Stderr, "convoz: claim_lost: a claim ran out or belongs to another session")
 		return ExitConflict
 	}
 	return ExitOK

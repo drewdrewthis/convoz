@@ -136,6 +136,10 @@ components:
       type: apiKey
       in: cookie
       name: __Host-convoz_sid
+    leaseBearer:
+      type: http
+      scheme: bearer
+      description: "The lease of an agent session (Authorization: Bearer cvz_s_...)."
 
   parameters:
     Id:
@@ -268,6 +272,11 @@ components:
     Conversation: { $ref: "components/conversation.yaml#/Conversation" }
     Message: { $ref: "components/message.yaml#/Message" }
     Posted: { $ref: "components/message.yaml#/Posted" }
+    InboxItem: { $ref: "components/inbox.yaml#/InboxItem" }
+    InboxResponse: { $ref: "components/inbox.yaml#/InboxResponse" }
+    ClaimRequest: { $ref: "components/inbox.yaml#/ClaimRequest" }
+    AckRequest: { $ref: "components/inbox.yaml#/AckRequest" }
+    AckResponse: { $ref: "components/inbox.yaml#/AckResponse" }
     MessageCreatedFrame: { $ref: "components/event.yaml#/MessageCreatedFrame" }
     ReadMovedFrame: { $ref: "components/event.yaml#/ReadMovedFrame" }
     AgentWorkingFrame: { $ref: "components/event.yaml#/AgentWorkingFrame" }

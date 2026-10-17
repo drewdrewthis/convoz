@@ -13,7 +13,7 @@ import type { Owner } from "./owner.ts";
  *   GET  /api/inbox?conv=C                         claims only the items of conversation C
  *   POST /api/inbox/claim {n, visibility?, conv?}   -> 200 {items} with claim tokens
  *   POST /api/inbox/ack   {items:[{id, claim_token}]} -> 200 {results}; a lost claim -> 409 claim_lost (+ results); no token -> 400
- * An item carries `mention_count`: how many of its messages mention the agent.
+ * An item carries `mention_count` (how many of its messages mention the agent) and `deliveries` (how many times a claim handed it out).
  */
 
 export interface Item {
@@ -23,6 +23,7 @@ export interface Item {
   reason: string;
   count: number;
   mention_count?: number;
+  deliveries: number;
   conversation: { id: number; title: string | null };
   message: { id: number; body: string };
 }

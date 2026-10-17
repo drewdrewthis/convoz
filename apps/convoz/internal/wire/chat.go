@@ -87,6 +87,7 @@ type InboxItem struct {
 	Reason       string            `json:"reason"`
 	Count        int64             `json:"count"`
 	MentionCount int64             `json:"mention_count"` // how many of the item's messages mention the agent
+	Deliveries   int64             `json:"deliveries"`    // how many times a claim handed the item out; at 5 it leaves the queue (M2)
 	Conversation InboxConversation `json:"conversation"`
 	Message      Message           `json:"message"`
 }
