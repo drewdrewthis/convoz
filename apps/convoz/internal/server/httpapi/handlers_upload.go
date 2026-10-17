@@ -41,15 +41,6 @@ func (s *Server) uploadService(w http.ResponseWriter) *upload.Service {
 	return svc
 }
 
-// mayUpload is the upload scope of a lease.
-func mayUpload(w http.ResponseWriter, c *call) bool {
-	if c.p.SessionID != 0 && c.lease.Scopes&auth.ScopeUpload == 0 {
-		writeErr(w, http.StatusForbidden, "forbidden", "This machine may not upload.")
-		return false
-	}
-	return true
-}
-
 func stateOf(svc *upload.Service, r upload.Row) wire.UploadState {
 	st := wire.UploadState{ID: r.PublicID, State: r.State, Offset: svc.Offset(r), Kind: r.Kind, Name: r.Filename, Segment: upload.SegmentSize}
 	if !r.Deferred {
@@ -65,7 +56,7 @@ func stateOf(svc *upload.Service, r upload.Row) wire.UploadState {
 // the identity and of its machine, and 60 starts an hour, bound it.
 func (s *Server) createUpload(w http.ResponseWriter, r *http.Request, c *call) {
 	svc := s.uploadService(w)
-	if svc == nil || !mayUpload(w, c) {
+	if svc == nil {
 		return
 	}
 	var in wire.CreateUploadRequest
@@ -148,7 +139,7 @@ func (s *Server) ownUpload(w http.ResponseWriter, r *http.Request, c *call) (upl
 // headUpload is HEAD /api/uploads/:id: where to resume from. A client that lost its connection asks this before it sends again.
 func (s *Server) headUpload(w http.ResponseWriter, r *http.Request, c *call) {
 	svc := s.uploadService(w)
-	if svc == nil || !mayUpload(w, c) {
+	if svc == nil {
 		return
 	}
 	row, ok := s.ownUpload(w, r, c)
@@ -200,7 +191,7 @@ func chunkOf(r *http.Request) (upload.Chunk, bool) {
 // arrive (I-27). More bytes than the declared size end the upload with a 413 (I-31); a connection that drops keeps what came.
 func (s *Server) patchUpload(w http.ResponseWriter, r *http.Request, c *call) {
 	svc := s.uploadService(w)
-	if svc == nil || !mayUpload(w, c) {
+	if svc == nil {
 		return
 	}
 	row, ok := s.ownUpload(w, r, c)
@@ -290,10 +281,6 @@ func (s *Server) abortUpload(ctx context.Context, svc *upload.Service, row uploa
 func (s *Server) getFile(w http.ResponseWriter, r *http.Request, c *call) {
 	svc := s.uploadService(w)
 	if svc == nil {
-		return
-	}
-	if c.p.SessionID != 0 && c.lease.Scopes&auth.ScopeRead == 0 {
-		writeErr(w, http.StatusForbidden, "forbidden", "This machine may not read.")
 		return
 	}
 	ctx, d := r.Context(), s.reader()

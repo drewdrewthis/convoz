@@ -26,10 +26,11 @@ type Route struct {
 	StepUp  string // the action the request must carry a step-up for ("" for none)
 	Page    bool   // a browser page: a caller who is not signed in is redirected, not told 401
 
-	Lease       bool // a session lease also meets the route (the route lists L next to its Auth class)
-	RefuseLease bool // a lease is told 403, not 401: an agent credential can never do this
-	NoCSRF      bool // a write that carries no cookie and no Authorization (a CLI), so the browser Origin check does not apply
-	NoLimit     bool // exempt from the per-source public limit (its own protocol limits it)
+	Lease       bool   // a session lease also meets the route (the route lists L next to its Auth class)
+	Scope       string // the scope a lease needs for this route ("" for none); a lease without it is told 403 (I-6)
+	RefuseLease bool   // a lease is told 403, not 401: an agent credential can never do this
+	NoCSRF      bool   // a write that carries no cookie and no Authorization (a CLI), so the browser Origin check does not apply
+	NoLimit     bool   // exempt from the per-source public limit (its own protocol limits it)
 	handle      handler
 }
 

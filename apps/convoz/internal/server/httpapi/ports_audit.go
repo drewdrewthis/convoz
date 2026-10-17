@@ -16,7 +16,7 @@ type postAuditPort struct{ p authz.Principal }
 
 func (a postAuditPort) MessagePosted(ctx context.Context, d pdb.DBTX, now time.Time, session int64, m message.Message) error {
 	return audit.Write(ctx, d, now, audit.Entry{
-		Actor: m.AuthorID, Device: a.p.DeviceID, Machine: a.p.MachineID, Session: session,
+		Actor: m.AuthorID, Device: a.p.DeviceID, Machine: a.p.LeaseMachine, Session: session,
 		Action: "message.post", TargetKind: "message", TargetID: m.ID, Detail: map[string]any{"conversation_id": m.ConversationID},
 	})
 }

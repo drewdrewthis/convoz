@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/ask"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
@@ -198,10 +199,6 @@ func pinnedIn(ctx context.Context, d pdb.DBTX, who, conv, floor int64, dir direc
 
 // putStatus is PUT /api/status: the agent says what it is doing, for Crew.
 func (s *Server) putStatus(w http.ResponseWriter, r *http.Request, c *call) {
-	if c.lease.Scopes&auth.ScopeStatus == 0 {
-		writeErr(w, http.StatusForbidden, "forbidden", "This machine may not report a status.")
-		return
-	}
 	var in wire.StatusRequest
 	if !decode(w, r, &in) {
 		return
@@ -211,6 +208,10 @@ func (s *Server) putStatus(w http.ResponseWriter, r *http.Request, c *call) {
 		return
 	}
 	who, now := c.p.Identity(), s.Clock.Now()
+	if key := strconv.FormatInt(who, 10); !s.statusLimit.Allow(key, now) {
+		tooMany(w, s.statusLimit.RetryAfter(key, now), "Too many status updates. Slow down.")
+		return
+	}
 	var st identity.Status
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
 		var err error

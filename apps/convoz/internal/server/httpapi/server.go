@@ -61,6 +61,8 @@ type Server struct {
 	tokenMissLimit auth.Limiter
 	// postLimit is 1 message a second per agent identity with a burst of 20: at most 20 in any 20 seconds (design §13.1).
 	postLimit auth.Limiter
+	// statusLimit is 1 status update every 5 seconds per agent identity with a burst of 10: at most 10 in any 50 seconds (design §13.1).
+	statusLimit auth.Limiter
 	// dayIdentityLimit and dayMachineLimit are the daily message caps of an agent identity and of a machine (design §13.1).
 	dayIdentityLimit auth.Limiter
 	dayMachineLimit  auth.Limiter
@@ -98,6 +100,7 @@ func NewServer(store *db.Store, clock platform.Clock, wa *webauthn.WebAuthn, key
 		recoveryLimit:    auth.Limiter{Window: time.Hour, Max: 10},
 		tokenMissLimit:   auth.Limiter{Window: time.Minute, Max: 30},
 		postLimit:        auth.Limiter{Window: 20 * time.Second, Max: 20},
+		statusLimit:      auth.Limiter{Window: 50 * time.Second, Max: 10},
 		Bus:              platform.NewBus(),
 		heartbeat:        heartbeatEvery,
 		dayIdentityLimit: auth.Limiter{Window: 24 * time.Hour, Max: dayMessagesIdentity},

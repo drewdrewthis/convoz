@@ -75,7 +75,7 @@ func (s *Server) authenticateLease(w http.ResponseWriter, r *http.Request, token
 	if err := s.touchClaims(ctx, l, now); err != nil {
 		return nil, err
 	}
-	return &call{token: token, lease: l, p: authz.Principal{SessionID: l.SessionID, IdentityID: l.IdentityID}}, nil
+	return &call{token: token, lease: l, p: authz.Principal{SessionID: l.SessionID, IdentityID: l.IdentityID, LeaseMachine: l.MachineID}}, nil
 }
 
 // sessionEndedMessage says why a lease no longer works, in words for the person running the agent.

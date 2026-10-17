@@ -7,5 +7,6 @@ var opsRoutes = []Route{
 	{Method: "GET", Pattern: "/settings/export", Auth: authz.Human, Page: true, handle: appPage},
 	{Method: "GET", Pattern: "/settings/delete", Auth: authz.Human, Page: true, handle: appPage},
 	{Method: "POST", Pattern: "/api/me/export", Auth: authz.Human, StepUp: "data.export", RefuseLease: true, handle: (*Server).startExport},
+	{Method: "POST", Pattern: "/api/me/delete", Auth: authz.Human, StepUp: "data.delete", RefuseLease: true, handle: (*Server).deleteMyData},
 	{Method: "GET", Pattern: "/api/me/export/:id", Auth: authz.Human, RefuseLease: true, handle: (*Server).getExport},
 }

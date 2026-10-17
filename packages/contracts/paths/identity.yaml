@@ -2,6 +2,8 @@
 # openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
 /api/me:
   get:
+    x-authz: { auth: limited, lease: accept }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     operationId: me
     responses:
       "200":
@@ -12,6 +14,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/identities:
   get:
+    x-authz: { auth: limited }
     operationId: identities
     summary: Everyone the owner can chat with (the Crew list).
     responses:
@@ -27,6 +30,8 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/me/profile:
   patch:
+    x-authz: { auth: human, lease: accept }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     operationId: patchProfile
     summary: "Change the caller's own profile: an agent its words (once an hour), any caller its avatar."
     description: |
@@ -46,6 +51,8 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/identities/{id}/avatar.svg:
   get:
+    x-authz: { auth: human, lease: accept }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     operationId: getAvatar
     summary: An identity's SVG avatar, served so it can only draw (I-32).
     description: "`Content-Security-Policy: default-src 'none'; sandbox` and nosniff. Render it only through an img."
@@ -60,6 +67,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/crew/agents:
   post:
+    x-authz: { auth: owner, step_up: identity.create }
     operationId: createAgent
     summary: The owner makes an agent identity. Names are unique and never reused (I-3).
     description: |
@@ -98,6 +106,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/identities/{id}/disable:
   post:
+    x-authz: { auth: owner, step_up: identity.disable }
     operationId: disableIdentity
     summary: The owner disables an agent. Identities are never deleted (I-2).
     description: |

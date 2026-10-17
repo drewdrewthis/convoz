@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/event"
@@ -181,10 +180,6 @@ func (s *Server) createConversation(w http.ResponseWriter, r *http.Request, c *c
 	}
 	who, now := c.p.Identity(), s.Clock.Now()
 	isAgent := c.p.SessionID != 0
-	if isAgent && c.lease.Scopes&auth.ScopePost == 0 {
-		writeErr(w, http.StatusForbidden, "forbidden", "This machine may not post.")
-		return
-	}
 	idemKey := "conversation.create:" + in.ClientID
 	sig := createSignature(title, in.Participants)
 	var (

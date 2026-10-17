@@ -115,10 +115,16 @@ func registerTestHooks(mux *http.ServeMux, s *Server) {
 			Method  string `json:"method"`
 			Pattern string `json:"pattern"`
 			Auth    string `json:"auth"`
+			// The rest is what the security matrix (e2e security.wp18) compares with the OpenAPI contract.
+			Lease       bool   `json:"lease"`
+			RefuseLease bool   `json:"refuse_lease"`
+			Scope       string `json:"scope"`
+			StepUp      string `json:"step_up"`
+			Page        bool   `json:"page"`
 		}
 		rows := make([]row, 0, len(Routes))
 		for _, r := range Routes {
-			rows = append(rows, row{r.Method, r.Pattern, r.Auth.String()})
+			rows = append(rows, row{r.Method, r.Pattern, r.Auth.String(), r.Lease, r.RefuseLease, r.Scope, r.StepUp, r.Page})
 		}
 		reply(w, nil, map[string]any{"routes": rows})
 	})

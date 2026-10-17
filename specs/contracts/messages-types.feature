@@ -44,7 +44,7 @@ Feature: Messages and their types (contracts)
       Then each line is written in the same transaction as its action and matches system.v1
       And no stored system line contains either seeded string
 
-    @v1 @browser @AC-M14 @unimplemented
+    @v1 @browser @AC-M14
     Scenario: The draft-8 message rules still hold
       When the S2 and S6 scenarios for thread rules, unread math, the loop breaker, file serving and markdown links run
       Then every one passes unchanged
@@ -152,7 +152,7 @@ Feature: Messages and their types (contracts)
       Then the server answers 429
       And "docs" on "laptop-1" can still post
 
-    @v1 @api @unimplemented
+    @v1 @api
     Scenario: Status updates are rate limited
       When "devtool" sets its status 11 times in 1 second
       Then the eleventh answers 429

@@ -13,6 +13,11 @@ info:
     `Content-Type: application/json`, or the server answers 403 `csrf`. Errors are `{error:{code,message}}`.
     A route marked with the X-Convoz-Step-Up parameter needs the id of a fresh passkey check for that action.
 
+    Every operation declares who may call it in `x-authz`: `auth` is the credential class (pub, human, limited, owner, machine,
+    lease), `lease` says whether an agent lease also meets a person's route (accept) or is told 403 (refuse), `scope` is the scope
+    a lease needs, `step_up` is the action a passkey check must cover. The security matrix of the e2e suite (security.wp18) holds
+    this list against the live route table and against what the server answers to each credential.
+
     Live updates come from GET /api/stream (server-sent events), listed here for completeness; the client opens it with EventSource.
 servers:
   - url: /
@@ -144,6 +149,10 @@ components:
       type: http
       scheme: bearer
       description: "The lease of an agent session (Authorization: Bearer cvz_s_...)."
+    machineKey:
+      type: http
+      scheme: bearer
+      description: "A machine key (Authorization: Bearer cvz_m_...); only POST /api/sessions takes one."
 
   parameters:
     Id:

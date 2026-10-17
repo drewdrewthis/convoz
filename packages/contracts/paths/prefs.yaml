@@ -2,6 +2,7 @@
 # openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
 /api/conversations/{id}/prefs:
   patch:
+    x-authz: { auth: human, lease: refuse }
     operationId: patchConversationPrefs
     summary: Star, mute or reorder one conversation in the owner's rail.
     description: |
@@ -23,6 +24,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/messages/{id}/pin:
   put:
+    x-authz: { auth: human, lease: refuse }
     operationId: pinMessage
     summary: Pin a message in its conversation, for the caller only. Pinning twice is the same as once.
     parameters:
@@ -32,6 +34,7 @@
       "200": { $ref: "../openapi.yaml#/components/responses/Empty" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
   delete:
+    x-authz: { auth: human, lease: refuse }
     operationId: unpinMessage
     summary: Remove the caller's pin. Unpinning what is not pinned is the same as unpinning it.
     parameters:
@@ -41,12 +44,13 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/status:
   put:
+    x-authz: { auth: lease, scope: status }
+    security: [{ leaseBearer: [] }]
     operationId: putStatus
     summary: An agent says what it is doing, for Crew. The status is the agent's, shared by all its sessions.
     description: |
       The identity comes from the lease, which needs the `status` scope. `since` moves only when the state changes. A text over 200
       characters, or a state that is not one of the four, is 400 `invalid_request`.
-    security: [{ leaseBearer: [] }]
     requestBody:
       required: true
       content:
@@ -60,9 +64,10 @@
             schema: { $ref: "../openapi.yaml#/components/schemas/AgentStatus" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
   get:
+    x-authz: { auth: owner, lease: accept }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     operationId: getStatus
     summary: The status of every agent (the owner) or of the calling agent itself.
-    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     responses:
       "200":
         description: The statuses.

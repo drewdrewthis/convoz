@@ -191,7 +191,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** The signed-in devices of the caller. */
+        get: operations["listDevices"];
         put?: never;
         post?: never;
         delete?: never;
@@ -210,7 +211,8 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /** Sign one device out. */
+        delete: operations["revokeDevice"];
         options?: never;
         head?: never;
         patch?: never;
@@ -290,7 +292,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
+        /** A machine asks to be logged in (device flow, design 7). No cookie, no key; limited per source. */
+        post: operations["requestDeviceCode"];
         delete?: never;
         options?: never;
         head?: never;
@@ -306,7 +309,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
+        /** The machine polls for its key until the owner decides. No cookie, no key. */
+        post: operations["pollDeviceToken"];
         delete?: never;
         options?: never;
         head?: never;
@@ -336,7 +340,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** The pending machine login requests (the owner). */
+        get: operations["listMachineRequests"];
         put?: never;
         post?: never;
         delete?: never;
@@ -467,7 +472,8 @@ export interface paths {
         /** The sessions of every machine and agent, newest first (the owner), live ones and recently ended ones. */
         get: operations["listSessions"];
         put?: never;
-        post?: never;
+        /** A machine key mints the lease of an agent session (design 7). */
+        post: operations["mintSession"];
         delete?: never;
         options?: never;
         head?: never;
@@ -483,7 +489,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
+        /** The agent renews its own lease. */
+        post: operations["renewSession"];
         delete?: never;
         options?: never;
         head?: never;
@@ -500,7 +507,8 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /** The agent ends its own session. */
+        delete: operations["endSession"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1603,7 +1611,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
+        /** Delete my data (design 14). Needs a passkey check (data.delete). Until members ship (C-7) it answers 501 and changes nothing. */
+        post: operations["deleteMyData"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1633,7 +1642,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** The audit trail, newest first (the owner). */
+        get: operations["listAudit"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1649,7 +1659,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Liveness: answers ok, with no credential. */
+        get: operations["health"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1682,7 +1693,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** The build id of the server, with no credential. */
+        get: operations["getVersion"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1708,7 +1720,7 @@ export interface components {
         /** @description Made once per command and reused on a retry, so a retry never makes a second one. */
         ClientId: string;
         /** @enum {string} */
-        StepUpAction: "passkey.add" | "passkey.remove" | "recovery.regenerate" | "machine.approve" | "machine.reveal" | "machine.regenerate" | "machine.revoke" | "machine.allow" | "identity.create" | "identity.disable" | "data.export" | "signout.all";
+        StepUpAction: "passkey.add" | "passkey.remove" | "recovery.regenerate" | "machine.approve" | "machine.reveal" | "machine.regenerate" | "machine.revoke" | "machine.allow" | "identity.create" | "identity.disable" | "data.export" | "data.delete" | "message.purge" | "signout.all";
         Owner: {
             /** Format: int64 */
             id: number;
@@ -3084,6 +3096,46 @@ export interface operations {
             default: components["responses"]["Error"];
         };
     };
+    listDevices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The answer. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    revokeDevice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The answer. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
     passkeys: {
         parameters: {
             query?: never;
@@ -3209,6 +3261,44 @@ export interface operations {
             default: components["responses"]["Error"];
         };
     };
+    requestDeviceCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The answer. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    pollDeviceToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The answer. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
     machines: {
         parameters: {
             query?: never;
@@ -3228,6 +3318,25 @@ export interface operations {
                         machines: components["schemas"]["Machine"][];
                     };
                 };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listMachineRequests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The answer. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             default: components["responses"]["Error"];
         };
@@ -3415,6 +3524,63 @@ export interface operations {
                         sessions: components["schemas"]["Session"][];
                     };
                 };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    mintSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The lease and its session. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    renewSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The answer. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    endSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The answer. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             default: components["responses"]["Error"];
         };
@@ -4254,7 +4420,10 @@ export interface operations {
     purgeMessage: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description The step_up_id of a fresh passkey check for this action. */
+                "X-Convoz-Step-Up": components["parameters"]["StepUp"];
+            };
             path: {
                 id: components["parameters"]["Id"];
             };
@@ -5209,6 +5378,73 @@ export interface operations {
             default: components["responses"]["Error"];
         };
     };
+    deleteMyData: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description The step_up_id of a fresh passkey check for this action. */
+                "X-Convoz-Step-Up": components["parameters"]["StepUp"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The answer. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not available yet. */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listAudit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The answer. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    health: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The answer. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
     ping: {
         parameters: {
             query?: never;
@@ -5232,6 +5468,25 @@ export interface operations {
                         t: number;
                     };
                 };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The answer. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             default: components["responses"]["Error"];
         };

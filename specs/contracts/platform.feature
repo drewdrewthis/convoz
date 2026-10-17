@@ -50,7 +50,7 @@ Feature: Platform rules every module relies on (contracts)
 
   Rule: Events are thin, immutable and replayable
 
-    @v1 @api @I-23 @AC-22 @unimplemented
+    @v1 @api @I-23 @AC-22
     Scenario: Events never carry content
       Given seeded strings "body-ZQX1", "title-ZQX2", "question-ZQX3", "option-ZQX4" and "file-ZQX5.png"
       When the owner and "devtool" create a conversation, a 16 KB message, an ask and an upload that use them

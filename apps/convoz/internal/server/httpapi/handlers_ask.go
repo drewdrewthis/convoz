@@ -27,15 +27,6 @@ func personOf(c *call) int64 {
 	return c.p.HumanID
 }
 
-// agentMayAsk is the ask scope and the budgets of an agent that asks. It writes the refusal itself.
-func (s *Server) agentMayAsk(w http.ResponseWriter, c *call, now time.Time) bool {
-	if c.lease.Scopes&auth.ScopeAsk == 0 {
-		writeErr(w, http.StatusForbidden, "forbidden", "This machine may not ask.")
-		return false
-	}
-	return s.withinBudgets(w, c, now)
-}
-
 // postAsk is POST /api/asks: an agent asks a question with a recommendation and alternatives. The asker is the lease (I-40).
 func (s *Server) postAsk(w http.ResponseWriter, r *http.Request, c *call) {
 	if c.p.SessionID == 0 {
@@ -90,7 +81,7 @@ func (s *Server) postAsk(w http.ResponseWriter, r *http.Request, c *call) {
 		return
 	}
 	now := s.Clock.Now()
-	if !s.agentMayAsk(w, c, now) {
+	if !s.withinBudgets(w, c, now) {
 		return
 	}
 	status, replayed := http.StatusCreated, false
