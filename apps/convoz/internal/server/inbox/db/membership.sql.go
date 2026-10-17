@@ -61,7 +61,7 @@ INSERT INTO inbox_items (identity_id, reason, conversation_id, first_message_id,
 VALUES (?1, 'mention', ?2, ?3, ?3, 1, 1, ?4, 'ready', ?5, ?5)
 ON CONFLICT (identity_id, conversation_id) WHERE state = 'ready' AND reason IN ('mention','thread','activity')
 DO UPDATE SET reason = 'mention', count = CASE WHEN inbox_items.message_id = excluded.message_id THEN inbox_items.count ELSE inbox_items.count + 1 END, message_id = excluded.message_id,
-              mention_count = inbox_items.mention_count + 1, source_seq = excluded.source_seq, updated_at = excluded.updated_at
+              mention_count = CASE WHEN inbox_items.message_id = excluded.message_id AND inbox_items.reason = 'mention' THEN inbox_items.mention_count ELSE inbox_items.mention_count + 1 END, source_seq = excluded.source_seq, updated_at = excluded.updated_at
 `
 
 type UpsertMentionItemParams struct {

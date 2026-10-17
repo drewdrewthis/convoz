@@ -11,6 +11,7 @@ import (
 const (
 	RouteConversations = "/api/conversations" // + "/<id>/messages", "/<id>/read"
 	RouteInbox         = "/api/inbox"
+	RouteInboxClaim    = "/api/inbox/claim"
 	RouteInboxAck      = "/api/inbox/ack"
 )
 
@@ -137,6 +138,8 @@ type InboxItem struct {
 	State        string            `json:"state"`
 	Reason       string            `json:"reason"`
 	Count        int64             `json:"count"`
+	MentionCount int64             `json:"mention_count"` // how many of the item's messages mention the agent
+	Deliveries   int64             `json:"deliveries"`    // how many times a claim handed the item out; at 5 it leaves the queue (M2)
 	Conversation InboxConversation `json:"conversation"`
 	Message      Message           `json:"message"`
 }
@@ -144,6 +147,13 @@ type InboxItem struct {
 // InboxResponse is GET /api/inbox.
 type InboxResponse struct {
 	Items []InboxItem `json:"items"`
+}
+
+// ClaimRequest is POST /api/inbox/claim: N ready items (1 to 20, default 20) of one conversation (Conv) or of all.
+type ClaimRequest struct {
+	N          int    `json:"n,omitempty"`
+	Visibility string `json:"visibility,omitempty"` // a duration, 30s to 30m
+	Conv       int64  `json:"conv,omitempty"`
 }
 
 // AckRef names one claimed item.
@@ -169,9 +179,11 @@ type AckResult struct {
 	Result string `json:"result"`
 }
 
-// AckResponse is the answer to POST /api/inbox/ack.
+// AckResponse is the answer to POST /api/inbox/ack. When any claim was lost the status is 409 and the body also holds
+// the error (code claim_lost), so the caller still reads which items were acked.
 type AckResponse struct {
-	Results []AckResult `json:"results"`
+	Results []AckResult  `json:"results"`
+	Error   *ErrorDetail `json:"error,omitempty"`
 }
 
 // WatchLine is what `convoz watch --json` prints for each item: one line of JSON.

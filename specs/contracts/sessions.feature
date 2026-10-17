@@ -56,7 +56,7 @@ Feature: Agent sessions as one identity (contracts)
       And a request with lease A answers 401
 
     # Split out of "Re-minting with the same client id ends the old lease": claims arrive with the inbox in S3.
-    @v1 @api @I-37 @M5 @C-8 @AC-27 @unimplemented
+    @v1 @api @I-37 @M5 @C-8 @AC-27
     Scenario: A re-mint moves the old lease's claims to the new lease
       Given "box-2" holds lease A as "devtool" for client id "claude-7f3a" and lease A holds 2 inbox items
       When "box-2" mints again as "devtool" with client id "claude-7f3a"
@@ -97,7 +97,7 @@ Feature: Agent sessions as one identity (contracts)
 
   Rule: A lease lives 12 hours, renews while used, and ends cleanly
 
-    @v1 @cli @I-37 @M8 @unimplemented
+    @v1 @cli @I-37 @M8
     Scenario: Renewing a lease extends the claims of that session
       Given a session of "devtool" holds 3 inbox items with a 5-minute visibility
       When the session renews its lease 4 minutes later

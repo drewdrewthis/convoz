@@ -1,5 +1,67 @@
 # Paths of the inbox module (design §13). Only the work package that owns inbox edits this file; the root
-# openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
-/api/inbox: {}  # not specified yet
-/api/inbox/claim: {}  # not specified yet
-/api/inbox/ack: {}  # not specified yet
+# openapi.yaml lists each path once. Agent routes: they take a session lease, not the device cookie.
+/api/inbox:
+  get:
+    operationId: pollInbox
+    summary: Long poll. Held items first, then newly claimed ones; with `peek` nothing is claimed.
+    description: |
+      Answers the items this session holds, then claims ready ones. When there are none and `wait` is above 0 the request is
+      held until an item for the identity arrives or `wait` seconds pass (at most 25), then answers `{items: []}`. A lease that
+      ends during the hold answers 401 `session_ended`.
+    security: [{ leaseBearer: [] }]
+    parameters:
+      - { name: wait, in: query, description: Seconds to hold, 0 to 25., schema: { type: integer, minimum: 0, maximum: 25 } }
+      - { name: claim, in: query, description: At most this many items, 1 to 20 (default 20)., schema: { type: integer, minimum: 1, maximum: 20 } }
+      - { name: visibility, in: query, description: "How long a claim holds, 30s to 30m (default 5m).", schema: { type: string } }
+      - { name: peek, in: query, description: "1 lists the ready and claimed items and claims none; claims that ran out are merged back first.", schema: { type: string, enum: ["1"] } }
+      - { name: held, in: query, description: "0 leaves out the items this session already holds (`convoz watch`).", schema: { type: string, enum: ["0"] } }
+      - { name: conv, in: query, description: Claim only the items of this conversation., schema: { type: integer, format: int64 } }
+    responses:
+      "200":
+        description: The items.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/InboxResponse" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/inbox/claim:
+  post:
+    operationId: claimInbox
+    summary: Claim ready items now, without waiting. Held items come first, like the poll.
+    security: [{ leaseBearer: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "../openapi.yaml#/components/schemas/ClaimRequest" }
+    responses:
+      "200":
+        description: The items, each with its claim token.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/InboxResponse" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/inbox/ack:
+  post:
+    operationId: ackInbox
+    summary: Ack claimed items with the tokens their claims returned.
+    description: |
+      A well-formed token that does not match (wrong, old, expired claim, another session's item, already acked) is a lost
+      claim: the status is 409 with code `claim_lost` and `results` still lists every item. A missing or malformed token is 400.
+    security: [{ leaseBearer: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "../openapi.yaml#/components/schemas/AckRequest" }
+    responses:
+      "200":
+        description: Every item acked.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/AckResponse" }
+      "409":
+        description: At least one claim was lost (code `claim_lost`); `results` says which.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/AckResponse" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }

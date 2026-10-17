@@ -1,17 +1,24 @@
--- name: UpsertActivityItem :exec
+-- name: UpsertConversationItem :exec
 -- The fan-out of one new main message to one agent participant: the ready conversation item for (identity, conversation)
--- takes the newest message and counts one more, or is made (design section 3.8, C-10).
+-- takes the newest message and counts one more, or is made (design section 3.8, C-10). The reason only goes up:
+-- mention over thread over activity. mention_count is how many of the item's messages mention the agent.
 INSERT INTO inbox_items (identity_id, reason, conversation_id, first_message_id, message_id, count, mention_count, source_seq, state, created_at, updated_at)
-VALUES (sqlc.arg(identity_id), 'activity', sqlc.arg(conversation_id), sqlc.arg(message_id), sqlc.arg(message_id), 1, 0, sqlc.arg(source_seq), 'ready', sqlc.arg(now), sqlc.arg(now))
+VALUES (sqlc.arg(identity_id), sqlc.arg(reason), sqlc.arg(conversation_id), sqlc.arg(message_id), sqlc.arg(message_id), 1, CASE WHEN sqlc.arg(reason) = 'mention' THEN 1 ELSE 0 END, sqlc.arg(source_seq), 'ready', sqlc.arg(now), sqlc.arg(now))
 ON CONFLICT (identity_id, conversation_id) WHERE state = 'ready' AND reason IN ('mention','thread','activity')
--- an @mention may have made the item for this very message first: it counts once
-DO UPDATE SET count = CASE WHEN inbox_items.message_id = excluded.message_id THEN inbox_items.count ELSE inbox_items.count + 1 END, message_id = excluded.message_id, source_seq = excluded.source_seq, updated_at = excluded.updated_at;
+-- the ordinary fan-out may have counted this very message already (an @mention made the item first): it counts once
+DO UPDATE SET message_id = excluded.message_id,
+    count = CASE WHEN inbox_items.message_id = excluded.message_id THEN inbox_items.count ELSE inbox_items.count + 1 END,
+    mention_count = CASE WHEN inbox_items.message_id = excluded.message_id AND inbox_items.reason = 'mention' THEN inbox_items.mention_count ELSE inbox_items.mention_count + excluded.mention_count END,
+    reason = CASE WHEN 'mention' IN (inbox_items.reason, excluded.reason) THEN 'mention'
+                  WHEN 'thread'  IN (inbox_items.reason, excluded.reason) THEN 'thread' ELSE 'activity' END,
+    source_seq = excluded.source_seq, updated_at = excluded.updated_at;
 
 -- name: HeldItems :many
 -- (1) M1: items this session already holds come back first, same tokens, no delivery counted.
-SELECT id, conversation_id, first_message_id, message_id, count, reason, state, claim_token, claim_until, deliveries
+SELECT id, conversation_id, first_message_id, message_id, count, mention_count, reason, state, claim_token, claim_until, deliveries
 FROM inbox_items
 WHERE identity_id = sqlc.arg(identity_id) AND state = 'claimed' AND claim_session_id = sqlc.arg(session_id) AND claim_until >= sqlc.arg(now)
+  AND (sqlc.arg(conv) = 0 OR conversation_id = sqlc.arg(conv))
 ORDER BY id LIMIT sqlc.arg(max_rows);
 
 -- name: ExpirePoisonItems :exec
@@ -52,8 +59,8 @@ SET state = 'ready', claim_session_id = NULL, claim_token = NULL, claim_until = 
 WHERE id = sqlc.arg(id);
 
 -- name: ClaimItems :many
--- (4) Claim; one random 128-bit token per item. Not yet in the SQL of section 3.8: the session-preference clause (prefer_session_id
--- stays NULL until S3) and the --conv filter.
+-- (4) Claim; one random 128-bit token per item. conv 0 means every conversation. Not yet in the SQL of section 3.8: the
+-- session-preference clause (prefer_session_id stays NULL until the post path records the posting session).
 UPDATE inbox_items
 SET state = 'claimed', claim_session_id = sqlc.arg(session_id), claim_token = randomblob(16),
     claim_until = sqlc.arg(now) + sqlc.arg(visibility_ms), visibility_ms = sqlc.arg(visibility_ms), deliveries = deliveries + 1, updated_at = sqlc.arg(now)
@@ -61,11 +68,12 @@ WHERE id IN (
   SELECT i.id FROM inbox_items i
   WHERE i.identity_id = sqlc.arg(identity_id) AND i.state = 'ready' AND i.deliveries < 5
     AND (i.not_before IS NULL OR i.not_before <= sqlc.arg(now))
+    AND (sqlc.arg(conv) = 0 OR i.conversation_id = sqlc.arg(conv))
     AND NOT EXISTS (SELECT 1 FROM inbox_items c
                     WHERE c.identity_id = i.identity_id AND c.conversation_id = i.conversation_id
                       AND c.state = 'claimed' AND c.claim_until >= sqlc.arg(now) AND c.claim_session_id <> sqlc.arg(session_id))
   ORDER BY i.id LIMIT sqlc.arg(n_left))
-RETURNING id, conversation_id, first_message_id, message_id, count, reason, state, claim_token, claim_until, deliveries;
+RETURNING id, conversation_id, first_message_id, message_id, count, mention_count, reason, state, claim_token, claim_until, deliveries;
 
 -- name: AckItem :execrows
 -- Ack: the claim columns are cleared, or the claimed-state CHECK fails.
@@ -90,7 +98,7 @@ UPDATE inbox_items SET claim_until = sqlc.arg(now) - 1 WHERE claim_session_id = 
 RETURNING identity_id, conversation_id;
 
 -- name: PeekItems :many
-SELECT id, conversation_id, first_message_id, message_id, count, reason, state, claim_token, claim_until, deliveries, claim_session_id
+SELECT id, conversation_id, first_message_id, message_id, count, mention_count, reason, state, claim_token, claim_until, deliveries, claim_session_id
 FROM inbox_items
 WHERE identity_id = sqlc.arg(identity_id) AND state IN ('ready','claimed')
 ORDER BY id;
@@ -100,3 +108,11 @@ UPDATE inbox_items
 SET state = 'expired', expired_reason = 'not_visible', claim_session_id = NULL, claim_token = NULL,
     claim_until = NULL, visibility_ms = NULL, updated_at = sqlc.arg(now)
 WHERE id = sqlc.arg(id);
+
+-- name: TransferClaims :exec
+-- Re-mint (M5): the lease that replaces another keeps the claims of the old one, tokens unchanged.
+UPDATE inbox_items SET claim_session_id = sqlc.arg(to_session), updated_at = sqlc.arg(now)
+WHERE claim_session_id = sqlc.arg(from_session) AND state = 'claimed';
+
+-- name: HoldsLiveClaim :one
+SELECT EXISTS (SELECT 1 FROM inbox_items WHERE claim_session_id = sqlc.arg(session_id) AND state = 'claimed' AND claim_until >= sqlc.arg(now));

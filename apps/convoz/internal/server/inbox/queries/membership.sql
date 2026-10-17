@@ -5,7 +5,7 @@ VALUES (sqlc.arg(identity_id), 'mention', sqlc.arg(conversation_id), sqlc.arg(me
 ON CONFLICT (identity_id, conversation_id) WHERE state = 'ready' AND reason IN ('mention','thread','activity')
 -- the ordinary fan-out may have counted this very message already: it counts once
 DO UPDATE SET reason = 'mention', count = CASE WHEN inbox_items.message_id = excluded.message_id THEN inbox_items.count ELSE inbox_items.count + 1 END, message_id = excluded.message_id,
-              mention_count = inbox_items.mention_count + 1, source_seq = excluded.source_seq, updated_at = excluded.updated_at;
+              mention_count = CASE WHEN inbox_items.message_id = excluded.message_id AND inbox_items.reason = 'mention' THEN inbox_items.mention_count ELSE inbox_items.mention_count + 1 END, source_seq = excluded.source_seq, updated_at = excluded.updated_at;
 
 -- name: InsertMembershipItem :exec
 -- One notice that the agent was removed from a conversation (C-1): ids only, the message is the system line.

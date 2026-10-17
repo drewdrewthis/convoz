@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -88,7 +89,7 @@ func (r *releaseRig) claim(t *testing.T, session int64) {
 	t.Helper()
 	now := platform.SystemClock{}.Now()
 	dbtest.Tx(t, r.s.Store, func(ctx context.Context, d pdb.DBTX) error {
-		if err := inbox.FanOut(ctx, d, now, agentID, convID, 1, 1); err != nil {
+		if err := inbox.FanOut(ctx, d, now, agentID, convID, 1, 1, inbox.ReasonActivity); err != nil {
 			return err
 		}
 		items, err := inbox.Claim(ctx, d, now, inbox.Request{Identity: agentID, Session: session, N: 1})
@@ -99,14 +100,24 @@ func (r *releaseRig) claim(t *testing.T, session int64) {
 	})
 }
 
-// claimFreed reports whether no claim on the conversation runs any longer.
+// claimFreed reports whether no claim on the conversation runs any longer (a freed item is ready again, with no claim end).
 func (r *releaseRig) claimFreed(t *testing.T) bool {
 	t.Helper()
-	var until int64
+	var until sql.NullInt64
 	if err := r.s.Store.Reader.SQL().QueryRow(`SELECT claim_until FROM inbox_items WHERE identity_id = ?`, agentID).Scan(&until); err != nil {
 		t.Fatal(err)
 	}
-	return until < time.Now().UnixMilli()
+	return !until.Valid || until.Int64 < time.Now().UnixMilli()
+}
+
+// claimHolder is the session that holds the claim on the conversation; 0 when nobody does.
+func (r *releaseRig) claimHolder(t *testing.T) int64 {
+	t.Helper()
+	var holder sql.NullInt64
+	if err := r.s.Store.Reader.SQL().QueryRow(`SELECT claim_session_id FROM inbox_items WHERE identity_id = ?`, agentID).Scan(&holder); err != nil {
+		t.Fatal(err)
+	}
+	return holder.Int64
 }
 
 // workingStopped reads the live frames and reports whether one says the agent stopped working on the conversation.
@@ -123,21 +134,22 @@ func workingStopped(sub *platform.Subscription) bool {
 	}
 }
 
-func TestAReMintOfTheSameClientFreesTheOldLeasesClaimsAndStopsItsWorking(t *testing.T) {
+func TestAReMintOfTheSameClientMovesTheOldLeasesClaimsToTheNewLeaseAndKeepsItWorking(t *testing.T) {
 	r := newReleaseRig(t)
 	old := r.mint(t)
 	r.claim(t, old)
 	sub := r.s.Bus.Subscribe()
 	defer sub.Cancel()
 
-	if again := r.mint(t); again == old {
+	again := r.mint(t)
+	if again == old {
 		t.Fatal("a re-mint made no new lease")
 	}
-	if !r.claimFreed(t) {
-		t.Error("the replaced lease still holds its claim")
+	if r.claimFreed(t) || r.claimHolder(t) != again {
+		t.Errorf("the new lease should hold the claim, held by session %d", r.claimHolder(t))
 	}
-	if !workingStopped(sub) {
-		t.Error("no working=false frame for the replaced lease")
+	if workingStopped(sub) {
+		t.Error("the agent is still on the work: no working=false frame")
 	}
 }
 

@@ -190,7 +190,7 @@ Feature: Security walls (contracts)
       And the "laptop-1" session answers 200
 
     # Split out of "Regenerating a key stops the old key and its leases at once": long polls and claims come with the inbox in S3.
-    @v1 @cli @api @I-38 @AC-14 @unimplemented
+    @v1 @cli @api @I-38 @AC-14
     Scenario: Regenerating a key ends its long polls and frees its claims
       Given a "devtool" session on "box-2" waits with "convoz inbox --wait 60" and holds 2 claimed items
       And a "devtool" session on "laptop-1" is live

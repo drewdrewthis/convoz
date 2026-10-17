@@ -59,7 +59,8 @@ func (c *client) withTimeout(d time.Duration) *client {
 }
 
 // call sends one JSON request. token, when set, is sent as a bearer credential. A non-2xx answer is a
-// *statusError carrying the server's code and message; a failure to reach the server wraps errUnreachable.
+// *statusError carrying the server's code and message, and out is still filled from the body when the body fits
+// it (an ack that lost a claim says which items it acked); a failure to reach the server wraps errUnreachable.
 func (c *client) call(ctx context.Context, method, path, token string, in, out any) error {
 	var body io.Reader
 	if in != nil {
@@ -89,6 +90,9 @@ func (c *client) call(ctx context.Context, method, path, token string, in, out a
 		return fmt.Errorf("%w: the answer from %s was cut off: %v", errUnreachable, c.base, err)
 	}
 	if res.StatusCode < 200 || res.StatusCode > 299 {
+		if out != nil {
+			_ = json.Unmarshal(raw, out)
+		}
 		var e wire.Error
 		if json.Unmarshal(raw, &e) == nil && e.Error.Code != "" {
 			return &statusError{status: res.StatusCode, code: e.Error.Code, msg: e.Error.Message, retryAfter: retryAfter(res)}

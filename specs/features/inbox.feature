@@ -24,7 +24,7 @@ Feature: Agent inbox
 
   Rule: Items are written with the event that causes them
 
-    @v1 @cli @I-43 @unimplemented
+    @v1 @cli @I-43
     Scenario: A mention reaches the inbox at once
       Given session "s1" waits with "convoz inbox --wait 60"
       When the owner posts "@devtool can you check the flaky test?" in conversation 41
@@ -67,7 +67,7 @@ Feature: Agent inbox
 
   Rule: Mentions, thread replies and activity make one item per conversation (M4, C-10)
 
-    @v1 @cli @I-43 @M4 @AC-18 @unimplemented
+    @v1 @cli @I-43 @M4 @AC-18
     Scenario: Thirty messages make one activity item
       When the owner posts 30 messages in conversation 41
       Then "convoz inbox --peek --sid s1" shows 1 "activity" item for conversation 41 with count 30
@@ -79,7 +79,7 @@ Feature: Agent inbox
       When the owner posts 5 replies in thread 900 and 2 messages in the main list
       Then "convoz inbox --peek --sid s1" shows 1 item for conversation 41 with reason "thread" and count 7
 
-    @v1 @cli @I-43 @C-10 @AC-18 @unimplemented
+    @v1 @cli @I-43 @C-10 @AC-18
     Scenario: A mention raises the conversation item to a mention
       Given the owner posted 3 messages in conversation 41
       When the owner posts "@devtool can you take this?" in conversation 41
@@ -100,14 +100,14 @@ Feature: Agent inbox
 
   Rule: A claim belongs to one session, and only that session acks it (M1, M3, M8)
 
-    @v1 @cli @I-43 @AC-18 @unimplemented
+    @v1 @cli @I-43 @AC-18
     Scenario: A new mention goes to exactly one of two waiting sessions
       Given sessions "s1" and "s2" both wait with "convoz inbox --wait 60"
       When the owner posts "@devtool status?" in conversation 41
       Then exactly one of "s1" and "s2" returns the mention item
       And the other is still waiting
 
-    @v1 @cli @M3 @AC-18 @unimplemented
+    @v1 @cli @M3 @AC-18
     Scenario: An ack with an old claim token is refused
       Given session "s1" claimed a mention item with a 2-second visibility
       And the item returned to session "s2" after the claim expired
@@ -121,14 +121,14 @@ Feature: Agent inbox
       When "s1" does not ack and the visibility passes
       Then "s2" returns the same item with a new claim token
 
-    @v1 @cli @lossy @M1 @AC-27 @unimplemented
+    @v1 @cli @lossy @M1 @AC-27
     Scenario: A lost long-poll response loses nothing
       Given a fault proxy drops the response that delivers a mention to session "s1"
       When "s1" polls again
       Then "s1" gets the same item with the same claim token
       And "convoz inbox --peek" shows its delivery count unchanged
 
-    @v1 @cli @M8 @unimplemented
+    @v1 @cli @M8
     Scenario: Any call from the claiming session extends its claims
       Given session "s1" claimed 2 items with a 1-minute visibility
       When "s1" posts a message after 50 seconds
@@ -160,7 +160,7 @@ Feature: Agent inbox
       When the owner posts "@devtool and the follow-up?" in conversation 41
       Then "s2" returns the mention item
 
-    @v1 @cli @AC-28 @unimplemented
+    @v1 @cli @AC-28
     Scenario: A session can wait on one conversation only
       Given ready items for conversations 41 and 52
       When session "s1" runs "convoz inbox --conv 41 --wait 5"
@@ -193,7 +193,7 @@ Feature: Agent inbox
 
   Rule: Long poll is the transport (no WebSockets, no SSE follow in v1)
 
-    @v1 @cli @lossy @AC-20 @unimplemented
+    @v1 @cli @lossy @AC-20
     Scenario: The long poll survives forced connection resets
       Given the link is the lossy profile through the stall proxy
       When session "s1" runs "convoz inbox --wait 60" and the proxy resets the connection 3 times

@@ -53,7 +53,9 @@
  *        an item the agent has not acked yet. Only the default is specified for other callers.
  *        A claim writes a live-only frame `agent.working` (below).
  *   POST /api/inbox/ack  L  {items:[{id, claim_token}]} -> 200 {results:[{id, result:"ok"|"claim_lost"}]}  An acked item is gone
- *        from peek. A wrong or old token, or an item already acked, is "claim_lost".
+ *        from peek. A wrong or old token, an expired claim, or an item already acked is "claim_lost": the answer is then 409
+ *        {error:{code:"claim_lost"}, results:[...]} (results still list every item). A missing or malformed claim_token -> 400.
+ *   POST /api/inbox/claim  L  {n?, visibility?, conv?} -> 200 {items} like the poll (held items first), without waiting.
  *   GET  /api/stream  H  text/event-stream. Frames `event: <type>`, `id: <epoch>:<seq>`, `data: <json>`; `: hb` comment every 15 s.
  *        Types: message.created {id, conversation_id, author_handle, ...}, read.moved, conversation.created, and the
  *        LIVE-ONLY frame agent.working (no `id`, never replayed, no table):

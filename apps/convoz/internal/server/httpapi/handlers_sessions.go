@@ -23,15 +23,14 @@ func (s *Server) mintSession(w http.ResponseWriter, r *http.Request, c *call) {
 		req.Create = &auth.CreateIdentity{DisplayName: in.Create.DisplayName}
 	}
 	var minted auth.MintedSession
-	var released []inbox.Released
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
 		now := s.Clock.Now()
 		var err error
 		if minted, err = auth.MintSession(ctx, tx.DBTX(), flowPorts, req, now); err != nil {
 			return err
 		}
-		released, err = inbox.ReleaseSessions(ctx, tx.DBTX(), now, minted.Replaced)
-		return err
+		// The new lease takes over the claims of the one it replaces: the agent is still on the same work (M5).
+		return inbox.Transfer(ctx, tx.DBTX(), now, minted.Replaced, minted.ID)
 	})
 	var limited *auth.RateLimitedError
 	var forbidden auth.ForbiddenError
@@ -55,7 +54,6 @@ func (s *Server) mintSession(w http.ResponseWriter, r *http.Request, c *call) {
 	case err != nil:
 		s.internalError(w, r, err)
 	default:
-		s.publishReleased(r.Context(), released)
 		writeJSON(w, http.StatusCreated, wire.MintResponse{Lease: minted.Lease, Session: wire.SessionInfo{
 			ID: minted.ID, Identity: minted.Handle, Machine: minted.Machine, ClientID: minted.ClientID, Label: minted.Label, ExpiresAt: minted.ExpiresAt,
 		}})
@@ -113,9 +111,13 @@ func (s *Server) renewSession(w http.ResponseWriter, r *http.Request, c *call) {
 
 // publishReleased tells the feeds that the agents of released claims stopped working. It runs after the commit.
 func (s *Server) publishReleased(ctx context.Context, released []inbox.Released) {
+	identities := make([]int64, 0, len(released))
 	for _, r := range released {
 		s.publishWorking(ctx, r.Identity, r.Conversation, false, 0)
+		identities = append(identities, r.Identity)
 	}
+	// Ending leases ends the polls held on them: wake the polls so each looks at its lease (I-38).
+	s.Bus.Notify(identities...)
 }
 
 func (s *Server) endSession(w http.ResponseWriter, r *http.Request, c *call) {

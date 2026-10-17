@@ -45,7 +45,7 @@ func run(t *testing.T, s *pdb.Store, fn func(ctx context.Context, d pdb.DBTX)) {
 func fan(t *testing.T, s *pdb.Store, at time.Time, conv, msg int64) {
 	t.Helper()
 	run(t, s, func(ctx context.Context, d pdb.DBTX) {
-		if err := inbox.FanOut(ctx, d, at, devtool, conv, msg, msg); err != nil {
+		if err := inbox.FanOut(ctx, d, at, devtool, conv, msg, msg, inbox.ReasonActivity); err != nil {
 			t.Fatal(err)
 		}
 	})
@@ -234,4 +234,101 @@ func TestReleaseFreesTheClaimsAtOnceForAnotherSession(t *testing.T) {
 	if got := claim(t, s, t0.Add(2*time.Second), sessB, false); len(got) != 1 {
 		t.Errorf("the other session takes it at once: %+v", got)
 	}
+}
+
+func fanAs(t *testing.T, s *pdb.Store, at time.Time, conv, msg int64, reason string) {
+	t.Helper()
+	run(t, s, func(ctx context.Context, d pdb.DBTX) {
+		if err := inbox.FanOut(ctx, d, at, devtool, conv, msg, msg, reason); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+func TestAMentionRaisesTheReasonAndCountsItself(t *testing.T) {
+	s := seeded(t)
+	fanAs(t, s, t0, conv1, 1, inbox.ReasonActivity)
+	fanAs(t, s, t0, conv1, 2, inbox.ReasonMention)
+	fanAs(t, s, t0, conv1, 3, inbox.ReasonActivity) // a later plain message does not lower it
+	got := claim(t, s, t0, sessA, false)
+	if len(got) != 1 || got[0].Reason != inbox.ReasonMention || got[0].Count != 3 || got[0].MentionCount != 1 {
+		t.Errorf("one mention item of 3 messages, 1 of them a mention: %+v", got)
+	}
+}
+
+func TestAThreadReplyOutranksActivityButNotAMention(t *testing.T) {
+	s := seeded(t)
+	fanAs(t, s, t0, conv1, 1, inbox.ReasonActivity)
+	fanAs(t, s, t0, conv1, 2, inbox.ReasonThread)
+	fanAs(t, s, t0, conv1, 3, inbox.ReasonMention)
+	fanAs(t, s, t0, conv1, 4, inbox.ReasonThread)
+	if got := claim(t, s, t0, sessA, false); len(got) != 1 || got[0].Reason != inbox.ReasonMention || got[0].MentionCount != 1 {
+		t.Errorf("mention over thread over activity: %+v", got)
+	}
+}
+
+func TestAClaimCanBeLimitedToOneConversation(t *testing.T) {
+	s := seeded(t)
+	fan(t, s, t0, conv1, 1)
+	fan(t, s, t0, conv2, 2)
+	run(t, s, func(ctx context.Context, d pdb.DBTX) {
+		got, err := inbox.Claim(ctx, d, t0, inbox.Request{Identity: devtool, Session: sessA, N: inbox.MaxClaim, IncludeHeld: true, Conv: conv2})
+		if err != nil || len(got) != 1 || got[0].ConversationID != conv2 {
+			t.Errorf("only conversation 11: %+v err=%v", got, err)
+		}
+	})
+	if got := claim(t, s, t0, sessB, false); len(got) != 1 || got[0].ConversationID != conv1 {
+		t.Errorf("conversation 10 is still ready for the other session: %+v", got)
+	}
+}
+
+func TestReleaseMergesTheClaimIntoTheNewerReadyItem(t *testing.T) {
+	s := seeded(t)
+	fan(t, s, t0, conv1, 1)
+	claim(t, s, t0, sessA, false)
+	fan(t, s, t0.Add(time.Second), conv1, 2)
+	run(t, s, func(ctx context.Context, d pdb.DBTX) {
+		if _, err := inbox.Release(ctx, d, t0.Add(2*time.Second), sessA); err != nil {
+			t.Fatal(err)
+		}
+		peeked, err := inbox.Peek(ctx, d, t0.Add(3*time.Second), devtool, sessB)
+		if err != nil || len(peeked) != 1 || peeked[0].Count != 2 || peeked[0].State != "ready" {
+			t.Errorf("one ready item covering both messages: %+v err=%v", peeked, err)
+		}
+	})
+}
+
+func TestTransferKeepsTheTokenAndMovesTheClaimToTheNewSession(t *testing.T) {
+	s := seeded(t)
+	fan(t, s, t0, conv1, 1)
+	first := claim(t, s, t0, sessA, false)
+	run(t, s, func(ctx context.Context, d pdb.DBTX) {
+		if err := inbox.Transfer(ctx, d, t0.Add(time.Second), []int64{sessA}, sessB); err != nil {
+			t.Fatal(err)
+		}
+	})
+	got := claim(t, s, t0.Add(2*time.Second), sessB, true)
+	if len(got) != 1 || !got[0].Held || !bytes.Equal(got[0].ClaimToken, first[0].ClaimToken) {
+		t.Errorf("the new session holds the item under the same token: %+v", got)
+	}
+	if again := claim(t, s, t0.Add(2*time.Second), sessA, true); len(again) != 0 {
+		t.Errorf("the old session holds nothing: %+v", again)
+	}
+}
+
+func TestHoldsLiveClaimIsTrueOnlyWhileTheClaimLasts(t *testing.T) {
+	s := seeded(t)
+	fan(t, s, t0, conv1, 1)
+	claim(t, s, t0, sessA, false)
+	run(t, s, func(ctx context.Context, d pdb.DBTX) {
+		for _, c := range []struct {
+			at   time.Time
+			who  int64
+			want bool
+		}{{t0, sessA, true}, {t0, sessB, false}, {t0.Add(inbox.DefaultVisibility + time.Second), sessA, false}} {
+			if got, err := inbox.HoldsLiveClaim(ctx, d, c.at, c.who); err != nil || got != c.want {
+				t.Errorf("session %d at %v: %v (err %v), want %v", c.who, c.at, got, err, c.want)
+			}
+		}
+	})
 }

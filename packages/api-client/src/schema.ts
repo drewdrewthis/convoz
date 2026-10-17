@@ -592,7 +592,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Long poll. Held items first, then newly claimed ones; with `peek` nothing is claimed.
+         * @description Answers the items this session holds, then claims ready ones. When there are none and `wait` is above 0 the request is
+         *     held until an item for the identity arrives or `wait` seconds pass (at most 25), then answers `{items: []}`. A lease that
+         *     ends during the hold answers 401 `session_ended`.
+         */
+        get: operations["pollInbox"];
         put?: never;
         post?: never;
         delete?: never;
@@ -610,7 +616,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
+        /** Claim ready items now, without waiting. Held items come first, like the poll. */
+        post: operations["claimInbox"];
         delete?: never;
         options?: never;
         head?: never;
@@ -626,7 +633,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
+        /**
+         * Ack claimed items with the tokens their claims returned.
+         * @description A well-formed token that does not match (wrong, old, expired claim, another session's item, already acked) is a lost
+         *     claim: the status is 409 with code `claim_lost` and `results` still lists every item. A missing or malformed token is 400.
+         */
+        post: operations["ackInbox"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1739,6 +1751,77 @@ export interface components {
                 by?: string;
             }[];
         };
+        /** @description One inbox item with its newest message. claim_token is set only on an item the calling session holds. */
+        InboxItem: {
+            /** Format: int64 */
+            id: number;
+            /** @description 32 hex characters; the fence an ack must carry. */
+            claim_token?: string;
+            /** @enum {string} */
+            state: "ready" | "claimed";
+            /** @enum {string} */
+            reason: "mention" | "thread" | "activity" | "ask_resolved" | "membership" | "app_result";
+            /**
+             * Format: int64
+             * @description How many messages the item covers.
+             */
+            count: number;
+            /**
+             * Format: int64
+             * @description How many of those messages mention the agent.
+             */
+            mention_count: number;
+            /**
+             * Format: int64
+             * @description How many times a claim handed the item out; at 5 it leaves the queue.
+             */
+            deliveries: number;
+            conversation: {
+                /** Format: int64 */
+                id: number;
+                title: string | null;
+            };
+            message: components["schemas"]["Message"];
+        };
+        InboxResponse: {
+            items: components["schemas"]["InboxItem"][];
+        };
+        ClaimRequest: {
+            /** @description Default 20. */
+            n?: number;
+            /**
+             * @description A duration, 30s to 30m. Default 5m.
+             * @example 5m
+             */
+            visibility?: string;
+            /**
+             * Format: int64
+             * @description Claim only the items of this conversation.
+             */
+            conv?: number;
+        };
+        AckRequest: {
+            items: {
+                /** Format: int64 */
+                id: number;
+                /** @description The token the claim returned. */
+                claim_token: string;
+            }[];
+        };
+        /** @description The result of every item. When any claim was lost the status is 409 and the body also holds `error` with code claim_lost. */
+        AckResponse: {
+            results: {
+                /** Format: int64 */
+                id: number;
+                /** @enum {string} */
+                result: "ok" | "claim_lost";
+            }[];
+            error?: {
+                /** @enum {string} */
+                code: "claim_lost";
+                message: string;
+            };
+        };
         /** @description SSE message.created. */
         MessageCreatedFrame: components["schemas"]["Message"] & {
             /** Format: int64 */
@@ -2472,6 +2555,99 @@ export interface operations {
                     "application/json": {
                         identities: components["schemas"]["Identity"][];
                     };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    pollInbox: {
+        parameters: {
+            query?: {
+                /** @description Seconds to hold */
+                wait?: number;
+                /** @description At most this many items */
+                claim?: number;
+                /** @description How long a claim holds, 30s to 30m (default 5m). */
+                visibility?: string;
+                /** @description 1 lists the ready and claimed items and claims none; claims that ran out are merged back first. */
+                peek?: "1";
+                /** @description 0 leaves out the items this session already holds (`convoz watch`). */
+                held?: "0";
+                /** @description Claim only the items of this conversation. */
+                conv?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The items. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboxResponse"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    claimInbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClaimRequest"];
+            };
+        };
+        responses: {
+            /** @description The items, each with its claim token. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboxResponse"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    ackInbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AckRequest"];
+            };
+        };
+        responses: {
+            /** @description Every item acked. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AckResponse"];
+                };
+            };
+            /** @description At least one claim was lost (code `claim_lost`); `results` says which. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AckResponse"];
                 };
             };
             default: components["responses"]["Error"];
