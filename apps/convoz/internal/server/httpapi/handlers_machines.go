@@ -190,7 +190,7 @@ func (s *Server) patchMachine(w http.ResponseWriter, r *http.Request, c *call) {
 		if err != nil {
 			return err
 		}
-		released, err = inbox.ReleaseSessions(ctx, tx.DBTX(), now, ended)
+		released, err = releaseEnded(ctx, tx.DBTX(), now, ended)
 		return err
 	})
 	if err == nil {
@@ -259,7 +259,7 @@ func (s *Server) regenerateKey(w http.ResponseWriter, r *http.Request, c *call) 
 		if err != nil {
 			return err
 		}
-		released, err = inbox.ReleaseSessions(ctx, tx.DBTX(), now, ended)
+		released, err = releaseEnded(ctx, tx.DBTX(), now, ended)
 		return err
 	})
 	if err == nil {
@@ -294,7 +294,7 @@ func (s *Server) revokeMachine(w http.ResponseWriter, r *http.Request, c *call) 
 		if err != nil {
 			return err
 		}
-		released, err = inbox.ReleaseSessions(ctx, tx.DBTX(), now, ended)
+		released, err = releaseEnded(ctx, tx.DBTX(), now, ended)
 		return err
 	})
 	if err == nil {

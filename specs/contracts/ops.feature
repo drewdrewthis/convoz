@@ -22,7 +22,7 @@ Feature: Data at rest, backups and deletion (contracts)
 
   Rule: Deleting a conversation is soft for 30 days, then a purge
 
-    @v1 @cli @invariant @I-49 @unimplemented
+    @v1 @cli @invariant @I-49
     Scenario: The trash empties itself after 30 days
       Given the owner deleted conversation 41 with the seeded body "ZQX-old-plan"
       When the test clock moves 30 days and 1 hour and the nightly maintenance runs

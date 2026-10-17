@@ -190,18 +190,20 @@ func readAll(io IO) (string, error) {
 
 // ---- read ---------------------------------------------------------------------------------------------
 
-// Read runs `convoz read [--since ID] [--limit N] <conv>`: the messages oldest first. It moves the session's read
-// cursor to the newest message it showed.
+// Read runs `convoz read [--since ID] [--limit N] [--thread ID] <conv>`: the messages oldest first. It moves the
+// session's read cursor to the newest message it showed. --thread reads one thread: its root, or a stub when the
+// agent joined after the root, and the replies it may see.
 func Read(args []string, io IO) int {
 	f := newChatFlags("read", io)
 	since := f.fs.Int64("since", 0, "only messages after this id")
 	limit := f.fs.Int("limit", 0, "at most this many messages (default 50, most 100)")
+	thread := f.fs.Int64("thread", 0, "read the thread of this root message")
 	pos, ok := f.parse(args, io)
 	if !ok {
 		return ExitUsage
 	}
 	if len(pos) != 1 {
-		return usageError(io, "usage: convoz read [--since ID] [--limit N] <conv>")
+		return usageError(io, "usage: convoz read [--since ID] [--limit N] [--thread ID] <conv>")
 	}
 	conv, ok := convArg(io, pos[0])
 	if !ok {
@@ -220,6 +222,9 @@ func Read(args []string, io IO) int {
 	if *limit > 0 {
 		q.Set("limit", strconv.Itoa(*limit))
 	}
+	if *thread > 0 {
+		q.Set("thread", strconv.FormatInt(*thread, 10))
+	}
 	path := convPath(conv, "messages")
 	if len(q) > 0 {
 		path += "?" + q.Encode()
@@ -228,7 +233,7 @@ func Read(args []string, io IO) int {
 	if err := k.call(ctx, "GET", path, nil, &page); err != nil {
 		return k.fail(err)
 	}
-	if len(page.Messages) > 0 {
+	if len(page.Messages) > 0 && *thread == 0 {
 		newest := page.Messages[len(page.Messages)-1].ID
 		if err := k.call(ctx, "POST", convPath(conv, "read"), wire.ReadRequest{MainID: newest}, nil); err != nil {
 			return k.fail(err)
@@ -239,7 +244,7 @@ func Read(args []string, io IO) int {
 		return ExitOK
 	}
 	for _, m := range page.Messages {
-		fmt.Fprintf(k.io.Stdout, "#%d @%s %s\n", m.ID, m.Author.Handle, time.UnixMilli(m.CreatedAt).UTC().Format(time.RFC3339))
+		fmt.Fprintf(k.io.Stdout, "#%d %s %s\n", m.ID, authorOf(m), time.UnixMilli(m.CreatedAt).UTC().Format(time.RFC3339))
 		for _, line := range strings.Split(m.Body, "\n") {
 			fmt.Fprintf(k.io.Stdout, "  %s\n", plain(line))
 		}

@@ -508,7 +508,7 @@ const upsertActivityItem = `-- name: UpsertActivityItem :exec
 INSERT INTO inbox_items (identity_id, reason, conversation_id, first_message_id, message_id, count, mention_count, source_seq, state, created_at, updated_at)
 VALUES (?1, 'activity', ?2, ?3, ?3, 1, 0, ?4, 'ready', ?5, ?5)
 ON CONFLICT (identity_id, conversation_id) WHERE state = 'ready' AND reason IN ('mention','thread','activity')
-DO UPDATE SET message_id = excluded.message_id, count = inbox_items.count + 1, source_seq = excluded.source_seq, updated_at = excluded.updated_at
+DO UPDATE SET count = CASE WHEN inbox_items.message_id = excluded.message_id THEN inbox_items.count ELSE inbox_items.count + 1 END, message_id = excluded.message_id, source_seq = excluded.source_seq, updated_at = excluded.updated_at
 `
 
 type UpsertActivityItemParams struct {
@@ -521,6 +521,7 @@ type UpsertActivityItemParams struct {
 
 // The fan-out of one new main message to one agent participant: the ready conversation item for (identity, conversation)
 // takes the newest message and counts one more, or is made (design section 3.8, C-10).
+// an @mention may have made the item for this very message first: it counts once
 func (q *Queries) UpsertActivityItem(ctx context.Context, arg UpsertActivityItemParams) error {
 	_, err := q.db.ExecContext(ctx, upsertActivityItem,
 		arg.IdentityID,

@@ -15,6 +15,7 @@
             required: [main_id]
             properties:
               main_id: { type: integer, format: int64, minimum: 0 }
+              all: { type: boolean, description: Mark the whole main thread read. }
     responses:
       "200": { $ref: "../openapi.yaml#/components/responses/Empty" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }

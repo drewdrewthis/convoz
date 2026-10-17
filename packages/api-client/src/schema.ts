@@ -672,7 +672,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The caller's conversations, newest activity first. */
+        /** The caller's conversations, newest activity first. ?deleted=1 lists the trash (the owner). */
         get: operations["listConversations"];
         put?: never;
         /** Make a conversation. The same client_id again answers 200 with the one it made. */
@@ -690,13 +690,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** One conversation with its details (who started it, the link, pending adds, pickup). */
         get: operations["getConversation"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Move the conversation to the trash for 30 days. Agents lose sight of it at once. */
+        delete: operations["deleteConversation"];
         options?: never;
         head?: never;
-        patch?: never;
+        /** Rename the conversation or link its pull request. A chosen title is never changed by a later message. */
+        patch: operations["patchConversation"];
         trace?: never;
     };
     "/api/conversations/{id}/restore": {
@@ -708,7 +711,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
+        /** Bring a conversation back from the trash with all its messages. */
+        post: operations["restoreConversation"];
         delete?: never;
         options?: never;
         head?: never;
@@ -724,7 +728,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
+        /** Add an agent at once and say what history it sees. An agent can only ask; its request waits for a person. */
+        post: operations["addParticipant"];
         delete?: never;
         options?: never;
         head?: never;
@@ -741,7 +746,8 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /** Take an agent out. It gets one notice, and nothing more from the conversation. */
+        delete: operations["removeParticipant"];
         options?: never;
         head?: never;
         patch?: never;
@@ -756,7 +762,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
+        /** Approve an add an agent asked for. */
+        post: operations["approveParticipant"];
         delete?: never;
         options?: never;
         head?: never;
@@ -772,7 +779,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
+        /** Decline an add an agent asked for. */
+        post: operations["declineParticipant"];
         delete?: never;
         options?: never;
         head?: never;
@@ -788,7 +796,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
+        /** An agent takes itself out of the conversation. */
+        post: operations["leaveConversation"];
         delete?: never;
         options?: never;
         head?: never;
@@ -804,7 +813,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
+        /** Let paused agents post again. */
+        post: operations["resumeConversation"];
         delete?: never;
         options?: never;
         head?: never;
@@ -820,7 +830,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
+        /** Offer the conversation to any agent that has the pickup scope. */
+        post: operations["openPickup"];
         delete?: never;
         options?: never;
         head?: never;
@@ -836,7 +847,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
+        /** An agent with the pickup scope takes an open conversation (exactly one wins). With a fence it renews its hold. */
+        post: operations["pickupConversation"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1577,10 +1589,15 @@ export interface components {
             last_used_at: number | null;
         };
         Person: {
+            /** Format: int64 */
+            id?: number;
             handle: string;
             display_name: string;
-            /** @enum {string} */
-            kind: "human" | "agent";
+            /**
+             * @description A line the conversation says about itself has the kind system and no handle.
+             * @enum {string}
+             */
+            kind: "human" | "agent" | "system";
         };
         LastMessage: {
             /** Format: int64 */
@@ -1600,6 +1617,33 @@ export interface components {
             participants: components["schemas"]["Person"][];
             last: components["schemas"]["LastMessage"] | null;
             unread: number;
+            started_by?: components["schemas"]["Person"];
+            /** @description The linked pull request (https). */
+            link_url?: string;
+            /** Format: int64 */
+            muted_until?: number;
+            /** @description The loop breaker stopped the agents after 20 messages in a row. */
+            paused?: boolean;
+            /** @enum {string} */
+            pickup?: "closed" | "open" | "taken";
+            picked_up_by?: components["schemas"]["Person"];
+            /** @description Agents that wait for a person to add them, and the agent that asked. */
+            pending?: {
+                person: components["schemas"]["Person"];
+                requested_by?: components["schemas"]["Person"];
+                /** Format: int64 */
+                at: number;
+            }[];
+            /**
+             * Format: int64
+             * @description In the trash since.
+             */
+            deleted_at?: number;
+            /**
+             * Format: int64
+             * @description When the trash removes it for good.
+             */
+            purges_at?: number;
         };
         Message: {
             /** Format: int64 */
@@ -1610,6 +1654,21 @@ export interface components {
             format: "plain" | "markdown";
             /** Format: int64 */
             created_at: number;
+            /**
+             * @description An agent's question. A plain message leaves it out.
+             * @enum {string}
+             */
+            kind?: "ask";
+            /** @description Where the ask stands, for a message of kind ask. */
+            ask?: {
+                /** @enum {string} */
+                state: "open" | "answered" | "dismissed" | "closed";
+            };
+            /** @description Which agent session wrote the message and on which machine. Only a person is told. */
+            via?: {
+                session: string;
+                machine: string;
+            };
         };
         Posted: {
             /** Format: int64 */
@@ -2317,7 +2376,9 @@ export interface operations {
     };
     listConversations: {
         parameters: {
-            query?: never;
+            query?: {
+                deleted?: "1";
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2376,6 +2437,272 @@ export interface operations {
             default: components["responses"]["Error"];
         };
     };
+    deleteConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Empty"];
+            default: components["responses"]["Error"];
+        };
+    };
+    patchConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    title?: string;
+                    /** @description An https link */
+                    link_url?: string;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["OneConversation"];
+            default: components["responses"]["Error"];
+        };
+    };
+    restoreConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            200: components["responses"]["OneConversation"];
+            default: components["responses"]["Error"];
+        };
+    };
+    addParticipant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: int64 */
+                    identity_id?: number;
+                    handle?: string;
+                    /**
+                     * @default since_now
+                     * @enum {string}
+                     */
+                    history?: "since_now" | "full";
+                };
+            };
+        };
+        responses: {
+            /** @description The agent and where it stands (active, or pending a person). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        participant: {
+                            /** Format: int64 */
+                            identity_id: number;
+                            handle: string;
+                            /** @enum {string} */
+                            status: "active" | "pending";
+                        };
+                    };
+                };
+            };
+            /** @description The agent and where it stands (active, or pending a person). */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        participant: {
+                            /** Format: int64 */
+                            identity_id: number;
+                            handle: string;
+                            /** @enum {string} */
+                            status: "active" | "pending";
+                        };
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    removeParticipant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                iid: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Empty"];
+            default: components["responses"]["Error"];
+        };
+    };
+    approveParticipant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                iid: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            200: components["responses"]["Empty"];
+            default: components["responses"]["Error"];
+        };
+    };
+    declineParticipant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                iid: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            200: components["responses"]["Empty"];
+            default: components["responses"]["Error"];
+        };
+    };
+    leaveConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            200: components["responses"]["Empty"];
+            default: components["responses"]["Error"];
+        };
+    };
+    resumeConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            200: components["responses"]["Empty"];
+            default: components["responses"]["Error"];
+        };
+    };
+    openPickup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            200: components["responses"]["Empty"];
+            default: components["responses"]["Error"];
+        };
+    };
+    pickupConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** Format: int64 */
+                    fence?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description The agent holds the conversation under this fence. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: int64 */
+                        conversation_id: number;
+                        /** Format: int64 */
+                        fence: number;
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
     markRead: {
         parameters: {
             query?: never;
@@ -2390,6 +2717,8 @@ export interface operations {
                 "application/json": {
                     /** Format: int64 */
                     main_id: number;
+                    /** @description Mark the whole main thread read. */
+                    all?: boolean;
                 };
             };
         };

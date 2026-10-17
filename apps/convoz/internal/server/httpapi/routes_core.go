@@ -20,6 +20,7 @@ var coreRoutes = []Route{
 	{Method: "GET", Pattern: "/settings/passkeys", Auth: authz.Human, Page: true, handle: appPage},
 	{Method: "GET", Pattern: "/settings/recovery", Auth: authz.Human, Page: true, handle: appPage},
 	{Method: "GET", Pattern: "/account", Auth: authz.Human, Page: true, handle: appPage},
+	{Method: "GET", Pattern: "/trash", Auth: authz.Human, Page: true, handle: appPage},
 	// The app's hashed build files (cached for a year), and the public files that keep their names.
 	{Method: "GET", Pattern: "/assets/:file", Auth: authz.Pub, handle: appAsset},
 	{Method: "GET", Pattern: "/assets/lookalikes.js", Auth: authz.Pub, handle: lookalikesAsset},

@@ -54,6 +54,7 @@ Person:
   type: object
   required: [handle, display_name, kind]
   properties:
+    id: { type: integer, format: int64 }
     handle: { type: string }
     display_name: { type: string }
-    kind: { type: string, enum: [human, agent] }
+    kind: { type: string, enum: [human, agent, system], description: A line the conversation says about itself has the kind system and no handle. }

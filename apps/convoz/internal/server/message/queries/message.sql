@@ -15,19 +15,19 @@ FROM messages WHERE id = sqlc.arg(id) AND deleted_at IS NULL;
 -- name: PageNewest :many
 SELECT id, conversation_id, author_id, kind, format, body, created_at
 FROM messages
-WHERE conversation_id = sqlc.arg(conversation_id) AND in_main = 1 AND kind <> 'system' AND deleted_at IS NULL AND id > sqlc.arg(floor)
+WHERE conversation_id = sqlc.arg(conversation_id) AND in_main = 1 AND deleted_at IS NULL AND id > sqlc.arg(floor)
 ORDER BY id DESC LIMIT sqlc.arg(max_rows);
 
 -- name: PageAfter :many
 SELECT id, conversation_id, author_id, kind, format, body, created_at
 FROM messages
-WHERE conversation_id = sqlc.arg(conversation_id) AND in_main = 1 AND kind <> 'system' AND deleted_at IS NULL AND id > sqlc.arg(after)
+WHERE conversation_id = sqlc.arg(conversation_id) AND in_main = 1 AND deleted_at IS NULL AND id > sqlc.arg(after)
 ORDER BY id LIMIT sqlc.arg(max_rows);
 
 -- name: PageBefore :many
 SELECT id, conversation_id, author_id, kind, format, body, created_at
 FROM messages
-WHERE conversation_id = sqlc.arg(conversation_id) AND in_main = 1 AND kind <> 'system' AND deleted_at IS NULL
+WHERE conversation_id = sqlc.arg(conversation_id) AND in_main = 1 AND deleted_at IS NULL
   AND id < sqlc.arg(before) AND id > sqlc.arg(floor)
 ORDER BY id DESC LIMIT sqlc.arg(max_rows);
 

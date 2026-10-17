@@ -13,8 +13,9 @@ const (
 	RouteInboxAck      = "/api/inbox/ack"
 )
 
-// Person is who wrote a message or takes part in a conversation.
+// Person is who wrote a message or takes part in a conversation. A system line has the kind "system" and no handle.
 type Person struct {
+	ID          int64  `json:"id,omitempty"`
 	Handle      string `json:"handle"`
 	DisplayName string `json:"display_name"`
 	Kind        string `json:"kind"`
@@ -27,7 +28,22 @@ type LastMessage struct {
 	Preview      string `json:"preview"` // at most 140 runes, one line
 }
 
-// Conversation is one row of the list, and the body of the single-conversation routes.
+// Pickup states of a conversation (SEC-6).
+const (
+	PickupClosed = "closed" // nobody opened it for pickup
+	PickupOpen   = "open"   // opened, and no agent holds it
+	PickupTaken  = "taken"  // an agent holds it
+)
+
+// PendingAdd is an agent that waits to be added until a human approves, and the agent that asked.
+type PendingAdd struct {
+	Person      Person  `json:"person"`
+	RequestedBy *Person `json:"requested_by,omitempty"`
+	At          int64   `json:"at"`
+}
+
+// Conversation is one row of the list, and the body of the single-conversation routes. The fields after Unread are
+// the details: the list sends the cheap ones (paused, pickup, deleted_at) and the single-conversation route all of them.
 type Conversation struct {
 	ID             int64        `json:"id"`
 	Title          *string      `json:"title"`
@@ -36,6 +52,22 @@ type Conversation struct {
 	Participants   []Person     `json:"participants"`
 	Last           *LastMessage `json:"last"`
 	Unread         int64        `json:"unread"`
+
+	StartedBy  *Person      `json:"started_by,omitempty"`
+	LinkURL    *string      `json:"link_url,omitempty"`
+	MutedUntil *int64       `json:"muted_until,omitempty"`
+	Paused     bool         `json:"paused,omitempty"`
+	Pickup     string       `json:"pickup,omitempty"`
+	PickedUpBy *Person      `json:"picked_up_by,omitempty"`
+	Pending    []PendingAdd `json:"pending,omitempty"`
+	DeletedAt  *int64       `json:"deleted_at,omitempty"`
+	PurgesAt   *int64       `json:"purges_at,omitempty"`
+}
+
+// Origin says which agent session wrote a message and where it ran. Only a person sees it.
+type Origin struct {
+	Session string `json:"session"`
+	Machine string `json:"machine"`
 }
 
 // Message is one message of a page.
@@ -45,6 +77,17 @@ type Message struct {
 	Body      string `json:"body"`
 	Format    string `json:"format"`
 	CreatedAt int64  `json:"created_at"`
+	// Via is set on an agent's message when the reader is a person: its session label and machine.
+	Via *Origin `json:"via,omitempty"`
+	// Kind is "ask" for an agent's question; a plain message leaves it out.
+	Kind string `json:"kind,omitempty"`
+	// Ask is where an ask stands (open, answered, dismissed or closed), for a message of kind ask.
+	Ask *AskState `json:"ask,omitempty"`
+}
+
+// AskState is the state of the ask a message carries.
+type AskState struct {
+	State string `json:"state"`
 }
 
 // PostRequest is POST /api/conversations/:id/messages. The author is never in it: the server takes it from the credential.
@@ -70,6 +113,8 @@ type MessagesResponse struct {
 // ReadRequest is POST /api/conversations/:id/read.
 type ReadRequest struct {
 	MainID int64 `json:"main_id"`
+	// All marks everything read: the main thread up to its newest message.
+	All bool `json:"all,omitempty"`
 }
 
 // InboxConversation names the conversation of an inbox item.

@@ -28,6 +28,10 @@ export function Account() {
           <span>Machines</span>
           <span className="chev" aria-hidden="true" />
         </a>
+        <a className="row" href="/trash">
+          <span>Trash</span>
+          <span className="chev" aria-hidden="true" />
+        </a>
         <button className="row danger" type="button" id="signout-row" onClick={() => void signOut(fail)}>
           Sign out
         </button>
