@@ -1,6 +1,5 @@
-// Where the shared data cache gets its data. Today it is the network; the IndexedDB cache (db/) and the cursor delta of
-// the sync engine stand behind the same interface later, so the cache and every feature stay as they are.
-import type { Conversation, Identity, Me, Message, Posted } from "./types.ts";
+// Where the shared data cache and the sync engine get their data: the network, through the generated client.
+import type { Conversation, Identity, Me, Message, Posted, SyncAnswer, SyncSnapshot } from "./types.ts";
 
 export interface MessagePage {
   messages: Message[];
@@ -19,4 +18,8 @@ export interface DataSource {
   /** Move the read cursor; true when the server took it. Never throws: a lost cursor is sent again later.
    *  `keepalive` lets the request outlive the page (it is leaving). */
   markRead(id: number, mainId: number, keepalive?: boolean): Promise<boolean>;
+  /** Where the event log stands now (GET /api/sync/snapshot). */
+  snapshot(): Promise<SyncSnapshot>;
+  /** The events after a cursor (GET /api/sync); with `wait` seconds the server holds the request when nothing is new. */
+  delta(cursor: string, wait?: number, signal?: AbortSignal): Promise<SyncAnswer>;
 }

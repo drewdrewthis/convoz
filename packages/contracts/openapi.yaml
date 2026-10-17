@@ -271,3 +271,8 @@ components:
     MessageCreatedFrame: { $ref: "components/event.yaml#/MessageCreatedFrame" }
     ReadMovedFrame: { $ref: "components/event.yaml#/ReadMovedFrame" }
     AgentWorkingFrame: { $ref: "components/event.yaml#/AgentWorkingFrame" }
+    SyncEvent: { $ref: "components/event.yaml#/SyncEvent" }
+    SyncAnswer: { $ref: "components/event.yaml#/SyncAnswer" }
+    SyncDelta: { $ref: "components/event.yaml#/SyncDelta" }
+    SyncReset: { $ref: "components/event.yaml#/SyncReset" }
+    SyncSnapshot: { $ref: "components/event.yaml#/SyncSnapshot" }

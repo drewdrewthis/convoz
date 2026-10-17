@@ -560,6 +560,8 @@ Live-only (not stored): typing, agent `doing`/progress, app data, and `agent.wor
 
 Unchanged from draft 7 §5.5 (`epoch:seq`, `reset`, snapshot with `as_of_seq`, `prev_seq_for_you`, cursor = highest seq scanned). Agents do not use this; they use the inbox (§3.8).
 
+Built (S3 sync part): `GET /api/sync?cursor=<epoch>:<seq>&wait=<s≤25>` returns `{cursor, events[], more}`, the stored events the caller may see (same visibility as the stream), thin; `cursor` is the highest seq scanned. A cursor of another epoch, or ahead of the log, gets `{reset:true, reason:"epoch"}`. `GET /api/sync/snapshot` returns `{epoch, as_of_seq, cursor}`; the client then reads its state over the plain routes. Every stored SSE frame carries `prev_seq_for_you`: the seq of the frame before it on that stream (or where it resumed), so a client that holds frame n+1 and not n resyncs. A stream whose reader stopped, with more than 256 events waiting behind it (or its live frames overflowing their 256 buffer), gets `reset{reason:"slow"}` and ends. The client (`packages/api-client/src/sync`) keeps the cursor in IndexedDB, reads the delta whenever a stream opens, and after two stream failures in 60 s long-polls `/api/sync?wait=25` while it tries the stream again with full-jitter backoff (1 s to 30 s). Prune (§5.6) is not built yet.
+
 ### 5.6 Retention
 
 - Prune: events older than 14 d AND `seq ≤ offset('push')` (or older than 1 h past the push skip), in 5k-row batches; update `pruned_through`. The boundary is found by binary search on `seq` (`created_at` follows `seq` under one writer), so no `created_at` index is needed.

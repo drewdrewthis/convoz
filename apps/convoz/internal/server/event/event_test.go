@@ -52,3 +52,18 @@ func TestWriteStoresTheFullNameAndAnIdempotencyKeyFindsItAgain(t *testing.T) {
 		return nil
 	})
 }
+
+func TestCursorRoundTripsAndRefusesJunk(t *testing.T) {
+	if got := event.FormatCursor(57); got != event.Epoch+":57" {
+		t.Errorf("FormatCursor(57) = %q", got)
+	}
+	epoch, seq, ok := event.ParseCursor("1:57")
+	if !ok || epoch != "1" || seq != 57 {
+		t.Errorf("ParseCursor(1:57) = %q %d %v", epoch, seq, ok)
+	}
+	for _, bad := range []string{"", "57", ":57", "1:", "1:x", "1:-3", "1:2:3"} {
+		if _, _, ok := event.ParseCursor(bad); ok {
+			t.Errorf("ParseCursor(%q) was accepted", bad)
+		}
+	}
+}

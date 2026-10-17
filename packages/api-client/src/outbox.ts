@@ -1,6 +1,7 @@
-// The outbox: sends the server has not confirmed. Today the conversations feature keeps its pending sends in memory and
-// retries them by hand; the sync engine work package persists this interface in the "outbox" store (db/schema.ts) and
-// drains it on reconnect, with the same client id, so a retry never makes a second message (I-24).
+// The outbox: sends the server has not confirmed. A send is put here before it is tried and removed when the server confirms
+// it; one that was cut off (offline, the page closed) is sent again with the same client id, so a retry never makes a second
+// message (I-24). `idbOutbox` (sync/persist.ts) keeps the items in the "outbox" store (db/schema.ts); `memoryOutbox` is the
+// fallback where IndexedDB is not there.
 export interface OutboxItem {
   /** The client id, made once per message. */
   cid: string;

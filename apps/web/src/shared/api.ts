@@ -1,6 +1,7 @@
 // The app's one way to the server: the generated client (@convoz/api-client), its answers unwrapped by `call`.
 // Components never fetch; they call the store or a feature's own functions, which use `client` here.
 import { createConvozClient, type ApiErrorBody } from "@convoz/api-client";
+import { forgetOffline } from "./offline.ts";
 
 export const client = createConvozClient();
 
@@ -47,6 +48,9 @@ export async function call<T>(request: Promise<Answer<T>>): Promise<T> {
   if (!response.ok) {
     const body = (error && typeof error === "object" ? error : null) as ApiErrorBody | null;
     const err = new ApiError(body?.error?.message || response.statusText, response.status, body?.error?.code);
+    // Only a 401 that says the device or its session is gone clears the offline cache; a network error or any other
+    // refusal never does, so a poor connection cannot wipe it (design §9).
+    if (response.status === 401 && (err.code === "device_revoked" || err.code === "session_expired")) void forgetOffline();
     if (response.status === 401 && err.code === "unauthorized" && !page.public) {
       toSignin();
       err.handled = true;
@@ -104,6 +108,7 @@ export async function signOut(fail: (message: string) => void): Promise<void> {
     }
   }
   page.leaving = true;
+  await forgetOffline();
   location.assign("/signin?signed_out=1");
 }
 

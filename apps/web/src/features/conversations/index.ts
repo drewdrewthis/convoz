@@ -1,5 +1,5 @@
 // Conversations: the list, one conversation (and a new one), and the page for one that does not exist.
-import { registerHandler } from "@convoz/api-client";
+import { registerHandler, registerResync } from "@convoz/api-client";
 import { useConversations } from "./store.ts";
 
 export { Conversation } from "./Conversation.tsx";
@@ -12,3 +12,4 @@ registerHandler("message.", (frame) => {
 registerHandler("agent.", (frame) => {
   if (frame.name === "agent.working") useConversations.getState().setWorking(frame.data.conversation_id, frame.data.handle, Boolean(frame.data.working), frame.data.until);
 });
+registerResync(() => void useConversations.getState().drainOutbox());

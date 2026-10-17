@@ -5,7 +5,7 @@ import { coalesce, maxId } from "@convoz/api-client";
 import { create } from "zustand";
 import { ApiError } from "../../shared/api.ts";
 import { newId } from "../../shared/chat.ts";
-import { data, source, sync } from "../../shared/data.ts";
+import { data, outbox, source, sync } from "../../shared/data.ts";
 
 /** How long a working note stays without an `until` from the server. */
 const WORKING_DEFAULT_MS = 300_000;
@@ -48,6 +48,8 @@ export interface ConversationsState {
   send(key: string, body: string): void;
   retry(key: string, cid: string): void;
   markRead(key: string): Promise<void>;
+  /** Send the unconfirmed sends of conversations no page has open (the outbox), after the link came back. */
+  drainOutbox(): Promise<void>;
   /** Send the read cursor with keepalive, for a page that is going away. */
   flushRead(key: string): void;
   setWorking(convId: number, handle: string, working: boolean, until?: number): void;
@@ -83,7 +85,9 @@ export const useConversations = create<ConversationsState>()((set, get) => {
         t = thread(key)!;
       }
       const p = t.pending.find((x) => x.cid === cid)!;
+      void outbox.put({ cid, conversationId: t.convId, body: p.body, createdAt: Date.now() }); // before the post: a cut-off send is found again
       const sent = await source.post(t.convId, cid, p.body);
+      void outbox.remove(cid);
       const me = data.store.getState().me!.identity;
       data.putMessages(t.convId, [{ id: sent.id, author: { handle: me.handle, display_name: me.display_name, kind: "human" }, body: p.body, format: "plain", created_at: sent.created_at }]);
       patch(key, (now) => ({ pending: now.pending.filter((x) => x.cid !== cid) }));
@@ -95,12 +99,22 @@ export const useConversations = create<ConversationsState>()((set, get) => {
     }
   }
 
+  /** Sends of this conversation that a closed page or a dead link left in the outbox go out again with their client ids. */
+  async function restoreSends(key: string, convId: number) {
+    for (const item of await outbox.list()) {
+      if (item.conversationId !== convId || thread(key)?.pending.some((p) => p.cid === item.cid)) continue;
+      patch(key, (t) => ({ pending: [...t.pending, { cid: item.cid, body: item.body, state: "sending", base: newest(convId) }] }));
+      void deliver(key, item.cid);
+    }
+  }
+
   return {
     threads: {},
     openThread: async (key, convId) => {
       set((s) => ({ threads: { ...s.threads, [key]: s.threads[key] ?? emptyThread(convId) } }));
       await data.loadConversation(convId);
       await data.loadNewest(convId);
+      await restoreSends(key, convId);
     },
     startThread: (key, handle) => {
       set((s) => ({ threads: { ...s.threads, [key]: { ...emptyThread(0), start: { handle, clientId: newId() } } } }));
@@ -148,6 +162,18 @@ export const useConversations = create<ConversationsState>()((set, get) => {
         readJobs.set(key, job);
       }
       return job();
+    },
+    drainOutbox: async () => {
+      for (const item of await outbox.list()) {
+        if (Object.values(get().threads).some((t) => t.convId === item.conversationId)) continue; // its page sends it
+        try {
+          await source.post(item.conversationId, item.cid, item.body);
+        } catch (err) {
+          // a refusal that a retry cannot change is dropped; a dead link keeps the send for the next time
+          if (!(err instanceof ApiError) || err.status === 401 || err.status === 408 || err.status === 429 || err.status >= 500) continue;
+        }
+        await outbox.remove(item.cid);
+      }
     },
     flushRead: (key) => {
       const t = thread(key);
