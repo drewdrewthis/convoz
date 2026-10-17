@@ -5,6 +5,7 @@ import { ApiError } from "../../shared/api.ts";
 import { initials, paletteOf, setRegistry, stripCf } from "../../shared/chat.ts";
 import { data, useData, useLive } from "../../shared/data.ts";
 import { Composer } from "../composer/index.ts";
+import { rememberChat } from "../search/index.ts";
 import { resume } from "./actions.ts";
 import { Details } from "./Details.tsx";
 import { MessageDetails } from "./MessageDetails.tsx";
@@ -40,6 +41,8 @@ export function Conversation() {
   const textRef = useRef<HTMLTextAreaElement>(null);
   const frame = useRef<HTMLDivElement>(null);
   const control = useRef<TranscriptControl>(null);
+  // A search result opens the conversation at its message: /chats/<id>#m<message id>.
+  const [target] = useState(() => Number(/^#m(\d+)$/.exec(location.hash)?.[1] ?? 0));
 
   const crew = useMemo(() => (people ?? []).filter((p) => p.kind === "agent" && !p.disabled), [people]);
   const agents = (conversation?.participants ?? []).filter((p) => p.kind === "agent");
@@ -102,6 +105,8 @@ export function Conversation() {
         }
         throw err;
       }
+      if (target) await loadUntil(s, key, id, target);
+      rememberChat(id);
       const who = data.store.getState().rows[id]!.participants.find((p) => p.kind === "agent") ?? { handle: "agent" };
       setAgentHandle(who.handle);
       fit();
@@ -111,7 +116,7 @@ export function Conversation() {
       if (err instanceof ApiError && err.handled) return;
       setError((err && err.message) || "Something went wrong. Try again.");
     });
-  }, [isNew, key, openWith, fit, actions]);
+  }, [isNew, key, openWith, fit, actions, target]);
 
   // The first send made the conversation: the URL names it now.
   useEffect(() => {
@@ -220,6 +225,7 @@ export function Conversation() {
             onEarlier={() => actions().loadEarlier(key)}
             onRetry={retry}
             onDetails={setInspected}
+            focus={target || undefined}
           />
           <Composer agent={agent?.handle ?? null} label={label} onSend={send} textRef={textRef} mentions={isNew ? { crew, onPick: pick } : undefined} />
         </section>
@@ -234,6 +240,18 @@ export function Conversation() {
 
   function retry(cid: string) {
     actions().retry(key, cid);
+  }
+}
+
+/** The most pages of earlier messages loaded to reach a message that a search result named (100 each). */
+const MOST_PAGES = 50;
+
+/** loadUntil loads earlier pages until the message is held, or there are no more, or the cap: a result may be old. */
+async function loadUntil(s: ReturnType<typeof useConversations.getState>, key: string, convId: number, target: number): Promise<void> {
+  for (let page = 0; page < MOST_PAGES; page++) {
+    const held = data.store.getState().messages[convId];
+    if (!held?.hasEarlier || held.list.some((m) => m.id <= target)) return;
+    await s.loadEarlier(key);
   }
 }
 

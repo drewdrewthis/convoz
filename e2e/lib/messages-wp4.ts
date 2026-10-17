@@ -163,7 +163,10 @@ export function everyRow(db: DatabaseSync): string[] {
   const out: string[] = [];
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND sql NOT LIKE 'CREATE VIRTUAL%'").all() as { name: string }[];
   for (const { name } of tables) {
-    for (const row of db.prepare(`SELECT * FROM "${name}"`).all()) {
+    // BigInts: the index's shadow tables hold ids beyond 2^53
+    const rows = db.prepare(`SELECT * FROM "${name}"`);
+    rows.setReadBigInts(true);
+    for (const row of rows.all()) {
       out.push(`${name}: ${JSON.stringify(row, (_k, v) => (v instanceof Uint8Array ? Buffer.from(v).toString("latin1") : typeof v === "bigint" ? v.toString() : v))}`);
     }
   }

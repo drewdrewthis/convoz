@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { agentEdits, agentPostWith, byBody, idsByHandle, leaseOf, msgWorld, ownerPurges, pageOf, rowsWith } from "../lib/messages-wp4.ts";
+import { searchAs } from "../lib/search-wp12.ts";
 import { must } from "../lib/owner.ts";
 import { expect, scenario } from "../lib/scenario.ts";
 
@@ -37,6 +38,7 @@ scenario("Purging a message scrubs every copy of its content", { tag: ["@browser
   );
   expect(rowsWith(db, "ZQX-purge").length).toBeGreaterThan(3);
   db.close();
+  expect((await searchAs(w, "ZQX-purge")).results.length, "search finds the posts until they are purged").toBeGreaterThan(0);
 
   // When the owner purges those messages with a passkey
   for (const id of [first, appId, viaId]) expect((await ownerPurges(w.owner, id)).status, `purge ${id}`).toBe(200);
@@ -48,6 +50,12 @@ scenario("Purging a message scrubs every copy of its content", { tag: ["@browser
     expect([m.deleted, m.purged, m.body]).toEqual([true, true, ""]);
   }
   await expect.poll(() => byBody(w.owner, w.conv, "ZQX-purge-me").then(() => true, () => false)).toBe(false);
+
+  // And search for "ZQX-purge" returns nothing
+  expect((await searchAs(w, "ZQX-purge")).results).toEqual([]);
+  const index = w.db();
+  expect((index.prepare("SELECT COUNT(*) AS n FROM messages_fts_docsize WHERE id IN (?, ?, ?)").get(first, appId, viaId) as { n: number }).n).toBe(0);
+  index.close();
 
   // And every table holds the string 0 times
   const after = w.db();

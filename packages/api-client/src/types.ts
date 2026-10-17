@@ -25,6 +25,11 @@ export type SyncAnswer = S["SyncAnswer"];
 export type SyncDelta = S["SyncDelta"];
 export type SyncSnapshot = S["SyncSnapshot"];
 export type EditHistory = S["EditHistory"];
+export type SearchResponse = S["SearchResponse"];
+export type SearchResult = S["SearchResult"];
+export type SearchConversation = S["SearchConversation"];
+export type SearchFilter = S["SearchFilter"];
+export type SearchPart = S["SearchPart"];
 /** A message frame after the message changed: the message as it is now, with the conversation it is in. */
 export type MessageChangedFrame = Message & { conversation_id: number; author_handle: string };
 export interface ThreadUpdatedFrame {

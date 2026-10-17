@@ -27,6 +27,7 @@ import {
   systemLine,
   type MsgWorld,
 } from "../lib/messages-wp4.ts";
+import { searchAs } from "../lib/search-wp12.ts";
 import { must } from "../lib/owner.ts";
 import { expect, scenario } from "../lib/scenario.ts";
 
@@ -759,11 +760,12 @@ scenario("An edit never pulls anyone in", { tag: ["@browser", "@api"] }, async (
 
 scenario("A deleted message is gone everywhere at once", { tag: ["@browser", "@cli"] }, async ({ server, dataDir, page, context, testApi }) => {
   // Given "devtool" posted "ZQX-delete-me" in conversation 41
-  // (the file "plan.pdf" and the search index belong to the upload and search modules; their halves of this scenario are not exercised)
+  // (the file "plan.pdf" belongs to the upload module; its half of this scenario is not exercised)
   const w = await browserWorld({ server, dataDir, page, context });
   const session = await startSession(w.box, "devtool", "gone");
   expect((await convoz(w.box, session.sid, ["post", String(w.conv), "ZQX-delete-me"])).code).toBe(0);
   const id = (await byBody(w.owner, w.conv, "ZQX-delete-me")).id;
+  expect((await searchAs(w, "ZQX-delete-me")).results.map((r) => r.message_id), "search finds it until it is deleted").toEqual([id]);
   await page.goto(`${w.srv.origin}/chats/${w.conv}`);
   await expect(article(page, "ZQX-delete-me")).toBeVisible();
 
@@ -773,6 +775,9 @@ scenario("A deleted message is gone everywhere at once", { tag: ["@browser", "@c
   // Then the conversation shows "Message deleted" in its place
   await expect(article(page, "Message deleted")).toBeVisible({ timeout: 5_000 }); // by the live frame, no reload
   await expect(messageLog(page)).not.toContainText("ZQX-delete-me");
+
+  // And searching "ZQX-delete-me" finds nothing
+  expect((await searchAs(w, "ZQX-delete-me")).results).toEqual([]);
 
   // And "convoz read 41" shows "[deleted]" in its place
   const read = await convoz(w.box, session.sid, ["read", String(w.conv)]);

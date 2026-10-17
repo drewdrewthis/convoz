@@ -279,3 +279,8 @@ components:
     SyncDelta: { $ref: "components/event.yaml#/SyncDelta" }
     SyncReset: { $ref: "components/event.yaml#/SyncReset" }
     SyncSnapshot: { $ref: "components/event.yaml#/SyncSnapshot" }
+    SearchPart: { $ref: "components/search.yaml#/SearchPart" }
+    SearchResult: { $ref: "components/search.yaml#/SearchResult" }
+    SearchConversation: { $ref: "components/search.yaml#/SearchConversation" }
+    SearchFilter: { $ref: "components/search.yaml#/SearchFilter" }
+    SearchResponse: { $ref: "components/search.yaml#/SearchResponse" }

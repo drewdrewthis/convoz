@@ -1,2 +1,47 @@
 # Schemas of the search module. Only the work package that owns search edits this file; the root lists each by name.
-{}
+SearchPart:
+  type: object
+  required: [text]
+  description: A run of a snippet. A run the query matched has hit set, so a page marks it with weight as well as a tint.
+  properties:
+    text: { type: string }
+    hit: { type: boolean }
+SearchResult:
+  type: object
+  required: [message_id, conversation_id, conversation_title, author, created_at, snippet]
+  properties:
+    message_id: { type: integer, format: int64 }
+    conversation_id: { type: integer, format: int64 }
+    conversation_title: { type: string, description: "Empty for a conversation with no title yet." }
+    author: { $ref: "../openapi.yaml#/components/schemas/Person" }
+    created_at: { type: integer, format: int64 }
+    kind: { type: string, enum: [ask], description: "Set for an ask; absent for text." }
+    app: { type: boolean, description: "The message carries an app." }
+    thread_root_id: { type: integer, format: int64, description: "Set for a reply: the message its thread hangs from." }
+    snippet:
+      type: array
+      description: A window of the message's plain words around the first match.
+      items: { $ref: "../openapi.yaml#/components/schemas/SearchPart" }
+SearchConversation:
+  type: object
+  required: [id, title, preview, snippet]
+  properties:
+    id: { type: integer, format: int64 }
+    title: { type: string }
+    starred: { type: boolean }
+    preview: { type: string, description: "The newest message the caller may see, as the conversation list shows it. Empty for none." }
+    snippet: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/SearchPart" } }
+SearchFilter:
+  type: object
+  required: [token, label]
+  description: One filter the text carries, as the "Active filters" row shows it. Take token out of the text to remove the filter.
+  properties:
+    token: { type: string }
+    label: { type: string }
+SearchResponse:
+  type: object
+  required: [results, conversations, filters]
+  properties:
+    results: { type: array, description: "Messages, newest first.", items: { $ref: "../openapi.yaml#/components/schemas/SearchResult" } }
+    conversations: { type: array, description: "Conversations whose title the words name, latest activity first.", items: { $ref: "../openapi.yaml#/components/schemas/SearchConversation" } }
+    filters: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/SearchFilter" } }
