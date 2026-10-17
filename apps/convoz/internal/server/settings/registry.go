@@ -2,6 +2,7 @@ package settings
 
 import (
 	"fmt"
+	"regexp"
 	"slices"
 	"time"
 )
@@ -24,8 +25,13 @@ type def struct {
 // registry is the whole set of server settings (design §11). A key not listed here does not exist (I-29).
 var registry = map[string]def{
 	"notify.previews":          {User, "full", oneOf("full", "sender", "none")},
+	"notify.asks":              {User, "all", oneOf("all", "urgent", "none")},
+	"notify.mentions":          {User, true, boolean},
+	"notify.threads":           {User, true, boolean},
+	"notify.pending_adds":      {User, true, boolean},
 	"notify.machine_requests":  {User, true, boolean},
 	"notify.urgent_bypass":     {User, true, boolean},
+	"notify.quiet_hours":       {User, nil, quietHours},
 	"palette":                  {User, "iris", oneOf("iris", "ember", "mono", "tide")},
 	"inbox.visibility_default": {Workspace, "5m", duration(30*time.Second, 30*time.Minute)},
 	"brief.max_bytes":          {Workspace, int64(12288), integer(4096, 65536)},
@@ -64,6 +70,43 @@ func integer(lo, hi int64) func(any) (any, error) {
 		}
 		return nil, fmt.Errorf("must be a whole number from %d to %d", lo, hi)
 	}
+}
+
+var clockTime = regexp.MustCompile(`^([01][0-9]|2[0-3]):[0-5][0-9]$`)
+
+// quietHours accepts null (no quiet hours) or {"start": "22:00", "end": "07:00", "tz": "Europe/Berlin"}: clock times in a
+// zone (UTC when tz is left out). End before start is a window over midnight. It stores the three fields, none missing.
+func quietHours(v any) (any, error) {
+	if v == nil {
+		return nil, nil
+	}
+	m, ok := v.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("must be null or {start, end, tz}")
+	}
+	out := map[string]any{"tz": "UTC"}
+	for k, raw := range m {
+		str, isStr := raw.(string)
+		switch {
+		case !isStr:
+			return nil, fmt.Errorf("%s must be text", k)
+		case k == "start" || k == "end":
+			if !clockTime.MatchString(str) {
+				return nil, fmt.Errorf("%s must be a time like 22:00", k)
+			}
+		case k == "tz":
+			if _, err := time.LoadLocation(str); err != nil || str == "" {
+				return nil, fmt.Errorf("tz must be a zone like Europe/Berlin")
+			}
+		default:
+			return nil, fmt.Errorf("has no field %q", k)
+		}
+		out[k] = str
+	}
+	if out["start"] == nil || out["end"] == nil {
+		return nil, fmt.Errorf("needs start and end")
+	}
+	return out, nil
 }
 
 // duration accepts a Go duration string ("5m", "90s") inside [lo, hi] and stores it as written.

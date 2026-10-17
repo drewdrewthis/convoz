@@ -10,6 +10,18 @@ import (
 	"database/sql"
 )
 
+const getConsumerOffset = `-- name: GetConsumerOffset :one
+SELECT last_event_id FROM consumer_offsets WHERE consumer = ?1
+`
+
+// The last event a consumer (the push worker) has handled; no row means it has not run yet.
+func (q *Queries) GetConsumerOffset(ctx context.Context, consumer string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getConsumerOffset, consumer)
+	var last_event_id int64
+	err := row.Scan(&last_event_id)
+	return last_event_id, err
+}
+
 const getKV = `-- name: GetKV :one
 SELECT value FROM system_kv WHERE key = ?1
 `
@@ -19,6 +31,22 @@ func (q *Queries) GetKV(ctx context.Context, key string) (sql.NullString, error)
 	var value sql.NullString
 	err := row.Scan(&value)
 	return value, err
+}
+
+const setConsumerOffset = `-- name: SetConsumerOffset :exec
+INSERT INTO consumer_offsets(consumer, last_event_id, updated_at) VALUES (?1, ?2, ?3)
+ON CONFLICT(consumer) DO UPDATE SET last_event_id = excluded.last_event_id, updated_at = excluded.updated_at
+`
+
+type SetConsumerOffsetParams struct {
+	Consumer    string
+	LastEventID int64
+	Now         int64
+}
+
+func (q *Queries) SetConsumerOffset(ctx context.Context, arg SetConsumerOffsetParams) error {
+	_, err := q.db.ExecContext(ctx, setConsumerOffset, arg.Consumer, arg.LastEventID, arg.Now)
+	return err
 }
 
 const setKV = `-- name: SetKV :exec

@@ -10,6 +10,7 @@ import { ThreadPane, useThreads } from "../threads/index.ts";
 import { resume } from "./actions.ts";
 import { Details } from "./Details.tsx";
 import { MessageDetails } from "./MessageDetails.tsx";
+import { useFocusReport } from "../notifications/index.ts";
 import { useConversations, type PendingSend } from "./store.ts";
 import { ThreadBubbles, Transcript, type TranscriptControl } from "./Transcript.tsx";
 
@@ -29,6 +30,7 @@ export function Conversation() {
   const thread = useConversations((s) => s.threads[key]);
   const convId = thread?.convId ?? 0;
   const conversation = useData((s) => (convId ? s.rows[convId] : undefined));
+  useFocusReport(convId || undefined); // a push for the chat on screen is held back
   const held = useData((s) => (convId ? s.messages[convId] : undefined));
   const me = useData((s) => s.me?.identity.handle ?? "");
   const people = useData((s) => s.identities);

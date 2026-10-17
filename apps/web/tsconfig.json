@@ -24,7 +24,6 @@
     "vite.config.ts"
   ],
   "exclude": [
-    "src/sw/worker.ts",
-    "src/sw/module.ts"
+    "src/sw/*.ts"
   ]
 }

@@ -12,7 +12,6 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/inbox"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
-	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/notify"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
 
@@ -94,11 +93,11 @@ func (askJournal) Write(ctx context.Context, d pdb.DBTX, now time.Time, c ask.Ch
 	})
 }
 
-// askNotify records the notification of a snooze that woke.
+// askNotify is the notifier of every ask call but the wake: only a snooze that woke notifies, and wakeSnoozes passes pushWake for it.
 type askNotify struct{}
 
-func (askNotify) SnoozeWoke(ctx context.Context, d pdb.DBTX, now time.Time, person, conv, askMessage, sourceSeq int64) error {
-	return notify.SnoozeWoke(ctx, d, now, person, conv, askMessage, sourceSeq)
+func (askNotify) SnoozeWoke(context.Context, pdb.DBTX, time.Time, int64, int64, int64, int64) error {
+	return nil
 }
 
 // askCascade closes the ask of a message that is deleted, and scrubs it when the message is purged. It joins the delete and

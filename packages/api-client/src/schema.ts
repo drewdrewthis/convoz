@@ -1393,7 +1393,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** The VAPID public key the browser subscribes with. */
+        get: operations["pushVapidKey"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1409,10 +1410,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** The owner's push subscriptions, one per device, with the state of each (a gone one is listed as disabled). */
+        get: operations["pushSubscriptions"];
         put?: never;
-        post?: never;
-        delete?: never;
+        /** Store this device's subscription. A device has one live subscription: a new endpoint replaces the old one. An endpoint off the push-service allow-list, or with bad keys, is a 400 (I-28). */
+        post: operations["pushSubscribe"];
+        /** Turn push off for this device. */
+        delete: operations["pushUnsubscribe"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1427,6 +1431,24 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** Send a test push to this device now. 409 when the device has no live subscription. */
+        post: operations["pushTest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/push/focus": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Tell the server which conversation this device has open and focused, so a push for it is held back (active_here). The client repeats it every 30 s; the server forgets it after 90 s. */
+        put: operations["pushFocus"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2230,6 +2252,50 @@ export interface components {
             messages: components["schemas"]["Message"][];
             /** Format: int64 */
             as_of_seq: number;
+        };
+        VapidKey: {
+            /** @description The server's VAPID public key: the 65-byte uncompressed P-256 point, base64url without padding. It is the browser's applicationServerKey. */
+            public_key: string;
+        };
+        PushSubscription: {
+            id: number;
+            /** @description The push service's host. The full endpoint stays on the server: it is a capability to send to the device. */
+            host: string;
+            /** @description This request's own device owns the subscription. */
+            current: boolean;
+            /** @enum {string} */
+            state: "active" | "disabled";
+            /** @enum {string} */
+            disabled_reason?: "gone" | "failures" | "device_revoked" | "user";
+            /** @description Unix ms. */
+            created_at: number;
+            /** @description Unix ms of the last push the service accepted. */
+            last_success_at?: number;
+        };
+        PushSubscriptionList: {
+            subscriptions: components["schemas"]["PushSubscription"][];
+        };
+        PushKeys: {
+            /** @description The browser's public key (65 bytes), base64url. */
+            p256dh: string;
+            /** @description The browser's 16-byte auth secret, base64url. */
+            auth: string;
+        };
+        /** @description A PushSubscription as the browser's toJSON() gives it. The endpoint must be https on a push-service host the server knows (I-28). */
+        PushSubscriptionRequest: {
+            endpoint: string;
+            keys: components["schemas"]["PushKeys"];
+        };
+        PushSubscribed: {
+            subscription: components["schemas"]["PushSubscription"];
+        };
+        PushTestResult: {
+            /** @description The push service accepted the test push. */
+            delivered: boolean;
+        };
+        /** @description Where the device is looking. conversation_id null (or absent) says it looks at no conversation. */
+        PushFocus: {
+            conversation_id?: number | null;
         };
         SettingEntry: {
             /** @enum {string} */
@@ -4038,6 +4104,136 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SyncSnapshot"];
                 };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    pushVapidKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The key. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VapidKey"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    pushSubscriptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The subscriptions, newest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushSubscriptionList"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    pushSubscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushSubscriptionRequest"];
+            };
+        };
+        responses: {
+            /** @description The subscription is stored and live. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushSubscribed"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    pushUnsubscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Push is off for this device. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    pushTest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The result. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushTestResult"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    pushFocus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushFocus"];
+            };
+        };
+        responses: {
+            /** @description Noted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             default: components["responses"]["Error"];
         };

@@ -31,7 +31,7 @@ func RevealMachineKey(ctx context.Context, d pdb.DBTX, box *KeyBox, j JournalPor
 	if err := j.Audit(ctx, d, now, AuditEntry{Actor: in.Human.ID, Device: in.DeviceID, Machine: id, Action: "machine.key_revealed", TargetKind: "machine", TargetID: id}); err != nil {
 		return "", err
 	}
-	return key, j.Event(ctx, d, now, "machine.key_revealed.v1", map[string]any{"machine_id": id})
+	return key, j.Event(ctx, d, now, "machine.key_revealed.v1", map[string]any{"machine_id": id, "device_id": in.DeviceID})
 }
 
 // RegenerateMachineKey spends a machine.regenerate step-up and replaces the key; its leases end at once and

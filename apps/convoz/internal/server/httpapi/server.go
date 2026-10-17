@@ -12,6 +12,7 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/notify"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/ops"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
@@ -40,8 +41,9 @@ type Server struct {
 	Cfg   Config
 	Log   *log.Logger
 
-	Keys *auth.KeyBox  // seals and opens the stored copy of each machine key
-	Bus  *platform.Bus // wakes streams and long polls after a commit; never carries data
+	Keys *auth.KeyBox    // seals and opens the stored copy of each machine key
+	Push *notify.Service // the push pipeline; nil until EnablePush (a server without push keys sends nothing)
+	Bus  *platform.Bus   // wakes streams and long polls after a commit; never carries data
 
 	csrfExempt map[string]bool // "METHOD /path" of the NoCSRF routes
 	userCodes  func() string   // the next device-flow user code; random unless the test hooks seed some

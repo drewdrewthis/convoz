@@ -15,7 +15,7 @@ Feature: Notifications (contracts)
 
   Rule: Each trigger sends one push
 
-    @v1 @api @invariant @I-28 @unimplemented
+    @v1 @api @invariant @I-28
     Scenario: A replayed event never pushes twice
       Given "devtool" asked a question and the owner got one push
       When the server restarts while the push worker is mid-batch
@@ -23,12 +23,12 @@ Feature: Notifications (contracts)
 
   Rule: The decision pipeline suppresses pushes for a reason (AC-7)
 
-    @v1 @api @unimplemented
+    @v1 @api
     Scenario: Bursts in one conversation coalesce
       When "devtool" posts 3 mentions of "@drew" in conversation 41 within 60 seconds
       Then the fake push service ends with one visible push for that topic reading "3 new"
 
-    @v1 @api @unimplemented
+    @v1 @api
     Scenario: A machine request pushes even in quiet hours
       Given it is inside the owner's quiet hours
       When "convoz login --name box-9" starts
@@ -36,7 +36,7 @@ Feature: Notifications (contracts)
 
   Rule: Delivery is private and well-behaved (I-28)
 
-    @v1 @api @I-28 @AC-7 @unimplemented
+    @v1 @api @I-28 @AC-7
     Scenario Outline: Only allow-listed push hosts are accepted
       When the owner subscribes with the endpoint "<endpoint>"
       Then the server answers <status>
@@ -48,7 +48,7 @@ Feature: Notifications (contracts)
         | https://x@fcm.googleapis.com/fcm/send/abc      | 400    |
         | http://fcm.googleapis.com/fcm/send/abc         | 400    |
 
-    @v1 @api @I-28 @unimplemented
+    @v1 @api @I-28
     Scenario: The push service sees no ids and no exact sizes
       When "devtool" asks 3 questions
       Then every Topic header the fake service received is 22 characters and holds no ask id
