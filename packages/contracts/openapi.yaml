@@ -300,6 +300,7 @@ components:
     SearchPart: { $ref: "components/search.yaml#/SearchPart" }
     SearchResult: { $ref: "components/search.yaml#/SearchResult" }
     SearchConversation: { $ref: "components/search.yaml#/SearchConversation" }
+    UnfurlCard: { $ref: "components/unfurl.yaml#/UnfurlCard" }
     SearchFilter: { $ref: "components/search.yaml#/SearchFilter" }
     SearchResponse: { $ref: "components/search.yaml#/SearchResponse" }
     AskOption: { $ref: "components/ask.yaml#/AskOption" }

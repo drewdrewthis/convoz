@@ -1047,7 +1047,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** The preview card of the first link of a message, for a person who can see the message. 403 for anyone who cannot, and for an agent (an agent gets the address only). 404 when the message has no link or no card was queued. */
+        get: operations["getMessageUnfurl"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2058,6 +2059,26 @@ export interface components {
             /** @description The newest message the caller may see, as the conversation list shows it. Empty for none. */
             preview: string;
             snippet: components["schemas"]["SearchPart"][];
+        };
+        /** @description The preview card of the first link of a message. Only people who can see the message get it; an agent is told 403, because an agent gets the address and never the fetched page. While status is pending the other fields are absent. */
+        UnfurlCard: {
+            /** @enum {string} */
+            status: "pending" | "ok" | "unavailable";
+            /** @description The address the card was made for */
+            url: string;
+            /** @enum {string} */
+            kind?: "generic" | "github_pr" | "github_issue";
+            /** @description The name of the site ("GitHub" */
+            site?: string;
+            title?: string;
+            description?: string;
+            /** @description For a GitHub kind, the repository, the number and the state. */
+            meta?: {
+                repo?: string;
+                number?: number;
+                /** @enum {string} */
+                state?: "open" | "closed" | "merged";
+            };
         };
         /** @description One filter the text carries, as the "Active filters" row shows it. Take token out of the text to remove the filter. */
         SearchFilter: {
@@ -3672,6 +3693,29 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RepliesResponse"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getMessageUnfurl: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The card, or pending while the worker has not fetched it yet. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnfurlCard"];
                 };
             };
             default: components["responses"]["Error"];

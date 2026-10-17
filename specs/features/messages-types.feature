@@ -126,13 +126,13 @@ Feature: Messages and their types
 
   Rule: Links show a preview to people, the address to agents
 
-    @v1 @browser @unimplemented
+    @v1 @browser
     Scenario: A link shows a preview card
       Given unfurls are on for "github.com"
       When "devtool" posts "https://github.com/acme/app/pull/415" in conversation 41
       Then the owner sees a card with the pull request title and its state
 
-    @v1 @cli @unimplemented
+    @v1 @cli
     Scenario: An agent gets the link, not the fetched page
       When the owner posts "@devtool see https://github.com/acme/app/pull/415" in conversation 41
       Then "convoz read 41" as "devtool" shows the address and no card content

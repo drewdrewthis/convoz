@@ -1,3 +1,17 @@
 # Paths of the unfurl module (design §13). Only the work package that owns unfurl edits this file; the root
 # openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
-/api/messages/{id}/unfurl: {}  # not specified yet
+/api/messages/{id}/unfurl:
+  get:
+    operationId: getMessageUnfurl
+    summary: >
+      The preview card of the first link of a message, for a person who can see the message. 403 for anyone who cannot,
+      and for an agent (an agent gets the address only). 404 when the message has no link or no card was queued.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    responses:
+      "200":
+        description: The card, or pending while the worker has not fetched it yet.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/UnfurlCard" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }

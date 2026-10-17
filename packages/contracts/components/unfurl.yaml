@@ -1,2 +1,21 @@
 # Schemas of the unfurl module. Only the work package that owns unfurl edits this file; the root lists each by name.
-{}
+UnfurlCard:
+  type: object
+  description: >
+    The preview card of the first link of a message. Only people who can see the message get it; an agent is told 403,
+    because an agent gets the address and never the fetched page. While status is pending the other fields are absent.
+  required: [status, url]
+  properties:
+    status: { type: string, enum: [pending, ok, unavailable] }
+    url: { type: string, description: The address the card was made for, without credentials or fragment. }
+    kind: { type: string, enum: [generic, github_pr, github_issue] }
+    site: { type: string, description: The name of the site ("GitHub", or the page's own site name or domain). }
+    title: { type: string }
+    description: { type: string }
+    meta:
+      type: object
+      description: For a GitHub kind, the repository, the number and the state.
+      properties:
+        repo: { type: string }
+        number: { type: integer }
+        state: { type: string, enum: [open, closed, merged] }

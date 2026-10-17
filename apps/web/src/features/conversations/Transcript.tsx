@@ -6,6 +6,7 @@ import { clock, initials, paletteOf, stripCf } from "../../shared/chat.ts";
 import type { PendingSend } from "./store.ts";
 import { Markdown } from "./Markdown.tsx";
 import { resume } from "./actions.ts";
+import { hasLink, LinkPreview } from "./messages/LinkPreview.tsx";
 import { EditedMark, MessageMenu } from "./messages/MessageMenu.tsx";
 import { NoticeRow, pausedNow } from "./messages/Notice.tsx";
 import { ReplyLine } from "../threads/index.ts";
@@ -290,7 +291,7 @@ const MessageRow = memo(function MessageRow({ row, threaded, me, paused, convers
     const detail = onDetails && m.author.kind === "agent" ? () => onDetails(m) : undefined;
     const replies = threaded || m.thread_root_id ? null : <ReplyLine message={m} conversation={conversation} />;
     const tag = !threaded && m.thread_root_id ? "replied to a thread" : undefined;
-    return <Article author={m.author.handle} me={me} first={row.first} stamp={clock(m.created_at)} tag={tag} onStamp={detail} body={body} extra={<>{edited}{replies}</>} menu={menu} mid={m.id} marked={hl === m.id} labelledBy={m.kind === "ask" && m.ask ? label : undefined} />;
+    return <Article author={m.author.handle} me={me} first={row.first} stamp={clock(m.created_at)} tag={tag} onStamp={detail} body={body} extra={<>{m.kind !== "ask" && hasLink(text) ? <LinkPreview id={m.id} /> : null}{edited}{replies}</>} menu={menu} mid={m.id} marked={hl === m.id} labelledBy={m.kind === "ask" && m.ask ? label : undefined} />;
   }
   const state =
     p!.state === "failed" ? (

@@ -25,6 +25,7 @@ export type SyncAnswer = S["SyncAnswer"];
 export type SyncDelta = S["SyncDelta"];
 export type SyncSnapshot = S["SyncSnapshot"];
 export type EditHistory = S["EditHistory"];
+export type UnfurlCard = S["UnfurlCard"];
 export type SearchResponse = S["SearchResponse"];
 export type SearchResult = S["SearchResult"];
 export type SearchConversation = S["SearchConversation"];

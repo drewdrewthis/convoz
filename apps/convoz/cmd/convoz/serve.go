@@ -124,7 +124,8 @@ func serve(args []string) int {
 	}
 	logger := log.New(os.Stderr, "convoz: ", log.LstdFlags)
 	api := httpapi.NewServer(store, clock, wa, keys, cfg, logger)
-	go api.RunTimers(ctx) // wakes the snoozes whose time has come, even when nobody has Now open
+	go api.RunTimers(ctx)  // wakes the snoozes whose time has come, even when nobody has Now open
+	go api.RunUnfurls(ctx) // fetches the link previews the post transaction queued
 	servers := []*http.Server{{
 		Handler:           api.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
