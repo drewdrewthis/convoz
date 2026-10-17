@@ -32,7 +32,7 @@ Usage: python3 -I scripts/red_green.py <base> <head> [--runner PATH] [--scratch 
     phase x shard job (CI runs them as a matrix). Exceptions are validated against the whole slice in every job.
   - Every subprocess gets an allow-listed environment (child_env), runs in its own process group, and on a
     timeout that whole group is killed (a hung build cannot leave a grandchild behind; a descendant that calls
-    setsid leaves the group and is not killed). The proxy variables are not passed because they can carry
+    setsid or setpgid leaves the group and is not killed). The proxy variables are not passed because they can carry
     credentials, so a runner behind a proxy fails `pnpm install` with a RunnerError.
   - --scratch DIR: parent for the checkouts (default: a fresh mkdtemp). Nothing in it is deleted.
 
@@ -145,7 +145,7 @@ def child_env(extra=None):
 
 def run_group(cmd, timeout, **kw):
     """subprocess.run in its own session. On a timeout the child's whole process group is killed, then
-    TimeoutExpired is raised. Limit: a descendant that calls setsid leaves the group and is not killed.
+    TimeoutExpired is raised. Limit: a descendant that calls setsid or setpgid leaves the group and is not killed.
     A command that cannot start is a RunnerError."""
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True, **kw)
@@ -165,9 +165,9 @@ def run_group(cmd, timeout, **kw):
             try:
                 proc.wait(timeout=1)
             except subprocess.TimeoutExpired:
-                pass
+                pass  # the child itself is not reaping (already SIGKILLed); stop waiting rather than hang the job
         raise
-    finally:
+    finally:  # free the pipe fds on every path (success, timeout, give-up); a leaked pair per step adds up in a long run
         proc.stdout.close()
         proc.stderr.close()
     return subprocess.CompletedProcess(cmd, proc.returncode, out, err)
@@ -366,24 +366,84 @@ def prove(titles, exceptions, titles_at_first, run_red, run_green, run_overlay, 
     return (1 if bad else 0), out
 
 
+EXPECTED_CELL_JOB = r'''  red-green-cell:
+    name: red-green-cell (${{ matrix.phase }} ${{ matrix.shard }})
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        phase: [red, green, overlay]
+        shard: [1/3, 2/3, 3/3]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: apps/convoz/go.mod
+          cache-dependency-path: apps/convoz/go.sum
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Playwright chromium
+        run: pnpm --filter @convoz/e2e exec playwright install --with-deps chromium
+      - name: Red first, green at head
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PHASE: ${{ matrix.phase }}
+          SHARD: ${{ matrix.shard }}
+        run: |
+          # Merge-ref base, as in "Proof page" of the verify job.
+          [ "$(git rev-parse HEAD^2)" = "$HEAD_SHA" ] || { echo "not a merge-ref checkout" >&2; exit 1; }
+          base="$(git rev-parse HEAD^1)"
+          scratch="$(mktemp -d)"
+          python3 -I scripts/red_green.py --phase "$PHASE" --shard "$SHARD" --scratch "$scratch" "$base" HEAD'''
+
+EXPECTED_GATE_JOB = r'''  red-green:
+    if: always() && github.event_name == 'pull_request'
+    needs: red-green-cell
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Every cell is green
+        env:
+          RESULT: ${{ needs.red-green-cell.result }}
+        run: test "$RESULT" = success'''
+
+
 def ci_job(text, name):
-    """The body of the top-level job `name` in a workflow's text ("" if absent)."""
+    """The full text of the top-level job `name` (its key line up to the next 2-space-indent line), "" if absent."""
     m = re.search(rf"^  {re.escape(name)}:\n(.*?)(?=^  \S|\Z)", text, re.M | re.S)
-    return m.group(1) if m else ""
+    return f"  {name}:\n{m.group(1)}".rstrip("\n") if m else ""
+
+
+def ci_gate_problems(text):
+    """[message] naming each of the two jobs whose text differs from its pinned copy, and the first differing line."""
+    problems = []
+    for name, expected in (("red-green-cell", EXPECTED_CELL_JOB), ("red-green", EXPECTED_GATE_JOB)):
+        have, want = ci_job(text, name).splitlines(), expected.splitlines()
+        if have != want:
+            n = next((i for i, (h, w) in enumerate(zip(have, want)) if h != w), min(len(have), len(want)))
+            got = have[n] if n < len(have) else "<end of job>"
+            problems.append(f"ci.yml job {name} differs at line {n + 1}: have {got!r}, pinned {want[n] if n < len(want) else '<end of job>'!r}")
+    return problems
 
 
 def ci_gate_ok(text):
-    """True when ci.yml's `red-green` gate and `red-green-cell` matrix are exactly as the proof needs them: the gate
-    needs the cells, runs always on pull requests and fails unless their result is success; neither job continues
-    on error; the matrix is phase x shard as pinned; the cell runs red_green.py with no `||`.
-    This is a text check that fails closed on any reformat: update it together with ci.yml."""
-    gate, cell = ci_job(text, "red-green"), ci_job(text, "red-green-cell")
-    gate_lines = (r"^    needs: red-green-cell$", r"^    if: always\(\) && github\.event_name == 'pull_request'$",
-                  r"^          RESULT: \$\{\{ needs\.red-green-cell\.result \}\}$", r'^        run: test "\$RESULT" = success$')
-    cell_lines = (r"^        phase: \[red, green, overlay\]$", r"^        shard: \[1/3, 2/3, 3/3\]$",
-                  r'^          python3 -I scripts/red_green\.py --phase "\$PHASE" --shard "\$SHARD" --scratch "\$scratch" "\$base" HEAD$')
-    return (all(re.search(p, gate, re.M) for p in gate_lines) and all(re.search(p, cell, re.M) for p in cell_lines)
-            and "continue-on-error" not in gate and "continue-on-error" not in cell)
+    """True when the `red-green-cell` and `red-green` jobs of ci.yml equal EXPECTED_CELL_JOB and EXPECTED_GATE_JOB verbatim.
+    Any edit to these two jobs must update the constants in the same commit. This guards against accidents, not a
+    hostile author: branch protection is what makes the gate binding."""
+    return not ci_gate_problems(text)
 
 
 def process_gone(pid):
@@ -537,30 +597,44 @@ def self_test():
     # the required-check gate in ci.yml
     with open(CI_PATH, encoding="utf-8") as fh:
         ci = fh.read()
-    if not ci_gate_ok(ci):
-        failures.append("ci.yml red-green gate needs red-green-cell, runs always and requires result success")
+    problems = ci_gate_problems(ci)
+    if problems:
+        failures.append("the real ci.yml red-green jobs equal their pinned copies: " + "; ".join(problems))
     gate_step = 'run: test "$RESULT" = success'
     cell_cmd = '--scratch "$scratch" "$base" HEAD'
-    for label, old, new in (
-            ("a gate step that is `true`", gate_step, "run: true"),
-            ("`|| true` on the gate step", gate_step, gate_step + " || true"),
-            ("continue-on-error on the gate step", "      - name: Every cell is green\n",
-             "      - name: Every cell is green\n        continue-on-error: true\n"),
-            ("continue-on-error on the gate job", "    timeout-minutes: 5\n", "    timeout-minutes: 5\n    continue-on-error: true\n"),
-            ("continue-on-error on the cell job", "    timeout-minutes: 45\n    strategy:",
-             "    timeout-minutes: 45\n    continue-on-error: true\n    strategy:"),
-            ("a changed needs", "    needs: red-green-cell\n", "    needs: verify\n"),
-            ("needs in list form", "    needs: red-green-cell\n", "    needs: [red-green-cell]\n"),
-            ("always() dropped", "if: always() && github", "if: github"),
-            ("always() || x", "if: always() && github", "if: always() || github"),
-            ("a shortened phase list", "phase: [red, green, overlay]", "phase: [red, green]"),
-            ("a shortened shard list", "shard: [1/3, 2/3, 3/3]", "shard: [1/3, 2/3]"),
-            ("`|| true` on the cell command", cell_cmd, cell_cmd + " || true")):
-        mutated = ci.replace(old, new)
-        if mutated == ci:
-            failures.append("ci.yml mutation did not apply: " + label)
-        elif ci_gate_ok(mutated):
-            failures.append("ci.yml gate check accepts " + label)
+    cell_step, gate_name = "      - name: Red first, green at head\n", "      - name: Every cell is green\n"
+    for label, edits in (
+            ("a gate step that is `true`", [(gate_step, "run: true")]),
+            ("`|| true` on the gate step", [(gate_step, gate_step + " || true")]),
+            ("continue-on-error on the gate step", [(gate_name, gate_name + "        continue-on-error: true\n")]),
+            ("continue-on-error on the gate job", [("    timeout-minutes: 5\n", "    timeout-minutes: 5\n    continue-on-error: true\n")]),
+            ("continue-on-error on the cell job", [("    timeout-minutes: 45\n    strategy:",
+                                                    "    timeout-minutes: 45\n    continue-on-error: true\n    strategy:")]),
+            ("a changed needs", [("    needs: red-green-cell\n", "    needs: verify\n")]),
+            ("needs in list form", [("    needs: red-green-cell\n", "    needs: [red-green-cell]\n")]),
+            ("always() dropped", [("if: always() && github", "if: github")]),
+            ("always() || x", [("if: always() && github", "if: always() || github")]),
+            ("a shortened phase list", [("phase: [red, green, overlay]", "phase: [red, green]")]),
+            ("a shortened shard list", [("shard: [1/3, 2/3, 3/3]", "shard: [1/3, 2/3]")]),
+            ("`|| true` on the cell command", [(cell_cmd, cell_cmd + " || true")]),
+            ("a matrix exclude", [("        shard: [1/3, 2/3, 3/3]\n",
+                                   "        shard: [1/3, 2/3, 3/3]\n        exclude:\n          - phase: red\n            shard: 1/3\n")]),
+            ("`if: false` on the cell step", [(cell_step, cell_step + "        if: false\n")]),
+            ("`if: false` on the gate step", [(gate_name, gate_name + "        if: false\n")]),
+            ("a pinned PHASE: green", [("          PHASE: ${{ matrix.phase }}", "          PHASE: green")]),
+            ("set +e and exit 0 in the cell step", [('          scratch="$(mktemp -d)"\n', '          set +e\n          scratch="$(mktemp -d)"\n'),
+                                                   (cell_cmd, cell_cmd + "\n          exit 0")]),
+            ("an extra step in the cell job", [(cell_cmd, cell_cmd + "\n      - run: true")]),
+            ("an extra step in the gate job", [(gate_step, gate_step + "\n      - run: true")])):
+        mutated = ci
+        for old, new in edits:
+            if old not in mutated:
+                failures.append(f"ci.yml mutation ({label}) did not apply: anchor {old!r} not found")
+                break
+            mutated = mutated.replace(old, new, 1)
+        else:
+            if ci_gate_ok(mutated):
+                failures.append("ci.yml gate check accepts " + label)
     # timeout: a hung build or runner is a clean ERROR (exit 3), never a traceback, and its whole process group dies
     with tempfile.TemporaryDirectory(prefix="red-green-self-test-") as tmp:
         pidfile = os.path.join(tmp, "grandchild.pid")

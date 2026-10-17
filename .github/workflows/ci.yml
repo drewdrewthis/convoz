@@ -77,10 +77,12 @@ jobs:
         run: pnpm e2e
       - name: Proof page
         if: github.event_name == 'pull_request'
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          # Merge-ref checkout: HEAD^1 is the base the PR merges into, HEAD^2 the PR head. The other
-          # steps that compute a base do the same check ("Proof page" explains it).
-          git rev-parse --verify -q HEAD^2 >/dev/null || { echo "not a merge-ref checkout" >&2; exit 1; }
+          # Merge-ref checkout: HEAD^1 is the base the PR merges into, HEAD^2 the PR head. The Spec diff
+          # and red-green-cell steps repeat this guard.
+          [ "$(git rev-parse HEAD^2)" = "$HEAD_SHA" ] || { echo "not a merge-ref checkout" >&2; exit 1; }
           base="$(git rev-parse HEAD^1)"
           pnpm proof "$base"
       - name: Proof leak-scan self-test
@@ -93,9 +95,11 @@ jobs:
         run: pnpm parity
       - name: Spec diff
         if: github.event_name == 'pull_request'
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           # Merge-ref base, as in "Proof page".
-          git rev-parse --verify -q HEAD^2 >/dev/null || { echo "not a merge-ref checkout" >&2; exit 1; }
+          [ "$(git rev-parse HEAD^2)" = "$HEAD_SHA" ] || { echo "not a merge-ref checkout" >&2; exit 1; }
           base="$(git rev-parse HEAD^1)"
           python3 -I specs/scripts/spec_diff.py "$base" HEAD
 
@@ -134,11 +138,12 @@ jobs:
         run: pnpm --filter @convoz/e2e exec playwright install --with-deps chromium
       - name: Red first, green at head
         env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PHASE: ${{ matrix.phase }}
           SHARD: ${{ matrix.shard }}
         run: |
           # Merge-ref base, as in "Proof page" of the verify job.
-          git rev-parse --verify -q HEAD^2 >/dev/null || { echo "not a merge-ref checkout" >&2; exit 1; }
+          [ "$(git rev-parse HEAD^2)" = "$HEAD_SHA" ] || { echo "not a merge-ref checkout" >&2; exit 1; }
           base="$(git rev-parse HEAD^1)"
           scratch="$(mktemp -d)"
           python3 -I scripts/red_green.py --phase "$PHASE" --shard "$SHARD" --scratch "$scratch" "$base" HEAD
