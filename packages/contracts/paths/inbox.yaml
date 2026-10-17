@@ -2,13 +2,14 @@
 # openapi.yaml lists each path once. Agent routes: they take a session lease, not the device cookie.
 /api/inbox:
   get:
+    x-authz: { auth: lease }
+    security: [{ leaseBearer: [] }]
     operationId: pollInbox
     summary: Long poll. Held items first, then newly claimed ones; with `peek` nothing is claimed.
     description: |
       Answers the items this session holds, then claims ready ones. When there are none and `wait` is above 0 the request is
       held until an item for the identity arrives or `wait` seconds pass (at most 25), then answers `{items: []}`. A lease that
       ends during the hold answers 401 `session_ended`.
-    security: [{ leaseBearer: [] }]
     parameters:
       - { name: wait, in: query, description: Seconds to hold, 0 to 25., schema: { type: integer, minimum: 0, maximum: 25 } }
       - { name: claim, in: query, description: At most this many items, 1 to 20 (default 20)., schema: { type: integer, minimum: 1, maximum: 20 } }
@@ -25,9 +26,10 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/inbox/claim:
   post:
+    x-authz: { auth: lease }
+    security: [{ leaseBearer: [] }]
     operationId: claimInbox
     summary: Claim ready items now, without waiting. Held items come first, like the poll.
-    security: [{ leaseBearer: [] }]
     requestBody:
       required: true
       content:
@@ -42,12 +44,13 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/inbox/ack:
   post:
+    x-authz: { auth: lease }
+    security: [{ leaseBearer: [] }]
     operationId: ackInbox
     summary: Ack claimed items with the tokens their claims returned.
     description: |
       A well-formed token that does not match (wrong, old, expired claim, another session's item, already acked) is a lost
       claim: the status is 409 with code `claim_lost` and `results` still lists every item. A missing or malformed token is 400.
-    security: [{ leaseBearer: [] }]
     requestBody:
       required: true
       content:

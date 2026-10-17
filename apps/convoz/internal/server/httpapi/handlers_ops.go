@@ -138,3 +138,9 @@ func allMessages(ctx context.Context, d pdb.DBTX, dir directory, conv, floor int
 		after = page[len(page)-1].ID
 	}
 }
+
+// deleteMyData is POST /api/me/delete. The passkey check (I-26) is live, so a request without one is told 403 step_up_required like
+// every other data action. The erasure itself ships with members (C-7, a later slice): until then this answers 501 and changes nothing.
+func (s *Server) deleteMyData(w http.ResponseWriter, _ *http.Request, _ *call) {
+	writeErr(w, http.StatusNotImplemented, "not_implemented", "Deleting your data is not available yet.")
+}

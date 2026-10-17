@@ -7,7 +7,7 @@ import "github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
 // route is told 403 (C-3), a person that tries an agent's is told 403 in the handler.
 var askRoutes = []Route{
 	{Method: "GET", Pattern: "/api/now", Auth: authz.Human, RefuseLease: true, handle: (*Server).nowScreen},
-	{Method: "POST", Pattern: "/api/asks", Auth: authz.Human, Lease: true, handle: (*Server).postAsk},
+	{Method: "POST", Pattern: "/api/asks", Auth: authz.Human, Lease: true, Scope: "ask", handle: (*Server).postAsk},
 	{Method: "GET", Pattern: "/api/asks/:id", Auth: authz.Human, Lease: true, handle: (*Server).getAsk},
 	{Method: "POST", Pattern: "/api/asks/:id/answer", Auth: authz.Human, RefuseLease: true, handle: (*Server).askAnswer},
 	{Method: "POST", Pattern: "/api/asks/:id/dismiss", Auth: authz.Human, RefuseLease: true, handle: (*Server).askDismiss},

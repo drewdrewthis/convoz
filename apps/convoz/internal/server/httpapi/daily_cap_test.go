@@ -18,7 +18,7 @@ func agentCall(identity, machine int64) *call {
 // checkPost is the check a handler makes before it stores a post.
 func checkPost(s *Server, c *call, now time.Time) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
-	if s.agentMayPost(w, c, now) {
+	if s.withinBudgets(w, c, now) {
 		w.WriteHeader(http.StatusNoContent)
 	}
 	return w
@@ -65,12 +65,17 @@ func TestADailyCapAnswers429WithRetryAfterAndOtherMachinesKeepPosting(t *testing
 	}
 }
 
-func TestAMachineWithoutThePostScopeMayNotPost(t *testing.T) {
-	s := NewServer(nil, nil, nil, nil, Config{}, nil)
+// The scope a route names is checked by route() before the handler runs (I-6); this is the check and its words.
+func TestALeaseWithoutTheScopeARouteNamesIsRefused(t *testing.T) {
 	c := agentCall(1, 1)
 	c.lease.Scopes = auth.ScopeRead
-	if w := mayPost(s, c, time.Unix(1_800_000_000, 0)); w.Code != http.StatusForbidden {
-		t.Errorf("scope check: %d", w.Code)
+	if leaseHas(c.lease, "post") || !leaseHas(c.lease, "read") || !leaseHas(c.lease, "") {
+		t.Errorf("a read-only lease: post=%v read=%v none=%v, want false true true", leaseHas(c.lease, "post"), leaseHas(c.lease, "read"), leaseHas(c.lease, ""))
+	}
+	for _, r := range Routes {
+		if r.Scope != "" && scopeRefusals[r.Scope] == "" {
+			t.Errorf("%s %s needs the %q scope but no refusal is worded for it", r.Method, r.Pattern, r.Scope)
+		}
 	}
 }
 

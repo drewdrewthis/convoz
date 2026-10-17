@@ -2,6 +2,7 @@
 # openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
 /api/now:
   get:
+    x-authz: { auth: human, lease: refuse }
     operationId: now
     summary: What waits for the owner; the Now screen and its badge.
     responses:
@@ -13,12 +14,13 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/asks:
   post:
+    x-authz: { auth: human, lease: accept, scope: ask }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     operationId: postAsk
     summary: An agent asks a question with a recommendation and alternatives. The same client_id again answers 200 with the same ask.
     description: |
       Needs a lease with the `ask` scope; a person gets 403. 400 names the field (`question`, `recommended`, `alternatives`,
       `why`, `label`). 429 `ask_cap` at 20 open asks of one identity, 429 `conversation_paused` while the loop breaker holds.
-    security: [{ leaseBearer: [] }]
     requestBody:
       required: true
       content:
@@ -38,6 +40,8 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/asks/{id}:
   get:
+    x-authz: { auth: human, lease: accept }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     operationId: getAsk
     summary: The ask, its options, its state and its history. For anyone who can see the conversation.
     parameters:
@@ -51,6 +55,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/asks/{id}/answer:
   post:
+    x-authz: { auth: human, lease: refuse }
     operationId: answerAsk
     summary: A person answers an ask (the recommended option, an alternative, or their own words).
     description: |
@@ -77,6 +82,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/asks/{id}/dismiss:
   post:
+    x-authz: { auth: human, lease: refuse }
     operationId: dismissAsk
     summary: A person dismisses an open ask. Dismissing a dismissed ask is 200.
     parameters:
@@ -100,6 +106,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/asks/{id}/undismiss:
   post:
+    x-authz: { auth: human, lease: refuse }
     operationId: undismissAsk
     summary: A person reopens a dismissed ask.
     description: 409 `asker_gone` when the agent is no longer in the conversation or is disabled; 409 `ask_cap` at 20 open asks of the agent.
@@ -124,9 +131,10 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/asks/{id}/withdraw:
   post:
+    x-authz: { auth: human, lease: accept }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     operationId: withdrawAsk
     summary: The asking agent withdraws an open or dismissed ask. Only the asker, with a lease.
-    security: [{ leaseBearer: [] }]
     parameters:
       - $ref: "../openapi.yaml#/components/parameters/Id"
     requestBody:
@@ -148,6 +156,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/asks/{id}/snooze:
   put:
+    x-authz: { auth: human, lease: refuse }
     operationId: snoozeAsk
     summary: Snooze an open ask for the caller (a personal overlay; the ask does not change).
     description: 409 `not_open` for an ask that is not open. 400 `preset_unavailable` for Tonight from 20:00.
@@ -166,6 +175,7 @@
             schema: { $ref: "../openapi.yaml#/components/schemas/OneAsk" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
   delete:
+    x-authz: { auth: human, lease: refuse }
     operationId: unsnoozeAsk
     summary: Take the snooze off at once. 200 when there was none.
     parameters:

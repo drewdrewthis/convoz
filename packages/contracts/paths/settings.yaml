@@ -2,6 +2,7 @@
 # openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
 /api/settings:
   get:
+    x-authz: { auth: human }
     operationId: settings
     summary: "Every registry setting the caller can read, at its stored value or its default (I-29)."
     responses:
@@ -16,6 +17,7 @@
                 settings: { type: array, items: { $ref: "../components/settings.yaml#/SettingEntry" } }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
   patch:
+    x-authz: { auth: human }
     operationId: patchSetting
     summary: "Set one setting. An unknown key, a wrong type, an out-of-range value or the wrong scope is a 400; a workspace key is the owner's."
     requestBody:

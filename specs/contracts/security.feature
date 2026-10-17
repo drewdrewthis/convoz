@@ -42,7 +42,7 @@ Feature: Security walls (contracts)
     And machine "box-2" is logged in with allow-list "devtool"
     And machine "laptop-1" is logged in with allow-list "devtool"
 
-    @v1 @api @I-6 @unimplemented
+    @v1 @api @I-6
     Scenario Outline: API routes answer 401 without credentials
       When a client calls <route> with no credential
       Then the server answers 401
@@ -59,7 +59,7 @@ Feature: Security walls (contracts)
         | GET /api/files/f_TESTONLY              |
         | POST /api/machines/1/reveal            |
 
-    @v1 @api @invariant @I-6 @unimplemented
+    @v1 @api @invariant @I-6
     Scenario: Every route enforces the auth, scope and role its contract declares
       Given the OpenAPI contract lists the auth, scope and role of every route
       When every route is called with no credential, with a lease that lacks its scope and with a non-owner role
@@ -117,7 +117,7 @@ Feature: Security walls (contracts)
         | POST /api/me/recovery-codes             |
 
     # Split out of "Step-up is required for destructive actions": purge, export and delete-my-data ship in S12.
-    @v1 @api @I-26 @unimplemented
+    @v1 @api @I-26
     Scenario Outline: Step-up is required for data actions
       When the owner calls <action> with no step-up
       Then the server answers 403 with the code "step_up_required"
@@ -262,7 +262,7 @@ Feature: Security walls (contracts)
     And machine "box-2" is logged in with allow-list "devtool"
     And machine "laptop-1" is logged in with allow-list "devtool"
 
-    @v1 @browser @I-45 @AC-25 @unimplemented
+    @v1 @browser @I-45 @AC-25
     Scenario: A remote image never loads
       When "devtool" posts "![](https://remote.example/p.png)"
       Then the owner sees a link to "remote.example"
@@ -287,7 +287,7 @@ Feature: Security walls (contracts)
       When "devtool" runs "convoz pickup 41" for a conversation nobody opened for pickup
       Then the server answers 403
 
-    @v1 @api @I-40 @unimplemented
+    @v1 @api @I-40
     Scenario: The audit trail names machine and session
       When "devtool" on "box-2" posts, asks, uploads and acks
       Then each matching audit and message detail names machine "box-2" and the session label

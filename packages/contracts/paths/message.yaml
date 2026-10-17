@@ -2,6 +2,8 @@
 # openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
 /api/conversations/{id}/messages:
   get:
+    x-authz: { auth: human, lease: accept }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     operationId: listMessages
     summary: A page of messages, oldest first. With no cursor, the newest page.
     parameters:
@@ -22,6 +24,8 @@
                 as_of_seq: { type: integer, format: int64 }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
   post:
+    x-authz: { auth: human, lease: accept, scope: post }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     operationId: postMessage
     summary: Post a message. The same client_id again answers 200 with the same ids (no second message).
     parameters:
@@ -48,6 +52,8 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/messages/{id}:
   patch:
+    x-authz: { auth: human, lease: accept, scope: post }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     operationId: editMessage
     summary: Edit a text message. The author only; an agent within 24 hours and 30 edits an hour.
     parameters:
@@ -65,6 +71,8 @@
             schema: { type: object, required: [message], properties: { message: { $ref: "../openapi.yaml#/components/schemas/Message" } } }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
   delete:
+    x-authz: { auth: human, lease: accept, scope: post }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     operationId: deleteMessage
     summary: Delete a message (a tombstone stays). The author, or the owner for any message.
     parameters:
@@ -78,6 +86,8 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/messages/{id}/edits:
   get:
+    x-authz: { auth: human, lease: accept }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     operationId: listMessageEdits
     summary: The earlier texts of an edited message, oldest first.
     parameters:
@@ -91,10 +101,12 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/messages/{id}/purge:
   post:
+    x-authz: { auth: owner, lease: refuse, step_up: message.purge }
     operationId: purgeMessage
     summary: Scrub every copy of a message's content. The owner, with a step-up for action message.purge.
     parameters:
       - $ref: "../openapi.yaml#/components/parameters/Id"
+      - $ref: "../openapi.yaml#/components/parameters/StepUp"
     responses:
       "200":
         description: Purged.
@@ -104,6 +116,8 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/messages/{id}/replies:
   get:
+    x-authz: { auth: human, lease: accept }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     operationId: listReplies
     summary: The thread of one top-level message - the root (a stub when the caller joined after it) and its replies, oldest first.
     parameters:

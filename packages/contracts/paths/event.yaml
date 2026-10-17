@@ -2,6 +2,7 @@
 # openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
 /api/stream:
   get:
+    x-authz: { auth: human, lease: refuse }
     operationId: stream
     summary: |
       Server-sent events: message.created, read.moved, conversation.created (ids "epoch:seq", resumable with Last-Event-ID),
@@ -17,6 +18,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/sync:
   get:
+    x-authz: { auth: human, lease: refuse }
     operationId: syncDelta
     summary: |
       The events after a cursor that the caller may see (the delta). With `wait` and nothing new the request is held up to 25 s:
@@ -34,6 +36,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/sync/snapshot:
   get:
+    x-authz: { auth: human, lease: refuse }
     operationId: syncSnapshot
     summary: Where the log stands now. After a reset the client reads its state over the plain routes, then continues from this cursor.
     responses:

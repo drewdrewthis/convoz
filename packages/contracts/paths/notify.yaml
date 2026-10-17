@@ -2,6 +2,7 @@
 # openapi.yaml lists each path once.
 /api/push/vapid-key:
   get:
+    x-authz: { auth: human, lease: refuse }
     operationId: pushVapidKey
     summary: "The VAPID public key the browser subscribes with."
     responses:
@@ -13,6 +14,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/push/subscriptions:
   get:
+    x-authz: { auth: human, lease: refuse }
     operationId: pushSubscriptions
     summary: "The owner's push subscriptions, one per device, with the state of each (a gone one is listed as disabled)."
     responses:
@@ -23,6 +25,7 @@
             schema: { $ref: "../components/notify.yaml#/PushSubscriptionList" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
   post:
+    x-authz: { auth: human, lease: refuse }
     operationId: pushSubscribe
     summary: "Store this device's subscription. A device has one live subscription: a new endpoint replaces the old one. An endpoint off the push-service allow-list, or with bad keys, is a 400 (I-28)."
     requestBody:
@@ -38,6 +41,7 @@
             schema: { $ref: "../components/notify.yaml#/PushSubscribed" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
   delete:
+    x-authz: { auth: human, lease: refuse }
     operationId: pushUnsubscribe
     summary: "Turn push off for this device."
     responses:
@@ -45,6 +49,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/push/test:
   post:
+    x-authz: { auth: human, lease: refuse }
     operationId: pushTest
     summary: "Send a test push to this device now. 409 when the device has no live subscription."
     responses:
@@ -56,6 +61,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/push/focus:
   put:
+    x-authz: { auth: human, lease: refuse }
     operationId: pushFocus
     summary: "Tell the server which conversation this device has open and focused, so a push for it is held back (active_here). The client repeats it every 30 s; the server forgets it after 90 s."
     requestBody:

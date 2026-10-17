@@ -2,6 +2,8 @@
 # openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
 /api/uploads:
   post:
+    x-authz: { auth: human, lease: accept, scope: upload }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     operationId: createUpload
     summary: Start a resumable upload in a conversation the caller can write in.
     description: |
@@ -23,6 +25,8 @@
   parameters:
     - { name: id, in: path, required: true, schema: { type: string }, description: The public id of the upload. }
   head:
+    x-authz: { auth: human, lease: accept, scope: upload }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     operationId: headUpload
     summary: Where to resume from.
     description: "Upload-Offset is what the server holds now (sealed segments plus the partial one in memory). Upload-Length is set when the size is known. Upload-State is receiving or complete."
@@ -35,6 +39,8 @@
           Upload-State: { schema: { type: string, enum: [receiving, complete] } }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
   patch:
+    x-authz: { auth: human, lease: accept, scope: upload }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     operationId: patchUpload
     summary: Send one chunk of the file at Upload-Offset.
     description: |
@@ -65,6 +71,8 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/files/{public_id}:
   get:
+    x-authz: { auth: human, lease: accept, scope: read }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     operationId: getFile
     summary: A file, decrypted, with Range support.
     description: |

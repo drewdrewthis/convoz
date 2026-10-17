@@ -27,6 +27,7 @@ var StepUpActions = map[string]bool{
 	"identity.disable":    true,
 	"message.purge":       true,
 	"data.export":         true,
+	"data.delete":         true,
 	"signout.all":         true,
 }
 

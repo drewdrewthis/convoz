@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"slices"
 	"strconv"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/audit"
@@ -234,13 +235,49 @@ func (s *Server) regenerateRecoveryCodes(w http.ResponseWriter, r *http.Request,
 	}
 }
 
+// auditView is an audit row with the machine's name and the session's label next to their ids (I-40), so the owner reads
+// "box-2, claude-7f3a" and not two numbers.
+type auditView struct {
+	audit.Row
+	Machine string `json:"machine,omitempty"`
+	Session string `json:"session,omitempty"`
+}
+
 func (s *Server) auditList(w http.ResponseWriter, r *http.Request, _ *call) {
-	rows, err := audit.List(r.Context(), s.reader(), 100)
+	ctx, d := r.Context(), s.reader()
+	rows, err := audit.List(ctx, d, 100)
 	if err != nil {
 		s.internalError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"audit": rows})
+	var sessions []int64
+	for _, row := range rows {
+		if row.SessionID != nil {
+			sessions = append(sessions, *row.SessionID)
+		}
+	}
+	origins, err := auth.SessionOrigins(ctx, d, slices.Compact(slices.Sorted(slices.Values(sessions))))
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	machines, err := auth.MachineNames(ctx, d)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	out := make([]auditView, 0, len(rows))
+	for _, row := range rows {
+		v := auditView{Row: row}
+		if row.SessionID != nil {
+			v.Session = origins[*row.SessionID].Label
+		}
+		if row.MachineID != nil {
+			v.Machine = machines[*row.MachineID]
+		}
+		out = append(out, v)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"audit": out})
 }
 
 // signOutAll is POST /api/auth/signout-all: every device session of the owner except the calling one ends (design §2.1).

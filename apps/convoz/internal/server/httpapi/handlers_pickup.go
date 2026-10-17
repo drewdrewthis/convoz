@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/event"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/inbox"
@@ -50,10 +49,6 @@ func (s *Server) pickupConversation(w http.ResponseWriter, r *http.Request, c *c
 		Fence int64 `json:"fence"`
 	}
 	if !decode(w, r, &in) {
-		return
-	}
-	if c.lease.Scopes&auth.ScopePickup == 0 {
-		writeErr(w, http.StatusForbidden, "forbidden", "This machine may not pick up conversations.")
 		return
 	}
 	now, who := s.Clock.Now(), c.lease.IdentityID

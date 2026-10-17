@@ -1,8 +1,18 @@
 # Paths of the core module (design §13). Only the work package that owns core edits this file; the root
 # openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
-/healthz: {}  # not specified yet
+/healthz:
+  get:
+    operationId: health
+    x-authz: { auth: pub }
+    security: []
+    summary: "Liveness: answers ok, with no credential."
+    responses:
+      "200": { description: The answer. }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/ping:
   get:
+    x-authz: { auth: human, lease: accept }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     operationId: ping
     summary: The smallest answer there is, for a client to time the link (median RTT of the last heartbeats, design §12.3).
     responses:
@@ -16,4 +26,12 @@
               properties:
                 t: { type: integer, format: int64, description: Server unix time in milliseconds. }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
-/api/version: {}  # not specified yet
+/api/version:
+  get:
+    operationId: getVersion
+    x-authz: { auth: pub }
+    security: []
+    summary: "The build id of the server, with no credential."
+    responses:
+      "200": { description: The answer. }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }

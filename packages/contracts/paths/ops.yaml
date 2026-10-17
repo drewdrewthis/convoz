@@ -2,6 +2,7 @@
 # openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
 /api/me/export:
   post:
+    x-authz: { auth: human, lease: refuse, step_up: data.export }
     operationId: startExport
     summary: Start an export (design §14). Needs a passkey check (data.export); the answer is the job.
     parameters:
@@ -16,6 +17,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/me/export/{id}:
   get:
+    x-authz: { auth: human, lease: refuse }
     operationId: getExport
     summary: The job's state, or with download=1 the finished zip (manifest.json and conversations/<id>.json).
     parameters:
@@ -36,5 +38,15 @@
           application/zip:
             schema: { type: string, format: binary }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
-/api/me/delete: {}  # not specified yet
+/api/me/delete:
+  post:
+    operationId: deleteMyData
+    x-authz: { auth: human, lease: refuse, step_up: data.delete }
+    summary: "Delete my data (design 14). Needs a passkey check (data.delete). Until members ship (C-7) it answers 501 and changes nothing."
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/StepUp"
+    responses:
+      "200": { description: The answer. }
+      "501": { description: Not available yet. }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/admin/health: {}  # not specified yet

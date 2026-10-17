@@ -65,7 +65,7 @@ Feature: Build and quality gates (contracts)
 
   Rule: The UI library meets the accessibility and look bar (AC-17)
 
-    @v1 @browser @AC-17 @unimplemented
+    @v1 @browser @AC-17
     Scenario: Every ui story passes axe in every theme and size
       When the Ladle stories run in Playwright in light and dark, for each palette, at 390x844 and 1280x940
       Then axe reports 0 violations for every story
@@ -99,7 +99,7 @@ Feature: Build and quality gates (contracts)
         | BenchmarkFanout             | 25 ms  |
         | BenchmarkDeltaSync          | 20 ms  |
 
-    @v1 @cli @AC-9 @unimplemented
+    @v1 @cli @AC-9
     Scenario: A budget miss or a 20 percent regression blocks the slice
       Given a benchmark result over budget or 20 percent slower than main
       When CI compares it with benchstat

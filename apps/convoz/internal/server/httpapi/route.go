@@ -69,6 +69,10 @@ func (s *Server) route(rt Route) http.HandlerFunc {
 				s.deny(w, r, rt, err)
 				return
 			}
+			if c.p.SessionID != 0 && !leaseHas(c.lease, rt.Scope) {
+				writeErr(w, http.StatusForbidden, "forbidden", scopeRefusals[rt.Scope])
+				return
+			}
 			if rt.StepUp != "" && !c.p.Limited {
 				id, perr := strconv.ParseInt(r.Header.Get("X-Convoz-Step-Up"), 10, 64)
 				if perr != nil || id <= 0 {
@@ -161,3 +165,23 @@ func setDeviceCookie(w http.ResponseWriter, token string, maxAge int) {
 
 // clearDeviceCookie expires the cookie (Max-Age=0).
 func clearDeviceCookie(w http.ResponseWriter) { setDeviceCookie(w, "", -1) }
+
+// scopeRefusals is what a lease is told when its machine lacks the scope a route needs (I-6). The route table names the scope and
+// route() checks it before the body is read, so no handler repeats the check and none can forget it.
+var scopeRefusals = map[string]string{
+	"post":   "This machine may not post.",
+	"ask":    "This machine may not ask.",
+	"status": "This machine may not report a status.",
+	"upload": "This machine may not upload.",
+	"read":   "This machine may not read.",
+	"pickup": "This machine may not pick up conversations.",
+}
+
+// leaseHas reports whether the lease holds scope; a route that needs none ("") is open to every lease.
+func leaseHas(l auth.Lease, scope string) bool {
+	if scope == "" {
+		return true
+	}
+	mask, _ := auth.ScopeMask([]string{scope})
+	return l.Scopes&mask != 0
+}

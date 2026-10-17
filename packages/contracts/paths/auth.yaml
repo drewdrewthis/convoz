@@ -2,9 +2,10 @@
 # openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
 /api/auth/bootstrap/check:
   post:
+    x-authz: { auth: pub }
+    security: []
     operationId: bootstrapCheck
     summary: What the setup link in the page is worth. Changes nothing.
-    security: []
     requestBody:
       required: true
       content:
@@ -27,9 +28,10 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/auth/bootstrap/options:
   post:
+    x-authz: { auth: pub }
+    security: []
     operationId: bootstrapOptions
     summary: Start the first passkey registration of a setup link.
-    security: []
     requestBody:
       required: true
       content:
@@ -46,9 +48,10 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/auth/bootstrap/verify:
   post:
+    x-authz: { auth: pub }
+    security: []
     operationId: bootstrapVerify
     summary: Finish the registration; sets the device cookie. The recovery codes come only when the owner was made now.
-    security: []
     requestBody: { $ref: "../openapi.yaml#/components/requestBodies/CeremonyFinish" }
     responses:
       "200":
@@ -64,17 +67,19 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/auth/passkey/login/options:
   post:
-    operationId: loginOptions
+    x-authz: { auth: pub }
     security: []
+    operationId: loginOptions
     requestBody: { $ref: "../openapi.yaml#/components/requestBodies/Empty" }
     responses:
       "200": { $ref: "../openapi.yaml#/components/responses/Ceremony" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/auth/passkey/login/verify:
   post:
+    x-authz: { auth: pub }
+    security: []
     operationId: loginVerify
     summary: Sign in; sets the device cookie.
-    security: []
     requestBody: { $ref: "../openapi.yaml#/components/requestBodies/CeremonyFinish" }
     responses:
       "200":
@@ -89,9 +94,10 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/auth/recovery:
   post:
+    x-authz: { auth: pub }
+    security: []
     operationId: useRecoveryCode
     summary: Use one recovery code; the device gets a limited session that may only add a passkey.
-    security: []
     requestBody:
       required: true
       content:
@@ -114,6 +120,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/auth/passkey/register/options:
   post:
+    x-authz: { auth: limited }
     operationId: registerOptions
     requestBody: { $ref: "../openapi.yaml#/components/requestBodies/Empty" }
     responses:
@@ -121,6 +128,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/auth/passkey/register/verify:
   post:
+    x-authz: { auth: limited, step_up: passkey.add }
     operationId: registerVerify
     summary: Add a passkey. A full device needs a step-up (passkey.add); a recovery device does not and gets a full session.
     parameters:
@@ -131,6 +139,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/auth/step-up/options:
   post:
+    x-authz: { auth: human, lease: refuse }
     operationId: stepUpOptions
     requestBody:
       required: true
@@ -147,6 +156,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/auth/step-up/verify:
   post:
+    x-authz: { auth: human }
     operationId: stepUpVerify
     requestBody: { $ref: "../openapi.yaml#/components/requestBodies/CeremonyFinish" }
     responses:
@@ -162,6 +172,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/auth/logout:
   post:
+    x-authz: { auth: limited }
     operationId: logout
     summary: Revoke this device; answers Clear-Site-Data.
     requestBody: { $ref: "../openapi.yaml#/components/requestBodies/Empty" }
@@ -170,6 +181,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/auth/signout-all:
   post:
+    x-authz: { auth: human, step_up: signout.all }
     operationId: signOutAll
     summary: End every other device session of the owner. Needs a step-up (signout.all).
     parameters:
@@ -188,6 +200,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/me/passkeys:
   get:
+    x-authz: { auth: human }
     operationId: passkeys
     responses:
       "200":
@@ -202,6 +215,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/me/passkeys/{id}:
   delete:
+    x-authz: { auth: human, step_up: passkey.remove }
     operationId: removePasskey
     parameters:
       - $ref: "../openapi.yaml#/components/parameters/Id"
@@ -211,6 +225,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/me/recovery-codes:
   get:
+    x-authz: { auth: human }
     operationId: recoveryCodesLeft
     responses:
       "200":
@@ -224,6 +239,7 @@
                 remaining: { type: integer }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
   post:
+    x-authz: { auth: human, step_up: recovery.regenerate }
     operationId: regenerateRecoveryCodes
     parameters:
       - $ref: "../openapi.yaml#/components/parameters/StepUp"
@@ -241,6 +257,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/machines/requests/deny-all:
   post:
+    x-authz: { auth: owner }
     operationId: denyAllRequests
     requestBody: { $ref: "../openapi.yaml#/components/requestBodies/Empty" }
     responses:
@@ -256,6 +273,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/machines/requests/{id}/approve:
   post:
+    x-authz: { auth: owner, step_up: machine.approve }
     operationId: approveRequest
     parameters:
       - $ref: "../openapi.yaml#/components/parameters/Id"
@@ -284,6 +302,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/machines/requests/{id}/deny:
   post:
+    x-authz: { auth: owner }
     operationId: denyRequest
     parameters:
       - $ref: "../openapi.yaml#/components/parameters/Id"
@@ -293,6 +312,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/machines:
   get:
+    x-authz: { auth: owner }
     operationId: machines
     responses:
       "200":
@@ -307,6 +327,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/machines/{id}:
   patch:
+    x-authz: { auth: owner, step_up: machine.allow }
     operationId: patchMachine
     parameters:
       - $ref: "../openapi.yaml#/components/parameters/Id"
@@ -333,6 +354,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/machines/{id}/reveal:
   post:
+    x-authz: { auth: owner, step_up: machine.reveal }
     operationId: revealMachineKey
     parameters:
       - $ref: "../openapi.yaml#/components/parameters/Id"
@@ -343,6 +365,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/machines/{id}/regenerate:
   post:
+    x-authz: { auth: owner, step_up: machine.regenerate }
     operationId: regenerateMachineKey
     parameters:
       - $ref: "../openapi.yaml#/components/parameters/Id"
@@ -353,6 +376,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/machines/{id}/revoke:
   post:
+    x-authz: { auth: owner, step_up: machine.revoke }
     operationId: revokeMachine
     parameters:
       - $ref: "../openapi.yaml#/components/parameters/Id"
@@ -361,13 +385,61 @@
     responses:
       "200": { $ref: "../openapi.yaml#/components/responses/MachineKey" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
-/api/me/devices: {}  # not specified yet
-/api/me/devices/{id}: {}  # not specified yet
-/api/device/code: {}  # not specified yet
-/api/device/token: {}  # not specified yet
-/api/machines/requests: {}  # not specified yet
-/api/sessions:
+/api/me/devices:
   get:
+    operationId: listDevices
+    x-authz: { auth: human }
+    summary: "The signed-in devices of the caller."
+    responses:
+      "200": { description: The answer. }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/me/devices/{id}:
+  delete:
+    operationId: revokeDevice
+    x-authz: { auth: human }
+    summary: "Sign one device out."
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    responses:
+      "200": { description: The answer. }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/device/code:
+  post:
+    operationId: requestDeviceCode
+    x-authz: { auth: pub }
+    security: []
+    summary: "A machine asks to be logged in (device flow, design 7). No cookie, no key; limited per source."
+    responses:
+      "200": { description: The answer. }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/device/token:
+  post:
+    operationId: pollDeviceToken
+    x-authz: { auth: pub }
+    security: []
+    summary: "The machine polls for its key until the owner decides. No cookie, no key."
+    responses:
+      "200": { description: The answer. }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/machines/requests:
+  get:
+    operationId: listMachineRequests
+    x-authz: { auth: owner }
+    summary: "The pending machine login requests (the owner)."
+    responses:
+      "200": { description: The answer. }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/sessions:
+  post:
+    operationId: mintSession
+    x-authz: { auth: machine }
+    security: [{ machineKey: [] }]
+    summary: A machine key mints the lease of an agent session (design 7).
+    responses:
+      "201": { description: The lease and its session. }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+  get:
+    x-authz: { auth: owner }
     operationId: listSessions
     summary: The sessions of every machine and agent, newest first (the owner), live ones and recently ended ones.
     responses:
@@ -381,5 +453,21 @@
               properties:
                 sessions: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Session" } }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
-/api/sessions/renew: {}  # not specified yet
-/api/sessions/me: {}  # not specified yet
+/api/sessions/renew:
+  post:
+    operationId: renewSession
+    x-authz: { auth: lease }
+    security: [{ leaseBearer: [] }]
+    summary: "The agent renews its own lease."
+    responses:
+      "200": { description: The answer. }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/sessions/me:
+  delete:
+    operationId: endSession
+    x-authz: { auth: lease }
+    security: [{ leaseBearer: [] }]
+    summary: "The agent ends its own session."
+    responses:
+      "200": { description: The answer. }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }

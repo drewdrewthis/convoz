@@ -35,6 +35,7 @@ type Principal struct {
 	MachineID     int64
 	SessionID     int64
 	IdentityID    int64 // the agent a lease acts as; 0 for everything else
+	LeaseMachine  int64 // the machine behind a lease, for the audit trail (I-40); no route check reads it, so a lease never meets a machine route
 }
 
 // Identity is the identity the caller speaks as: the person for a device session, the agent for a lease, 0 otherwise.

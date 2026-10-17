@@ -2,6 +2,8 @@
 # openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
 /api/brief:
   get:
+    x-authz: { auth: lease }
+    security: [{ leaseBearer: [] }]
     operationId: brief
     summary: The brief of the calling agent session, within a fixed budget.
     description: |
@@ -9,7 +11,6 @@
       messages (ten a page), recent decisions and items that expired unread. It changes nothing: no claim, no ack, no read marker,
       so a lost answer loses nothing and overlapping sessions of one identity get the same conversations. Everything passes canSee.
       `max_bytes` is brought inside 4096 to 65536; without it the workspace setting `brief.max_bytes` (12288) applies.
-    security: [{ leaseBearer: [] }]
     parameters:
       - { name: max_bytes, in: query, description: "The size of the brief in bytes.", schema: { type: integer } }
       - { name: page, in: query, description: "The page of the conversation section, from 1.", schema: { type: integer, minimum: 1 } }
@@ -22,12 +23,13 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/handoffs:
   post:
+    x-authz: { auth: lease }
+    security: [{ leaseBearer: [] }]
     operationId: createHandoff
     summary: Leave a note for the next session of this agent.
     description: |
       The identity and the session come from the lease. A note is 1 to 4096 bytes. The same `client_id` stores one note: a repeat
       answers 200 with the stored note. The identity keeps its newest 50 notes.
-    security: [{ leaseBearer: [] }]
     requestBody:
       required: true
       content:
@@ -46,10 +48,11 @@
             schema: { $ref: "../openapi.yaml#/components/schemas/Handoff" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
   get:
+    x-authz: { auth: owner, lease: accept }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     operationId: listHandoffs
     summary: The handoff notes of an agent, newest first.
     description: The owner names the agent with `identity` (a handle). An agent session reads its own identity only; another handle is 403.
-    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     parameters:
       - { name: identity, in: query, description: "The handle of the agent. Required for the owner.", schema: { type: string } }
     responses:

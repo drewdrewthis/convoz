@@ -2,6 +2,8 @@
 # openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
 /api/conversations:
   get:
+    x-authz: { auth: human, lease: accept }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     operationId: listConversations
     summary: The caller's conversations, newest activity first. ?deleted=1 lists the trash (the owner).
     parameters:
@@ -18,6 +20,8 @@
                 conversations: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Conversation" } }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
   post:
+    x-authz: { auth: human, lease: accept, scope: post }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     operationId: createConversation
     summary: Make a conversation. The same client_id again answers 200 with the one it made.
     requestBody:
@@ -37,6 +41,8 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/conversations/{id}:
   get:
+    x-authz: { auth: human, lease: accept }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     operationId: getConversation
     summary: One conversation with its details (who started it, the link, pending adds, pickup).
     parameters:
@@ -45,6 +51,7 @@
       "200": { $ref: "../openapi.yaml#/components/responses/OneConversation" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
   patch:
+    x-authz: { auth: human }
     operationId: patchConversation
     summary: Rename the conversation or link its pull request. A chosen title is never changed by a later message.
     parameters:
@@ -62,6 +69,7 @@
       "200": { $ref: "../openapi.yaml#/components/responses/OneConversation" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
   delete:
+    x-authz: { auth: owner }
     operationId: deleteConversation
     summary: Move the conversation to the trash for 30 days. Agents lose sight of it at once.
     parameters:
@@ -71,6 +79,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/conversations/{id}/restore:
   post:
+    x-authz: { auth: owner }
     operationId: restoreConversation
     summary: Bring a conversation back from the trash with all its messages.
     parameters:
@@ -84,6 +93,8 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/conversations/{id}/participants:
   post:
+    x-authz: { auth: human, lease: accept }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     operationId: addParticipant
     summary: Add an agent at once and say what history it sees. An agent can only ask; its request waits for a person.
     parameters:
@@ -118,6 +129,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/conversations/{id}/participants/{iid}:
   delete:
+    x-authz: { auth: human }
     operationId: removeParticipant
     summary: Take an agent out. It gets one notice, and nothing more from the conversation.
     parameters:
@@ -128,6 +140,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/conversations/{id}/participants/{iid}/approve:
   post:
+    x-authz: { auth: human }
     operationId: approveParticipant
     summary: Approve an add an agent asked for.
     parameters:
@@ -142,6 +155,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/conversations/{id}/participants/{iid}/decline:
   post:
+    x-authz: { auth: human }
     operationId: declineParticipant
     summary: Decline an add an agent asked for.
     parameters:
@@ -156,6 +170,8 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/conversations/{id}/leave:
   post:
+    x-authz: { auth: human, lease: accept }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     operationId: leaveConversation
     summary: An agent takes itself out of the conversation.
     parameters:
@@ -169,6 +185,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/conversations/{id}/resume:
   post:
+    x-authz: { auth: human, lease: refuse }
     operationId: resumeConversation
     summary: Let paused agents post again.
     parameters:
@@ -182,6 +199,7 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/conversations/{id}/pickup/open:
   post:
+    x-authz: { auth: human }
     operationId: openPickup
     summary: Offer the conversation to any agent that has the pickup scope.
     parameters:
@@ -195,6 +213,8 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/conversations/{id}/pickup:
   post:
+    x-authz: { auth: lease, scope: pickup }
+    security: [{ leaseBearer: [] }]
     operationId: pickupConversation
     summary: An agent with the pickup scope takes an open conversation (exactly one wins). With a fence it renews its hold.
     parameters:

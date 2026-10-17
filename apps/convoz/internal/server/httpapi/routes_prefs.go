@@ -7,6 +7,6 @@ var prefsRoutes = []Route{
 	{Method: "PATCH", Pattern: "/api/conversations/:id/prefs", Auth: authz.Human, RefuseLease: true, handle: (*Server).patchPrefs},
 	{Method: "PUT", Pattern: "/api/messages/:id/pin", Auth: authz.Human, RefuseLease: true, handle: pinHandler(true)},
 	{Method: "DELETE", Pattern: "/api/messages/:id/pin", Auth: authz.Human, RefuseLease: true, handle: pinHandler(false)},
-	{Method: "PUT", Pattern: "/api/status", Auth: authz.Lease, handle: (*Server).putStatus},
+	{Method: "PUT", Pattern: "/api/status", Auth: authz.Lease, Scope: "status", handle: (*Server).putStatus},
 	{Method: "GET", Pattern: "/api/status", Auth: authz.Owner, Lease: true, handle: (*Server).getStatus},
 }

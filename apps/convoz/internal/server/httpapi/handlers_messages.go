@@ -51,7 +51,7 @@ func (s *Server) postMessage(w http.ResponseWriter, r *http.Request, c *call) {
 		writeFieldErr(w, http.StatusForbidden, "forbidden", "via_app", "Only the owner sends a result through an app.")
 		return
 	}
-	if isAgent && !s.agentMayPost(w, c, now) {
+	if isAgent && !s.withinBudgets(w, c, now) {
 		return
 	}
 	uploadIDs := in.UploadIDs
@@ -106,13 +106,8 @@ func (s *Server) postMessage(w http.ResponseWriter, r *http.Request, c *call) {
 	writeJSON(w, status, wire.PostResponse{ID: posted.Message.ID, ConversationID: convID, CreatedAt: posted.Message.CreatedAt})
 }
 
-// agentMayPost applies the post scope and the three rate limits to an agent's post. It writes the refusal itself.
-// It only reads the daily caps; countDailyPost spends them once the message is stored.
-func (s *Server) agentMayPost(w http.ResponseWriter, c *call, now time.Time) bool {
-	return agentMayWrite(w, c) && s.withinBudgets(w, c, now)
-}
-
 // withinBudgets applies the three rate limits of an agent that writes to a conversation (a message or an ask). It writes the 429 itself.
+// It only reads the daily caps; countDailyPost spends them once the message is stored.
 func (s *Server) withinBudgets(w http.ResponseWriter, c *call, now time.Time) bool {
 	identityKey, machineKey := capKeys(c)
 	if !s.postLimit.Allow(identityKey, now) {
@@ -121,15 +116,6 @@ func (s *Server) withinBudgets(w http.ResponseWriter, c *call, now time.Time) bo
 	}
 	if wait := max(s.dayIdentityLimit.RetryAfter(identityKey, now), s.dayMachineLimit.RetryAfter(machineKey, now)); wait > 0 {
 		tooMany(w, wait, "The daily message limit is reached.")
-		return false
-	}
-	return true
-}
-
-// agentMayWrite is the post scope: a machine that may not post may not edit or delete either.
-func agentMayWrite(w http.ResponseWriter, c *call) bool {
-	if c.lease.Scopes&auth.ScopePost == 0 {
-		writeErr(w, http.StatusForbidden, "forbidden", "This machine may not post.")
 		return false
 	}
 	return true
@@ -418,9 +404,6 @@ func (s *Server) editMessage(w http.ResponseWriter, r *http.Request, c *call) {
 	}
 	who, now := actorOf(c), s.Clock.Now()
 	if who.Agent {
-		if !agentMayWrite(w, c) {
-			return
-		}
 		if key := strconv.FormatInt(who.Identity, 10); !s.budgets().edits.Allow(key, now) {
 			tooMany(w, s.budgets().edits.RetryAfter(key, now), "Too many edits. Slow down.")
 			return
@@ -473,9 +456,6 @@ func (s *Server) deleteMessage(w http.ResponseWriter, r *http.Request, c *call) 
 		return
 	}
 	who, now := actorOf(c), s.Clock.Now()
-	if who.Agent && !agentMayWrite(w, c) {
-		return
-	}
 	var m message.Message
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) (err error) {
 		m, err = message.Delete(ctx, tx.DBTX(), messagePorts(c.p), now, who, id)

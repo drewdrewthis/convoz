@@ -1,0 +1,15 @@
+{
+  "_comment": "p95 budgets in milliseconds on the 1M-message fixture (design 12.1, quality-gates AC-9). The nightly run on the target VM is the authority.",
+  "BenchmarkPostMessage": 10,
+  "BenchmarkAnswerAsk": 10,
+  "BenchmarkRail_FloorZero1M": 12,
+  "BenchmarkMessagesPage": 5,
+  "BenchmarkNow": 8,
+  "BenchmarkSearch1M": 50,
+  "BenchmarkSearch1M_Prefix2": 50,
+  "BenchmarkBrief": 30,
+  "BenchmarkInboxWake": 25,
+  "BenchmarkInboxClaimContention": 20,
+  "BenchmarkFanout": 25,
+  "BenchmarkDeltaSync": 20
+}
