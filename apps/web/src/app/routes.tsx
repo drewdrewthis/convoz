@@ -41,6 +41,8 @@ export const PAGES = {
   machines: page({ name: "machines", title: "Machines", heading: "Machines", frame: "shell", tab: "crew", back: "/crew", load: () => import("../features/crew/index.ts").then((f) => f.Machines) }),
   passkeys: page({ name: "passkeys", title: "Passkeys", heading: "Passkeys", frame: "shell", back: "/", load: () => import("../features/settings/index.ts").then((f) => f.Passkeys) }),
   recovery: page({ name: "recovery", title: "Recovery codes", heading: "Recovery codes", frame: "shell", back: "/", load: () => import("../features/settings/index.ts").then((f) => f.RecoveryCodes) }),
+  settings: page({ name: "settings", title: "Settings", heading: "Settings", frame: "shell", back: "/account", load: () => import("../features/settings/index.ts").then((f) => f.Settings) }),
+  privacy: page({ name: "privacy", title: "Privacy & security", heading: "Privacy & security", frame: "shell", back: "/settings", load: () => import("../features/settings/index.ts").then((f) => f.Privacy) }),
   account: page({ name: "account", title: "Account", heading: "Account", frame: "shell", back: "/", load: () => import("../features/settings/index.ts").then((f) => f.Account) }),
 };
 
@@ -54,6 +56,8 @@ const EXACT: Record<string, PageDef> = {
   "/chats/new": PAGES.chat,
   "/crew": PAGES.crew,
   "/crew/machines": PAGES.machines,
+  "/settings": PAGES.settings,
+  "/settings/privacy": PAGES.privacy,
   "/settings/passkeys": PAGES.passkeys,
   "/settings/recovery": PAGES.recovery,
   "/account": PAGES.account,

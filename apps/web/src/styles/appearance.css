@@ -1,0 +1,9 @@
+/* The look settings choose (features/settings). The boot script sets these attributes on <html> before the first paint:
+   data-theme (the look in use), data-palette (colours: packages/tokens) and data-text-size. */
+:root[data-mode="dark"] { color-scheme: dark; }
+:root[data-mode="light"] { color-scheme: light; }
+
+/* Text size changes the body copy. Medium is the app's own 14px. */
+:root[data-text-size="s"] body { font-size: 13px; }
+:root[data-text-size="l"] body { font-size: 16px; }
+:root[data-text-size="xl"] body { font-size: 18px; }

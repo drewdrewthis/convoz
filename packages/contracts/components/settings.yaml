@@ -1,2 +1,15 @@
-# Schemas of the settings module. Only the work package that owns settings edits this file; the root lists each by name.
-{}
+# Schemas of the settings module. Only the work package that owns settings edits this file; paths/settings.yaml refers to them directly.
+SettingEntry:
+  type: object
+  required: [scope, key, value]
+  properties:
+    scope: { type: string, enum: [workspace, user] }
+    key: { type: string, maxLength: 64 }
+    value: { description: "The stored value, or the default when never set. Its type is the type of the key in the registry." }
+SettingPatch:
+  type: object
+  required: [scope, key, value]
+  properties:
+    scope: { type: string, enum: [workspace, user] }
+    key: { type: string, maxLength: 64 }
+    value: { description: Checked against the registry before it is stored. }

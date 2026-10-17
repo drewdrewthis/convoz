@@ -16,6 +16,10 @@ export function Account() {
         {me ? `${me.identity.display_name} (@${me.identity.handle})` : ""}
       </p>
       <div className="group">
+        <a className="row" href="/settings">
+          <span>Settings</span>
+          <span className="chev" aria-hidden="true" />
+        </a>
         <a className="row" href="/settings/passkeys">
           <span>Passkeys</span>
           <span className="chev" aria-hidden="true" />

@@ -1,3 +1,32 @@
 # Paths of the settings module (design §13). Only the work package that owns settings edits this file; the root
 # openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
-/api/settings: {}  # not specified yet
+/api/settings:
+  get:
+    operationId: settings
+    summary: "Every registry setting the caller can read, at its stored value or its default (I-29)."
+    responses:
+      "200":
+        description: "One entry per registry key. Device settings never appear, because they live on the device."
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [settings]
+              properties:
+                settings: { type: array, items: { $ref: "../components/settings.yaml#/SettingEntry" } }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+  patch:
+    operationId: patchSetting
+    summary: "Set one setting. An unknown key, a wrong type, an out-of-range value or the wrong scope is a 400; a workspace key is the owner's."
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "../components/settings.yaml#/SettingPatch" }
+    responses:
+      "200":
+        description: The setting as stored.
+        content:
+          application/json:
+            schema: { $ref: "../components/settings.yaml#/SettingEntry" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }

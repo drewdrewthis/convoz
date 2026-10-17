@@ -1337,13 +1337,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Every registry setting the caller can read, at its stored value or its default (I-29). */
+        get: operations["settings"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** Set one setting. An unknown key, a wrong type, an out-of-range value or the wrong scope is a 400; a workspace key is the owner's. */
+        patch: operations["patchSetting"];
         trace?: never;
     };
     "/api/me/export": {
@@ -1645,6 +1647,20 @@ export interface components {
              * @description Epoch ms; the screen hides the note then.
              */
             until?: number;
+        };
+        SettingEntry: {
+            /** @enum {string} */
+            scope: "workspace" | "user";
+            key: string;
+            /** @description The stored value, or the default when never set. Its type is the type of the key in the registry. */
+            value: unknown;
+        };
+        SettingPatch: {
+            /** @enum {string} */
+            scope: "workspace" | "user";
+            key: string;
+            /** @description Checked against the registry before it is stored. */
+            value: unknown;
         };
     };
     responses: {
@@ -2493,6 +2509,54 @@ export interface operations {
                 };
                 content: {
                     "text/event-stream": string;
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One entry per registry key. Device settings never appear, because they live on the device. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        settings: components["schemas"]["SettingEntry"][];
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    patchSetting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SettingPatch"];
+            };
+        };
+        responses: {
+            /** @description The setting as stored. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingEntry"];
                 };
             };
             default: components["responses"]["Error"];
