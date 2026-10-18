@@ -76,14 +76,14 @@ func Login(args []string, io IO) int {
 		return fail(io, err)
 	}
 	kc := osKeychain{io.Getenv}
-	WarnIfStale(io, newClient(base))
-	if *stdin {
+	if *stdin { // storing a key contacts no server, so there is no version to compare
 		key, err := readKey(io)
 		if err != nil {
 			return usageError(io, err.Error())
 		}
 		return finishLogin(io, dir, kc, Credentials{Server: base, Machine: *name, Key: key}, *store)
 	}
+	WarnIfStale(io, newClient(base))
 	return deviceFlow(io, dir, kc, newClient(base), base, *name, *store, intro)
 }
 
