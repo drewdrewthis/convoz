@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/upload"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
@@ -27,6 +29,8 @@ type introJSON struct {
 	Description  string       `json:"description"`
 	AvatarURL    *string      `json:"avatar_url"`
 	Conversation *convRefJSON `json:"conversation"`
+	// ReturningSince is when the owner revoked the agent this request brings back (epoch ms); null for a new agent.
+	ReturningSince *int64 `json:"returning_since"`
 }
 
 // identityRequestJSON is a waiting request of a logged-in machine, as Now shows it. The machine name is the server's own.
@@ -46,6 +50,11 @@ func (s *Server) introOf(ctx context.Context, d pdb.DBTX, r auth.IdentityRequest
 	out := introJSON{Ref: r.Ref, Handle: r.Handle, DisplayName: r.DisplayName, Description: r.Description}
 	if out.DisplayName == "" {
 		out.DisplayName = r.Handle
+	}
+	if p, found, err := identity.Lookup(ctx, d, strings.ToLower(r.Handle)); err != nil {
+		return out, err
+	} else if found && p.Kind == "agent" && p.Disabled {
+		out.ReturningSince = &p.DisabledAt
 	}
 	if r.HasAvatar {
 		url := "/api/identity-requests/" + r.Ref + "/avatar.svg"

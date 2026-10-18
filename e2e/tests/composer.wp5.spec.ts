@@ -156,13 +156,13 @@ scenario("Picking an agent from the mention list adds it", { tag: ["@browser", "
   expect(sent.body).toBe("@docs please write the release note");
   expect(handlesOf(await viewOf(w.owner, conv))).toContain("docs");
   const docsRead = await asAgent(w.srv, w.sessions.docs!.lease, "GET", `/api/conversations/${conv}/messages`);
-  expect(docsRead.json().messages.map((m: { body: string }) => m.body)).toEqual(["@docs please write the release note"]);
+  expect(docsRead.json().messages.map((m: { body: string }) => m.body)).toEqual(["an earlier note", "@docs please write the release note"]);
   const floor = seedDb(dataDir, (db) =>
     Number(
       (db.prepare("SELECT p.joined_message_id AS n FROM participants p JOIN identities i ON i.id = p.identity_id WHERE p.conversation_id = ? AND i.handle = 'docs'").get(conv) as { n: number }).n,
     ),
   );
-  expect(floor).toBe(sent.id - 1); // it sees the message that brought it in, and nothing before
+  expect(floor).toBe(0); // it sees the whole history, the note before the mention too
 
   // And "docs" gets a mention item
   const items = await peekFor(w.box, w.sessions.docs!.sid, conv);

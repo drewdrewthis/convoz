@@ -175,6 +175,24 @@ Feature: Notifications
       When the owner opens Conversations
       Then the banner does not show
 
+  Rule: A tapped push opens a page of the app
+
+    # Owner (Drew, msg 144): "This is when I clicked on the notification"
+    @v1 @browser
+    Scenario: Tapping an ask push opens Now, not Conversation not found
+      Given "devtool" asks a question and the owner's phone gets a push for it
+      When the owner taps the notification
+      Then the Now screen opens
+      And it does not say "Conversation not found"
+
+    # Owner (Drew, msg 144): "This is when I clicked on the notification"
+    @v1 @api
+    Scenario: A pushed URL that is not a page of the app opens Now
+      Given a notification that carries a URL the app has no page for, or another site
+      When the owner taps it
+      Then the worker opens "/"
+      And a page of the app opens as pushed
+
   Rule: Answering from the notification is later and off by default (I-35)
 
     @later @api @I-35

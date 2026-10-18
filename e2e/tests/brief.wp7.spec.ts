@@ -360,8 +360,8 @@ scenario("A retried handoff makes one note", { tag: ["@cli"] }, async ({ server,
 
 // ---- Rule: An agent reads and searches only what it can see -----------------------------------------------------------------
 
-scenario("An agent added later does not read earlier messages", { tag: ["@cli"] }, async ({ server, dataDir }) => {
-  // Given conversation 41 had 20 messages before the owner added "devtool" with history "since now"
+scenario("An agent added later reads the earlier messages", { tag: ["@cli"] }, async ({ server, dataDir }) => {
+  // Given conversation 41 had 20 messages before the owner added "devtool"
   const w = await briefWorld({ server, dataDir });
   const conv = await createConversation(w.owner, { participants: ["docs"], title: "Ship the rollout" });
   for (let n = 1; n <= 20; n++) await ownerSays(w.owner, conv, `earlier message ${n}`);
@@ -374,11 +374,10 @@ scenario("An agent added later does not read earlier messages", { tag: ["@cli"] 
   const res = await asDevtool(w, "reader", ["read", String(conv), "--json"]);
   expect(res.code, res.stderr).toBe(0);
 
-  // Then it sees only the messages from its add onward
+  // Then it sees the messages from before its add too
   const bodies: string[] = JSON.parse(res.stdout).messages.map((m: { body: string }) => m.body);
-  expect(bodies.filter((b) => b.startsWith("earlier message"))).toEqual([]);
+  expect(bodies.filter((b) => b.startsWith("earlier message"))).toHaveLength(20);
   expect(bodies).toEqual(expect.arrayContaining(["after the add 1", "after the add 2"]));
-  expect((await pageOf(w.owner, conv, "limit=100")).filter((m) => m.body.startsWith("earlier message"))).toHaveLength(20);
 });
 
 scenario("Agent search returns only conversations it can see, newest first", { tag: ["@cli"] }, async ({ server, dataDir }) => {

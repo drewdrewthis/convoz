@@ -53,26 +53,21 @@ func (q *Queries) CountLiveParticipants(ctx context.Context, conversationID int6
 
 const decideParticipant = `-- name: DecideParticipant :execrows
 UPDATE participants
-SET status = ?1, joined_message_id = ?2, joined_seq = ?3,
-    decided_by = ?4, status_at = ?5
-WHERE conversation_id = ?6 AND identity_id = ?7 AND status = 'pending'
+SET status = ?1, decided_by = ?2, status_at = ?3
+WHERE conversation_id = ?4 AND identity_id = ?5 AND status = 'pending'
 `
 
 type DecideParticipantParams struct {
-	Status          string
-	JoinedMessageID int64
-	JoinedSeq       int64
-	DecidedBy       sql.NullInt64
-	At              int64
-	ConversationID  int64
-	IdentityID      int64
+	Status         string
+	DecidedBy      sql.NullInt64
+	At             int64
+	ConversationID int64
+	IdentityID     int64
 }
 
 func (q *Queries) DecideParticipant(ctx context.Context, arg DecideParticipantParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, decideParticipant,
 		arg.Status,
-		arg.JoinedMessageID,
-		arg.JoinedSeq,
 		arg.DecidedBy,
 		arg.At,
 		arg.ConversationID,
@@ -303,20 +298,19 @@ func (q *Queries) InsertConversation(ctx context.Context, arg InsertConversation
 }
 
 const insertParticipant = `-- name: InsertParticipant :exec
-INSERT INTO participants (conversation_id, identity_id, status, joined_message_id, joined_seq, added_by, requested_by, added_at, status_at)
-VALUES (?1, ?2, ?3, ?4, ?5,
-        ?6, ?7, ?8, ?8)
+INSERT INTO participants (conversation_id, identity_id, status, joined_seq, added_by, requested_by, added_at, status_at)
+VALUES (?1, ?2, ?3, ?4,
+        ?5, ?6, ?7, ?7)
 `
 
 type InsertParticipantParams struct {
-	ConversationID  int64
-	IdentityID      int64
-	Status          string
-	JoinedMessageID int64
-	JoinedSeq       int64
-	AddedBy         int64
-	RequestedBy     sql.NullInt64
-	At              int64
+	ConversationID int64
+	IdentityID     int64
+	Status         string
+	JoinedSeq      int64
+	AddedBy        int64
+	RequestedBy    sql.NullInt64
+	At             int64
 }
 
 func (q *Queries) InsertParticipant(ctx context.Context, arg InsertParticipantParams) error {
@@ -324,7 +318,6 @@ func (q *Queries) InsertParticipant(ctx context.Context, arg InsertParticipantPa
 		arg.ConversationID,
 		arg.IdentityID,
 		arg.Status,
-		arg.JoinedMessageID,
 		arg.JoinedSeq,
 		arg.AddedBy,
 		arg.RequestedBy,
@@ -647,27 +640,25 @@ func (q *Queries) Restore(ctx context.Context, id int64) (int64, error) {
 
 const reviveParticipant = `-- name: ReviveParticipant :exec
 UPDATE participants
-SET status = ?1, joined_message_id = ?2, joined_seq = ?3,
-    added_by = ?4, requested_by = ?5, decided_by = NULL, added_at = ?6, status_at = ?6
-WHERE conversation_id = ?7 AND identity_id = ?8
+SET status = ?1, joined_message_id = 0, joined_seq = ?2,
+    added_by = ?3, requested_by = ?4, decided_by = NULL, added_at = ?5, status_at = ?5
+WHERE conversation_id = ?6 AND identity_id = ?7
 `
 
 type ReviveParticipantParams struct {
-	Status          string
-	JoinedMessageID int64
-	JoinedSeq       int64
-	AddedBy         int64
-	RequestedBy     sql.NullInt64
-	At              int64
-	ConversationID  int64
-	IdentityID      int64
+	Status         string
+	JoinedSeq      int64
+	AddedBy        int64
+	RequestedBy    sql.NullInt64
+	At             int64
+	ConversationID int64
+	IdentityID     int64
 }
 
-// A person who left, was removed or was declined comes back as a new row of history: same key, new status and floor.
+// A person who left, was removed or was declined comes back as a new row of history: same key, new status; the whole history is theirs.
 func (q *Queries) ReviveParticipant(ctx context.Context, arg ReviveParticipantParams) error {
 	_, err := q.db.ExecContext(ctx, reviveParticipant,
 		arg.Status,
-		arg.JoinedMessageID,
 		arg.JoinedSeq,
 		arg.AddedBy,
 		arg.RequestedBy,

@@ -292,6 +292,7 @@ func (s *Server) machineRequests(w http.ResponseWriter, r *http.Request, _ *call
 func checkIntroBlind(ctx context.Context, d pdb.DBTX, in auth.IdentityPackage) (auth.IdentityPackage, error) {
 	conv := in.ConversationID
 	in.ConversationID = 0
+	in.MayReturn = true // only a spent invite gets here
 	out, err := auth.CheckIdentityPackage(ctx, d, flowPorts, in)
 	var field *auth.FieldError
 	if err != nil && !errors.Is(err, auth.ErrHandleTaken) && !(errors.As(err, &field) && field.Field == "display_name") {

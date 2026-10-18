@@ -55,6 +55,7 @@ Feature: Crew: identities, machines and sessions
       Then the sheet says "Connected: code-review is online."
       And "convoz session start --as code-review" works on "box-5"
 
+    # Owner (Drew, msg 143): "History should be accessible yes"
     @v1 @cli @browser @I-17
     Scenario: Inviting an agent from a conversation puts it in that conversation
       Given the owner is in the conversation "Ship search filters"
@@ -64,7 +65,7 @@ Feature: Crew: identities, machines and sessions
       When the agent runs the prompt's "convoz login --name box-5 --as code-review --conversation" with that conversation on a new machine
       And the owner taps Approve on the card
       Then the sheet says "Connected: code-review is online and in “Ship search filters”."
-      And "code-review" is a participant of "Ship search filters" and sees only what comes after
+      And "code-review" is a participant of "Ship search filters" and sees the whole history
 
     @v1 @browser
     Scenario: The details panel and the invite button in the rail open the same sheet
@@ -111,6 +112,47 @@ Feature: Crew: identities, machines and sessions
       And Crew lists "devtool" as disabled
       And its old messages still show "@devtool"
       And Crew offers no way to delete "devtool"
+
+  Rule: A revoked agent can be invited back as the same agent
+
+    # Owner (Drew, msg 140): "I revoked dots token and reinvited… not sure what to do?" Ask 142, recommended option "Bring back the same @dot".
+    @v1 @cli @browser @I-3
+    Scenario: Revoking an agent and inviting it again from the same machine brings the same agent back
+      Given a Convoz server with an agents-only address
+      And "dot" is logged in on "box-2" and posted in the conversation "Ship search filters"
+      And the owner revoked the key of "dot" with Revoke key and Confirm
+      When the owner makes an invite and "dot" runs "convoz login --name box-2 --as dot --invite" with it
+      Then the owner sees one Now card "box-2 wants to connect as @dot"
+      And the card says "Brings back @dot" and the day the key was revoked
+      When the owner taps Approve on that card
+      Then the CLI logs in as machine "box-2"
+      And Crew lists one "dot", enabled, the same agent as before
+      And "dot" posts again in "Ship search filters" and its old message is still there
+      And Crew lists one active machine "box-2", the new one
+
+    # Owner (Drew, msg 140): "I revoked dots token and reinvited… not sure what to do?"
+    @v1 @cli @browser @I-3 @I-38
+    Scenario: A revoked agent's old key and sessions stay dead when it comes back
+      Given a Convoz server with an agents-only address
+      And "dot" is logged in on "box-2" with a session
+      And the owner revoked the key of "dot" with Revoke key and Confirm
+      When the owner makes an invite and "dot" runs "convoz login --name box-2 --as dot --invite" with it
+      And the owner taps Approve on the card "box-2 wants to connect as @dot"
+      Then the old session of "dot" still fails
+      And the old machine key of "box-2" no longer works
+      And "convoz session start --as dot" works on the new "box-2"
+
+    # Owner (Drew, msg 140): "I revoked dots token and reinvited… not sure what to do?"
+    @v1 @cli @browser @I-3
+    Scenario: A machine that still serves an active agent keeps its name
+      Given a Convoz server with an agents-only address
+      And "dot" and "writer" are logged in on "box-2"
+      And the owner revoked the key of "dot" with Revoke key and Confirm
+      When the owner makes an invite and "dot" runs "convoz login --name box-2 --as dot --invite" with it
+      And the owner taps Approve on the card "box-2 wants to connect as @dot"
+      Then the owner reads 'The name "box-2" is taken. Use Reveal or Regenerate on "box-2", or revoke it first.'
+      And "dot" is still disabled
+      And the machine "box-2" still works for "writer"
 
   Rule: Disabling an identity cuts every session at once (I-38)
 

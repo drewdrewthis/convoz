@@ -2113,6 +2113,11 @@ export interface components {
             /** @description One line of plain text */
             description: string;
             avatar_url: string | null;
+            /**
+             * Format: int64
+             * @description Set when the handle belongs to an agent the owner revoked: approving brings that same agent back. The time it was revoked (epoch ms).
+             */
+            returning_since?: number | null;
             /** @description The conversation the agent joins once approved, by title; null when none or when it is not available any more. */
             conversation: {
                 /** Format: int64 */
@@ -2275,6 +2280,11 @@ export interface components {
             }[];
             /** @description The agents that have seen the newest message a person wrote in the main list, first seen first. The single-conversation route only. */
             seen?: components["schemas"]["Seen"][];
+            /**
+             * Format: int64
+             * @description The caller's read cursor in the main list when the row was built; absent when it has none. The single-conversation route only. The page keeps the value from when it opened
+             */
+            last_read?: number;
             /**
              * Format: int64
              * @description In the trash since.

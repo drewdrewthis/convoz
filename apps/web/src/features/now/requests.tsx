@@ -29,7 +29,7 @@ const sourceLine = (req: MachineRequest) => `Source: ${req.node_name || "unknown
  * Who is a short block about an agent that asks to connect. The server's own words (the machine name) are never in it: everything
  * here is what the agent sent, shown as plain text under "From the agent", and its picture only as an img of the cleaned SVG (I-32).
  */
-function Who({ handle, name, description, avatar, conversation }: { handle: string; name: string; description: string; avatar: string | null; conversation: { title: string } | null }) {
+function Who({ handle, name, description, avatar, conversation, returningSince }: { handle: string; name: string; description: string; avatar: string | null; conversation: { title: string } | null; returningSince: number | null }) {
   return (
     <div className="agentintro">
       <p className="sub">From the agent</p>
@@ -40,6 +40,7 @@ function Who({ handle, name, description, avatar, conversation }: { handle: stri
         <strong>{name}</strong> <code>{`@${handle}`}</code>
       </p>
       {description ? <p className="role">{description}</p> : null}
+      {returningSince ? <p className="sub">{`Brings back @${handle} (revoked ${new Date(returningSince).toISOString().slice(0, 10)})`}</p> : null}
       {conversation ? <p className="sub">{`Joins “${conversation.title || "Untitled conversation"}” from now on`}</p> : null}
     </div>
   );
@@ -96,7 +97,7 @@ export function RequestCard({ item, changed, approved }: CardProps) {
     <article className="card" aria-labelledby={id} data-request={path}>
       <h3 id={id}>{intro ? `${name} wants to connect as @${intro.handle}` : `${name} wants to connect`}</h3>
       {intro ? (
-        <Who handle={intro.handle} name={intro.display_name} description={intro.description} avatar={intro.avatar_url} conversation={intro.conversation} />
+        <Who handle={intro.handle} name={intro.display_name} description={intro.description} avatar={intro.avatar_url} conversation={intro.conversation} returningSince={intro.returning_since ?? null} />
       ) : null}
       {machine ? (
         <>

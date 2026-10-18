@@ -47,6 +47,10 @@ VALUES (sqlc.arg(identity_id), sqlc.narg(created_by_human), sqlc.narg(created_by
 -- name: DisableAgent :execrows
 UPDATE identities SET disabled_at = sqlc.arg(disabled_at) WHERE id = sqlc.arg(id) AND kind = 'agent' AND disabled_at IS NULL;
 
+-- name: EnableAgent :execrows
+-- Bring a revoked agent back: the same row, so its id, history and conversation seats stay (re-invite).
+UPDATE identities SET disabled_at = NULL WHERE id = sqlc.arg(id) AND kind = 'agent' AND disabled_at IS NOT NULL;
+
 -- name: HandleWasUsed :one
 -- Another identity's: an identity may take back a handle it retired itself.
 SELECT EXISTS (SELECT 1 FROM retired_handles WHERE handle = sqlc.arg(handle) AND identity_id <> sqlc.arg(own_id));

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity/db"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
@@ -34,6 +36,7 @@ type Principal struct {
 	Handle      string
 	DisplayName string
 	Disabled    bool
+	DisabledAt  int64 // epoch ms; 0 while enabled
 }
 
 // Lookup finds an identity by handle (any case). ok is false when there is none.
@@ -42,7 +45,7 @@ func Lookup(ctx context.Context, d pdb.DBTX, handle string) (Principal, bool, er
 	if errors.Is(err, sql.ErrNoRows) {
 		return Principal{}, false, nil
 	}
-	return Principal{ID: r.ID, Kind: r.Kind, Handle: r.Handle, DisplayName: r.DisplayName, Disabled: r.DisabledAt.Valid}, err == nil, err
+	return Principal{ID: r.ID, Kind: r.Kind, Handle: r.Handle, DisplayName: r.DisplayName, Disabled: r.DisabledAt.Valid, DisabledAt: r.DisabledAt.Int64}, err == nil, err
 }
 
 // ByID finds an identity by id. ok is false when there is none.
@@ -202,4 +205,68 @@ func DisableAgent(ctx context.Context, d pdb.DBTX, id int64, now time.Time) (boo
 func CreatedByMachineSince(ctx context.Context, d pdb.DBTX, machineID int64, since time.Time) (n, oldestMs int64, err error) {
 	r, err := db.New(d).CountAgentsCreatedByMachineSince(ctx, db.CountAgentsCreatedByMachineSinceParams{MachineID: sql.NullInt64{Int64: machineID, Valid: true}, Since: since.UnixMilli()})
 	return r.N, r.Oldest, err
+}
+
+// Reintro is what a returning agent says about itself; an empty field leaves what the identity has.
+type Reintro struct {
+	DisplayName string
+	Description string
+	AvatarSVG   string
+}
+
+// ReenableAgent brings a disabled agent back as the same identity (same id, handle, history and seats). A display name that looks
+// like another active identity is refused. It reports false when there is no such disabled agent. The caller makes sure no old
+// session of the agent lives (disable ended them all) and issues no credential here.
+func ReenableAgent(ctx context.Context, d pdb.DBTX, id int64, in Reintro) (bool, error) {
+	q := db.New(d)
+	who, found, err := ByID(ctx, d, id)
+	if err != nil || !found || who.Kind != "agent" || !who.Disabled {
+		return false, err
+	}
+	if in.DisplayName != "" && in.DisplayName != who.DisplayName {
+		if !ValidDisplayName(in.DisplayName) {
+			return false, ErrInvalidDisplayName
+		}
+		if err := checkDisplayName(ctx, q, in.DisplayName); err != nil {
+			return false, err
+		}
+		first, _ := utf8.DecodeRuneInString(in.DisplayName)
+		if err := q.SetDisplayName(ctx, db.SetDisplayNameParams{DisplayName: in.DisplayName, DisplaySkeleton: Skeleton(in.DisplayName), AvatarLetter: string(unicode.ToUpper(first)), ID: id}); err != nil {
+			return false, err
+		}
+	}
+	n, err := q.EnableAgent(ctx, id)
+	if err != nil {
+		if pdb.IsUniqueViolation(err) {
+			return false, ErrConfusableName
+		}
+		return false, err
+	}
+	if n == 0 {
+		return false, nil
+	}
+	if in.Description != "" {
+		if err := q.SetAgentDescription(ctx, db.SetAgentDescriptionParams{Description: in.Description, ID: id}); err != nil {
+			return false, err
+		}
+	}
+	if in.AvatarSVG != "" {
+		return true, SetAvatar(ctx, d, id, in.AvatarSVG)
+	}
+	return true, nil
+}
+
+// ActiveAgents maps the id of every enabled agent to its handle.
+func ActiveAgents(ctx context.Context, d pdb.DBTX) (map[int64]string, error) {
+	list, err := List(ctx, d)
+	if err != nil {
+		return nil, err
+	}
+	out := map[int64]string{}
+	for _, e := range list {
+		if e.Kind == "agent" && !e.Disabled {
+			out[e.ID] = e.Handle
+		}
+	}
+	return out, nil
 }

@@ -712,10 +712,10 @@ scenario("The card data is plain text, the avatar is cleaned and the join goes t
   // When the owner approves it
   must(await approveIdentity(owner, req!.ref), "approve", 201);
 
-  // Then "dev-new" is an active participant of conversation 41 from the add on
+  // Then "dev-new" is an active participant of conversation 41 and can read the messages before the add
   const token = await lease(srv, box2.key, { as: "dev-new" });
   const seen = must(await send(srv.target, "GET", `/api/conversations/${conv}/messages`, bearer(token)), "read as dev-new").json().messages as { id: number }[];
-  expect(seen.every((m) => m.id > before)).toBe(true);
+  expect(seen.some((m) => m.id === before)).toBe(true);
 
   // And an agent that asks for a conversation the owner is not in is refused when it files
   const devtool = await lease(srv, box2.key, { as: "devtool" });

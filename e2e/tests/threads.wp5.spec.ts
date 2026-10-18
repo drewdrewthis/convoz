@@ -34,8 +34,7 @@ import { seedDb } from "../lib/wp3.ts";
  *
  * ROUTES
  *   GET /api/messages/:id/replies?after=&limit=  the thread of one top-level message, found from the message (no conversation id):
- *        {conversation_id, root, messages, as_of_seq}, oldest first; `root` is a stub (body "earlier message not shown") for a reader
- *        who joined after it. 404 for a message the caller cannot see, 400 for a system line; a message inside a thread names its thread (the root comes back).
+ *        {conversation_id, root, messages, as_of_seq}, oldest first; `root` is the root message, whenever the reader joined. 404 for a message the caller cannot see, 400 for a system line; a message inside a thread names its thread (the root comes back).
  *   POST /api/conversations/:id/read  {main_id?, root_id+reply_id?, all?}: root_id with reply_id moves the reader's position in one
  *        thread (never past its newest reply; only a thread the reader is in has a position, I-14); all also clears every thread.
  *   convoz reply [--broadcast] <message> <text|->  posts {thread_root_id[, broadcast]} to the conversation of the message.

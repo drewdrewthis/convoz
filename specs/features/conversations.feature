@@ -131,26 +131,44 @@ Feature: Conversations
       Then the participants show "devtool"
       And "devtool" gets a mention item
 
-    # Per prototype v41 (+ Add, addAgents): the agent joins at once, there is no history sheet, and it sees what comes after.
+    # Per prototype v41 (+ Add, addAgents): the agent joins at once and there is no history sheet.
+    # Owner (Drew, msg 143): "History should be accessible yes"
     @v1 @browser @I-15
-    Scenario: Adding an agent with + Add joins it at once and it sees only what comes after
+    Scenario: Adding an agent with + Add joins it at once and it sees the whole history
       Given conversation 41 with 20 messages
       When the owner adds "docs" with + Add
       Then the participants show "docs" at once and no history question was asked
-      And "docs" runs "convoz read 41" and sees only messages after the add
+      And "docs" runs "convoz read 41" and sees the 20 messages from before the add and the ones after
       And "docs" has no unread messages in conversation 41
 
+    # Owner (Drew, msg 143): "History should be accessible yes"
     @v1 @cli @I-7
-    Scenario: An agent sees a reply under a hidden root as a stub
+    Scenario: An agent sees a thread whose root was posted before it joined
       Given "docs" was added to conversation 41 after thread root 900 was posted
       And the owner replies in thread 900 after the add
       When "docs" runs "convoz read 41 --thread 900"
-      Then it sees the reply and a stub "earlier message not shown" for the root
+      Then it sees the reply and no "earlier message not shown" stub for the root
 
+    # Owner (Drew, msg 143): "History should be accessible yes"
+    @v1 @cli @I-7
+    Scenario: An agent added to a conversation reads the messages from before it joined
+      Given conversation 41 had 3 messages before the owner added "docs"
+      When "docs" runs "convoz read 41"
+      Then it sees all 3 earlier messages
+
+    # Owner (Drew, msg 143): "History should be accessible yes"
+    @v1 @cli @I-7
+    Scenario: Joining does not put old messages in the new member's inbox
+      Given conversation 41 had 3 messages before the owner added "docs"
+      When "docs" peeks at its inbox
+      Then it has only the notice that it was added and no item for the 3 earlier messages
+      And "docs" has no unread messages in conversation 41
+
+    # Owner (Drew, msg 143): "History should be accessible yes"
     @v1 @api @I-7
     Scenario: Events from before an agent joined are not replayed to it
       Given "docs" joined conversation 41 after 10 events in it
-      When "docs" reads the conversation and its inbox
+      When "docs" reads its inbox
       Then it receives nothing from those 10 events
 
     @v1 @api @I-17 @AC-26
@@ -406,6 +424,42 @@ Feature: Conversations
       Then the page does not move and a "New message ↓" pill shows
       When the owner taps the pill
       Then "Fresh news" is in view and the pill is gone
+
+    # Owner (Drew, msg 159): "You can see it's difficult to tell there are new messages"
+    @v1 @browser
+    Scenario: A New messages line marks where unread began and stays while the chat is open
+      Given "devtool" posted "First news", "Second news" and "Third news" in conversation 41 while the owner was away
+      When the owner opens conversation 41
+      Then a "New messages" line shows above "First news"
+      And the line is not above "Second news" or "Third news"
+      When "devtool" posts "Fourth news" in conversation 41
+      Then the "New messages" line is still above "First news" and shows only once
+      When the owner leaves and opens conversation 41 again
+      Then no "New messages" line shows
+
+    # Owner (Drew, msg 159): "You can see it's difficult to tell there are new messages"
+    @v1 @browser
+    Scenario: Messages by one author more than 5 minutes apart are separate groups with their time
+      Given "devtool" posted "Early" and then 6 minutes later "Late" and "Later" in conversation 41
+      When the owner opens conversation 41
+      Then "Early" and "Late" each show with the author's name and time
+      And "Later" shows without its own name or time
+
+    # Owner (Drew, msg 159): "You can see it's difficult to tell there are new messages"
+    @v1 @browser
+    Scenario: A pill counts new messages while the owner reads above and jumps to the first of them
+      Given the owner scrolled up in a long conversation 41
+      When "devtool" posts "Fresh one" and "Fresh two" in conversation 41
+      Then a pill reading "↓ 2 new" shows and the page does not move
+      When the owner taps the pill
+      Then "Fresh one" is in view and the pill is gone
+
+    # Owner (Drew, msg 159): "You can see it's difficult to tell there are new messages"
+    @v1 @browser
+    Scenario: Nothing shows through the floating header
+      Given the owner has conversation 41 open and scrolled so that messages pass under the header
+      Then the title area is part of the header and not of a message behind it
+      And the title area looks the same with the messages hidden
 
     @v1 @browser @phone
     Scenario: On a phone an agent reply shows paragraphs, code and links safely

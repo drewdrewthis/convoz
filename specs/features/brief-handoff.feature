@@ -116,11 +116,12 @@ Feature: Brief, handoff, read and search for agents
 
   Rule: An agent reads and searches only what it can see
 
+    # Owner (Drew, msg 143): "History should be accessible yes"
     @v1 @cli @I-7
-    Scenario: An agent added later does not read earlier messages
-      Given conversation 41 had 20 messages before the owner added "devtool" with history "since now"
+    Scenario: An agent added later reads the earlier messages
+      Given conversation 41 had 20 messages before the owner added "devtool"
       When "devtool" runs "convoz read 41"
-      Then it sees only the messages from its add onward
+      Then it sees the messages from before its add too
 
     @v1 @cli @I-6
     Scenario: Agent search returns only conversations it can see, newest first

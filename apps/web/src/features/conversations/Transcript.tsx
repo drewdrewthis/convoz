@@ -46,9 +46,14 @@ export interface TranscriptProps {
   onRetry(cid: string): void;
   /** Open the details of an agent's message (its time is the button). */
   onDetails?(m: Message): void;
+  /** The first message that was unread when the chat opened (see `firstUnread`): the "New messages" divider goes above it. Absent: no divider. */
+  newFrom?: number | null;
   /** A message to open at (a search result): the log scrolls it to the middle and marks it for a moment instead of going to the newest end. */
   focus?: number;
 }
+
+/** Messages by one author further apart than this start a new group: the author line and the time show again. */
+export const GROUP_GAP_MS = 5 * 60_000;
 
 /** How long a message opened from a search result stays marked. */
 const HL_MS = 2400;
@@ -57,36 +62,49 @@ interface Row {
   key: string;
   author: string;
   first: boolean;
+  /** The "New messages" divider goes above this row: the first message that was unread when the chat opened. */
+  fresh?: boolean;
   message?: Message;
   pending?: PendingSend;
 }
 
 /** rows lays the messages out the prototype's way: a run of messages by one author shows the avatar and name once. */
-function rowsOf(messages: Message[], pending: PendingSend[], me: string): Row[] {
+function rowsOf(messages: Message[], pending: PendingSend[], me: string, newFrom?: number | null): Row[] {
   const out: Row[] = [];
   let prev: string | null = null;
+  let prevAt = 0;
   for (const m of messages) {
     if (m.kind === "system") {
       out.push({ key: `m${m.id}`, author: "", first: false, message: m });
       prev = null; // a notice ends a run: the next message shows its author again
       continue;
     }
+    const fresh = m.id === newFrom;
     // a reply that is also in the main list says so in its header, so it always has one
-    out.push({ key: `m${m.id}`, author: m.author.handle, first: prev !== m.author.handle || Boolean(m.thread_root_id), message: m });
+    const first = prev !== m.author.handle || m.created_at - prevAt > GROUP_GAP_MS || fresh || Boolean(m.thread_root_id);
+    out.push({ key: `m${m.id}`, author: m.author.handle, first, fresh, message: m });
     prev = m.author.handle;
+    prevAt = m.created_at;
   }
   for (const p of pending) {
-    out.push({ key: `p${p.cid}`, author: me, first: prev !== me, pending: p });
+    out.push({ key: `p${p.cid}`, author: me, first: prev !== me || Date.now() - prevAt > GROUP_GAP_MS, pending: p });
     prev = me;
+    prevAt = Date.now();
   }
   return out;
+}
+
+/** firstUnread is the first message from someone else after the read position, or null when nothing is unread (or there is no position). */
+export function firstUnread(messages: Message[], readAt: number | undefined, me: string): number | null {
+  if (readAt === undefined) return null;
+  return messages.find((m) => m.id > readAt && m.kind !== "system" && m.author.handle !== me)?.id ?? null;
 }
 
 /**
  * Transcript is the log "Messages": the page itself does not scroll, the log does. It opens at the newest message, follows new
  * ones while it is at the bottom, and otherwise shows "New message ↓" instead of jumping.
  */
-export function Transcript({ messages, pending, hasEarlier, me, opened, hint, conversation, working, control, onEarlier, onRetry, onDetails, focus }: TranscriptProps) {
+export function Transcript({ messages, pending, hasEarlier, me, opened, hint, conversation, working, control, onEarlier, onRetry, onDetails, focus, newFrom }: TranscriptProps) {
   const log = useRef<HTMLDivElement>(null);
   const items = useRef<HTMLDivElement>(null);
   // Opened at a search result, the log never starts at the newest end: rows that arrive (and a list virtualizer that measures them)
@@ -94,9 +112,11 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, hint, co
   const stuck = useRef(!focus);
   const seen = useRef(new Set<string>());
   const anchor = useRef<{ height: number; top: number } | null>(null);
-  const [pill, setPill] = useState(false);
+  /** Messages from others that came in while the log was scrolled up; the first of them is where the pill takes the owner. */
+  const [pill, setPill] = useState(0);
+  const firstNew = useRef<number | null>(null);
   const [hl, setHl] = useState<number | null>(null);
-  const rows = useMemo(() => rowsOf(messages, pending, me), [messages, pending, me]);
+  const rows = useMemo(() => rowsOf(messages, pending, me, newFrom), [messages, pending, me, newFrom]);
   const paused = useMemo(() => pausedNow(messages), [messages]);
   const focusAt = focus ? rows.findIndex((r) => r.message?.id === focus) : -1;
   const shape = rows.map((r) => r.key + (r.pending?.state ?? "")).join();
@@ -106,7 +126,18 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, hint, co
     if (!el) return;
     el.scrollTop = el.scrollHeight;
     stuck.current = true;
-    setPill(false);
+    clearPill();
+  };
+  const clearPill = () => {
+    firstNew.current = null;
+    setPill(0);
+  };
+  // The pill takes the owner to the first message that came in while they were reading above.
+  const jump = () => {
+    const first = firstNew.current ? log.current?.querySelector<HTMLElement>(`[data-mid="${firstNew.current}"]`) : null;
+    if (!first) return toBottom();
+    first.scrollIntoView({ block: "start" });
+    clearPill();
   };
   control.current = {
     stick: () => {
@@ -122,7 +153,7 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, hint, co
     const onScroll = () => {
       const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
       stuck.current = gap <= NEAR_BOTTOM;
-      if (gap <= 8) setPill(false);
+      if (gap <= 8) clearPill();
     };
     el.addEventListener("scroll", onScroll, { passive: true });
     const resized = new ResizeObserver(() => {
@@ -180,8 +211,12 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, hint, co
       anchor.current = null;
     } else if (stuck.current) {
       toBottom();
-    } else if (added.some((r) => r.message && r.author !== me)) {
-      setPill(true);
+    } else {
+      const theirs = added.filter((r) => r.message && r.author !== me);
+      if (theirs.length) {
+        firstNew.current ??= theirs[0]!.message!.id;
+        setPill((n) => n + theirs.length);
+      }
     }
   }, [shape]); // when the rows change, not on every render: typing must not move the log
 
@@ -222,8 +257,8 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, hint, co
           {working ?? ""}
         </div>
       </div>
-      <button id="pill" className="pill" type="button" hidden={!pill} onClick={toBottom}>
-        New message ↓
+      <button id="pill" className="pill" type="button" hidden={!pill} aria-label={pill > 1 ? `${pill} new messages ↓` : "New message ↓"} onClick={jump}>
+        ↓ {pill} new
       </button>
     </div>
   );
@@ -279,9 +314,22 @@ interface RowProps {
 
 /** A row that did not change keeps its node, so a selection in it survives. */
 const sameRow = (a: RowProps, b: RowProps) =>
-  a.me === b.me && a.threaded === b.threaded && a.paused === b.paused && a.onDetails === b.onDetails && (a.hl === a.row.message?.id) === (b.hl === b.row.message?.id) && a.row.key === b.row.key && a.row.first === b.row.first && a.row.message === b.row.message && a.row.pending?.state === b.row.pending?.state;
+  a.me === b.me && a.threaded === b.threaded && a.paused === b.paused && a.onDetails === b.onDetails && (a.hl === a.row.message?.id) === (b.hl === b.row.message?.id) && a.row.fresh === b.row.fresh && a.row.key === b.row.key && a.row.first === b.row.first && a.row.message === b.row.message && a.row.pending?.state === b.row.pending?.state;
 
-const MessageRow = memo(function MessageRow({ row, threaded, me, paused, conversation, onRetry, onDetails, hl }: RowProps) {
+const MessageRow = memo(function MessageRow(props: RowProps) {
+  return (
+    <>
+      {props.row.fresh ? (
+        <div className="newline" role="separator" aria-label="New messages">
+          <span>New</span>
+        </div>
+      ) : null}
+      <RowBody {...props} />
+    </>
+  );
+}, sameRow);
+
+function RowBody({ row, threaded, me, paused, conversation, onRetry, onDetails, hl }: RowProps) {
   const { message: m, pending: p } = row;
   const pinned = useData((s) => Boolean(m && s.rows[conversation]?.pinned?.some((x) => x.id === m.id)));
   if (m?.kind === "system" || m?.author.kind === "system") {
@@ -331,7 +379,7 @@ const MessageRow = memo(function MessageRow({ row, threaded, me, paused, convers
     </>
   );
   return <Article person={{ handle: me, display_name: "" }} me={me} first={row.first} stamp={clock(Date.now())} body={body} extra={state} />;
-}, sameRow);
+}
 
 interface Who {
   handle: string;

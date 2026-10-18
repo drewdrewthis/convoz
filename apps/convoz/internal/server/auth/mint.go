@@ -124,6 +124,10 @@ func sessionIdentity(ctx context.Context, d pdb.DBTX, p Ports, m Machine, in Min
 	if err != nil {
 		return Agent{}, nil, err
 	}
+	// A revoked agent asked for again with an invite is a request to bring it back: it is filed like a new one (the owner decides).
+	if found && who.Kind == "agent" && who.Disabled && in.Create != nil && in.ViaInternet {
+		found = false
+	}
 	if found {
 		if who.Kind != "agent" || who.Disabled {
 			return Agent{}, nil, ForbiddenError("That identity cannot start a session.")

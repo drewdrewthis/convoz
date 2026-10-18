@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
-	"strconv"
 	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/ask"
@@ -264,7 +263,7 @@ func (p pushSource) Facts(ctx context.Context, d pdb.DBTX, n notify.Notification
 		return notify.Facts{}, err
 	}
 	previews, _ := st["notify.previews"].(string)
-	f := notify.Facts{Visible: true, Previews: previews, URL: "/now"}
+	f := notify.Facts{Visible: true, Previews: previews, URL: notify.URLFor(n.Reason, n.Conversation, 0)}
 	owner, err := identity.Get(ctx, d, n.Person)
 	if err != nil {
 		return f, err
@@ -277,7 +276,6 @@ func (p pushSource) Facts(ctx context.Context, d pdb.DBTX, n notify.Notification
 			return f, err
 		}
 		title = cv.Title
-		f.URL = "/chats/" + strconv.FormatInt(cv.ID, 10)
 	}
 	switch n.Reason {
 	case notify.ReasonAsk, notify.ReasonAskUrgent, notify.ReasonSnoozeWake:
@@ -289,7 +287,6 @@ func (p pushSource) Facts(ctx context.Context, d pdb.DBTX, n notify.Notification
 		if err != nil {
 			return f, err
 		}
-		f.URL = "/now"
 		f.Text = message.Project(message.Projectable{Ask: &message.ProjectAsk{Question: a.Question}}, message.Short)
 		f.Sender, err = refOf(ctx, d, a.AskerID, p.s.Clock.Now())
 		return f, err
@@ -309,7 +306,6 @@ func (p pushSource) Facts(ctx context.Context, d pdb.DBTX, n notify.Notification
 			f.Visible = false
 			return f, err
 		}
-		f.URL = "/now"
 		f.Sender, err = refOf(ctx, d, ev.Actor, p.s.Clock.Now())
 		if err != nil {
 			return f, err
@@ -331,7 +327,7 @@ func (p pushSource) Facts(ctx context.Context, d pdb.DBTX, n notify.Notification
 			f.Visible = false // approved, denied or expired before the push was sent
 			return f, nil
 		}
-		f.Machine, f.Code, f.URL = req.Name, req.UserCode, "/now/machine/"+strconv.FormatInt(req.ID, 10)
+		f.Machine, f.Code, f.URL = req.Name, req.UserCode, notify.URLFor(n.Reason, 0, req.ID)
 		return f, err
 	case notify.ReasonSecurity:
 		ev, found, err := eventAt(ctx, d, n.SourceSeq)
@@ -339,7 +335,6 @@ func (p pushSource) Facts(ctx context.Context, d pdb.DBTX, n notify.Notification
 			f.Visible = false
 			return f, err
 		}
-		f.URL = "/settings/privacy"
 		// The title says what happened; the body offers the way out (Settings → Privacy & security signs every other device out).
 		f.Headline, f.Text = "Recovery code used", "Not you? Sign out all other devices in Settings."
 		if ev.Type == eventKeyRevealed {

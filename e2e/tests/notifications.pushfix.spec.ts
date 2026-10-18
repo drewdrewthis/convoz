@@ -1,8 +1,9 @@
 import type { BrowserContext, Page } from "@playwright/test";
+import { pagePath } from "../../apps/web/src/shared/pagePath.ts";
 import { needsHomeScreen, pushSupported } from "../../apps/web/src/features/notifications/support.ts";
 import { signInBrowser } from "../lib/machines.ts";
 import { installFakePhone } from "../lib/push-phone.ts";
-import { decrypt, pushWorld, received, type PushWorld, type Sub } from "../lib/push-wp14.ts";
+import { ask, decrypt, pushWorld, received, type PushWorld, type Sub } from "../lib/push-wp14.ts";
 import { expect, scenario } from "../lib/scenario.ts";
 
 // Turning push on from the phone. The owner: "I'm not getting native notifications - can we fix that?" and "I added it to the Home
@@ -84,4 +85,32 @@ scenario("A browser with push only on its background worker can turn push on", {
   const tab = { navigator: iphone, window: { Notification: {} }, ServiceWorkerRegistration: { prototype: {} } };
   expect(pushSupported(tab)).toBe(false);
   expect(needsHomeScreen(tab)).toBe(true);
+});
+
+// Owner (Drew, msg 144): "This is when I clicked on the notification". A real notification tap cannot be driven in Playwright, so
+// this opens what the tap opens: the URL the server put in the ask's push, through the worker's own pagePath.
+scenario("Tapping an ask push opens Now, not Conversation not found", { tag: ["@browser"] }, async ({ server, dataDir, page, context }, info) => {
+  info.setTimeout(60_000);
+  const w = await pushWorld(server, dataDir);
+  // Given "devtool" asks a question and the owner's phone gets a push for it
+  await ask(w);
+  await expect.poll(async () => (await received(w.srv)).length, { timeout: 15_000 }).toBeGreaterThan(0);
+  const shown = decrypt(w.sub, (await received(w.srv))[0]!);
+  expect(shown.reason).toBe("ask");
+  // When the owner taps the notification
+  await signInBrowser(w.srv, w.owner, page, context);
+  await page.goto(`${w.srv.origin}${pagePath(shown.url)}`);
+  // Then the Now screen opens
+  await expect(page.getByRole("heading", { name: "Now", exact: true })).toBeVisible();
+  // And it does not say "Conversation not found"
+  await expect(page.getByRole("heading", { name: "Conversation not found" })).toHaveCount(0);
+});
+
+scenario("A pushed URL that is not a page of the app opens Now", { tag: ["@api"] }, () => {
+  // Given a notification that carries a URL the app has no page for, or another site
+  // When the owner taps it
+  // Then the worker opens "/"
+  for (const bad of ["/now", "/nowhere", "//evil.example/", "https://evil.example/", "/\\evil.example", undefined]) expect(pagePath(bad), String(bad)).toBe("/");
+  // And a page of the app opens as pushed
+  for (const good of ["/", "/chats/41", "/settings", "/settings/privacy", "/now/machine/7", "/chats/41#reply=3"]) expect(pagePath(good), good).toBe(good);
 });

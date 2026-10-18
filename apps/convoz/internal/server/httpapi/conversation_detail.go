@@ -7,6 +7,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/prefs"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/readstate"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
 
@@ -33,6 +34,11 @@ func detailView(ctx context.Context, d pdb.DBTX, p authz.Principal, dir director
 	}
 	if _, out.Seen, err = seenIn(ctx, d, dir, cv.ID, 0); err != nil {
 		return wire.Conversation{}, err
+	}
+	if cursor, found, err := readstate.Cursor(ctx, d, p.Identity(), cv.ID); err != nil {
+		return wire.Conversation{}, err
+	} else if found {
+		out.LastRead = ptr(cursor)
 	}
 	waiting, err := conversation.Pending(ctx, d, cv.ID)
 	if err != nil {

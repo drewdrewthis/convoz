@@ -85,21 +85,20 @@ ORDER BY added_at, identity_id;
 SELECT COUNT(*) FROM participants WHERE conversation_id = sqlc.arg(conversation_id) AND status IN ('active','pending');
 
 -- name: InsertParticipant :exec
-INSERT INTO participants (conversation_id, identity_id, status, joined_message_id, joined_seq, added_by, requested_by, added_at, status_at)
-VALUES (sqlc.arg(conversation_id), sqlc.arg(identity_id), sqlc.arg(status), sqlc.arg(joined_message_id), sqlc.arg(joined_seq),
+INSERT INTO participants (conversation_id, identity_id, status, joined_seq, added_by, requested_by, added_at, status_at)
+VALUES (sqlc.arg(conversation_id), sqlc.arg(identity_id), sqlc.arg(status), sqlc.arg(joined_seq),
         sqlc.arg(added_by), sqlc.narg(requested_by), sqlc.arg(at), sqlc.arg(at));
 
 -- name: ReviveParticipant :exec
--- A person who left, was removed or was declined comes back as a new row of history: same key, new status and floor.
+-- A person who left, was removed or was declined comes back as a new row of history: same key, new status; the whole history is theirs.
 UPDATE participants
-SET status = sqlc.arg(status), joined_message_id = sqlc.arg(joined_message_id), joined_seq = sqlc.arg(joined_seq),
+SET status = sqlc.arg(status), joined_message_id = 0, joined_seq = sqlc.arg(joined_seq),
     added_by = sqlc.arg(added_by), requested_by = sqlc.narg(requested_by), decided_by = NULL, added_at = sqlc.arg(at), status_at = sqlc.arg(at)
 WHERE conversation_id = sqlc.arg(conversation_id) AND identity_id = sqlc.arg(identity_id);
 
 -- name: DecideParticipant :execrows
 UPDATE participants
-SET status = sqlc.arg(status), joined_message_id = sqlc.arg(joined_message_id), joined_seq = sqlc.arg(joined_seq),
-    decided_by = sqlc.arg(decided_by), status_at = sqlc.arg(at)
+SET status = sqlc.arg(status), decided_by = sqlc.arg(decided_by), status_at = sqlc.arg(at)
 WHERE conversation_id = sqlc.arg(conversation_id) AND identity_id = sqlc.arg(identity_id) AND status = 'pending';
 
 -- name: EndParticipant :execrows
