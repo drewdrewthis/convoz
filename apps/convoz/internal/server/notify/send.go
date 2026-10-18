@@ -197,7 +197,7 @@ func (s *Service) SendTest(ctx context.Context, device int64) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	p := Payload{V: 1, Reason: "test", Title: "Convoz", Body: "Push is on for this device", URL: "/settings", Topic: s.Keys.Topic('z', device)}
+	p := Payload{V: 1, Reason: "test", Title: "Notifications are on", Body: "You'll get messages from your agents here.", URL: "/settings", Topic: s.Keys.Topic('z', device)}
 	status, _, err := s.post(ctx, sub.Endpoint, sub.P256dh, sub.Auth, p, false, 60)
 	if err != nil {
 		return false, nil //nolint:nilerr // the push service could not be reached: not delivered, and not a server fault

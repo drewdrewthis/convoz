@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { call, client, humanError } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
-import { needsHomeScreen, pushSupported, turnOff, turnOn } from "./push.ts";
+import { deviceState, onIosThirdPartyBrowser, PushStepError, turnOff, turnOn, type DeviceState } from "./push.ts";
 
 type Values = Record<string, unknown>;
 interface Device {
@@ -19,6 +19,8 @@ const REASONS_WITH_SWITCH: [key: string, name: string][] = [
   ["notify.machine_requests", "Machine requests"],
 ];
 
+const STATE_NAME: Record<DeviceState, string> = { on: "On", off: "Off", blocked: "Blocked", "needs-home-screen": "Needs Home Screen", unsupported: "Not available" };
+
 const WHY_OFF: Record<string, string> = { gone: "gone", failures: "failing", device_revoked: "signed out", user: "turned off" };
 
 /** NotificationSettings is the Notifications section of /settings: push on this device, what pushes, previews and quiet hours. */
@@ -28,6 +30,7 @@ export function NotificationSettings() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [busy, setBusy] = useState(false);
   const [tested, setTested] = useState("");
+  const [step, setStep] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -51,15 +54,18 @@ export function NotificationSettings() {
   };
 
   const here = devices.find((d) => d.current && d.state === "active");
+  const state = deviceState(Boolean(here));
   const togglePush = async () => {
     setBusy(true);
+    fail("");
     try {
       if (here) await turnOff();
-      else await turnOn();
+      else await turnOn(setStep);
       await load();
     } catch (err) {
-      fail(humanError(err));
+      fail(err instanceof PushStepError ? err.message : humanError(err));
     } finally {
+      setStep("");
       setBusy(false);
     }
   };
@@ -79,11 +85,15 @@ export function NotificationSettings() {
   return (
     <>
       <h2>Notifications</h2>
-      {needsHomeScreen() ? (
+      {state === "needs-home-screen" ? (
         <section className="group" aria-label="Add to Home Screen">
-          <p className="sub row stacked">To turn push on, add Convoz to your Home Screen first: Share → Add to Home Screen.</p>
+          <p className="sub row stacked">
+            {onIosThirdPartyBrowser()
+              ? "Push on iPhone works only for an app added from Safari. Open Convoz in Safari, then Share → Add to Home Screen, and open it from there."
+              : "To turn push on, add Convoz to your Home Screen first: Share → Add to Home Screen."}
+          </p>
         </section>
-      ) : !pushSupported() ? (
+      ) : state === "unsupported" ? (
         <p className="sub">This browser cannot receive push.</p>
       ) : (
         <div className="group">
@@ -91,6 +101,10 @@ export function NotificationSettings() {
             <span>Push on this device</span>
             <input type="checkbox" role="switch" aria-label="Push on this device" checked={Boolean(here)} disabled={busy} onChange={() => void togglePush()} />
           </label>
+          <div className="row">
+            <span>This device</span>
+            <span className="sub">{step || (state === "blocked" ? "Blocked. Allow notifications for Convoz in the device settings." : STATE_NAME[state])}</span>
+          </div>
           {here ? (
             <button className="row" type="button" onClick={() => void test()}>
               <span>Send a test push</span>

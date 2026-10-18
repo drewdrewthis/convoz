@@ -32,6 +32,11 @@ function claimLoosePage(): void {
   });
 }
 
+/** The worker's registration; it registers /sw.js (scope /) when there is none yet, so a caller never waits on a worker nobody installed. */
+export function ensureServiceWorker(): Promise<ServiceWorkerRegistration> {
+  return navigator.serviceWorker.getRegistration("/").then((held) => held ?? navigator.serviceWorker.register("/sw.js", { type: "module", scope: "/" }));
+}
+
 /**
  * registerServiceWorker installs /sw.js (scope /) once the page has loaded, when the build has worker modules and the
  * browser can run one. A failure is logged and never breaks the page: the app works without its worker. It looks for a new
@@ -41,11 +46,10 @@ export function registerServiceWorker(): void {
   if (!MODULES.length || !("serviceWorker" in navigator)) return;
   // Signing out cleared the device (Clear-Site-Data): a worker installed now would fill Cache Storage again at once.
   if (new URLSearchParams(location.search).has("signed_out")) return;
-  addEventListener("load", () => {
+  // A page that is already loaded when this runs (a Home Screen app resumed, a late module) never gets a "load" event again.
+  const start = () => {
     // An existing registration is kept and asked to look for a new build; only the first visit registers.
-    navigator.serviceWorker
-      .getRegistration("/")
-      .then((held) => held ?? navigator.serviceWorker.register("/sw.js", { type: "module", scope: "/" }))
+    ensureServiceWorker()
       .then((reg) => {
         registration = reg;
         watch(reg);
@@ -53,7 +57,9 @@ export function registerServiceWorker(): void {
         void reg.update().catch(() => {});
       })
       .catch((err) => console.warn("service worker:", err));
-  });
+  };
+  if (document.readyState === "complete") start();
+  else addEventListener("load", start);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") void registration?.update().catch(() => {});
   });
