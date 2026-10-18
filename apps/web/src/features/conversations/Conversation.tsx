@@ -1,3 +1,4 @@
+import { mentionsOf } from "@convoz/markdown";
 import type { Identity, Message, Upload } from "@convoz/api-client";
 import { AttachIcon, BackIcon, DetailsIcon } from "@convoz/ui/icons";
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type RefObject } from "react";
@@ -41,6 +42,8 @@ export function Conversation() {
   const people = useData((s) => s.identities);
   const actions = useConversations.getState;
   const [agentHandle, setAgentHandle] = useState<string | null>(null);
+  // New conversation: the agents picked from the @ list so far (their handles are in the message too).
+  const [picked, setPicked] = useState<string[]>([]);
   const [opened, setOpened] = useState(false);
   // Where unread began when the chat opened: kept for as long as it stays open, so the divider does not follow the read position.
   const [newFrom, setNewFrom] = useState<number | null>(null);
@@ -60,7 +63,8 @@ export function Conversation() {
 
   const crew = useMemo(() => (people ?? []).filter((p) => p.kind === "agent" && !p.disabled), [people]);
   const agents = (conversation?.participants ?? []).filter((p) => p.kind === "agent");
-  const agent = agentHandle ? { handle: agentHandle, online: Boolean(people?.find((p) => p.handle === agentHandle)?.online) } : null;
+  const agentName = agentHandle ?? agents[0]?.handle ?? null; // a conversation made from typed mentions has no pick
+  const agent = agentName ? { handle: agentName, online: Boolean(people?.find((p) => p.handle === agentName)?.online) } : null;
   const replying = useReplying(convId, 0);
   const anywhere = useReplying(convId);
   const working = Boolean(agent && anywhere.includes(agent.handle));
@@ -115,8 +119,11 @@ export function Conversation() {
         textRef.current?.focus(); // the gradient ring shows at once, as in the prototype
         const wanted = everyone.find((p) => p.kind === "agent" && !p.disabled && p.handle === new URLSearchParams(location.search).get("with"));
         if (wanted) {
-          s.startThread(NEW, wanted.handle);
+          s.startThread(NEW, [wanted.handle]);
+          setPicked([wanted.handle]);
           openWith(wanted.handle);
+        } else {
+          s.startThread(NEW, []);
         }
         return;
       }
@@ -189,6 +196,12 @@ export function Conversation() {
 
   const send = (body: string, files: Upload[]) => {
     control.current?.stick();
+    const t = actions().threads[key];
+    if (isNew && t && !t.convId && t.pending.length === 0) {
+      // the conversation is made with the agents picked and the ones typed into the message
+      const typed = mentionsOf(body).filter((h) => crew.some((p) => p.handle === h));
+      actions().startThread(NEW, [...new Set([...picked, ...typed])]);
+    }
     actions().send(key, body, files);
   };
 
@@ -207,14 +220,16 @@ export function Conversation() {
   };
 
   const pick = (who: Identity) => {
-    history.replaceState(null, "", `/chats/new?with=${encodeURIComponent(who.handle)}`);
-    actions().startThread(NEW, who.handle);
-    openWith(who.handle);
+    const next = picked.includes(who.handle) ? picked : [...picked, who.handle];
+    setPicked(next);
+    actions().startThread(NEW, next);
+    setAgentHandle(next[0]!);
+    fit();
   };
 
   const presence = !agent ? null : working ? ["Working…", "busy"] : agent.online ? ["Online", "on"] : ["Offline", ""];
-  const chips = agentHandle && !conversation ? [agentHandle] : agents.map((p) => p.handle);
-  const label = !agent ? "Message" : agents.length > 1 ? "Message" : `Message @${agent.handle}`;
+  const chips = !conversation ? picked : agents.map((p) => p.handle);
+  const label = !agent ? "Message" : (conversation ? agents.length : picked.length) > 1 ? "Message" : `Message @${agent.handle}`;
 
   return (
     <div className="chatframe" id="frame" ref={frame}>
@@ -309,7 +324,7 @@ export function Conversation() {
             attachments={attachments}
             onSend={send}
             textRef={textRef}
-            mentions={isNew ? { crew, onPick: pick } : convId ? { crew, onInvite: () => setInviting(true) } : undefined}
+            mentions={isNew && !convId ? { crew, onPick: pick } : convId ? { crew, onInvite: () => setInviting(true) } : undefined}
           />
         </section>
         <p id="chat-error" className="chat-error" role="alert" hidden={!error}>

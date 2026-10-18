@@ -42,6 +42,26 @@ Feature: Conversations
       When the owner picks "docs"
       Then the message box for "docs" has focus
 
+    # Owner (Drew, conv 7 msg 191): "the @ mention for a new conversation still doesn't work correctly and I can't start a convo with multiple"
+    @v1 @browser
+    Scenario: In New conversation the owner picks several agents from the @ list and sends
+      Given "devtool" and "docs" have a live session
+      When the owner opens New conversation and picks "devtool" and then "docs" from the @ list
+      Then the message box shows "@devtool" and "@docs"
+      When the owner sends "please look at the build"
+      Then the new conversation has "devtool" and "docs" as participants
+      And "devtool" and "docs" each get a mention item
+
+    # Owner (Drew, conv 7 msg 191): "the @ mention for a new conversation still doesn't work correctly and I can't start a convo with multiple"
+    @v1 @browser
+    Scenario: In New conversation an agent typed by hand counts like a pick
+      Given "docs" has a live session
+      When the owner opens New conversation and types "@docs hello" without picking from the list
+      Then Send is enabled
+      When the owner sends the message
+      Then the new conversation has "docs" as a participant
+      And "docs" gets a mention item
+
     @v1 @browser @phone
     Scenario: On a phone a new conversation takes its title from the first message and goes to the top of Conversations
       Given the owner has conversations "Ship search filters" and "Deploy alerts runbook" on a phone

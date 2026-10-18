@@ -1,6 +1,8 @@
+import type { Locator } from "@playwright/test";
 import { agentPosts, appReturns, agentChoice, chooseAgent, openMentions, backButton, chatList, chatRow, chatsHeading, composer, nowHeading, dropStreams, fromBottom, hasBubble, isBold, mainNav, message, messageLog, newChat, newMessagePill, pushFrame, rowTitles, sendButton, smallChatTargets, streamOpen, uiWorld, unreadDot, workingNote } from "../lib/chat-ui.ts";
 import { agentAsks, askCard, openNow } from "../lib/asks.ts";
-import { convoz, createConversation, listConversations, messagesOf, ownerSays, startWatch, unreadOf, watchLines, chatWorld } from "../lib/chat.ts";
+import { convoz, createConversation, listConversations, messagesOf, ownerSays, peekFor, startWatch, unreadOf, watchLines, chatWorld } from "../lib/chat.ts";
+import { handlesOf, viewOf } from "../lib/wp3.ts";
 import { loadRenderMarkdown } from "../lib/chat-markdown.ts";
 import { backgroundLuminance, box, overflowX } from "../lib/mobile.ts";
 import { expect, scenario } from "../lib/scenario.ts";
@@ -34,8 +36,8 @@ import { webauthn } from "../lib/webauthn-browser.ts";
  *
  * NEW CHAT  /chats/new   app bar: link "Back", heading "New conversation" (level 1) over a blank chat: the hint "Type @ to bring in an agent." and the composer. List "Agents" with one
  *   button per enabled crew agent (GET /api/identities), in the menu that opens above the composer when the text ends in "@" (list "Agents"). The button's name holds "@<handle>" and the word "Online" (agent has a live
- *   lease: `online:true`) or "Offline"; the display name may be there too. One tap picks one agent: the picker is replaced by the empty
- *   chat of that agent (the URL may carry ?with=<handle>; no conversation exists yet) and the composer has focus. The message log is empty.
+ *   lease: `online:true`) or "Offline"; the display name may be there too. One tap writes "@<handle> " into the message and keeps the focus in the
+ *   box (the text stays; more agents can be picked the same way; no conversation exists yet). The message log is empty.
  *   The first Send makes POST /api/conversations then POST .../messages (a client id for each) and then shows /chats/:id.
  *   Cmd+J / Ctrl+J on desktop, anywhere in the console, opens /chats/new.
  *
@@ -160,6 +162,76 @@ scenario("On a phone New conversation opens a blank composer where @ lists the c
   await expect(composer(page)).toBeFocused();
   await expect(composer(page)).toHaveAccessibleName("Message @docs");
   await expect(messageLog(page).getByRole("article")).toHaveCount(0);
+});
+
+// Owner (Drew, conv 7 msg 191): "the @ mention for a new conversation still doesn't work correctly and I can't start a convo with multiple"
+scenario("In New conversation the owner picks several agents from the @ list and sends", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given "devtool" and "docs" have a live session
+  const u = await uiWorld({ server, page, context }, { live: ["devtool", "docs"] });
+  const touch = await page.evaluate(() => navigator.maxTouchPoints > 0);
+  // a real tap on a phone, a real click on a desktop: never typed text standing in for the pick
+  const tap = async (target: Locator) => {
+    if (!touch) return target.click();
+    const at = (await target.boundingBox())!;
+    await page.touchscreen.tap(at.x + at.width / 2, at.y + at.height / 2);
+  };
+  const box = page.getByRole("textbox", { name: /^Message/ });
+
+  // When the owner opens New conversation and picks "devtool" and then "docs" from the @ list
+  await page.goto(`${u.w.srv.origin}/chats/new`);
+  await box.fill("@");
+  await tap(agentChoice(page, "devtool"));
+  await box.pressSequentially("@");
+  await tap(agentChoice(page, "docs"));
+
+  // Then the message box shows "@devtool" and "@docs"
+  await expect(box).toHaveValue("@devtool @docs ");
+  await page.waitForTimeout(400); // a late reset would show now
+  await expect(box).toHaveValue("@devtool @docs ");
+  await expect(box).toBeFocused();
+
+  // When the owner sends "please look at the build"
+  await box.pressSequentially("please look at the build");
+  await tap(sendButton(page));
+  await expect(page).toHaveURL(/\/chats\/\d+$/);
+  const conv = Number(/\/chats\/(\d+)$/.exec(page.url())![1]);
+  await expect(message(page, "please look at the build")).toBeVisible();
+
+  // Then the new conversation has "devtool" and "docs" as participants
+  await expect.poll(async () => handlesOf(await viewOf(u.w.owner, conv)).sort()).toEqual(expect.arrayContaining(["devtool", "docs"]));
+  expect((await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["@devtool @docs please look at the build"]);
+
+  // And "devtool" and "docs" each get a mention item
+  for (const who of ["devtool", "docs"]) {
+    expect((await peekFor(u.w.box, u.sessions[who]!.sid, conv)).map((i) => i.reason)).toContain("mention");
+  }
+});
+
+// Owner (Drew, conv 7 msg 191): "the @ mention for a new conversation still doesn't work correctly and I can't start a convo with multiple"
+scenario("In New conversation an agent typed by hand counts like a pick", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given "docs" has a live session
+  const u = await uiWorld({ server, page, context }, { live: ["docs"] });
+
+  // When the owner opens New conversation and types "@docs hello" without picking from the list
+  await page.goto(`${u.w.srv.origin}/chats/new`);
+  const box = page.getByRole("textbox", { name: /^Message/ });
+  await box.pressSequentially("@docs hello");
+  await expect(box).toHaveValue("@docs hello");
+
+  // Then Send is enabled
+  await expect(sendButton(page)).toBeEnabled();
+
+  // When the owner sends the message
+  await sendButton(page).click();
+  await expect(page).toHaveURL(/\/chats\/\d+$/);
+  const conv = Number(/\/chats\/(\d+)$/.exec(page.url())![1]);
+  await expect(message(page, "@docs hello")).toBeVisible();
+
+  // Then the new conversation has "docs" as a participant
+  await expect.poll(async () => handlesOf(await viewOf(u.w.owner, conv))).toContain("docs");
+
+  // And "docs" gets a mention item
+  expect((await peekFor(u.w.box, u.sessions.docs!.sid, conv)).map((i) => i.reason)).toContain("mention");
 });
 
 scenario("A new conversation starts blank and takes a title from its first message", { tag: ["@browser"] }, async ({ server, page, context }) => {

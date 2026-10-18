@@ -28,16 +28,16 @@ export interface Thread {
   pending: PendingSend[];
   /** The newest id the server confirmed as read. */
   readOk: number;
-  /** For a new conversation: the agent it is made with, and the client id that makes it (a retry reuses it). */
-  start?: { handle: string; clientId: string };
+  /** For a new conversation: the agents picked so far, and the client id that makes it (a retry reuses it). */
+  start?: { handles: string[]; clientId: string };
 }
 
 export interface ConversationsState {
   threads: Record<string, Thread>;
   /** Open an existing conversation under `key`: its row and newest page. Throws ApiError 404 when it is not the owner's. */
   openThread(key: string, convId: number): Promise<void>;
-  /** Start a new conversation with one agent under `key`; nothing is made on the server until the first send. */
-  startThread(key: string, handle: string): void;
+  /** Start a new conversation with these agents (maybe none) under `key`; nothing is made on the server until the first send. */
+  startThread(key: string, handles: string[]): void;
   loadEarlier(key: string): Promise<void>;
   catchUp(key: string): Promise<void>;
   /** A new server message: the owner's own copy replaces its pending send; */
@@ -90,7 +90,7 @@ export const useConversations = create<ConversationsState>()((set, get) => {
       try {
         let t = thread(key)!;
         if (!t.convId) {
-          const made = await source.createConversation(t.start!.clientId, [t.start!.handle]);
+          const made = await source.createConversation(t.start!.clientId, t.start!.handles);
           data.putConversation(made);
           data.track(made.id);
           patch(key, () => ({ convId: made.id }));
@@ -141,8 +141,8 @@ export const useConversations = create<ConversationsState>()((set, get) => {
       await data.loadNewest(convId);
       await restoreSends(key, convId);
     },
-    startThread: (key, handle) => {
-      set((s) => ({ threads: { ...s.threads, [key]: { ...emptyThread(0), start: { handle, clientId: newId() } } } }));
+    startThread: (key, handles) => {
+      set((s) => ({ threads: { ...s.threads, [key]: { ...emptyThread(0), start: { handles, clientId: newId() } } } }));
     },
     loadEarlier: async (key) => {
       const t = thread(key);

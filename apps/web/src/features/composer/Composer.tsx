@@ -1,4 +1,5 @@
 import type { Identity, Upload } from "@convoz/api-client";
+import { mentionsOf } from "@convoz/markdown";
 import { AttachIcon, MicIcon, SendIcon } from "@convoz/ui/icons";
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type RefObject } from "react";
 import { initials, paletteOf, stripCf } from "../../shared/chat.ts";
@@ -8,7 +9,7 @@ import { pasteFiles, type Attachments } from "./attachments.ts";
 import { enterSends } from "./enterToSend.ts";
 
 export interface ComposerProps {
-  /** The agent the message goes to; with none, Send stays disabled. */
+  /** The agent the message goes to; with none (and none typed as an @mention), Send stays disabled. */
   agent: string | null;
   /** The message box's accessible name: "Message @agent", or "Message" with several agents or none yet. */
   label: string;
@@ -21,8 +22,8 @@ export interface ComposerProps {
   /** The text box, for the page to focus. */
   textRef: RefObject<HTMLTextAreaElement | null>;
   /**
-   * Typing "@" lists these agents above the box. With `onPick` (New conversation) picking one starts the chat with it; without it
-   * (a conversation that exists) picking one writes its handle into the message, and sending the message brings the agent in (I-18).
+   * Typing "@" lists these agents above the box. Picking one writes its handle into the message, and sending the message brings the
+   * agent in (I-18), in a new conversation as in one that exists. `onPick` only tells the page who was picked.
    */
   mentions?: { crew: Identity[]; onPick?(who: Identity): void; onInvite?(): void };
 }
@@ -49,7 +50,9 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
   const mic = useRef<HTMLButtonElement>(null);
   const files = attachments.items;
   const empty = text.trim() === "" && files.length === 0;
-  const canSend = Boolean(agent) && !empty && files.every((f) => f.state === "done");
+  // A crew agent typed by hand (outside code and quotes) counts like a pick: the server brings it in when the message arrives (I-18).
+  const named = Boolean(mentions) && mentionsOf(text).some((h) => mentions!.crew.some((p) => p.handle === h));
+  const canSend = (Boolean(agent) || named) && !empty && files.every((f) => f.state === "done");
 
   const starting = useRef(false);
   const startVoice = async () => {
@@ -106,13 +109,9 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
 
   const pick = (who: Identity) => {
     setMenu(null);
-    if (!mentions!.onPick) {
-      setText((now) => now.replace(/(^|\s)@[a-z0-9-]*$/, `$1@${who.handle} `));
-      textRef.current?.focus();
-      return;
-    }
-    setText("");
-    mentions!.onPick(who);
+    setText((now) => now.replace(/(^|\s)@[a-z0-9-]*$/, `$1@${who.handle} `));
+    textRef.current?.focus();
+    mentions!.onPick?.(who);
   };
 
   const keyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
