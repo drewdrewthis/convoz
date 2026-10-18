@@ -77,6 +77,16 @@ export interface Useful {
   tfus: number;
   /** When the response of each API route the page asked for ended (ms after the navigation started), by path. */
   api: Record<string, number>;
+  /** The document's nextHopProtocol ("h2", "http/1.1"; "" when the service worker answered from its cache). */
+  proto: string;
+  /** The nextHopProtocol of every resource that came over the network. */
+  resourceProtos: string[];
+}
+
+/** The median (the load the pass rule judges), the 90th percentile (nearest rank) and the worst of `values`. */
+export function spread(values: number[]): { median: number; p90: number; worst: number } {
+  const sorted = [...values].sort((a, b) => a - b);
+  return { median: sorted[Math.floor(sorted.length / 2)]!, p90: sorted[Math.ceil(0.9 * sorted.length) - 1]!, worst: sorted[sorted.length - 1]! };
 }
 
 /**
@@ -92,11 +102,14 @@ export async function useful(page: Page, timeout: number): Promise<Useful> {
         const mark = performance.getEntriesByName("tfus")[0];
         if (!mark) return null;
         const api: Record<string, number> = {};
+        const resourceProtos: string[] = [];
         for (const e of performance.getEntriesByType("resource") as PerformanceResourceTiming[]) {
           const url = new URL(e.name);
           if (url.pathname.startsWith("/api/") && !(url.pathname in api)) api[url.pathname] = e.responseEnd;
+          if (e.nextHopProtocol) resourceProtos.push(e.nextHopProtocol);
         }
-        return { tfus: mark.startTime, api };
+        const [nav] = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
+        return { tfus: mark.startTime, api, proto: nav?.nextHopProtocol ?? "", resourceProtos };
       })
       .catch(() => null); // the document may still be on its way in
     if (got) return got;
