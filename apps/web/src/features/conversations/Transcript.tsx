@@ -241,7 +241,8 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, hint, co
 
   return (
     <div className="logwrap">
-      <div ref={log} id="log" className="log" role="log" aria-label="Messages" aria-relevant="additions">
+      {/* data-opened: the chat has finished opening; until then the log may still be snapped to the newest end once more */}
+      <div ref={log} id="log" className="log" role="log" aria-label="Messages" aria-relevant="additions" data-opened={opened}>
         <div id="earlier" className="earlier" hidden={!hasEarlier}>
           <button id="earlier-button" className="btn small quiet" type="button" onClick={earlier}>
             Earlier messages
