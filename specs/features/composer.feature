@@ -154,3 +154,29 @@ Feature: Composer
       When the owner pastes the words "Looks good to me" into the message box and into the thread's reply box
       Then both boxes show "Looks good to me" as text
       And no file waits under "Files to send"
+
+  Rule: The phone composer is compact and the page does not zoom
+
+    # Owner ruling 2026-10-18 (iPhone, Chrome): "I think you should also disable zoom, tighten the input component to save space,
+    # and get rid of the padding under 'also send to conversation'"
+    @v1 @browser @phone
+    Scenario: The phone composer is compact and the page does not zoom
+      Given conversation 41 is open with a thread on its first message
+      When the owner opens conversation 41 on a 390 by 844 phone with the keyboard closed
+      Then the viewport has maximum-scale=1
+      And every text box has a font size of at least 16 px
+      And the empty composer is at most 56 px tall
+      When the owner opens the thread
+      Then its reply box is 16 px too
+
+  Rule: The conversation header floats over the messages
+
+    # Owner ruling 2026-10-18: "You didn't do the ui update for the chat yet? It should have the floating circle buttons instead of the full header"
+    @v1 @browser @phone
+    Scenario: The conversation header is floating circle buttons
+      Given conversation 41 has more messages than fit on a phone screen
+      When the owner opens conversation 41 on a phone
+      Then the header has no bar background
+      And the back button and the action buttons are circles of at least 44 px
+      And the title is visible
+      And the message list scrolls under the top area

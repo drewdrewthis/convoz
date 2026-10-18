@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { agentChoice, composer, message, sendButton } from "../lib/chat-ui.ts";
+import { openThread, threadWorld, ROOT_TEXT } from "../lib/threads-wp5.ts";
 import { createConversation, messagesOf, ownerSays, peekFor } from "../lib/chat.ts";
 import { revokeAgentKey } from "../lib/machines.ts";
 import { must } from "../lib/owner.ts";
@@ -221,4 +222,39 @@ scenario("A mention inside code does not add an agent", { tag: ["@browser", "@I-
   // Then "docs" is not a participant
   expect((await messagesOf(w.owner, conv)).map((m) => m.body)).toEqual(["run `@docs build`"]);
   expect(handlesOf(await viewOf(w.owner, conv))).not.toContain("docs");
+});
+
+// Owner ruling 2026-10-18 (iPhone, Chrome): "I think you should also disable zoom, tighten the input component to save space, and get
+// rid of the padding under 'also send to conversation'"
+scenario("The phone composer is compact and the page does not zoom", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
+  // Given conversation 41 is open with a thread on its first message
+  const t = await threadWorld({ server, page, context }, { browser: true });
+
+  // When the owner opens conversation 41 on a 390 by 844 phone with the keyboard closed
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
+  await expect(message(page, ROOT_TEXT)).toBeVisible();
+
+  // Then the viewport has maximum-scale=1
+  await expect(page.locator('meta[name="viewport"]')).toHaveAttribute("content", /maximum-scale=1(?![\d.])/);
+  // And every text box has a font size of at least 16 px
+  const smallText = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll<HTMLElement>('textarea, select, [contenteditable]:not([contenteditable="false"]), input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="range"])')]
+        .filter((e) => e.getBoundingClientRect().width > 0)
+        .map((e) => `${e.tagName.toLowerCase()} ${parseFloat(getComputedStyle(e).fontSize)}px`)
+        .filter((s) => parseFloat(s.split(" ")[1]!) < 16),
+    );
+  expect(await smallText()).toEqual([]);
+  expect(await page.getByRole("textbox", { name: /^Message/ }).evaluate((e) => parseFloat(getComputedStyle(e).fontSize))).toBeGreaterThanOrEqual(16);
+  // And the empty composer is at most 56 px tall
+  const height = (await page.locator(".compose").boundingBox())!.height;
+  console.log(`MEASURE composer block ${height}px`);
+  expect(height).toBeLessThanOrEqual(56);
+
+  // When the owner opens the thread
+  await openThread(page, ROOT_TEXT);
+
+  // Then its reply box is 16 px too
+  expect(await smallText()).toEqual([]);
 });

@@ -219,7 +219,7 @@ export function Conversation() {
         <div className="titles">
           <h1 id="heading">{title}</h1>
           {conversation?.muted_until ? <span className="mutedtag">Muted</span> : null}
-          <p id="subtitle" className="subtitle sr" hidden={!presence}>
+          <p id="subtitle" className="subtitle" hidden={!presence}>
             {agent && presence ? (
               <>
                 <span className="who">{`@${agent.handle}`}</span>

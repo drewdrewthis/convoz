@@ -9,7 +9,7 @@
   .sendbtn.mic { position: absolute; inset: 0; background: var(--color-selection); color: var(--color-accent-text); }
 
   /* the files to send: a row of chips that scrolls sideways (prototype v42); an image is a 56 px thumbnail, any other file a chip */
-  .tosend { display: flex; flex-wrap: nowrap; gap: 8px; padding: 6px 4px 8px; overflow-x: auto; }
+  .tosend { display: flex; flex-wrap: nowrap; gap: 8px; padding: 2px 4px 4px; overflow-x: auto; }
   .fin { position: relative; flex: none; display: inline-flex; align-items: center; gap: 8px; animation: finIn 180ms ease-out; }
   .fthumb { display: block; width: 56px; height: 56px; border-radius: 12px; object-fit: cover; border: 1px solid var(--color-edge); background: var(--color-raised); }
   .fchip {

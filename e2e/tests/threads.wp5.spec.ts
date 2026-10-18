@@ -394,3 +394,22 @@ scenario("The unread count caps at 99+", { tag: ["@browser", "@I-14"] }, async (
   await expect(unreadDot(rail(page))).toHaveText("Unread: 99+");
   expect(await unread(t)).toBe(100);
 });
+
+// Owner ruling 2026-10-18 (iPhone, Chrome): "Also opening it requires a double click."
+scenario("One tap on the reply chip opens the thread pane", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
+  // Given conversation 41 is open on a phone with a thread on its first message
+  const t = await threadWorld({ server, page, context }, { browser: true });
+  await agentReplies(t, t.dev, "Can step 1 ship on its own?");
+  await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
+  const chip = replyLine(message(page, ROOT_TEXT));
+  await expect(chip).toBeVisible();
+
+  // When the owner taps the reply chip once
+  await chip.tap();
+
+  // Then the thread pane is open
+  await expect(threadPane(page)).toBeVisible({ timeout: 2000 });
+  // And the reply chip is at least 44 px tall
+  await closeThread(page);
+  expect((await chip.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+});

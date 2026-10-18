@@ -219,58 +219,44 @@
  ],
  "conversation-thread": [
   {
-   "name": "Show details (no backend)",
-   "x": 340,
+   "name": "Star, Mute and Show details (Mute has no backend; the floating header has no star in the prototype's place)",
+   "x": 226,
    "y": 4,
-   "w": 44,
-   "h": 44
-  },
-  {
-   "name": "Star and mute (no backend)",
-   "x": 290,
-   "y": 53,
-   "w": 88,
-   "h": 44
+   "w": 156,
+   "h": 52
   },
   {
    "name": "time",
    "x": 324,
-   "y": 120,
+   "y": 84,
    "w": 56,
    "h": 20
   },
   {
    "name": "time",
    "x": 214,
-   "y": 226,
+   "y": 190,
    "w": 56,
    "h": 20
   },
   {
    "name": "lane-search avatar (agent images)",
    "x": 10,
-   "y": 224,
+   "y": 188,
    "w": 28,
    "h": 28
   },
   {
-   "name": "lane-search chip (agent images)",
-   "x": 12,
-   "y": 53,
-   "w": 44,
-   "h": 44
-  },
-  {
    "name": "Attach (no backend)",
-   "x": 21,
-   "y": 738,
+   "x": 17,
+   "y": 752,
    "w": 44,
    "h": 44
   },
   {
    "name": "Voice (no backend)",
    "x": 327,
-   "y": 738,
+   "y": 752,
    "w": 44,
    "h": 44
   }
@@ -279,77 +265,77 @@
   {
    "name": "avatar (agent images)",
    "x": 10,
-   "y": 75,
+   "y": 82,
    "w": 28,
    "h": 28
   },
   {
    "name": "avatar (agent images)",
    "x": 10,
-   "y": 171,
+   "y": 178,
    "w": 28,
    "h": 28
   },
   {
    "name": "avatar (agent images)",
    "x": 10,
-   "y": 346,
+   "y": 353,
    "w": 28,
    "h": 28
   },
   {
    "name": "time",
    "x": 214,
-   "y": 79,
+   "y": 86,
    "w": 56,
    "h": 22
   },
   {
    "name": "time",
    "x": 194,
-   "y": 174,
+   "y": 181,
    "w": 56,
    "h": 22
   },
   {
    "name": "time",
    "x": 326,
-   "y": 265,
+   "y": 272,
    "w": 56,
    "h": 22
   },
   {
    "name": "time",
    "x": 214,
-   "y": 349,
+   "y": 356,
    "w": 56,
    "h": 22
   },
   {
    "name": "pin (no backend)",
    "x": 268,
-   "y": 80,
+   "y": 87,
    "w": 20,
    "h": 18
   },
   {
    "name": "spoiler look",
    "x": 204,
-   "y": 222,
+   "y": 229,
    "w": 90,
    "h": 28
   },
   {
    "name": "Attach (no backend)",
    "x": 15,
-   "y": 690,
+   "y": 706,
    "w": 48,
-   "h": 44
+   "h": 46
   },
   {
    "name": "Voice (no backend)",
    "x": 326,
-   "y": 690,
+   "y": 706,
    "w": 46,
    "h": 46
   }
