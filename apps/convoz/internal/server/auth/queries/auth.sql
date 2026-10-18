@@ -153,6 +153,21 @@ INSERT INTO identity_requests (ref, kind, machine_request_id, machine_id, handle
 VALUES (sqlc.arg(ref), sqlc.arg(kind), sqlc.narg(machine_request_id), sqlc.narg(machine_id), sqlc.arg(handle), sqlc.narg(display_name), sqlc.arg(description), sqlc.narg(avatar_svg), sqlc.narg(conversation_id), sqlc.arg(created_at), sqlc.arg(expires_at))
 RETURNING id;
 
+-- name: MarkIdentityRequestViaInternet :exec
+UPDATE identity_requests SET via_internet = 1 WHERE ref = sqlc.arg(ref);
+
+-- name: ListViaInternetIdentityRefs :many
+SELECT ref FROM identity_requests WHERE via_internet = 1 AND state = 'pending';
+
+-- name: PendingNameOrHandleTaken :one
+SELECT CAST(
+  EXISTS (SELECT 1 FROM machine_requests m WHERE m.state = 'pending' AND m.expires_at > sqlc.arg(now) AND m.requested_name = sqlc.arg(name))
+  OR (sqlc.arg(handle) <> '' AND (
+    EXISTS (SELECT 1 FROM identity_requests r JOIN machine_requests q ON q.id = r.machine_request_id
+            WHERE r.kind = 'login' AND q.state = 'pending' AND q.expires_at > sqlc.arg(now) AND r.handle = sqlc.arg(handle))
+    OR EXISTS (SELECT 1 FROM identity_requests s WHERE s.kind = 'session' AND s.state = 'pending' AND s.expires_at > sqlc.arg(now) AND s.handle = sqlc.arg(handle))))
+AS INTEGER) AS taken;
+
 -- name: GetIdentityRequestByRef :one
 SELECT r.id, r.ref, r.kind, r.machine_request_id, r.machine_id, r.handle, r.display_name, r.description, CAST(r.avatar_svg IS NOT NULL AS INTEGER) AS has_avatar,
   r.conversation_id, r.state, r.created_at, r.expires_at, r.identity_id,

@@ -56,6 +56,7 @@ type eventBody struct {
 	Status         string `json:"status"`
 	IdentityID     int64  `json:"identity_id"`
 	RequestID      int64  `json:"request_id"`
+	ViaInternet    bool   `json:"via_internet"`
 	DeviceID       int64  `json:"device_id"`
 	MachineID      int64  `json:"machine_id"`
 	ConversationID int64  `json:"conversation_id"`
@@ -102,6 +103,7 @@ func (p pushSource) Triggers(ctx context.Context, d pdb.DBTX, e notify.Event) ([
 		t.Reason, t.TopicKind, t.TopicID, t.Message = notify.ReasonPaused, notify.TopicConversation, e.Conversation, 0
 	case eventMachineRequested:
 		t.Reason, t.TopicKind, t.TopicID, t.Conversation = notify.ReasonMachineRequest, notify.TopicMachine, body.RequestID, 0
+		t.Remote = body.ViaInternet
 	case eventKeyRevealed:
 		t.Reason, t.TopicKind, t.TopicID, t.Conversation, t.ExceptDevice = notify.ReasonSecurity, notify.TopicSecurity, e.Seq, 0, body.DeviceID
 	case eventRecoveryUsed:

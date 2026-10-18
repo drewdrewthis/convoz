@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
@@ -24,5 +25,16 @@ func TestRetryAfterIsTheWaitUntilTheOldestHitLeavesTheWindow(t *testing.T) {
 	}
 	if got := l.RetryAfter("other", t0); got != 0 {
 		t.Errorf("keys are independent: %v", got)
+	}
+}
+
+func TestLimiterMapStaysBoundedUnderALiveFlood(t *testing.T) {
+	l := Limiter{Window: time.Hour, Max: 1}
+	now := time.Unix(1_800_000_000, 0)
+	for i := 0; i < 3*maxKeys; i++ {
+		l.Allow(fmt.Sprintf("k%d", i), now.Add(time.Duration(i)*time.Millisecond)) // every key is live in the window
+	}
+	if len(l.hits) > maxKeys+1 {
+		t.Fatalf("%d keys held, want at most %d", len(l.hits), maxKeys+1)
 	}
 }

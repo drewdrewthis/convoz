@@ -13,3 +13,12 @@ func beforeIdentityRequests() bool {
 	c := platform.MaxMigrationCap()
 	return c > 0 && c < identityRequestsMigration
 }
+
+// viaInternetMigration is the migration that adds identity_requests.via_internet.
+const viaInternetMigration = 25
+
+// beforeViaInternet plays the previous release when migrations are capped under 25: the column is not there.
+func beforeViaInternet() bool {
+	c := platform.MaxMigrationCap()
+	return c > 0 && c < viaInternetMigration
+}

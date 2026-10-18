@@ -34,8 +34,10 @@ type identityRequestJSON struct {
 	introJSON
 	Machine   string `json:"machine"`
 	MachineID int64  `json:"machine_id"`
-	CreatedAt int64  `json:"created_at"`
-	ExpiresAt int64  `json:"expires_at"`
+	// ViaInternet is true when the request came in on the agents-only listener; the card says "via internet".
+	ViaInternet bool  `json:"via_internet"`
+	CreatedAt   int64 `json:"created_at"`
+	ExpiresAt   int64 `json:"expires_at"`
 }
 
 func (s *Server) introOf(ctx context.Context, d pdb.DBTX, r auth.IdentityRequest) (introJSON, error) {
@@ -79,13 +81,17 @@ func (s *Server) identityRequestViews(ctx context.Context, d pdb.DBTX, now time.
 	if err != nil {
 		return nil, err
 	}
+	via, err := auth.ViaInternetRefs(ctx, d)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]identityRequestJSON, 0, len(list))
 	for _, r := range list {
 		intro, err := s.introOf(ctx, d, r)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, identityRequestJSON{introJSON: intro, Machine: r.MachineName, MachineID: r.MachineID, CreatedAt: r.CreatedAt, ExpiresAt: r.ExpiresAt})
+		out = append(out, identityRequestJSON{introJSON: intro, Machine: r.MachineName, MachineID: r.MachineID, ViaInternet: via[r.Ref], CreatedAt: r.CreatedAt, ExpiresAt: r.ExpiresAt})
 	}
 	return out, nil
 }

@@ -139,6 +139,8 @@ func (s *Server) csrf(next http.Handler) http.Handler {
 type statusWriter struct {
 	http.ResponseWriter
 	status int
+	// notAGuess marks a 401 that is not a wrong credential (an ended session); the agent listener's failed-auth limit skips it.
+	notAGuess bool
 }
 
 func (w *statusWriter) WriteHeader(code int) {
@@ -161,7 +163,11 @@ func (s *Server) logRequests(next http.Handler) http.Handler {
 					writeErr(sw, http.StatusInternalServerError, "internal", "Something went wrong on the server.")
 				}
 			}
-			s.Log.Printf("%s %s %d %dms", r.Method, loggablePath(r), sw.status, s.Clock.Now().Sub(start)/time.Millisecond)
+			ip := ""
+			if c := agentClient(r.Context()); c != "" {
+				ip = " ip=" + c // the agent listener: the address the request came from, never the header of a stranger
+			}
+			s.Log.Printf("%s %s %d %dms%s", r.Method, loggablePath(r), sw.status, s.Clock.Now().Sub(start)/time.Millisecond, ip)
 		}()
 		next.ServeHTTP(sw, r)
 	})

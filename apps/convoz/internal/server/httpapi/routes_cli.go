@@ -15,8 +15,8 @@ import (
 // cliRoutes hand out the CLI of this server: the installer and the binaries. Public on the same origin, with no credential: they
 // are the program every client runs, not a secret.
 var cliRoutes = []Route{
-	{Method: "GET", Pattern: "/install", Auth: authz.Pub, handle: (*Server).installScript},
-	{Method: "GET", Pattern: "/cli/:file", Auth: authz.Pub, handle: (*Server).cliFile},
+	{Method: "GET", Pattern: "/install", Auth: authz.Pub, Agent: "an agent installs the CLI", handle: (*Server).installScript},
+	{Method: "GET", Pattern: "/cli/:file", Auth: authz.Pub, Agent: "an agent installs the CLI", handle: (*Server).cliFile},
 }
 
 //go:embed install.sh
@@ -27,11 +27,15 @@ var installTemplate string
 var safeOrigin = regexp.MustCompile(`^https?://[A-Za-z0-9.:\[\]_-]+$`)
 
 func (s *Server) installScript(w http.ResponseWriter, r *http.Request, _ *call) {
-	if !safeOrigin.MatchString(s.Cfg.Origin) {
+	origin := s.Cfg.Origin
+	if agentClient(r.Context()) != "" {
+		origin = s.Cfg.AgentOrigin // an agent on the internet cannot reach the tailnet name
+	}
+	if !safeOrigin.MatchString(origin) {
 		writeErr(w, http.StatusInternalServerError, "install_unavailable", "This server has no address the installer can use.")
 		return
 	}
-	body := strings.NewReplacer("__SERVER__", s.Cfg.Origin, "__VERSION__", s.Cfg.Version).Replace(installTemplate)
+	body := strings.NewReplacer("__SERVER__", origin, "__VERSION__", s.Cfg.Version).Replace(installTemplate)
 	h := w.Header()
 	h.Set("Content-Type", "text/x-shellscript; charset=utf-8")
 	h.Set("Cache-Control", "no-cache") // it names this server's version

@@ -384,7 +384,7 @@ func (s *Server) nowScreen(w http.ResponseWriter, r *http.Request, c *call) {
 		return
 	}
 	out.Badge = len(out.Asks)
-	out.MachineRequests = requestsJSON(machines, intros)
+	out.MachineRequests = s.requestsJSON(machines, intros)
 	writeJSON(w, http.StatusOK, out)
 }
 

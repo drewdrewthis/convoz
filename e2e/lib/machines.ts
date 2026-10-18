@@ -115,6 +115,8 @@ export interface PendingRequest {
   user_code: string;
   host_info: Record<string, string> | null;
   source_ip: string | null;
+  via_internet: boolean;
+  code_required: boolean;
   node_name: string | null;
   created_at: number;
   expires_at: number;
@@ -224,6 +226,7 @@ export interface IdentityRequestRow {
   conversation: { id: number; title: string } | null;
   machine: string;
   machine_id: number;
+  via_internet: boolean;
   created_at: number;
   expires_at: number;
 }

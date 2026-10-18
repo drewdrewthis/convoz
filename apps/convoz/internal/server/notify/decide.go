@@ -52,6 +52,8 @@ type Trigger struct {
 	Urgent       bool
 	// ExceptDevice is a device that does not get the push: the one that did the thing (a security alert is for the other devices).
 	ExceptDevice int64
+	// Remote says the request came in over the internet (the agents-only address): it waits for quiet hours like any other push.
+	Remote bool
 }
 
 // Env is what the person's choices and the data say about one trigger, read by the composition root.
@@ -68,7 +70,10 @@ type Env struct {
 // a security alert cannot wait, and an urgent ask goes through when the person said so.
 func (t Trigger) bypassesQuiet(e Env) bool {
 	switch t.Reason {
-	case ReasonMachineRequest, ReasonSecurity:
+	case ReasonMachineRequest:
+		// A stranger on the internet can file a request at any hour; only a request from the owner's own tailnet may wake them.
+		return !t.Remote
+	case ReasonSecurity:
 		return true
 	case ReasonAskUrgent:
 		return e.UrgentBypass

@@ -4,8 +4,8 @@ import "github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
 
 // coreRoutes are the routes of health, version, the web app pages and its static files. Only the work package that owns this module edits this file.
 var coreRoutes = []Route{
-	{Method: "GET", Pattern: "/healthz", Auth: authz.Pub, handle: (*Server).health},
-	{Method: "GET", Pattern: "/api/version", Auth: authz.Pub, handle: (*Server).version},
+	{Method: "GET", Pattern: "/healthz", Auth: authz.Pub, Agent: "liveness probe", handle: (*Server).health},
+	{Method: "GET", Pattern: "/api/version", Auth: authz.Pub, Agent: "the CLI checks the server version", handle: (*Server).version},
 	// Pages: the web app (console.Page) at every screen URL. A signed-in page sends a caller with no session to sign in.
 	{Method: "GET", Pattern: "/bootstrap", Auth: authz.Pub, handle: appPage},
 	{Method: "GET", Pattern: "/signin", Auth: authz.Pub, handle: appPage},

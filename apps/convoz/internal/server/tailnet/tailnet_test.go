@@ -58,3 +58,24 @@ func TestWhoisArgsEndOptionsBeforeTheAddress(t *testing.T) {
 		}
 	}
 }
+
+func TestAgentFunnelTCP(t *testing.T) {
+	cases := []struct {
+		name string
+		doc  string
+		want bool
+	}{
+		{"tcp forward with funnel on", `{"TCP":{"8443":{"TCPForward":"127.0.0.1:8081"}},"AllowFunnel":{"h.ts.net:8443":true}}`, true},
+		{"tcp forward in a foreground session", `{"Foreground":{"s":{"TCP":{"8443":{"TCPForward":"127.0.0.1:8081"}},"AllowFunnel":{"h.ts.net:8443":true}}}}`, true},
+		{"tcp forward with funnel off", `{"TCP":{"8443":{"TCPForward":"127.0.0.1:8081"}},"AllowFunnel":{"h.ts.net:8443":false}}`, false},
+		{"web proxy with funnel on is the wanted setup", string(status("http://127.0.0.1:8081", "true")), false},
+		{"tcp forward to another port", `{"TCP":{"8443":{"TCPForward":"127.0.0.1:9000"}},"AllowFunnel":{"h.ts.net:8443":true}}`, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := errors.Is(agentFunnelTCP([]byte(c.doc), "127.0.0.1:8081"), ErrFunnelTCPForward); got != c.want {
+				t.Fatalf("got %v want %v", got, c.want)
+			}
+		})
+	}
+}

@@ -33,7 +33,7 @@
     security: []
     summary: "The build id of the server, with no credential."
     responses:
-      "200": { description: The answer. }
+      "200": { description: "The answer: {version}, and {agent_url} when the server has an agents-only listener (the address an agent outside the tailnet connects to)." }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /install:
   get:

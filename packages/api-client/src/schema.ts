@@ -2102,6 +2102,10 @@ export interface components {
             user_code: string;
             host_info: components["schemas"]["HostInfo"] | null;
             source_ip: string | null;
+            /** @description True when the request came in on the agents-only listener (over the internet); the card says so. */
+            via_internet: boolean;
+            /** @description True when Approve needs the last 4 characters of user_code (an internet request on a server run with --agent-approve-code). */
+            code_required: boolean;
             node_name: string | null;
             /** Format: int64 */
             created_at: number;
@@ -2136,6 +2140,8 @@ export interface components {
             machine: string;
             /** Format: int64 */
             machine_id: number;
+            /** @description True when the request came in on the agents-only listener; the card says so. */
+            via_internet: boolean;
             /** Format: int64 */
             created_at: number;
             /** Format: int64 */
@@ -3724,6 +3730,8 @@ export interface operations {
                     name?: string;
                     allow?: components["schemas"]["Allow"];
                     scopes?: string[];
+                    /** @description The last 4 characters of the request's code. Required for an internet request when the server runs with --agent-approve-code; 403 code_mismatch otherwise. */
+                    code_tail?: string;
                 };
             };
         };
@@ -6030,7 +6038,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The answer. */
+            /** @description The answer: {version}, and {agent_url} when the server has an agents-only listener (the address an agent outside the tailnet connects to). */
             200: {
                 headers: {
                     [name: string]: unknown;
