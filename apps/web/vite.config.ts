@@ -354,6 +354,13 @@ function coldHead(html: string, main: { fileName: string; code: string }, css: {
 }
 
 /**
+ * The modules the main bundle's chunk group leaves out: the worker's own (its entry and modules, and what only they use) and the
+ * head-start script's. Every other module the page loads at start goes into the main bundle, so a module the worker shares with the
+ * page would make the worker import the page's bundle; coldBuild fails such a build.
+ */
+const OUTSIDE_MAIN = /[\\/]src[\\/](sw[\\/](worker|cache|push|update|module)\.ts|shared[\\/]pagePath\.ts|early\.ts|first-reads\.json)$|node_modules[\\/].*workbox-/;
+
+/**
  * coldBuild finishes the build once Vite has written its files, in one ordered pass over the chunks as the bundler rendered them
  * (unminified: the bundler's minifier is off, as it would hide which bindings the source assigns):
  *  1. eagerRegistry: the main bundle must be one self-contained file, share no binding a function assigns (a lazy chunk would keep a
@@ -377,6 +384,11 @@ function coldBuild(): Plugin {
         const main = chunks.find((c) => c.name === "main" && c.isEntry);
         if (!main) throw new Error("cold-build: no main bundle");
         if (main.imports.length) throw new Error(`eager-registry: the main bundle imports ${main.imports.join(", ")}; it must be one file, a cold page carries it inline`);
+        // The worker evaluates every module it imports: a chunk of the page (the main bundle touches the DOM) fails its evaluation, and
+        // the browser then registers no worker at all (no offline shell, no push, no update). A module only the worker uses belongs in
+        // OUTSIDE_MAIN.
+        const worker = chunks.find((c) => c.fileName === "sw.js");
+        if (worker?.imports.length) throw new Error(`cold-build: sw.js imports ${worker.imports.join(", ")}; the worker must be one file (add its modules to OUTSIDE_MAIN)`);
         const mutable = reassignedExports(main.code, main.fileName);
         if (mutable.length) throw new Error(`eager-registry: the main bundle shares bindings that a function assigns (${mutable.join(", ")}); a lazy chunk would keep a stale copy. Export a function or an object instead.`);
         const code = new Map<string, string>();
@@ -447,7 +459,7 @@ export default defineConfig({
       // Everything the main entry imports stays in its one file (eagerRegistry checks it): a cold page carries that file inline.
       output: {
         entryFileNames: (chunk) => (chunk.name === "sw" ? "sw.js" : "assets/[name]-[hash].js"),
-        codeSplitting: { groups: [{ name: "main", tags: ["$initial"], test: (id: string) => !/[\\/]src[\\/](sw[\\/](worker|cache|push|update|module)\.ts|early\.ts|first-reads\.json)$|node_modules[\\/].*workbox-/.test(id) }] },
+        codeSplitting: { groups: [{ name: "main", tags: ["$initial"], test: (id: string) => !OUTSIDE_MAIN.test(id) }] },
       },
     },
   },
