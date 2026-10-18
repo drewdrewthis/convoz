@@ -6,8 +6,8 @@ export interface InviteTarget {
   conversation?: { id: number; title: string };
 }
 
-/** Where a machine without convoz gets it. */
-export const INSTALL_LINE = "command -v convoz >/dev/null || go install github.com/drewdrewthis/convoz/apps/convoz/cmd/convoz@latest";
+/** Where a machine without convoz gets it: from the server it connects to, so the CLI is the version of that server. */
+export const installLine = (server: string): string => `command -v convoz >/dev/null || curl -fsSL ${server}/install | sh`;
 
 /** invitePrompt is the one prompt the owner pastes into an agent. The agent picks its own handle and sends its own identity. */
 export function invitePrompt({ server, conversation }: InviteTarget): string {
@@ -21,7 +21,7 @@ export function invitePrompt({ server, conversation }: InviteTarget): string {
     "Pick your own handle: 2 to 40 characters from a-z, 0-9 and -, starting with a letter (for example code-review). Use it for <your-handle> below.",
     "The description is one line of plain text, up to 80 characters. The avatar is a simple SVG file, up to 4 KB, with no scripts or links. Both are optional.",
     "",
-    "Install:  " + INSTALL_LINE,
+    "Install:  " + installLine(server),
     "New machine (convoz login has not been run here):",
     `  convoz login --server ${server} --as <your-handle> ${flags}`,
     "  The owner approves you and this machine on one card in Convoz. Wait for it; the command ends when the owner decides.",

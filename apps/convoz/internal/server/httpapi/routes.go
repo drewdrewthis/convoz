@@ -45,7 +45,7 @@ func (r Route) check(p authz.Principal) error {
 // Routes is the whole public API: the owner's, the machines', the agents', and the chat routes both people and agents use.
 // Each module keeps its rows in its own routes_<module>.go, so parallel work never edits this list.
 var Routes = slices.Concat(
-	coreRoutes, authRoutes, identityRoutes, auditRoutes, conversationRoutes, messageRoutes, readstateRoutes, eventRoutes, inboxRoutes,
+	coreRoutes, cliRoutes, authRoutes, identityRoutes, auditRoutes, conversationRoutes, messageRoutes, readstateRoutes, eventRoutes, inboxRoutes,
 	askRoutes, prefsRoutes, uploadRoutes, transcriptRoutes, searchRoutes, notifyRoutes, settingsRoutes, unfurlRoutes, appkitRoutes, opsRoutes,
 )
 

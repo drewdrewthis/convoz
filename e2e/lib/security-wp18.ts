@@ -104,7 +104,7 @@ export function authzOfLive(r: LiveRoute): Authz {
   };
 }
 
-export const isApi = (p: string): boolean => p.startsWith("/api/") || p === "/healthz";
+export const isApi = (p: string): boolean => p.startsWith("/api/") || p === "/healthz" || p === "/install" || p.startsWith("/cli/");
 
 /** The words of the refusal a route gives a lease it never lets in (route() in httpapi/route.go). */
 export const LEASE_REFUSED = "An agent credential cannot do this.";

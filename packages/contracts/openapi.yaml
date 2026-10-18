@@ -139,6 +139,8 @@ paths:
   /healthz: { $ref: "paths/core.yaml#/~1healthz" }
   /api/ping: { $ref: "paths/core.yaml#/~1api~1ping" }
   /api/version: { $ref: "paths/core.yaml#/~1api~1version" }
+  /install: { $ref: "paths/core.yaml#/~1install" }
+  /cli/{file}: { $ref: "paths/core.yaml#/~1cli~1{file}" }
 
 components:
   securitySchemes:

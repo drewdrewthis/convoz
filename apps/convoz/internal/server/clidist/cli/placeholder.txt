@@ -1,0 +1,1 @@
+Placeholder so the clidist package compiles before the first `make cli-dist`. The build writes convoz-<os>-<arch> here; they are not committed.

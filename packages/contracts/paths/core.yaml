@@ -35,3 +35,34 @@
     responses:
       "200": { description: The answer. }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/install:
+  get:
+    operationId: getInstallScript
+    x-authz: { auth: pub }
+    security: []
+    summary: "A POSIX sh script that installs this server's CLI (no sudo; ~/.local/bin or $CONVOZ_INSTALL_DIR), with no credential."
+    responses:
+      "200":
+        description: The script.
+        content:
+          text/x-shellscript:
+            schema: { type: string }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/cli/{file}:
+  get:
+    operationId: getCliFile
+    x-authz: { auth: pub }
+    security: []
+    summary: "A CLI binary of this server (convoz-<os>-<arch>, linux or darwin, amd64 or arm64) or SHA256SUMS, with no credential. With ?v=<server version> the answer is immutable."
+    parameters:
+      - { name: file, in: path, required: true, schema: { type: string } }
+      - { name: v, in: query, required: false, schema: { type: string }, description: The server version; when it matches, the answer is cached for good. }
+    responses:
+      "200":
+        description: The file.
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary }
+          text/plain:
+            schema: { type: string }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
