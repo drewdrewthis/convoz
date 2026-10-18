@@ -30,7 +30,7 @@ export interface ComposerProps {
 type Recorder = Awaited<ReturnType<typeof loadRecorder>>;
 
 /**
- * Composer is the pinned message box: it grows to about six lines, then scrolls inside itself. Attach adds files above it; the
+ * Composer is the pinned message box: it grows to four lines on a phone (six on a wide screen), then scrolls inside itself. Attach adds files above it; the
  * microphone (in Send's place while there is nothing to send) swaps the box for the recording bar.
  */
 export function Composer({ agent, label, conversationId, attachments, onSend, textRef, mentions }: ComposerProps) {
@@ -68,8 +68,9 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
     const box = textRef.current;
     if (!box) return;
     box.style.height = "auto";
-    // An empty box keeps its one line: scrollHeight would count the wrapped placeholder.
-    box.style.height = text === "" ? "" : `${Math.min(box.scrollHeight, 180)}px`;
+    // An empty box keeps its one line: scrollHeight would count the wrapped placeholder. The CSS max-height stops the growth at four
+    // lines on a phone (six on a wide screen) and the box scrolls inside itself from there.
+    box.style.height = text === "" ? "" : `${box.scrollHeight}px`;
   }, [text, textRef]);
 
   const menuFor = (value: string, crew: Identity[]) => {
@@ -202,8 +203,10 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
           ref={textRef}
           id="text"
           rows={1}
-          enterKeyHint="send"
+          enterKeyHint={enterSends() ? "send" : "enter"}
           autoCapitalize="sentences"
+          autoCorrect="on"
+          spellCheck
           aria-label={label}
           placeholder="Message the conversation. Type @ to add an agent."
           value={text}

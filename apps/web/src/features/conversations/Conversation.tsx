@@ -14,6 +14,7 @@ import { Details } from "./Details.tsx";
 import { MessageDetails } from "./MessageDetails.tsx";
 import { useFocusReport } from "../notifications/index.ts";
 import { useConversations, type PendingSend } from "./store.ts";
+import { keyboardOpen, virtualKeyboard, type Screen } from "./keyboard.ts";
 import { ThreadBubbles, Transcript, type TranscriptControl } from "./Transcript.tsx";
 
 const NEW = "new";
@@ -325,26 +326,40 @@ async function loadUntil(s: ReturnType<typeof useConversations.getState>, key: s
   }
 }
 
-/** useFitFrame makes the frame follow the visible screen (iOS keeps the layout viewport under the keyboard). */
+/**
+ * useFitFrame makes the frame follow the visible screen (iOS keeps the layout viewport under the keyboard) and marks the body "kbd"
+ * while a phone's keyboard is open, which shrinks the header to one line (see keyboard.ts).
+ */
 function useFitFrame(frame: RefObject<HTMLDivElement | null>) {
+  const screen = useRef<Screen>({ width: 0, height: 0 });
   const fit = useCallback(() => {
     const vv = window.visualViewport;
     const el = frame.current;
     if (!vv || !el) return;
     el.style.setProperty("--vv-h", `${vv.height}px`);
     el.style.setProperty("--vv-top", `${vv.offsetTop}px`);
-    document.body.classList.toggle("kbd", vv.height < innerHeight - 80);
+    document.body.classList.toggle("kbd", keyboardOpen(vv, screen.current));
   }, [frame]);
   useLayoutEffect(() => {
     const vv = window.visualViewport;
+    const vk = virtualKeyboard();
+    // focus moves between two fields through a moment with none focused: the keyboard is judged after it
+    const blurred = () => void setTimeout(fit, 0);
     vv?.addEventListener("resize", fit);
     vv?.addEventListener("scroll", fit);
+    vk?.addEventListener("geometrychange", fit);
     addEventListener("resize", fit);
+    addEventListener("focusin", fit);
+    addEventListener("focusout", blurred);
     fit();
     return () => {
       vv?.removeEventListener("resize", fit);
       vv?.removeEventListener("scroll", fit);
+      vk?.removeEventListener("geometrychange", fit);
       removeEventListener("resize", fit);
+      removeEventListener("focusin", fit);
+      removeEventListener("focusout", blurred);
+      document.body.classList.remove("kbd");
     };
   }, [fit]);
   return fit;

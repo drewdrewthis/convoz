@@ -29,6 +29,16 @@ Feature: Composer
       And it grew to about 6 lines and then scrolls inside itself
 
     @v1 @browser @phone
+    Scenario: The header shrinks while typing on a phone
+      Given the owner has conversation 41 open on a phone
+      When the keyboard opens on the message box
+      Then the header is one 36 px line with Back and the title
+      And the message box grows from one line to at most four
+      And the message box asks for a new line on Return, capitals at sentence starts, spelling and autocorrect
+      When the keyboard closes
+      Then the full header is back
+
+    @v1 @browser @phone
     Scenario: On a phone Enter adds a line and Send sends
       Given the owner has conversation 41 open on a phone
       Then Send is disabled while the message box is empty
@@ -100,6 +110,15 @@ Feature: Composer
       When the owner drops "chart.png" and "deploy.log" on conversation 41
       Then the composer shows both under "Files to send"
       And sending posts one message with both files
+
+    @v1 @browser
+    Scenario: Pending attachments show as previews before send
+      Given "chart.png" and "deploy.log" wait under "Files to send"
+      Then "chart.png" shows as a 56 px thumbnail and "deploy.log" as a chip with its icon, name and size
+      And each has a remove button
+      When the owner sends the message
+      Then the message shows the image at most 240 px high that opens whole in its own tab
+      And "deploy.log" shows as a file card with its icon, name, size and a download link
 
     @v1 @browser
     Scenario: The owner removes a file before sending

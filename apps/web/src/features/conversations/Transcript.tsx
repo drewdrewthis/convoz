@@ -285,7 +285,7 @@ const MessageRow = memo(function MessageRow({ row, threaded, me, paused, convers
     return <NoticeRow message={m} canResume={paused === m.id} onResume={() => void resume(conversation)} />;
   }
   if (m?.deleted) {
-    return <Article author={m.author.handle} me={me} first={row.first} stamp={clock(m.created_at)} body={<div className="text tombstone">Message deleted</div>} />;
+    return <Article person={m.author} me={me} first={row.first} stamp={clock(m.created_at)} body={<div className="text tombstone">Message deleted</div>} />;
   }
   if (m) {
     const text = stripCf(m.body);
@@ -308,7 +308,7 @@ const MessageRow = memo(function MessageRow({ row, threaded, me, paused, convers
     const detail = onDetails && m.author.kind === "agent" ? () => onDetails(m) : undefined;
     const replies = threaded || m.thread_root_id ? null : <ReplyLine message={m} conversation={conversation} />;
     const tag = !threaded && m.thread_root_id ? "replied to a thread" : undefined;
-    return <Article author={m.author.handle} named={withHandle(m.author)} me={me} first={row.first} stamp={clock(m.created_at)} tag={tag} onStamp={detail} body={body} extra={<>{m.kind !== "ask" && hasLink(text) ? <LinkPreview id={m.id} /> : null}{pinned ? <PinMark /> : null}{edited}{replies}</>} menu={menu} mid={m.id} marked={hl === m.id} labelledBy={m.kind === "ask" && m.ask ? label : undefined} />;
+    return <Article person={m.author} me={me} first={row.first} stamp={clock(m.created_at)} tag={tag} onStamp={detail} body={body} extra={<>{m.kind !== "ask" && hasLink(text) ? <LinkPreview id={m.id} /> : null}{pinned ? <PinMark /> : null}{edited}{replies}</>} menu={menu} mid={m.id} marked={hl === m.id} labelledBy={m.kind === "ask" && m.ask ? label : undefined} />;
   }
   const state =
     p!.state === "failed" ? (
@@ -327,45 +327,40 @@ const MessageRow = memo(function MessageRow({ row, threaded, me, paused, convers
       {p!.files?.length ? <PendingFiles files={p!.files} /> : null}
     </>
   );
-  return <Article author={me} me={me} first={row.first} stamp={clock(Date.now())} body={body} extra={state} />;
+  return <Article person={{ handle: me, display_name: "" }} me={me} first={row.first} stamp={clock(Date.now())} body={body} extra={state} />;
 }, sameRow);
 
-/** withHandle is "Drew @devtool" when the display name says more than the handle does, so the handle is always next to the name (I-3). */
-function withHandle(p: { handle: string; display_name: string }): string | undefined {
-  return p.display_name && p.display_name.toLowerCase() !== p.handle.toLowerCase() ? `${p.display_name} @${p.handle}` : undefined;
+interface Who {
+  handle: string;
+  display_name: string;
 }
 
-/** Article is one message: avatar, name and time (once per run), then the body. The letter is drawn, so it reads "@devtool 5:25 AM Hello". */
-function Article({ author, named, me, first, stamp, tag, onStamp, body, extra, menu, mid, marked, labelledBy }: { author: string; named?: string; me: string; first: boolean; stamp: string; tag?: string; onStamp?: () => void; body: ReactNode; extra?: ReactNode; menu?: ReactNode; mid?: number; marked?: boolean; labelledBy?: string }) {
-  const mine = author === me;
-  const avatar = mine ? (
-    <span className="ava you" aria-hidden="true" data-l="Y" />
+/** Article is one message: a run of messages by one author shows its author line once. An agent's line is avatar, name, @handle and time;
+ * the owner's is the time alone, above the bubble ("You" is left for a screen reader). Reads "devtool @devtool 5:25 AM Hello". */
+function Article({ person, me, first, stamp, tag, onStamp, body, extra, menu, mid, marked, labelledBy }: { person: Who; me: string; first: boolean; stamp: string; tag?: string; onStamp?: () => void; body: ReactNode; extra?: ReactNode; menu?: ReactNode; mid?: number; marked?: boolean; labelledBy?: string }) {
+  const mine = person.handle === me;
+  const time = !stamp ? null : onStamp ? (
+    <button type="button" className="stamp stampbtn" aria-label="Message details" onClick={onStamp}>
+      <time>{stamp}</time>
+    </button>
   ) : (
-    <span className={`ava p${paletteOf(author)}`} aria-hidden="true" data-l={initials(author)} />
-  );
-  const name = mine ? (
-    <span className="who">You</span>
-  ) : (
-    <span className="who">
-      {named ? named : <><span className="sr">@</span>{author}</>}
-    </span>
+    <time className="stamp">{stamp}</time>
   );
   return (
     <article className={`msg ${mine ? "mine" : "theirs"}${first ? " first" : ""}`} data-mid={mid} data-hl={marked ? "true" : undefined} aria-labelledby={labelledBy}>
-      <div className="gut">{first ? avatar : null}</div>
       <div className="main">
         {first ? (
           <div className="byline">
-            {name}{" "}
-            {stamp ? (
-              onStamp ? (
-                <button type="button" className="stamp stampbtn" aria-label="Message details" onClick={onStamp}>
-                  <time>{stamp}</time>
-                </button>
-              ) : (
-                <time className="stamp">{stamp}</time>
-              )
-            ) : null}
+            {mine ? (
+              <span className="sr">You</span>
+            ) : (
+              <>
+                <span className={`ava p${paletteOf(person.handle)}`} aria-hidden="true" data-l={initials(person.handle)} />
+                <span className="who">{stripCf(person.display_name) || person.handle}</span>
+                <span className="handle">@{person.handle}</span>
+              </>
+            )}{" "}
+            {time}
             {tag ? <span className="tag">{tag}</span> : null}
           </div>
         ) : null}{" "}
