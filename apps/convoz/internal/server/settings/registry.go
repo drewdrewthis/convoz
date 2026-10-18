@@ -36,8 +36,9 @@ var registry = map[string]def{
 	"palette":                  {User, "iris", oneOf("iris", "ember", "mono", "tide")},
 	"inbox.visibility_default": {Workspace, "5m", duration(30*time.Second, 30*time.Minute)},
 	"brief.max_bytes":          {Workspace, int64(12288), integer(4096, 65536)},
-	// The engine that turns voice notes into words: "none", or the name of an engine the build has (the transcript module resolves it).
-	"transcription.engine": {Workspace, "none", engineName},
+	// The engine that turns voice notes into words: "auto" (the engine the server was started with, --transcribe), "none" (off: no audio leaves
+	// the box), or the name of an engine the build has (the transcript module resolves it).
+	"transcription.engine": {Workspace, "auto", engineName},
 }
 
 // Keys lists every registry key in a fixed order.

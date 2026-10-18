@@ -1686,6 +1686,19 @@ One binary `convoz` (alias `cvz`). Credentials: `~/.config/convoz/credentials` (
 
 Exit codes: 0 ok, 1 any other failure (a 5xx, an unreadable answer), 2 usage (a unix socket path over 107 bytes included), 3 auth (HTTP 401 or 403), 4 conflict (HTTP 409), 5 rate limited (HTTP 429, after the retries of a command that retries), 6 network (the server cannot be reached, after the retries of a command that retries; the admin socket unreachable included, `convoz admin` does not retry). `convoz serve` adds 10 (key: KEK missing, unreadable, or its file mode is not 0600/0400) 11 (schema: the data dir is newer than this build) 12 (the data dir, or the `--listen` socket, is in use by another process: the data dir is locked with `flock` on `<data>/convoz.lock`) 13 (the wall: a listen address that is not loopback, `--host` missing, funnel on for this server, or the tailscale status unreadable or the binary missing under `--tailscale check`) and 14 (the admin socket cannot be created or secured: its parent directory is not ours or is writable by group or others, or a live socket is already there). The public unix socket gets the same parent-directory check; a failure there exits 13 (the wall). On Linux the admin listener also drops a connection whose peer uid cannot be read (`SO_PEERCRED`). `--json` output is one object (or one line per item for `watch`). There is no `answer` command: humans answer in the app (C-3).
 
+
+### 13.3 Voice transcription
+
+Owner decision (2026-10-18, verbatim): "Yeah, try groq whisper. You should have OpenAI as the fallback."
+
+**The audio leaves the box.** A voice note is sent to Groq (`whisper-large-v3-turbo`), and to OpenAI (`whisper-1`) when Groq cannot answer. Gemini (`generateContent`, inline audio, prompt "Transcribe verbatim") stands in for OpenAI only while there is no OpenAI key. The request holds the audio and nothing else: no name, user, conversation or message id. The server never logs the audio, the words or a key; errors name the engine and the HTTP status only.
+
+- **Chain.** `--transcribe auto` (the default) tries the engines whose key is set, in that order. It falls to the next on a 20 s timeout, a network error, a 429, a 5xx, or a refused key (401, 403, 404). A 400, 413, 415 or 422 is a bad file: the chain stops and the transcript is marked failed at once. When every engine fails, the transcript is tried again as before (5 tries, backoff 5 s, 20 s, 80 s, ...), then marked failed. `--transcribe none` turns it off for the whole server.
+- **Keys** are systemd credentials read from `$CREDENTIALS_DIRECTORY`: `groq_api_key`, `openai_api_key`, `gemini_api_key`. A missing or empty one leaves its engine out; with none set there is no engine and voice notes have no words. The workspace setting `transcription.engine` defaults to `"auto"`, the engine the server was started with. `"none"` is off: no audio leaves the box, whatever keys are set. Any other value names that engine.
+- **Stored engine.** `transcripts.engine` holds the engine that answered (`groq`, `openai`, `gemini`), not `auto`.
+- **Size.** A note is read into memory once (an engine may be tried twice) and is capped at the upload limit, 25 MiB.
+- **Test build.** `testhooks` keeps the `fake` engine; tests use `httptest` fakes of the providers, never the real APIs.
+
 ## 14. Migrations, versioning, backups, export, delete
 
 - **Migrations, event types, API versioning:** as draft 7 (clients send `X-Convoz-Client: web/<build>` or `convoz/<semver>`).
@@ -1752,7 +1765,7 @@ Carried from draft 8:
 8. Deploy: KEK via systemd `LoadCredential` and a dedicated `convoz` Unix user separate from agents (DEFAULT), or the KEK from 1Password at boot?
 9. Directory label "Crew"?
 10. Push previews default `full`?
-11. Transcription: local (whisper.cpp) or API (audio leaves the box)?
+11. Transcription: ~~local (whisper.cpp) or API~~ decided 2026-10-18: API, Groq Whisper first, OpenAI as the fallback (§13.3). The audio leaves the box.
 12. Agents: may they edit their own messages (≤24 h)? (Search is yes.)
 13. Member role (future): may members answer asks and add agents?
 14. Token prefixes `fd*` → `cvz_*` follow your binary rename (DEFAULT). OK?

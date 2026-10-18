@@ -211,6 +211,7 @@ scenario("With no transcription engine the note has no transcript", { tag: ["@br
   await openConversation(page, u.w.srv, u.conv);
 
   // Given the workspace transcription engine is "none"
+  await setEngine(owner(u) as { srv: typeof u.w.srv; owner: typeof u.w.owner }, "none");
   const settings = must(await u.w.owner.client.get("/api/settings"), "settings").json().settings as { key: string; value: unknown }[];
   expect(settings.find((s) => s.key === "transcription.engine")?.value).toBe("none");
 

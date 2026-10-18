@@ -25,7 +25,7 @@ func TestRegistry_RangesAreEnforced(t *testing.T) {
 		{"brief.max_bytes", float64(4096), true}, {"brief.max_bytes", float64(4095), false}, {"brief.max_bytes", float64(65537), false}, {"brief.max_bytes", 1.5, false},
 		{"inbox.visibility_default", "30s", true}, {"inbox.visibility_default", "29s", false}, {"inbox.visibility_default", "31m", false}, {"inbox.visibility_default", float64(5), false},
 		{"notify.previews", "sender", true}, {"notify.previews", "all", false},
-		{"transcription.engine", "none", true}, {"transcription.engine", "whisper-local", true}, {"transcription.engine", "", false}, {"transcription.engine", "Bad Name", false}, {"transcription.engine", true, false},
+		{"transcription.engine", "none", true}, {"transcription.engine", "auto", true}, {"transcription.engine", "whisper-local", true}, {"transcription.engine", "", false}, {"transcription.engine", "Bad Name", false}, {"transcription.engine", true, false},
 	} {
 		if _, err := registry[c.key].check(c.val); (err == nil) != c.ok {
 			t.Errorf("%s = %v: accepted=%v, want %v", c.key, c.val, err == nil, c.ok)

@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -56,10 +57,16 @@ func (s *Server) transcribeDue(ctx context.Context) {
 // transcribeOne hands one voice note to its engine and stores the outcome. A failure books another try, and after the last one
 // marks the transcript failed; either way the inbox items held for the words are let go once they will not come.
 func (s *Server) transcribeOne(ctx context.Context, svc *upload.Service, job transcript.Job) {
-	text, up, err := s.transcribeAudio(ctx, svc, job)
+	text, engineName, up, err := s.transcribeAudio(ctx, svc, job)
 	now := s.Clock.Now()
 	werr := s.Store.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) error {
 		d := tx.DBTX()
+		if errors.Is(err, transcript.ErrBadAudio) { // no engine will take this file, so a retry would only repeat it
+			if gerr := transcript.GiveUp(ctx, d, now, job); gerr != nil {
+				return gerr
+			}
+			return s.releaseVoice(ctx, d, now, up)
+		}
 		if err != nil {
 			gaveUp, rerr := transcript.Retry(ctx, d, now, job)
 			if rerr != nil || !gaveUp {
@@ -67,7 +74,7 @@ func (s *Server) transcribeOne(ctx context.Context, svc *upload.Service, job tra
 			}
 			return s.releaseVoice(ctx, d, now, up)
 		}
-		if err := transcript.Finish(ctx, d, now, job.UploadID, job.Engine, text); err != nil {
+		if err := transcript.Finish(ctx, d, now, job.UploadID, engineName, text); err != nil {
 			return err
 		}
 		return s.announceTranscript(ctx, d, now, up)
@@ -82,23 +89,29 @@ func (s *Server) transcribeOne(ctx context.Context, svc *upload.Service, job tra
 	s.Bus.Notify()
 }
 
-// transcribeAudio decrypts the note into the engine. The audio is read once and never lands on disk in the clear (I-27).
-func (s *Server) transcribeAudio(ctx context.Context, svc *upload.Service, job transcript.Job) (string, upload.Row, error) {
+// transcribeAudio decrypts the note into the engine. The audio is read once and never lands on disk in the clear (I-27). It returns
+// the name of the engine that answered: the job's, unless the engine is a chain that says which of its own did.
+func (s *Server) transcribeAudio(ctx context.Context, svc *upload.Service, job transcript.Job) (text, engineName string, up upload.Row, err error) {
 	up, found, err := upload.ByID(ctx, s.reader(), job.UploadID)
 	if err != nil {
-		return "", up, err
+		return "", "", up, err
 	}
 	engine, ok := transcript.Lookup(job.Engine)
 	if !found || !ok {
-		return "", up, transcript.ErrNoEngine
+		return "", "", up, transcript.ErrNoEngine
 	}
 	rd, err := svc.Blobs.Open(up)
 	if err != nil {
-		return "", up, err
+		return "", "", up, err
 	}
 	defer rd.Close()
-	text, err := engine.Transcribe(ctx, rd, up.Mime)
-	return text, up, err
+	if a, ok := engine.(transcript.Attributing); ok {
+		text, engineName, err = a.TranscribeAs(ctx, rd, up.Mime)
+	} else {
+		engineName = job.Engine
+		text, err = engine.Transcribe(ctx, rd, up.Mime)
+	}
+	return text, engineName, up, err
 }
 
 // announceTranscript is what a finished transcript changes: the search entry gets the words, the held inbox items are let go and

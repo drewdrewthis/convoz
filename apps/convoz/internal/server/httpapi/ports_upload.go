@@ -58,7 +58,8 @@ func dropUploads(ctx context.Context, d pdb.DBTX, messageID int64) error {
 	return nil
 }
 
-// transcriptionEngine is the workspace setting transcription.engine, "none" when it is not set.
+// transcriptionEngine is the workspace setting transcription.engine: "none" is off, "auto" (the default) is the engine the server was
+// started with (--transcribe), "none" when it has no key, and any other value names an engine.
 func transcriptionEngine(ctx context.Context, d pdb.DBTX) string {
 	all, err := settings.All(ctx, d, 0)
 	if err != nil {
@@ -67,6 +68,9 @@ func transcriptionEngine(ctx context.Context, d pdb.DBTX) string {
 	for _, e := range all {
 		if e.Key == "transcription.engine" {
 			if name, ok := e.Value.(string); ok {
+				if name == "auto" {
+					return transcript.Default()
+				}
 				return name
 			}
 		}

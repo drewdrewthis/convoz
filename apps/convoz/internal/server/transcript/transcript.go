@@ -54,6 +54,27 @@ func Lookup(name string) (Engine, bool) {
 	return e, ok && name != None
 }
 
+var defaultEngine = None
+
+// SetDefault names the engine a note gets while the workspace setting is still "none": the one the server was started with.
+func SetDefault(name string) {
+	enginesMu.Lock()
+	defaultEngine = name
+	enginesMu.Unlock()
+}
+
+// Default is the engine the server was started with, "none" when it has none.
+func Default() string {
+	enginesMu.RLock()
+	defer enginesMu.RUnlock()
+	return defaultEngine
+}
+
+// Attributing is an engine that says which engine of its own answered; the transcript stores that name.
+type Attributing interface {
+	TranscribeAs(ctx context.Context, audio io.Reader, mime string) (text, engine string, err error)
+}
+
 // ValidName reports whether s can be the value of the engine setting.
 func ValidName(s string) bool {
 	if s == "" || len(s) > 32 {
@@ -98,6 +119,11 @@ func Finish(ctx context.Context, d pdb.DBTX, now time.Time, uploadID int64, engi
 
 // Backoff is the wait before the next try after a failed one: 5 s, then 20 s, 80 s, ... .
 func Backoff(attempts int64) time.Duration { return 5 * time.Second << (2 * attempts) }
+
+// GiveUp marks a transcript failed at once, for a note no engine will take.
+func GiveUp(ctx context.Context, d pdb.DBTX, now time.Time, j Job) error {
+	return db.New(d).FailTranscript(ctx, db.FailTranscriptParams{UploadID: j.UploadID, Now: now.UnixMilli()})
+}
 
 // Retry books another try after a failure, or marks the transcript failed after the last one. It reports whether it gave up.
 func Retry(ctx context.Context, d pdb.DBTX, now time.Time, j Job) (gaveUp bool, err error) {

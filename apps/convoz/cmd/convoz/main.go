@@ -50,7 +50,7 @@ func processIO() cli.IO {
 }
 
 func usage() {
-	lines := append([]string{"convoz serve --data-dir D --host NAME[:PORT] [--kek-file F] [--listen ADDR] [--admin-socket P] [--ready-file F] [--tailscale check|off] [--tailscale-bin B]"},
+	lines := append([]string{"convoz serve --data-dir D --host NAME[:PORT] [--kek-file F] [--listen ADDR] [--admin-socket P] [--ready-file F] [--tailscale check|off] [--tailscale-bin B] [--transcribe auto|none]"},
 		cli.Usages()...)
 	fmt.Fprintln(os.Stderr, "convoz: usage: "+strings.Join(append(lines, "convoz version"), "\n       "))
 	os.Exit(exitUsage)

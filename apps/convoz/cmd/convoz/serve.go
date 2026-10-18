@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/tailnet"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/transcript"
 )
 
 var hostRE = regexp.MustCompile(`^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$`)
@@ -38,6 +40,7 @@ func serve(args []string) int {
 	adminSocket := fs.String("admin-socket", "", "unix socket for break-glass admin commands (mode 0600)")
 	tailscaleBin := fs.String("tailscale-bin", "tailscale", "the tailscale command")
 	tailscaleMode := fs.String("tailscale", "check", "check: read tailscale status at start and refuse if funnel is on; off: skip (development)")
+	transcribe := fs.String("transcribe", "auto", "voice transcription: auto uses the keys in $CREDENTIALS_DIRECTORY (groq_api_key, openai_api_key, gemini_api_key) in that order, none turns it off; audio then goes to the service that answers")
 	readyFile := fs.String("ready-file", "", "write {listen,admin,pid} here once listening")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -45,7 +48,7 @@ func serve(args []string) int {
 		}
 		usage()
 	}
-	if *dataDir == "" || (*tailscaleMode != "check" && *tailscaleMode != "off") {
+	if *dataDir == "" || (*tailscaleMode != "check" && *tailscaleMode != "off") || (*transcribe != "auto" && *transcribe != "none") {
 		usage()
 	}
 
@@ -126,6 +129,11 @@ func serve(args []string) int {
 	logger := log.New(os.Stderr, "convoz: ", log.LstdFlags)
 	api := httpapi.NewServer(store, clock, wa, keys, cfg, logger)
 	api.EnablePush(push)
+	if *transcribe == "auto" {
+		if names := transcribeAuto(os.Getenv("CREDENTIALS_DIRECTORY"), transcript.DefaultEndpoints()); names != nil {
+			logger.Printf("voice transcription: %s, in that order", strings.Join(names, ", "))
+		}
+	}
 	go api.RunTimers(ctx)  // wakes the snoozes whose time has come, even when nobody has Now open
 	go api.RunUnfurls(ctx) // fetches the link previews the post transaction queued
 	servers := []*http.Server{{
