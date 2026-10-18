@@ -129,7 +129,10 @@ scenario("Pasting a file into the composer attaches it", { tag: ["@browser", "@I
   await expect(page.getByRole("progressbar", { name: /^Uploading / })).toHaveCount(0, { timeout: 20_000 });
   await sendReply(page).click();
   await expect(inThread).toHaveCount(0);
-  const replies = must(await u.w.owner.client.get(`/api/messages/${root}/replies`), "thread replies").json().messages as { uploads?: { name: string }[] }[];
+  // a reply is shown at once and posted after: the pane empties before the server has it
+  const repliesOf = async () => must(await u.w.owner.client.get(`/api/messages/${root}/replies`), "thread replies").json().messages as { uploads?: { name: string }[] }[];
+  await expect.poll(async () => (await repliesOf()).length).toBe(1);
+  const replies = await repliesOf();
   expect(replies).toHaveLength(1);
   expect(replies[0]!.uploads!.map((x) => x.name)).toEqual(["screenshot.png"]);
 });
