@@ -53,7 +53,7 @@ Feature: Voice notes
 
     @v1 @browser
     Scenario: With no transcription engine the note has no transcript
-      Given the workspace transcription engine is "none"
+      Given the workspace transcription engine is "none" (the default is "auto": the server's engine)
       When the owner sends a voice note
       Then the voice message shows no transcript and no error
 
