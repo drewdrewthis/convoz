@@ -44,8 +44,11 @@ export async function box(l: Locator): Promise<{ x: number; y: number; width: nu
 /** Luminance 0..1 of the page background. */
 export async function backgroundLuminance(page: Page): Promise<number> {
   return page.evaluate(() => {
-    const m = getComputedStyle(document.body).backgroundColor.match(/[\d.]+/g)!.map(Number);
-    const [r, g, b] = m.slice(0, 3).map((v) => v / 255);
+    // The computed colour may be rgb() or, for a colour-mix() background, color(srgb 0..1): a canvas turns either into bytes.
+    const ctx = document.createElement("canvas").getContext("2d", { willReadFrequently: true })!;
+    ctx.fillStyle = getComputedStyle(document.body).backgroundColor;
+    ctx.fillRect(0, 0, 1, 1);
+    const [r, g, b] = Array.from(ctx.getImageData(0, 0, 1, 1).data, (v) => v / 255);
     return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
   });
 }

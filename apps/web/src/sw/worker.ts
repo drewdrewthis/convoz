@@ -9,3 +9,7 @@ const modules = import.meta.glob<SwModule>(["./*.ts", "!./index.ts", "!./worker.
 for (const mod of Object.values(modules)) mod.install(self);
 
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
+// The claim at activation misses a page whose navigation was still committing then (index.ts asks again for such a page).
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "claim") event.waitUntil(self.clients.claim());
+});

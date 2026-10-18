@@ -114,7 +114,7 @@ let kept = false;
 /**
  * keepForOffline reads who is signed in, the crew, and the 20 newest conversations with their last 200 messages into the cache (and so into IndexedDB), once per
  * page load and only where a service worker can open the app offline. It waits for the worker so it never competes with the first
- * screen, and skips a link that asked to save data.
+ * screen, and skips a link that asked to save data. It sets the `kept-offline` mark when it is done, whatever the outcome.
  */
 export async function keepForOffline(): Promise<void> {
   if (kept || !("serviceWorker" in navigator)) return;
@@ -130,5 +130,7 @@ export async function keepForOffline(): Promise<void> {
     }
   } catch {
     /* offline or refused: the next visit tries again */
+  } finally {
+    performance.mark("kept-offline"); // like `tfus`: a trace or a test knows the page has gone quiet
   }
 }

@@ -7,10 +7,14 @@ import { FocusFrame, ShellFrame } from "./frames.tsx";
 import type { PageDef } from "./routes.tsx";
 import { Status } from "./Status.tsx";
 
+/** From this width the signed-in app is a sidebar rail and the page (prototype v41 desktop); under it, the phone UI. */
+const DESK = "(min-width: 900px)";
+
 /**
  * prepare readies the document for a page before the first render: the body attributes the stylesheet keys on, the tab
  * title, whether a 401 sends the browser to sign in, and Cmd+J / Ctrl+J (a new chat from anywhere in the signed-in app),
- * so a key pressed as soon as the page has loaded is not lost.
+ * so a key pressed as soon as the page has loaded is not lost. The wide-screen mark is set here too: set after the first
+ * paint, the phone's Search button would show for a frame on a desktop.
  */
 export function prepare(def: PageDef): void {
   const body = document.body.dataset;
@@ -21,6 +25,7 @@ export function prepare(def: PageDef): void {
   document.title = `${def.title} - Convoz`;
   page.public = Boolean(def.public);
   if (def.frame === "focus") return;
+  document.body.toggleAttribute("data-desk", matchMedia(DESK).matches);
   document.addEventListener("keydown", (event) => {
     if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "j") {
       event.preventDefault();
@@ -28,9 +33,6 @@ export function prepare(def: PageDef): void {
     }
   });
 }
-
-/** From this width the signed-in app is a sidebar rail and the page (prototype v41 desktop); under it, the phone UI. */
-const DESK = "(min-width: 900px)";
 
 /** useDesk says whether the screen is wide enough for the sidebar, and marks the body so the stylesheet makes room for it. */
 function useDesk(): boolean {

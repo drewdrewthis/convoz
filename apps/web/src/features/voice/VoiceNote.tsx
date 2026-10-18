@@ -75,7 +75,8 @@ export function VoiceNote({ upload }: { upload: Upload }) {
             <i key={i} className={(i + 0.5) / BARS <= pct / 100 ? "on" : undefined} style={{ height: `${Math.round(4 + h * 22)}px` }} />
           ))}
         </span>
-        <span className="vtime">{mmss(Math.round(total / 1000))}</span>
+        {/* Floor, like the recorder's running clock: a note shown 0:20 while recording must not turn 0:21 once sent. */}
+        <span className="vtime">{mmss(Math.floor(total / 1000))}</span>
         {loaded ? null : <span className="vsize">{`${fileSize(upload.size)} · tap to load`}</span>}
         <audio
           ref={audio}

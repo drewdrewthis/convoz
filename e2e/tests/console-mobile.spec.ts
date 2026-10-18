@@ -366,6 +366,11 @@ scenario("An expired session sends the owner to sign in and back", { tag: ["@bro
   await page.goto(`${srv.origin}/settings/recovery`);
   const make = page.getByRole("button", { name: "Make new codes" });
   await expect(make).toBeEnabled();
+  // The app reads the owner's data in the background: once its worker is ready, and (wide screen) once the sidebar has opened the live link.
+  // A read after the session ends would send the page to sign in before the tap.
+  if (await page.evaluate(() => matchMedia("(min-width: 900px)").matches)) await expect(page.getByRole("navigation", { name: "Conversations" })).toBeVisible();
+  await page.waitForFunction(() => performance.getEntriesByName("kept-offline").length > 0);
+  await page.waitForLoadState("networkidle"); // and the live link's first reads that follow it
   await context.clearCookies();
 
   // When the owner taps "Make new codes"
