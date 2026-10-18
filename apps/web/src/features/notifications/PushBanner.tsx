@@ -1,7 +1,7 @@
 import { CloseIcon } from "@convoz/ui/icons";
 import { useEffect, useState } from "react";
 import { humanError } from "../../shared/api.ts";
-import { currentSubscription, pushSupported, PushStepError, turnOn } from "./push.ts";
+import { CHROME_IOS_HINT, currentSubscription, isChromeOnIOS, pushSupported, PushStepError, turnOn } from "./push.ts";
 
 const DISMISSED = "convoz.push-banner-dismissed";
 
@@ -28,16 +28,21 @@ function rememberDismissed(): void {
  */
 export function PushBanner() {
   const [show, setShow] = useState(false);
+  const chrome = isChromeOnIOS() && !pushSupported();
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (chrome) {
+      setShow(!dismissedHere());
+      return;
+    }
     if (!pushSupported() || Notification.permission !== "default" || dismissedHere()) return;
     let live = true;
     void currentSubscription().then((sub) => live && setShow(!sub), () => undefined);
     return () => void (live = false);
-  }, []);
+  }, [chrome]);
 
   if (!show) return null;
 
@@ -60,10 +65,12 @@ export function PushBanner() {
   return (
     <section className="pushbanner" aria-label="Notifications">
       <div className="pushbanner-row">
-        <span className="grow">{step || "Turn on notifications"}</span>
-        <button className="btn small" type="button" disabled={busy} onClick={() => void tap()}>
-          Turn on
-        </button>
+        <span className="grow">{chrome ? `Chrome on iPhone has no notifications for web apps. ${CHROME_IOS_HINT}` : step || "Turn on notifications"}</span>
+        {chrome ? null : (
+          <button className="btn small" type="button" disabled={busy} onClick={() => void tap()}>
+            Turn on
+          </button>
+        )}
         <button
           className="iconbtn"
           type="button"

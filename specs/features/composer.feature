@@ -211,3 +211,26 @@ Feature: Composer
       And the back button and the action buttons are circles of at least 44 px
       And the title is visible
       And the message list scrolls under the top area
+
+  Rule: The microphone note says why it is not available
+
+    # Owner (Drew, ask 119): "Chrome"
+    @v1 @browser
+    Scenario: Chrome on iPhone without a microphone API is told to use Safari
+      Given the owner's browser is Chrome on an iPhone with no microphone API
+      When the owner taps the microphone
+      Then the note says "Chrome on iPhone can't use the microphone here. Open Convoz in Safari and add it to the Home Screen from there."
+
+    # Owner (Drew, ask 119): "Chrome"
+    @v1 @browser
+    Scenario: Another browser without a microphone API says it cannot record
+      Given the owner's browser has no microphone API and is not Chrome on an iPhone
+      When the owner taps the microphone
+      Then the note says "This browser can't record audio."
+
+    # Owner (Drew, ask 119): "Chrome"
+    @v1 @browser
+    Scenario: A refused microphone says access is off
+      Given the owner's browser refuses the microphone with NotAllowedError
+      When the owner taps the microphone
+      Then the note says "Microphone access is off. Allow it in Settings for this app, then try again."

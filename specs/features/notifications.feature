@@ -181,3 +181,20 @@ Feature: Notifications
     Scenario: Push action buttons are off by default
       When "devtool" asks a question
       Then the push has no action buttons
+
+  Rule: Chrome on iPhone is told to use Safari
+
+    # Owner (Drew, ask 119): "Chrome"
+    @v1 @browser
+    Scenario: Settings tells Chrome on iPhone to use Safari
+      Given the owner's browser is Chrome on an iPhone
+      When the owner opens Settings
+      Then "This device" says "Chrome on iPhone has no notifications for web apps. Open Convoz in Safari and add it to the Home Screen from there."
+
+    # Owner (Drew, ask 119): "Chrome"
+    @v1 @browser
+    Scenario: The banner tells Chrome on iPhone to use Safari and can be dismissed
+      Given the owner's browser is Chrome on an iPhone
+      When the owner opens Conversations
+      Then the banner says "Chrome on iPhone has no notifications for web apps. Open Convoz in Safari and add it to the Home Screen from there." with no "Turn on" button
+      And dismissing the banner keeps it gone after a reload

@@ -1,20 +1,21 @@
 // The browser side of push: the permission flow, the subscription, and the reports of where the device looks.
 import { ApiError, call, client, humanError } from "../../shared/api.ts";
 import { ensureServiceWorker } from "../../sw/index.ts";
-import { needsHomeScreen, pushSupported } from "./support.ts";
+import { isChromeOnIOS, needsHomeScreen, pushSupported } from "./support.ts";
 
 const FLAG = "convoz.push";
 
-export { needsHomeScreen, onIosThirdPartyBrowser, pushSupported } from "./support.ts";
+export { CHROME_IOS_HINT, isChromeOnIOS, needsHomeScreen, onIosThirdPartyBrowser, pushSupported } from "./support.ts";
 
 /** How long the page waits for the worker before it says so. */
 export const WORKER_WAIT_MS = 10_000;
 
 /** What this device shows in Settings: push on, off, blocked in the browser, or not possible until the app is on the Home Screen. */
-export type DeviceState = "on" | "off" | "blocked" | "needs-home-screen" | "unsupported";
+export type DeviceState = "on" | "off" | "blocked" | "needs-home-screen" | "unsupported" | "chrome-ios";
 
 /** deviceState reads the state of this device; `subscribed` is whether the server lists an active subscription for it. */
 export function deviceState(subscribed: boolean): DeviceState {
+  if (isChromeOnIOS() && !pushSupported()) return "chrome-ios";
   if (needsHomeScreen()) return "needs-home-screen";
   if (!pushSupported()) return "unsupported";
   if (subscribed) return "on";

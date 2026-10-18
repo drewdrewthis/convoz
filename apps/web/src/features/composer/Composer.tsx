@@ -2,7 +2,7 @@ import type { Identity, Upload } from "@convoz/api-client";
 import { AttachIcon, MicIcon, SendIcon } from "@convoz/ui/icons";
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type RefObject } from "react";
 import { initials, paletteOf, stripCf } from "../../shared/chat.ts";
-import { loadRecorder, type VoiceRecording } from "../voice/index.ts";
+import { loadRecorder, micNote, RecorderLoadError, type VoiceRecording } from "../voice/index.ts";
 import { AttachmentList } from "./AttachmentList.tsx";
 import { pasteFiles, type Attachments } from "./attachments.ts";
 import { enterSends } from "./enterToSend.ts";
@@ -44,7 +44,7 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
   const [text, setText] = useState("");
   const [menu, setMenu] = useState<{ shown: Identity[]; active: number } | null>(null);
   const [voice, setVoice] = useState<{ Bar: Recorder["RecordingBar"]; recording: VoiceRecording } | null>(null);
-  const [micError, setMicError] = useState(false);
+  const [micError, setMicError] = useState("");
   const picker = useRef<HTMLInputElement>(null);
   const mic = useRef<HTMLButtonElement>(null);
   const files = attachments.items;
@@ -55,12 +55,12 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
   const startVoice = async () => {
     if (starting.current) return; // a second tap while the microphone prompt is open
     starting.current = true;
-    setMicError(false);
+    setMicError("");
     try {
-      const recorder = await loadRecorder(); // the recorder's code loads on the first tap
+      const recorder = await loadRecorder().catch(() => Promise.reject(new RecorderLoadError())); // the recorder's code loads on the first tap
       setVoice({ Bar: recorder.RecordingBar, recording: await recorder.startRecording(conversationId) });
-    } catch {
-      setMicError(true);
+    } catch (err) {
+      setMicError(micNote(err));
     } finally {
       starting.current = false;
     }
@@ -88,7 +88,7 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
   };
   const change = (value: string) => {
     setText(value);
-    setMicError(false);
+    setMicError("");
     if (mentions) setMenu(menuFor(value, mentions.crew));
   };
 
@@ -233,7 +233,7 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
       </form>
       {micError ? (
         <p role="alert" className="micnote">
-          The microphone is not available.
+          {micError}
         </p>
       ) : null}
     </div>

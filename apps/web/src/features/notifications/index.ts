@@ -2,3 +2,4 @@
 export { NotificationSettings } from "./NotificationSettings.tsx";
 export { useFocusReport } from "./useFocusReport.ts";
 export { PushBanner } from "./PushBanner.tsx";
+export { CHROME_IOS_HINT, isChromeOnIOS } from "./support.ts";
