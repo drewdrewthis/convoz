@@ -425,6 +425,42 @@ Feature: Conversations
       When the owner taps the pill
       Then "Fresh news" is in view and the pill is gone
 
+    # Owner (Drew, msg 159): "You can see it's difficult to tell there are new messages"
+    @v1 @browser
+    Scenario: A New messages line marks where unread began and stays while the chat is open
+      Given "devtool" posted "First news", "Second news" and "Third news" in conversation 41 while the owner was away
+      When the owner opens conversation 41
+      Then a "New messages" line shows above "First news"
+      And the line is not above "Second news" or "Third news"
+      When "devtool" posts "Fourth news" in conversation 41
+      Then the "New messages" line is still above "First news" and shows only once
+      When the owner leaves and opens conversation 41 again
+      Then no "New messages" line shows
+
+    # Owner (Drew, msg 159): "You can see it's difficult to tell there are new messages"
+    @v1 @browser
+    Scenario: Messages by one author more than 5 minutes apart are separate groups with their time
+      Given "devtool" posted "Early" and then 6 minutes later "Late" and "Later" in conversation 41
+      When the owner opens conversation 41
+      Then "Early" and "Late" each show with the author's name and time
+      And "Later" shows without its own name or time
+
+    # Owner (Drew, msg 159): "You can see it's difficult to tell there are new messages"
+    @v1 @browser
+    Scenario: A pill counts new messages while the owner reads above and jumps to the first of them
+      Given the owner scrolled up in a long conversation 41
+      When "devtool" posts "Fresh one" and "Fresh two" in conversation 41
+      Then a pill reading "↓ 2 new" shows and the page does not move
+      When the owner taps the pill
+      Then "Fresh one" is in view and the pill is gone
+
+    # Owner (Drew, msg 159): "You can see it's difficult to tell there are new messages"
+    @v1 @browser
+    Scenario: Nothing shows through the floating header
+      Given the owner has conversation 41 open and scrolled so that messages pass under the header
+      Then the title area is part of the header and not of a message behind it
+      And the title area looks the same with the messages hidden
+
     @v1 @browser @phone
     Scenario: On a phone an agent reply shows paragraphs, code and links safely
       Given the owner has conversation 41 open on a phone

@@ -48,6 +48,7 @@ Conversation:
       type: array
       description: The agents that have seen the newest message a person wrote in the main list, first seen first. The single-conversation route only.
       items: { $ref: "../openapi.yaml#/components/schemas/Seen" }
+    last_read: { type: integer, format: int64, description: The caller's read cursor in the main list when the row was built; absent when it has none. The single-conversation route only. The page keeps the value from when it opened, to mark where unread began. }
     deleted_at: { type: integer, format: int64, description: In the trash since. }
     purges_at: { type: integer, format: int64, description: When the trash removes it for good. }
 Seen:

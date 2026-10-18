@@ -17,7 +17,7 @@ import { replyingNote, usePresence, useReplying } from "../../shared/presence.ts
 import { backLabel, useBackCount } from "./backCount.ts";
 import { useConversations, type PendingSend } from "./store.ts";
 import { keyboardOpen, virtualKeyboard, type Screen } from "./keyboard.ts";
-import { ThreadBubbles, Transcript, type TranscriptControl } from "./Transcript.tsx";
+import { firstUnread, ThreadBubbles, Transcript, type TranscriptControl } from "./Transcript.tsx";
 
 const NEW = "new";
 const GONE = "This conversation does not exist, or it is not yours.";
@@ -42,6 +42,8 @@ export function Conversation() {
   const actions = useConversations.getState;
   const [agentHandle, setAgentHandle] = useState<string | null>(null);
   const [opened, setOpened] = useState(false);
+  // Where unread began when the chat opened: kept for as long as it stays open, so the divider does not follow the read position.
+  const [newFrom, setNewFrom] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [gone, setGone] = useState(false);
   const [info, setInfo] = useState(false);
@@ -137,6 +139,8 @@ export function Conversation() {
       const who = data.store.getState().rows[id]!.participants.find((p) => p.kind === "agent") ?? { handle: "agent" };
       setAgentHandle(who.handle);
       fit();
+      const held = data.store.getState();
+      setNewFrom(firstUnread(held.messages[id]?.list ?? NONE, held.rows[id]?.last_read, held.me?.identity.handle ?? ""));
       setOpened(true);
       void s.markRead(key);
     })().catch((err) => {
@@ -296,6 +300,7 @@ export function Conversation() {
             onRetry={retry}
             onDetails={setInspected}
             focus={target || undefined}
+            newFrom={newFrom}
           />
           <Composer
             agent={agent?.handle ?? null}
