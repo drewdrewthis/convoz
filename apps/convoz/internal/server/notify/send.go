@@ -210,7 +210,7 @@ func (s *Service) SendTest(ctx context.Context, device int64) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	p := Payload{V: 1, Reason: "test", Title: "Notifications are on", Body: "You'll get messages from your agents here.", URL: "/settings", Topic: s.Keys.Topic('z', device)}
+	p := Payload{V: 1, Reason: ReasonTest, Title: "Notifications are on", Body: "You'll get messages from your agents here.", URL: URLFor(ReasonTest, 0, 0), Topic: s.Keys.Topic('z', device)}
 	status, _, err := s.post(ctx, sub.Endpoint, sub.P256dh, sub.Auth, p, false, 60)
 	if err != nil {
 		s.Log.Printf("push: test send: %v", transportReason(err))
