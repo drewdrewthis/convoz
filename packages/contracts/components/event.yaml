@@ -27,6 +27,18 @@ AgentWorkingFrame:
     conversation_id: { type: integer, format: int64 }
     working: { type: boolean }
     until: { type: integer, format: int64, description: Epoch ms; the screen hides the note then. }
+    thread_root_id: { type: integer, format: int64, description: "With working true: the agent works in the thread of this top-level message; absent for the main list. A stop frame (working false) ends the agent's work in the whole conversation." }
+MessageSeenFrame:
+  description: SSE message.seen (live only, never replayed). An agent's claim covers the newest message a person wrote in a place.
+  type: object
+  required: [identity_id, handle, conversation_id, message_id, at]
+  properties:
+    identity_id: { type: integer, format: int64 }
+    handle: { type: string }
+    conversation_id: { type: integer, format: int64 }
+    message_id: { type: integer, format: int64, description: The message the agent has now seen. }
+    thread_root_id: { type: integer, format: int64, description: The message is in the thread of this top-level message; absent for the main list. }
+    at: { type: integer, format: int64, description: Epoch ms. }
 SyncEvent:
   description: One stored event, thin (ids and enums, at most 1 KB, never content).
   type: object

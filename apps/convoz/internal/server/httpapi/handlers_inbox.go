@@ -121,10 +121,12 @@ func (s *Server) claimInbox(w http.ResponseWriter, r *http.Request, c *call) {
 	writeJSON(w, http.StatusOK, wire.InboxResponse{Items: append([]wire.InboxItem{}, items...)})
 }
 
-// publishFresh tells the owner's screen that the agent started working on each conversation it just claimed.
+// publishFresh tells the owner's screen that the agent started working on each conversation it just claimed, and that it
+// has seen what the owner wrote there.
 func (s *Server) publishFresh(ctx context.Context, identity int64, fresh []inbox.Hold) {
 	for _, h := range fresh {
-		s.publishWorking(ctx, identity, h.Conversation, true, h.Until)
+		s.publishHold(ctx, identity, h)
+		s.publishSeen(ctx, identity, h)
 	}
 }
 
@@ -244,8 +246,14 @@ func (s *Server) claimOnce(ctx context.Context, c *call, req inbox.Request) (ite
 			delivered[it.ID] = true
 		}
 		for _, it := range claimed {
-			if !it.Held && delivered[it.ID] {
-				fresh = append(fresh, inbox.Hold{Conversation: it.ConversationID, Until: it.ClaimUntil})
+			if it.Held || !delivered[it.ID] {
+				continue
+			}
+			fresh = append(fresh, inbox.Hold{Conversation: it.ConversationID, Message: it.MessageID, Until: it.ClaimUntil})
+			if it.MessageID != 0 && it.ConversationID != 0 { // the claim is the agent seeing every message up to the item's newest
+				if err := inbox.MarkSeen(ctx, d, now, c.lease.IdentityID, it.ConversationID, it.MessageID); err != nil {
+					return err
+				}
 			}
 		}
 		return nil
@@ -298,7 +306,7 @@ func (s *Server) touchClaims(ctx context.Context, l auth.Lease, now time.Time) e
 		return err
 	})
 	for _, h := range extended {
-		s.publishWorking(ctx, l.IdentityID, h.Conversation, true, h.Until)
+		s.publishHold(ctx, l.IdentityID, h)
 	}
 	return err
 }

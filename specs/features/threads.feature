@@ -29,6 +29,13 @@ Feature: Threads
       Then the reply shows in the thread and in the main list
       And it counts once in any unread total
 
+    @v1 @cli
+    Scenario: Reply to a message inside a thread goes to its root
+      Given "docs" replied "Looks fine to me" in thread 900
+      When "devtool" runs "convoz reply" on that reply with "Thanks, shipping it"
+      Then the command succeeds and thread 900 shows the new reply
+      And the main list does not show it
+
   Rule: Thread replies count as unread only where the owner is involved (DA-3)
 
     @v1 @browser @I-14

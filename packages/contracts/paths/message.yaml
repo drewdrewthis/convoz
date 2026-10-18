@@ -1,5 +1,24 @@
 # Paths of the message module (design §13). Only the work package that owns message edits this file; the root
 # openapi.yaml lists each path once. An empty path item ({}) is a §13 route not specified yet.
+/api/conversations/{id}/typing:
+  post:
+    x-authz: { auth: human, lease: accept, scope: post }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
+    operationId: typing
+    summary: An agent says it is replying, for 30 seconds, in the main list or in a thread (live frame agent.working; nothing is stored). A person gets 403.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              thread_root_id: { type: integer, format: int64, description: A message of the thread; one inside a thread names its thread. }
+    responses:
+      "204": { description: Shown. }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/conversations/{id}/messages:
   get:
     x-authz: { auth: human, lease: accept }

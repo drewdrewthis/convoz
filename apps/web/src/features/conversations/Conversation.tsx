@@ -13,6 +13,7 @@ import { resume } from "./actions.ts";
 import { Details } from "./Details.tsx";
 import { MessageDetails } from "./MessageDetails.tsx";
 import { useFocusReport } from "../notifications/index.ts";
+import { replyingNote, usePresence, useReplying } from "../../shared/presence.ts";
 import { useConversations, type PendingSend } from "./store.ts";
 import { ThreadBubbles, Transcript, type TranscriptControl } from "./Transcript.tsx";
 
@@ -56,7 +57,9 @@ export function Conversation() {
   const crew = useMemo(() => (people ?? []).filter((p) => p.kind === "agent" && !p.disabled), [people]);
   const agents = (conversation?.participants ?? []).filter((p) => p.kind === "agent");
   const agent = agentHandle ? { handle: agentHandle, online: Boolean(people?.find((p) => p.handle === agentHandle)?.online) } : null;
-  const working = agent && thread?.working?.handle === agent.handle ? thread.working : null;
+  const replying = useReplying(convId, 0);
+  const anywhere = useReplying(convId);
+  const working = Boolean(agent && anywhere.includes(agent.handle));
   // An existing chat is "Conversation" until its row is in; an untitled one is "New conversation".
   const title = gone ? "Conversation not found" : !isNew && !conversation ? "Conversation" : stripCf(conversation?.title ?? "") || "New conversation";
 
@@ -155,13 +158,16 @@ export function Conversation() {
     return () => removeEventListener("pagehide", leave);
   }, [key, actions]);
 
-  // The working note: shown until a message from the agent, a stop frame, or its `until`.
+  // The replying note: shown until a message from the agent, a stop frame, or its `until` (shared/presence.ts).
+  const note = replyingNote(replying);
   useEffect(() => {
-    if (!working) return;
-    control.current?.followIfStuck();
-    const timer = setTimeout(() => actions().clearWorking(key), Math.max(0, working.until - Date.now()));
-    return () => clearTimeout(timer);
-  }, [working, key, actions]);
+    if (note) control.current?.followIfStuck();
+  }, [note]);
+
+  // Who has seen the owner's newest message is stored with the conversation: take it in when the row comes.
+  useEffect(() => {
+    if (convId) usePresence.getState().hydrate(convId, 0, conversation?.seen);
+  }, [convId, conversation?.seen]);
 
   const back = (event: MouseEvent<HTMLAnchorElement>) => {
     const sameSite = document.referrer.startsWith(location.origin + "/");
@@ -273,7 +279,7 @@ export function Conversation() {
             opened={opened}
             hint={isNew && !agent && !gone}
             conversation={convId}
-            working={working ? `@${working.handle} is working…` : null}
+            working={note}
             control={control}
             onEarlier={() => actions().loadEarlier(key)}
             onRetry={retry}

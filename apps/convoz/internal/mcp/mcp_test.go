@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-var wantTools = []string{"whoami", "brief", "inbox", "claim", "ack", "read", "search", "post", "reply", "ask", "status", "handoff", "profile", "app_validate", "app_build", "rename"}
+var wantTools = []string{"whoami", "brief", "inbox", "claim", "ack", "read", "search", "post", "reply", "ask", "status", "handoff", "profile", "app_validate", "app_build", "rename", "typing"}
 
 func TestTools_AreInTheirOrder(t *testing.T) {
 	var got []string

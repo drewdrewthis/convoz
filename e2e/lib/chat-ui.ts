@@ -2,6 +2,7 @@ import type { BrowserContext, Locator, Page } from "@playwright/test";
 import { chatWorld, convoz, startSession, type AgentSession, type World } from "./chat.ts";
 import type { ServerOptions, ServerHandle } from "./fixtures.ts";
 import { signInBrowser } from "./machines.ts";
+import { expect } from "./scenario.ts";
 
 /**
  * Helpers for the phone chat UI scenarios (tests/chat-ui.spec.ts). The page contract is the comment block at the top of that file.
@@ -71,6 +72,11 @@ export async function pushFrame(page: Page, event: string, data: unknown): Promi
   if (n === 0) throw new Error("pushFrame: the page has no open EventSource");
 }
 
+/** Wait until the page has a live stream open, so a live-only frame sent now is not missed. */
+export async function streamOpen(page: Page): Promise<void> {
+  await expect.poll(() => page.evaluate(() => ((window as any).__es ?? []).some((e: EventSource) => e.readyState === 1)), { message: "the page has an open stream" }).toBe(true);
+}
+
 /** Fire the events a phone fires when the app comes back: pageshow (persisted, bfcache), visibilitychange and online. */
 export async function appReturns(page: Page): Promise<void> {
   await page.evaluate(() => {
@@ -100,7 +106,7 @@ export const message = (page: Page, text: string | RegExp): Locator => messageLo
 export const composer = (page: Page): Locator => page.getByRole("textbox", { name: /^Message @/ });
 export const sendButton = (page: Page): Locator => page.getByRole("button", { name: "Send", exact: true });
 export const backButton = (page: Page): Locator => page.getByRole("link", { name: "Back", exact: true });
-export const workingNote = (page: Page): Locator => page.getByRole("status").filter({ hasText: "is working" });
+export const workingNote = (page: Page): Locator => page.getByRole("status").filter({ hasText: /(is|are) replying/ });
 export const newMessagePill = (page: Page): Locator => page.getByRole("button", { name: "New message ↓" });
 
 /** The agent button in the @ menu of New conversation (open it with `openMentions`). */

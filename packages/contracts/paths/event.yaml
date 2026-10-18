@@ -6,7 +6,7 @@
     operationId: stream
     summary: |
       Server-sent events: message.created, read.moved, conversation.created (ids "epoch:seq", resumable with Last-Event-ID),
-      and the live-only agent.working. Frame payloads are the StreamFrame schemas; each stored frame also carries
+      and the live-only agent.working and message.seen. Frame payloads are the StreamFrame schemas; each stored frame also carries
       `prev_seq_for_you`, the seq of the frame before it on this stream. A comment `: hb` is sent every 15 s. A stream that
       cannot keep up gets `event: reset` with `{"reason":"slow"}` and ends; the client loads /api/sync/snapshot.
     responses:

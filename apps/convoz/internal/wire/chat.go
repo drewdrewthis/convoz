@@ -56,6 +56,7 @@ type Conversation struct {
 	Pinned     *[]Message   `json:"pinned,omitempty"`
 	Paused     bool         `json:"paused,omitempty"`
 	Pending    []PendingAdd `json:"pending,omitempty"`
+	Seen       []Seen       `json:"seen,omitempty"` // agents that saw the newest message a person wrote in the main list
 	DeletedAt  *int64       `json:"deleted_at,omitempty"`
 	PurgesAt   *int64       `json:"purges_at,omitempty"`
 }
@@ -234,4 +235,18 @@ type WatchLine struct {
 func ValidClientID(s string) bool {
 	n := utf8.RuneCountInString(s)
 	return n >= 8 && n <= 64 && !strings.ContainsFunc(s, func(r rune) bool { return unicode.IsControl(r) || unicode.IsSpace(r) })
+}
+
+// Seen is one agent that has seen the newest message a person wrote in a place (the main list, or one thread): the message,
+// and when the agent's claim first covered it. The page shows "Seen by @handle" under it.
+type Seen struct {
+	Handle    string `json:"handle"`
+	MessageID int64  `json:"message_id"`
+	At        int64  `json:"at"`
+}
+
+// TypingRequest is POST /api/conversations/:id/typing: an agent says it is working on a reply, in the thread of ThreadRoot
+// (any message of the thread) or in the main list when 0.
+type TypingRequest struct {
+	ThreadRoot int64 `json:"thread_root_id,omitempty"`
 }

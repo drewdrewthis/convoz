@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"strings"
 )
 
 const countBroadcastRead = `-- name: CountBroadcastRead :one
@@ -69,6 +70,39 @@ SELECT CAST(COALESCE(MAX(id), 0) AS INTEGER) FROM messages WHERE conversation_id
 
 func (q *Queries) NewestMessageID(ctx context.Context, conversationID int64) (int64, error) {
 	row := q.db.QueryRowContext(ctx, newestMessageID, conversationID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const newestOfAuthors = `-- name: NewestOfAuthors :one
+SELECT CAST(COALESCE(MAX(id), 0) AS INTEGER) FROM messages
+WHERE conversation_id = ?1 AND kind = 'text' AND deleted_at IS NULL AND author_id IN (/*SLICE:authors*/?)
+  AND ((CAST(?3 AS INTEGER) = 0 AND in_main = 1) OR (CAST(?3 AS INTEGER) <> 0 AND (thread_root_id = CAST(?3 AS INTEGER) OR id = CAST(?3 AS INTEGER))))
+`
+
+type NewestOfAuthorsParams struct {
+	ConversationID int64
+	Authors        []sql.NullInt64
+	Root           int64
+}
+
+// The newest message the given authors wrote in one place, 0 for none: the main list (root 0) or the thread of root.
+// "Seen by" sits under it.
+func (q *Queries) NewestOfAuthors(ctx context.Context, arg NewestOfAuthorsParams) (int64, error) {
+	query := newestOfAuthors
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.ConversationID)
+	if len(arg.Authors) > 0 {
+		for _, v := range arg.Authors {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:authors*/?", strings.Repeat(",?", len(arg.Authors))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:authors*/?", "NULL", 1)
+	}
+	queryParams = append(queryParams, arg.Root)
+	row := q.db.QueryRowContext(ctx, query, queryParams...)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err

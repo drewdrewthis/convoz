@@ -88,6 +88,7 @@ paths:
   /api/conversations/{id}/read: { $ref: "paths/readstate.yaml#/~1api~1conversations~1{id}~1read" }
   # ---- message
   /api/conversations/{id}/messages: { $ref: "paths/message.yaml#/~1api~1conversations~1{id}~1messages" }
+  /api/conversations/{id}/typing: { $ref: "paths/message.yaml#/~1api~1conversations~1{id}~1typing" }
   /api/messages/{id}: { $ref: "paths/message.yaml#/~1api~1messages~1{id}" }
   /api/messages/{id}/edits: { $ref: "paths/message.yaml#/~1api~1messages~1{id}~1edits" }
   /api/messages/{id}/purge: { $ref: "paths/message.yaml#/~1api~1messages~1{id}~1purge" }
@@ -322,6 +323,8 @@ components:
     MessageCreatedFrame: { $ref: "components/event.yaml#/MessageCreatedFrame" }
     ReadMovedFrame: { $ref: "components/event.yaml#/ReadMovedFrame" }
     AgentWorkingFrame: { $ref: "components/event.yaml#/AgentWorkingFrame" }
+    MessageSeenFrame: { $ref: "components/event.yaml#/MessageSeenFrame" }
+    Seen: { $ref: "components/conversation.yaml#/Seen" }
     SyncEvent: { $ref: "components/event.yaml#/SyncEvent" }
     SyncAnswer: { $ref: "components/event.yaml#/SyncAnswer" }
     SyncDelta: { $ref: "components/event.yaml#/SyncDelta" }

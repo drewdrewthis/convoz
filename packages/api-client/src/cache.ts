@@ -165,6 +165,7 @@ export function createDataCache(source: DataSource): DataCache {
           return true;
         }
         case "agent.working":
+        case "message.seen":
           return true; // presence only: nothing cached
         case "ask.changed": {
           // The ask lives in its message: a held copy shows the new state at once. Not a new message, so the list stays.

@@ -44,5 +44,17 @@ Conversation:
           person: { $ref: "../openapi.yaml#/components/schemas/Person" }
           requested_by: { $ref: "../openapi.yaml#/components/schemas/Person" }
           at: { type: integer, format: int64 }
+    seen:
+      type: array
+      description: The agents that have seen the newest message a person wrote in the main list, first seen first. The single-conversation route only.
+      items: { $ref: "../openapi.yaml#/components/schemas/Seen" }
     deleted_at: { type: integer, format: int64, description: In the trash since. }
     purges_at: { type: integer, format: int64, description: When the trash removes it for good. }
+Seen:
+  type: object
+  description: An agent that has seen a message, because its inbox claim covers it. Stored, so it survives a reload.
+  required: [handle, message_id, at]
+  properties:
+    handle: { type: string }
+    message_id: { type: integer, format: int64, description: The message that was seen (the newest a person wrote in that place). }
+    at: { type: integer, format: int64, description: Epoch ms of the first claim that covered it. }

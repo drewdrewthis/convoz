@@ -12,6 +12,7 @@ import { answerAsk, dismissAsk, snoozeAsk, undismissAsk, unsnoozeAsk, useNow, ty
 import { parseAllow } from "../crew/index.ts";
 import { agentRequests, RequestCard } from "./requests.tsx";
 import { presetsAt } from "./presets.ts";
+import { Attention } from "./Attention.tsx";
 
 /** Now is /: what needs the owner. Open asks first (urgent, then the newest), then the adds agents wait on and the machines waiting
  *  to connect; Snoozed, Answered today and Dismissed today fold away below. With nothing waiting, "All clear". */
@@ -220,6 +221,7 @@ function untilText(at: number): string {
 function NowAsk({ ask, busy, presets, answer, dismiss, snooze }: { ask: Ask; busy: boolean; presets: { key: string; label: string }[]; answer: (ask: Ask, a: Answer) => void; dismiss: (ask: Ask) => void; snooze: (ask: Ask, preset: string) => void }) {
   const id = useId();
   return (
+    <>
     <AskCard
       ask={ask}
       where="now"
@@ -233,6 +235,8 @@ function NowAsk({ ask, busy, presets, answer, dismiss, snooze }: { ask: Ask; bus
       onUndismiss={() => undefined}
       onSnooze={(preset) => snooze(ask, preset)}
     />
+    <Attention conversation={ask.conversation_id} />
+    </>
   );
 }
 

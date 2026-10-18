@@ -208,15 +208,15 @@ func Peek(ctx context.Context, d pdb.DBTX, now time.Time, identityID, sessionID 
 	return out, nil
 }
 
-// Hold is a claim a session keeps on a conversation until Until (unix ms).
-type Hold struct{ Conversation, Until int64 }
+// Hold is a claim a session keeps on a conversation until Until (unix ms). Message is the newest message of the claimed item.
+type Hold struct{ Conversation, Message, Until int64 }
 
 // Extend lengthens the claims of a session whose lease was renewed, up to the lease's own end (M8), and returns them.
 func Extend(ctx context.Context, d pdb.DBTX, now time.Time, sessionID, leaseExpiresAt int64) ([]Hold, error) {
 	rows, err := db.New(d).ExtendClaims(ctx, db.ExtendClaimsParams{Now: now.UnixMilli(), LeaseExpiresAt: leaseExpiresAt, SessionID: nullInt(sessionID)})
 	out := make([]Hold, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, Hold{Conversation: r.ConversationID.Int64, Until: r.ClaimUntil.Int64})
+		out = append(out, Hold{Conversation: r.ConversationID.Int64, Message: r.MessageID.Int64, Until: r.ClaimUntil.Int64})
 	}
 	return out, err
 }

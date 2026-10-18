@@ -107,6 +107,12 @@ func ptr[T any](v T) *T { return &v }
 // a stop frame (working false) clears it sooner. The frame goes only to readers who may see the conversation.
 // It is a hint, so a failure to build it is dropped.
 func (s *Server) publishWorking(ctx context.Context, agentID, conversationID int64, working bool, until int64) {
+	s.publishWorkingAt(ctx, agentID, conversationID, 0, working, until)
+}
+
+// publishWorkingAt is publishWorking for work in one place: the thread of root (a top-level message), or the main list for 0.
+// A stop frame names no place: it ends the agent's work in the whole conversation.
+func (s *Server) publishWorkingAt(ctx context.Context, agentID, conversationID, root int64, working bool, until int64) {
 	who, found, err := identity.ByID(ctx, s.reader(), agentID)
 	if err != nil || !found {
 		return
@@ -114,6 +120,9 @@ func (s *Server) publishWorking(ctx context.Context, agentID, conversationID int
 	frame := map[string]any{"identity_id": who.ID, "handle": who.Handle, "conversation_id": conversationID, "working": working}
 	if working {
 		frame["until"] = until
+		if root != 0 {
+			frame["thread_root_id"] = root
+		}
 	}
 	data, _ := json.Marshal(frame)
 	s.Bus.Publish(platform.Frame{Event: "agent.working", Data: data, Conversation: conversationID})

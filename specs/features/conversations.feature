@@ -251,9 +251,40 @@ Feature: Conversations
     Scenario: On a phone a working agent shows a note until it replies
       Given "devtool" runs "convoz watch --json" and the owner has a conversation with "devtool" open on a phone
       When the owner sends "Is the build green?"
-      Then the conversation shows "@devtool is working…" within 3 seconds
+      Then the conversation shows "@devtool is replying…" within 3 seconds
       When "devtool" runs "convoz post" in that conversation with "Yes"
       Then the note is gone and the reply shows
+
+    @v1 @browser
+    Scenario: The owner sees when an agent has seen a message
+      Given "devtool" runs "convoz watch --json" and the owner has a conversation with "devtool" open
+      When the owner sends "Is the build green?"
+      Then the message shows "Seen by @devtool" within 3 seconds
+      When the owner reloads the page
+      Then the message still shows "Seen by @devtool"
+
+    @v1 @browser
+    Scenario: The owner sees an agent replying in a thread
+      Given "devtool" runs "convoz watch --json" and the owner has the thread of message 900 open
+      When the owner replies "Can step 1 ship on its own?" in the thread
+      Then the thread shows "@devtool is replying…" within 3 seconds
+      And the conversation shows no replying note
+
+    @v1 @browser
+    Scenario: Replying clears when the agent posts
+      Given the owner has a conversation with "devtool" and "docs" open
+      When "devtool" and "docs" run "convoz typing" in that conversation
+      Then the conversation shows "@devtool and @docs are replying…" within 3 seconds
+      When "devtool" runs "convoz post" in that conversation with "Yes"
+      Then the conversation shows "@docs is replying…" and the reply shows
+
+    @v1 @browser
+    Scenario: A card in Now shows who has seen and who is replying
+      Given "devtool" asked a question in a conversation and runs "convoz watch --json"
+      When the owner sends "Take your time" in that conversation
+      Then the card in Now shows "Seen by @devtool" and "@devtool is replying…" within 3 seconds
+      When "devtool" runs "convoz ack" without a reply
+      Then the card in Now still shows "Seen by @devtool" and no replying note
 
     @v1 @browser @phone
     Scenario: On a phone the working note goes away when the agent finishes without a reply

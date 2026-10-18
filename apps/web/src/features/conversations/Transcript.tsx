@@ -13,6 +13,7 @@ import { hasLink, LinkPreview } from "./messages/LinkPreview.tsx";
 import { EditedMark, MessageMenu } from "./messages/MessageMenu.tsx";
 import { NoticeRow, pausedNow } from "./messages/Notice.tsx";
 import { PendingFiles, Uploads } from "./messages/Uploads.tsx";
+import { SeenLine } from "./messages/SeenLine.tsx";
 import { ReplyLine } from "../threads/index.ts";
 
 /** A message that arrives while the log is within this many px of its bottom keeps the log at the bottom. */
@@ -307,7 +308,7 @@ const MessageRow = memo(function MessageRow({ row, threaded, me, paused, convers
     const detail = onDetails && m.author.kind === "agent" ? () => onDetails(m) : undefined;
     const replies = threaded || m.thread_root_id ? null : <ReplyLine message={m} conversation={conversation} />;
     const tag = !threaded && m.thread_root_id ? "replied to a thread" : undefined;
-    return <Article author={m.author.handle} named={withHandle(m.author)} me={me} first={row.first} stamp={clock(m.created_at)} tag={tag} onStamp={detail} body={body} extra={<>{m.kind !== "ask" && hasLink(text) ? <LinkPreview id={m.id} /> : null}{pinned ? <PinMark /> : null}{edited}{replies}</>} menu={menu} mid={m.id} marked={hl === m.id} labelledBy={m.kind === "ask" && m.ask ? label : undefined} />;
+    return <Article author={m.author.handle} named={withHandle(m.author)} me={me} first={row.first} stamp={clock(m.created_at)} tag={tag} onStamp={detail} body={body} extra={<>{m.kind !== "ask" && hasLink(text) ? <LinkPreview id={m.id} /> : null}{pinned ? <PinMark /> : null}{edited}{replies}{m.author.handle === me ? <SeenLine conversation={conversation} message={m} threaded={threaded} /> : null}</>} menu={menu} mid={m.id} marked={hl === m.id} labelledBy={m.kind === "ask" && m.ask ? label : undefined} />;
   }
   const state =
     p!.state === "failed" ? (

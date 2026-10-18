@@ -388,7 +388,7 @@ The fan-out in a post tx upserts the conversation item with `INSERT … ON CONFL
 
 **Setup.**
 - `convoz setup [--as devtool] [--scope project|user]` registers `convoz mcp` as an MCP server in Claude Code. It uses `claude mcp add` when that command is present and prints the config otherwise. **S-A spike:** confirm the current Claude Code MCP config command and file locations before writing anything; never edit an unknown settings file.
-- The MCP tools describe themselves (name, one-line purpose, JSON schema): `whoami`, `brief`, `inbox`, `claim`, `ack`, `read`, `search`, `post`, `reply`, `ask`, `status`, `handoff`, `profile`, `app_validate`, `app_build`, `rename`. `post`, `reply` and `ask` take `app` (schema `app.v1`). Tool output never contains a key or lease (I-42).
+- The MCP tools describe themselves (name, one-line purpose, JSON schema): `whoami`, `brief`, `inbox`, `claim`, `ack`, `read`, `search`, `post`, `reply`, `ask`, `status`, `handoff`, `profile`, `app_validate`, `app_build`, `rename`, `typing`. `post`, `reply` and `ask` take `app` (schema `app.v1`). Tool output never contains a key or lease (I-42).
 - The agent prompt shrinks to one line: "You're @devtool on Convoz. Run convoz brief first."
 
 ### 3.9 Later (not v1)
@@ -561,7 +561,13 @@ Every event name carries its version (`message.created.v1`): writers pass the fu
 
 Built so far, with their thin payloads: `message.created.v1` {id, kind, conversation_id}, `conversation.created.v1` {id, sig} (`sig` is a hash of the create request, so a replay of its client id with another title or other participants is a 409), `read.moved.v1` {main_id}, and the S1 events (`owner.created`, `passkey.added`, `identity.created`, `session.started`, `machine.*`, `recovery.used`, `passkey.removed`, all `.v1`). The rest of the catalogue above arrives with its slice.
 
-Live-only (not stored): typing, agent `doing`/progress, app data, and `agent.working` {identity_id, handle, conversation_id, working, until?}. The frame goes only to readers who may see the conversation. `working: true` carries `until`, the end of the agent's claim (unix ms), and is sent again when a lease renewal moves it; the client hides "working" at `until`, so a claim that ends without a post or an ack clears by itself. `working: false` is sent when the agent posts, acks or ends its session. No frame is sent when a claim merely runs out.
+Live-only (not stored): typing, agent `doing`/progress, app data, `agent.working` and `message.seen`. Each frame goes only to readers who may see the conversation.
+
+- `agent.working` {identity_id, handle, conversation_id, working, until?, thread_root_id?}. The owner's screen shows "@agent is replying…" (several agents: "@a and @b are replying…") for ANY agent of the conversation, in the place where the work is: the thread of `thread_root_id`, or the main list when it is absent. A claim sets the place from the newest message of the claimed item: a message inside a thread puts the work in that thread, any other message in the main list. `working: true` carries `until`, the end of the claim (unix ms), and is sent again when a lease renewal moves it; the client hides the note at `until`, so a claim that ends without a post or an ack clears by itself. `working: false` names no place and ends the agent's work in the whole conversation. It is sent when the agent posts, acks or ends its session. No frame is sent when a claim merely runs out.
+- `convoz typing <conv> [--thread <message>]` (MCP `typing`, `POST /api/conversations/:id/typing {thread_root_id?}`, agents only) sends `working: true` with a short `until` (30 s) for an agent that works without a claim. A message inside a thread names its thread. Nothing is stored; the agent calls again to keep the note up, and posting ends it.
+- `message.seen` {identity_id, handle, conversation_id, message_id, thread_root_id?, at}: an agent's claim now covers `message_id`, the newest message a person wrote in that place (the main list, or the thread of `thread_root_id`). The stored side is below.
+
+**Seen (stored).** `message_seen` (owner: inbox) holds one row per (agent identity, message): the newest message of the inbox item (`inbox_items.message_id`) the agent's session claimed, with the claim time. A claim covers every message up to that one, so "agent A has seen message M" is any row of A in the conversation with `message_id >= M`, and the time is the earliest such row. The row is written in the claim's transaction, the first time the item is handed out (a re-delivery or a held item keeps the first time). The conversation (`GET /api/conversations/:id`, as `seen`) and a thread (`GET /api/messages/:id/replies`, as `seen`) list, for the newest message a person wrote in the main list / in that thread, the agents that have seen it: [{handle, message_id, at}], first seen first. The owner's screen shows "Seen by @agent" (two agents: "Seen by @a and @b"; three or more: "Seen by 3") small and muted under that message, and the same line on a Now card for its conversation. A newer message of the owner starts with nobody having seen it; the stored rows survive a reload, the frame is only the live side of them.
 
 ### 5.5 Replay, gaps and resync
 
@@ -1110,6 +1116,16 @@ CREATE TABLE inbox_items (                                -- I-43 (§3.8)
 CREATE INDEX inbox_identity ON inbox_items(identity_id, state, id);              -- FK; the claim query
 CREATE UNIQUE INDEX inbox_coalesce ON inbox_items(identity_id, conversation_id)
   WHERE state = 'ready' AND reason IN ('mention','thread','activity');          -- one ready conversation item (C-10, M4)
+
+-- owner: inbox. Which agent has seen which message: the claim of the item that covers it (§5.4).
+CREATE TABLE message_seen (
+  identity_id     INTEGER NOT NULL REFERENCES agents(identity_id) ON DELETE CASCADE,
+  message_id      INTEGER NOT NULL,               -- the newest message of the claimed item
+  conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  seen_at         INTEGER NOT NULL,
+  PRIMARY KEY (identity_id, message_id)
+) STRICT, WITHOUT ROWID;
+CREATE INDEX message_seen_conversation ON message_seen(conversation_id, message_id);
 CREATE INDEX inbox_conv ON inbox_items(conversation_id);
 CREATE INDEX inbox_claim_session ON inbox_items(claim_session_id) WHERE claim_session_id IS NOT NULL;
 CREATE INDEX inbox_acked_session ON inbox_items(acked_by_session) WHERE acked_by_session IS NOT NULL;
@@ -1614,6 +1630,7 @@ All JSON (brotli/gzip). Errors `{error:{code,message}}`. Auth: **H** human cooki
 | `POST …/resume` | H | | I-16 |
 | `POST …/read` | H/L | {main_id?, root_id+reply_id?, all?} | I-15 |
 | `GET …/messages?before=&after=&limit=` · `GET /api/messages/:id/replies` | H/L | compact pages + `as_of_seq` | I-6 I-7 |
+| `POST /api/conversations/:id/typing` | L | {thread_root_id?} → 204; live `agent.working` for 30 s, nothing stored (a person gets 403) | — |
 | `POST /api/conversations/:id/messages` | H/L `post` | {client_id, body, format, thread_root_id?, broadcast?, upload_ids?, app? (L only), via_app?:{message_id, result} (H only)} | I-8 I-9 I-16 I-18 I-24 I-31 I-46 I-50 |
 | `POST /api/apps/validate` | H/L | {app} → 200 {bytes} \| 400 app_* | I-50 |
 | `GET /api/messages/:id/app` | H/L | full `app_json` when the page held a stub | I-6 |
@@ -1675,9 +1692,10 @@ One binary `convoz` (alias `cvz`). Credentials: `~/.config/convoz/credentials` (
 | `convoz search "<q>" [--in conv] [--from @x] [--limit N]` | search (canSee, newest first) | `search` |
 | `convoz post <conv> [--format …] [--file path…] [--app file [--app-data file] [--app-fallback T] [--app-title T]] <text\|->` | post to main | `post` |
 | `convoz app init <dir>` · `convoz app build <dir>` · `convoz app validate <file>` | scaffold · bundle a Tier-2 app · validate | `app_build`, `app_validate` |
-| `convoz reply <message> [--broadcast] [--app file …] <text\|->` | thread reply | `reply` |
+| `convoz reply <message> [--broadcast] [--app file …] <text\|->` | thread reply; `<message>` may be the root or any message inside the thread (the reply goes to the root) | `reply` |
 | `convoz ask <conv> --question Q --recommend L --why W --alt L --alt-why W [--alt …] [--urgent] [--thread root]` · `convoz ask withdraw <id>` | ask (question, recommendation with why, ≥1 alternative with why: all required) · withdraw | `ask` |
 | `convoz status --state S [--doing D] [--next N]` | status | `status` |
+| `convoz typing <conv> [--thread <message>]` | show the owner "@you is replying…" for 30 s, in the conversation or in a thread (§5.4) | `typing` |
 | `convoz handoff "<note>"` · `convoz handoff --list` | store (≤4096 bytes) / list notes | `handoff` |
 | `convoz add <conv> @agent` · `convoz leave <conv>` | request an add (pending) · leave | — |
 | `convoz rename <conv> <title\|->` | give a conversation you are in a new title (`-` reads it from stdin); exit 4 when a person chose the title, 5 after 3 renames an hour | `post` (MCP `rename {conversation, title}`) |

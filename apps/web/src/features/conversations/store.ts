@@ -1,5 +1,5 @@
-// The conversations feature's UI state: for each open conversation page, the sends not yet confirmed, the agent at work
-// and the read cursor the server took. Server data (rows, messages, identities) is in the shared cache (shared/data.ts).
+// The conversations feature's UI state: for each open conversation page, the sends not yet confirmed
+// and the read cursor the server took (who is replying and who has seen is in shared/presence.ts). Server data (rows, messages, identities) is in the shared cache (shared/data.ts).
 import type { Message, Upload } from "@convoz/api-client";
 import { coalesce, maxId } from "@convoz/api-client";
 import { create } from "zustand";
@@ -7,8 +7,6 @@ import { ApiError } from "../../shared/api.ts";
 import { newId } from "../../shared/chat.ts";
 import { data, outbox, source, sync } from "../../shared/data.ts";
 
-/** How long a working note stays without an `until` from the server. */
-const WORKING_DEFAULT_MS = 300_000;
 /** A send waiting for the link looks again this often even if no `online` event comes. */
 const OFFLINE_RECHECK_MS = 10_000;
 
@@ -24,17 +22,10 @@ export interface PendingSend {
   files?: Upload[];
 }
 
-/** An agent at work in a conversation, until a message from it, a stop frame, or `until` (epoch ms). */
-export interface Working {
-  handle: string;
-  until: number;
-}
-
 /** One conversation page. A new conversation has convId 0 until its first send makes it. */
 export interface Thread {
   convId: number;
   pending: PendingSend[];
-  working: Working | null;
   /** The newest id the server confirmed as read. */
   readOk: number;
   /** For a new conversation: the agent it is made with, and the client id that makes it (a retry reuses it). */
@@ -49,7 +40,7 @@ export interface ConversationsState {
   startThread(key: string, handle: string): void;
   loadEarlier(key: string): Promise<void>;
   catchUp(key: string): Promise<void>;
-  /** A new server message: the owner's own copy replaces its pending send; one from the working agent ends the note. */
+  /** A new server message: the owner's own copy replaces its pending send; */
   received(convId: number, m: Message): void;
   /** Send a message; `files` are finished uploads (the body may then be empty). */
   send(key: string, body: string, files?: Upload[]): void;
@@ -59,11 +50,9 @@ export interface ConversationsState {
   drainOutbox(): Promise<void>;
   /** Send the read cursor with keepalive, for a page that is going away. */
   flushRead(key: string): void;
-  setWorking(convId: number, handle: string, working: boolean, until?: number): void;
-  clearWorking(key: string): void;
 }
 
-const emptyThread = (convId: number): Thread => ({ convId, pending: [], working: null, readOk: 0 });
+const emptyThread = (convId: number): Thread => ({ convId, pending: [], readOk: 0 });
 const newest = (convId: number) => maxId(data.store.getState().messages[convId]);
 
 export const useConversations = create<ConversationsState>()((set, get) => {
@@ -172,7 +161,7 @@ export const useConversations = create<ConversationsState>()((set, get) => {
             const at = t.pending.findIndex((p) => p.body === m.body && m.id > p.base);
             return at >= 0 ? { pending: t.pending.filter((_, i) => i !== at) } : {};
           }
-          return t.working && m.author.handle === t.working.handle ? { working: null } : {};
+          return {};
         });
         void get().markRead(key);
       }
@@ -218,14 +207,5 @@ export const useConversations = create<ConversationsState>()((set, get) => {
       const top = newest(t.convId);
       if (top > t.readOk) void source.markRead(t.convId, top, true);
     },
-    setWorking: (convId, handle, on, until) => {
-      for (const key of keysOf(convId)) {
-        patch(key, (t) => {
-          if (on) return { working: { handle, until: until || Date.now() + WORKING_DEFAULT_MS } };
-          return t.working?.handle === handle ? { working: null } : {};
-        });
-      }
-    },
-    clearWorking: (key) => patch(key, () => ({ working: null })),
   };
 });

@@ -22,6 +22,8 @@ export type ApiErrorBody = S["Error"];
 export type MessageCreatedFrame = S["MessageCreatedFrame"];
 export type ReadMovedFrame = S["ReadMovedFrame"];
 export type AgentWorkingFrame = S["AgentWorkingFrame"];
+export type MessageSeenFrame = S["MessageSeenFrame"];
+export type Seen = S["Seen"];
 export type PrefsRequest = S["PrefsRequest"];
 export type PrefsResponse = S["PrefsResponse"];
 export type RailRank = S["RailRank"];
@@ -67,6 +69,8 @@ export interface StreamFrames {
   "read.moved": ReadMovedFrame;
   "conversation.created": Conversation;
   "agent.working": AgentWorkingFrame;
+  /** An agent's claim now covers the newest message a person wrote in a place: live only, the stored rows are on the conversation. */
+  "message.seen": MessageSeenFrame;
   /** An ask changed (asked, answered, dismissed, snoozed, woke): the ask as this reader sees it now. */
   "ask.changed": Ask;
   /** A voice note got its words: the message as it reads now. */
@@ -89,6 +93,7 @@ export const FRAME_NAMES = [
   "read.moved",
   "conversation.created",
   "agent.working",
+  "message.seen",
   "ask.changed",
   "upload.transcribed",
   "prefs.changed",

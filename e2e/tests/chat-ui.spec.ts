@@ -1,4 +1,5 @@
-import { agentPosts, appReturns, agentChoice, chooseAgent, openMentions, backButton, chatList, chatRow, chatsHeading, composer, nowHeading, dropStreams, fromBottom, hasBubble, isBold, mainNav, message, messageLog, newChat, newMessagePill, pushFrame, rowTitles, sendButton, smallChatTargets, uiWorld, unreadDot, workingNote } from "../lib/chat-ui.ts";
+import { agentPosts, appReturns, agentChoice, chooseAgent, openMentions, backButton, chatList, chatRow, chatsHeading, composer, nowHeading, dropStreams, fromBottom, hasBubble, isBold, mainNav, message, messageLog, newChat, newMessagePill, pushFrame, rowTitles, sendButton, smallChatTargets, streamOpen, uiWorld, unreadDot, workingNote } from "../lib/chat-ui.ts";
+import { agentAsks, askCard, openNow } from "../lib/asks.ts";
 import { convoz, createConversation, listConversations, messagesOf, ownerSays, startWatch, unreadOf, watchLines, chatWorld } from "../lib/chat.ts";
 import { loadRenderMarkdown } from "../lib/chat-markdown.ts";
 import { backgroundLuminance, box, overflowX } from "../lib/mobile.ts";
@@ -52,7 +53,7 @@ import { webauthn } from "../lib/webauthn-browser.ts";
  *   Opening scrolls the log to its bottom (the latest message is in view). A message that arrives while the log is within 80 px of the
  *   bottom keeps it at the bottom. A message that arrives while it is further up does not move the log and shows button "New message ↓"
  *   (above the composer); tapping it scrolls to the bottom and removes it; scrolling to the bottom by hand removes it too.
- *   Working note: role=status with text "@<handle> is working…" shown from the live frame agent.working (working:true, handle,
+ *   Replying note: role=status with text "@<handle> is replying…" ("@a and @b are replying…" for several) shown from the live frame agent.working (working:true, handle,
  *   conversation_id) until a message from that agent arrives in the chat, a frame with working:false, or `until` (optional, epoch ms in
  *   the frame; the page hides the note at that time even if no frame follows; plan DA amendment 4 plus this addition).
  *   Composer: form "Composer", pinned to the bottom of the visible screen: its bottom edge touches the bottom of the layout viewport
@@ -299,8 +300,8 @@ scenario("On a phone a working agent shows a note until it replies", { tag: ["@b
     await composer(page).fill(FIRST);
     await sendButton(page).click();
 
-    // Then the chat shows "@devtool is working…" within 3 seconds
-    await expect(workingNote(page)).toHaveText("@devtool is working…", { timeout: 3_000 });
+    // Then the chat shows "@devtool is replying…" within 3 seconds
+    await expect(workingNote(page)).toHaveText("@devtool is replying…", { timeout: 3_000 });
 
     // When "devtool" runs "convoz post" in that chat with "Yes"
     await agentPosts(u, "devtool", conv, "Yes");
@@ -308,6 +309,89 @@ scenario("On a phone a working agent shows a note until it replies", { tag: ["@b
     // Then the note is gone and the reply shows
     await expect(message(page, "Yes")).toBeVisible({ timeout: 3_000 });
     await expect(workingNote(page)).toHaveCount(0);
+  } finally {
+    watch.stop();
+  }
+});
+
+scenario("The owner sees when an agent has seen a message", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given "devtool" runs "convoz watch --json" and the owner has a conversation with "devtool" open
+  const u = await uiWorld({ server, page, context });
+  const conv = await createConversation(u.w.owner, { participants: ["devtool"], title: "Ship search filters" });
+  const watch = startWatch(u.w.box, u.sessions.devtool!.sid);
+  try {
+    await page.goto(`${u.w.srv.origin}/chats/${conv}`);
+    await expect(composer(page)).toBeVisible();
+
+    // When the owner sends "Is the build green?"
+    await composer(page).fill(FIRST);
+    await sendButton(page).click();
+    await watchLines(watch, 1, 3_000);
+
+    // Then the message shows "Seen by @devtool" within 3 seconds
+    await expect(message(page, FIRST).getByText("Seen by @devtool")).toBeVisible({ timeout: 3_000 });
+
+    // When the owner reloads the page
+    await page.reload();
+
+    // Then the message still shows "Seen by @devtool"
+    await expect(message(page, FIRST).getByText("Seen by @devtool")).toBeVisible();
+  } finally {
+    watch.stop();
+  }
+});
+
+scenario("Replying clears when the agent posts", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given the owner has a conversation with "devtool" and "docs" open
+  const u = await uiWorld({ server, page, context }, { live: ["devtool", "docs"] });
+  const conv = await createConversation(u.w.owner, { participants: ["devtool", "docs"], title: "Ship search filters" });
+  await page.goto(`${u.w.srv.origin}/chats/${conv}`);
+  await expect(messageLog(page)).toBeVisible();
+
+  // When "devtool" and "docs" run "convoz typing" in that conversation
+  for (const handle of ["devtool", "docs"]) {
+    const typing = await convoz(u.w.box, u.sessions[handle]!.sid, ["typing", String(conv)]);
+    expect(typing.code, typing.stderr).toBe(0);
+  }
+
+  // Then the conversation shows "@devtool and @docs are replying…" within 3 seconds
+  await expect(workingNote(page)).toHaveText("@devtool and @docs are replying…", { timeout: 3_000 });
+
+  // When "devtool" runs "convoz post" in that conversation with "Yes"
+  await agentPosts(u, "devtool", conv, "Yes");
+
+  // Then the conversation shows "@docs is replying…" and the reply shows
+  await expect(message(page, "Yes")).toBeVisible({ timeout: 3_000 });
+  await expect(workingNote(page)).toHaveText("@docs is replying…");
+});
+
+scenario("A card in Now shows who has seen and who is replying", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given "devtool" asked a question in a conversation and runs "convoz watch --json"
+  const u = await uiWorld({ server, page, context });
+  const conv = await createConversation(u.w.owner, { participants: ["devtool"], title: "Ship search filters" });
+  await agentAsks(u.w.srv, u.sessions.devtool!.lease, conv);
+  const watch = startWatch(u.w.box, u.sessions.devtool!.sid);
+  try {
+    await openNow(page, u.w.srv);
+    await expect(askCard(page)).toBeVisible();
+    await streamOpen(page);
+
+    // When the owner sends "Take your time" in that conversation
+    await ownerSays(u.w.owner, conv, "Take your time");
+    const [line] = await watchLines(watch, 1, 3_000);
+
+    // Then the card in Now shows "Seen by @devtool" and "@devtool is replying…" within 3 seconds
+    const seen = page.getByText("Seen by @devtool");
+    await expect(seen).toBeVisible({ timeout: 3_000 });
+    await expect(workingNote(page)).toHaveText("@devtool is replying…");
+
+    // When "devtool" runs "convoz ack" without a reply
+    const ack = await convoz(u.w.box, u.sessions.devtool!.sid, ["ack", `${line!.item_id}:${line!.claim_token}`]);
+    expect(ack.code).toBe(0);
+
+    // Then the card in Now still shows "Seen by @devtool" and no replying note
+    await expect(workingNote(page)).toHaveCount(0, { timeout: 3_000 });
+    await expect(seen).toBeVisible();
   } finally {
     watch.stop();
   }
@@ -343,7 +427,7 @@ scenario("On a phone the working note goes away when its time runs out", { tag: 
   await page.goto(`${u.w.srv.origin}/chats/${conv}`);
   await expect(composer(page)).toBeVisible();
   await pushFrame(page, "agent.working", { identity_id: 1, handle: "devtool", conversation_id: conv, working: true, until: Date.now() + 2_000 });
-  await expect(workingNote(page)).toHaveText("@devtool is working…");
+  await expect(workingNote(page)).toHaveText("@devtool is replying…");
 
   // When 2 seconds pass with no reply
   // Then the chat shows no working note

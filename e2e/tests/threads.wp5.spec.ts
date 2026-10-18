@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { agentSays, convoz, createConversation, ownerSays } from "../lib/chat.ts";
+import { agentSays, convoz, createConversation, ownerSays, startWatch, watchLines } from "../lib/chat.ts";
 import { backButton, message, messageLog, unreadDot } from "../lib/chat-ui.ts";
 import { send } from "../lib/http.ts";
 import { agentDeletes, agentPostWith, ownerPostWith } from "../lib/messages-wp4.ts";
@@ -35,7 +35,7 @@ import { seedDb } from "../lib/wp3.ts";
  * ROUTES
  *   GET /api/messages/:id/replies?after=&limit=  the thread of one top-level message, found from the message (no conversation id):
  *        {conversation_id, root, messages, as_of_seq}, oldest first; `root` is a stub (body "earlier message not shown") for a reader
- *        who joined after it. 404 for a message the caller cannot see, 400 for a reply or a system line.
+ *        who joined after it. 404 for a message the caller cannot see, 400 for a system line; a message inside a thread names its thread (the root comes back).
  *   POST /api/conversations/:id/read  {main_id?, root_id+reply_id?, all?}: root_id with reply_id moves the reader's position in one
  *        thread (never past its newest reply; only a thread the reader is in has a position, I-14); all also clears every thread.
  *   convoz reply [--broadcast] <message> <text|->  posts {thread_root_id[, broadcast]} to the conversation of the message.
@@ -291,6 +291,46 @@ scenario("Messages that never count as unread", { tag: ["@browser", "@I-14"] }, 
 });
 
 // ---- Contracts ------------------------------------------------------------------------------------------------
+
+scenario("The owner sees an agent replying in a thread", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given "devtool" runs "convoz watch --json" and the owner has the thread of message 900 open
+  const t = await threadWorld({ server, page, context }, { browser: true });
+  const watch = startWatch(t.w.box, t.devSid);
+  try {
+    await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
+    await expect(message(page, ROOT_TEXT)).toBeVisible();
+    await openThread(page, ROOT_TEXT);
+
+    // When the owner replies "Can step 1 ship on its own?" in the thread
+    await replyInThread(page, "Can step 1 ship on its own?");
+    await watchLines(watch, 1, 3_000);
+
+    // Then the thread shows "@devtool is replying…" within 3 seconds
+    await expect(threadPane(page).getByRole("status").filter({ hasText: "@devtool is replying…" })).toBeVisible({ timeout: 3_000 });
+
+    // And the conversation shows no replying note
+    await expect(page.getByRole("log", { name: "Messages", exact: true }).getByRole("status").filter({ hasText: "replying" })).toHaveCount(0);
+  } finally {
+    watch.stop();
+  }
+});
+
+scenario("Reply to a message inside a thread goes to its root", { tag: ["@cli"] }, async ({ server }) => {
+  // Given "docs" replied "Looks fine to me" in thread 900
+  const t = await threadWorld({ server });
+  const inside = await agentReplies(t, t.docs, "Looks fine to me");
+
+  // When "devtool" runs "convoz reply" on that reply with "Thanks, shipping it"
+  const res = await convoz(t.w.box, t.devSid, ["reply", String(inside), "Thanks, shipping it"]);
+
+  // Then the command succeeds and thread 900 shows the new reply
+  expect(res.code, res.stderr).toBe(0);
+  expect(res.stdout).toMatch(/^\d+\n$/);
+  expect((await threadOf(t.w.owner, t.root)).messages.map((m) => m.body)).toEqual(["Looks fine to me", "Thanks, shipping it"]);
+
+  // And the main list does not show it
+  expect((await mainList(t.w.owner, t.conv)).map((m) => m.body)).toEqual([ROOT_TEXT]);
+});
 
 scenario("An agent answers inside the thread", { tag: ["@cli"] }, async ({ server }) => {
   // Background
