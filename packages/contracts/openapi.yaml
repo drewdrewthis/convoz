@@ -49,6 +49,9 @@ paths:
   /api/machines/requests: { $ref: "paths/auth.yaml#/~1api~1machines~1requests" }
   /api/machines/requests/{id}/approve: { $ref: "paths/auth.yaml#/~1api~1machines~1requests~1{id}~1approve" }
   /api/machines/requests/{id}/deny: { $ref: "paths/auth.yaml#/~1api~1machines~1requests~1{id}~1deny" }
+  /api/identity-requests/{ref}/approve: { $ref: "paths/auth.yaml#/~1api~1identity-requests~1{ref}~1approve" }
+  /api/identity-requests/{ref}/deny: { $ref: "paths/auth.yaml#/~1api~1identity-requests~1{ref}~1deny" }
+  /api/identity-requests/{ref}/avatar.svg: { $ref: "paths/auth.yaml#/~1api~1identity-requests~1{ref}~1avatar.svg" }
   /api/machines/requests/deny-all: { $ref: "paths/auth.yaml#/~1api~1machines~1requests~1deny-all" }
   /api/machines/{id}: { $ref: "paths/auth.yaml#/~1api~1machines~1{id}" }
   /api/machines/{id}/reveal: { $ref: "paths/auth.yaml#/~1api~1machines~1{id}~1reveal" }
@@ -279,6 +282,8 @@ components:
     Passkey: { $ref: "components/auth.yaml#/Passkey" }
     HostInfo: { $ref: "components/auth.yaml#/HostInfo" }
     MachineRequest: { $ref: "components/auth.yaml#/MachineRequest" }
+    AgentIntro: { $ref: "components/auth.yaml#/AgentIntro" }
+    IdentityRequest: { $ref: "components/auth.yaml#/IdentityRequest" }
     Allow: { $ref: "components/auth.yaml#/Allow" }
     Machine: { $ref: "components/auth.yaml#/Machine" }
     Session: { $ref: "components/auth.yaml#/Session" }

@@ -369,12 +369,19 @@ func (s *Server) nowScreen(w http.ResponseWriter, r *http.Request, c *call) {
 	if err == nil {
 		machines, err = auth.PendingRequests(ctx, d, now)
 	}
+	var intros map[int64]introJSON
+	if err == nil {
+		intros, err = s.loginIntros(ctx, d, now)
+	}
+	if err == nil {
+		out.IdentityRequests, err = s.identityRequestViews(ctx, d, now)
+	}
 	if err != nil {
 		s.internalError(w, r, err)
 		return
 	}
 	out.Badge = len(out.Asks)
-	out.MachineRequests = requestsJSON(machines)
+	out.MachineRequests = requestsJSON(machines, intros)
 	writeJSON(w, http.StatusOK, out)
 }
 
@@ -389,6 +396,8 @@ type nowView struct {
 	DismissedToday  []wire.AskView       `json:"dismissed_today"`
 	PendingAdds     []wire.NowPendingAdd `json:"pending_adds"`
 	MachineRequests []requestJSON        `json:"machine_requests"`
+	// IdentityRequests are the identities that agents on logged-in machines ask to be made.
+	IdentityRequests []identityRequestJSON `json:"identity_requests"`
 }
 
 // liveAskViews is askViews without the asks of a conversation that is in the trash or gone.

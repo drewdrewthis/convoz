@@ -157,11 +157,20 @@ Feature: Now
 
   Rule: Machine requests are approved from Now
 
+    # Owner said: "Approvals just go into the feed, right?" One tap, no passkey, no sheet.
     @v1 @browser @I-36
-    Scenario: A machine request deep link opens its card
+    Scenario: Now shows an agent's connect request as one card with Approve and Decline
+      Given an agent asked to connect as "dev-ci" from the machine "box-2" with the description "Runs CI"
+      When the owner opens Now
+      Then one card reads "box-2 wants to connect as @dev-ci" with "Runs CI" under "From the agent"
+      And the card has Approve and Decline
+      And Deny all removes it
+
+    @v1 @browser @I-36
+    Scenario: A machine request deep link brings its card into view
       Given a machine request "box-9" with request id 9 is pending
       When the owner opens "/now/machine/9"
-      Then the approve sheet of "box-9" shows its code, the reported host info, the source and the age
+      Then the card of "box-9" is in view with its code, the reported host info and the source, and Approve and Decline
 
     @v1 @browser @I-36
     Scenario: An expired machine request leaves Now

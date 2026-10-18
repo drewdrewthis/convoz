@@ -18,7 +18,7 @@ import {
   type AskView,
 } from "../lib/asks.ts";
 import { send } from "../lib/http.ts";
-import { bearer, lease as mintLease, plainDb, stepped } from "../lib/machines.ts";
+import { bearer, revokeAgentKey, lease as mintLease, plainDb } from "../lib/machines.ts";
 import { must } from "../lib/owner.ts";
 import { expect, scenario } from "../lib/scenario.ts";
 import { agentDeletes, agentEdits, ownerDeletes, pageOf } from "../lib/messages-wp4.ts";
@@ -137,7 +137,7 @@ scenario("Disabling the asker closes its asks everywhere", { tag: ["@api"] }, as
 
   // When the owner disables "devtool" with a passkey
   const ids = await idsOf(w.owner);
-  must(await stepped(w.owner, "POST", `/api/identities/${ids.devtool}/disable`, {}, "identity.disable", ids.devtool), "disable devtool");
+  must(await revokeAgentKey(w.owner, ids.devtool), "disable devtool");
 
   // Then both asks are "closed (agent_revoked)"
   expect([await expectState(w.owner, a), await expectState(w.owner, b)]).toEqual(["closed (agent_revoked)", "closed (agent_revoked)"]);

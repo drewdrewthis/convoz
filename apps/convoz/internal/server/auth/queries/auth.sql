@@ -146,6 +146,76 @@ WHERE id = sqlc.arg(id) AND state = 'pending' AND expires_at > sqlc.arg(decided_
 -- name: MarkRequestDelivered :exec
 UPDATE machine_requests SET state = 'delivered' WHERE machine_id = sqlc.arg(machine_id) AND state = 'approved';
 
+-- ===== identity requests (an agent asks to be made, owner decides) =====
+
+-- name: InsertIdentityRequest :one
+INSERT INTO identity_requests (ref, kind, machine_request_id, machine_id, handle, display_name, description, avatar_svg, conversation_id, created_at, expires_at)
+VALUES (sqlc.arg(ref), sqlc.arg(kind), sqlc.narg(machine_request_id), sqlc.narg(machine_id), sqlc.arg(handle), sqlc.narg(display_name), sqlc.arg(description), sqlc.narg(avatar_svg), sqlc.narg(conversation_id), sqlc.arg(created_at), sqlc.arg(expires_at))
+RETURNING id;
+
+-- name: GetIdentityRequestByRef :one
+SELECT r.id, r.ref, r.kind, r.machine_request_id, r.machine_id, r.handle, r.display_name, r.description, CAST(r.avatar_svg IS NOT NULL AS INTEGER) AS has_avatar,
+  r.conversation_id, r.state, r.created_at, r.expires_at, r.identity_id,
+  CAST(COALESCE(m.name, q.requested_name) AS TEXT) AS machine_name
+FROM identity_requests r
+LEFT JOIN machines m ON m.id = r.machine_id
+LEFT JOIN machine_requests q ON q.id = r.machine_request_id
+WHERE r.ref = sqlc.arg(ref);
+
+-- name: GetIdentityRequestOfLogin :one
+SELECT r.id, r.ref, r.kind, r.machine_request_id, r.machine_id, r.handle, r.display_name, r.description, CAST(r.avatar_svg IS NOT NULL AS INTEGER) AS has_avatar,
+  r.conversation_id, r.state, r.created_at, r.expires_at, r.identity_id,
+  CAST(q.requested_name AS TEXT) AS machine_name
+FROM identity_requests r JOIN machine_requests q ON q.id = r.machine_request_id
+WHERE r.machine_request_id = sqlc.arg(machine_request_id);
+
+-- name: GetIdentityRequestByID :one
+SELECT id, ref, handle, display_name, description, conversation_id FROM identity_requests WHERE id = sqlc.arg(id);
+
+-- name: GetIdentityRequestAvatar :one
+SELECT avatar_svg FROM identity_requests WHERE ref = sqlc.arg(ref) AND avatar_svg IS NOT NULL;
+
+-- name: ListPendingSessionIdentityRequests :many
+SELECT r.id, r.ref, r.kind, r.machine_request_id, r.machine_id, r.handle, r.display_name, r.description, CAST(r.avatar_svg IS NOT NULL AS INTEGER) AS has_avatar,
+  r.conversation_id, r.state, r.created_at, r.expires_at, r.identity_id,
+  CAST(m.name AS TEXT) AS machine_name
+FROM identity_requests r JOIN machines m ON m.id = r.machine_id
+WHERE r.kind = 'session' AND r.state = 'pending' AND r.expires_at > sqlc.arg(now) AND m.revoked_at IS NULL
+ORDER BY r.created_at, r.id;
+
+-- name: ListPendingLoginIdentityRequests :many
+SELECT r.id, r.ref, r.kind, r.machine_request_id, r.machine_id, r.handle, r.display_name, r.description, CAST(r.avatar_svg IS NOT NULL AS INTEGER) AS has_avatar,
+  r.conversation_id, r.state, r.created_at, r.expires_at, r.identity_id,
+  CAST(q.requested_name AS TEXT) AS machine_name
+FROM identity_requests r JOIN machine_requests q ON q.id = r.machine_request_id
+WHERE r.kind = 'login' AND q.state = 'pending' AND q.expires_at > sqlc.arg(now);
+
+-- name: CountIdentityRequestsOfMachineSince :one
+SELECT COUNT(*) AS n, CAST(COALESCE(MIN(created_at), 0) AS INTEGER) AS oldest
+FROM identity_requests WHERE machine_id = sqlc.arg(machine_id) AND created_at > sqlc.arg(since);
+
+-- name: FindPendingIdentityRequestOfMachine :one
+SELECT ref, expires_at FROM identity_requests
+WHERE machine_id = sqlc.arg(machine_id) AND handle = sqlc.arg(handle) AND state = 'pending' AND expires_at > sqlc.arg(now)
+ORDER BY id DESC LIMIT 1;
+
+-- name: ApproveIdentityRequest :execrows
+UPDATE identity_requests SET state = 'approved', decided_by = sqlc.arg(decided_by), decided_at = sqlc.arg(decided_at), identity_id = sqlc.arg(identity_id)
+WHERE id = sqlc.arg(id) AND state = 'pending';
+
+-- name: DenyIdentityRequest :execrows
+UPDATE identity_requests SET state = 'denied', decided_by = sqlc.arg(decided_by), decided_at = sqlc.arg(decided_at)
+WHERE ref = sqlc.arg(ref) AND kind = 'session' AND state = 'pending' AND expires_at > sqlc.arg(decided_at);
+
+-- name: DenyAllSessionIdentityRequests :execrows
+UPDATE identity_requests SET state = 'denied', decided_by = sqlc.arg(decided_by), decided_at = sqlc.arg(decided_at)
+WHERE kind = 'session' AND state = 'pending' AND expires_at > sqlc.arg(decided_at);
+
+-- name: DenyLoginIdentityRequests :exec
+UPDATE identity_requests SET state = 'denied', decided_by = sqlc.arg(decided_by), decided_at = sqlc.arg(decided_at)
+WHERE kind = 'login' AND state = 'pending'
+  AND machine_request_id IN (SELECT id FROM machine_requests WHERE state = 'denied' AND decided_at = sqlc.arg(decided_at));
+
 -- ===== machines =====
 
 -- name: InsertMachine :one

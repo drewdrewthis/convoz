@@ -46,8 +46,20 @@ func Login(args []string, io IO) int {
 	name := fs.String("name", defaultMachineName(), "the name of this machine")
 	stdin := fs.Bool("stdin", false, "store the key given on standard input instead of asking the owner")
 	store := fs.String("store", storeAuto, "where the key lives: file, keychain or auto")
+	as := fs.String("as", "", "the handle of the agent that asks to connect; the owner's one Approve makes the machine and this agent")
+	more := addIntroFlags(fs)
 	if !parseNoArgs(fs, args, io) {
 		return ExitUsage
+	}
+	var intro *wire.IdentityIntro
+	switch {
+	case *as != "":
+		var err error
+		if intro, err = more.intro(*as, ""); err != nil {
+			return usageError(io, err.Error())
+		}
+	case more.given():
+		return usageError(io, "--description, --avatar and --conversation need --as")
 	}
 	if !nameRE.MatchString(*name) {
 		return usageError(io, "--name needs 1 to 60 characters from a-z, 0-9, . and -")
@@ -71,7 +83,7 @@ func Login(args []string, io IO) int {
 		}
 		return finishLogin(io, dir, kc, Credentials{Server: base, Machine: *name, Key: key}, *store)
 	}
-	return deviceFlow(io, dir, kc, newClient(base), base, *name, *store)
+	return deviceFlow(io, dir, kc, newClient(base), base, *name, *store, intro)
 }
 
 func usageError(io IO, msg string) int {
@@ -133,16 +145,20 @@ func finishLogin(io IO, dir string, kc keychain, c Credentials, store string) in
 	return ExitOK
 }
 
-func deviceFlow(io IO, dir string, kc keychain, c *client, base, name, store string) int {
+func deviceFlow(io IO, dir string, kc keychain, c *client, base, name, store string, intro *wire.IdentityIntro) int {
 	host, _ := os.Hostname()
 	var code wire.DeviceCodeResponse
 	err := c.call(context.Background(), "POST", wire.RouteDeviceCode, "", wire.DeviceCodeRequest{
-		Name: name, HostInfo: wire.HostInfo{Hostname: host, OS: runtime.GOOS, Arch: runtime.GOARCH, CLIVersion: Version},
+		Name: name, HostInfo: wire.HostInfo{Hostname: host, OS: runtime.GOOS, Arch: runtime.GOARCH, CLIVersion: Version}, Identity: intro,
 	}, &code)
 	if err != nil {
 		return fail(io, err)
 	}
-	fmt.Fprintf(io.Stdout, "Approve %q in Convoz. Code: %s\n", name, code.UserCode)
+	if intro != nil {
+		fmt.Fprintf(io.Stdout, "Approve %q as @%s in Convoz. Code: %s\n", name, intro.Handle, code.UserCode)
+	} else {
+		fmt.Fprintf(io.Stdout, "Approve %q in Convoz. Code: %s\n", name, code.UserCode)
+	}
 
 	interval := time.Duration(code.IntervalMs) * time.Millisecond
 	if interval <= 0 {

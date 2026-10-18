@@ -31,6 +31,15 @@ Feature: The convoz CLI and MCP server for agents
       Then the CLI prints the MCP server config to add by hand
       And no file outside "~/.config/convoz" changed
 
+    # Owner said: the agent "should request the connection accepted and send its id package for its handle."
+    @v1 @cli @I-42
+    Scenario: The connect commands send the agent's own identity and print no secret
+      When "convoz login --name box-5 --as code-review --description 'Reviews PRs'" runs on a new machine
+      Then the CLI prints 'Approve "box-5" as @code-review in Convoz.' and a code
+      And "convoz login --as" with a handle that is not a handle exits 2 and names the rule
+      And "convoz session start --create" without a name starts the request and prints no key, device code or lease
+      And no output contains "cvz_"
+
     @v1 @mcp @I-42
     Scenario: The MCP server lists self-describing tools
       When a client lists the tools of "convoz mcp --as devtool"

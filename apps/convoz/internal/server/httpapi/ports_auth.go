@@ -7,6 +7,7 @@ import (
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/audit"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/event"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
@@ -42,7 +43,7 @@ func (journalPort) Event(ctx context.Context, d pdb.DBTX, now time.Time, typ str
 }
 
 // flowPorts wires auth's machine, session and crew flows to the identity, audit and event modules.
-var flowPorts = auth.Ports{Agents: agentPort{}, Journal: journalPort{}}
+var flowPorts = auth.Ports{Agents: agentPort{}, Journal: journalPort{}, Conversations: seatPort{}}
 
 type agentPort struct{}
 
@@ -77,6 +78,48 @@ func (agentPort) CreatedByMachineSince(ctx context.Context, d pdb.DBTX, machineI
 	return identity.CreatedByMachineSince(ctx, d, machineID, since)
 }
 
+func (agentPort) CheckNew(ctx context.Context, d pdb.DBTX, handle, displayName string) error {
+	return agentError(identity.CheckNewAgent(ctx, d, handle, displayName))
+}
+
+func (agentPort) SetIntro(ctx context.Context, d pdb.DBTX, id int64, description, avatarSVG string) error {
+	return identity.SetIntro(ctx, d, id, description, avatarSVG)
+}
+
+// seatPort lets an identity request look at a conversation and seat the agent it makes.
+type seatPort struct{}
+
+func (seatPort) OwnerConversation(ctx context.Context, d pdb.DBTX, id int64) (string, bool, error) {
+	cv, found, err := conversation.Get(ctx, d, id)
+	if err != nil || !found {
+		return "", false, err
+	}
+	owner, err := identity.Owner(ctx, d)
+	if err != nil {
+		return "", false, err
+	}
+	m, found, err := conversation.Membership(ctx, d, id, owner.ID)
+	if err != nil || !found || !m.Active {
+		return "", false, err
+	}
+	return cv.Title, true, nil
+}
+
+// Join is the participants path of I-17: a person adds the agent at once and it sees what comes after (since_now); with no person
+// (byHuman 0) the agent asks for the seat itself and waits for the owner to approve.
+func (seatPort) Join(ctx context.Context, d pdb.DBTX, now time.Time, conv, agent, byHuman int64) error {
+	cv, found, err := conversation.Get(ctx, d, conv)
+	if err != nil || !found {
+		return err
+	}
+	by, asAgent := byHuman, false
+	if byHuman == 0 {
+		by, asAgent = agent, true
+	}
+	_, _, _, err = seatAgent(ctx, d, now, by, asAgent, conv, cv.LastMessageID, agent, historySinceNow)
+	return err
+}
+
 // agentError turns a CreateAgent refusal into the auth error that names the field; other errors pass through.
 func agentError(err error) error {
 	switch {
@@ -86,6 +129,8 @@ func agentError(err error) error {
 		return auth.ErrHandleTaken
 	case errors.Is(err, identity.ErrInvalidDisplayName):
 		return &auth.FieldError{Field: "display_name", Message: "A display name has 1 to 80 characters."}
+	case errors.Is(err, identity.ErrConfusableHandle):
+		return &auth.FieldError{Field: "handle", Message: "That handle looks like another identity's name. Pick a different one."}
 	case errors.Is(err, identity.ErrConfusableName):
 		return &auth.FieldError{Field: "display_name", Message: "That name looks like another identity's name. Pick a different one."}
 	}

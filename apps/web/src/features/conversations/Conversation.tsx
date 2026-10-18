@@ -1,10 +1,11 @@
 import type { Identity, Message, Upload } from "@convoz/api-client";
 import { AttachIcon, BackIcon, DetailsIcon } from "@convoz/ui/icons";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type RefObject } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type RefObject } from "react";
 import { ApiError } from "../../shared/api.ts";
 import { initials, paletteOf, setRegistry, stripCf } from "../../shared/chat.ts";
 import { data, useData, useLive } from "../../shared/data.ts";
 import { Composer, useAttachments } from "../composer/index.ts";
+import { InviteAgentSheet } from "../crew/index.ts";
 import { StarButton } from "../pins-stars/index.ts";
 import { rememberChat } from "../search/index.ts";
 import { ThreadPane, useThreads } from "../threads/index.ts";
@@ -41,6 +42,7 @@ export function Conversation() {
   const [error, setError] = useState("");
   const [gone, setGone] = useState(false);
   const [info, setInfo] = useState(false);
+  const [inviting, setInviting] = useState(false);
   const [inspected, setInspected] = useState<Message | null>(null);
   const [dragging, setDragging] = useState(false);
   const attachments = useAttachments(convId);
@@ -285,7 +287,7 @@ export function Conversation() {
             attachments={attachments}
             onSend={send}
             textRef={textRef}
-            mentions={isNew ? { crew, onPick: pick } : convId ? { crew } : undefined}
+            mentions={isNew ? { crew, onPick: pick } : convId ? { crew, onInvite: () => setInviting(true) } : undefined}
           />
         </section>
         <p id="chat-error" className="chat-error" role="alert" hidden={!error}>
@@ -293,7 +295,12 @@ export function Conversation() {
         </p>
       </main>
       <ThreadPane title={title} bubbles={(list, pending) => <ThreadBubbles messages={list} pending={pending} me={me} conversation={convId} onRetry={(cid) => useThreads.getState().retry(cid)} />} />
-      {info && conversation ? <Details row={conversation} onClose={() => setInfo(false)} /> : null}
+      {info && conversation ? <Details row={conversation} onClose={() => setInfo(false)} onInvite={() => setInviting(true)} /> : null}
+      {inviting && convId ? (
+        <Suspense fallback={null}>
+          <InviteAgentSheet close={() => setInviting(false)} conversation={{ id: convId, title: stripCf(conversation?.title ?? "") }} />
+        </Suspense>
+      ) : null}
       {inspected ? <MessageDetails conversationId={convId} message={inspected} done={() => setInspected(null)} /> : null}
     </div>
   );

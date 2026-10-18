@@ -71,3 +71,12 @@ UPDATE identities SET avatar_svg = sqlc.narg(svg) WHERE id = sqlc.arg(id);
 
 -- name: GetAvatarSVG :one
 SELECT avatar_svg FROM identities WHERE id = sqlc.arg(id) AND avatar_svg IS NOT NULL;
+
+-- name: AllSkeletons :many
+SELECT handle, display_skeleton FROM identities;
+
+-- name: RetiredHandles :many
+SELECT handle FROM retired_handles;
+
+-- name: SetAgentDescription :exec
+UPDATE agents SET description = sqlc.arg(description) WHERE identity_id = sqlc.arg(id);

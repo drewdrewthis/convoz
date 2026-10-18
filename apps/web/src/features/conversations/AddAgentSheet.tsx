@@ -11,10 +11,12 @@ export interface AddAgentProps {
   done(): void;
   /** Brings the agent in; it joins at once and sees what comes after (prototype v41: no history question). */
   onAdd(identityId: number, handle: string): Promise<void>;
+  /** "Invite a new agent": closes this dialog and opens the invite prompt for the conversation. */
+  onInvite(): void;
 }
 
 /** AddAgentSheet is the dialog "Add agent" of + Add: tap an agent that is not here and it joins at once. */
-export function AddAgentSheet({ id, done, onAdd }: AddAgentProps) {
+export function AddAgentSheet({ id, done, onAdd, onInvite }: AddAgentProps) {
   const people = useData((s) => s.identities);
   const row = useData((s) => s.rows[id]);
   const [alert, setAlert] = useState("");
@@ -40,6 +42,9 @@ export function AddAgentSheet({ id, done, onAdd }: AddAgentProps) {
         ))}
       </ul>
       {people && choices.length === 0 ? <p className="muted">No other agent to add.</p> : null}
+      <button type="button" className="btn small quiet" onClick={() => { done(); onInvite(); }}>
+        Invite a new agent…
+      </button>
     </Sheet>
   );
 }

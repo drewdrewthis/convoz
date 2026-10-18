@@ -1,5 +1,14 @@
 /* Now and the ask card: a question an agent put to the owner, its answers, and the folds of what is done. */
 @layer components {
+  /* A connect request: what the agent said about itself, labelled as the agent's own words. */
+  .agentintro { margin: 0 0 8px; }
+  .agentintro .sub { margin: 0 0 4px; }
+  .agentintro .who { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0; overflow-wrap: anywhere; }
+  .agentintro .who .ava { width: 32px; height: 32px; font-size: 13px; overflow: hidden; }
+  .agentintro .who .ava[data-l]::before { content: attr(data-l); }
+  .agentintro .who .ava img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .agentintro .role { margin: 4px 0 0; font-size: 14px; color: var(--color-muted); overflow-wrap: anywhere; }
+  dialog .prompt { margin: 0 0 12px; padding: 12px; max-height: 280px; overflow: auto; border-radius: 12px; border: 1px solid var(--color-border); background: var(--color-bg); font-family: var(--font-mono); font-size: 12px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
   .asks { display: flex; flex-direction: column; gap: 8px; margin: 0 0 8px; }
   .askcard {
     position: relative; display: block; min-width: 0; padding: 2px 14px 14px;

@@ -1,16 +1,16 @@
-import type { Ask, HostInfo, MachineRequest, Me, NowPendingAdd } from "@convoz/api-client";
+import type { Ask, Me, NowPendingAdd } from "@convoz/api-client";
 import { AskCard, whoLine, stateLine, type Answer } from "@convoz/app-kit";
 import { Wordmark } from "@convoz/ui/Wordmark";
 import { TickIcon } from "@convoz/ui/icons";
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
-import { call, client, humanError, stepUp } from "../../shared/api.ts";
+import { call, client, humanError } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { markUseful } from "../../shared/perf.ts";
-import { StepUpSheet, useSheets } from "../../shared/sheets.tsx";
 import { data } from "../../shared/data.ts";
 import { toast } from "../pins-stars/index.ts";
 import { answerAsk, dismissAsk, snoozeAsk, undismissAsk, unsnoozeAsk, useNow, type Settled } from "./store.ts";
 import { parseAllow } from "../crew/index.ts";
+import { agentRequests, RequestCard } from "./requests.tsx";
 import { presetsAt } from "./presets.ts";
 
 /** Now is /: what needs the owner. Open asks first (urgent, then the newest), then the adds agents wait on and the machines waiting
@@ -20,7 +20,6 @@ export function Now() {
   const load = useNow((s) => s.load);
   const now = useNow((s) => s.now);
   const skew = useNow((s) => s.skew);
-  const { sheet, open } = useSheets();
   const [me, setMe] = useState<Me | null>(null);
   const [onePasskey, setOnePasskey] = useState(false);
   const [busy, setBusy] = useState<ReadonlySet<number>>(new Set());
@@ -43,12 +42,15 @@ export function Now() {
   }, [now]);
 
   const pending = now?.machine_requests ?? null;
+  const plain = (pending ?? []).filter((m) => !m.identity);
+  const connecting = agentRequests(now);
+  const waiting = plain.length + connecting.length;
   const asks = now?.asks ?? [];
   const adds = now?.pending_adds ?? [];
   const snoozed = now?.snoozed ?? [];
   const answered = now?.answered_today ?? [];
   const dismissed = now?.dismissed_today ?? [];
-  const some = Boolean(pending && (pending.length || asks.length || adds.length));
+  const some = Boolean(pending && (waiting || asks.length || adds.length));
 
   // After a card leaves the list the next one takes the focus, so the keys go on working.
   useEffect(() => {
@@ -123,43 +125,14 @@ export function Now() {
     }
   };
 
-  const approve = useCallback(
-    (req: MachineRequest) =>
-      open((close) => (
-        <StepUpSheet
-          title={`Approve ${req.name}`}
-          intro={requestIntro(req, Date.now() + skew)}
-          fields={[
-            { key: "allowed", label: "Allowed identities", hint: "Agents this machine may act as: handles and patterns such as dev-*, separated by commas." },
-            ...(pending && pending.length > 1
-              ? [{ key: "typed", label: "Type the code", hint: "Several machines are waiting. Type the code the machine printed.", attrs: { className: "code-input" } }]
-              : []),
-          ]}
-          confirm="Approve"
-          action="machine.approve"
-          target={req.id}
-          close={close}
-          perform={async (stepId, values) => {
-            const body: { allow: ReturnType<typeof parseAllow>; typed_code?: string } = { allow: parseAllow(values.allowed ?? "") };
-            if (values.typed !== undefined) body.typed_code = values.typed.trim();
-            await call(client.POST("/api/machines/requests/{id}/approve", { params: { path: { id: req.id }, header: stepUp(stepId) }, body }));
-            say(`Approved ${req.name}`);
-            await reload();
-          }}
-        />
-      )),
-    [open, pending, reload, say, skew],
-  );
-
-  // /now/machine/:id opens that request's approve sheet once the requests are in.
+  // /now/machine/:id (the link in the push) brings that request's card into view.
   useEffect(() => {
     const id = /^\/now\/machine\/(\d+)$/.exec(location.pathname)?.[1];
-    const req = id && pending?.find((r) => r.id === Number(id));
-    if (req && !deepLinked.current) {
+    if (id && pending?.some((r) => r.id === Number(id)) && !deepLinked.current) {
       deepLinked.current = true;
-      approve(req);
+      document.querySelector<HTMLElement>(`[data-request="/api/machines/requests/${id}"]`)?.scrollIntoView({ block: "center" });
     }
-  }, [pending, approve]);
+  }, [pending]);
 
   return (
     <>
@@ -208,20 +181,22 @@ export function Now() {
           ))}
         </section>
       ) : null}
-      <section id="requests-block" className="block" aria-labelledby="requests-heading" hidden={!pending?.length}>
+      <section id="requests-block" className="block" aria-labelledby="requests-heading" hidden={!waiting}>
         <div className="block-head">
           <h2 id="requests-heading">Machine requests</h2>
-          <button id="deny-all" className="btn small" type="button" hidden={!pending?.length} onClick={denyAll}>
+          <button id="deny-all" className="btn small" type="button" hidden={!waiting} onClick={denyAll}>
             Deny all
           </button>
         </div>
         <div id="requests">
-          {(pending ?? []).map((req) => (
-            <RequestCard key={req.id} req={req} reload={reload} approve={() => approve(req)} />
+          {(pending ?? []).map((req) =>
+            req.identity ? <RequestCard key={`m${req.id}`} item={{ kind: "login", key: `m${req.id}`, machine: req }} changed={reload} /> : <RequestCard key={`m${req.id}`} item={{ kind: "plain", key: `m${req.id}`, machine: req }} changed={reload} />,
+          )}
+          {connecting.filter((c) => c.kind === "session").map((c) => (
+            <RequestCard key={c.key} item={c} changed={reload} />
           ))}
         </div>
       </section>
-      {sheet}
     </>
   );
 }
@@ -347,57 +322,6 @@ function PendingAdd({ add, reload }: { add: NowPendingAdd; reload: () => Promise
         </button>
         <button className="btn" type="button" disabled={working} onClick={() => void decide(false)}>
           Decline
-        </button>
-      </div>
-    </article>
-  );
-}
-
-const hostInfoLine = (info: HostInfo | null) => (info && [info.hostname, info.os, info.arch, info.cli_version].filter(Boolean).join(" · ")) || "nothing";
-
-const sourceLine = (req: MachineRequest) => `Source: ${req.node_name || "unknown"}${req.source_ip ? ` (${req.source_ip})` : ""}`;
-
-/** ageText is how long ago a request was made, against the server's clock. */
-function ageText(since: number, at: number): string {
-  const s = Math.max(0, Math.round((at - since) / 1000));
-  if (s < 45) return "just now";
-  const m = Math.round(s / 60);
-  return `${m} ${m === 1 ? "minute" : "minutes"} ago`;
-}
-
-const requestIntro = (req: MachineRequest, serverNow: number) =>
-  `Code ${req.user_code}. Reported by the machine: ${hostInfoLine(req.host_info)}. ${sourceLine(req)}. Requested ${ageText(req.created_at, serverNow)}.`;
-
-/** RequestCard is one machine waiting to connect: its code, what it reports about itself, and Approve or Deny. */
-function RequestCard({ req, reload, approve }: { req: MachineRequest; reload: () => Promise<void>; approve: () => void }) {
-  const { say, fail } = useNotice();
-  const id = useId();
-  const [denying, setDenying] = useState(false);
-  const deny = async () => {
-    setDenying(true);
-    try {
-      await call(client.POST("/api/machines/requests/{id}/deny", { params: { path: { id: req.id } }, body: {} }));
-      say(`Denied ${req.name}`);
-      await reload();
-    } catch (err) {
-      fail(humanError(err));
-      setDenying(false);
-    }
-  };
-  return (
-    <article className="card" aria-labelledby={id}>
-      <h3 id={id}>{`${req.name} wants to connect`}</h3>
-      <p>
-        Code: <span className="code">{req.user_code}</span>
-      </p>
-      <p className="sub">{`Reported by the machine: ${hostInfoLine(req.host_info)}`}</p>
-      <p className="sub">{sourceLine(req)}</p>
-      <div className="btns">
-        <button className="btn primary" type="button" onClick={approve}>
-          Approve
-        </button>
-        <button className="btn" type="button" disabled={denying} onClick={deny}>
-          Deny
         </button>
       </div>
     </article>

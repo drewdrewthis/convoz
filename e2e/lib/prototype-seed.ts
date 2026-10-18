@@ -4,7 +4,7 @@ import type { Page } from "@playwright/test";
 import { agentPost, chatWorld, createConversation, ownerReads, ownerSays, startSession } from "./chat.ts";
 import type { AgentSession } from "./chat.ts";
 import { addSecondPasskey } from "./mobile.ts";
-import { bearer, plainDb, signInBrowser, stepped } from "./machines.ts";
+import { bearer, revokeAgentKey, plainDb, signInBrowser } from "./machines.ts";
 import type { Owner } from "./owner.ts";
 import type { BrowserContext } from "@playwright/test";
 import type { ServerHandle, ServerOptions } from "./fixtures.ts";
@@ -34,7 +34,7 @@ export async function protoWorld(
   // A disabled agent still counts in the registry order that tints the avatars; it is not listed on Crew.
   for (const h of o.disabled ?? []) {
     const row = await findAgent(w.owner, h);
-    must(await stepped(w.owner, "POST", `/api/identities/${row}/disable`, {}, "identity.disable", row), `disable ${h}`);
+    must(await revokeAgentKey(w.owner, row), `disable ${h}`);
   }
   const sessions: Record<string, AgentSession> = {};
   for (const h of o.live) sessions[h] = await startSession(w.box, h, `ui-${h}`);

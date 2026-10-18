@@ -273,11 +273,14 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/machines/requests/{id}/approve:
   post:
-    x-authz: { auth: owner, step_up: machine.approve }
+    x-authz: { auth: owner }
     operationId: approveRequest
+    summary: One tap on the card in Now. The owner's signed-in session is the authority; there is no passkey check and no typed code.
+    description: |
+      A request that carries an identity (convoz login --as) also makes that agent and lets the new machine act as it; an empty
+      allow-list is then enough. A handle that was taken or became a look-alike since the request is 409 handle_taken or 400.
     parameters:
       - $ref: "../openapi.yaml#/components/parameters/Id"
-      - $ref: "../openapi.yaml#/components/parameters/StepUp"
     requestBody:
       required: true
       content:
@@ -288,7 +291,6 @@
               name: { type: string }
               allow: { $ref: "../openapi.yaml#/components/schemas/Allow" }
               scopes: { type: array, items: { type: string } }
-              typed_code: { type: string, description: Required when several machines are waiting. }
     responses:
       "201":
         description: The machine is connected.
@@ -299,6 +301,62 @@
               required: [machine]
               properties:
                 machine: { $ref: "../openapi.yaml#/components/schemas/Machine" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/identity-requests/{ref}/approve:
+  post:
+    x-authz: { auth: owner }
+    operationId: approveIdentityRequest
+    summary: One tap on the card of an agent that a logged-in machine asked for. No passkey check.
+    description: |
+      Makes the identity (created by the machine), lets the machine act as it, applies the description and avatar the agent sent, and
+      seats it in the conversation it named (history since the add, the I-17 participants path). The rules for the handle are checked
+      again here: taken is 409 handle_taken, a look-alike is 400. A request that was decided or expired is 404.
+    parameters:
+      - { name: ref, in: path, required: true, schema: { type: string } }
+    requestBody: { $ref: "../openapi.yaml#/components/requestBodies/Empty" }
+    responses:
+      "201":
+        description: The agent exists and the machine may act as it.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identity, machine]
+              properties:
+                identity:
+                  type: object
+                  required: [id, handle, display_name, kind]
+                  properties:
+                    id: { type: integer, format: int64 }
+                    handle: { type: string }
+                    display_name: { type: string }
+                    kind: { type: string, enum: [agent] }
+                machine:
+                  type: object
+                  required: [id, name]
+                  properties:
+                    id: { type: integer, format: int64 }
+                    name: { type: string }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/identity-requests/{ref}/deny:
+  post:
+    x-authz: { auth: owner }
+    operationId: denyIdentityRequest
+    parameters:
+      - { name: ref, in: path, required: true, schema: { type: string } }
+    requestBody: { $ref: "../openapi.yaml#/components/requestBodies/Empty" }
+    responses:
+      "200": { $ref: "../openapi.yaml#/components/responses/Empty" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/identity-requests/{ref}/avatar.svg:
+  get:
+    x-authz: { auth: owner }
+    operationId: identityRequestAvatar
+    summary: The cleaned SVG a waiting request carries. Show it only in an img (I-32).
+    parameters:
+      - { name: ref, in: path, required: true, schema: { type: string } }
+    responses:
+      "200": { description: The SVG., content: { image/svg+xml: { schema: { type: string } } } }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/machines/requests/{id}/deny:
   post:
@@ -409,6 +467,10 @@
     x-authz: { auth: pub }
     security: []
     summary: "A machine asks to be logged in (device flow, design 7). No cookie, no key; limited per source."
+    description: |
+      The body may carry `identity` {handle, display_name?, description?, avatar_svg?, conversation_id?}: the agent's own identity package.
+      A handle that exists or was used is 409 handle_taken; a reserved, invalid or look-alike one, a bad description (one plain line,
+      at most 80 characters), a bad avatar or a conversation the owner is not in is 400. A request reserves no handle.
     responses:
       "200": { description: The answer. }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
@@ -435,8 +497,15 @@
     x-authz: { auth: machine }
     security: [{ machineKey: [] }]
     summary: A machine key mints the lease of an agent session (design 7).
+    description: |
+      With `create` {display_name?, description?, avatar_svg?, conversation_id?}: an existing agent the machine may act as just gets
+      its lease; one it may not act as is 409 handle_taken. A missing one is made at once when the machine has the create_identity
+      scope and allows the handle; otherwise the answer is 202 with `request.ref`, and the machine asks again with
+      `create.request` = that ref until the owner decides (201 with the lease; 403 request_denied; 410 request_expired).
+      A machine files at most 5 requests in 24 hours; a request lives 24 hours. Only the machine that filed a request can ask about it.
     responses:
       "201": { description: The lease and its session. }
+      "202": { description: The owner has not decided; ask again with the ref. }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
   get:
     x-authz: { auth: owner }

@@ -32,7 +32,6 @@ var DestructiveActions = map[string]bool{
 	"machine.reveal":      true,
 	"machine.regenerate":  true, // it returns a key
 	"machine.revoke":      true,
-	"machine.approve":     true, // it hands a machine its key
 	"machine.allow":       true, // it widens who a machine may act as
 	"signout.all":         true, // it ends every other device, which a thief with a fresh passkey could use to lock the owner out
 }

@@ -113,7 +113,6 @@ Feature: Security walls (contracts)
         | POST /api/machines/1/revoke             |
         | PATCH /api/machines/1                   |
         | POST /api/crew/agents                   |
-        | POST /api/identities/7/disable          |
         | POST /api/me/recovery-codes             |
 
     # Split out of "Step-up is required for destructive actions": purge, export and delete-my-data ship in S12.

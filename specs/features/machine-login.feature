@@ -3,6 +3,10 @@
 # with the same device code until it expires; it is marked delivered on first use).
 # DA cut: there is no "replace the key" inside the device flow; a lost key is Reveal or Regenerate.
 # Every scenario runs end to end against a real `convoz serve` on a fresh `mktemp -d` data dir.
+# Owner said: "Approvals just go into the feed, right? Removal is just revoking their key". So a connect request is one card in
+# Now with Approve and Decline: no passkey step-up, no typed code, no approve sheet. The owner's signed-in session is the authority.
+# Owner said: "For adding an agent, I should actually just get a prompt right? Because the agent needs the cli and a token, but then
+# it should request the connection accepted and send its id package for its handle. We don't need a name, I don't think."
 # All tokens are fake and contain TESTONLY. "The test clock" is the test build's clock control.
 
 Feature: Machine login with a device flow
@@ -31,20 +35,22 @@ Feature: Machine login with a device flow
       Then the second answer is "slow_down"
       And a poll 5 seconds later is again "slow_down" because the interval grew to 10 seconds
 
-    @v1 @browser @api @I-36
-    Scenario: Approval creates the machine with its allow-list and scopes
+    @v1 @browser @I-36
+    Scenario: Approval creates the machine with the default scopes
       Given a pending machine request "box-2"
-      When the owner approves it with allow-list "devtool" and "dev-*" and the default scopes
-      Then Crew → Machines lists "box-2" with a key hint that starts with "cvz_m_"
+      When the owner taps Approve on its card in Now
+      Then no passkey prompt and no sheet opens
+      And Crew → Machines lists "box-2" with a key hint that starts with "cvz_m_"
       And its scopes are read, post, ask, status and upload, without create_identity
+      And it allows no agent yet
       And the owner's audit view lists "machine approved · box-2"
 
     @v1 @browser @I-36
-    Scenario: The owner must type the code when more than one request is pending
+    Scenario: Each pending request has its own card and needs no typed code
       Given pending machine requests "box-2" with code "KQWD-MZTP" and "box-9" with code "PLRT-HXCV"
-      When the owner opens the approve sheet for "box-2"
-      Then the sheet asks the owner to type the code
-      And approving with the typed code "PLRT-HXCV" shows "The code does not match"
+      When the owner taps Approve on the card of "box-2"
+      Then "box-2" is connected at once, without a code typed
+      And the card of "box-9" still waits with its code "PLRT-HXCV"
 
     @v1 @cli @I-36 @AC-8
     Scenario: A denied request creates no machine
@@ -108,6 +114,42 @@ Feature: Machine login with a device flow
       When "convoz login --name box-2 --store auto" completes
       Then the key is in the credentials file with mode 0600
       And "convoz whoami" works
+
+  Rule: An agent that logs in brings its own identity, and one card connects both
+
+    @v1 @cli @browser @I-3 @I-36
+    Scenario: A login as an agent shows one card and one tap connects the machine and the agent
+      When "convoz login --name box-2 --as code-review --description 'Reviews pull requests'" runs on the machine
+      Then the CLI prints 'Approve "box-2" as @code-review in Convoz.' with the code
+      And the owner sees one Now card "box-2 wants to connect as @code-review"
+      And the card shows "Reviews pull requests" labelled "From the agent"
+      When the owner taps Approve on that card
+      Then the CLI logs in as machine "box-2"
+      And Crew lists "code-review" marked "created by box-2"
+      And "convoz session start --as code-review" works on "box-2"
+      And "box-2" has no create_identity scope and allows only "code-review"
+
+    @v1 @cli @browser @I-36
+    Scenario: Declining a login as an agent makes neither the machine nor the agent
+      When "convoz login --name box-2 --as code-review" runs on the machine
+      And the owner taps Decline on the card "box-2 wants to connect as @code-review"
+      Then the CLI exits 3 with a message that the owner denied the request
+      And Crew → Machines does not list "box-2"
+      And Crew does not list "code-review"
+
+    @v1 @cli @I-3
+    Scenario: A login as a handle that exists is refused
+      When "convoz login --name box-2 --as devtool" runs on the machine
+      Then the CLI exits 4 and says the handle is taken
+      And no card appears in Now
+
+    @v1 @cli
+    Scenario: An agent login may name a conversation, and the card shows its title
+      Given conversation 41 "Ship search filters" has the owner in it
+      When "convoz login --name box-2 --as code-review --conversation 41" runs on the machine
+      Then the owner sees on the card that "code-review" joins "Ship search filters"
+      When the owner taps Approve on that card
+      Then "code-review" is an active participant of conversation 41 and sees only what comes after
 
   Rule: Device-flow limits stop floods and name clashes
 

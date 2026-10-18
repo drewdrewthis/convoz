@@ -59,10 +59,9 @@ func (s *Server) machines(w http.ResponseWriter, r *http.Request, _ *call) {
 }
 
 type approveBody struct {
-	Name      string    `json:"name"`
-	Allow     allowJSON `json:"allow"`
-	Scopes    []string  `json:"scopes"`
-	TypedCode string    `json:"typed_code"`
+	Name   string    `json:"name"`
+	Allow  allowJSON `json:"allow"`
+	Scopes []string  `json:"scopes"`
 }
 
 func (s *Server) approveRequest(w http.ResponseWriter, r *http.Request, c *call) {
@@ -86,20 +85,17 @@ func (s *Server) approveRequest(w http.ResponseWriter, r *http.Request, c *call)
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
 		var err error
 		machine, err = auth.ApproveRequest(ctx, tx.DBTX(), s.Keys, flowPorts, auth.ApproveInput{
-			RequestID: id, Name: in.Name, Allow: in.Allow.spec(), Scopes: scopes, TypedCode: in.TypedCode,
-			Human: c.human, DeviceID: c.dev.ID, StepUpID: c.stepUp,
+			RequestID: id, Name: in.Name, Allow: in.Allow.spec(), Scopes: scopes,
+			Human: c.human, DeviceID: c.dev.ID,
 		}, now)
 		return err
 	})
 	var bad auth.BadAllowError
 	var taken *auth.NameTakenError
 	switch {
-	case errors.Is(err, auth.ErrStepUp):
-		stepUpInvalid(w)
-	case errors.Is(err, auth.ErrNoRequest):
+	case errors.Is(err, auth.ErrNoRequest), errors.Is(err, auth.ErrIdentityGone):
 		writeErr(w, http.StatusNotFound, "not_found", "That request is gone. It was decided or it expired.")
-	case errors.Is(err, auth.ErrCodeMismatch):
-		writeFieldErr(w, http.StatusBadRequest, "code_mismatch", "typed_code", "The code does not match")
+	case identityRefused(w, err, "handle"):
 	case errors.As(err, &taken):
 		writeFieldErr(w, http.StatusConflict, "machine_name_taken", "name", fmt.Sprintf("The name %q is taken. Use Reveal or Regenerate on %q, or revoke it first.", taken.Name, taken.Name))
 	case errors.Is(err, auth.ErrMachineCap):

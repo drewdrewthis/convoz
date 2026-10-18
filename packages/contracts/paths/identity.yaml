@@ -106,15 +106,15 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/identities/{id}/disable:
   post:
-    x-authz: { auth: owner, step_up: identity.disable }
+    x-authz: { auth: owner }
     operationId: disableIdentity
-    summary: The owner disables an agent. Identities are never deleted (I-2).
+    summary: The owner revokes an agent's key ("Revoke key" in Crew). Identities are never deleted (I-2).
     description: |
-      Needs a fresh passkey check for `identity.disable`. Every session of the agent ends at once, its open asks close, and its handle
-      stays used (I-38). An agent that is not there or already disabled is 404.
+      Confirmed inline in the app; no passkey check (owner said: "Removal is just revoking their key"). Every session of the agent
+      ends at once, no new session can start as it, its open asks close, and its handle stays used (I-38). An agent that is not there or
+      already disabled is 404.
     parameters:
       - $ref: "../openapi.yaml#/components/parameters/Id"
-      - $ref: "../openapi.yaml#/components/parameters/StepUp"
     requestBody: { $ref: "../openapi.yaml#/components/requestBodies/Empty" }
     responses:
       "200": { $ref: "../openapi.yaml#/components/responses/Empty" }

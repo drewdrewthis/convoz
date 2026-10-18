@@ -42,6 +42,38 @@ func (q *Queries) ActiveSkeletons(ctx context.Context) ([]ActiveSkeletonsRow, er
 	return items, nil
 }
 
+const allSkeletons = `-- name: AllSkeletons :many
+SELECT handle, display_skeleton FROM identities
+`
+
+type AllSkeletonsRow struct {
+	Handle          string
+	DisplaySkeleton string
+}
+
+func (q *Queries) AllSkeletons(ctx context.Context) ([]AllSkeletonsRow, error) {
+	rows, err := q.db.QueryContext(ctx, allSkeletons)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AllSkeletonsRow
+	for rows.Next() {
+		var i AllSkeletonsRow
+		if err := rows.Scan(&i.Handle, &i.DisplaySkeleton); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countAgentsCreatedByMachineSince = `-- name: CountAgentsCreatedByMachineSince :one
 SELECT COUNT(*) AS n, CAST(COALESCE(MIN(i.created_at), 0) AS INTEGER) AS oldest
 FROM agents a JOIN identities i ON i.id = a.identity_id
@@ -374,6 +406,47 @@ func (q *Queries) ListIdentities(ctx context.Context) ([]ListIdentitiesRow, erro
 		return nil, err
 	}
 	return items, nil
+}
+
+const retiredHandles = `-- name: RetiredHandles :many
+SELECT handle FROM retired_handles
+`
+
+func (q *Queries) RetiredHandles(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, retiredHandles)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var handle string
+		if err := rows.Scan(&handle); err != nil {
+			return nil, err
+		}
+		items = append(items, handle)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setAgentDescription = `-- name: SetAgentDescription :exec
+UPDATE agents SET description = ?1 WHERE identity_id = ?2
+`
+
+type SetAgentDescriptionParams struct {
+	Description string
+	ID          int64
+}
+
+func (q *Queries) SetAgentDescription(ctx context.Context, arg SetAgentDescriptionParams) error {
+	_, err := q.db.ExecContext(ctx, setAgentDescription, arg.Description, arg.ID)
+	return err
 }
 
 const setAvatarSVG = `-- name: SetAvatarSVG :exec

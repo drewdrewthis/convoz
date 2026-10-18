@@ -11,7 +11,7 @@ import {
   setServerTime,
   snoozeAsk,
 } from "../lib/asks.ts";
-import { nowCard, plainDb, requestMachine, seedUserCodes } from "../lib/machines.ts";
+import { mintSession, nowCard, plainDb, requestMachine, seedUserCodes } from "../lib/machines.ts";
 import { must } from "../lib/owner.ts";
 import { expect, scenario, test } from "../lib/scenario.ts";
 import { asAgent, browserWorld, idsOf, rowsOnList } from "../lib/wp3.ts";
@@ -26,7 +26,7 @@ import { asAgent, browserWorld, idsOf, rowsOnList } from "../lib/wp3.ts";
  *   folds           buttons "Snoozed" and "Answered today" (aria-expanded) with rows: "Snoozed until <time>" and an "Unsnooze" button;
  *                   "Answered · <label>" or "Replied · <text>". Answering from Now opens "Answered today".
  *   a pending add   an article "<Name @handle> wants to add <Name @handle>" with Approve and Decline.
- *   a machine       an article "<name> wants to connect" with its code; /now/machine/:id opens its approve sheet (dialog "Approve <name>").
+ *   a machine       an article "<name> wants to connect" with its code; /now/machine/:id brings its card into view; Approve and Decline are one tap each (no sheet, no passkey).
  *   the badge       navigator.setAppBadge(open asks that are not snoozed) when the page is hidden.
  * The browser's time zone is America/New_York: Tonight and Tomorrow are read there, against the server's clock.
  */
@@ -469,7 +469,7 @@ scenario("Declining a pending add keeps the agent out", { tag: ["@browser"] }, a
   expect(res.status).toBe(403);
 });
 
-scenario("A machine request deep link opens its card", { tag: ["@browser"] }, async ({ server, page, context, dataDir, testApi }, info) => {
+scenario("A machine request deep link brings its card into view", { tag: ["@browser"] }, async ({ server, page, context, dataDir, testApi }, info) => {
   info.setTimeout(90_000);
   // Given a machine request "box-9" with request id 9 is pending
   const w = await browserWorld({ server, page, context }, WORLD);
@@ -479,13 +479,39 @@ scenario("A machine request deep link opens its card", { tag: ["@browser"] }, as
   // When the owner opens "/now/machine/9"
   await page.goto(`${w.srv.origin}/now/machine/${req.requestId}`);
 
-  // Then the approve sheet of "box-9" shows its code, the reported host info, the source and the age
-  const sheet = page.getByRole("dialog", { name: "Approve box-9" });
-  await expect(sheet).toBeVisible();
-  await expect(sheet).toContainText("PLRT-HXCV");
-  await expect(sheet).toContainText("box-9.TESTONLY.local");
-  await expect(sheet).toContainText(/Source: /);
-  await expect(sheet).toContainText(/Requested (just now|\d+ (seconds?|minutes?) ago)/);
+  // Then the card of "box-9" is in view with its code, the reported host info and the source, and Approve and Decline
+  const card = nowCard(page, "box-9");
+  await expect(card).toBeInViewport();
+  await expect(card).toContainText("PLRT-HXCV");
+  await expect(card).toContainText("box-9.TESTONLY.local");
+  await expect(card).toContainText(/Source: /);
+  await expect(card.getByRole("button", { name: "Approve", exact: true })).toBeVisible();
+  await expect(card.getByRole("button", { name: "Decline", exact: true })).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
+scenario("Now shows an agent's connect request as one card with Approve and Decline", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  // Given an agent asked to connect as "dev-ci" from the machine "box-2" with the description "Runs CI"
+  const w = await browserWorld({ server, page, context }, WORLD);
+  must(await mintSession(w.srv, w.box2.key, { as: "dev-ci", create: { description: "Runs CI" } }), "identity request", 202);
+
+  // When the owner opens Now
+  await openNow(page, w.srv);
+
+  // Then one card reads "box-2 wants to connect as @dev-ci" with "Runs CI" under "From the agent"
+  const card = page.getByRole("article", { name: "box-2 wants to connect as @dev-ci", exact: true });
+  await expect(card).toBeVisible();
+  await expect(card).toContainText("From the agent");
+  await expect(card).toContainText("Runs CI");
+
+  // And the card has Approve and Decline
+  await expect(card.getByRole("button", { name: "Approve", exact: true })).toBeVisible();
+  await expect(card.getByRole("button", { name: "Decline", exact: true })).toBeVisible();
+
+  // And Deny all removes it
+  await page.getByRole("button", { name: "Deny all", exact: true }).click();
+  await expect(page.getByRole("article")).toHaveCount(0);
 });
 
 scenario("An expired machine request leaves Now", { tag: ["@browser"] }, async ({ server, page, context, dataDir, testApi }, info) => {

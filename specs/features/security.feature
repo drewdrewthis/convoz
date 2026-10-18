@@ -71,7 +71,7 @@ Feature: Security walls
     @v1 @api @I-38
     Scenario: Disabling an identity ends its sessions on every machine
       Given "devtool" sessions on "box-2" and "laptop-1"
-      When the owner disables "devtool" with a passkey
+      When the owner revokes the key of "devtool"
       Then the next command of both sessions exits 3
       And other identities on "box-2" still work
 

@@ -275,11 +275,26 @@ func MarkApproved(ctx context.Context, d pdb.DBTX, requestID, machineID, humanID
 
 // DenyRequest denies one pending request; ok is false when it was not pending.
 func DenyRequest(ctx context.Context, d pdb.DBTX, id, humanID int64, now time.Time) (bool, error) {
-	n, err := db.New(d).DenyRequest(ctx, db.DenyRequestParams{DecidedBy: sql.NullInt64{Int64: humanID, Valid: true}, DecidedAt: sql.NullInt64{Int64: now.UnixMilli(), Valid: true}, ID: id})
-	return n > 0, err
+	q := db.New(d)
+	decided := sql.NullInt64{Int64: now.UnixMilli(), Valid: true}
+	n, err := q.DenyRequest(ctx, db.DenyRequestParams{DecidedBy: sql.NullInt64{Int64: humanID, Valid: true}, DecidedAt: decided, ID: id})
+	if err != nil || n == 0 {
+		return false, err
+	}
+	return true, q.DenyLoginIdentityRequests(ctx, db.DenyLoginIdentityRequestsParams{DecidedBy: nullInt(humanID), DecidedAt: decided})
 }
 
-// DenyAllRequests denies every pending request and returns how many.
+// DenyAllRequests denies every pending request, the identity requests of logged-in machines too, and returns how many.
 func DenyAllRequests(ctx context.Context, d pdb.DBTX, humanID int64, now time.Time) (int64, error) {
-	return db.New(d).DenyAllRequests(ctx, db.DenyAllRequestsParams{DecidedBy: sql.NullInt64{Int64: humanID, Valid: true}, DecidedAt: sql.NullInt64{Int64: now.UnixMilli(), Valid: true}})
+	q := db.New(d)
+	decided := sql.NullInt64{Int64: now.UnixMilli(), Valid: true}
+	n, err := q.DenyAllRequests(ctx, db.DenyAllRequestsParams{DecidedBy: sql.NullInt64{Int64: humanID, Valid: true}, DecidedAt: decided})
+	if err != nil {
+		return 0, err
+	}
+	if err := q.DenyLoginIdentityRequests(ctx, db.DenyLoginIdentityRequestsParams{DecidedBy: nullInt(humanID), DecidedAt: decided}); err != nil {
+		return 0, err
+	}
+	more, err := q.DenyAllSessionIdentityRequests(ctx, db.DenyAllSessionIdentityRequestsParams{DecidedBy: nullInt(humanID), DecidedAt: decided})
+	return n + more, err
 }

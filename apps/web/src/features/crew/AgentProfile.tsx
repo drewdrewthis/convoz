@@ -1,10 +1,9 @@
 import type { Handoff, Session } from "./types.ts";
 import { useCallback, useEffect, useState } from "react";
-import { call, client, humanError, stepUp } from "../../shared/api.ts";
+import { call, client, fmtDate, humanError } from "../../shared/api.ts";
 import { setRegistry } from "../../shared/chat.ts";
 import { data, useData, useLive } from "../../shared/data.ts";
 import { useNotice } from "../../shared/notice.tsx";
-import { StepUpSheet, useSheets } from "../../shared/sheets.tsx";
 import { Ring } from "./Avatar.tsx";
 import { nameOf } from "./Crew.tsx";
 import { ago, LOOK, shownState } from "./status.ts";
@@ -20,7 +19,8 @@ export function AgentProfile() {
   const conversations = useData((s) => s.conversations);
   const statuses = useCrew((s) => s.statuses);
   const [tab, setTab] = useState<(typeof TABS)[number]>("Sessions");
-  const { sheet, open } = useSheets();
+  const [confirming, setConfirming] = useState(false);
+  const everySession = useLoaded<Session[]>(useCallback(async () => (await call(client.GET("/api/sessions"))).sessions.filter((s) => s.identity === handle), [handle]));
 
   const reload = useCallback(async () => {
     await Promise.all([data.loadIdentities(), data.loadConversations(), useCrew.getState().load()]);
@@ -98,34 +98,49 @@ export function AgentProfile() {
         {tab === "Sessions" ? <Sessions handle={handle} /> : <Handoffs handle={handle} />}
       </div>
 
-      {who.disabled ? null : (
-        <button
-          type="button"
-          className="btn danger"
-          onClick={() =>
-            open((close) => (
-              <StepUpSheet
-                title={`Disable @${handle}`}
-                intro="Its sessions end at once and its open asks close. Its handle is never used again, and its messages stay."
-                confirm="Disable"
-                tone="danger"
-                action="identity.disable"
-                target={who.id}
-                close={close}
-                perform={async (stepId) => {
-                  await call(client.POST("/api/identities/{id}/disable", { params: { path: { id: who.id }, header: stepUp(stepId) }, body: {} }));
-                  await reload();
-                }}
-              />
-            ))
-          }
-        >
-          Disable
-        </button>
-      )}
-      {sheet}
+      <section className="cgrp" aria-label="Details">
+        <h3>Details</h3>
+        <div className="keyrow">
+          <span>{who.disabled ? "Key revoked" : `Created ${fmtDate(who.created_at)} · last used ${lastUsed(everySession)}`}</span>
+          {who.disabled || confirming ? null : (
+            <button type="button" className="btn small danger" onClick={() => setConfirming(true)}>
+              Revoke key
+            </button>
+          )}
+        </div>
+        {confirming && !who.disabled ? (
+          <div role="group" aria-label="Revoke key" className="revoke">
+            <span>{`Revoke the key for @${handle}? It disconnects right away and cannot be undone. Its handle is never used again, and its messages stay.`}</span>
+            <div className="btns">
+              <button
+                type="button"
+                className="btn danger"
+                aria-label="Confirm revoke key"
+                onClick={() =>
+                  void call(client.POST("/api/identities/{id}/disable", { params: { path: { id: who.id } }, body: {} }))
+                    .then(() => reload())
+                    .catch((err) => fail(humanError(err)))
+                    .finally(() => setConfirming(false))
+                }
+              >
+                Confirm
+              </button>
+              <button type="button" className="btn quiet" onClick={() => setConfirming(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </section>
     </div>
   );
+}
+
+/** lastUsed is when the agent's newest session was last seen, "never" before it had one. */
+function lastUsed(sessions: Session[] | null): string {
+  if (!sessions) return "…";
+  const newest = Math.max(0, ...sessions.map((s) => s.last_seen_at));
+  return newest ? ago(newest) : "never";
 }
 
 function useLoaded<T>(load: () => Promise<T>): T | null {

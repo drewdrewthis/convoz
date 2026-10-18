@@ -21,13 +21,20 @@ func (s *Server) mintSession(w http.ResponseWriter, r *http.Request, c *call) {
 	}
 	req := auth.MintRequest{MachineKey: c.token, As: in.As, ClientID: in.ClientID, Label: in.Label}
 	if in.Create != nil {
-		req.Create = &auth.CreateIdentity{DisplayName: in.Create.DisplayName}
+		avatar, ok := cleanAvatar(w, in.Create.AvatarSVG)
+		if !ok {
+			return
+		}
+		req.Create = &auth.CreateIdentity{
+			DisplayName: in.Create.DisplayName, Description: in.Create.Description, AvatarSVG: avatar,
+			ConversationID: in.Create.ConversationID, Request: in.Create.Request,
+		}
 	}
 	var minted auth.MintedSession
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
 		now := s.Clock.Now()
 		var err error
-		if minted, err = auth.MintSession(ctx, tx.DBTX(), flowPorts, req, now); err != nil {
+		if minted, err = auth.MintSession(ctx, tx.DBTX(), flowPorts, req, now); err != nil || minted.Waiting != nil {
 			return err
 		}
 		// The new lease takes over the claims of the one it replaces: the agent is still on the same work (M5).
@@ -39,6 +46,12 @@ func (s *Server) mintSession(w http.ResponseWriter, r *http.Request, c *call) {
 	switch {
 	case errors.Is(err, auth.ErrMachineGone):
 		unauthorized(w)
+	case errors.Is(err, auth.ErrNoIdentityRequest):
+		writeErr(w, http.StatusNotFound, "not_found", "No such request.")
+	case errors.Is(err, auth.ErrIdentityDenied):
+		writeErr(w, http.StatusForbidden, wire.CodeRequestDenied, "The owner denied the request.")
+	case errors.Is(err, auth.ErrIdentityExpired):
+		writeErr(w, http.StatusGone, wire.CodeRequestExpired, "The request expired. Ask again.")
 	case errors.As(err, &forbidden):
 		writeErr(w, http.StatusForbidden, "forbidden", forbidden.Error())
 	case errors.Is(err, auth.ErrNotAllowed):
@@ -51,9 +64,12 @@ func (s *Server) mintSession(w http.ResponseWriter, r *http.Request, c *call) {
 	case errors.As(err, &invalid):
 		writeFieldErr(w, http.StatusBadRequest, "invalid_request", invalid.Field, invalid.Message)
 	case errors.Is(err, auth.ErrHandleTaken):
-		writeFieldErr(w, http.StatusConflict, "handle_taken", "as", "That handle was used before and cannot be made again.")
+		writeFieldErr(w, http.StatusConflict, wire.CodeHandleTaken, "as", "That handle is taken or was used before. Ask the owner to allow it on this machine.")
 	case err != nil:
 		s.internalError(w, r, err)
+	case minted.Waiting != nil:
+		s.Bus.Notify()
+		writeJSON(w, http.StatusAccepted, wire.MintPending{Request: wire.IdentityRequestState{Ref: minted.Waiting.Ref, State: auth.StatePending, ExpiresAt: minted.Waiting.ExpiresAt, IntervalMs: s.interval().Milliseconds()}})
 	default:
 		writeJSON(w, http.StatusCreated, wire.MintResponse{Lease: minted.Lease, Session: wire.SessionInfo{
 			ID: minted.ID, Identity: minted.Handle, Machine: minted.Machine, ClientID: minted.ClientID, Label: minted.Label, ExpiresAt: minted.ExpiresAt,
