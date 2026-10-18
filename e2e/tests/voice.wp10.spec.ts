@@ -254,6 +254,33 @@ scenario("A note sent before transcription was on gets its words later", { tag: 
   expect(read.stdout).toContain("words that came later");
 });
 
+scenario("The owner can transcribe a voice note again", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(60_000);
+  // Background
+  const u = await voiceWorld({ server, page, context });
+  await openConversation(page, u.w.srv, u.conv);
+
+  // Given the owner sent a voice note and its transcript is done
+  await setEngine(owner(u) as { srv: typeof u.w.srv; owner: typeof u.w.owner }, "fake", "the first words");
+  await recordAndSend(page, 2_500);
+  await expect.poll(async () => (await pageOf(u.w.owner, u.conv))[0]?.uploads?.[0]?.transcript?.state, { timeout: 20_000 }).toBe("done");
+  const note = voiceMessages(page).first();
+
+  // When the owner chooses "Transcribe again" in the message menu of the voice note
+  await setEngine(owner(u) as { srv: typeof u.w.srv; owner: typeof u.w.owner }, "fake", "the second words", 2_000);
+  await note.hover();
+  await note.getByRole("button", { name: "Message actions" }).click();
+  await page.getByRole("menuitem", { name: "Transcribe again" }).click();
+
+  // Then the voice message shows "Transcribing…" until the new transcript is done
+  await expect(note.getByText("Transcribing…")).toBeVisible();
+
+  // And the voice message shows the new transcript
+  await expect(note.getByText("Transcribing…")).toHaveCount(0, { timeout: 20_000 });
+  await note.getByRole("button", { name: "Transcript" }).click();
+  await expect(note.getByText("the second words")).toBeVisible();
+});
+
 scenario("Search finds words that are only in the transcript", { tag: ["@browser", "@cli"] }, async ({ server, page, context }) => {
   // Background
   const u = await voiceWorld({ server, page, context });

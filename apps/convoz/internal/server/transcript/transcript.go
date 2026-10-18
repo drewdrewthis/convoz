@@ -93,6 +93,12 @@ func Enqueue(ctx context.Context, d pdb.DBTX, now time.Time, uploadID int64, eng
 	return db.New(d).EnqueueTranscript(ctx, db.EnqueueTranscriptParams{UploadID: uploadID, Engine: sql.NullString{String: engine, Valid: true}, Now: sql.NullInt64{Int64: now.UnixMilli(), Valid: true}})
 }
 
+// Requeue puts the transcript of an upload back to pending with no tries made, due now, for the given engine. The old words stay
+// readable until the new ones are done, or come back if every try fails. It makes the row when there is none.
+func Requeue(ctx context.Context, d pdb.DBTX, now time.Time, uploadID int64, engine string) error {
+	return db.New(d).RequeueTranscript(ctx, db.RequeueTranscriptParams{UploadID: uploadID, Engine: sql.NullString{String: engine, Valid: true}, Now: sql.NullInt64{Int64: now.UnixMilli(), Valid: true}})
+}
+
 // Job is a transcript due for a try.
 type Job struct {
 	UploadID int64
@@ -120,7 +126,7 @@ func Finish(ctx context.Context, d pdb.DBTX, now time.Time, uploadID int64, engi
 // Backoff is the wait before the next try after a failed one: 5 s, then 20 s, 80 s, ... .
 func Backoff(attempts int64) time.Duration { return 5 * time.Second << (2 * attempts) }
 
-// GiveUp marks a transcript failed at once, for a note no engine will take.
+// GiveUp marks a transcript failed at once (a redo gets its old words back instead), for a note no engine will take.
 func GiveUp(ctx context.Context, d pdb.DBTX, now time.Time, j Job) error {
 	return db.New(d).FailTranscript(ctx, db.FailTranscriptParams{UploadID: j.UploadID, Now: now.UnixMilli()})
 }
@@ -139,6 +145,8 @@ type Of struct {
 	State    string
 	Text     string
 	Attempts int64 // tries made so far; each one that has not finished the transcript failed
+	// RedoFailed is set when "Transcribe again" gave up and the old words came back as done. Text is the old words while a redo is pending.
+	RedoFailed bool
 }
 
 // ForUploads reads the transcripts of the given uploads, by upload id.
@@ -152,7 +160,7 @@ func ForUploads(ctx context.Context, d pdb.DBTX, uploadIDs []int64) (map[int64]O
 		return nil, err
 	}
 	for _, r := range rows {
-		out[r.UploadID] = Of{State: r.State, Text: r.Text.String, Attempts: r.Attempts}
+		out[r.UploadID] = Of{State: r.State, Text: r.Text.String, Attempts: r.Attempts, RedoFailed: r.RedoFailed != 0}
 	}
 	return out, nil
 }

@@ -64,6 +64,13 @@ Feature: Voice notes
       Then the voice message shows the transcript, without the note being sent again
       And "devtool" reads the transcript with "convoz read 41"
 
+    @v1 @browser
+    Scenario: The owner can transcribe a voice note again
+      Given the owner sent a voice note and its transcript is done
+      When the owner chooses "Transcribe again" in the message menu of the voice note
+      Then the voice message shows "Transcribing…" until the new transcript is done
+      And the voice message shows the new transcript
+
     @v1 @browser @cli @AC-M11
     Scenario: Search finds words that are only in the transcript
       Given the owner sent a voice note that says "ZQX-thursday-filters"

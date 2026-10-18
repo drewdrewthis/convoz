@@ -248,3 +248,81 @@ func TestGiveUpFailsAtOnceAndFinishStoresTheEngineName(t *testing.T) {
 		t.Fatalf("stored engine %q", engine)
 	}
 }
+
+// longWords has 80 characters: plausible for a 40 s note (60 needed), not for a 60 s one.
+const longWords = "the quick brown fox jumps over the lazy dog and keeps on running far away to sea."
+
+func runFor(t *testing.T, c *transcript.Chain, ms int64) (string, string, error) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(transcript.WithDuration(context.Background(), ms), 5*time.Second)
+	defer cancel()
+	return c.TranscribeAs(ctx, strings.NewReader("AUDIOBYTES"), "audio/webm;codecs=opus")
+}
+
+func twoEngines(t *testing.T, groqAnswer, openaiAnswer string) (*transcript.Chain, *fake, *fake) {
+	groq, openai := newFake(t, "Authorization", groqAnswer), newFake(t, "Authorization", openaiAnswer)
+	return transcript.NewChain(transcript.Keys{Groq: "TESTONLY-g", OpenAI: "TESTONLY-o"}, endpoints(groq, openai, nil)), groq, openai
+}
+
+func TestASuspectShortAnswerFallsToTheNextEngineAndTheLongerTextWins(t *testing.T) {
+	c, groq, openai := twoEngines(t, `{"text":"for me to be able to make"}`, `{"text":"`+longWords+`"}`)
+	text, engine, err := runFor(t, c, 40_000)
+	if err != nil || text != longWords || engine != "openai" {
+		t.Fatalf("got %q %q %v", text, engine, err)
+	}
+	if groq.calls.Load() != 1 || openai.calls.Load() != 1 {
+		t.Fatalf("calls groq %d openai %d", groq.calls.Load(), openai.calls.Load())
+	}
+}
+
+func TestWhenTheNextEngineIsShorterTooTheLongestIsKept(t *testing.T) {
+	c, _, _ := twoEngines(t, `{"text":"for me to be able to make it work"}`, `{"text":"for me"}`)
+	text, engine, err := runFor(t, c, 40_000)
+	if err != nil || text != "for me to be able to make it work" || engine != "groq" {
+		t.Fatalf("got %q %q %v", text, engine, err)
+	}
+}
+
+func TestAShortNoteOrAnUnknownLengthIsNeverSuspect(t *testing.T) {
+	c, _, openai := twoEngines(t, `{"text":"ok"}`, `{"text":"`+longWords+`"}`)
+	if text, engine, err := runFor(t, c, 15_000); err != nil || text != "ok" || engine != "groq" {
+		t.Fatalf("15 s: got %q %q %v", text, engine, err)
+	}
+	if text, _, err := run(t, c); err != nil || text != "ok" {
+		t.Fatalf("no length: got %q %v", text, err)
+	}
+	if openai.calls.Load() != 0 {
+		t.Fatal("the fallback was called")
+	}
+}
+
+func TestALastSegmentMoreThanTenSecondsBeforeTheEndIsCutShort(t *testing.T) {
+	cut := `{"text":"` + longWords + `","segments":[{"end":8.5},{"end":20.0}]}`
+	c, groq, openai := twoEngines(t, cut, `{"text":"`+longWords+` and then some more words at the end"}`)
+	text, engine, err := runFor(t, c, 40_000)
+	if err != nil || engine != "openai" || !strings.HasSuffix(text, "at the end") {
+		t.Fatalf("got %q %q %v", text, engine, err)
+	}
+	if groq.calls.Load() != 1 || openai.calls.Load() != 1 {
+		t.Fatalf("calls groq %d openai %d", groq.calls.Load(), openai.calls.Load())
+	}
+
+	whole := `{"text":"` + longWords + `","segments":[{"end":20.0},{"end":31.0}]}` // 9 s before the end: fine
+	c, _, openai = twoEngines(t, whole, `{"text":"other"}`)
+	if text, engine, err = runFor(t, c, 40_000); err != nil || engine != "groq" || text != longWords || openai.calls.Load() != 0 {
+		t.Fatalf("got %q %q %v, openai %d", text, engine, err, openai.calls.Load())
+	}
+}
+
+func TestGroqAsksForSegmentsWithAnEmptyPromptAndTemperatureZero(t *testing.T) {
+	c, groq, _ := twoEngines(t, whisperAnswer, whisperAnswer)
+	if _, _, err := run(t, c); err != nil {
+		t.Fatal(err)
+	}
+	body := groq.body.Load().(string)
+	for _, want := range []string{"verbose_json", `name="prompt"`, `name="temperature"`, "\r\n\r\n0\r\n"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("request lacks %q", want)
+		}
+	}
+}

@@ -41,10 +41,10 @@ func DefaultEndpoints() Endpoints {
 func NewChain(k Keys, ep Endpoints) *Chain {
 	var c Chain
 	if k.Groq != "" {
-		c.steps = append(c.steps, step{"groq", whisper(ep, ep.Groq, k.Groq, "whisper-large-v3-turbo")})
+		c.steps = append(c.steps, step{"groq", whisper(ep, ep.Groq, k.Groq, "whisper-large-v3-turbo", true)})
 	}
 	if k.OpenAI != "" {
-		c.steps = append(c.steps, step{"openai", whisper(ep, ep.OpenAI, k.OpenAI, "whisper-1")})
+		c.steps = append(c.steps, step{"openai", whisper(ep, ep.OpenAI, k.OpenAI, "whisper-1", false)})
 	} else if k.Gemini != "" {
 		c.steps = append(c.steps, step{"gemini", gemini(ep, k.Gemini)})
 	}
@@ -55,34 +55,48 @@ func NewChain(k Keys, ep Endpoints) *Chain {
 }
 
 // whisper is the OpenAI-shaped transcription call that Groq and OpenAI both serve. The file part has a generic name: the extension tells
-// the service the format and nothing else leaves the box.
-func whisper(ep Endpoints, url, key, model string) func(context.Context, []byte, string) (string, error) {
-	return func(ctx context.Context, audio []byte, mime string) (string, error) {
+// the service the format and nothing else leaves the box. verbose asks for segments with end times, an empty prompt and temperature 0:
+// the end of the last segment shows an engine that gave up before the end of the note.
+func whisper(ep Endpoints, url, key, model string, verbose bool) func(context.Context, []byte, string) (answer, error) {
+	return func(ctx context.Context, audio []byte, mime string) (answer, error) {
 		var body bytes.Buffer
 		mw := multipart.NewWriter(&body)
 		_ = mw.WriteField("model", model)
-		_ = mw.WriteField("response_format", "json")
+		if verbose {
+			_ = mw.WriteField("response_format", "verbose_json")
+			_ = mw.WriteField("prompt", "")
+			_ = mw.WriteField("temperature", "0")
+		} else {
+			_ = mw.WriteField("response_format", "json")
+		}
 		h := textproto.MIMEHeader{}
 		h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename="audio.%s"`, extension(mime)))
 		h.Set("Content-Type", "application/octet-stream")
 		part, _ := mw.CreatePart(h)
 		_, _ = part.Write(audio)
 		if err := mw.Close(); err != nil {
-			return "", err
+			return answer{}, err
 		}
 		var out struct {
-			Text string `json:"text"`
+			Text     string `json:"text"`
+			Segments []struct {
+				End float64 `json:"end"`
+			} `json:"segments"`
 		}
 		if err := post(ctx, ep, url, "Authorization", "Bearer "+key, mw.FormDataContentType(), &body, &out); err != nil {
-			return "", err
+			return answer{}, err
 		}
-		return out.Text, nil
+		a := answer{text: out.Text}
+		if n := len(out.Segments); n > 0 {
+			a.end = time.Duration(out.Segments[n-1].End * float64(time.Second))
+		}
+		return a, nil
 	}
 }
 
 // gemini sends the note inline with the prompt "Transcribe verbatim". The key goes in a header, never in the URL.
-func gemini(ep Endpoints, key string) func(context.Context, []byte, string) (string, error) {
-	return func(ctx context.Context, audio []byte, mime string) (string, error) {
+func gemini(ep Endpoints, key string) func(context.Context, []byte, string) (answer, error) {
+	return func(ctx context.Context, audio []byte, mime string) (answer, error) {
 		req, _ := json.Marshal(map[string]any{"contents": []any{map[string]any{"parts": []any{
 			map[string]any{"text": "Transcribe verbatim"},
 			map[string]any{"inline_data": map[string]string{"mime_type": baseMime(mime), "data": base64.StdEncoding.EncodeToString(audio)}},
@@ -97,16 +111,16 @@ func gemini(ep Endpoints, key string) func(context.Context, []byte, string) (str
 			} `json:"candidates"`
 		}
 		if err := post(ctx, ep, ep.Gemini, "x-goog-api-key", key, "application/json", bytes.NewReader(req), &out); err != nil {
-			return "", err
+			return answer{}, err
 		}
 		if len(out.Candidates) == 0 {
-			return "", errors.New("no answer")
+			return answer{}, errors.New("no answer")
 		}
 		var text strings.Builder
 		for _, p := range out.Candidates[0].Content.Parts {
 			text.WriteString(p.Text)
 		}
-		return strings.TrimSpace(text.String()), nil
+		return answer{text: strings.TrimSpace(text.String())}, nil
 	}
 }
 

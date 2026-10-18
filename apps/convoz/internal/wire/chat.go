@@ -109,10 +109,12 @@ type Upload struct {
 	Transcript *Transcript `json:"transcript,omitempty"`
 }
 
-// Transcript is the words of a voice note: State is pending, done or failed; Text is set when done.
+// Transcript is the words of a voice note: State is pending, done or failed; Text is set when done, and while a redo is pending it is the earlier text.
 type Transcript struct {
 	State string `json:"state"`
 	Text  string `json:"text,omitempty"`
+	// RedoFailed is true when "Transcribe again" gave up and Text is the earlier transcript.
+	RedoFailed bool `json:"redo_failed,omitempty"`
 }
 
 // PostRequest is POST /api/conversations/:id/messages. The author is never in it: the server takes it from the credential.

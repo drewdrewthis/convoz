@@ -5,7 +5,7 @@ import { humanError } from "../../../shared/api.ts";
 import { useThreads } from "../../threads/index.ts";
 import { useData } from "../../../shared/data.ts";
 import { pinMessage, toast, unpinMessage } from "../../pins-stars/index.ts";
-import { deleteMessage, editHistory, editMessage } from "./actions.ts";
+import { deleteMessage, editHistory, editMessage, transcribeAgain } from "./actions.ts";
 
 /**
  * MessageMenu is the "Message actions" button of one message and what it opens. The button is invisible until the row is
@@ -17,6 +17,14 @@ export function MessageMenu({ message, mine, conversation }: { message: Message;
   const [sheet, setSheet] = useState<"edit" | "delete" | null>(null);
   const press = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const root = useRef<HTMLSpanElement>(null);
+  const voice = message.uploads?.find((u) => u.kind === "audio");
+  // "Transcribe again" that gave up puts the earlier words back with redo_failed: say so once, when it flips.
+  const redoFailed = Boolean(voice?.transcript?.redo_failed);
+  const wasFailed = useRef(redoFailed);
+  useEffect(() => {
+    if (redoFailed && !wasFailed.current) toast("Could not transcribe again");
+    wasFailed.current = redoFailed;
+  }, [redoFailed]);
   const rootId = message.thread_root_id ?? message.id;
   const inOpenThread = useThreads((s) => s.open?.rootId === rootId);
 
@@ -57,6 +65,18 @@ export function MessageMenu({ message, mine, conversation }: { message: Message;
           >
             {pinned ? "Unpin" : "Pin"}
           </button>
+          {voice ? (
+            <button
+              role="menuitem"
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                transcribeAgain(voice.id).catch((err) => toast(humanError(err)));
+              }}
+            >
+              Transcribe again
+            </button>
+          ) : null}
           {mine ? (
             <button role="menuitem" type="button" onClick={() => (setOpen(false), setSheet("edit"))}>
               Edit

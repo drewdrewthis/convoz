@@ -12,3 +12,6 @@ export const editHistory = (id: number): Promise<EditHistory> => call(client.GET
 
 /** The preview card of a message's first link. Throws ApiError 404 when the message has no card (unfurls off for the host, or no link). */
 export const unfurlOf = (id: number): Promise<UnfurlCard> => call(client.GET("/api/messages/{id}/unfurl", { params: { path: { id } } }));
+
+/** Puts a voice note back in the transcript queue; the live frame that follows shows it as pending. */
+export const transcribeAgain = (uploadId: string) => call(client.POST("/api/uploads/{id}/transcribe", { params: { path: { id: uploadId } } }));

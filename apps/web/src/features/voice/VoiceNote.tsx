@@ -34,7 +34,9 @@ export function VoiceNote({ upload }: { upload: Upload }) {
   const loaded = auto || tapped;
   const heights = useMemo(() => bars(upload.waveform), [upload.waveform]);
   const total = upload.duration_ms ?? 0;
-  const words = upload.transcript?.state === "done" ? (upload.transcript.text ?? "") : null;
+  const pending = upload.transcript?.state === "pending";
+  // A redo keeps the earlier words on show while the new ones are pending.
+  const words = upload.transcript?.state === "done" || (pending && upload.transcript?.text) ? (upload.transcript?.text ?? "") : null;
 
   const follow = () => {
     const a = audio.current!;
@@ -91,6 +93,7 @@ export function VoiceNote({ upload }: { upload: Upload }) {
           }}
         />
       </div>
+      {pending ? <span className="vwords" role="status">Transcribing…</span> : null}
       {words !== null ? (
         <>
           <button type="button" className="vtx" aria-expanded={open} onClick={() => setOpen((x) => !x)}>

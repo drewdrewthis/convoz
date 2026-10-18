@@ -114,6 +114,7 @@ paths:
   # ---- upload
   /api/uploads: { $ref: "paths/upload.yaml#/~1api~1uploads" }
   /api/uploads/{id}: { $ref: "paths/upload.yaml#/~1api~1uploads~1{id}" }
+  /api/uploads/{id}/transcribe: { $ref: "paths/upload.yaml#/~1api~1uploads~1{id}~1transcribe" }
   /api/files/{public_id}: { $ref: "paths/upload.yaml#/~1api~1files~1{public_id}" }
   # ---- search
   /api/search: { $ref: "paths/search.yaml#/~1api~1search" }
