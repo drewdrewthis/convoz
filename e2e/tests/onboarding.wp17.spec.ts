@@ -1,4 +1,5 @@
 import { expect, scenario } from "../lib/scenario.ts";
+import { installFakePhone } from "../lib/push-phone.ts";
 import { installed, world } from "../lib/wp17.ts";
 
 /*
@@ -20,6 +21,9 @@ scenario("iPhone users get an Add to Home Screen guide", { tag: ["@browser", "@p
     userAgent: IPHONE,
     storageState: await context.storageState(),
   });
+  // The app asks the browser, not the UA: a Safari tab on iOS has no PushManager and says vendor "Apple Computer, Inc."; Chromium has the first and says "Google Inc.", which reads as Chrome.
+  await installFakePhone(phone, { supported: false });
+  await phone.addInitScript(() => Object.defineProperty(Navigator.prototype, "vendor", { configurable: true, get: () => "Apple Computer, Inc." }));
   const iphone = await phone.newPage();
   expect(await iphone.evaluate(() => matchMedia("(display-mode: standalone)").matches)).toBe(false);
 
