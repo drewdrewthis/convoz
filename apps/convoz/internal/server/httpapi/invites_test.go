@@ -19,7 +19,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/dbtest"
 )
 
-// testInvites makes n invites, spread over as many makers as the cap of ten open invites each needs. The owner is the first maker.
+// testInvites makes n invites, spread over as many makers as the caps need (ten for the owner, three for an agent). The owner is the first maker.
 func testInvites(t *testing.T, s *Server, n int) []string {
 	t.Helper()
 	var tokens []string
@@ -29,19 +29,24 @@ func testInvites(t *testing.T, s *Server, n int) []string {
 		if err != nil {
 			return err
 		}
-		makers := []int64{owner.ID}
-		for i := 0; len(makers)*auth.MaxOpenInvites < n; i++ {
-			a, err := identity.CreateAgent(ctx, d, identity.NewAgent{Handle: fmt.Sprintf("maker-%d", i), DisplayName: fmt.Sprintf("Maker number %d", i), ByHuman: owner.ID}, now)
-			if err != nil {
-				return err
-			}
-			makers = append(makers, a.ID)
-		}
+		maker, held := owner.ID, 0
 		for i := 0; i < n; i++ {
-			_, token, err := auth.CreateInvite(ctx, d, flowPorts, auth.NewInvite{By: auth.AuditEntry{Actor: makers[i/auth.MaxOpenInvites]}}, now)
+			limit := auth.MaxOpenInvites
+			if maker != owner.ID {
+				limit = auth.MaxOpenAgentInvites
+			}
+			if held == limit {
+				a, err := identity.CreateAgent(ctx, d, identity.NewAgent{Handle: fmt.Sprintf("maker-%d", i), DisplayName: fmt.Sprintf("Maker number %d", i), ByHuman: owner.ID}, now)
+				if err != nil {
+					return err
+				}
+				maker, held = a.ID, 0
+			}
+			_, token, err := auth.CreateInvite(ctx, d, flowPorts, auth.NewInvite{By: auth.AuditEntry{Actor: maker}}, now)
 			if err != nil {
 				return err
 			}
+			held++
 			tokens = append(tokens, token)
 		}
 		return nil

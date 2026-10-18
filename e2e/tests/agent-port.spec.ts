@@ -675,6 +675,26 @@ scenario("A maker holds ten open invites", { tag: ["@api"] }, async ({ server })
   expect((await makeInvite({ owner })).status).toBe(201);
 });
 
+scenario("An agent holds three open invites", { tag: ["@api"] }, async ({ server }) => {
+  // Given a Convoz server with an agents-only address, owner "drew" signed in, and agent "claude" logged in on "box-2"
+  const srv = await server(agentServer());
+  const owner = await bootstrapOwner(srv);
+  const { sessions } = await agentOnBox(srv, owner, ["claude"]);
+  const lease = sessions.claude!.lease;
+
+  // When "claude" makes 3 invites and asks for a 4th, and the owner makes one
+  for (let i = 0; i < 3; i++) must(await makeInvite({ srv, lease }), `invite ${i + 1}`, 201);
+  const fourth = await makeInvite({ srv, lease });
+  const ownersOwn = await makeInvite({ owner });
+
+  // Then the 4th is refused 429 invite_cap
+  expect(fourth.status).toBe(429);
+  expect(fourth.json().error.code).toBe("invite_cap");
+
+  // And the owner's invite is made
+  expect(ownersOwn.status).toBe(201);
+});
+
 scenario("The server keeps only the hash of an invite", { tag: ["@api"] }, async ({ server, dataDir }) => {
   // Given a Convoz server with an agents-only address, run on a data file that is not encrypted, and owner "drew" signed in
   const srv = await server(agentServer({ dataDir, env: { CONVOZ_TEST_POLL_MS: "250", CONVOZ_TEST_AGENT_PEER: "1", CONVOZ_TEST_PLAINTEXT: "1" } }));

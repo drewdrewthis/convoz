@@ -21,6 +21,8 @@ const (
 	InviteTTL = 24 * time.Hour
 	// MaxOpenInvites is how many unused, unexpired invites one maker may hold.
 	MaxOpenInvites = 10
+	// MaxOpenAgentInvites is the same for an agent maker (owner approval, conv 1 msg 187: "3 open invites per agent").
+	MaxOpenAgentInvites = 3
 )
 
 // The kinds of request an invite is spent on.
@@ -82,7 +84,11 @@ func CreateInvite(ctx context.Context, d pdb.DBTX, p Ports, in NewInvite, now ti
 	if err != nil {
 		return Invite{}, "", err
 	}
-	if open >= MaxOpenInvites {
+	limit, err := openInviteLimit(ctx, d, p, in.By.Actor)
+	if err != nil {
+		return Invite{}, "", err
+	}
+	if open >= int64(limit) {
 		return Invite{}, "", ErrInviteCap
 	}
 	token := newToken(PrefixInvite)
@@ -102,6 +108,18 @@ func CreateInvite(ctx context.Context, d pdb.DBTX, p Ports, in NewInvite, now ti
 		return Invite{}, "", err
 	}
 	return inviteOf(id, arg.Hint, arg.MakerID, arg.ConversationID, arg.Note, arg.CreatedAt, arg.ExpiresAt), token, nil
+}
+
+// openInviteLimit is the cap for a maker: an agent holds fewer open invites than the owner.
+func openInviteLimit(ctx context.Context, d pdb.DBTX, p Ports, maker int64) (int, error) {
+	agents, err := p.Agents.ActiveAgents(ctx, d)
+	if err != nil {
+		return 0, err
+	}
+	if _, isAgent := agents[maker]; isAgent {
+		return MaxOpenAgentInvites, nil
+	}
+	return MaxOpenInvites, nil
 }
 
 func auditInvite(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, by AuditEntry, action string, id int64, detail map[string]any) error {

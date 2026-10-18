@@ -44,6 +44,11 @@ func Invite(args []string, io IO) int {
 		ctx, cancel := context.WithTimeout(context.Background(), k.timeout)
 		defer cancel()
 		if err := k.call(ctx, "POST", wire.RouteInvites, req, &out); err != nil {
+			var se *statusError
+			if errors.As(err, &se) && se.code == wire.CodeInviteCap {
+				// A session is always an agent's; the owner has no session and gets the server's words.
+				return fail(io, errors.New("you already have 3 open invites; wait for one to be used or to expire, or ask the owner to revoke one in Crew"))
+			}
 			return k.fail(err)
 		}
 		return printInvite(io, out.Invite, *f.asJSON)
