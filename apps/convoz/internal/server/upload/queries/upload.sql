@@ -54,3 +54,9 @@ DELETE FROM uploads WHERE message_id = sqlc.arg(message_id);
 
 -- name: AllStorageNames :many
 SELECT storage_name FROM uploads;
+
+-- name: BoundAudioAfter :many
+-- Stored voice notes of live messages, oldest first, after a cursor: the transcript backfill walks them. A deleted note has no row; an unbound one is not a message's.
+SELECT id FROM uploads
+WHERE kind = 'audio' AND state = 'complete' AND message_id IS NOT NULL AND in_app = 0 AND id > sqlc.arg(after_id)
+ORDER BY id LIMIT sqlc.arg(max_rows);

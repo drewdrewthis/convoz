@@ -57,6 +57,13 @@ Feature: Voice notes
       When the owner sends a voice note
       Then the voice message shows no transcript and no error
 
+    @v1 @browser @cli
+    Scenario: A note sent before transcription was on gets its words later
+      Given transcription was off when the owner sent a voice note
+      When the owner sets the transcription engine
+      Then the voice message shows the transcript, without the note being sent again
+      And "devtool" reads the transcript with "convoz read 41"
+
     @v1 @browser @cli @AC-M11
     Scenario: Search finds words that are only in the transcript
       Given the owner sent a voice note that says "ZQX-thursday-filters"

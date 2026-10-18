@@ -381,3 +381,8 @@ func KnownFiles(ctx context.Context, d pdb.DBTX) (map[string]bool, error) {
 	}
 	return out, nil
 }
+
+// BoundAudioAfter lists the ids of stored voice notes that belong to a message, oldest first, from the id after the cursor.
+func BoundAudioAfter(ctx context.Context, d pdb.DBTX, after int64, limit int) ([]int64, error) {
+	return db.New(d).BoundAudioAfter(ctx, db.BoundAudioAfterParams{AfterID: after, MaxRows: int64(limit)})
+}

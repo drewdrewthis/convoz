@@ -76,6 +76,41 @@ func (q *Queries) BindUpload(ctx context.Context, arg BindUploadParams) (int64, 
 	return result.RowsAffected()
 }
 
+const boundAudioAfter = `-- name: BoundAudioAfter :many
+SELECT id FROM uploads
+WHERE kind = 'audio' AND state = 'complete' AND message_id IS NOT NULL AND in_app = 0 AND id > ?1
+ORDER BY id LIMIT ?2
+`
+
+type BoundAudioAfterParams struct {
+	AfterID int64
+	MaxRows int64
+}
+
+// Stored voice notes of live messages, oldest first, after a cursor: the transcript backfill walks them. A deleted note has no row; an unbound one is not a message's.
+func (q *Queries) BoundAudioAfter(ctx context.Context, arg BoundAudioAfterParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, boundAudioAfter, arg.AfterID, arg.MaxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const completeUpload = `-- name: CompleteUpload :exec
 UPDATE uploads
 SET state = 'complete', kind = ?1, declared_size = ?2, committed_bytes = ?2, mime_sniffed = ?3, serve_inline = ?4,

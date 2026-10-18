@@ -30,10 +30,73 @@ func (s *Server) startTranscriber() {
 	go func() {
 		tick := time.NewTicker(transcribePoll)
 		defer tick.Stop()
+		ctx := context.Background()
+		var seen string // the engine of the last look: a change from "none" to an engine is what starts a backfill
+		more := false
 		for range tick.C {
-			s.transcribeDue(context.Background())
+			now := s.currentEngine(ctx)
+			if now != seen || more {
+				more = s.backfillTranscripts(ctx, now) == backfillBatch
+				seen = now
+			}
+			s.transcribeDue(ctx)
 		}
 	}()
+}
+
+// backfillBatch is how many old voice notes one pass queues; the worker takes them one at a time, so the queue never floods.
+const backfillBatch = 20
+
+// currentEngine is the engine the workspace setting picks right now, "none" when off or when the build has no such engine.
+func (s *Server) currentEngine(ctx context.Context) string {
+	name := transcriptionEngine(ctx, s.reader())
+	if _, ok := transcript.Lookup(name); !ok {
+		return transcript.None
+	}
+	return name
+}
+
+// backfillTranscripts queues, oldest first, up to backfillBatch stored voice notes that have no transcript row (they were sent while
+// no engine was on), through the same queue as a new note. It is idempotent: a note with a row is skipped. It reports how many it
+// queued and logs only that count.
+func (s *Server) backfillTranscripts(ctx context.Context, engine string) int {
+	if engine == transcript.None {
+		return 0
+	}
+	queued := 0
+	err := s.Store.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) error {
+		d := tx.DBTX()
+		var cursor int64
+		for queued < backfillBatch {
+			ids, err := upload.BoundAudioAfter(ctx, d, cursor, backfillBatch)
+			if err != nil || len(ids) == 0 {
+				return err
+			}
+			cursor = ids[len(ids)-1]
+			have, err := transcript.ForUploads(ctx, d, ids)
+			if err != nil {
+				return err
+			}
+			for _, id := range ids {
+				if _, ok := have[id]; ok || queued == backfillBatch {
+					continue
+				}
+				if err := transcript.Enqueue(ctx, d, s.Clock.Now(), id, engine); err != nil {
+					return err
+				}
+				queued++
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		s.Log.Printf("transcript backfill: %v", err)
+		return 0
+	}
+	if queued > 0 {
+		s.Log.Printf("transcript backfill: queued %d", queued)
+	}
+	return queued
 }
 
 // transcribeDue works through every transcript that is due now.
