@@ -30,7 +30,7 @@ func TestLoginAndSessionStartTellTheAgentToWatchAtOnce(t *testing.T) {
 	}
 
 	var login bytes.Buffer
-	finishLogin(IO{Stdout: &login, Stderr: &bytes.Buffer{}, Getenv: env}, filepath.Join(xdg, "convoz"), brokenKeychain{}, Credentials{Server: srv.URL, Machine: "box-2", Key: testKey}, storeFile)
+	finishLogin(IO{Stdout: &login, Stderr: &bytes.Buffer{}, Getenv: env}, filepath.Join(xdg, "convoz"), brokenKeychain{}, Credentials{Server: srv.URL, Machine: "box-2", Key: testKey}, storeFile, false)
 	if !strings.Contains(login.String(), "convoz watch --json") {
 		t.Errorf("login output lacks the watch step:\n%s", login.String())
 	}

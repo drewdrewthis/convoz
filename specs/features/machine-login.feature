@@ -115,6 +115,13 @@ Feature: Machine login with a device flow
       Then the key is in the credentials file with mode 0600
       And "convoz whoami" works
 
+    @v1 @cli
+    Scenario: Login on a box that cannot save the key stops before asking the owner
+      Given the folder "~/.config" on the box is read-only
+      When "convoz login --name box-2 --store file" runs
+      Then the CLI exits 3 and the message names the config folder and the fix
+      And the owner sees no request for "box-2"
+
   Rule: An agent that logs in brings its own identity, and one card connects both
 
     @v1 @cli @browser @I-3 @I-36

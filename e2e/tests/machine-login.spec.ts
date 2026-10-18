@@ -118,6 +118,7 @@
  */
 
 import fs from "node:fs";
+import path from "node:path";
 import { createConversation, ownerSays } from "../lib/chat.ts";
 import { Client, send } from "../lib/http.ts";
 import { fakeTailscale, whoisNode } from "../lib/fake-tailscale.ts";
@@ -444,6 +445,31 @@ scenario("The CLI refuses a credentials file with loose permissions", { tag: ["@
 
   // Then the CLI exits 3, and the message names the path and the mode it needs
   expect(seen).toEqual(rows.map(() => ({ code: 3, names: true })));
+});
+
+scenario("Login on a box that cannot save the key stops before asking the owner", { tag: ["@cli"] }, async ({ server }) => {
+  const srv = await server(localServer());
+  const owner = await bootstrapOwner(srv);
+  const box = new CliMachine();
+
+  // Given the folder "~/.config" on the box is read-only
+  const dotConfig = path.dirname(box.configDir);
+  fs.mkdirSync(dotConfig, { recursive: true });
+  fs.chmodSync(dotConfig, 0o500);
+  try {
+    // When "convoz login --name box-2 --store file" runs
+    const res = await box.run(["login", "--server", srv.origin, "--name", "box-2", "--store", "file"]);
+
+    // Then the CLI exits 3 and the message names the config folder and the fix
+    expect(res.code, res.stderr).toBe(3);
+    expect(res.stderr).toContain(`cannot write ${box.configDir}`);
+    expect(res.stderr).toContain("Set XDG_CONFIG_HOME to a writable folder, or use --store keychain");
+
+    // And the owner sees no request for "box-2"
+    expect(await pendingRequests(owner)).toEqual([]);
+  } finally {
+    fs.chmodSync(dotConfig, 0o700);
+  }
 });
 
 scenario("Headless Linux falls back to the file store", { tag: ["@cli"] }, async ({ server }) => {

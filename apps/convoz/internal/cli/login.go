@@ -77,12 +77,18 @@ func Login(args []string, io IO) int {
 		return fail(io, err)
 	}
 	kc := osKeychain{io.Getenv}
+	// Only the file store needs the folder; auto uses it when no keychain answers. A keychain that fails later is caught by finishLogin.
+	if *store == storeFile || (*store == storeAuto && !kc.available()) {
+		if err := checkWritable(dir); err != nil {
+			return failConfig(io, dir, err)
+		}
+	}
 	if *stdin { // storing a key contacts no server, so there is no version to compare
 		key, err := readKey(io)
 		if err != nil {
 			return usageError(io, err.Error())
 		}
-		return finishLogin(io, dir, kc, Credentials{Server: base, Machine: *name, Key: key}, *store)
+		return finishLogin(io, dir, kc, Credentials{Server: base, Machine: *name, Key: key}, *store, false)
 	}
 	WarnIfStale(io, newClient(base))
 	return deviceFlow(io, dir, kc, newClient(base), base, *name, *store, intro, strings.TrimSpace(*invite))
@@ -144,9 +150,26 @@ func readKey(io IO) (string, error) {
 	return key, nil
 }
 
-func finishLogin(io IO, dir string, kc keychain, c Credentials, store string) int {
+// failConfig reports a config folder that cannot be written. It names the path and the fix, and exits as for any permission error.
+func failConfig(io IO, dir string, err error) int {
+	var pe *os.PathError
+	if errors.As(err, &pe) {
+		err = pe.Err // the path is already named once
+	}
+	fmt.Fprintf(io.Stderr, "convoz: cannot write %s: %s. Set XDG_CONFIG_HOME to a writable folder, or use --store keychain\n", dir, err)
+	return ExitAuth
+}
+
+// finishLogin stores the key. fromDevice says the owner already approved a card for it: the device code is not kept, so a failed save
+// cannot be resumed and the message says how to start over.
+func finishLogin(io IO, dir string, kc keychain, c Credentials, store string, fromDevice bool) int {
 	if err := saveCredentials(dir, kc, c, store); err != nil {
-		return fail(io, err)
+		code := fail(io, err)
+		if fromDevice {
+			fmt.Fprintf(io.Stderr, "convoz: the key could not be saved. Fix the folder %s, then run the same convoz login command again within 10 minutes. "+
+				"The old card for %q is stale: the owner can deny or revoke it in Convoz.\n", dir, c.Machine)
+		}
+		return code
 	}
 	fmt.Fprintf(io.Stdout, "Logged in as machine %q.\n", c.Machine)
 	fmt.Fprintln(io.Stdout, watchNext)
@@ -181,7 +204,7 @@ func deviceFlow(io IO, dir string, kc keychain, c *client, base, name, store str
 		var tok wire.DeviceTokenResponse
 		err := c.call(context.Background(), "POST", wire.RouteDeviceToken, "", wire.DeviceTokenRequest{DeviceCode: code.DeviceCode}, &tok)
 		if err == nil {
-			return finishLogin(io, dir, kc, Credentials{Server: base, Machine: tok.MachineName, Key: tok.MachineKey}, store)
+			return finishLogin(io, dir, kc, Credentials{Server: base, Machine: tok.MachineName, Key: tok.MachineKey}, store, true)
 		}
 		status, errCode := statusCode(err)
 		switch {
