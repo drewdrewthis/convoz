@@ -76,3 +76,7 @@
   .foldq { font-size: 14px; font-weight: 600; }
   .foldwho, .foldstate { font-size: 13px; color: var(--color-muted); }
 }
+@layer components {
+  .attn { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin: -2px 4px 0; }
+  .attn .seen, .attn .working { margin: 0; color: var(--color-muted); font-size: 12px; }
+}

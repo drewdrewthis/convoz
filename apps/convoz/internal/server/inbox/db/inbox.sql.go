@@ -320,7 +320,7 @@ func (q *Queries) ExpiredClaimIDs(ctx context.Context, arg ExpiredClaimIDsParams
 const extendClaims = `-- name: ExtendClaims :many
 UPDATE inbox_items SET claim_until = min(?1 + visibility_ms, ?2), updated_at = ?1
 WHERE claim_session_id = ?3 AND state = 'claimed' AND claim_until >= ?1
-RETURNING conversation_id, claim_until
+RETURNING conversation_id, message_id, claim_until
 `
 
 type ExtendClaimsParams struct {
@@ -331,6 +331,7 @@ type ExtendClaimsParams struct {
 
 type ExtendClaimsRow struct {
 	ConversationID sql.NullInt64
+	MessageID      sql.NullInt64
 	ClaimUntil     sql.NullInt64
 }
 
@@ -344,7 +345,7 @@ func (q *Queries) ExtendClaims(ctx context.Context, arg ExtendClaimsParams) ([]E
 	var items []ExtendClaimsRow
 	for rows.Next() {
 		var i ExtendClaimsRow
-		if err := rows.Scan(&i.ConversationID, &i.ClaimUntil); err != nil {
+		if err := rows.Scan(&i.ConversationID, &i.MessageID, &i.ClaimUntil); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

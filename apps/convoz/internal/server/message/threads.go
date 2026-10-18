@@ -2,6 +2,7 @@ package message
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message/db"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
@@ -38,4 +39,17 @@ func CountMainUnread(ctx context.Context, d pdb.DBTX, conv, after, reader, max i
 // NewestMessageID is the newest message of a conversation, replies included, 0 for none: where "mark all read" puts the thread floor.
 func NewestMessageID(ctx context.Context, d pdb.DBTX, conv int64) (int64, error) {
 	return db.New(d).NewestMessageID(ctx, conv)
+}
+
+// NewestOfAuthors is the newest text message any of authors wrote in one place of a conversation, 0 for none: the main list
+// when root is 0, else the thread of root (the root itself counts).
+func NewestOfAuthors(ctx context.Context, d pdb.DBTX, conv, root int64, authors []int64) (int64, error) {
+	if len(authors) == 0 {
+		return 0, nil
+	}
+	who := make([]sql.NullInt64, len(authors))
+	for i, a := range authors {
+		who[i] = nullInt(a)
+	}
+	return db.New(d).NewestOfAuthors(ctx, db.NewestOfAuthorsParams{ConversationID: conv, Root: root, Authors: who})
 }

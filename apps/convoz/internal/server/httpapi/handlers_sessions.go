@@ -144,7 +144,7 @@ func (s *Server) renewSession(w http.ResponseWriter, r *http.Request, c *call) {
 		return
 	}
 	for _, h := range holds { // the claims now run longer, so the "working" of each ends later
-		s.publishWorking(r.Context(), c.lease.IdentityID, h.Conversation, true, h.Until)
+		s.publishHold(r.Context(), c.lease.IdentityID, h)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"expires_at": expires})
 }

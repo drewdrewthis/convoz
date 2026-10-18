@@ -10,9 +10,10 @@ import type { PendingSend } from "./store.ts";
 import { Markdown } from "./Markdown.tsx";
 import { resume } from "./actions.ts";
 import { hasLink, LinkPreview } from "./messages/LinkPreview.tsx";
-import { EditedMark, MessageMenu } from "./messages/MessageMenu.tsx";
+import { DeleteSheet, EditedMark, MessageMenu } from "./messages/MessageMenu.tsx";
 import { NoticeRow, pausedNow } from "./messages/Notice.tsx";
 import { PendingFiles, Uploads } from "./messages/Uploads.tsx";
+import { SeenLine } from "./messages/SeenLine.tsx";
 import { ReplyLine } from "../threads/index.ts";
 
 /** A message that arrives while the log is within this many px of its bottom keeps the log at the bottom. */
@@ -294,7 +295,7 @@ const MessageRow = memo(function MessageRow({ row, threaded, me, paused, convers
     // only markdown draws an image of an upload in the body; plain text and markdownv2 leave it to the file list
     const files = m.uploads?.length ? <Uploads uploads={m.uploads} body={format === "markdown" ? m.body : ""} /> : null;
     const said = !text && files ? null : format ? <Markdown text={text} format={format} /> : <div className="text">{text}</div>;
-    const askCard = m.kind === "ask" && m.ask ? <AskInline ask={m.ask} labelId={label} inThread={threaded} /> : null;
+    const askCard = m.kind === "ask" && m.ask ? <AskInline ask={m.ask} labelId={label} inThread={threaded} deleteSheet={(close) => <DeleteSheet message={m} close={close} />} /> : null;
     const body = askCard ?? (
       <>
         {said}
@@ -308,7 +309,7 @@ const MessageRow = memo(function MessageRow({ row, threaded, me, paused, convers
     const detail = onDetails && m.author.kind === "agent" ? () => onDetails(m) : undefined;
     const replies = threaded || m.thread_root_id ? null : <ReplyLine message={m} conversation={conversation} />;
     const tag = !threaded && m.thread_root_id ? "replied to a thread" : undefined;
-    return <Article person={m.author} me={me} first={row.first} stamp={clock(m.created_at)} tag={tag} onStamp={detail} body={body} extra={<>{m.kind !== "ask" && hasLink(text) ? <LinkPreview id={m.id} /> : null}{pinned ? <PinMark /> : null}{edited}{replies}</>} menu={menu} mid={m.id} marked={hl === m.id} labelledBy={m.kind === "ask" && m.ask ? label : undefined} />;
+    return <Article person={m.author} me={me} first={row.first} stamp={clock(m.created_at)} tag={tag} onStamp={detail} body={body} extra={<>{m.kind !== "ask" && hasLink(text) ? <LinkPreview id={m.id} /> : null}{pinned ? <PinMark /> : null}{edited}{replies}{m.author.handle === me ? <SeenLine conversation={conversation} message={m} threaded={threaded} /> : null}</>} menu={menu} mid={m.id} marked={hl === m.id} labelledBy={m.kind === "ask" && m.ask ? label : undefined} />;
   }
   const state =
     p!.state === "failed" ? (

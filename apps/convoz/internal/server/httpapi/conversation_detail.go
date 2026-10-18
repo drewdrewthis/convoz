@@ -31,6 +31,9 @@ func detailView(ctx context.Context, d pdb.DBTX, p authz.Principal, dir director
 			out.MutedUntil = ptr(pf.MutedUntil)
 		}
 	}
+	if _, out.Seen, err = seenIn(ctx, d, dir, cv.ID, 0); err != nil {
+		return wire.Conversation{}, err
+	}
 	waiting, err := conversation.Pending(ctx, d, cv.ID)
 	if err != nil {
 		return wire.Conversation{}, err

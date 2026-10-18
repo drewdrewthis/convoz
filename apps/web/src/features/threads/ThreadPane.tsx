@@ -2,6 +2,7 @@ import { AttachIcon, BackIcon, SendIcon } from "@convoz/ui/icons";
 import type { Message } from "@convoz/api-client";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { stripCf } from "../../shared/chat.ts";
+import { replyingNote, useReplying } from "../../shared/presence.ts";
 import { AttachmentList, pasteFiles, useAttachments } from "../composer/index.ts";
 import { useThreads, type PendingReply } from "./store.ts";
 
@@ -46,6 +47,7 @@ export function ThreadPane({ title, bubbles }: ThreadPaneProps) {
   const attachments = useAttachments(t?.conversation ?? 0);
   const log = useRef<HTMLDivElement>(null);
   const root = t?.rootId;
+  const note = replyingNote(useReplying(t?.conversation ?? 0, root ?? -1));
   const total = (t?.replies.length ?? 0) + (t?.pending.length ?? 0);
 
   useEffect(() => {
@@ -58,7 +60,7 @@ export function ThreadPane({ title, bubbles }: ThreadPaneProps) {
   useEffect(() => {
     const el = log.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [total, root]);
+  }, [total, root, note]);
 
   if (!t) return null;
   const heading = `in ${stripCf(title)}`;
@@ -104,6 +106,9 @@ export function ThreadPane({ title, bubbles }: ThreadPaneProps) {
           <span className="rule" aria-hidden="true" />
         </div>
         {bubbles(t.replies, t.pending)}
+        <div id="thread-working" className="working" role="status" hidden={!note}>
+          {note ?? ""}
+        </div>
       </div>
       <form className="threadform" onSubmit={submit}>
         <AttachmentList attachments={attachments} />

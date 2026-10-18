@@ -1,6 +1,7 @@
 // Conversations: the list, one conversation (and a new one), and the page for one that does not exist.
 import { registerHandler, registerResync } from "@convoz/api-client";
 import { data, source } from "../../shared/data.ts";
+import "../../shared/presence.ts"; // takes the working and seen frames in
 import { useConversations } from "./store.ts";
 
 export { Conversations } from "./Conversations.tsx";
@@ -21,9 +22,6 @@ registerHandler("message.", (frame) => {
     void data.loadConversation(id).catch(() => {});
     void refreshAsks(id).catch(() => {}); // a removal closes the agent's asks
   }
-});
-registerHandler("agent.", (frame) => {
-  if (frame.name === "agent.working") useConversations.getState().setWorking(frame.data.conversation_id, frame.data.handle, Boolean(frame.data.working), frame.data.until);
 });
 registerResync(() => void useConversations.getState().drainOutbox());
 

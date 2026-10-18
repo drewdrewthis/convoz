@@ -127,9 +127,20 @@ func (s *Server) listReplies(w http.ResponseWriter, r *http.Request, c *call) {
 		writeErr(w, http.StatusNotFound, "not_found", "No such thread.")
 		return
 	}
-	if root.ThreadRootID != 0 || root.Kind == "system" {
+	if root.Kind == "system" {
 		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "id", "A thread hangs off a top-level message.")
 		return
+	}
+	if root.ThreadRootID != 0 { // a message inside a thread names its thread
+		if root, found, err = message.Get(ctx, d, root.ThreadRootID); err != nil {
+			s.internalError(w, r, err)
+			return
+		}
+		if !found {
+			writeErr(w, http.StatusNotFound, "not_found", "No such thread.")
+			return
+		}
+		rootID = root.ID
 	}
 	seq, err := event.MaxSeq(ctx, d)
 	var page []message.Message
@@ -169,5 +180,10 @@ func (s *Server) listReplies(w http.ResponseWriter, r *http.Request, c *call) {
 	if root.ID <= floor {
 		head = wire.Message{ID: root.ID, Author: systemAuthor, Body: threadStubWords, Format: "plain"}
 	}
-	writeJSON(w, http.StatusOK, wire.RepliesResponse{ConversationID: root.ConversationID, Root: head, Messages: out, AsOfSeq: seq})
+	_, seen, err := seenIn(ctx, d, dir, root.ConversationID, rootID)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, wire.RepliesResponse{ConversationID: root.ConversationID, Root: head, Messages: out, AsOfSeq: seq, Seen: seen})
 }

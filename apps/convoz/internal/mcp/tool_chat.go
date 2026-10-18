@@ -120,6 +120,22 @@ func init() {
 			return runnerOf(ctx).run("read", "", append(argv, strconv.FormatInt(a.Conversation, 10))...)
 		}})
 
+	Register(Tool{Name: "typing", Order: 17, Description: "Show the owner you are replying in a conversation, or in a thread, for 30 seconds. A claimed item shows it by itself; use this for work without one. Posting ends it.",
+		InputSchema: object([]string{"conversation"}, props{
+			"conversation": conv(),
+			"thread":       integer("A message of the thread you reply in. Leave it out for the main list.", 1, 1<<53-1),
+		}),
+		Call: func(ctx context.Context, args json.RawMessage) (any, error) {
+			var a struct {
+				Conversation int64 `json:"conversation"`
+				Thread       int64 `json:"thread"`
+			}
+			if err := decodeArgs(args, &a); err != nil {
+				return nil, err
+			}
+			return runnerOf(ctx).run("typing", "", append(withFlag(nil, "thread", a.Thread), strconv.FormatInt(a.Conversation, 10))...)
+		}})
+
 	Register(Tool{Name: "search", Order: 7, Description: "Search the messages of the conversations you are in, newest first. The text may hold filters such as from:@x or is:ask.",
 		InputSchema: object([]string{"query"}, props{
 			"query": text("The words to find."),

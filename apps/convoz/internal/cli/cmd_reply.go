@@ -8,7 +8,7 @@ func init() {
 }
 
 // Reply runs `convoz reply [--broadcast] [--format F] [--app FILE] [--client-id C] <message> <text|->`: a reply in the thread of a
-// top-level message. --broadcast also shows it in the main list. It prints the reply's id. The conversation is found from the
+// message: a top-level one, or one inside a thread (the reply goes to the thread's root). --broadcast also shows it in the main list. It prints the reply's id. The conversation is found from the
 // message, and a retry with the same client id stores the reply once, as for `convoz post`.
 func Reply(args []string, io IO) int {
 	f := newChatFlags("reply", io)

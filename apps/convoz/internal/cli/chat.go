@@ -194,7 +194,7 @@ func (o postFlags) send(f *chatFlags, io IO, conv, thread int64, text string) in
 		if err := k.callRetry("GET", fmt.Sprintf("/api/messages/%d/replies?limit=1", thread), nil, &found); err != nil {
 			return k.fail(err)
 		}
-		conv = found.ConversationID
+		conv, thread = found.ConversationID, found.Root.ID // a message inside a thread replies to the thread's root
 	}
 	if o.app.set() {
 		var code int

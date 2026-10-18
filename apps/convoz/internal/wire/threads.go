@@ -7,4 +7,5 @@ type RepliesResponse struct {
 	Root           Message   `json:"root"`
 	Messages       []Message `json:"messages"`
 	AsOfSeq        int64     `json:"as_of_seq"`
+	Seen           []Seen    `json:"seen,omitempty"` // agents that saw the newest message a person wrote in this thread
 }

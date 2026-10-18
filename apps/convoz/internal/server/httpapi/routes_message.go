@@ -6,6 +6,7 @@ import "github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
 var messageRoutes = []Route{
 	{Method: "GET", Pattern: "/api/conversations/:id/messages", Auth: authz.Human, Lease: true, handle: (*Server).listMessages},
 	{Method: "POST", Pattern: "/api/conversations/:id/messages", Auth: authz.Human, Lease: true, Scope: "post", handle: (*Server).postMessage},
+	{Method: "POST", Pattern: "/api/conversations/:id/typing", Auth: authz.Human, Lease: true, Scope: "post", handle: (*Server).typing},
 	// Resume is the loop breaker's lift (I-16): a person only.
 	{Method: "POST", Pattern: "/api/conversations/:id/resume", Auth: authz.Human, RefuseLease: true, handle: (*Server).resumeConversation},
 	{Method: "PATCH", Pattern: "/api/messages/:id", Auth: authz.Human, Lease: true, Scope: "post", handle: (*Server).editMessage},

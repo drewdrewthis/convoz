@@ -1,11 +1,10 @@
 import type { Ask, Message } from "@convoz/api-client";
 import { AskCard, type Answer } from "@convoz/app-kit";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { AppHost } from "../apps-host/index.ts";
 import { data, useData } from "../../shared/data.ts";
 import { humanError } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
-import { DeleteSheet } from "../conversations/messages/MessageMenu.tsx";
 import { pinMessage, toast, unpinMessage } from "../pins-stars/index.ts";
 import { useThreads } from "../threads/index.ts";
 import { presetsAt } from "./presets.ts";
@@ -13,7 +12,8 @@ import { answerAsk, dismissAsk, snoozeAsk, undismissAsk, useNow } from "./store.
 
 /** AskInline is the ask card inside a conversation. Its changes go to the same routes as Now's, and the message that holds the ask
  *  takes the new state at once (the stream frame brings the same state a moment later). */
-export function AskInline({ ask, labelId, inThread = false }: { ask: Ask; labelId: string; inThread?: boolean }) {
+// deleteSheet comes from the conversation feature (which owns message deletion), so this feature does not import it.
+export function AskInline({ ask, labelId, inThread = false, deleteSheet }: { ask: Ask; labelId: string; inThread?: boolean; deleteSheet?: (close: () => void) => ReactNode }) {
   const { fail } = useNotice();
   const skew = useNow((s) => s.skew);
   const [busy, setBusy] = useState(false);
@@ -55,7 +55,7 @@ export function AskInline({ ask, labelId, inThread = false }: { ask: Ask; labelI
       onDelete={() => setDeleting(true)}
       onCopyLink={() => void navigator.clipboard?.writeText(`${location.origin}/chats/${ask.conversation_id}#m${ask.id}`)}
     />
-    {deleting ? <DeleteSheet message={{ id: ask.id } as Message} close={() => setDeleting(false)} /> : null}
+    {deleting && deleteSheet ? deleteSheet(() => setDeleting(false)) : null}
     {ask.app ? <AppHost app={ask.app} messageId={ask.id} agent={ask.asker} conversation={ask.conversation_id} threadRoot={ask.thread_root_id} onAsk /> : null}
     </>
   );

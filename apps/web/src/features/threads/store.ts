@@ -5,6 +5,7 @@ import { create } from "zustand";
 import { ApiError, call, client } from "../../shared/api.ts";
 import { newId } from "../../shared/chat.ts";
 import { data } from "../../shared/data.ts";
+import { usePresence } from "../../shared/presence.ts";
 
 /** A reply the server has not confirmed yet; the same shape as a pending send in the main list. */
 export interface PendingReply {
@@ -64,8 +65,9 @@ export const useThreads = create<ThreadsState>()((set, get) => {
   const newest = (t: OpenThread) => t.replies.at(-1)?.id ?? 0;
 
   async function load(rootId: number) {
-    const { root, messages } = await call(client.GET("/api/messages/{id}/replies", { params: { path: { id: rootId }, query: { limit: 100 } } }));
+    const { root, messages, seen } = await call(client.GET("/api/messages/{id}/replies", { params: { path: { id: rootId }, query: { limit: 100 } } }));
     if (!isOpen(rootId)) return;
+    usePresence.getState().hydrate(get().open!.conversation, rootId, seen);
     patch((t) => ({ root, replies: merge(t.replies, messages), loaded: true }));
     void get().markRead();
   }

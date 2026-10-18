@@ -1088,6 +1088,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/conversations/{id}/typing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** An agent says it is replying, for 30 seconds, in the main list or in a thread (live frame agent.working; nothing is stored). A person gets 403. */
+        post: operations["typing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/messages/{id}": {
         parameters: {
             query?: never;
@@ -1579,7 +1596,7 @@ export interface paths {
         };
         /**
          * Server-sent events: message.created, read.moved, conversation.created (ids "epoch:seq", resumable with Last-Event-ID),
-         *     and the live-only agent.working. Frame payloads are the StreamFrame schemas; each stored frame also carries
+         *     and the live-only agent.working and message.seen. Frame payloads are the StreamFrame schemas; each stored frame also carries
          *     `prev_seq_for_you`, the seq of the frame before it on this stream. A comment `: hb` is sent every 15 s. A stream that
          *     cannot keep up gets `event: reset` with `{"reason":"slow"}` and ends; the client loads /api/sync/snapshot.
          */
@@ -2216,6 +2233,8 @@ export interface components {
                 /** Format: int64 */
                 at: number;
             }[];
+            /** @description The agents that have seen the newest message a person wrote in the main list, first seen first. The single-conversation route only. */
+            seen?: components["schemas"]["Seen"][];
             /**
              * Format: int64
              * @description In the trash since.
@@ -2592,6 +2611,48 @@ export interface components {
              * @description Epoch ms; the screen hides the note then.
              */
             until?: number;
+            /**
+             * Format: int64
+             * @description With working true: the agent works in the thread of this top-level message; absent for the main list. A stop frame (working false) ends the agent's work in the whole conversation.
+             */
+            thread_root_id?: number;
+        };
+        /** @description SSE message.seen (live only, never replayed). An agent's claim covers the newest message a person wrote in a place. */
+        MessageSeenFrame: {
+            /** Format: int64 */
+            identity_id: number;
+            handle: string;
+            /** Format: int64 */
+            conversation_id: number;
+            /**
+             * Format: int64
+             * @description The message the agent has now seen.
+             */
+            message_id: number;
+            /**
+             * Format: int64
+             * @description The message is in the thread of this top-level message; absent for the main list.
+             */
+            thread_root_id?: number;
+            /**
+             * Format: int64
+             * @description Epoch ms.
+             */
+            at: number;
+        };
+        /** @description An agent that has seen a message, because its inbox claim covers it. Stored, so it survives a reload. */
+        Seen: {
+            handle: string;
+            /**
+             * Format: int64
+             * @description The message that was seen (the newest a person wrote in that place).
+             */
+            message_id: number;
+            /**
+             * Format: int64
+             * @description Epoch ms of the first claim that covered it.
+             */
+            at: number;
         };
         /** @description One stored event, thin (ids and enums, at most 1 KB, never content). */
         SyncEvent: {
@@ -2994,6 +3055,8 @@ export interface components {
             messages: components["schemas"]["Message"][];
             /** Format: int64 */
             as_of_seq: number;
+            /** @description The agents that have seen the newest message a person wrote in this thread, first seen first. */
+            seen?: components["schemas"]["Seen"][];
         };
         VapidKey: {
             /** @description The server's VAPID public key: the 65-byte uncompressed P-256 point, base64url without padding. It is the browser's applicationServerKey. */
@@ -4765,6 +4828,37 @@ export interface operations {
         responses: {
             200: components["responses"]["Posted"];
             201: components["responses"]["Posted"];
+            default: components["responses"]["Error"];
+        };
+    };
+    typing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: int64
+                     * @description A message of the thread; one inside a thread names its thread.
+                     */
+                    thread_root_id?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Shown. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             default: components["responses"]["Error"];
         };
     };
