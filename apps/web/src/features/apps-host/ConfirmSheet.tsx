@@ -28,6 +28,8 @@ export function ConfirmSheet({ agent, summary, rows, onDone, send }: ConfirmProp
     const t = setTimeout(() => setArmed(true), ARM_MS);
     return () => clearTimeout(t);
   }, []);
+  // While the send runs the sheet is gone, so it cannot still be on screen when the posted message shows (the live frame can beat the POST's reply). A failure brings it back with the error.
+  if (busy) return null;
   return (
     <Sheet
       title="Confirm app result"
@@ -41,7 +43,7 @@ export function ConfirmSheet({ agent, summary, rows, onDone, send }: ConfirmProp
           <button
             className="btn primary"
             type="button"
-            disabled={!armed || busy}
+            disabled={!armed}
             onClick={async (e) => {
               if (!e.nativeEvent.isTrusted) return;
               setBusy(true);
