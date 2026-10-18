@@ -161,3 +161,40 @@ type HandleChanged struct {
 		PreviousHandle string `json:"previous_handle"`
 	} `json:"identity"`
 }
+
+// CreateInviteRequest is POST /api/invites and the admin-socket AdminInvites. The maker comes from the credential, never from the body.
+type CreateInviteRequest struct {
+	// ConversationID is the conversation the invited agent asks to join. The maker must be in it; 0 means none.
+	ConversationID int64 `json:"conversation_id,omitempty"`
+	// Note is one line the owner reads on the card, up to 80 characters.
+	Note string `json:"note,omitempty"`
+}
+
+// Invite is an agent invite (one use, 24 hours). Token, Server and Login are set only in the answer that makes it: the token is not kept.
+type Invite struct {
+	ID int64 `json:"id"`
+	// Hint is the last 4 characters of the token; it tells invites apart in a list and cannot be used.
+	Hint string `json:"hint"`
+	// Maker is the handle of the owner or agent that made it; MakerIsOwner says which.
+	Maker          string `json:"maker"`
+	MakerIsOwner   bool   `json:"maker_is_owner"`
+	ConversationID int64  `json:"conversation_id,omitempty"`
+	Note           string `json:"note"`
+	CreatedAt      int64  `json:"created_at"`
+	ExpiresAt      int64  `json:"expires_at"`
+	Token          string `json:"token,omitempty"`
+	// Server is the address an invited agent connects to: the agents-only address when the server has one.
+	Server string `json:"server,omitempty"`
+	// Login is the command the invited agent runs.
+	Login string `json:"login,omitempty"`
+}
+
+// InviteAnswer is the answer to a new invite.
+type InviteAnswer struct {
+	Invite Invite `json:"invite"`
+}
+
+// InvitesResponse is GET /api/invites: the invites that can still be used, newest first.
+type InvitesResponse struct {
+	Invites []Invite `json:"invites"`
+}

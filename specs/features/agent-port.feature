@@ -31,12 +31,38 @@ Feature: Agents outside the tailnet connect through an agents-only address
       Then the prompt names the agents-only address as the server
       And the prompt does not name the tailnet address
 
-  Rule: The owner can ask for proof that the agent at the terminal is the one on the card
+  Rule: An agent outside the tailnet needs a one-use invite
+
+    # Owner ruling (Drew, 2026-10-18), on whether to add a code check to approvals, and who may invite:
+    # "if something requests access, there's never really a way to know without access to that agents internal session. What we could do I require a token to request access that always changes, but I want agents to be able to invite other agents. So I guess invites are always 1 time use?"
+    # Standing rulings: "Approvals just go into the feed, right?" (one tap, no passkey; a declined request still uses the invite up) and
+    # "Removal is just revoking their key." The code-match option (--agent-approve-code) was dropped for invites.
+
+    @v1 @browser
+    Scenario: The invite prompt carries the invite
+      Given a Convoz server with an agents-only address
+      When the owner opens the invite sheet in Crew
+      Then the prompt carries an invite in its install line and in its "convoz login" and "convoz session start" lines
+      And the invite is one the owner can see as open
+
+    @v1 @browser
+    Scenario: The owner revokes an invite
+      Given a Convoz server with an agents-only address
+      And the owner opened the invite sheet in Crew
+      When the owner taps "Revoke invite"
+      Then the sheet says the invite is revoked
+      And an agent that asks with that invite makes no card in Now
 
     @v1 @cli @browser
-    Scenario: The owner types the last 4 characters of the code to approve an agent from the internet
-      Given a Convoz server run with the code-match option
-      When "convoz login --name dot-box --as dot" runs against the agents-only address
-      Then the card heading shows the code
-      And Approve stays off until the last 4 characters are typed
-      And the CLI logs in once the owner approves
+    Scenario: An agent invites another agent and the card says who invited it
+      Given a Convoz server with an agents-only address and the agent "claude" logged in on "box-2"
+      When "claude" runs "convoz invite" and a new agent runs "convoz login --invite" with that invite against the agents-only address
+      Then the owner sees one Now card "dot-box wants to connect as @dot"
+      And the card says it was "invited by @claude"
+
+    @v1 @cli @browser
+    Scenario: The owner makes an invite with the CLI on the server's own machine
+      Given a Convoz server with an agents-only address
+      When the owner runs "convoz invite --note 'for dot'" on the server's machine and a new agent runs "convoz login --invite" with it
+      Then the owner sees one Now card "dot-box wants to connect as @dot"
+      And the card says it was "invited by you" and shows the note "for dot"

@@ -181,7 +181,7 @@ func (s *Server) agentHostOK(host string) bool {
 // Limits of the internet-facing door. Per client address (an IPv6 /64 counts as one), on top of the per-machine caps.
 const (
 	agentStartsPerHour    = 10 // POST /api/device/code
-	agentStartsAllPerHour = 20 // POST /api/device/code from everyone together: a flood from many addresses still cannot fill the feed
+	agentStartsAllPerHour = 20 // POST /api/device/code with a usable invite, from everyone together; counted in deviceCode
 	agentPollsPerMin      = 60 // POST /api/device/token; a CLI polls every 5 s
 	agentFailsPer10Min    = 30 // answers of 401: a guess at a credential
 	agentFailWindow       = 10 * time.Minute
@@ -234,7 +234,7 @@ func (s *Server) agentLimits(next http.Handler) http.Handler {
 		defer s.agentInflight.release(key)
 		switch p := r.URL.Path; {
 		case r.Method == http.MethodPost && p == "/api/device/code":
-			if !s.agentStartLimit.Allow(key, now) || !s.agentStartAll.Allow("all", now) {
+			if !s.agentStartLimit.Allow(key, now) { // the global limit is in deviceCode: it counts only the starts that carry an invite
 				w.Header().Set("Retry-After", "3600")
 				writeErr(w, http.StatusTooManyRequests, "rate_limited", "Too many login requests. Try again later.")
 				return

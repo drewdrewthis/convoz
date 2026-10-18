@@ -1,6 +1,6 @@
 import { Sheet } from "@convoz/ui/Sheet";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { humanError } from "../../shared/api.ts";
+import { call, client, humanError } from "../../shared/api.ts";
 import { data, useData } from "../../shared/data.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { agentRequests, RequestCard, useNow, type AgentRequest } from "../now/index.ts";
@@ -12,12 +12,22 @@ interface Props {
   conversation?: { id: number; title: string };
 }
 
+/** An invite the sheet made: its id (to revoke it) and its token (in the prompt). */
+interface MadeInvite {
+  id: number;
+  token: string;
+}
+
 const handleOf = (r: AgentRequest) => (r.kind === "login" ? r.machine.identity!.handle : r.request.handle);
 
 /**
  * InviteAgentSheet has no form. It is one prompt to copy; the agent runs convoz with it and sends its own identity, and the request
  * shows up here live, as a card with Approve and Decline. The sheet then says the agent is connected (prototype v41: "Waiting for an
  * agent to connect…", "Connected: X is online", "New thread with X").
+ *
+ * For the agents-only address the prompt carries a one-use invite (owner ruling, 2026-10-18), made when the sheet opens. An invite that
+ * was never copied is revoked when the sheet closes, so opening the sheet does not use up the ten invites an owner may hold; "Revoke
+ * invite" ends one that was copied.
  */
 export default function InviteAgentSheet({ close, conversation }: Props) {
   const { fail } = useNotice();
@@ -29,8 +39,14 @@ export default function InviteAgentSheet({ close, conversation }: Props) {
   const baseline = useRef<Set<string> | null>(null);
   const tracked = useRef<{ key: string; handle: string } | null>(null);
   const [agentUrl, setAgentUrl] = useState<string | null>(null);
+  const [invite, setInvite] = useState<MadeInvite | null>(null);
+  const [revoked, setRevoked] = useState(false);
+  const copiedRef = useRef(false);
+  const inviteRef = useRef<MadeInvite | null>(null);
+  const asked = useRef(false); // one invite per opening, even when an effect runs twice
   // An agent outside the tailnet cannot reach this page's address; the server says where it can connect, when it has such an address.
-  const prompt = useMemo(() => invitePrompt({ server: agentUrl ?? location.origin, conversation }), [agentUrl, conversation]);
+  const prompt = useMemo(() => invitePrompt({ server: agentUrl ?? location.origin, invite: invite?.token, conversation }), [agentUrl, invite, conversation]);
+  const conversationId = conversation?.id;
 
   useEffect(() => {
     const stop = useNow.getState().start();
@@ -39,6 +55,41 @@ export default function InviteAgentSheet({ close, conversation }: Props) {
     fetchAgentUrl().then(setAgentUrl, () => {});
     return stop;
   }, [fail]);
+
+  // A server with an agents-only address needs an invite from every agent that connects over the internet; the tailnet needs none.
+  useEffect(() => {
+    if (!agentUrl || asked.current) return;
+    asked.current = true;
+    call(client.POST("/api/invites", { body: conversationId ? { conversation_id: conversationId } : {} })).then(
+      (res) => {
+        const made = { id: res.invite.id, token: res.invite.token ?? "" };
+        inviteRef.current = made;
+        setInvite(made);
+      },
+      (err) => setAlert(`Could not make an invite: ${humanError(err)}`),
+    );
+  }, [agentUrl, conversationId]);
+
+  const revoke = async (id: number) => {
+    await call(client.DELETE("/api/invites/{id}", { params: { path: { id } } }));
+    inviteRef.current = null;
+  };
+  const revokeInvite = async () => {
+    if (!invite) return;
+    try {
+      await revoke(invite.id);
+      setInvite(null);
+      setRevoked(true);
+      setAlert("");
+    } catch (err) {
+      setAlert(`Could not revoke the invite: ${humanError(err)}`);
+    }
+  };
+  // An invite nobody copied is not kept open for 24 hours.
+  const finish = () => {
+    if (inviteRef.current && !copiedRef.current && !connected) void revoke(inviteRef.current.id).catch(() => {});
+    close();
+  };
 
   const all = agentRequests(now);
   // Only a request that arrives while the sheet is open is the one this prompt was for.
@@ -56,9 +107,11 @@ export default function InviteAgentSheet({ close, conversation }: Props) {
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(prompt);
+      copiedRef.current = true;
       setCopied(true);
       setAlert("");
     } catch {
+      copiedRef.current = true; // the owner copies it by hand, so the invite may be in use
       setAlert("Copying did not work. Select the prompt and copy it by hand.");
     }
   };
@@ -72,7 +125,7 @@ export default function InviteAgentSheet({ close, conversation }: Props) {
     <Sheet
       title="Invite agent"
       alert={alert}
-      onClose={close}
+      onClose={finish}
       actions={
         doneHandle ? (
           <>
@@ -86,7 +139,12 @@ export default function InviteAgentSheet({ close, conversation }: Props) {
             <button className="btn primary" type="button" onClick={() => void copy()}>
               {copied ? "Copied" : "Copy"}
             </button>
-            <button className="btn quiet" type="button" onClick={close}>
+            {invite ? (
+              <button className="btn" type="button" onClick={() => void revokeInvite()}>
+                Revoke invite
+              </button>
+            ) : null}
+            <button className="btn quiet" type="button" onClick={finish}>
               Close
             </button>
           </>
@@ -101,10 +159,16 @@ export default function InviteAgentSheet({ close, conversation }: Props) {
             Paste this into the agent. It works once. Messages and asks go to conversations. Status goes to the agent and shows on its profile.
             {conversation ? ` It joins “${conversation.title || "Untitled conversation"}”.` : ""}
           </p>
-          <pre tabIndex={0} aria-label="Connect prompt" className="prompt">
-            {prompt}
-          </pre>
-          {fresh ? (
+          {revoked ? (
+            <p role="status" className="hint">
+              Invite revoked. It no longer works. Close this sheet and open it again for a new one.
+            </p>
+          ) : (
+            <pre tabIndex={0} aria-label="Connect prompt" className="prompt">
+              {prompt}
+            </pre>
+          )}
+          {revoked ? null : fresh ? (
             <RequestCard item={fresh} changed={() => useNow.getState().load().then(() => undefined)} approved={(h) => setConnected(h)} />
           ) : (
             <p role="status" className="hint">

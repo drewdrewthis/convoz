@@ -22,7 +22,7 @@ HostInfo:
     cli_version: { type: string }
 MachineRequest:
   type: object
-  required: [id, name, user_code, host_info, source_ip, via_internet, code_required, node_name, created_at, expires_at]
+  required: [id, name, user_code, host_info, source_ip, via_internet, invite, node_name, created_at, expires_at]
   properties:
     id: { type: integer, format: int64 }
     name: { type: string }
@@ -33,7 +33,11 @@ MachineRequest:
         - type: "null"
     source_ip: { type: ["string", "null"] }
     via_internet: { type: boolean, description: "True when the request came in on the agents-only listener (over the internet); the card says so." }
-    code_required: { type: boolean, description: "True when Approve needs the last 4 characters of user_code (an internet request on a server run with --agent-approve-code)." }
+    invite:
+      description: Who invited the agent behind the request; null for a request from the tailnet, which needs no invite.
+      oneOf:
+        - $ref: "../openapi.yaml#/components/schemas/InviteMark"
+        - type: "null"
     node_name: { type: ["string", "null"] }
     created_at: { type: integer, format: int64 }
     expires_at: { type: integer, format: int64 }
@@ -42,6 +46,37 @@ MachineRequest:
       oneOf:
         - $ref: "../openapi.yaml#/components/schemas/AgentIntro"
         - type: "null"
+InviteMark:
+  type: object
+  description: Who invited the agent behind a waiting request. The card says "invited by @by", or "invited by you" when by_owner.
+  required: [by, by_owner, note]
+  properties:
+    by: { type: string, description: The handle of the owner or agent that made the invite. }
+    by_owner: { type: boolean }
+    note: { type: string, description: One line of plain text the maker wrote, at most 80 characters; empty when none. }
+Invite:
+  type: object
+  description: |
+    An agent invite: one use, 24 hours. token, server and login are in the answer that makes it and nowhere else; the server keeps only
+    the hash of the token.
+  required: [id, hint, maker, maker_is_owner, note, created_at, expires_at]
+  properties:
+    id: { type: integer, format: int64 }
+    hint: { type: string, description: The last 4 characters of the token. It tells invites apart in a list and cannot be used. }
+    maker: { type: string, description: The handle of the owner or agent that made it. }
+    maker_is_owner: { type: boolean }
+    conversation_id: { type: integer, format: int64, description: The conversation the invited agent asks to join; left out for none. }
+    note: { type: string }
+    created_at: { type: integer, format: int64 }
+    expires_at: { type: integer, format: int64 }
+    token: { type: string, description: The invite (cvz_i_ and 43 characters). Shown once. }
+    server: { type: string, description: The address the invited agent connects to; the agents-only address when the server has one. }
+    login: { type: string, description: The command the invited agent runs. }
+CreateInviteRequest:
+  type: object
+  properties:
+    conversation_id: { type: integer, format: int64, description: The conversation the invited agent asks to join. The maker must be in it, else 403 not_in_conversation. }
+    note: { type: string, maxLength: 80, description: One line of plain text for the owner's card. }
 AgentIntro:
   type: object
   description: |
@@ -68,11 +103,16 @@ IdentityRequest:
   allOf:
     - $ref: "../openapi.yaml#/components/schemas/AgentIntro"
     - type: object
-      required: [machine, machine_id, via_internet, created_at, expires_at]
+      required: [machine, machine_id, via_internet, invite, created_at, expires_at]
       properties:
         machine: { type: string, description: The machine's name, from the server. }
         machine_id: { type: integer, format: int64 }
         via_internet: { type: boolean, description: True when the request came in on the agents-only listener; the card says so. }
+        invite:
+          description: Who invited the agent; null for a request from the tailnet.
+          oneOf:
+            - $ref: "../openapi.yaml#/components/schemas/InviteMark"
+            - type: "null"
         created_at: { type: integer, format: int64 }
         expires_at: { type: integer, format: int64 }
 Allow:

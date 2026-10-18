@@ -22,3 +22,12 @@ func beforeViaInternet() bool {
 	c := platform.MaxMigrationCap()
 	return c > 0 && c < viaInternetMigration
 }
+
+// invitesMigration is the migration that creates agent_invites.
+const invitesMigration = 26
+
+// beforeInvites plays the previous release when migrations are capped under 26: the table is not there.
+func beforeInvites() bool {
+	c := platform.MaxMigrationCap()
+	return c > 0 && c < invitesMigration
+}

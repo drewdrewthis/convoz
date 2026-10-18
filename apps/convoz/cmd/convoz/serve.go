@@ -42,7 +42,6 @@ func serve(args []string) int {
 	host := fs.String("host", "", "the name clients reach this server by, NAME or NAME:PORT when `tailscale serve` listens on a non-443 HTTPS port, e.g. convoz.<tailnet>.ts.net:8473 (required)")
 	agentListen := fs.String("agent-listen", "", "off by default: a loopback IP with a port for the agents-only listener, the one `tailscale funnel` points at (needs --agent-host)")
 	agentHost := fs.String("agent-host", "", "the public name agents reach the agents-only listener by, NAME or NAME:PORT, e.g. convoz.<tailnet>.ts.net:8443; agents are told this address")
-	agentApprove := fs.Bool("agent-approve-code", false, "an internet request shows its code in the card heading and Approve asks for the last 4 characters of it (needs --agent-listen)")
 	adminSocket := fs.String("admin-socket", "", "unix socket for break-glass admin commands (mode 0600)")
 	tailscaleBin := fs.String("tailscale-bin", "tailscale", "the tailscale command")
 	tailscaleMode := fs.String("tailscale", "check", "check: read tailscale status at start and refuse if funnel is on; off: skip (development)")
@@ -79,9 +78,6 @@ func serve(args []string) int {
 		return fail(exitWall, err)
 	case err != nil:
 		return fail(exitUsage, err)
-	}
-	if *agentApprove && !agent.on {
-		return fail(exitUsage, errors.New("--agent-approve-code needs --agent-listen and --agent-host"))
 	}
 	if *adminSocket != "" && len(*adminSocket) > maxUnixPath {
 		return fail(exitUsage, errUnixPathLength)
@@ -153,7 +149,6 @@ func serve(args []string) int {
 	cfg.Origin = originFor(name, publicPort, cfg)
 	if agentLn != nil {
 		cfg.AgentHost, cfg.AgentPublicPort, cfg.AgentPort = agent.name, agent.publicPort, agentLn.Addr().(*net.TCPAddr).Port
-		cfg.AgentApproveCode = *agentApprove
 		cfg.AgentOrigin = originFor(agent.name, agent.publicPort, httpapi.Config{Port: cfg.AgentPort})
 	}
 	wa, err := auth.NewRelyingParty(name, cfg.Origin)
@@ -186,7 +181,7 @@ func serve(args []string) int {
 	}
 	if admin != nil {
 		servers = append(servers, &http.Server{
-			Handler:           httpapi.NewAdminHandler(store, clock, cfg.Origin, logger),
+			Handler:           httpapi.NewAdminHandlerFor(store, clock, cfg.Origin, cfg.AgentOrigin, logger),
 			ReadHeaderTimeout: 10 * time.Second,
 			ErrorLog:          logger,
 		})

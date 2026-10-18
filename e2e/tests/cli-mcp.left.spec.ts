@@ -2,12 +2,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { McpClient, machineVia } from "../lib/agent-wp7.ts";
-import { convoz, messagesOf, ownerSays } from "../lib/chat.ts";
+import { chatWorld, convoz, createConversation, messagesOf, ownerSays, startSession } from "../lib/chat.ts";
 import { send } from "../lib/http.ts";
 import { CliMachine } from "../lib/cli.ts";
 import { forwarder, inboxWorld } from "../lib/left.ts";
 import { bearer } from "../lib/machines.ts";
 import { bootstrapOwner, must } from "../lib/owner.ts";
+import { postWith, uploadWhole } from "../lib/uploads-wp10.ts";
 import { expect, scenario } from "../lib/scenario.ts";
 
 // Bindings of contracts/cli-mcp.feature that the agent-surface work package left open. "Status updates show in Crew" (features/cli-mcp)
@@ -198,4 +199,74 @@ scenario("The connect commands send the agent's own identity and print no secret
 
   // And no output contains "cvz_"
   for (const r of [done, bad, refused]) expect(r.stdout + r.stderr).not.toContain("cvz_");
+});
+
+// ---- files ----------------------------------------------------------------------------------------------------------
+
+const NOTES = Buffer.from("TESTONLY notes\nline two\n");
+
+/** Background of the file scenarios: conversation "Files" holds "devtool" and a message of the owner that carries notes.txt. "docs" is not in it. */
+async function fileWorld(server: Parameters<typeof chatWorld>[0]) {
+  const w = await chatWorld(server, { agents: ["devtool", "docs"] });
+  const conv = await createConversation(w.owner, { title: "Files", participants: ["devtool"] });
+  const up = await uploadWhole({ srv: w.srv, owner: w.owner }, conv, "file", "notes.txt", NOTES);
+  must(await postWith({ srv: w.srv, owner: w.owner }, conv, "The notes are attached", [up.id]), "post the file", 201);
+  return { w, conv, id: up.id };
+}
+
+scenario("An agent saves an attachment with convoz file", { tag: ["@cli"] }, async ({ server }) => {
+  // Given a message in conversation 41 carries the file "notes.txt"
+  const { w, conv, id } = await fileWorld(server);
+  const devtool = await startSession(w.box, "devtool", "files");
+
+  // When "devtool" runs "convoz read 41"
+  const read = await convoz(w.box, devtool.sid, ["read", String(conv)]);
+
+  // Then the output has the line "[file: notes.txt (<id>)]" for the file
+  expect(read.code, read.stderr).toBe(0);
+  expect(read.stdout).toContain(`  [file: notes.txt (${id})]\n`);
+
+  // When "devtool" runs "convoz file -o <path> <id>"
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "convoz-file-"));
+  const out = path.join(dir, "got.txt");
+  const saved = await convoz(w.box, devtool.sid, ["file", "-o", out, id]);
+
+  // Then the file at that path holds the bytes that were sent
+  expect(saved.code, saved.stderr).toBe(0);
+  expect(fs.readFileSync(out)).toEqual(NOTES);
+
+  // And "convoz file -o - <id>" writes the same bytes to standard output
+  const piped = await convoz(w.box, devtool.sid, ["file", "-o", "-", id]);
+  expect(piped.stdout).toBe(NOTES.toString());
+
+  // And an agent that is not in conversation 41 cannot fetch the file
+  const docs = await startSession(w.box, "docs", "files-docs");
+  const refused = await convoz(w.box, docs.sid, ["file", "-o", "-", id]);
+  expect(refused.code).not.toBe(0);
+  expect(refused.stdout).toBe("");
+
+  // Without -o the file goes to ./<id>_<name> and is never overwritten
+  const plain = await convoz(w.box, devtool.sid, ["file", id]);
+  expect(plain.stdout.trim()).toBe(`${id}_notes.txt`);
+  expect(fs.readFileSync(path.join(w.box.home, `${id}_notes.txt`))).toEqual(NOTES);
+  expect((await convoz(w.box, devtool.sid, ["file", id])).code).not.toBe(0);
+});
+
+scenario("An agent saves an attachment with the MCP file tool", { tag: ["@mcp"] }, async ({ server }) => {
+  // Given a message in conversation 41 carries the file "notes.txt"
+  const { w, id } = await fileWorld(server);
+  const mcp = await McpClient.start(w.box, "devtool", "claude-TESTONLY-mcp-file");
+  try {
+    // When the "file" tool is called with the id of the file and a path
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "convoz-mcp-file-"));
+    const out = path.join(dir, "got.txt");
+    const result = await mcp.tool("file", { id, path: out });
+
+    // Then the answer names that path and the file there holds the bytes that were sent
+    expect(result.isError ?? false).toBe(false);
+    expect(result.structuredContent).toMatchObject({ id, path: out, name: "notes.txt", size: NOTES.length });
+    expect(fs.readFileSync(out)).toEqual(NOTES);
+  } finally {
+    mcp.end();
+  }
 });
