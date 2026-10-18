@@ -10,6 +10,31 @@ import (
 	"database/sql"
 )
 
+const approveIdentityRequest = `-- name: ApproveIdentityRequest :execrows
+UPDATE identity_requests SET state = 'approved', decided_by = ?1, decided_at = ?2, identity_id = ?3
+WHERE id = ?4 AND state = 'pending'
+`
+
+type ApproveIdentityRequestParams struct {
+	DecidedBy  sql.NullInt64
+	DecidedAt  sql.NullInt64
+	IdentityID sql.NullInt64
+	ID         int64
+}
+
+func (q *Queries) ApproveIdentityRequest(ctx context.Context, arg ApproveIdentityRequestParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, approveIdentityRequest,
+		arg.DecidedBy,
+		arg.DecidedAt,
+		arg.IdentityID,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const approveRequest = `-- name: ApproveRequest :execrows
 UPDATE machine_requests SET state = 'approved', decided_by = ?1, decided_at = ?2,
   expires_at = ?3, machine_id = ?4
@@ -86,6 +111,28 @@ func (q *Queries) CountActivePasskeys(ctx context.Context, humanID int64) (int64
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const countIdentityRequestsOfMachineSince = `-- name: CountIdentityRequestsOfMachineSince :one
+SELECT COUNT(*) AS n, CAST(COALESCE(MIN(created_at), 0) AS INTEGER) AS oldest
+FROM identity_requests WHERE machine_id = ?1 AND created_at > ?2
+`
+
+type CountIdentityRequestsOfMachineSinceParams struct {
+	MachineID sql.NullInt64
+	Since     int64
+}
+
+type CountIdentityRequestsOfMachineSinceRow struct {
+	N      int64
+	Oldest int64
+}
+
+func (q *Queries) CountIdentityRequestsOfMachineSince(ctx context.Context, arg CountIdentityRequestsOfMachineSinceParams) (CountIdentityRequestsOfMachineSinceRow, error) {
+	row := q.db.QueryRowContext(ctx, countIdentityRequestsOfMachineSince, arg.MachineID, arg.Since)
+	var i CountIdentityRequestsOfMachineSinceRow
+	err := row.Scan(&i.N, &i.Oldest)
+	return i, err
 }
 
 const countLiveSessionsOfClient = `-- name: CountLiveSessionsOfClient :one
@@ -207,6 +254,59 @@ func (q *Queries) DenyAllRequests(ctx context.Context, arg DenyAllRequestsParams
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const denyAllSessionIdentityRequests = `-- name: DenyAllSessionIdentityRequests :execrows
+UPDATE identity_requests SET state = 'denied', decided_by = ?1, decided_at = ?2
+WHERE kind = 'session' AND state = 'pending' AND expires_at > ?2
+`
+
+type DenyAllSessionIdentityRequestsParams struct {
+	DecidedBy sql.NullInt64
+	DecidedAt sql.NullInt64
+}
+
+func (q *Queries) DenyAllSessionIdentityRequests(ctx context.Context, arg DenyAllSessionIdentityRequestsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, denyAllSessionIdentityRequests, arg.DecidedBy, arg.DecidedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const denyIdentityRequest = `-- name: DenyIdentityRequest :execrows
+UPDATE identity_requests SET state = 'denied', decided_by = ?1, decided_at = ?2
+WHERE ref = ?3 AND kind = 'session' AND state = 'pending' AND expires_at > ?2
+`
+
+type DenyIdentityRequestParams struct {
+	DecidedBy sql.NullInt64
+	DecidedAt sql.NullInt64
+	Ref       string
+}
+
+func (q *Queries) DenyIdentityRequest(ctx context.Context, arg DenyIdentityRequestParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, denyIdentityRequest, arg.DecidedBy, arg.DecidedAt, arg.Ref)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const denyLoginIdentityRequests = `-- name: DenyLoginIdentityRequests :exec
+UPDATE identity_requests SET state = 'denied', decided_by = ?1, decided_at = ?2
+WHERE kind = 'login' AND state = 'pending'
+  AND machine_request_id IN (SELECT id FROM machine_requests WHERE state = 'denied' AND decided_at = ?2)
+`
+
+type DenyLoginIdentityRequestsParams struct {
+	DecidedBy sql.NullInt64
+	DecidedAt sql.NullInt64
+}
+
+func (q *Queries) DenyLoginIdentityRequests(ctx context.Context, arg DenyLoginIdentityRequestsParams) error {
+	_, err := q.db.ExecContext(ctx, denyLoginIdentityRequests, arg.DecidedBy, arg.DecidedAt)
+	return err
 }
 
 const denyRequest = `-- name: DenyRequest :execrows
@@ -419,6 +519,30 @@ func (q *Queries) EndSessionsOfMachine(ctx context.Context, arg EndSessionsOfMac
 	return items, nil
 }
 
+const findPendingIdentityRequestOfMachine = `-- name: FindPendingIdentityRequestOfMachine :one
+SELECT ref, expires_at FROM identity_requests
+WHERE machine_id = ?1 AND handle = ?2 AND state = 'pending' AND expires_at > ?3
+ORDER BY id DESC LIMIT 1
+`
+
+type FindPendingIdentityRequestOfMachineParams struct {
+	MachineID sql.NullInt64
+	Handle    string
+	Now       int64
+}
+
+type FindPendingIdentityRequestOfMachineRow struct {
+	Ref       string
+	ExpiresAt int64
+}
+
+func (q *Queries) FindPendingIdentityRequestOfMachine(ctx context.Context, arg FindPendingIdentityRequestOfMachineParams) (FindPendingIdentityRequestOfMachineRow, error) {
+	row := q.db.QueryRowContext(ctx, findPendingIdentityRequestOfMachine, arg.MachineID, arg.Handle, arg.Now)
+	var i FindPendingIdentityRequestOfMachineRow
+	err := row.Scan(&i.Ref, &i.ExpiresAt)
+	return i, err
+}
+
 const getActiveMachine = `-- name: GetActiveMachine :one
 SELECT id, name, key_hint, scopes, allow_mode, key_enc, key_version, last_used_at FROM machines WHERE id = ?1 AND revoked_at IS NULL
 `
@@ -556,6 +680,144 @@ func (q *Queries) GetDeviceByTokenHash(ctx context.Context, tokenHash []byte) (G
 		&i.ExpiresAt,
 		&i.AbsoluteExpiresAt,
 		&i.RevokedAt,
+	)
+	return i, err
+}
+
+const getIdentityRequestAvatar = `-- name: GetIdentityRequestAvatar :one
+SELECT avatar_svg FROM identity_requests WHERE ref = ?1 AND avatar_svg IS NOT NULL
+`
+
+func (q *Queries) GetIdentityRequestAvatar(ctx context.Context, ref string) (sql.NullString, error) {
+	row := q.db.QueryRowContext(ctx, getIdentityRequestAvatar, ref)
+	var avatar_svg sql.NullString
+	err := row.Scan(&avatar_svg)
+	return avatar_svg, err
+}
+
+const getIdentityRequestByID = `-- name: GetIdentityRequestByID :one
+SELECT id, ref, handle, display_name, description, conversation_id FROM identity_requests WHERE id = ?1
+`
+
+type GetIdentityRequestByIDRow struct {
+	ID             int64
+	Ref            string
+	Handle         string
+	DisplayName    sql.NullString
+	Description    string
+	ConversationID sql.NullInt64
+}
+
+func (q *Queries) GetIdentityRequestByID(ctx context.Context, id int64) (GetIdentityRequestByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getIdentityRequestByID, id)
+	var i GetIdentityRequestByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.Ref,
+		&i.Handle,
+		&i.DisplayName,
+		&i.Description,
+		&i.ConversationID,
+	)
+	return i, err
+}
+
+const getIdentityRequestByRef = `-- name: GetIdentityRequestByRef :one
+SELECT r.id, r.ref, r.kind, r.machine_request_id, r.machine_id, r.handle, r.display_name, r.description, CAST(r.avatar_svg IS NOT NULL AS INTEGER) AS has_avatar,
+  r.conversation_id, r.state, r.created_at, r.expires_at, r.identity_id,
+  CAST(COALESCE(m.name, q.requested_name) AS TEXT) AS machine_name
+FROM identity_requests r
+LEFT JOIN machines m ON m.id = r.machine_id
+LEFT JOIN machine_requests q ON q.id = r.machine_request_id
+WHERE r.ref = ?1
+`
+
+type GetIdentityRequestByRefRow struct {
+	ID               int64
+	Ref              string
+	Kind             string
+	MachineRequestID sql.NullInt64
+	MachineID        sql.NullInt64
+	Handle           string
+	DisplayName      sql.NullString
+	Description      string
+	HasAvatar        int64
+	ConversationID   sql.NullInt64
+	State            string
+	CreatedAt        int64
+	ExpiresAt        int64
+	IdentityID       sql.NullInt64
+	MachineName      string
+}
+
+func (q *Queries) GetIdentityRequestByRef(ctx context.Context, ref string) (GetIdentityRequestByRefRow, error) {
+	row := q.db.QueryRowContext(ctx, getIdentityRequestByRef, ref)
+	var i GetIdentityRequestByRefRow
+	err := row.Scan(
+		&i.ID,
+		&i.Ref,
+		&i.Kind,
+		&i.MachineRequestID,
+		&i.MachineID,
+		&i.Handle,
+		&i.DisplayName,
+		&i.Description,
+		&i.HasAvatar,
+		&i.ConversationID,
+		&i.State,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.IdentityID,
+		&i.MachineName,
+	)
+	return i, err
+}
+
+const getIdentityRequestOfLogin = `-- name: GetIdentityRequestOfLogin :one
+SELECT r.id, r.ref, r.kind, r.machine_request_id, r.machine_id, r.handle, r.display_name, r.description, CAST(r.avatar_svg IS NOT NULL AS INTEGER) AS has_avatar,
+  r.conversation_id, r.state, r.created_at, r.expires_at, r.identity_id,
+  CAST(q.requested_name AS TEXT) AS machine_name
+FROM identity_requests r JOIN machine_requests q ON q.id = r.machine_request_id
+WHERE r.machine_request_id = ?1
+`
+
+type GetIdentityRequestOfLoginRow struct {
+	ID               int64
+	Ref              string
+	Kind             string
+	MachineRequestID sql.NullInt64
+	MachineID        sql.NullInt64
+	Handle           string
+	DisplayName      sql.NullString
+	Description      string
+	HasAvatar        int64
+	ConversationID   sql.NullInt64
+	State            string
+	CreatedAt        int64
+	ExpiresAt        int64
+	IdentityID       sql.NullInt64
+	MachineName      string
+}
+
+func (q *Queries) GetIdentityRequestOfLogin(ctx context.Context, machineRequestID sql.NullInt64) (GetIdentityRequestOfLoginRow, error) {
+	row := q.db.QueryRowContext(ctx, getIdentityRequestOfLogin, machineRequestID)
+	var i GetIdentityRequestOfLoginRow
+	err := row.Scan(
+		&i.ID,
+		&i.Ref,
+		&i.Kind,
+		&i.MachineRequestID,
+		&i.MachineID,
+		&i.Handle,
+		&i.DisplayName,
+		&i.Description,
+		&i.HasAvatar,
+		&i.ConversationID,
+		&i.State,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.IdentityID,
+		&i.MachineName,
 	)
 	return i, err
 }
@@ -769,6 +1031,47 @@ func (q *Queries) InsertDevice(ctx context.Context, arg InsertDeviceParams) (int
 		arg.CreatedAt,
 		arg.ExpiresAt,
 		arg.AbsoluteExpiresAt,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const insertIdentityRequest = `-- name: InsertIdentityRequest :one
+
+INSERT INTO identity_requests (ref, kind, machine_request_id, machine_id, handle, display_name, description, avatar_svg, conversation_id, created_at, expires_at)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+RETURNING id
+`
+
+type InsertIdentityRequestParams struct {
+	Ref              string
+	Kind             string
+	MachineRequestID sql.NullInt64
+	MachineID        sql.NullInt64
+	Handle           string
+	DisplayName      sql.NullString
+	Description      string
+	AvatarSvg        sql.NullString
+	ConversationID   sql.NullInt64
+	CreatedAt        int64
+	ExpiresAt        int64
+}
+
+// ===== identity requests (an agent asks to be made, owner decides) =====
+func (q *Queries) InsertIdentityRequest(ctx context.Context, arg InsertIdentityRequestParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, insertIdentityRequest,
+		arg.Ref,
+		arg.Kind,
+		arg.MachineRequestID,
+		arg.MachineID,
+		arg.Handle,
+		arg.DisplayName,
+		arg.Description,
+		arg.AvatarSvg,
+		arg.ConversationID,
+		arg.CreatedAt,
+		arg.ExpiresAt,
 	)
 	var id int64
 	err := row.Scan(&id)
@@ -1195,6 +1498,71 @@ func (q *Queries) ListMachineNames(ctx context.Context) ([]ListMachineNamesRow, 
 	return items, nil
 }
 
+const listPendingLoginIdentityRequests = `-- name: ListPendingLoginIdentityRequests :many
+SELECT r.id, r.ref, r.kind, r.machine_request_id, r.machine_id, r.handle, r.display_name, r.description, CAST(r.avatar_svg IS NOT NULL AS INTEGER) AS has_avatar,
+  r.conversation_id, r.state, r.created_at, r.expires_at, r.identity_id,
+  CAST(q.requested_name AS TEXT) AS machine_name
+FROM identity_requests r JOIN machine_requests q ON q.id = r.machine_request_id
+WHERE r.kind = 'login' AND q.state = 'pending' AND q.expires_at > ?1
+`
+
+type ListPendingLoginIdentityRequestsRow struct {
+	ID               int64
+	Ref              string
+	Kind             string
+	MachineRequestID sql.NullInt64
+	MachineID        sql.NullInt64
+	Handle           string
+	DisplayName      sql.NullString
+	Description      string
+	HasAvatar        int64
+	ConversationID   sql.NullInt64
+	State            string
+	CreatedAt        int64
+	ExpiresAt        int64
+	IdentityID       sql.NullInt64
+	MachineName      string
+}
+
+func (q *Queries) ListPendingLoginIdentityRequests(ctx context.Context, now int64) ([]ListPendingLoginIdentityRequestsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPendingLoginIdentityRequests, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPendingLoginIdentityRequestsRow
+	for rows.Next() {
+		var i ListPendingLoginIdentityRequestsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Ref,
+			&i.Kind,
+			&i.MachineRequestID,
+			&i.MachineID,
+			&i.Handle,
+			&i.DisplayName,
+			&i.Description,
+			&i.HasAvatar,
+			&i.ConversationID,
+			&i.State,
+			&i.CreatedAt,
+			&i.ExpiresAt,
+			&i.IdentityID,
+			&i.MachineName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPendingRequests = `-- name: ListPendingRequests :many
 SELECT id, user_code, requested_name, host_info, source, source_node, created_at, expires_at
 FROM machine_requests WHERE state = 'pending' AND expires_at > ?1 ORDER BY created_at, id
@@ -1229,6 +1597,72 @@ func (q *Queries) ListPendingRequests(ctx context.Context, now int64) ([]ListPen
 			&i.SourceNode,
 			&i.CreatedAt,
 			&i.ExpiresAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPendingSessionIdentityRequests = `-- name: ListPendingSessionIdentityRequests :many
+SELECT r.id, r.ref, r.kind, r.machine_request_id, r.machine_id, r.handle, r.display_name, r.description, CAST(r.avatar_svg IS NOT NULL AS INTEGER) AS has_avatar,
+  r.conversation_id, r.state, r.created_at, r.expires_at, r.identity_id,
+  CAST(m.name AS TEXT) AS machine_name
+FROM identity_requests r JOIN machines m ON m.id = r.machine_id
+WHERE r.kind = 'session' AND r.state = 'pending' AND r.expires_at > ?1 AND m.revoked_at IS NULL
+ORDER BY r.created_at, r.id
+`
+
+type ListPendingSessionIdentityRequestsRow struct {
+	ID               int64
+	Ref              string
+	Kind             string
+	MachineRequestID sql.NullInt64
+	MachineID        sql.NullInt64
+	Handle           string
+	DisplayName      sql.NullString
+	Description      string
+	HasAvatar        int64
+	ConversationID   sql.NullInt64
+	State            string
+	CreatedAt        int64
+	ExpiresAt        int64
+	IdentityID       sql.NullInt64
+	MachineName      string
+}
+
+func (q *Queries) ListPendingSessionIdentityRequests(ctx context.Context, now int64) ([]ListPendingSessionIdentityRequestsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPendingSessionIdentityRequests, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPendingSessionIdentityRequestsRow
+	for rows.Next() {
+		var i ListPendingSessionIdentityRequestsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Ref,
+			&i.Kind,
+			&i.MachineRequestID,
+			&i.MachineID,
+			&i.Handle,
+			&i.DisplayName,
+			&i.Description,
+			&i.HasAvatar,
+			&i.ConversationID,
+			&i.State,
+			&i.CreatedAt,
+			&i.ExpiresAt,
+			&i.IdentityID,
+			&i.MachineName,
 		); err != nil {
 			return nil, err
 		}

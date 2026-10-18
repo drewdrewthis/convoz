@@ -12,6 +12,7 @@ const page = (load: () => Promise<{ default: ComponentType }>): ComponentType =>
 
 export const Crew = page(() => import("./Crew.tsx").then((m) => ({ default: m.Crew })));
 export const Machines = page(() => import("./Machines.tsx").then((m) => ({ default: m.Machines })));
+export const InviteAgentSheet = lazy(() => import("./InviteAgentSheet.tsx"));
 export const AgentProfile = page(() => import("./AgentProfile.tsx").then((m) => ({ default: m.AgentProfile })));
 
 // A status frame moves the rows with no reload; a status of an agent the list does not hold yet is read from the server.

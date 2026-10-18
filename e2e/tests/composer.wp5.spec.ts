@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import { agentChoice, composer, message, sendButton } from "../lib/chat-ui.ts";
 import { createConversation, messagesOf, ownerSays, peekFor } from "../lib/chat.ts";
-import { stepped } from "../lib/machines.ts";
+import { revokeAgentKey } from "../lib/machines.ts";
 import { must } from "../lib/owner.ts";
 import { expect, scenario } from "../lib/scenario.ts";
 import { asAgent, browserWorld, handlesOf, idsOf, seedDb, startSession, viewOf } from "../lib/wp3.ts";
@@ -176,7 +176,7 @@ scenario("A disabled agent is not offered and not added", { tag: ["@browser", "@
       agents: ["devtool", "docs", "release-bot"],
       beforeSignIn: async (world) => {
         const row = (await idsOf(world.owner))["release-bot"]!;
-        must(await stepped(world.owner, "POST", `/api/identities/${row}/disable`, {}, "identity.disable", row), "disable release-bot");
+        must(await revokeAgentKey(world.owner, row), "disable release-bot");
       },
     },
   );

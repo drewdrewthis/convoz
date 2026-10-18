@@ -1,3 +1,7 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { CliMachine } from "../lib/cli.ts";
 import { agentSays, convoz, createConversation, startSession } from "../lib/chat.ts";
 import { crewRow, crewWorld, disableAgent, labelledSession, ringStyle, sheetNamed, tokenColor } from "../lib/crew-wp9.ts";
 import { allow, stepped } from "../lib/machines.ts";
@@ -20,66 +24,185 @@ const HANDOFF_NOTES = ["First note: schema ready", "Second note: tests 3 and 7 f
 
 // ---- Rule: The owner creates identities; names are unique and never reused ------------------------------------------------------
 
-scenario("Adding an agent on a machine that already allows it", { tag: ["@browser"] }, async ({ server, page, context }) => {
-  // Given "box-2" has allow mode "any"
-  const c = await crewWorld({ server, page, context }, {
-    agents: ["devtool"],
-    beforeSignIn: async (x) => void (await stepped(x.w.owner, "PATCH", `/api/machines/${x.w.box2.id}`, { allow: { mode: "any", identities: [], globs: [] } }, "machine.allow", x.w.box2.id)),
-  });
-  await page.goto(`${c.w.srv.origin}/crew`);
+const inviteButton = (page: import("@playwright/test").Page) => page.getByRole("button", { name: /^(Add|Invite) agent$/ }).first();
+const AVATAR_JS = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><script>alert(1)</script><circle cx="5" cy="5" r="4" fill="blue"/></svg>';
 
-  // When the owner adds agent "dev-search" named "Search Dev" with a passkey
-  await page.getByRole("button", { name: /^(Add|Invite) agent$/ }).click();
-  const add = sheetNamed(page, "Add agent");
-  await add.getByRole("textbox", { name: "Handle" }).fill("dev-search");
-  await add.getByRole("textbox", { name: "Display name" }).fill("Search Dev");
-  await add.getByRole("button", { name: "Add agent" }).click();
-
-  // Then the sheet shows the one-line prompt "You're @dev-search on Convoz. Run convoz brief first."
-  const done = sheetNamed(page, "@dev-search added");
-  await expect(done.getByText("You're @dev-search on Convoz. Run convoz brief first.", { exact: true })).toBeVisible();
-
-  // And the sheet shows no key and no string starting with "cvz_"
-  await expect(done).not.toContainText("cvz_");
-  await expect(done.getByText("Allow on machine…")).toHaveCount(0);
-
-  // And Crew shows "Search Dev @dev-search"
-  await done.getByRole("button", { name: "Done" }).click();
-  await expect(page.getByText("Search Dev @dev-search", { exact: true })).toBeVisible();
-});
-
-scenario("Adding an agent that no machine allows yet", { tag: ["@browser"] }, async ({ server, page, context }) => {
-  // Background: "box-2" allows "devtool" only
+scenario("The invite sheet is one prompt with no form and no secret", { tag: ["@browser"] }, async ({ server, page, context }) => {
   const c = await crewWorld({ server, page, context }, { agents: ["devtool"] });
   await page.goto(`${c.w.srv.origin}/crew`);
-  expect((await c.w.box.sessionStart("docs")).code).not.toBe(0);
 
-  // When the owner adds agent "docs" named "Docs" with a passkey
-  await page.getByRole("button", { name: /^(Add|Invite) agent$/ }).click();
-  const add = sheetNamed(page, "Add agent");
-  await add.getByRole("textbox", { name: "Handle" }).fill("docs");
-  await add.getByRole("textbox", { name: "Display name" }).fill("Docs");
-  await add.getByRole("button", { name: "Add agent" }).click();
+  // When the owner opens Crew and taps "Invite agent"
+  await inviteButton(page).click();
 
-  // Then the sheet offers "Allow on machine…" with "box-2"
-  const done = sheetNamed(page, "@docs added");
-  await expect(done.getByText("Allow on machine…")).toBeVisible();
-  await expect(done.getByRole("button", { name: "box-2", exact: true })).toBeVisible();
+  // Then the sheet "Invite agent" shows a prompt with no field to fill in
+  const sheet = sheetNamed(page, "Invite agent");
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByRole("textbox")).toHaveCount(0);
 
-  // And it shows the command "convoz login" for a new machine
-  await expect(done.getByText("convoz login", { exact: true })).toBeVisible();
-  await expect(done).not.toContainText("cvz_");
+  // And the prompt names this server, the install line, "convoz login", "convoz session start" with "--create", and the brief, post, ask, status and app lines
+  const prompt = sheet.getByLabel("Connect prompt");
+  await expect(prompt).toContainText(c.w.srv.origin);
+  for (const part of ["command -v convoz", "convoz login --server", "convoz session start --as <your-handle> --create", "convoz brief", "convoz post", "convoz ask", "convoz status", "convoz post --app"]) await expect(prompt).toContainText(part);
 
-  // And choosing "box-2" lets "convoz session start --as docs" work there
-  await done.getByRole("button", { name: "box-2", exact: true }).click();
-  await sheetNamed(page, "Allow @docs on box-2").getByRole("button", { name: "Allow", exact: true }).click();
-  await expect(done.getByText("You're @docs on Convoz. Run convoz brief first.")).toBeVisible();
-  const started = await c.w.box.sessionStart("docs");
+  // And the prompt shows "--conversation" nowhere
+  await expect(prompt).not.toContainText("--conversation");
+
+  // And the sheet shows "Waiting for an agent to connect…"
+  await expect(sheet.getByText("Waiting for an agent to connect…")).toBeVisible();
+
+  // And the sheet shows no key and no string starting with "cvz_"
+  await expect(sheet).not.toContainText("cvz_");
+});
+
+scenario("Adding an agent from a machine that is already logged in", { tag: ["@browser", "@cli"] }, async ({ server, page, context }) => {
+  // Given "box-2" is logged in without the create_identity scope, and the owner opened the invite sheet in Crew
+  const c = await crewWorld({ server, page, context }, { agents: ["devtool"] });
+  await page.goto(`${c.w.srv.origin}/crew`);
+  await inviteButton(page).click();
+  const sheet = sheetNamed(page, "Invite agent");
+  await expect(sheet.getByText("Waiting for an agent to connect…")).toBeVisible();
+
+  // When the agent runs the prompt's "convoz session start --as code-review --create --description 'Reviews pull requests'" on "box-2"
+  const run = c.w.box.start(["session", "start", "--as", "code-review", "--create", "--description", "Reviews pull requests"]);
+
+  // Then the sheet shows the request card "box-2 wants to connect as @code-review" with "Reviews pull requests"
+  const card = sheet.getByRole("article", { name: "box-2 wants to connect as @code-review", exact: true });
+  await expect(card).toContainText("Reviews pull requests");
+
+  // When the owner taps Approve on the card in the sheet
+  await card.getByRole("button", { name: "Approve", exact: true }).click();
+
+  // Then the sheet says "Connected: code-review is online."
+  await expect(sheet.getByText("Connected: code-review is online.")).toBeVisible();
+
+  // And the sheet offers "New thread with code-review" and "Done"
+  await expect(sheet.getByRole("link", { name: "New thread with code-review" })).toBeVisible();
+  await expect(sheet.getByRole("button", { name: "Done" })).toBeVisible();
+  expect((await run.done).code).toBe(0);
+
+  // And Crew shows "code-review" with the line "Reviews pull requests"
+  await sheet.getByRole("button", { name: "Done" }).click();
+  await page.goto(`${c.w.srv.origin}/crew/code-review`);
+  await expect(page.getByText("Reviews pull requests")).toBeVisible();
+});
+
+scenario("Adding an agent from a new machine", { tag: ["@browser", "@cli"] }, async ({ server, page, context }) => {
+  // Given the owner opened the invite sheet in Crew
+  const c = await crewWorld({ server, page, context }, { agents: ["devtool"] });
+  await page.goto(`${c.w.srv.origin}/crew`);
+  await inviteButton(page).click();
+  const sheet = sheetNamed(page, "Invite agent");
+
+  // When the agent runs the prompt's "convoz login --name box-5 --as code-review" on a new machine
+  const fresh = new CliMachine();
+  const login = fresh.startLogin(c.w.srv.origin, "box-5", ["--as", "code-review"]);
+
+  // Then the sheet shows the request card "box-5 wants to connect as @code-review" with the code
+  const card = sheet.getByRole("article", { name: "box-5 wants to connect as @code-review", exact: true });
+  await expect(card).toContainText(/Code: [A-Z]{4}-[A-Z]{4}/);
+
+  // When the owner taps Approve on the card in the sheet
+  await card.getByRole("button", { name: "Approve", exact: true }).click();
+
+  // Then the sheet says "Connected: code-review is online."
+  await expect(sheet.getByText("Connected: code-review is online.")).toBeVisible();
+  expect((await login.done).code).toBe(0);
+
+  // And "convoz session start --as code-review" works on "box-5"
+  const started = await fresh.sessionStart("code-review");
   expect(started.code, started.stderr).toBe(0);
 });
 
-scenario("A handle is never used again", { tag: ["@browser"] }, async ({ server, page, context }) => {
-  // Given the owner disabled the agent "release-bot", which had posted in a conversation
+scenario("Inviting an agent from a conversation puts it in that conversation", { tag: ["@browser", "@cli"] }, async ({ server, page, context }) => {
+  // Given the owner is in the conversation "Ship search filters"
+  let conv = 0;
+  const c = await crewWorld({ server, page, context }, {
+    agents: ["devtool"],
+    beforeSignIn: async (x) => void (conv = await createConversation(x.w.owner, { participants: ["devtool"], title: "Ship search filters" })),
+  });
+  await page.goto(`${c.w.srv.origin}/chats/${conv}`);
+
+  // When the owner types "@" in the message box and taps "Invite a new agent…"
+  await page.getByRole("textbox", { name: /^Message/ }).fill("@");
+  await page.getByRole("option", { name: "Invite a new agent…" }).or(page.getByRole("button", { name: "Invite a new agent…" })).first().click();
+
+  // Then the sheet says the agent joins "Ship search filters"
+  const sheet = sheetNamed(page, "Invite agent");
+  await expect(sheet).toContainText("It joins “Ship search filters”.");
+
+  // And the prompt carries that conversation for "--conversation"
+  await expect(sheet.getByLabel("Connect prompt")).toContainText(`--conversation ${conv}`);
+
+  // When the agent runs the prompt's "convoz login --name box-5 --as code-review --conversation" with that conversation on a new machine
+  const login = new CliMachine().startLogin(c.w.srv.origin, "box-5", ["--as", "code-review", "--conversation", String(conv)]);
+
+  // And the owner taps Approve on the card
+  await sheet.getByRole("article", { name: "box-5 wants to connect as @code-review", exact: true }).getByRole("button", { name: "Approve", exact: true }).click();
+
+  // Then the sheet says "Connected: code-review is online and in “Ship search filters”."
+  await expect(sheet.getByText("Connected: code-review is online and in “Ship search filters”.")).toBeVisible();
+  expect((await login.done).code).toBe(0);
+
+  // And "code-review" is a participant of "Ship search filters" and sees only what comes after
+  const members = (await c.w.owner.client.get(`/api/conversations/${conv}`)).json().conversation.participants as { handle: string }[];
+  expect(members.map((m) => m.handle)).toContain("code-review");
+});
+
+scenario("The details panel and the invite button in the rail open the same sheet", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given the owner is in the conversation "Ship search filters"
+  let conv = 0;
+  const c = await crewWorld({ server, page, context }, {
+    agents: ["devtool"],
+    beforeSignIn: async (x) => void (conv = await createConversation(x.w.owner, { participants: ["devtool"], title: "Ship search filters" })),
+  });
+  await page.goto(`${c.w.srv.origin}/chats/${conv}`);
+
+  // When the owner opens Details, taps "+ Add" and then "Invite a new agent"
+  await page.getByRole("button", { name: "Show details" }).click();
+  await page.getByRole("button", { name: "+ Add" }).click();
+  await sheetNamed(page, "Add agent").getByRole("button", { name: "Invite a new agent" }).click();
+
+  // Then the sheet "Invite agent" opens for that conversation
+  await expect(sheetNamed(page, "Invite agent")).toContainText("Ship search filters");
+
+  // When the owner taps the invite button in the rail
+  await page.goto(`${c.w.srv.origin}/crew?invite`);
+
+  // Then Crew opens with the sheet "Invite agent"
+  await expect(sheetNamed(page, "Invite agent")).toBeVisible();
+});
+
+scenario("What an agent says about itself shows as data", { tag: ["@browser", "@cli"] }, async ({ server, page, context }) => {
+  // Given an agent sent the description "<b>bold</b> **stars** https://evil.example" and an SVG avatar with a script in it
+  const c = await crewWorld({ server, page, context }, { agents: ["devtool"] });
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "convoz-av-"));
+  const svg = path.join(dir, "a.svg");
+  fs.writeFileSync(svg, AVATAR_JS);
+  const run = c.w.box.start(["session", "start", "--as", "code-review", "--create", "--description", "<b>bold</b> **stars** https://evil.example", "--avatar", svg]);
+
+  // When the owner sees its request card
+  await page.goto(c.w.srv.origin + "/");
+  const card = page.getByRole("article", { name: "box-2 wants to connect as @code-review", exact: true });
+  await expect(card).toBeVisible();
+
+  // Then the card shows that description as plain text under "From the agent", on one line
+  await expect(card).toContainText("From the agent");
+  await expect(card.getByText("<b>bold</b> **stars** https://evil.example", { exact: true })).toBeVisible();
+  await expect(card.locator("b, strong a, a")).toHaveCount(0);
+
+  // And the machine name on the card is the server's own
+  await expect(card.getByRole("heading")).toContainText("box-2");
+
+  // And the avatar is an image of the cleaned SVG and runs no script
+  const img = card.locator("img");
+  await expect(img).toHaveAttribute("src", /^\/api\/identity-requests\/idr_[0-9a-f]{32}\/avatar\.svg$/);
+  const served = await page.request.get(c.w.srv.origin + ((await img.getAttribute("src")) as string));
+  expect(await served.text()).not.toContain("script");
+  run.stop();
+});
+
+scenario("A handle is never used again", { tag: ["@browser", "@cli"] }, async ({ server, page, context }) => {
+  // Given the owner revoked the key of the agent "release-bot", which had posted in a conversation
   const c = await crewWorld({ server, page, context }, {
     agents: ["devtool", "release-bot"],
     live: ["release-bot"],
@@ -89,27 +212,42 @@ scenario("A handle is never used again", { tag: ["@browser"] }, async ({ server,
       await disableAgent(x, "release-bot");
     },
   });
-  await page.goto(`${c.w.srv.origin}/crew`);
 
-  // When the owner tries to add a new agent with the handle "release-bot"
-  await page.getByRole("button", { name: /^(Add|Invite) agent$/ }).click();
-  const add = sheetNamed(page, "Add agent");
-  await add.getByRole("textbox", { name: "Handle" }).fill("release-bot");
-  await add.getByRole("textbox", { name: "Display name" }).fill("Release Bot 2");
-  await add.getByRole("button", { name: "Add agent" }).click();
+  // When an agent runs "convoz login --name box-5 --as release-bot"
+  const res = await new CliMachine().run(["login", "--server", c.w.srv.origin, "--name", "box-5", "--as", "release-bot"]);
 
-  // Then the add sheet says the handle "release-bot" was used before
-  await expect(add.getByRole("alert")).toContainText('The handle "release-bot" was used before');
-  await add.getByRole("button", { name: "Cancel" }).click();
+  // Then the CLI exits 4 and says the handle is taken or was used before
+  expect(res.code, res.stderr).toBe(4);
+  expect(res.stderr).toMatch(/taken or was used before/i);
+
+  // And Now shows no request card
+  await page.goto(c.w.srv.origin + "/");
+  await expect(page.getByRole("article")).toHaveCount(0);
 
   // And Crew still lists the disabled "release-bot" with its old messages
+  await page.goto(`${c.w.srv.origin}/crew`);
   await page.getByRole("button", { name: /^Disabled · 1/ }).click();
   const row = crewRow(page, "release-bot");
-  await expect(row).toBeVisible();
   await expect(row).toContainText("Disabled");
   await row.click();
   await page.getByRole("region", { name: "Conversations together" }).getByRole("link", { name: "Ship search filters" }).click();
   await expect(page.getByRole("log", { name: "Messages" }).getByRole("article").filter({ hasText: "Released v1" })).toContainText("release-bot");
+});
+
+scenario("A look-alike of an existing name is refused", { tag: ["@browser", "@cli"] }, async ({ server, page, context }) => {
+  // Given the agent "devtool" exists
+  const c = await crewWorld({ server, page, context }, { agents: ["devtool"] });
+
+  // When an agent runs "convoz login --name box-5 --as devtoo1"
+  const res = await new CliMachine().run(["login", "--server", c.w.srv.origin, "--name", "box-5", "--as", "devtoo1"]);
+
+  // Then the CLI says the handle looks like another identity's name
+  expect(res.code, res.stderr).not.toBe(0);
+  expect(res.stderr).toMatch(/looks like another identity/i);
+
+  // And Now shows no request card
+  await page.goto(c.w.srv.origin + "/");
+  await expect(page.getByRole("article")).toHaveCount(0);
 });
 
 scenario("The handle always shows next to an agent's display name", { tag: ["@browser"] }, async ({ server, dataDir, page, context }) => {
@@ -134,14 +272,17 @@ scenario("Identities are disabled, never deleted", { tag: ["@browser"] }, async 
   const conv = await createConversation(c.w.owner, { participants: ["devtool"], title: "Ship search filters" });
   await agentSays(c.w.srv, c.sessions.devtool!.lease, conv, "Old message");
 
-  // When the owner disables "devtool" with a passkey
+  // When the owner taps "Revoke key" on the profile of "devtool" and then Confirm
   await page.goto(`${c.w.srv.origin}/crew/devtool`);
   await expect(page.getByRole("button", { name: /delete/i })).toHaveCount(0);
-  await page.getByRole("button", { name: "Disable", exact: true }).click();
-  await sheetNamed(page, "Disable @devtool").getByRole("button", { name: "Disable", exact: true }).click();
-  await expect(sheetNamed(page, "Disable @devtool")).toBeHidden();
+  await page.getByRole("button", { name: "Revoke key", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm revoke key" }).click();
+  await expect(page.getByText("Key revoked")).toBeVisible();
 
-  // Then Crew lists "devtool" as disabled
+  // Then no passkey prompt opens
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  // And Crew lists "devtool" as disabled
   await page.goto(`${c.w.srv.origin}/crew`);
   await page.getByRole("button", { name: /^Disabled · 1/ }).click();
   await expect(crewRow(page, "devtool")).toContainText("Disabled");
@@ -154,7 +295,7 @@ scenario("Identities are disabled, never deleted", { tag: ["@browser"] }, async 
   await page.goto(`${c.w.srv.origin}/crew/devtool`);
   await expect(page.getByRole("heading", { name: "devtool" })).toBeVisible();
   await expect(page.getByRole("button", { name: /delete|remove/i })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Disable", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Revoke key", exact: true })).toHaveCount(0);
 });
 
 // ---- Rule: Disabling an identity cuts every session at once (I-38) --------------------------------------------------------------
@@ -175,10 +316,10 @@ scenario("Disabling an identity ends its sessions and closes its asks", { tag: [
   const second = await labelledSession(c.w.box, "devtool", "claude-91bc");
   expect((await convoz(c.w.box, first, ["read", String(conv)])).code).toBe(0);
 
-  // When the owner disables "devtool" with a passkey
+  // When the owner revokes the key of "devtool" with Revoke key and Confirm
   await page.goto(`${c.w.srv.origin}/crew/devtool`);
-  await page.getByRole("button", { name: "Disable", exact: true }).click();
-  await sheetNamed(page, "Disable @devtool").getByRole("button", { name: "Disable", exact: true }).click();
+  await page.getByRole("button", { name: "Revoke key", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm revoke key" }).click();
   await expect(page.getByText("Disabled", { exact: true })).toBeVisible();
 
   // Then the next command of each "devtool" session exits 3 with a message that the identity was disabled
@@ -197,6 +338,43 @@ scenario("Disabling an identity ends its sessions and closes its asks", { tag: [
   await page.goto(`${c.w.srv.origin}/crew`);
   await page.getByRole("button", { name: /^Disabled · 1/ }).click();
   await expect(crewRow(page, "devtool")).toContainText("Disabled");
+});
+
+scenario("Revoke key asks to confirm and can be cancelled", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  const c = await crewWorld({ server, page, context }, { agents: ["devtool"] });
+  await page.goto(`${c.w.srv.origin}/crew/devtool`);
+
+  // When the owner taps "Revoke key" on the profile of "devtool"
+  await page.getByRole("button", { name: "Revoke key", exact: true }).click();
+
+  // Then the profile asks "Revoke the key for @devtool?" with Confirm and Cancel
+  const ask = page.getByRole("group", { name: "Revoke key" });
+  await expect(ask).toContainText("Revoke the key for @devtool?");
+  await expect(ask.getByRole("button", { name: "Confirm revoke key" })).toBeVisible();
+
+  // When the owner taps Cancel
+  await ask.getByRole("button", { name: "Cancel" }).click();
+
+  // Then "devtool" is still enabled and "Revoke key" is offered again
+  await expect(page.getByRole("button", { name: "Revoke key", exact: true })).toBeVisible();
+  const list = (await c.w.owner.client.get("/api/identities")).json().identities as { handle: string; disabled: boolean }[];
+  expect(list.find((i) => i.handle === "devtool")?.disabled).toBe(false);
+});
+
+scenario("The profile shows when the key was created and when it was last used", { tag: ["@browser"] }, async ({ server, dataDir, page, context }) => {
+  // Given "devtool" has a session that was last seen 2 minutes ago
+  const c = await crewWorld({ server, page, context }, {
+    agents: ["devtool"],
+    live: ["devtool"],
+    plaintext: true,
+    beforeSignIn: async () => void seedDb(dataDir, (db) => db.prepare("UPDATE sessions SET last_seen_at = ?").run(Date.now() - 2 * 60_000)),
+  });
+
+  // When the owner opens the profile of "devtool"
+  await page.goto(`${c.w.srv.origin}/crew/devtool`);
+
+  // Then the Details row reads "Created" with a date and "last used 2 min ago"
+  await expect(page.getByRole("region", { name: "Details" })).toContainText(/Created .+ · last used 2 min ago/);
 });
 
 // ---- Rule: The owner manages machines and their allow-lists --------------------------------------------------------------------

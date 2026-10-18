@@ -128,7 +128,7 @@ NowPendingAdd:
     at: { type: integer, format: int64 }
 Now:
   type: object
-  required: [now, poll_ms, badge, asks, snoozed, answered_today, pending_adds, machine_requests]
+  required: [now, poll_ms, badge, asks, snoozed, answered_today, pending_adds, machine_requests, identity_requests]
   properties:
     now: { type: integer, format: int64, description: The server's clock, epoch ms. Snooze times and "tonight" are read against it. }
     poll_ms: { type: integer, description: How often an open Now asks again, for what only time changes (a snooze waking, a request expiring). }
@@ -138,3 +138,4 @@ Now:
     answered_today: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Ask" }, description: Answered in the last 24 hours, newest first. }
     pending_adds: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/NowPendingAdd" } }
     machine_requests: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/MachineRequest" } }
+    identity_requests: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/IdentityRequest" }, description: Agents on logged-in machines that ask to be made. }

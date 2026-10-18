@@ -77,29 +77,18 @@ type ApproveInput struct {
 	Name      string // empty: the name the machine asked for
 	Allow     AllowSpec
 	Scopes    int64
-	TypedCode string
 	Human     Human
 	DeviceID  int64
-	StepUpID  int64
 }
 
-// ApproveRequest turns a pending request into a machine inside the open transaction: it spends the
-// machine.approve step-up, checks the typed code when more than one request waits, checks the name and the
-// cap, makes the machine, marks the request approved, and writes the audit line and the event.
+// ApproveRequest turns a pending request into a machine inside the open transaction: it checks the name and the cap, makes the
+// machine, marks the request approved, and writes the audit line and the event. The owner's signed-in session is the authority
+// (owner said: "Approvals just go into the feed, right?"): no passkey check and no typed code. A request that carries an identity
+// also makes that agent and lets the new machine act as it.
 func ApproveRequest(ctx context.Context, d pdb.DBTX, box *KeyBox, p Ports, in ApproveInput, now time.Time) (Machine, error) {
-	if err := ConsumeStepUp(ctx, d, in.StepUpID, in.DeviceID, "machine.approve", &in.RequestID, now); err != nil {
-		return Machine{}, err
-	}
 	req, err := PendingRequest(ctx, d, in.RequestID, now)
 	if err != nil {
 		return Machine{}, err
-	}
-	waiting, err := CountPendingRequests(ctx, d, now)
-	if err != nil {
-		return Machine{}, err
-	}
-	if waiting > 1 && in.TypedCode != req.UserCode {
-		return Machine{}, ErrCodeMismatch
 	}
 	name := in.Name
 	if name == "" {
@@ -108,6 +97,13 @@ func ApproveRequest(ctx context.Context, d pdb.DBTX, box *KeyBox, p Ports, in Ap
 	// The name and the cap come before the allow-list: a refusal for either needs no handle to exist.
 	if err := CheckMachineSlot(ctx, d, name); err != nil {
 		return Machine{}, nameTaken(err, name)
+	}
+	idReq, carries, err := loginIdentityOf(ctx, d, in.RequestID)
+	if err != nil {
+		return Machine{}, err
+	}
+	if in.Allow.Mode == "" {
+		in.Allow.Mode = AllowList // one tap names no allow-list: an empty list (or just the new identity), widened later in Crew
 	}
 	allow, err := ResolveAllow(ctx, d, p.Agents, in.Allow)
 	if err != nil {
@@ -119,6 +115,15 @@ func ApproveRequest(ctx context.Context, d pdb.DBTX, box *KeyBox, p Ports, in Ap
 	}
 	if err := MarkApproved(ctx, d, in.RequestID, machineID, in.Human.ID, now); err != nil {
 		return Machine{}, err
+	}
+	if carries {
+		made, err := makeRequestedIdentity(ctx, d, p, in.Human, machineID, idReq.ID, now)
+		if err != nil {
+			return Machine{}, err
+		}
+		if err := addToAllow(ctx, d, machineID, made.ID, now); err != nil {
+			return Machine{}, err
+		}
 	}
 	if err := p.Journal.Audit(ctx, d, now, AuditEntry{Actor: in.Human.ID, Device: in.DeviceID, Machine: machineID, Action: "machine.approved", TargetKind: "machine", TargetID: machineID, Detail: map[string]any{"request_id": in.RequestID}}); err != nil {
 		return Machine{}, err

@@ -80,7 +80,7 @@ func TestRecoveryDeviceNeverSlides(t *testing.T) {
 func TestDestructiveActionsWaitForARecoveryPasskey(t *testing.T) {
 	t0 := time.Unix(1_000_000, 0)
 	young := Passkey{DestructiveAt: t0.Add(RecoveryPasskeyDelay).UnixMilli()}
-	for _, action := range []string{"passkey.remove", "recovery.regenerate", "machine.reveal", "machine.regenerate", "machine.revoke", "machine.approve", "machine.allow"} { // the seven design.md I-26 names
+	for _, action := range []string{"passkey.remove", "recovery.regenerate", "machine.reveal", "machine.regenerate", "machine.revoke", "machine.allow"} { // the design.md I-26 names that remain strict
 		if err := CheckDestructive(young, action, t0.Add(2*time.Hour)); err != ErrPasskeyTooNew {
 			t.Fatalf("%s inside the window: %v", action, err)
 		}

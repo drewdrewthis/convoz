@@ -57,7 +57,14 @@ func (f *fakeAgents) Lookup(_ context.Context, _ pdb.DBTX, h string) (Agent, boo
 	a, ok := f.byHandle[h]
 	return a, ok, nil
 }
-func (f *fakeAgents) Handles(context.Context, pdb.DBTX) (map[int64]string, error) { return nil, nil }
+func (f *fakeAgents) CheckNew(_ context.Context, _ pdb.DBTX, handle, _ string) error {
+	if _, taken := f.byHandle[handle]; taken || handle == "drew" {
+		return ErrHandleTaken
+	}
+	return nil
+}
+func (f *fakeAgents) SetIntro(context.Context, pdb.DBTX, int64, string, string) error { return nil }
+func (f *fakeAgents) Handles(context.Context, pdb.DBTX) (map[int64]string, error)     { return nil, nil }
 
 // Create writes the agent rows the session foreign keys need (the test owns the SQL, auth never imports identity).
 func (f *fakeAgents) Create(ctx context.Context, d pdb.DBTX, in NewAgent, now time.Time) (Agent, error) {
@@ -234,8 +241,9 @@ func TestMintSessionRules(t *testing.T) {
 
 	var forbidden ForbiddenError
 	create := &CreateIdentity{DisplayName: "Alpha"}
-	if _, err := mint(t, s, ports, MintRequest{MachineKey: plain, As: "alpha", ClientID: "client-001", Create: create}); !errors.As(err, &forbidden) {
-		t.Errorf("create without the scope: %v", err)
+	// Without the scope the machine no longer gets a 403: it files a request the owner decides.
+	if got, err := mint(t, s, ports, MintRequest{MachineKey: plain, As: "alpha", ClientID: "client-001", Create: create}); err != nil || got.Waiting == nil || got.Lease != "" {
+		t.Errorf("create without the scope files a request: %+v %v", got, err)
 	}
 	if _, err := mint(t, s, ports, MintRequest{MachineKey: maker, As: "drew", ClientID: "client-001"}); !errors.As(err, &forbidden) {
 		t.Errorf("a human cannot start a session: %v", err)

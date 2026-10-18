@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
@@ -159,8 +160,9 @@ func SessionStart(args []string, io IO) int {
 	fs := flag.NewFlagSet("session start", flag.ContinueOnError)
 	fs.SetOutput(io.Stderr)
 	as := fs.String("as", io.Getenv("CONVOZ_AS"), "the agent handle to act as")
-	create := fs.Bool("create", false, "make the identity if it does not exist (needs the create_identity scope)")
-	display := fs.String("name", "", "the display name for --create")
+	create := fs.Bool("create", false, "make the identity if it does not exist: at once with the create_identity scope, else the owner approves a request")
+	display := fs.String("name", "", "the display name for --create (default: the handle)")
+	more := addIntroFlags(fs)
 	label := fs.String("label", "convoz cli", "what the owner sees next to the session")
 	clientID := fs.String("client-id", io.Getenv("CLAUDE_CODE_SESSION_ID"), "the client id; the same one replaces the older lease")
 	if !parseNoArgs(fs, args, io) {
@@ -169,8 +171,15 @@ func SessionStart(args []string, io IO) int {
 	if *as == "" {
 		return usageError(io, "--as needs an agent handle")
 	}
-	if *create && *display == "" {
-		return usageError(io, "--create needs --name")
+	if !*create && (*display != "" || more.given()) {
+		return usageError(io, "--name, --description, --avatar and --conversation need --create")
+	}
+	var intro *wire.IdentityIntro
+	if *create {
+		var err error
+		if intro, err = more.intro(*as, *display); err != nil {
+			return usageError(io, err.Error())
+		}
 	}
 	if *clientID == "" {
 		*clientID = "convoz-" + randomHex(8)
@@ -184,7 +193,7 @@ func SessionStart(args []string, io IO) int {
 	if err != nil {
 		return fail(io, err)
 	}
-	sid, err := startSession(dir, newClient(creds.Server), creds, *as, *clientID, *label, *create, *display)
+	sid, err := startSession(io, dir, newClient(creds.Server), creds, *as, *clientID, *label, intro)
 	if err != nil {
 		return fail(io, err)
 	}
@@ -192,18 +201,60 @@ func SessionStart(args []string, io IO) int {
 	return ExitOK
 }
 
-// startSession mints a lease for (as, clientID) and returns the local session id of its file.
-func startSession(dir string, c *client, creds Credentials, as, clientID, label string, create bool, display string) (string, error) {
+// waitForOwner is how long `session start --create` waits for the owner before it gives up. The request itself stays for a day:
+// the same command, run again, picks it up.
+const waitForOwner = 10 * time.Minute
+
+// startSession mints a lease for (as, clientID) and returns the local session id of its file. With an intro the identity is
+// created when missing; when the owner has to approve it first, startSession files the request and asks again until the owner decides.
+func startSession(io IO, dir string, c *client, creds Credentials, as, clientID, label string, intro *wire.IdentityIntro) (string, error) {
 	req := wire.MintRequest{As: as, ClientID: clientID, Label: label}
-	if create {
-		req.Create = &wire.CreateIdentity{DisplayName: display}
+	if intro != nil {
+		req.Create = &wire.CreateIdentity{DisplayName: intro.DisplayName, Description: intro.Description, AvatarSVG: intro.AvatarSVG, ConversationID: intro.ConversationID}
 	}
-	var out wire.MintResponse
-	if err := c.call(context.Background(), "POST", wire.RouteSessions, creds.Key, req, &out); err != nil {
-		return "", err
+	deadline := time.Now().Add(waitForOwner)
+	for announced := false; ; announced = true {
+		var out struct {
+			wire.MintResponse
+			Request *wire.IdentityRequestState `json:"request"`
+		}
+		if err := c.call(context.Background(), "POST", wire.RouteSessions, creds.Key, req, &out); err != nil {
+			return "", describeIdentityRefusal(err, as)
+		}
+		if out.Request == nil {
+			forgetSessions(dir, out.Session.Identity, clientID)
+			return saveSession(dir, sessionFile{Lease: out.Lease, Identity: out.Session.Identity, Machine: out.Session.Machine, ClientID: clientID})
+		}
+		req.Create.Request = out.Request.Ref
+		if !announced {
+			fmt.Fprintf(io.Stderr, "convoz: Waiting for the owner to approve @%s on this machine. Open Convoz, Now.\n", as)
+		}
+		if !time.Now().Before(deadline) {
+			return "", fmt.Errorf("the owner has not decided yet: run the same command again to keep waiting: %w", errAwaitingOwner)
+		}
+		wait := time.Duration(out.Request.IntervalMs) * time.Millisecond
+		if wait <= 0 {
+			wait = defaultInterval
+		}
+		time.Sleep(wait)
 	}
-	forgetSessions(dir, out.Session.Identity, clientID)
-	return saveSession(dir, sessionFile{Lease: out.Lease, Identity: out.Session.Identity, Machine: out.Session.Machine, ClientID: clientID})
+}
+
+// errAwaitingOwner marks the wait that ran out; it exits like an auth failure (3): nothing is wrong, but nothing may go on.
+var errAwaitingOwner = errors.New("awaiting the owner")
+
+// describeIdentityRefusal gives the refusals of a created identity their own words.
+func describeIdentityRefusal(err error, as string) error {
+	status, code := statusCode(err)
+	switch {
+	case code == wire.CodeHandleTaken:
+		return fmt.Errorf("@%s is taken or was used before. Ask the owner to allow it on this machine, or pick another handle: %w", as, err)
+	case code == wire.CodeRequestDenied:
+		return fmt.Errorf("the owner denied the request for @%s: %w", as, err)
+	case status == http.StatusGone:
+		return fmt.Errorf("the request for @%s expired: run the command again: %w", as, err)
+	}
+	return err
 }
 
 // SessionEnd runs `convoz session end`: it ends the lease and removes the file. A lease that already ended

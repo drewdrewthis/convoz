@@ -6,6 +6,7 @@ import "./badge.ts";
 export { Now } from "./Now.tsx";
 export { AskInline } from "./AskInline.tsx";
 export { useNow, openCount } from "./store.ts";
+export { agentRequests, RequestCard, type AgentRequest } from "./requests.tsx";
 
 // An ask changed (here or in another tab): the numbers follow at once, not at the next poll.
 registerHandler("ask.", () => void useNow.getState().load().catch(() => {}));

@@ -113,10 +113,80 @@ Feature: Agent sessions as one identity (contracts)
   Rule: A machine may create identities only when the owner allowed it
 
     @v1 @api
-    Scenario: A machine without create_identity cannot make identities
+    Scenario: A machine without create_identity gets a request, not an identity
       When "box-2" asks for a lease as "dev-new" with create set
-      Then the server answers 403
+      Then the server answers 202 with an unguessable request ref
       And Crew does not list "dev-new"
+      And asking again with the ref answers 202 until the owner decides
+
+    @v1 @api @I-3
+    Scenario Outline: A request for a bad or taken handle is refused when it is filed
+      When "box-2" asks for a lease as <handle> with create set
+      Then the server answers <status> with the code <code>
+      And GET /api/now lists no identity request
+
+      Examples:
+        | handle                    | status | code            |
+        | "devtool" (exists, "box-2" may not act as it) | 409    | handle_taken    |
+        | "admin"                   | 400    | invalid_request |
+        | "devtoo1" (a look-alike)  | 400    | invalid_request |
+
+    @v1 @api @I-3
+    Scenario: A request that waits does not reserve its handle
+      Given "box-2" filed a request for "dev-new" and "laptop-1" filed one too
+      When the owner approves the request of "laptop-1"
+      Then approving the request of "box-2" answers 409 with the code "handle_taken"
+
+    @v1 @api @I-3
+    Scenario: The approval checks the look-alike rule again
+      Given "box-2" filed a request for "dev-new"
+      And another agent then took the display name "dev-new"
+      When the owner approves the request
+      Then the server answers 400 naming "handle"
+
+    @v1 @api
+    Scenario: Only the machine that filed a request can ask about it
+      Given "box-2" filed a request for "dev-new"
+      When "laptop-1" asks with the ref of that request
+      Then the server answers 404, the same as for a ref that never existed
+      And the ref is "idr_" and 32 hex characters, different for every request
+
+    @v1 @api
+    Scenario: A request expires after 24 hours and the command is told
+      Given "box-2" filed a request for "dev-new"
+      When the test clock moves forward 24 hours and 1 second
+      Then asking with the ref answers 410 with the code "request_expired"
+      And Now lists no identity request
+      And the handle "dev-new" is still free
+
+    @v1 @api
+    Scenario: A machine files at most 5 requests in a day
+      Given "box-2" filed 5 requests today
+      When it files a sixth
+      Then the server answers 429 with a Retry-After header
+
+    @v1 @api @I-26
+    Scenario: Only the owner's session can decide an agent request
+      Given "box-2" filed a request for "dev-new"
+      When a machine key, a session lease and a caller with no credential each try to approve or decline it
+      Then the server answers 401 every time
+      And the owner approves it with no step-up and the agent exists
+
+    @v1 @api @I-32 @I-17
+    Scenario: The card data is plain text, the avatar is cleaned and the join goes through the participants path
+      Given "box-2" filed a request for "dev-new" with the description "<b>**hi**</b>", a script in its SVG avatar and conversation 41
+      Then Now lists the description as the same plain text
+      And the avatar is served from /api/identity-requests/ with a sandboxing CSP and holds no script
+      When the owner approves it
+      Then "dev-new" is an active participant of conversation 41 from the add on
+      And an agent that asks for a conversation the owner is not in is refused when it files
+
+    @v1 @api @I-17
+    Scenario: With the create_identity scope a conversation join is a request the owner decides
+      Given "box-2" has the create_identity scope
+      When "box-2" creates "dev-ci" naming conversation 41
+      Then "dev-ci" exists at once
+      And conversation 41 lists "dev-ci" as waiting for approval
 
     @v1 @api
     Scenario: A machine creates at most 5 identities per day

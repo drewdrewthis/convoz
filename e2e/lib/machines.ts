@@ -147,19 +147,21 @@ export interface ApproveOptions {
   allow?: Allow;
   /** Scope names; defaults to DEFAULT_SCOPES. */
   scopes?: string[];
-  /** The code the owner typed (needed when more than one request is pending). */
-  typedCode?: string;
 }
 
-/** Approve with a fresh step-up (`machine.approve` on the request). Returns the raw answer. */
+/** Approve with the owner's session alone (no passkey check, no code). Returns the raw answer. */
 export function approve(owner: Owner, requestId: number, o: ApproveOptions = {}): Promise<Res> {
   const body = {
     ...(o.name ? { name: o.name } : {}),
     allow: o.allow ?? ANY,
     ...(o.scopes ? { scopes: o.scopes } : {}),
-    ...(o.typedCode ? { typed_code: o.typedCode } : {}),
   };
-  return stepped(owner, "POST", `/api/machines/requests/${requestId}/approve`, body, "machine.approve", requestId);
+  return owner.client.post(`/api/machines/requests/${requestId}/approve`, body);
+}
+
+/** Revoke an agent's key (the app's "Revoke key"): the owner's session alone, no passkey check. */
+export function revokeAgentKey(owner: Owner, identityId: number): Promise<Res> {
+  return owner.client.post(`/api/identities/${identityId}/disable`, {});
 }
 
 export interface LoggedIn {
@@ -201,7 +203,7 @@ export interface MintOptions {
   clientId?: string;
   label?: string;
   /** Make the identity too (needs the create_identity scope). */
-  create?: { display_name: string };
+  create?: { display_name?: string; description?: string; avatar_svg?: string; conversation_id?: number; request?: string };
 }
 
 /** `POST /api/sessions` with a machine key. 201 `{lease, session:{id, identity, machine, client_id, label, expires_at}}`. */
@@ -211,6 +213,29 @@ export function mintSession(srv: ServerHandle, key: string, o: MintOptions): Pro
     ...bearer(key),
   });
 }
+
+/** A waiting identity request of a logged-in machine, as Now lists it. */
+export interface IdentityRequestRow {
+  ref: string;
+  handle: string;
+  display_name: string;
+  description: string;
+  avatar_url: string | null;
+  conversation: { id: number; title: string } | null;
+  machine: string;
+  machine_id: number;
+  created_at: number;
+  expires_at: number;
+}
+
+/** `GET /api/now` identity_requests: the agents on logged-in machines that wait for the owner. */
+export async function identityRequests(owner: Owner): Promise<IdentityRequestRow[]> {
+  return must(await owner.client.get("/api/now"), "now").json().identity_requests as IdentityRequestRow[];
+}
+
+/** One tap on the card of an identity request: the owner's session alone. */
+export const approveIdentity = (owner: Owner, ref: string): Promise<Res> => owner.client.post(`/api/identity-requests/${ref}/approve`, {});
+export const denyIdentity = (owner: Owner, ref: string): Promise<Res> => owner.client.post(`/api/identity-requests/${ref}/deny`, {});
 
 /** The lease of a successful mint. */
 export async function lease(srv: ServerHandle, key: string, o: MintOptions): Promise<string> {
@@ -292,17 +317,12 @@ export async function signInBrowser(srv: ServerHandle, owner: Owner, page: Page,
 /** The Now card of a machine request: an article named "<name> wants to connect". */
 export const nowCard = (page: Page, name: string): Locator => page.getByRole("article", { name: `${name} wants to connect` });
 
-/** Click Approve on the card; returns the approve sheet (a dialog named "Approve <name>"). */
-export async function openApproveSheet(page: Page, name: string): Promise<Locator> {
+/** One tap on Approve in the card: no sheet, no passkey prompt. */
+export async function approveCard(page: Page, name: string): Promise<void> {
   await nowCard(page, name).getByRole("button", { name: "Approve", exact: true }).click();
-  const sheet = page.getByRole("dialog", { name: `Approve ${name}` });
-  await sheet.waitFor();
-  return sheet;
 }
 
-/** Fill the sheet and press its Approve button (the page then asks for the passkey by itself). */
-export async function submitApproveSheet(sheet: Locator, o: { allowed?: string; typedCode?: string } = {}): Promise<void> {
-  if (o.allowed !== undefined) await sheet.getByRole("textbox", { name: "Allowed identities" }).fill(o.allowed);
-  if (o.typedCode !== undefined) await sheet.getByRole("textbox", { name: "Type the code" }).fill(o.typedCode);
-  await sheet.getByRole("button", { name: "Approve", exact: true }).click();
+/** One tap on Decline in the card. */
+export async function declineCard(page: Page, name: string): Promise<void> {
+  await nowCard(page, name).getByRole("button", { name: "Decline", exact: true }).click();
 }

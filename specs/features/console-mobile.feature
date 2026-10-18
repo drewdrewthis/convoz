@@ -50,13 +50,13 @@ Feature: Console on a phone
       And the next tap signs the owner in
 
     @v1 @browser @phone
-    Scenario: The owner approves and denies machines from a phone
+    Scenario: The owner approves and declines machines from a phone
       Given machines "box-2" and "box-3" wait for approval and the owner is signed in on a phone
-      When the owner types the code, taps Approve on the card of "box-2" and Approve in the sheet
+      When the owner taps Approve on the card of "box-2"
       Then the card showed the machine name, the source address and the code
-      And one passkey prompt opens at once and the app says "Approved"
-      And the Approve button in the sheet is in view and at least 44 px tall
-      And one tap on Deny removes the card of "box-3"
+      And the app says "Approved box-2" at once, with no passkey prompt, no sheet and no code to type
+      And the Approve button on the card is in view and at least 44 px tall
+      And one tap on Decline removes the card of "box-3"
 
   Rule: First run on a phone saves the codes before the second way in
 

@@ -68,6 +68,51 @@ Feature: Agent sessions as one identity
       When "convoz session start --as dev-ci --create --name 'CI helper'" runs on "box-2"
       Then the session works as "dev-ci"
       And Crew shows "CI helper @dev-ci" marked "created by box-2"
+      And no card appears in Now
+
+    @v1 @cli @I-3
+    Scenario: The display name is optional and defaults to the handle
+      Given "box-2" has the create_identity scope
+      When "convoz session start --as dev-ci --create --description 'Runs CI'" runs on "box-2"
+      Then the session works as "dev-ci"
+      And Crew shows "dev-ci" with the line "Runs CI"
+
+  Rule: A machine without that scope asks the owner, with one card
+
+    # Owner said: "For adding an agent, I should actually just get a prompt right? ... it should request the connection accepted and send its id package for its handle."
+    @v1 @cli @browser @I-3
+    Scenario: A machine without create_identity files a request that the owner approves
+      Given "box-2" is logged in without the create_identity scope
+      When "convoz session start --as dev-ci --create --description 'Runs CI'" runs on "box-2"
+      Then the CLI says it is waiting for the owner and does not exit
+      And the owner sees one Now card "box-2 wants to connect as @dev-ci" with "Runs CI" labelled "From the agent"
+      When the owner taps Approve on that card
+      Then the CLI prints CONVOZ_SID and exits 0
+      And the session works as "dev-ci"
+      And Crew shows "dev-ci" marked "created by box-2"
+      And "box-2" allows "dev-ci" now
+
+    @v1 @cli @browser
+    Scenario: Declining an agent request ends the waiting command
+      Given "box-2" is logged in without the create_identity scope
+      When "convoz session start --as dev-ci --create" runs on "box-2"
+      And the owner taps Decline on the card "box-2 wants to connect as @dev-ci"
+      Then the CLI exits 3 with a message that the owner denied the request
+      And Crew does not list "dev-ci"
+
+    @v1 @cli @I-3
+    Scenario: Asking for a handle that exists is refused and never takes it over
+      Given "box-2" does not allow "docs" and "docs" exists
+      When "convoz session start --as docs --create" runs on "box-2"
+      Then the CLI exits 4 and says the handle is taken and to ask the owner to allow it on the machine
+      And no card appears in Now
+
+    @v1 @cli
+    Scenario: Running the same command again after the approval just starts the session
+      Given the owner approved the request of "box-2" for "dev-ci"
+      When "convoz session start --as dev-ci --create" runs on "box-2" again
+      Then the session works as "dev-ci"
+      And no second agent and no second card exist
 
     @v1 @mcp
     Scenario: Calls inside one Claude session share one lease

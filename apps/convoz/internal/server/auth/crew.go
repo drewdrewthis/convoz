@@ -40,9 +40,6 @@ func CreateAgent(ctx context.Context, d pdb.DBTX, p Ports, in NewCrewAgent, now 
 // DisableAgent turns an agent off inside the open transaction and ends all its leases on every machine; their ids
 // come back as ended. It returns ErrNoAgent when there is no such enabled agent.
 func DisableAgent(ctx context.Context, d pdb.DBTX, p Ports, in CrewInput, agentID int64, now time.Time) ([]int64, error) {
-	if err := ConsumeStepUp(ctx, d, in.StepUpID, in.DeviceID, "identity.disable", &agentID, now); err != nil {
-		return nil, err
-	}
 	disabled, err := p.Agents.Disable(ctx, d, agentID, now)
 	if err != nil {
 		return nil, err

@@ -111,7 +111,7 @@ export default function Sidebar() {
         <a className="rbtn bordered" href="/chats/new" aria-label="New conversation" aria-keyshortcuts="Control+J Meta+J" title="New conversation · ⌘J">
           <ComposeGlyph />
         </a>
-        <a className="rbtn bordered" href="/crew" aria-label="Invite agent" title="Invite agent">
+        <a className="rbtn bordered" href="/crew?invite" aria-label="Invite agent" title="Invite agent">
           <InviteGlyph />
         </a>
       </div>

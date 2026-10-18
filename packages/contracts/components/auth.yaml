@@ -1,7 +1,7 @@
 # Schemas of the auth module. Only the work package that owns auth edits this file; the root lists each by name.
 StepUpAction:
   type: string
-  enum: [passkey.add, passkey.remove, recovery.regenerate, machine.approve, machine.reveal, machine.regenerate, machine.revoke, machine.allow, identity.create, identity.disable, data.export, data.delete, message.purge, signout.all]
+  enum: [passkey.add, passkey.remove, recovery.regenerate, machine.reveal, machine.regenerate, machine.revoke, machine.allow, identity.create, data.export, data.delete, message.purge, signout.all]
 Passkey:
   type: object
   required: [id, label, registered_via, created_at, last_used_at, this_device]
@@ -35,6 +35,43 @@ MachineRequest:
     node_name: { type: ["string", "null"] }
     created_at: { type: integer, format: int64 }
     expires_at: { type: integer, format: int64 }
+    identity:
+      description: What the agent that ran `convoz login --as` said about itself; null for a plain login. One Approve makes the machine and this agent.
+      oneOf:
+        - $ref: "../openapi.yaml#/components/schemas/AgentIntro"
+        - type: "null"
+AgentIntro:
+  type: object
+  description: |
+    What an agent said about itself in a request. Every text is the agent's own words: show it as plain text, labelled as from the agent,
+    never as markup. The avatar is only ever an img of the cleaned SVG at avatar_url (I-32).
+  required: [ref, handle, display_name, description, avatar_url, conversation]
+  properties:
+    ref: { type: string, description: "The unguessable id of the request (idr_ and 32 hex characters)." }
+    handle: { type: string }
+    display_name: { type: string, description: The handle when the agent sent no name. }
+    description: { type: string, description: One line of plain text, at most 80 characters. }
+    avatar_url: { type: ["string", "null"] }
+    conversation:
+      description: The conversation the agent joins once approved, by title; null when none or when it is not available any more.
+      oneOf:
+        - type: object
+          required: [id, title]
+          properties:
+            id: { type: integer, format: int64 }
+            title: { type: string }
+        - type: "null"
+IdentityRequest:
+  description: A logged-in machine asks for an identity it may not create itself. Waits up to 24 hours.
+  allOf:
+    - $ref: "../openapi.yaml#/components/schemas/AgentIntro"
+    - type: object
+      required: [machine, machine_id, created_at, expires_at]
+      properties:
+        machine: { type: string, description: The machine's name, from the server. }
+        machine_id: { type: integer, format: int64 }
+        created_at: { type: integer, format: int64 }
+        expires_at: { type: integer, format: int64 }
 Allow:
   type: object
   required: [mode, identities, globs]

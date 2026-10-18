@@ -24,7 +24,7 @@ export interface ComposerProps {
    * Typing "@" lists these agents above the box. With `onPick` (New conversation) picking one starts the chat with it; without it
    * (a conversation that exists) picking one writes its handle into the message, and sending the message brings the agent in (I-18).
    */
-  mentions?: { crew: Identity[]; onPick?(who: Identity): void };
+  mentions?: { crew: Identity[]; onPick?(who: Identity): void; onInvite?(): void };
 }
 
 type Recorder = Awaited<ReturnType<typeof loadRecorder>>;
@@ -75,7 +75,8 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
   const menuFor = (value: string, crew: Identity[]) => {
     const m = /(?:^|\s)@([a-z0-9-]*)$/.exec(value);
     const shown = m ? crew.filter((p) => p.handle.startsWith(m[1]!)) : [];
-    return shown.length ? { shown, active: 0 } : null;
+    // "Invite a new agent…" ends the list whenever the box is on an "@", so a handle nobody has yet still leads somewhere.
+    return shown.length || (m && mentions?.onInvite) ? { shown, active: 0 } : null;
   };
   const change = (value: string) => {
     setText(value);
@@ -88,6 +89,12 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
   useEffect(() => {
     if (crewCount && mentions) setMenu((open) => open ?? menuFor(text, mentions.crew));
   }, [crewCount]); // only on the crew's arrival, not on every keystroke
+
+  const invite = () => {
+    setMenu(null);
+    setText((now) => now.replace(/(^|\s)@[a-z0-9-]*$/, "$1"));
+    mentions!.onInvite!();
+  };
 
   const pick = (who: Identity) => {
     setMenu(null);
@@ -104,13 +111,14 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
     if (menu) {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault();
-        const n = menu.shown.length;
+        const n = menu.shown.length + (mentions?.onInvite ? 1 : 0);
         setMenu({ ...menu, active: (menu.active + (event.key === "ArrowDown" ? 1 : -1) + n) % n });
         return;
       }
       if (event.key === "Enter" && !event.nativeEvent.isComposing) {
         event.preventDefault();
-        pick(menu.shown[menu.active]!);
+        if (menu.active >= menu.shown.length) invite();
+        else pick(menu.shown[menu.active]!);
         return;
       }
       if (event.key === "Escape") {
@@ -147,6 +155,11 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
               </li>
             ))}
           </ul>
+          {mentions.onInvite ? (
+            <button className="agentbtn invite" type="button" role="option" tabIndex={-1} aria-selected={menu ? menu.active >= menu.shown.length : false} hidden={!menu} onClick={invite} onMouseDown={(e) => e.preventDefault()}>
+              Invite a new agent…
+            </button>
+          ) : null}
           <p id="picker-note" className="empty" hidden={mentions.crew.length > 0}>
             No agents yet. Connect a machine and add an agent first.
           </p>

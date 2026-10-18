@@ -64,6 +64,14 @@ func (s *Server) deviceCode(w http.ResponseWriter, r *http.Request, _ *call) {
 		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "name", "A machine name has 1 to 60 characters from a-z, 0-9, . and -.")
 		return
 	}
+	var intro *auth.IdentityPackage
+	if in.Identity != nil {
+		avatar, ok := cleanAvatar(w, in.Identity.AvatarSVG)
+		if !ok {
+			return
+		}
+		intro = &auth.IdentityPackage{Handle: in.Identity.Handle, DisplayName: in.Identity.DisplayName, Description: in.Identity.Description, AvatarSVG: avatar, ConversationID: in.Identity.ConversationID}
+	}
 	info, _ := json.Marshal(wire.HostInfo{Hostname: clip(in.HostInfo.Hostname), OS: clip(in.HostInfo.OS), Arch: clip(in.HostInfo.Arch), CLIVersion: clip(in.HostInfo.CLIVersion)})
 	source := s.source(r)
 	req := auth.DeviceRequest{Name: in.Name, HostInfo: string(info), Source: source, SourceNode: s.nodeName(r.Context(), source), Interval: s.interval()}
@@ -71,8 +79,19 @@ func (s *Server) deviceCode(w http.ResponseWriter, r *http.Request, _ *call) {
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
 		var err error
 		now := s.Clock.Now()
+		// The identity is checked before the request is made: a refused handle makes no request, and a request reserves nothing.
+		if intro != nil {
+			if *intro, err = auth.CheckIdentityPackage(ctx, tx.DBTX(), flowPorts, *intro); err != nil {
+				return err
+			}
+		}
 		if out, err = auth.RequestDeviceCode(ctx, tx.DBTX(), req, s.userCodes, now); err != nil {
 			return err
+		}
+		if intro != nil {
+			if err = auth.AttachLoginIdentity(ctx, tx.DBTX(), out.RequestID, *intro, now); err != nil {
+				return err
+			}
 		}
 		// The owner is told (a card in Now, a push): the event names the request, the push reads its name and code when it is sent.
 		_, err = event.Append(ctx, tx.DBTX(), now, eventMachineRequested, map[string]any{"request_id": out.RequestID})
@@ -83,6 +102,7 @@ func (s *Server) deviceCode(w http.ResponseWriter, r *http.Request, _ *call) {
 	}
 	var limited *auth.RateLimitedError
 	switch {
+	case identityRefused(w, err, "handle"):
 	case errors.Is(err, auth.ErrTooManyPending):
 		writeErr(w, http.StatusTooManyRequests, wire.CodeTooManyPending, "Three machines are already waiting. Deny the waiting requests in Convoz, then run convoz login again.")
 	case errors.Is(err, auth.ErrPendingFull):
@@ -164,12 +184,17 @@ type requestJSON struct {
 	NodeName  *string         `json:"node_name"`
 	CreatedAt int64           `json:"created_at"`
 	ExpiresAt int64           `json:"expires_at"`
+	// Identity is what the agent that ran convoz login --as said about itself; null for a plain login.
+	Identity *introJSON `json:"identity"`
 }
 
-func requestsJSON(list []auth.Request) []requestJSON {
+func requestsJSON(list []auth.Request, intros map[int64]introJSON) []requestJSON {
 	out := make([]requestJSON, 0, len(list))
 	for _, q := range list {
 		row := requestJSON{ID: q.ID, Name: q.Name, UserCode: q.UserCode, HostInfo: json.RawMessage("null"), CreatedAt: q.CreatedAt, ExpiresAt: q.ExpiresAt}
+		if in, ok := intros[q.ID]; ok {
+			row.Identity = &in
+		}
 		if q.HostInfo != "" {
 			row.HostInfo = json.RawMessage(q.HostInfo)
 		}
@@ -187,10 +212,15 @@ func requestsJSON(list []auth.Request) []requestJSON {
 }
 
 func (s *Server) machineRequests(w http.ResponseWriter, r *http.Request, _ *call) {
-	list, err := auth.PendingRequests(r.Context(), s.reader(), s.Clock.Now())
+	now := s.Clock.Now()
+	list, err := auth.PendingRequests(r.Context(), s.reader(), now)
+	var intros map[int64]introJSON
+	if err == nil {
+		intros, err = s.loginIntros(r.Context(), s.reader(), now)
+	}
 	if err != nil {
 		s.internalError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"requests": requestsJSON(list)})
+	writeJSON(w, http.StatusOK, map[string]any{"requests": requestsJSON(list, intros)})
 }

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { makeBootstrapLink } from "../lib/admin.ts";
 import { Client } from "../lib/http.ts";
-import { createAgents, nowCard, openApproveSheet, requestMachine, signInBrowser } from "../lib/machines.ts";
+import { approveCard, createAgents, declineCard, nowCard, requestMachine, signInBrowser } from "../lib/machines.ts";
 import { addSecondPasskey, backgroundLuminance, box, overflowX, shootBoth, smallTargets } from "../lib/mobile.ts";
 import { bootstrapOwner, must, uiSignIn } from "../lib/owner.ts";
 import { expect, scenario } from "../lib/scenario.ts";
@@ -72,9 +72,9 @@ import { webauthn } from "../lib/webauthn-browser.ts";
  *   24 hours ago. Actions like this need an older passkey, so try again later or sign in with an older one."
  *
  * NOW  /   heading "Now" (exact). A machine request card is article "<name> wants to connect" with the name, "Source: <node> (<ip>)" or
- *   "Source: unknown (<ip>)", and the code. Approve opens dialog "Approve <name>" (textbox "Allowed identities", textbox "Type the code" when
- *   several wait) whose button "Approve" is fully in view at 390x844 and fetches its step-up options (action machine.approve, target the request) when the dialog opens. After approval
- *   role=status shows "Approved <name>". "Deny" is one tap with no confirm; role=status shows "Denied <name>".
+ *   "Source: unknown (<ip>)", and the code. "Approve" is one tap on the card, fully in view at 390x844: no sheet, no passkey prompt, no code
+ *   to type (owner: "Approvals just go into the feed"). After approval role=status shows "Approved <name>". "Decline" is one tap with no
+ *   confirm; role=status shows "Declined <name>".
  */
 
 const local = { host: "localhost", adminSocket: true } as const;
@@ -196,7 +196,7 @@ scenario("A closed passkey prompt shows a plain message and can be retried", { t
   expect(guard.violations()).toEqual([]);
 });
 
-scenario("The owner approves and denies machines from a phone", { tag: ["@browser", "@phone"] }, async ({ server, page, context, guard }) => {
+scenario("The owner approves and declines machines from a phone", { tag: ["@browser", "@phone"] }, async ({ server, page, context, guard }) => {
   // Given machines "box-2" and "box-3" wait for approval and the owner is signed in on a phone
   const srv = await server(local);
   const owner = await bootstrapOwner(srv);
@@ -211,26 +211,24 @@ scenario("The owner approves and denies machines from a phone", { tag: ["@browse
   await expect(card).toContainText(/Source:\s*unknown \(\S+\)/);
   await expect(card).toContainText(box2.userCode);
 
-  // When the owner types the code, taps Approve on the card of "box-2" and Approve in the sheet
-  const sheet = await openApproveSheet(page, "box-2");
-  await sheet.getByRole("textbox", { name: "Allowed identities" }).fill("devtool");
-  await sheet.getByRole("textbox", { name: "Type the code" }).fill(box2.userCode);
-  const approve = sheet.getByRole("button", { name: "Approve", exact: true });
-
-  // And the Approve button in the sheet is in view and at least 44 px tall
+  // And the Approve button on the card is in view and at least 44 px tall
+  const approve = card.getByRole("button", { name: "Approve", exact: true });
   const b = await box(approve);
   expect(b.height).toBeGreaterThanOrEqual(44);
   expect(b.y + b.height).toBeLessThanOrEqual(844);
-  const before = guard.ceremonies().length;
-  await approve.click();
 
-  // Then one passkey prompt opens at once and the app says "Approved"
-  await expect(page.getByRole("status")).toContainText("Approved box-2");
-  expect(guard.ceremonies().slice(before).map((c) => c.kind)).toEqual(["get"]);
+  // When the owner taps Approve on the card of "box-2"
+  const before = guard.ceremonies().length;
+  await approveCard(page, "box-2");
+
+  // Then the app says "Approved box-2" at once, with no passkey prompt, no sheet and no code to type
+  await expect(page.getByRole("status").filter({ hasText: "Approved box-2" })).toBeVisible();
+  expect(guard.ceremonies().slice(before)).toEqual([]);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(guard.violations()).toEqual([]);
 
-  // And one tap on Deny removes the card of "box-3"
-  await nowCard(page, "box-3").getByRole("button", { name: "Deny", exact: true }).click();
+  // And one tap on Decline removes the card of "box-3"
+  await declineCard(page, "box-3");
   await expect(nowCard(page, "box-3")).toBeHidden();
 });
 

@@ -101,39 +101,7 @@ func (s *Server) addParticipant(w http.ResponseWriter, r *http.Request, c *call)
 			status = cur.Status
 			return nil
 		}
-		status = conversation.StatusActive
-		line := message.SystemLine{T: "member.added", Identity: target.ID, By: c.p.Identity(), Via: "add", History: in.History}
-		if asAgent {
-			status = conversation.StatusPending
-			line = message.SystemLine{T: "member.requested", Identity: target.ID, By: c.p.Identity()}
-		}
-		lineID, seq, err := sayLine(ctx, d, now, c.p.Identity(), convID, line)
-		if err != nil {
-			return err
-		}
-		join := conversation.Join{Conversation: convID, Identity: target.ID, By: c.p.Identity(), Status: status, Seq: seq}
-		switch {
-		case asAgent:
-			join.FloorID, join.RequestedBy = lineID, c.p.Identity()
-		case in.History == historySinceNow:
-			join.FloorID = lineID // the line that says the add is not for the newcomer
-		}
-		if changed, err = conversation.Add(ctx, d, now, join); err != nil {
-			full = err == conversation.ErrFull
-			if full {
-				return nil
-			}
-			return err
-		}
-		if status == conversation.StatusActive {
-			if err := readstate.Create(ctx, d, now, target.ID, convID, cv.LastMessageID); err != nil {
-				return err
-			}
-			if err := inbox.Joined(ctx, d, now, target.ID, convID, lineID, seq); err != nil {
-				return err
-			}
-		}
-		_, err = journalChange(ctx, d, now, c.p.Identity(), convID, target.ID, status)
+		status, changed, full, err = seatAgent(ctx, d, now, c.p.Identity(), asAgent, convID, cv.LastMessageID, target.ID, in.History)
 		return err
 	})
 	switch {
@@ -155,6 +123,42 @@ func (s *Server) addParticipant(w http.ResponseWriter, r *http.Request, c *call)
 		}
 		writeJSON(w, code, map[string]any{"participant": map[string]any{"identity_id": target.ID, "handle": target.Handle, "status": status}})
 	}
+}
+
+// seatAgent adds an agent to a conversation. A person adds it at once and says what history it sees; an agent can only ask, and
+// the add then waits for a human (I-17, I-18). It writes the system line, the seat and the read cursor, and
+// reports the seat's status, whether anything changed and whether the conversation is full.
+func seatAgent(ctx context.Context, d pdb.DBTX, now time.Time, by int64, asAgent bool, convID, lastMessageID, target int64, history string) (status string, changed, full bool, err error) {
+	status = conversation.StatusActive
+	line := message.SystemLine{T: "member.added", Identity: target, By: by, Via: "add", History: history}
+	if asAgent {
+		status = conversation.StatusPending
+		line = message.SystemLine{T: "member.requested", Identity: target, By: by}
+	}
+	lineID, seq, err := sayLine(ctx, d, now, by, convID, line)
+	if err != nil {
+		return "", false, false, err
+	}
+	join := conversation.Join{Conversation: convID, Identity: target, By: by, Status: status, Seq: seq}
+	switch {
+	case asAgent:
+		join.FloorID, join.RequestedBy = lineID, by
+	case history == historySinceNow:
+		join.FloorID = lineID // the line that says the add is not for the newcomer
+	}
+	if changed, err = conversation.Add(ctx, d, now, join); err != nil {
+		if err == conversation.ErrFull {
+			return status, false, true, nil
+		}
+		return "", false, false, err
+	}
+	if status == conversation.StatusActive {
+		if err := readstate.Create(ctx, d, now, target, convID, lastMessageID); err != nil {
+			return "", false, false, err
+		}
+	}
+	_, err = journalChange(ctx, d, now, by, convID, target, status)
+	return status, changed, false, err
 }
 
 // dirHandle is the handle of an identity, "" when unknown.

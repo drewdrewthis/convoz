@@ -13,7 +13,7 @@ import { GROUPS, LOOK, sameName, shownState, type Shown } from "./status.ts";
 import { useCrew } from "./store.ts";
 
 // The sheet is a chunk of its own: the list pays for it only when the owner adds an agent.
-const AddAgentSheet = lazy(() => import("./AddAgentSheet.tsx"));
+const InviteAgentSheet = lazy(() => import("./InviteAgentSheet.tsx"));
 
 /** nameOf is "Search Dev @dev-search", or the handle alone when the display name only repeats it (I-3). */
 export const nameOf = (p: Pick<Identity, "handle" | "display_name">): string => (sameName(p) ? p.handle : `${p.display_name} @${p.handle}`);
@@ -74,7 +74,14 @@ export function Crew() {
   const online = enabled.filter((r) => r.shown !== "offline").length;
   const live = enabled.filter((r) => r.shown === "working" || r.shown === "waiting" || r.shown === "blocked");
   const faces = live.length ? live : enabled;
-  const add = () => open((close) => <Suspense fallback={null}><AddAgentSheet close={close} open={open} onDone={() => void reload().catch(() => {})} /></Suspense>);
+  const add = useCallback(() => open((close) => <Suspense fallback={null}><InviteAgentSheet close={close} /></Suspense>), [open]);
+  // The rail's "Invite agent" lands here as /crew?invite and opens the sheet at once.
+  useEffect(() => {
+    if (new URLSearchParams(location.search).has("invite")) {
+      history.replaceState(null, "", location.pathname);
+      add();
+    }
+  }, [add]);
   const summary = working || waiting ? [working && `${working} working`, waiting && `${waiting} waiting on you`].filter(Boolean).join(" · ") : enabled.length ? `${online} online` : "";
 
   return (

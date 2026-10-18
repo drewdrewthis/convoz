@@ -292,7 +292,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** A machine asks to be logged in (device flow, design 7). No cookie, no key; limited per source. */
+        /**
+         * A machine asks to be logged in (device flow, design 7). No cookie, no key; limited per source.
+         * @description The body may carry `identity` {handle, display_name?, description?, avatar_svg?, conversation_id?}: the agent's own identity package.
+         *     A handle that exists or was used is 409 handle_taken; a reserved, invalid or look-alike one, a bad description (one plain line,
+         *     at most 80 characters), a bad avatar or a conversation the owner is not in is 400. A request reserves no handle.
+         */
         post: operations["requestDeviceCode"];
         delete?: never;
         options?: never;
@@ -359,6 +364,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * One tap on the card in Now. The owner's signed-in session is the authority; there is no passkey check and no typed code.
+         * @description A request that carries an identity (convoz login --as) also makes that agent and lets the new machine act as it; an empty
+         *     allow-list is then enough. A handle that was taken or became a look-alike since the request is 409 handle_taken or 400.
+         */
         post: operations["approveRequest"];
         delete?: never;
         options?: never;
@@ -376,6 +386,61 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["denyRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/identity-requests/{ref}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * One tap on the card of an agent that a logged-in machine asked for. No passkey check.
+         * @description Makes the identity (created by the machine), lets the machine act as it, applies the description and avatar the agent sent, and
+         *     seats it in the conversation it named (history since the add, the I-17 participants path). The rules for the handle are checked
+         *     again here: taken is 409 handle_taken, a look-alike is 400. A request that was decided or expired is 404.
+         */
+        post: operations["approveIdentityRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/identity-requests/{ref}/deny": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["denyIdentityRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/identity-requests/{ref}/avatar.svg": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The cleaned SVG a waiting request carries. Show it only in an img (I-32). */
+        get: operations["identityRequestAvatar"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -472,7 +537,14 @@ export interface paths {
         /** The sessions of every machine and agent, newest first (the owner), live ones and recently ended ones. */
         get: operations["listSessions"];
         put?: never;
-        /** A machine key mints the lease of an agent session (design 7). */
+        /**
+         * A machine key mints the lease of an agent session (design 7).
+         * @description With `create` {display_name?, description?, avatar_svg?, conversation_id?}: an existing agent the machine may act as just gets
+         *     its lease; one it may not act as is 409 handle_taken. A missing one is made at once when the machine has the create_identity
+         *     scope and allows the handle; otherwise the answer is 202 with `request.ref`, and the machine asks again with
+         *     `create.request` = that ref until the owner decides (201 with the lease; 403 request_denied; 410 request_expired).
+         *     A machine files at most 5 requests in 24 hours; a request lives 24 hours. Only the machine that filed a request can ask about it.
+         */
         post: operations["mintSession"];
         delete?: never;
         options?: never;
@@ -619,9 +691,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * The owner disables an agent. Identities are never deleted (I-2).
-         * @description Needs a fresh passkey check for `identity.disable`. Every session of the agent ends at once, its open asks close, and its handle
-         *     stays used (I-38). An agent that is not there or already disabled is 404.
+         * The owner revokes an agent's key ("Revoke key" in Crew). Identities are never deleted (I-2).
+         * @description Confirmed inline in the app; no passkey check (owner said: "Removal is just revoking their key"). Every session of the agent
+         *     ends at once, no new session can start as it, its open asks close, and its handle stays used (I-38). An agent that is not there or
+         *     already disabled is 404.
          */
         post: operations["disableIdentity"];
         delete?: never;
@@ -1720,7 +1793,7 @@ export interface components {
         /** @description Made once per command and reused on a retry, so a retry never makes a second one. */
         ClientId: string;
         /** @enum {string} */
-        StepUpAction: "passkey.add" | "passkey.remove" | "recovery.regenerate" | "machine.approve" | "machine.reveal" | "machine.regenerate" | "machine.revoke" | "machine.allow" | "identity.create" | "identity.disable" | "data.export" | "data.delete" | "message.purge" | "signout.all";
+        StepUpAction: "passkey.add" | "passkey.remove" | "recovery.regenerate" | "machine.reveal" | "machine.regenerate" | "machine.revoke" | "machine.allow" | "identity.create" | "data.export" | "data.delete" | "message.purge" | "signout.all";
         Owner: {
             /** Format: int64 */
             id: number;
@@ -1825,6 +1898,39 @@ export interface components {
             host_info: components["schemas"]["HostInfo"] | null;
             source_ip: string | null;
             node_name: string | null;
+            /** Format: int64 */
+            created_at: number;
+            /** Format: int64 */
+            expires_at: number;
+            /** @description What the agent that ran `convoz login --as` said about itself; null for a plain login. One Approve makes the machine and this agent. */
+            identity?: components["schemas"]["AgentIntro"] | null;
+        };
+        /**
+         * @description What an agent said about itself in a request. Every text is the agent's own words: show it as plain text, labelled as from the agent,
+         *     never as markup. The avatar is only ever an img of the cleaned SVG at avatar_url (I-32).
+         */
+        AgentIntro: {
+            /** @description The unguessable id of the request (idr_ and 32 hex characters). */
+            ref: string;
+            handle: string;
+            /** @description The handle when the agent sent no name. */
+            display_name: string;
+            /** @description One line of plain text */
+            description: string;
+            avatar_url: string | null;
+            /** @description The conversation the agent joins once approved, by title; null when none or when it is not available any more. */
+            conversation: {
+                /** Format: int64 */
+                id: number;
+                title: string;
+            } | null;
+        };
+        /** @description A logged-in machine asks for an identity it may not create itself. Waits up to 24 hours. */
+        IdentityRequest: components["schemas"]["AgentIntro"] & {
+            /** @description The machine's name */
+            machine: string;
+            /** Format: int64 */
+            machine_id: number;
             /** Format: int64 */
             created_at: number;
             /** Format: int64 */
@@ -2686,6 +2792,8 @@ export interface components {
             answered_today: components["schemas"]["Ask"][];
             pending_adds: components["schemas"]["NowPendingAdd"][];
             machine_requests: components["schemas"]["MachineRequest"][];
+            /** @description Agents on logged-in machines that ask to be made. */
+            identity_requests: components["schemas"]["IdentityRequest"][];
         };
         RepliesResponse: {
             /** Format: int64 */
@@ -3349,10 +3457,7 @@ export interface operations {
     approveRequest: {
         parameters: {
             query?: never;
-            header: {
-                /** @description The step_up_id of a fresh passkey check for this action. */
-                "X-Convoz-Step-Up": components["parameters"]["StepUp"];
-            };
+            header?: never;
             path: {
                 id: components["parameters"]["Id"];
             };
@@ -3364,8 +3469,6 @@ export interface operations {
                     name?: string;
                     allow?: components["schemas"]["Allow"];
                     scopes?: string[];
-                    /** @description Required when several machines are waiting. */
-                    typed_code?: string;
                 };
             };
         };
@@ -3396,6 +3499,81 @@ export interface operations {
         requestBody: components["requestBodies"]["Empty"];
         responses: {
             200: components["responses"]["Empty"];
+            default: components["responses"]["Error"];
+        };
+    };
+    approveIdentityRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody: components["requestBodies"]["Empty"];
+        responses: {
+            /** @description The agent exists and the machine may act as it. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        identity: {
+                            /** Format: int64 */
+                            id: number;
+                            handle: string;
+                            display_name: string;
+                            /** @enum {string} */
+                            kind: "agent";
+                        };
+                        machine: {
+                            /** Format: int64 */
+                            id: number;
+                            name: string;
+                        };
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    denyIdentityRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody: components["requestBodies"]["Empty"];
+        responses: {
+            200: components["responses"]["Empty"];
+            default: components["responses"]["Error"];
+        };
+    };
+    identityRequestAvatar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The SVG. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/svg+xml": string;
+                };
+            };
             default: components["responses"]["Error"];
         };
     };
@@ -3544,6 +3722,13 @@ export interface operations {
         responses: {
             /** @description The lease and its session. */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The owner has not decided; ask again with the ref. */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3725,10 +3910,7 @@ export interface operations {
     disableIdentity: {
         parameters: {
             query?: never;
-            header: {
-                /** @description The step_up_id of a fresh passkey check for this action. */
-                "X-Convoz-Step-Up": components["parameters"]["StepUp"];
-            };
+            header?: never;
             path: {
                 id: components["parameters"]["Id"];
             };

@@ -1,23 +1,30 @@
 import fs from "node:fs";
-import { installedMachine, modeOf, sidOf } from "../lib/cli.ts";
+import { installedMachine, modeOf, sidOf, type CliMachine, type Running } from "../lib/cli.ts";
 import type { ServerHandle, ServerOptions } from "../lib/fixtures.ts";
 import {
   ANY,
   HOUR,
   MINUTE,
   allow,
+  approveIdentity,
   clientId,
   createAgent,
   createAgents,
+  declineCard,
+  denyIdentity,
+  identityRequests,
   lease,
   loginMachine,
   mintSession,
   bearer,
   sessionsOf,
+  signInBrowser,
+  revokeAgentKey,
   stepped,
   whoamiApi,
   type Allow,
 } from "../lib/machines.ts";
+import { createConversation, ownerSays } from "../lib/chat.ts";
 import { apiServer, bootstrapOwner, must } from "../lib/owner.ts";
 import { send } from "../lib/http.ts";
 import { expect, scenario } from "../lib/scenario.ts";
@@ -182,6 +189,137 @@ scenario("A machine with create_identity makes a new identity", { tag: ["@cli"] 
   const row = list.find((i) => i.handle === "dev-ci");
   expect(row?.display_name).toBe("CI helper");
   expect(row?.created_by).toEqual({ kind: "machine", name: "box-2" });
+
+  // And no card appears in Now
+  expect(await identityRequests(owner)).toEqual([]);
+});
+
+scenario("The display name is optional and defaults to the handle", { tag: ["@cli"] }, async ({ server }) => {
+  // Given "box-2" has the create_identity scope
+  const { srv, owner, box2 } = await background(server, { cli: true, scopes: ["read", "post", "ask", "status", "upload", "create_identity"] });
+  const box = await installedMachine(srv.origin, "box-2", box2.key);
+
+  // When "convoz session start --as dev-ci --create --description 'Runs CI'" runs on "box-2"
+  const res = await box.sessionStart("dev-ci", ["--create", "--description", "Runs CI"]);
+  expect(res.code, res.stderr).toBe(0);
+
+  // Then the session works as "dev-ci"
+  const who = await box.whoami(["--sid", sidOf(res)]);
+  expect(who.stdout).toContain("identity: dev-ci");
+
+  // And Crew shows "dev-ci" with the line "Runs CI"
+  const list = must(await owner.client.get("/api/identities"), "identities").json().identities as { handle: string; display_name: string; description?: string }[];
+  const row = list.find((i) => i.handle === "dev-ci");
+  expect(row?.display_name).toBe("dev-ci");
+  expect(row?.description).toBe("Runs CI");
+});
+
+/** `convoz session start --as H --create ...` left waiting for the owner; resolves once it said so. */
+async function startAsking(box: CliMachine, handle: string, extra: string[] = []): Promise<Running> {
+  const run = box.start(["session", "start", "--as", handle, "--create", ...extra]);
+  await expect.poll(() => run.stderr(), { message: "the CLI says it waits for the owner" }).toMatch(/Waiting for the owner/);
+  return run;
+}
+
+scenario("A machine without create_identity files a request that the owner approves", { tag: ["@cli", "@browser"] }, async ({ server, page, context }) => {
+  // Given "box-2" is logged in without the create_identity scope
+  const { srv, owner, box2 } = await background(server, { cli: true });
+  const box = await installedMachine(srv.origin, "box-2", box2.key);
+
+  // When "convoz session start --as dev-ci --create --description 'Runs CI'" runs on "box-2"
+  const run = await startAsking(box, "dev-ci", ["--description", "Runs CI"]);
+
+  // Then the CLI says it is waiting for the owner and does not exit
+  expect(await Promise.race([run.done.then(() => "exited"), new Promise((r) => setTimeout(() => r("waiting"), 700))])).toBe("waiting");
+
+  // And the owner sees one Now card "box-2 wants to connect as @dev-ci" with "Runs CI" labelled "From the agent"
+  await signInBrowser(srv, owner, page, context);
+  await expect(page.getByRole("article")).toHaveCount(1);
+  const card = page.getByRole("article", { name: "box-2 wants to connect as @dev-ci", exact: true });
+  await expect(card).toContainText("From the agent");
+  await expect(card).toContainText("Runs CI");
+
+  // When the owner taps Approve on that card
+  await card.getByRole("button", { name: "Approve", exact: true }).click();
+
+  // Then the CLI prints CONVOZ_SID and exits 0
+  const done = await run.done;
+  expect(done.code, done.stderr).toBe(0);
+  const sid = sidOf(done);
+
+  // And the session works as "dev-ci"
+  const who = await box.whoami(["--sid", sid]);
+  expect(who.stdout).toContain("identity: dev-ci");
+
+  // And Crew shows "dev-ci" marked "created by box-2"
+  const list = must(await owner.client.get("/api/identities"), "identities").json().identities as { handle: string; created_by?: { kind: string; name: string } }[];
+  expect(list.find((i) => i.handle === "dev-ci")?.created_by).toEqual({ kind: "machine", name: "box-2" });
+
+  // And "box-2" allows "dev-ci" now
+  const machines = must(await owner.client.get("/api/machines"), "machines").json().machines as { allow: Allow }[];
+  expect(machines[0]!.allow.identities).toContain("dev-ci");
+});
+
+scenario("Declining an agent request ends the waiting command", { tag: ["@cli", "@browser"] }, async ({ server, page, context }) => {
+  // Given "box-2" is logged in without the create_identity scope
+  const { srv, owner, box2 } = await background(server, { cli: true });
+  const box = await installedMachine(srv.origin, "box-2", box2.key);
+
+  // When "convoz session start --as dev-ci --create" runs on "box-2"
+  const run = await startAsking(box, "dev-ci");
+
+  // And the owner taps Decline on the card "box-2 wants to connect as @dev-ci"
+  await signInBrowser(srv, owner, page, context);
+  await declineCard(page, "box-2");
+
+  // Then the CLI exits 3 with a message that the owner denied the request
+  const done = await run.done;
+  expect(done.code, done.stderr).toBe(3);
+  expect(done.stderr).toMatch(/owner denied the request/i);
+
+  // And Crew does not list "dev-ci"
+  const list = must(await owner.client.get("/api/identities"), "identities").json().identities as { handle: string }[];
+  expect(list.map((i) => i.handle)).not.toContain("dev-ci");
+});
+
+scenario("Asking for a handle that exists is refused and never takes it over", { tag: ["@cli"] }, async ({ server }) => {
+  // Given "box-2" does not allow "docs" and "docs" exists
+  const { srv, owner, box2 } = await background(server, { cli: true });
+  const box = await installedMachine(srv.origin, "box-2", box2.key);
+
+  // When "convoz session start --as docs --create" runs on "box-2"
+  const res = await box.sessionStart("docs", ["--create"]);
+
+  // Then the CLI exits 4 and says the handle is taken and to ask the owner to allow it on the machine
+  expect(res.code, res.stderr).toBe(4);
+  expect(res.stderr).toMatch(/taken/i);
+  expect(res.stderr).toMatch(/allow it on this machine/i);
+
+  // And no card appears in Now
+  expect(await identityRequests(owner)).toEqual([]);
+});
+
+scenario("Running the same command again after the approval just starts the session", { tag: ["@cli"] }, async ({ server }) => {
+  // Given the owner approved the request of "box-2" for "dev-ci"
+  const { srv, owner, box2 } = await background(server, { cli: true });
+  const box = await installedMachine(srv.origin, "box-2", box2.key);
+  const run = await startAsking(box, "dev-ci");
+  const [req] = await identityRequests(owner);
+  must(await approveIdentity(owner, req!.ref), "approve", 201);
+  expect((await run.done).code).toBe(0);
+
+  // When "convoz session start --as dev-ci --create" runs on "box-2" again
+  const again = await box.sessionStart("dev-ci", ["--create"]);
+
+  // Then the session works as "dev-ci"
+  expect(again.code, again.stderr).toBe(0);
+  const who = await box.whoami(["--sid", sidOf(again)]);
+  expect(who.stdout).toContain("identity: dev-ci");
+
+  // And no second agent and no second card exist
+  const list = must(await owner.client.get("/api/identities"), "identities").json().identities as { handle: string }[];
+  expect(list.filter((i) => i.handle === "dev-ci")).toHaveLength(1);
+  expect(await identityRequests(owner)).toEqual([]);
 });
 
 // ---- contracts -------------------------------------------------------------------------------------
@@ -210,7 +348,7 @@ scenario("The allow-list decides which identities a machine may use", { tag: ["@
 scenario("A disabled identity cannot start a session", { tag: ["@api"] }, async ({ server }) => {
   // Given the owner disabled "dev-search"
   const { srv, owner, agents, box2 } = await background(server);
-  must(await stepped(owner, "POST", `/api/identities/${agents["dev-search"]!.id}/disable`, {}, "identity.disable", agents["dev-search"]!.id), "disable");
+  must(await revokeAgentKey(owner, agents["dev-search"]!.id), "disable");
 
   // When "box-2" asks for a lease as "dev-search"
   const res = await mintSession(srv, box2.key, { as: "dev-search" });
@@ -371,18 +509,222 @@ scenario("Removing an identity from the allow-list ends its leases on that machi
   expect((await onLaptop.whoami(["--sid", sidLaptop])).code).toBe(0);
 });
 
-scenario("A machine without create_identity cannot make identities", { tag: ["@api"] }, async ({ server }) => {
+scenario("A machine without create_identity gets a request, not an identity", { tag: ["@api"] }, async ({ server }) => {
   const { srv, owner, box2 } = await background(server);
 
   // When "box-2" asks for a lease as "dev-new" with create set
   const res = await mintSession(srv, box2.key, { as: "dev-new", create: { display_name: "Dev New" } });
 
-  // Then the server answers 403
-  expect(res.status).toBe(403);
+  // Then the server answers 202 with an unguessable request ref
+  expect(res.status, res.text).toBe(202);
+  const ref = res.json().request.ref as string;
+  expect(ref).toMatch(/^idr_[0-9a-f]{32}$/);
 
   // And Crew does not list "dev-new"
   const list = must(await owner.client.get("/api/identities"), "identities").json().identities as { handle: string }[];
   expect(list.map((i) => i.handle)).not.toContain("dev-new");
+
+  // And asking again with the ref answers 202 until the owner decides
+  const again = await mintSession(srv, box2.key, { as: "dev-new", create: { request: ref } });
+  expect(again.status).toBe(202);
+  expect(again.json().request.ref).toBe(ref);
+});
+
+scenario("A request for a bad or taken handle is refused when it is filed", { tag: ["@api"] }, async ({ server }) => {
+  const { srv, owner, box2 } = await background(server);
+  const rows: [string, number, string][] = [
+    ["docs", 409, "handle_taken"], // exists, and "box-2" may not act as it
+    ["admin", 400, "invalid_request"],
+    ["devtoo1", 400, "invalid_request"], // a look-alike of "devtool"
+  ];
+
+  // When "box-2" asks for a lease as <handle> with create set
+  const got: [string, number, string][] = [];
+  for (const [handle] of rows) {
+    const res = await mintSession(srv, box2.key, { as: handle, create: {} });
+    got.push([handle, res.status, res.json().error?.code]);
+  }
+
+  // Then the server answers <status> with the code <code>
+  expect(got).toEqual(rows);
+
+  // And GET /api/now lists no identity request
+  expect(await identityRequests(owner)).toEqual([]);
+});
+
+scenario("A request that waits does not reserve its handle", { tag: ["@api"] }, async ({ server }) => {
+  // Given "box-2" filed a request for "dev-new" and "laptop-1" filed one too
+  const { srv, owner, box2 } = await background(server);
+  const laptop = await loginMachine(srv, owner, "laptop-1", allow("dev-*"));
+  expect((await mintSession(srv, box2.key, { as: "dev-new", create: {} })).status).toBe(202);
+  expect((await mintSession(srv, laptop.key, { as: "dev-new", create: {} })).status).toBe(202);
+  const [first, second] = await identityRequests(owner);
+  const ofLaptop = [first!, second!].find((r) => r.machine === "laptop-1")!;
+  const ofBox = [first!, second!].find((r) => r.machine === "box-2")!;
+
+  // When the owner approves the request of "laptop-1"
+  must(await approveIdentity(owner, ofLaptop.ref), "approve laptop-1", 201);
+
+  // Then approving the request of "box-2" answers 409 with the code "handle_taken"
+  const res = await approveIdentity(owner, ofBox.ref);
+  expect(res.status).toBe(409);
+  expect(res.json().error.code).toBe("handle_taken");
+});
+
+scenario("The approval checks the look-alike rule again", { tag: ["@api"] }, async ({ server }) => {
+  // Given "box-2" filed a request for "dev-new"
+  const { srv, owner, box2 } = await background(server);
+  expect((await mintSession(srv, box2.key, { as: "dev-new", create: {} })).status).toBe(202);
+  const [req] = await identityRequests(owner);
+
+  // And another agent then took the display name "dev-new"
+  const box = await loginMachine(srv, owner, "laptop-1", allow("docs"));
+  const token = await lease(srv, box.key, { as: "docs" });
+  must(await send(srv.target, "PATCH", "/api/me/profile", { json: { display_name: "dev-new" }, ...bearer(token) }), "rename docs");
+
+  // When the owner approves the request
+  const res = await approveIdentity(owner, req!.ref);
+
+  // Then the server answers 400 naming "handle"
+  expect(res.status, res.text).toBe(400);
+  expect(res.json().error.field).toBe("handle");
+});
+
+scenario("Only the machine that filed a request can ask about it", { tag: ["@api"] }, async ({ server }) => {
+  // Given "box-2" filed a request for "dev-new"
+  const { srv, owner, box2 } = await background(server);
+  const laptop = await loginMachine(srv, owner, "laptop-1", allow("dev-*"));
+  const mine = await mintSession(srv, box2.key, { as: "dev-new", create: {} });
+  const ref = mine.json().request.ref as string;
+  const other = await mintSession(srv, box2.key, { as: "dev-other", create: {} });
+
+  // When "laptop-1" asks with the ref of that request
+  const stolen = await mintSession(srv, laptop.key, { as: "dev-new", create: { request: ref } });
+  const unknown = await mintSession(srv, laptop.key, { as: "dev-new", create: { request: "idr_" + "0".repeat(32) } });
+
+  // Then the server answers 404, the same as for a ref that never existed
+  expect([stolen.status, unknown.status]).toEqual([404, 404]);
+  expect(stolen.text).toBe(unknown.text);
+
+  // And the ref is "idr_" and 32 hex characters, different for every request
+  expect(other.json().request.ref).toMatch(/^idr_[0-9a-f]{32}$/);
+  expect(other.json().request.ref).not.toBe(ref);
+});
+
+scenario("A request expires after 24 hours and the command is told", { tag: ["@api"] }, async ({ server, testApi }) => {
+  // Given "box-2" filed a request for "dev-new"
+  const { srv, owner, box2 } = await background(server);
+  const filed = await mintSession(srv, box2.key, { as: "dev-new", create: {} });
+  const ref = filed.json().request.ref as string;
+
+  // When the test clock moves forward 24 hours and 1 second
+  await testApi(srv).advanceClock(24 * HOUR + 1_000);
+
+  // Then asking with the ref answers 410 with the code "request_expired"
+  const res = await mintSession(srv, box2.key, { as: "dev-new", create: { request: ref } });
+  expect(res.status).toBe(410);
+  expect(res.json().error.code).toBe("request_expired");
+
+  // And Now lists no identity request
+  expect(await identityRequests(owner)).toEqual([]);
+
+  // And the handle "dev-new" is still free
+  const again = await mintSession(srv, box2.key, { as: "dev-new", create: {} });
+  expect(again.status).toBe(202);
+});
+
+scenario("A machine files at most 5 requests in a day", { tag: ["@api"] }, async ({ server }) => {
+  // Given "box-2" filed 5 requests today
+  const { srv, box2 } = await background(server);
+  for (let i = 1; i <= 5; i++) expect((await mintSession(srv, box2.key, { as: `dev-n${i}`, create: {} })).status).toBe(202);
+
+  // When it files a sixth
+  const res = await mintSession(srv, box2.key, { as: "dev-n6", create: {} });
+
+  // Then the server answers 429 with a Retry-After header
+  expect(res.status).toBe(429);
+  expect(Number(res.headers["retry-after"])).toBeGreaterThanOrEqual(1);
+});
+
+scenario("Only the owner's session can decide an agent request", { tag: ["@api"] }, async ({ server }) => {
+  // Given "box-2" filed a request for "dev-new"
+  const { srv, owner, box2 } = await background(server);
+  const token = await lease(srv, box2.key, { as: "devtool" });
+  expect((await mintSession(srv, box2.key, { as: "dev-new", create: {} })).status).toBe(202);
+  const [req] = await identityRequests(owner);
+  const routes = [`/api/identity-requests/${req!.ref}/approve`, `/api/identity-requests/${req!.ref}/deny`];
+
+  // When a machine key, a session lease and a caller with no credential each try to approve or decline it
+  const got: number[] = [];
+  for (const route of routes) {
+    got.push((await send(srv.target, "POST", route, { json: {}, ...bearer(box2.key) })).status);
+    got.push((await send(srv.target, "POST", route, { json: {}, ...bearer(token) })).status);
+    got.push((await send(srv.target, "POST", route, { json: {} })).status);
+  }
+
+  // Then the server answers 401 every time
+  expect(got.every((status) => status === 401 || status === 403)).toBe(true);
+  expect(got).not.toContain(200);
+
+  // And the owner approves it with no step-up and the agent exists
+  must(await approveIdentity(owner, req!.ref), "approve", 201);
+  const list = must(await owner.client.get("/api/identities"), "identities").json().identities as { handle: string }[];
+  expect(list.map((i) => i.handle)).toContain("dev-new");
+  expect(denyIdentity).toBeDefined();
+});
+
+scenario("The card data is plain text, the avatar is cleaned and the join goes through the participants path", { tag: ["@api"] }, async ({ server }) => {
+  // Given "box-2" filed a request for "dev-new" with the description "<b>**hi**</b>", a script in its SVG avatar and conversation 41
+  const { srv, owner, box2 } = await background(server);
+  const conv = await createConversation(owner, { participants: ["devtool"], title: "Ship search filters" });
+  const before = await ownerSays(owner, conv, "before the add");
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><script>alert(1)</script><circle cx="5" cy="5" r="4"/></svg>';
+  const filed = await mintSession(srv, box2.key, { as: "dev-new", create: { description: "<b>**hi**</b>", avatar_svg: svg, conversation_id: conv } });
+  expect(filed.status, filed.text).toBe(202);
+
+  // Then Now lists the description as the same plain text
+  const [req] = await identityRequests(owner);
+  expect(req!.description).toBe("<b>**hi**</b>");
+  expect(req!.conversation).toEqual({ id: conv, title: "Ship search filters" });
+
+  // And the avatar is served from /api/identity-requests/ with a sandboxing CSP and holds no script
+  expect(req!.avatar_url).toBe(`/api/identity-requests/${req!.ref}/avatar.svg`);
+  const served = await owner.client.get(req!.avatar_url!);
+  expect(served.status).toBe(200);
+  expect(String(served.headers["content-security-policy"])).toContain("sandbox");
+  expect(served.text).not.toContain("script");
+
+  // When the owner approves it
+  must(await approveIdentity(owner, req!.ref), "approve", 201);
+
+  // Then "dev-new" is an active participant of conversation 41 from the add on
+  const token = await lease(srv, box2.key, { as: "dev-new" });
+  const seen = must(await send(srv.target, "GET", `/api/conversations/${conv}/messages`, bearer(token)), "read as dev-new").json().messages as { id: number }[];
+  expect(seen.every((m) => m.id > before)).toBe(true);
+
+  // And an agent that asks for a conversation the owner is not in is refused when it files
+  const devtool = await lease(srv, box2.key, { as: "devtool" });
+  const alone = must(await send(srv.target, "POST", "/api/conversations", { json: { client_id: "agent-made-0002", title: "Agents only", participants: [] }, ...bearer(devtool) }), "agent conversation", 201).json().conversation.id as number;
+  const refused = await mintSession(srv, box2.key, { as: "dev-other", create: { conversation_id: alone } });
+  expect(refused.status).toBe(400);
+  expect(refused.json().error.field).toBe("conversation");
+});
+
+scenario("With the create_identity scope a conversation join is a request the owner decides", { tag: ["@api"] }, async ({ server }) => {
+  // Given "box-2" has the create_identity scope
+  const { srv, owner, box2 } = await background(server, { scopes: ["read", "post", "ask", "status", "upload", "create_identity"] });
+  const conv = await createConversation(owner, { participants: ["devtool"], title: "Ship search filters" });
+
+  // When "box-2" creates "dev-ci" naming conversation 41
+  const res = await mintSession(srv, box2.key, { as: "dev-ci", create: { conversation_id: conv } });
+
+  // Then "dev-ci" exists at once
+  expect(res.status, res.text).toBe(201);
+
+  // And conversation 41 lists "dev-ci" as waiting for approval
+  const row = must(await owner.client.get(`/api/conversations/${conv}`), "conversation").json().conversation as { participants: { handle: string }[]; pending?: { person: { handle: string } }[] };
+  expect(row.participants.map((p) => p.handle)).not.toContain("dev-ci");
+  expect((row.pending ?? []).map((p) => p.person.handle)).toContain("dev-ci");
 });
 
 scenario("A machine creates at most 5 identities per day", { tag: ["@api"] }, async ({ server }) => {

@@ -29,6 +29,11 @@ Feature: Crew: identities, machines and sessions (contracts)
         | dev_tool    | 400    |
 
     @v1 @api @I-3
+    Scenario: A handle that looks like another identity is refused
+      When the owner creates an agent with the handle "devtoo1"
+      Then the server answers 400 naming "handle"
+
+    @v1 @api @I-3
     Scenario: A display name that looks like another identity is refused
       When the owner creates an agent named "devtooI" with the handle "helper"
       Then the server answers 400 naming "display_name"
@@ -39,6 +44,18 @@ Feature: Crew: identities, machines and sessions (contracts)
       And the test tries the same writes on the data file of the encryption-off test build
       Then every attempt is refused
       And GET /api/identities still lists "devtool" as an agent
+
+    # Owner said: "Removal is just revoking their key". The route is the existing disable; the app confirms inline and asks for no passkey.
+    @v1 @api @I-2 @I-38
+    Scenario: Revoking an agent's key needs the owner's session and no passkey
+      Given "devtool" has a live session on "box-2"
+      When a machine key, a session lease and a caller with no credential each try to disable "devtool"
+      Then the server answers 401 every time
+      When the owner disables "devtool" with no step-up
+      Then the server answers 200
+      And the live session answers 401
+      And "box-2" can no longer start a session as "devtool"
+      And GET /api/identities still lists "devtool" as disabled, and its handle stays used
 
     @later @api @I-3 @AC-23 @C-7
     Scenario: A handle retired by delete-my-data is never used again

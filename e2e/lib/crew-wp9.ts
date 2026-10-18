@@ -2,7 +2,7 @@ import type { BrowserContext, Locator, Page } from "@playwright/test";
 import { chatWorld, startSession, type World } from "./chat.ts";
 import { sidOf, type CliMachine } from "./cli.ts";
 import type { ServerHandle, ServerOptions } from "./fixtures.ts";
-import { allow, ANY, signInBrowser, stepped } from "./machines.ts";
+import { allow, ANY, revokeAgentKey, signInBrowser } from "./machines.ts";
 import { idsOf } from "./wp3.ts";
 
 /** What the Crew scenarios share: a fresh server, owner "drew", the agents, machine "box-2", and the owner's browser signed in last. */
@@ -33,10 +33,10 @@ export async function crewWorld(
   return c;
 }
 
-/** The owner disables an agent over the API, the way Crew does (a fresh passkey check for that agent). */
+/** The owner revokes an agent's key over the API, the way Crew does (one tap and a confirm, no passkey). */
 export async function disableAgent(c: CrewWorld, handle: string): Promise<void> {
   const id = c.ids[handle]!;
-  const res = await stepped(c.w.owner, "POST", `/api/identities/${id}/disable`, {}, "identity.disable", id);
+  const res = await revokeAgentKey(c.w.owner, id);
   if (res.status !== 200) throw new Error(`disable ${handle}: ${res.status} ${res.text}`);
 }
 

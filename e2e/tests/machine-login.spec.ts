@@ -29,11 +29,10 @@
  *        source_ip: peer or forwarded address. node_name: the node `tailscale whois --json <ip>` names (trailing dot removed),
  *        null when whois fails or `--tailscale off`. The Now card shows "Source: <node_name> (<source_ip>)" or "Source: unknown".
  *   GET  /api/now  O -> {machine_requests:[same rows]}
- *   POST /api/machines/requests/:id/approve  O S(machine.approve, target = request id)
- *        {name?, allow:{mode:"list"|"any", identities:[handles], globs:[patterns]}, scopes?:[names], typed_code?}
+ *   POST /api/machines/requests/:id/approve  O (no step-up: the owner's session is the authority; "Approvals just go into the feed")
+ *        {name?, allow?:{mode:"list"|"any", identities:[handles], globs:[patterns]}, scopes?:[names]}  allow defaults to the empty list
  *     -> 201 {machine:{id,name,key_hint,scopes,allow}}. Default scopes read, post, ask, status, upload. The extra scopes are
- *        pickup and create_identity. 403 step_up_required (no header). 403 step_up_invalid (used, expired, other action or target).
- *        400 code_mismatch ("The code does not match") when more than one request is pending and typed_code differs.
+ *        pickup and create_identity. No typed code: several waiting requests each have their own card.
  *        409 machine_name_taken, 409 machine_cap (10 active). A failed approve leaves the step-up unused.
  *   POST /api/machines/requests/:id/deny and POST /api/machines/requests/deny-all  O (no step-up) -> 200
  *
@@ -69,13 +68,13 @@
  *     handle: 2 to 40 of [a-z0-9-], starts with a letter, not reserved (admin, brief, ...), compared case-insensitively:
  *     a taken handle is 409 handle_taken, an invalid or reserved one is 400 invalid_request with field "handle".
  *     A display name whose Unicode skeleton equals another identity's is 400 invalid_request with field "display_name".
- *   POST /api/identities/:id/disable  O S(identity.disable, target = identity id) -> 200; ends its leases on every machine.
+ *   POST /api/identities/:id/disable  O (no step-up; the app's "Revoke key" with an inline confirm) -> 200; ends its leases on every machine.
  *   GET  /api/identities (S1a) lists agents with created_by:{kind:"human"|"machine", name}.
  *   No route deletes an identity or changes its kind: DELETE, PATCH and PUT on /api/identities/:id answer 4xx.
  *
- * STEP-UP (S1a routes) actions added: machine.approve, machine.reveal, machine.regenerate, machine.revoke, machine.allow,
- *   identity.create, identity.disable. A passkey added by a recovery code is refused at POST /api/auth/step-up/verify with
- *   403 passkey_too_new ("too new") for 24 hours for machine.approve, machine.reveal, machine.regenerate, machine.revoke and machine.allow (plus S1a's passkey.remove,
+ * STEP-UP (S1a routes) actions added: machine.reveal, machine.regenerate, machine.revoke, machine.allow,
+ *   identity.create. A passkey added by a recovery code is refused at POST /api/auth/step-up/verify with
+ *   403 passkey_too_new ("too new") for 24 hours for machine.reveal, machine.regenerate, machine.revoke and machine.allow (plus S1a's passkey.remove,
  *   recovery.regenerate). A step-up is single use, for one action and target, 5 minutes.
  *
  * AUDIT AND EVENTS  Audit rows (GET /api/admin/audit -> {audit:[{action,target_kind,target_id,...}]}) for machine.approved,
@@ -112,14 +111,15 @@
  *
  * CONSOLE (role and text locators only, so S-U screens must pass the same bindings)
  *   /  heading "Now". Per pending request an article named "<name> wants to connect" with the user code, text "Reported by the machine",
- *      "Source: <node> (<ip>)" or "Source: unknown", buttons "Approve" and "Deny". Button "Deny all" in the page. No requests: text "All clear. Nothing needs you." (the prototype's empty Now).
- *   Approve opens a dialog named "Approve <name>": textbox "Allowed identities" (comma separated handles and globs, e.g. "devtool, dev-*"),
- *      textbox "Type the code" (only when more than one request is pending), button "Approve". It asks for the passkey by itself.
+ *      "Source: <node> (<ip>)" or "Source: unknown", buttons "Approve" and "Decline" (one tap each: no sheet, no passkey prompt, no code). Button "Deny all" in the page.
+ *      A request that carries an agent (convoz login --as) is named "<name> wants to connect as @<handle>" and shows the agent's words under "From the agent". No requests: text "All clear. Nothing needs you." (the prototype's empty Now).
  *      Errors show in role=alert: "The code does not match"; "The name \"box-2\" is taken. Use Reveal or Regenerate on \"box-2\", or revoke it first."
  *   /crew/machines  heading "Machines"; a listitem per machine with its name and key hint.
  */
 
 import fs from "node:fs";
+import { createConversation, ownerSays } from "../lib/chat.ts";
+import { Client, send } from "../lib/http.ts";
 import { fakeTailscale, whoisNode } from "../lib/fake-tailscale.ts";
 import { CliMachine, modeOf } from "../lib/cli.ts";
 import { faultProxy } from "../lib/fault-proxy.ts";
@@ -128,26 +128,31 @@ import {
   DEFAULT_SCOPES,
   allow,
   approve,
+  bearer,
+  plainDb,
   createAgents,
   freshSource,
   lease,
   loginMachine,
   mintSession,
+  approveCard,
+  declineCard,
+  identityRequests,
   nowCard,
-  openApproveSheet,
   pendingRequests,
   pollToken,
   requestDeviceCode,
   requestMachine,
   seedUserCodes,
   signInBrowser,
-  submitApproveSheet,
 } from "../lib/machines.ts";
-import { apiServer, bootstrapOwner, must } from "../lib/owner.ts";
+import { apiServer, bootstrapOwner, must, type Owner } from "../lib/owner.ts";
 import { expect, scenario } from "../lib/scenario.ts";
 
 
 const POLL = { CONVOZ_TEST_POLL_MS: "250" };
+const PLAIN = { CONVOZ_TEST_PLAINTEXT: "1" };
+const AGENT_LINE = /Approve "([a-z0-9.-]+)" as @([a-z0-9-]+) in Convoz\. Code: ([A-Z]{4}-[A-Z]{4})/;
 const CODE_LINE = /Approve "([a-z0-9.-]+)" in Convoz\. Code: ([A-Z]{4}-[A-Z]{4})/;
 /** A server a CLI and a browser can reach: the tailnet name cannot be dialled, so the name is localhost. */
 const localServer = (extra: Record<string, unknown> = {}) => ({ host: "localhost", adminSocket: true, env: POLL, ...extra });
@@ -215,20 +220,27 @@ scenario("A poll faster than the interval is told to slow down", { tag: ["@api"]
   expect((await pollToken(srv, dc.device_code)).json().error.code).toBe("authorization_pending");
 });
 
-scenario("Approval creates the machine with its allow-list and scopes", { tag: ["@browser", "@api"] }, async ({ server, page, context }) => {
-  // Given a pending machine request "box-2" (agents "devtool" and "dev-search" exist)
-  const srv = await server({ host: "localhost", adminSocket: true });
+scenario("Approval creates the machine with the default scopes", { tag: ["@browser"] }, async ({ server, page, context, dataDir }) => {
+  // Given a pending machine request "box-2"
+  const srv = await server({ host: "localhost", adminSocket: true, env: PLAIN });
   const owner = await bootstrapOwner(srv);
-  await createAgents(owner, "devtool", "dev-search");
   const req = await requestMachine(srv, owner, "box-2");
 
-  // When the owner approves it with allow-list "devtool" and "dev-*" and the default scopes
+  // When the owner taps Approve on its card in Now
   await signInBrowser(srv, owner, page, context);
-  const sheet = await openApproveSheet(page, "box-2");
-  await submitApproveSheet(sheet, { allowed: "devtool, dev-*" });
-  await expect(sheet).toBeHidden();
+  await approveCard(page, "box-2");
+  await expect(nowCard(page, "box-2")).toHaveCount(0);
 
-  // Then Crew → Machines lists "box-2" with a key hint that starts with "cvz_m_"
+  // Then no passkey prompt and no sheet opens
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  const db = plainDb(dataDir);
+  try {
+    expect((db.prepare("SELECT COUNT(*) AS n FROM step_ups").get() as { n: number }).n).toBe(0);
+  } finally {
+    db.close();
+  }
+
+  // And Crew → Machines lists "box-2" with a key hint that starts with "cvz_m_"
   await page.goto(`${srv.origin}/crew/machines`);
   await expect(page.getByRole("heading", { name: "Machines", exact: true })).toBeVisible();
   await expect(page.getByRole("listitem").filter({ hasText: "box-2" })).toContainText("cvz_m_");
@@ -238,19 +250,21 @@ scenario("Approval creates the machine with its allow-list and scopes", { tag: [
 
   // And its scopes are read, post, ask, status and upload, without pickup or create_identity
   expect(machines[0].scopes).toEqual(DEFAULT_SCOPES);
-  expect(machines[0].allow).toEqual(allow("devtool", "dev-*"));
+
+  // And it allows no agent yet
+  expect(machines[0].allow).toEqual({ mode: "list", identities: [], globs: [] });
 
   // And the owner's audit view lists "machine approved · box-2" (the audit rows name the machine)
   const audit = must(await owner.client.get("/api/admin/audit"), "audit").json().audit as { action: string; target_kind: string; target_id: number }[];
   expect(audit.some((r) => r.action === "machine.approved" && r.target_kind === "machine" && r.target_id === machines[0].id)).toBe(true);
 
-  // And the machine can fetch its key (API half)
+  // The machine can fetch its key
   const tok = await pollToken(srv, req.deviceCode);
   expect(tok.status).toBe(200);
   expect(tok.json().machine_key.startsWith("cvz_m_")).toBe(true);
 });
 
-scenario("The owner must type the code when more than one request is pending", { tag: ["@browser"] }, async ({ server, page, context }) => {
+scenario("Each pending request has its own card and needs no typed code", { tag: ["@browser"] }, async ({ server, page, context }) => {
   // Given pending machine requests "box-2" with code "KQWD-MZTP" and "box-9" with code "PLRT-HXCV"
   const srv = await server({ host: "localhost", adminSocket: true });
   await seedUserCodes(srv, ["KQWD-MZTP", "PLRT-HXCV"]);
@@ -258,17 +272,17 @@ scenario("The owner must type the code when more than one request is pending", {
   await requestMachine(srv, owner, "box-2");
   await requestMachine(srv, owner, "box-9");
 
-  // When the owner opens the approve sheet for "box-2"
+  // When the owner taps Approve on the card of "box-2"
   await signInBrowser(srv, owner, page, context);
-  const sheet = await openApproveSheet(page, "box-2");
+  await approveCard(page, "box-2");
 
-  // Then the sheet asks the owner to type the code
-  await expect(sheet.getByRole("textbox", { name: "Type the code" })).toBeVisible();
+  // Then "box-2" is connected at once, without a code typed
+  await expect(nowCard(page, "box-2")).toHaveCount(0);
+  const machines = must(await owner.client.get("/api/machines"), "list machines").json().machines as { name: string }[];
+  expect(machines.map((m) => m.name)).toEqual(["box-2"]);
 
-  // And approving with the typed code "PLRT-HXCV" shows "The code does not match"
-  await submitApproveSheet(sheet, { allowed: "devtool", typedCode: "PLRT-HXCV" });
-  await expect(page.getByRole("alert")).toContainText("The code does not match");
-  expect(must(await owner.client.get("/api/machines"), "list machines").json().machines).toEqual([]);
+  // And the card of "box-9" still waits with its code "PLRT-HXCV"
+  await expect(nowCard(page, "box-9")).toContainText("PLRT-HXCV");
 });
 
 scenario("A denied request creates no machine", { tag: ["@cli"] }, async ({ server }) => {
@@ -466,10 +480,9 @@ scenario("Machine names are unique while active", { tag: ["@browser"] }, async (
   // When the owner tries to approve a new request named "box-2" as a new machine
   await requestMachine(srv, owner, "box-2");
   await signInBrowser(srv, owner, page, context);
-  const sheet = await openApproveSheet(page, "box-2");
-  await submitApproveSheet(sheet, { allowed: "devtool" });
+  await approveCard(page, "box-2");
 
-  // Then the sheet says the name is taken
+  // Then the app says the name is taken
   const alert = page.getByRole("alert");
   await expect(alert).toContainText(/is taken/i);
 
@@ -519,21 +532,54 @@ scenario("The token poll waits while the request is pending", { tag: ["@api"] },
   expect(must(await owner.client.get("/api/machines"), "list machines").json().machines).toEqual([]);
 });
 
-scenario("Approval without a single-use step-up is refused", { tag: ["@api"] }, async ({ server }) => {
-  // Given a pending machine request "box-2"
+scenario("Approval needs the owner's signed-in session and nothing more", { tag: ["@api"] }, async ({ server }) => {
+  // Given a pending machine request "box-2" and a logged-in machine with a lease
   const srv = await server(apiServer());
   const owner = await bootstrapOwner(srv);
+  await createAgents(owner, "devtool");
+  const other = await loginMachine(srv, owner, "box-1", allow("devtool"));
+  const token = await lease(srv, other.key, { as: "devtool" });
   const req = await requestMachine(srv, owner, "box-2");
+  const route = `/api/machines/requests/${req.requestId}/approve`;
 
-  // When the owner approves it with no X-Convoz-Step-Up header
-  const res = await owner.client.post(`/api/machines/requests/${req.requestId}/approve`, { allow: ANY });
+  // When a machine key, a session lease and a caller with no credential each try to approve it
+  const tries = [
+    await send(srv.target, "POST", route, { json: { allow: ANY }, ...bearer(other.key) }),
+    await send(srv.target, "POST", route, { json: { allow: ANY }, ...bearer(token) }),
+    await new Client(srv.target).post(route, { allow: ANY }),
+  ];
 
-  // Then the server answers 403
-  expect(res.status).toBe(403);
-  expect(res.json().error.code).toBe("step_up_required");
+  // Then the server answers 401 every time
+  expect(tries.map((t) => t.status)).toEqual([401, 401, 401]);
 
   // And GET /api/machines does not list "box-2"
-  expect(must(await owner.client.get("/api/machines"), "list machines").json().machines).toEqual([]);
+  expect((must(await owner.client.get("/api/machines"), "list machines").json().machines as { name: string }[]).map((m) => m.name)).toEqual(["box-1"]);
+
+  // When the owner approves it with no X-Convoz-Step-Up header and no typed code
+  expect((await owner.client.post(route, { allow: ANY })).status).toBe(201);
+
+  // Then the typed_code field is not accepted
+  const second = await requestMachine(srv, owner, "box-3");
+  const typed = await owner.client.post(`/api/machines/requests/${second.requestId}/approve`, { allow: ANY, typed_code: "KQWD-MZTP" });
+  expect(typed.status).toBe(400);
+  expect(typed.json().error.field).toBe("typed_code");
+});
+
+scenario("Approval can name an allow-list and scopes in its body", { tag: ["@api"] }, async ({ server }) => {
+  // Given a pending machine request "box-2" (agents "devtool" and "dev-search" exist)
+  const srv = await server(apiServer());
+  const owner = await bootstrapOwner(srv);
+  await createAgents(owner, "devtool", "dev-search");
+  const req = await requestMachine(srv, owner, "box-2");
+
+  // When the owner approves it with allow-list "devtool" and "dev-*" and the default scopes
+  must(await approve(owner, req.requestId, { allow: allow("devtool", "dev-*") }), "approve", 201);
+
+  // Then GET /api/machines lists "box-2" with that allow-list and the scopes read, post, ask, status and upload
+  const machines = must(await owner.client.get("/api/machines"), "list machines").json().machines;
+  expect(machines).toHaveLength(1);
+  expect(machines[0].allow).toEqual(allow("devtool", "dev-*"));
+  expect(machines[0].scopes).toEqual(DEFAULT_SCOPES);
 });
 
 scenario("The first request made with the key marks it delivered", { tag: ["@api"] }, async ({ server, testApi }) => {
@@ -646,4 +692,309 @@ scenario("A request cannot take an active machine's name", { tag: ["@api"] }, as
   // And the key of the active "box-2" still works
   expect((await mintSession(srv, active.key, { as: "devtool" })).status).toBe(201);
   expect(await lease(srv, active.key, { as: "devtool" })).toMatch(/^cvz_s_/);
+});
+
+// ---- an agent logs in with its own identity (owner decision: one prompt, one card, one tap) ----------------------------------------
+
+/** One tap on a card: an approval with an empty body, as the app sends it for a request that carries an agent. */
+const approveBare = (owner: Owner, id: number) => owner.client.post(`/api/machines/requests/${id}/approve`, {});
+
+/** A plain SVG avatar, as an agent would send it. */
+const AVATAR = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="red"/></svg>';
+
+scenario("A login as an agent shows one card and one tap connects the machine and the agent", { tag: ["@cli", "@browser"] }, async ({ server, page, context }) => {
+  const srv = await server(localServer());
+  const owner = await bootstrapOwner(srv);
+
+  // When "convoz login --name box-2 --as code-review --description 'Reviews pull requests'" runs on the machine
+  const box = new CliMachine();
+  const login = box.startLogin(srv.origin, "box-2", ["--as", "code-review", "--description", "Reviews pull requests"]);
+
+  // Then the CLI prints 'Approve "box-2" as @code-review in Convoz.' with the code
+  const line = await login.waitForStdout(AGENT_LINE);
+  expect(line[0]).toMatch(/^Approve "box-2" as @code-review in Convoz\. Code: [A-Z]{4}-[A-Z]{4}$/);
+
+  // And the owner sees one Now card "box-2 wants to connect as @code-review"
+  await signInBrowser(srv, owner, page, context);
+  await expect(page.getByRole("article")).toHaveCount(1);
+  const card = page.getByRole("article", { name: "box-2 wants to connect as @code-review", exact: true });
+  await expect(card).toBeVisible();
+
+  // And the card shows "Reviews pull requests" labelled "From the agent"
+  await expect(card).toContainText("From the agent");
+  await expect(card).toContainText("Reviews pull requests");
+
+  // When the owner taps Approve on that card
+  await card.getByRole("button", { name: "Approve", exact: true }).click();
+
+  // Then the CLI logs in as machine "box-2"
+  const done = await login.done;
+  expect(done.code, done.stderr).toBe(0);
+  expect(done.stdout).toContain('Logged in as machine "box-2".');
+  expect(done.stdout + done.stderr).not.toMatch(/cvz_[a-z]_/);
+
+  // And Crew lists "code-review" marked "created by box-2"
+  const listed = must(await owner.client.get("/api/identities"), "identities").json().identities as { handle: string; display_name: string; description?: string; created_by?: { kind: string; name: string } }[];
+  const made = listed.find((i) => i.handle === "code-review");
+  expect(made?.created_by).toEqual({ kind: "machine", name: "box-2" });
+  expect(made?.display_name).toBe("code-review");
+  expect(made?.description).toBe("Reviews pull requests");
+  await page.goto(`${srv.origin}/crew`);
+  await expect(page.getByRole("link", { name: /code-review/ }).first()).toBeVisible();
+
+  // And "box-2" has no create_identity scope and allows only "code-review"
+  const machines = must(await owner.client.get("/api/machines"), "machines").json().machines;
+  expect(machines[0].scopes).toEqual(DEFAULT_SCOPES);
+  expect(machines[0].allow).toEqual(allow("code-review"));
+
+  // And "convoz session start --as code-review" works on "box-2"
+  const started = await box.sessionStart("code-review");
+  expect(started.code, started.stderr).toBe(0);
+});
+
+scenario("Declining a login as an agent makes neither the machine nor the agent", { tag: ["@cli", "@browser"] }, async ({ server, page, context }) => {
+  const srv = await server(localServer());
+  const owner = await bootstrapOwner(srv);
+
+  // When "convoz login --name box-2 --as code-review" runs on the machine
+  const login = new CliMachine().startLogin(srv.origin, "box-2", ["--as", "code-review"]);
+  await login.waitForStdout(AGENT_LINE);
+
+  // And the owner taps Decline on the card "box-2 wants to connect as @code-review"
+  await signInBrowser(srv, owner, page, context);
+  await declineCard(page, "box-2");
+
+  // Then the CLI exits 3 with a message that the owner denied the request
+  const done = await login.done;
+  expect(done.code, done.stderr).toBe(3);
+  expect(done.stderr).toMatch(/owner denied the request/i);
+
+  // And Crew → Machines does not list "box-2"
+  expect(must(await owner.client.get("/api/machines"), "machines").json().machines).toEqual([]);
+
+  // And Crew does not list "code-review"
+  const listed = must(await owner.client.get("/api/identities"), "identities").json().identities as { handle: string }[];
+  expect(listed.map((i) => i.handle)).not.toContain("code-review");
+});
+
+scenario("A login as a handle that exists is refused", { tag: ["@cli"] }, async ({ server }) => {
+  const srv = await server(localServer());
+  const owner = await bootstrapOwner(srv);
+  await createAgents(owner, "devtool");
+
+  // When "convoz login --name box-2 --as devtool" runs on the machine
+  const res = await new CliMachine().run(["login", "--server", srv.origin, "--name", "box-2", "--as", "devtool"]);
+
+  // Then the CLI exits 4 and says the handle is taken
+  expect(res.code, res.stderr).toBe(4);
+  expect(res.stderr).toMatch(/taken/i);
+
+  // And no card appears in Now
+  expect(must(await owner.client.get("/api/now"), "now").json().machine_requests).toEqual([]);
+});
+
+scenario("An agent login may name a conversation, and the card shows its title", { tag: ["@cli"] }, async ({ server }) => {
+  // Given conversation 41 "Ship search filters" has the owner in it
+  const srv = await server(localServer());
+  const owner = await bootstrapOwner(srv);
+  await createAgents(owner, "devtool");
+  const conv = await createConversation(owner, { participants: ["devtool"], title: "Ship search filters" });
+
+  // When "convoz login --name box-2 --as code-review --conversation 41" runs on the machine
+  const login = new CliMachine().startLogin(srv.origin, "box-2", ["--as", "code-review", "--conversation", String(conv)]);
+  await login.waitForStdout(AGENT_LINE);
+
+  // Then the owner sees on the card that "code-review" joins "Ship search filters"
+  const [row] = must(await owner.client.get("/api/now"), "now").json().machine_requests as { id: number; identity: { conversation: { id: number; title: string } } }[];
+  expect(row!.identity.conversation).toEqual({ id: conv, title: "Ship search filters" });
+
+  // When the owner taps Approve on that card
+  must(await approveBare(owner, row!.id), "approve", 201);
+  expect((await login.done).code).toBe(0);
+
+  // Then "code-review" is an active participant of conversation 41 and sees only what comes after
+  const listed = must(await owner.client.get(`/api/conversations/${conv}`), "conversation").json().conversation.participants as { handle: string }[];
+  expect(listed.map((p) => p.handle)).toContain("code-review");
+});
+
+scenario("A login request with an identity shows it on the card data and creates nothing yet", { tag: ["@api"] }, async ({ server }) => {
+  const srv = await server(apiServer());
+  const owner = await bootstrapOwner(srv);
+
+  // When POST /api/device/code is sent with the identity "code-review", the description "Reviews pull requests" and a plain SVG avatar
+  const res = await send(srv.target, "POST", "/api/device/code", {
+    json: { name: "box-2", host_info: { hostname: "box-2.TESTONLY.local", os: "linux", arch: "amd64", cli_version: "0.0.0-TESTONLY" }, identity: { handle: "code-review", description: "Reviews pull requests", avatar_svg: AVATAR } },
+  });
+
+  // Then the server answers 200
+  expect(res.status, res.text).toBe(200);
+
+  // And GET /api/now lists the machine request with that identity, its display name "code-review" and an avatar_url under /api/identity-requests/
+  const [row] = must(await owner.client.get("/api/now"), "now").json().machine_requests as { identity: { handle: string; display_name: string; description: string; avatar_url: string; ref: string } }[];
+  expect(row!.identity).toMatchObject({ handle: "code-review", display_name: "code-review", description: "Reviews pull requests" });
+  expect(row!.identity.avatar_url.startsWith("/api/identity-requests/idr_")).toBe(true);
+  const svg = await owner.client.get(row!.identity.avatar_url);
+  expect(svg.status).toBe(200);
+  expect(String(svg.headers["content-security-policy"])).toContain("sandbox");
+
+  // And GET /api/identities does not list "code-review"
+  expect((must(await owner.client.get("/api/identities"), "identities").json().identities as { handle: string }[]).map((i) => i.handle)).not.toContain("code-review");
+
+  // And the card data holds no cvz_ string
+  expect(JSON.stringify(must(await owner.client.get("/api/now"), "now").json())).not.toContain("cvz_");
+});
+
+scenario("A login request for a handle that exists is refused with handle_taken", { tag: ["@api"] }, async ({ server }) => {
+  const srv = await server(apiServer());
+  const owner = await bootstrapOwner(srv);
+  await createAgents(owner, "devtool");
+
+  // When POST /api/device/code is sent with the identity "devtool"
+  const res = await requestDeviceWith(srv, { handle: "devtool" });
+
+  // Then the server answers 409 with the code "handle_taken"
+  expect(res.status).toBe(409);
+  expect(res.json().error.code).toBe("handle_taken");
+
+  // And GET /api/now lists no machine request
+  expect(must(await owner.client.get("/api/now"), "now").json().machine_requests).toEqual([]);
+});
+
+/** POST /api/device/code with an identity package (and the host info the CLI sends). */
+function requestDeviceWith(srv: Parameters<typeof requestDeviceCode>[0], identity: Record<string, unknown>) {
+  return send(srv.target, "POST", "/api/device/code", {
+    json: { name: "box-2", host_info: { hostname: "box-2.TESTONLY.local", os: "linux", arch: "amd64", cli_version: "0.0.0-TESTONLY" }, identity },
+  });
+}
+
+scenario("A login request with a bad identity is refused and makes no request", { tag: ["@api"] }, async ({ server }) => {
+  const srv = await server(apiServer());
+  const owner = await bootstrapOwner(srv);
+  const agents = await createAgents(owner, "devtool", "docs");
+  // An agent makes a conversation without the owner in it: the owner sees it but is not a participant.
+  const box = await loginMachine(srv, owner, "box-1", allow("devtool"));
+  const token = await lease(srv, box.key, { as: "devtool" });
+  const made = must(await send(srv.target, "POST", "/api/conversations", { json: { client_id: "agent-made-0001", title: "Agents only", participants: [] }, ...bearer(token) }), "agent conversation", 201).json().conversation.id as number;
+  expect(agents.docs).toBeDefined();
+  const cases: [string, Record<string, unknown>, string][] = [
+    ["the handle admin", { handle: "admin" }, "handle"],
+    ["the handle 9lives", { handle: "9lives" }, "handle"],
+    ["a look-alike", { handle: "devtoo1" }, "handle"],
+    ["a description with a newline", { handle: "code-review", description: "one\ntwo" }, "description"],
+    ["a description of 81 characters", { handle: "code-review", description: "x".repeat(81) }, "description"],
+    ["an avatar with a DOCTYPE", { handle: "code-review", avatar_svg: '<!DOCTYPE svg [<!ENTITY a "b">]><svg xmlns="http://www.w3.org/2000/svg"/>' }, "avatar_svg"],
+    ["a conversation that does not exist", { handle: "code-review", conversation_id: 9999 }, "conversation"],
+    ["a conversation the owner is not in", { handle: "code-review", conversation_id: made }, "conversation"],
+  ];
+
+  // When POST /api/device/code is sent with <identity>
+  const got: [string, number, string | undefined][] = [];
+  for (const [what, identity] of cases) {
+    const res = await requestDeviceWith(srv, identity);
+    got.push([what, res.status, res.json().error?.field]);
+  }
+
+  // Then the server answers 400 naming <field>
+  expect(got).toEqual(cases.map(([what, , field]) => [what, 400, field]));
+
+  // And GET /api/now lists no machine request
+  expect(must(await owner.client.get("/api/now"), "now").json().machine_requests).toEqual([]);
+});
+
+scenario("The approval checks the handle again", { tag: ["@api"] }, async ({ server }) => {
+  // Given a login request for "code-review" is pending
+  const srv = await server(apiServer());
+  const owner = await bootstrapOwner(srv);
+  must(await requestDeviceWith(srv, { handle: "code-review" }), "request");
+  const [row] = (await pendingRequests(owner)) as { id: number }[];
+
+  // And the owner then creates the agent "code-review" some other way
+  await createAgents(owner, "code-review");
+
+  // When the owner approves the request
+  const res = await approveBare(owner, row!.id);
+
+  // Then the server answers 409 with the code "handle_taken"
+  expect(res.status).toBe(409);
+  expect(res.json().error.code).toBe("handle_taken");
+
+  // And GET /api/machines does not list the machine
+  expect(must(await owner.client.get("/api/machines"), "machines").json().machines).toEqual([]);
+});
+
+scenario("Approving a login with an identity makes the machine, the agent, its allow-list and its seat in one step", { tag: ["@api"] }, async ({ server }) => {
+  // Given a login request for "code-review" naming conversation 41 is pending
+  const srv = await server(apiServer());
+  const owner = await bootstrapOwner(srv);
+  await createAgents(owner, "devtool");
+  const conv = await createConversation(owner, { participants: ["devtool"], title: "Ship search filters" });
+  const before = await ownerSays(owner, conv, "before the add");
+  const res = must(await requestDeviceWith(srv, { handle: "code-review", description: "Reviews pull requests", avatar_svg: AVATAR, conversation_id: conv }), "request");
+  const [row] = await pendingRequests(owner);
+
+  // When the owner approves it with an empty body
+  const ok = await owner.client.post(`/api/machines/requests/${row!.id}/approve`, {});
+  expect(ok.status, ok.text).toBe(201);
+
+  // Then the machine allows "code-review" and no create_identity scope
+  const machine = ok.json().machine;
+  expect(machine.allow).toEqual(allow("code-review"));
+  expect(machine.scopes).toEqual(DEFAULT_SCOPES);
+
+  // And "code-review" has its description, its avatar and is marked created by the machine
+  const ids = must(await owner.client.get("/api/identities"), "identities").json().identities as { handle: string; description?: string; avatar_url?: string; created_by?: { kind: string; name: string } }[];
+  const made = ids.find((i) => i.handle === "code-review");
+  expect(made).toMatchObject({ description: "Reviews pull requests", created_by: { kind: "machine", name: "box-2" } });
+  expect(made?.avatar_url).toMatch(/^\/api\/identities\/\d+\/avatar\.svg$/);
+
+  // And the machine can fetch its key and start a session as "code-review"
+  const tok = must(await pollToken(srv, res.json().device_code), "key").json();
+  const token = await lease(srv, tok.machine_key, { as: "code-review" });
+
+  // And "code-review" is an active participant of conversation 41 and cannot read the messages before the add
+  const seen = await send(srv.target, "GET", `/api/conversations/${conv}/messages`, bearer(token));
+  expect(seen.status, seen.text).toBe(200);
+  expect((seen.json().messages as { id: number }[]).every((m) => m.id > before)).toBe(true);
+  const members = must(await owner.client.get(`/api/conversations/${conv}`), "conversation").json().conversation.participants as { handle: string }[];
+  expect(members.map((m) => m.handle)).toContain("code-review");
+});
+
+scenario("A declined or expired login request leaves no agent", { tag: ["@api"] }, async ({ server, testApi }) => {
+  // Given a login request for "code-review" is pending
+  const srv = await server(apiServer());
+  const owner = await bootstrapOwner(srv);
+  must(await requestDeviceWith(srv, { handle: "code-review" }), "request");
+  const [row] = await pendingRequests(owner);
+
+  // When the owner declines it
+  must(await owner.client.post(`/api/machines/requests/${row!.id}/deny`, {}), "deny");
+
+  // Then GET /api/identities does not list "code-review"
+  expect((must(await owner.client.get("/api/identities"), "identities").json().identities as { handle: string }[]).map((i) => i.handle)).not.toContain("code-review");
+
+  // And the handle is free for another request (which then expires with its code)
+  must(await requestDeviceWith(srv, { handle: "code-review" }), "second request");
+  await testApi(srv).advanceClock(10 * 60_000 + 1_000);
+  expect(must(await owner.client.get("/api/now"), "now").json().machine_requests).toEqual([]);
+  expect(must(await requestDeviceWith(srv, { handle: "code-review" }), "third request").status).toBe(200);
+});
+
+scenario("Deny all also denies the agent requests of logged-in machines", { tag: ["@api"] }, async ({ server }) => {
+  // Given a login request for "code-review" and an identity request from "box-2" for "dev-ci" are pending
+  const srv = await server(apiServer());
+  const owner = await bootstrapOwner(srv);
+  const box2 = await loginMachine(srv, owner, "box-2");
+  must(await requestDeviceWith(srv, { handle: "code-review" }), "login request");
+  must(await mintSession(srv, box2.key, { as: "dev-ci", create: { description: "Runs CI" } }), "identity request", 202);
+  expect((await identityRequests(owner)).map((r) => r.handle)).toEqual(["dev-ci"]);
+
+  // When the owner denies all
+  const res = must(await owner.client.post("/api/machines/requests/deny-all", {}), "deny all");
+
+  // Then GET /api/now lists no machine request and no identity request
+  const now = must(await owner.client.get("/api/now"), "now").json();
+  expect([now.machine_requests, now.identity_requests]).toEqual([[], []]);
+
+  // And the answer counts both
+  expect(res.json().denied).toBe(2);
 });

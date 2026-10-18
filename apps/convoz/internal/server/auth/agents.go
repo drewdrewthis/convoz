@@ -36,20 +36,35 @@ type AgentPort interface {
 	// Disable reports false when there is no such enabled agent.
 	Disable(ctx context.Context, d pdb.DBTX, id int64, now time.Time) (bool, error)
 	CreatedByMachineSince(ctx context.Context, d pdb.DBTX, machineID int64, since time.Time) (n, oldestMs int64, err error)
+	// CheckNew runs every rule a new agent must meet (valid, reserved, taken, retired, UTS-39 look-alike of a handle or display name)
+	// without creating it. A refusal is a *FieldError or ErrHandleTaken.
+	CheckNew(ctx context.Context, d pdb.DBTX, handle, displayName string) error
+	// SetIntro stores the description and the cleaned SVG avatar an agent sent with its request.
+	SetIntro(ctx context.Context, d pdb.DBTX, id int64, description, avatarSVG string) error
+}
+
+// ConversationPort is what an identity request needs from the conversation modules. The composition root implements it.
+type ConversationPort interface {
+	// OwnerConversation reports the title of a live conversation the owner is an active participant of; ok is false otherwise.
+	OwnerConversation(ctx context.Context, d pdb.DBTX, id int64) (title string, ok bool, err error)
+	// Join seats the agent in the conversation the way a person adds it: active at once, history since the add (I-15, I-18).
+	Join(ctx context.Context, d pdb.DBTX, now time.Time, conversationID, agentID, byHuman int64) error
 }
 
 // Ports are the other modules the machine, session and crew flows write through.
 type Ports struct {
-	Agents  AgentPort
-	Journal JournalPort
+	Agents        AgentPort
+	Journal       JournalPort
+	Conversations ConversationPort
 }
 
 // Refusals of the flows; the HTTP layer maps each to an answer.
 var (
-	ErrCodeMismatch = errors.New("the typed code does not match")
-	ErrMachineGone  = errors.New("the machine key stopped working")
-	ErrHandleTaken  = errors.New("handle taken")
-	ErrNoAgent      = errors.New("no such enabled agent")
+	ErrMachineGone = errors.New("the machine key stopped working")
+	ErrHandleTaken = errors.New("handle taken")
+	ErrNoAgent     = errors.New("no such enabled agent")
+
+	ErrNoIdentityRequest = errors.New("no such identity request")
 )
 
 // ForbiddenError carries the sentence for a 403 raised inside a flow.

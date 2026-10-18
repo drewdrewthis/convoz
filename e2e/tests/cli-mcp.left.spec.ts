@@ -4,9 +4,10 @@ import path from "node:path";
 import { McpClient, machineVia } from "../lib/agent-wp7.ts";
 import { convoz, messagesOf, ownerSays } from "../lib/chat.ts";
 import { send } from "../lib/http.ts";
+import { CliMachine } from "../lib/cli.ts";
 import { forwarder, inboxWorld } from "../lib/left.ts";
 import { bearer } from "../lib/machines.ts";
-import { must } from "../lib/owner.ts";
+import { bootstrapOwner, must } from "../lib/owner.ts";
 import { expect, scenario } from "../lib/scenario.ts";
 
 // Bindings of contracts/cli-mcp.feature that the agent-surface work package left open. "Status updates show in Crew" (features/cli-mcp)
@@ -164,4 +165,37 @@ scenario("Profile changes are limited to one per hour", { tag: ["@api"] }, async
   const seconds = Number(res.headers["retry-after"]);
   expect(seconds).toBeGreaterThan(49 * 60);
   expect(seconds).toBeLessThanOrEqual(50 * 60);
+});
+
+// Owner said: the agent "should request the connection accepted and send its id package for its handle."
+scenario("The connect commands send the agent's own identity and print no secret", { tag: ["@cli"] }, async ({ server }) => {
+  const srv = await server({ host: "localhost", adminSocket: true, env: { CONVOZ_TEST_POLL_MS: "250" } });
+  const owner = await bootstrapOwner(srv);
+
+  // When "convoz login --name box-5 --as code-review --description 'Reviews PRs'" runs on a new machine
+  const box = new CliMachine();
+  const login = box.startLogin(srv.origin, "box-5", ["--as", "code-review", "--description", "Reviews PRs"]);
+
+  // Then the CLI prints 'Approve "box-5" as @code-review in Convoz.' and a code
+  const line = await login.waitForStdout(/Approve "box-5" as @code-review in Convoz\. Code: [A-Z]{4}-[A-Z]{4}/);
+  expect(line[0]).toContain('as @code-review in Convoz.');
+  const [req] = must(await owner.client.get("/api/machines/requests"), "requests").json().requests as { id: number }[];
+  must(await owner.client.post(`/api/machines/requests/${req!.id}/approve`, {}), "approve", 201);
+  const done = await login.done;
+
+  // And "convoz login --as" with a handle that is not a handle exits 2 and names the rule
+  const bad = await new CliMachine().run(["login", "--server", srv.origin, "--name", "box-6", "--as", "9Bad_Handle"]);
+  expect(bad.code).toBe(2);
+  expect(bad.stderr).toMatch(/2 to 40 characters/);
+
+  // And "convoz session start --create" without a name starts the request and prints no key, device code or lease
+  const asking = box.start(["session", "start", "--as", "dev-ci", "--create"]);
+  await expect.poll(() => asking.stderr()).toMatch(/Waiting for the owner/);
+  const pending = must(await owner.client.get("/api/now"), "now").json().identity_requests as { ref: string }[];
+  expect(pending).toHaveLength(1);
+  must(await owner.client.post(`/api/identity-requests/${pending[0]!.ref}/deny`, {}), "deny");
+  const refused = await asking.done;
+
+  // And no output contains "cvz_"
+  for (const r of [done, bad, refused]) expect(r.stdout + r.stderr).not.toContain("cvz_");
 });

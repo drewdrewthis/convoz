@@ -85,7 +85,7 @@ func sessionForAgent(dir string, c *client, creds Credentials, as, clientID stri
 	if clientID == "" {
 		clientID = "convoz-" + randomHex(8)
 	}
-	return startSession(dir, c, creds, as, clientID, "convoz cli", false, "")
+	return startSession(IO{}, dir, c, creds, as, clientID, "convoz cli", nil) // no identity to make, so nothing to print
 }
 
 // findSession returns the local id of the session file for (identity, clientID), or "".

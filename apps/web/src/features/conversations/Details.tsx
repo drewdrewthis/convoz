@@ -16,13 +16,15 @@ import { addAgent, decideAdd, deleteConversation, markAllRead, openPickup, remov
 export interface DetailsProps {
   row: Conversation;
   onClose(): void;
+  /** Opens the sheet that invites a new agent into this conversation. */
+  onInvite(): void;
 }
 
 /**
  * Details is the panel "Details for <title>" (prototype v41, key I): who is here, how the conversation is set, and what the owner
  * can do to it. On a phone it fills the screen; on a wide one it sits at the right edge.
  */
-export function Details({ row, onClose }: DetailsProps) {
+export function Details({ row, onClose, onInvite }: DetailsProps) {
   const { fail } = useNotice();
   const { sheet, open } = useSheets();
   const close = useRef<HTMLButtonElement>(null);
@@ -62,7 +64,7 @@ export function Details({ row, onClose }: DetailsProps) {
         <section aria-labelledby="det-parts" className="detsec">
           <div className="dethead">
             <h3 id="det-parts">Participants</h3>
-            <button type="button" className="btn small quiet" onClick={() => open((done) => <AddAgentSheet id={row.id} done={done} onAdd={(who, history) => addAgent(row.id, who, history)} />)}>
+            <button type="button" className="btn small quiet" onClick={() => open((done) => <AddAgentSheet id={row.id} done={done} onInvite={onInvite} onAdd={(who, history) => addAgent(row.id, who, history)} />)}>
               + Add
             </button>
           </div>

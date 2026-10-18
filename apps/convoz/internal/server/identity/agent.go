@@ -23,6 +23,7 @@ var (
 	ErrHandleTaken        = errors.New("handle is taken or was used before")
 	ErrInvalidDisplayName = errors.New("invalid display name")
 	ErrConfusableName     = errors.New("display name looks like another identity")
+	ErrConfusableHandle   = errors.New("handle looks like another identity")
 	ErrNotAgent           = errors.New("no such agent")
 )
 
@@ -80,31 +81,14 @@ type NewAgent struct {
 func CreateAgent(ctx context.Context, d pdb.DBTX, in NewAgent, now time.Time) (Principal, error) {
 	q := db.New(d)
 	handle := strings.ToLower(in.Handle)
-	if !ValidHandle(handle) || Reserved[handle] {
-		return Principal{}, ErrInvalidHandle
+	if err := CheckNewHandle(ctx, d, handle); err != nil {
+		return Principal{}, err
 	}
 	if !ValidDisplayName(in.DisplayName) {
 		return Principal{}, ErrInvalidDisplayName
 	}
-	if _, found, err := Lookup(ctx, d, handle); err != nil {
+	if err := checkDisplayName(ctx, q, in.DisplayName); err != nil {
 		return Principal{}, err
-	} else if found {
-		return Principal{}, ErrHandleTaken
-	}
-	if used, err := q.HandleWasUsed(ctx, handle); err != nil {
-		return Principal{}, err
-	} else if used {
-		return Principal{}, ErrHandleTaken
-	}
-	skeleton := Skeleton(in.DisplayName)
-	active, err := q.ActiveSkeletons(ctx)
-	if err != nil {
-		return Principal{}, err
-	}
-	for _, a := range active {
-		if a.DisplaySkeleton == skeleton || Skeleton(a.Handle) == skeleton {
-			return Principal{}, ErrConfusableName
-		}
 	}
 	id, err := newIdentity(ctx, q, "agent", handle, in.DisplayName, now)
 	if err != nil {
@@ -121,6 +105,84 @@ func CreateAgent(ctx context.Context, d pdb.DBTX, in NewAgent, now time.Time) (P
 		return Principal{}, err
 	}
 	return Principal{ID: id, Kind: "agent", Handle: handle, DisplayName: in.DisplayName}, nil
+}
+
+// CheckNewHandle says whether handle (lowercase) may become a new agent's handle: valid, not reserved, not taken, never used before
+// and not a look-alike (UTS #39 skeleton) of any handle, retired handle or display name, disabled identities included (I-3). A
+// request runs it when it is filed and again when the owner approves it, so a request reserves nothing.
+func CheckNewHandle(ctx context.Context, d pdb.DBTX, handle string) error {
+	q := db.New(d)
+	if !ValidHandle(handle) || Reserved[handle] {
+		return ErrInvalidHandle
+	}
+	if _, found, err := Lookup(ctx, d, handle); err != nil {
+		return err
+	} else if found {
+		return ErrHandleTaken
+	}
+	if used, err := q.HandleWasUsed(ctx, handle); err != nil {
+		return err
+	} else if used {
+		return ErrHandleTaken
+	}
+	skeleton := Skeleton(handle)
+	all, err := q.AllSkeletons(ctx)
+	if err != nil {
+		return err
+	}
+	for _, a := range all {
+		if a.DisplaySkeleton == skeleton || Skeleton(a.Handle) == skeleton {
+			return ErrConfusableHandle
+		}
+	}
+	retired, err := q.RetiredHandles(ctx)
+	if err != nil {
+		return err
+	}
+	for _, h := range retired {
+		if Skeleton(h) == skeleton {
+			return ErrConfusableHandle
+		}
+	}
+	return nil
+}
+
+func checkDisplayName(ctx context.Context, q *db.Queries, name string) error {
+	skeleton := Skeleton(name)
+	active, err := q.ActiveSkeletons(ctx)
+	if err != nil {
+		return err
+	}
+	for _, a := range active {
+		if a.DisplaySkeleton == skeleton || Skeleton(a.Handle) == skeleton {
+			return ErrConfusableName
+		}
+	}
+	return nil
+}
+
+// CheckNewAgent is every rule CreateAgent applies, without creating anything: the handle (CheckNewHandle) and the display name.
+func CheckNewAgent(ctx context.Context, d pdb.DBTX, handle, displayName string) error {
+	if err := CheckNewHandle(ctx, d, strings.ToLower(handle)); err != nil {
+		return err
+	}
+	if !ValidDisplayName(displayName) {
+		return ErrInvalidDisplayName
+	}
+	return checkDisplayName(ctx, db.New(d), displayName)
+}
+
+// SetIntro stores what a new agent said about itself in its request: the description and the cleaned SVG avatar (empty for none).
+// Unlike SetProfile it does not start the one-change-an-hour clock, so the agent can still set its own profile at once.
+func SetIntro(ctx context.Context, d pdb.DBTX, id int64, description, avatarSVG string) error {
+	q := db.New(d)
+	if err := q.SetAgentDescription(ctx, db.SetAgentDescriptionParams{Description: description, ID: id}); err != nil {
+		return err
+	}
+	if avatarSVG == "" {
+		return nil
+	}
+	return SetAvatar(ctx, d, id, avatarSVG)
 }
 
 // DisableAgent turns an agent off. It reports false when there is no such enabled agent (a human cannot be

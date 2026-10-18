@@ -9,5 +9,5 @@ var identityRoutes = []Route{
 	{Method: "PATCH", Pattern: "/api/me/profile", Auth: authz.Human, Lease: true, handle: (*Server).patchProfile},
 	{Method: "GET", Pattern: "/api/identities/:id/avatar.svg", Auth: authz.Human, Lease: true, handle: (*Server).avatar},
 	{Method: "POST", Pattern: "/api/crew/agents", Auth: authz.Owner, StepUp: "identity.create", handle: (*Server).createAgent},
-	{Method: "POST", Pattern: "/api/identities/:id/disable", Auth: authz.Owner, StepUp: "identity.disable", handle: (*Server).disableIdentity},
+	{Method: "POST", Pattern: "/api/identities/:id/disable", Auth: authz.Owner, handle: (*Server).disableIdentity},
 }

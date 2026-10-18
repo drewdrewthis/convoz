@@ -35,6 +35,9 @@ const (
 	CodeExpiredToken         = "expired_token"
 	CodeSessionEnded         = "session_ended"
 	CodeTooManyPending       = "too_many_pending"
+	CodeHandleTaken          = "handle_taken"
+	CodeRequestDenied        = "request_denied"
+	CodeRequestExpired       = "request_expired"
 )
 
 // Routes of the machine login and the session lease, as the CLI calls them.
@@ -54,10 +57,21 @@ type HostInfo struct {
 	CLIVersion string `json:"cli_version"`
 }
 
-// DeviceCodeRequest is POST /api/device/code.
+// IdentityIntro is the identity an agent sends about itself with a login or a session request. Only the handle is needed; the
+// owner sees every other field as the agent's own words, never as the server's.
+type IdentityIntro struct {
+	Handle         string `json:"handle"`
+	DisplayName    string `json:"display_name,omitempty"`
+	Description    string `json:"description,omitempty"`
+	AvatarSVG      string `json:"avatar_svg,omitempty"`
+	ConversationID int64  `json:"conversation_id,omitempty"`
+}
+
+// DeviceCodeRequest is POST /api/device/code. With Identity, the owner's one Approve makes the machine and the identity.
 type DeviceCodeRequest struct {
-	Name     string   `json:"name"`
-	HostInfo HostInfo `json:"host_info"`
+	Name     string         `json:"name"`
+	HostInfo HostInfo       `json:"host_info"`
+	Identity *IdentityIntro `json:"identity,omitempty"`
 }
 
 // DeviceCodeResponse starts the wait: the CLI prints UserCode and polls with DeviceCode every IntervalMs.
@@ -81,9 +95,28 @@ type DeviceTokenResponse struct {
 	MachineName string `json:"machine_name"`
 }
 
-// CreateIdentity asks the server to make the agent identity if there is none (needs the create_identity scope).
+// CreateIdentity asks the server to make the agent identity if there is none. A machine with the create_identity scope that allows the
+// handle gets it at once; any other machine files a request (answered 202) and asks again with Request until the owner decides.
 type CreateIdentity struct {
-	DisplayName string `json:"display_name"`
+	DisplayName    string `json:"display_name,omitempty"`
+	Description    string `json:"description,omitempty"`
+	AvatarSVG      string `json:"avatar_svg,omitempty"`
+	ConversationID int64  `json:"conversation_id,omitempty"`
+	Request        string `json:"request,omitempty"`
+}
+
+// MintPending is the 202 answer of POST /api/sessions while the owner has not decided the identity request.
+type MintPending struct {
+	Request IdentityRequestState `json:"request"`
+}
+
+// IdentityRequestState names a waiting request by its unguessable ref.
+type IdentityRequestState struct {
+	Ref       string `json:"ref"`
+	State     string `json:"state"`
+	ExpiresAt int64  `json:"expires_at"`
+	// IntervalMs is how long the machine waits between two asks.
+	IntervalMs int64 `json:"interval_ms"`
 }
 
 // MintRequest is POST /api/sessions (authorized by the machine key).

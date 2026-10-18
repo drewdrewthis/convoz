@@ -14,6 +14,7 @@ import {
   mintSession,
   plainDb,
   stepUp,
+  revokeAgentKey,
   stepped,
   whoamiApi,
   withStepUp,
@@ -108,6 +109,57 @@ scenario("No request can delete an identity or change its kind", { tag: ["@api"]
   expect(list.find((i) => i.handle === "devtool")?.kind).toBe("agent");
 });
 
+scenario("A handle that looks like another identity is refused", { tag: ["@api"] }, async ({ server }) => {
+  const srv = await server(apiServer());
+  const owner = await bootstrapOwner(srv);
+  await createAgents(owner, "devtool");
+
+  // When the owner creates an agent with the handle "devtoo1"
+  const res = await stepped(owner, "POST", "/api/crew/agents", { handle: "devtoo1", display_name: "Other" }, "identity.create");
+
+  // Then the server answers 400 naming "handle"
+  expect(res.status).toBe(400);
+  expect(res.json().error.field).toBe("handle");
+});
+
+// Owner said: "Removal is just revoking their key".
+scenario("Revoking an agent's key needs the owner's session and no passkey", { tag: ["@api"] }, async ({ server }) => {
+  // Given "devtool" has a live session on "box-2"
+  const srv = await server(apiServer());
+  const owner = await bootstrapOwner(srv);
+  const { devtool } = await createAgents(owner, "devtool");
+  const box2 = await loginMachine(srv, owner, "box-2", allow("devtool"));
+  const token = await lease(srv, box2.key, { as: "devtool" });
+  const route = `/api/identities/${devtool!.id}/disable`;
+
+  // When a machine key, a session lease and a caller with no credential each try to disable "devtool"
+  const tries = [
+    await send(srv.target, "POST", route, { json: {}, ...bearer(box2.key) }),
+    await send(srv.target, "POST", route, { json: {}, ...bearer(token) }),
+    await new Client(srv.target).post(route, {}),
+  ];
+
+  // Then the server answers 401 every time
+  expect(tries.map((t) => t.status)).toEqual([401, 401, 401]);
+
+  // When the owner disables "devtool" with no step-up
+  const res = await owner.client.post(route, {});
+
+  // Then the server answers 200
+  expect(res.status).toBe(200);
+
+  // And the live session answers 401
+  expect((await whoamiApi(srv, token)).status).toBe(401);
+
+  // And "box-2" can no longer start a session as "devtool"
+  expect((await mintSession(srv, box2.key, { as: "devtool" })).status).toBe(403);
+
+  // And GET /api/identities still lists "devtool" as disabled, and its handle stays used
+  const list = must(await owner.client.get("/api/identities"), "identities").json().identities as { handle: string; disabled: boolean }[];
+  expect(list.find((i) => i.handle === "devtool")?.disabled).toBe(true);
+  expect((await stepped(owner, "POST", "/api/crew/agents", { handle: "devtool", display_name: "Again" }, "identity.create")).status).toBe(409);
+});
+
 // ---- onboarding ------------------------------------------------------------------------------------
 
 scenario("A passkey added by recovery cannot do destructive things for 24 hours", { tag: ["@api"] }, async ({ server, testApi }) => {
@@ -176,7 +228,7 @@ scenario("Disabling an identity ends its sessions on every machine", { tag: ["@a
   const docsOnBox = await lease(srv, box2.key, { as: "docs" });
 
   // When the owner disables "devtool" with a passkey
-  must(await stepped(owner, "POST", `/api/identities/${agents.devtool!.id}/disable`, {}, "identity.disable", agents.devtool!.id), "disable");
+  must(await revokeAgentKey(owner, agents.devtool!.id), "disable");
 
   // Then the next command of both sessions exits 3 (the API says 401)
   expect([(await whoamiApi(srv, devOnBox)).status, (await whoamiApi(srv, devOnLaptop)).status]).toEqual([401, 401]);
@@ -246,7 +298,7 @@ scenario("No credential is stored in plain text", { tag: ["@api"] }, async ({ se
 scenario("Step-up is required for destructive actions", { tag: ["@api"] }, async ({ server }) => {
   const srv = await server(apiServer());
   const owner = await bootstrapOwner(srv);
-  const { devtool } = await createAgents(owner, "devtool");
+  await createAgents(owner, "devtool");
   const box2 = await loginMachine(srv, owner, "box-2");
   const rows: [string, string, unknown][] = [
     ["POST", `/api/machines/${box2.id}/reveal`, {}],
@@ -254,7 +306,6 @@ scenario("Step-up is required for destructive actions", { tag: ["@api"] }, async
     ["POST", `/api/machines/${box2.id}/revoke`, {}],
     ["PATCH", `/api/machines/${box2.id}`, { allow: ANY }],
     ["POST", "/api/crew/agents", { handle: "new-agent", display_name: "New Agent" }],
-    ["POST", `/api/identities/${devtool!.id}/disable`, {}],
     ["POST", "/api/me/recovery-codes", {}],
   ];
 
