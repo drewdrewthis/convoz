@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -133,9 +134,21 @@ func (s *Service) sendOne(ctx context.Context, rd pdb.DBTX, row db.DueDeliveries
 		return ctx.Err() // shutting down: the delivery stays due and the next run sends it
 	}
 	if err != nil {
+		s.Log.Printf("push: send: %v", transportReason(err))
 		status = 0 // the push service could not be reached: like a 5xx, try again later
+	} else if status < 200 || status >= 300 {
+		s.Log.Printf("push: send status=%d attempt=%d", status, row.Attempt)
 	}
 	return s.write(ctx, func(q *db.Queries) error { return s.settle(ctx, q, now, row, status, retryAfter) })
+}
+
+// transportReason drops the URL from a transport error: an endpoint path is a capability and stays out of logs.
+func transportReason(err error) error {
+	var ue *url.Error
+	if errors.As(err, &ue) {
+		return ue.Err
+	}
+	return err
 }
 
 // settle records what the push service answered: sent, gone (the subscription ends), retry later, or failed.
@@ -200,7 +213,11 @@ func (s *Service) SendTest(ctx context.Context, device int64) (bool, error) {
 	p := Payload{V: 1, Reason: "test", Title: "Notifications are on", Body: "You'll get messages from your agents here.", URL: "/settings", Topic: s.Keys.Topic('z', device)}
 	status, _, err := s.post(ctx, sub.Endpoint, sub.P256dh, sub.Auth, p, false, 60)
 	if err != nil {
+		s.Log.Printf("push: test send: %v", transportReason(err))
 		return false, nil //nolint:nilerr // the push service could not be reached: not delivered, and not a server fault
+	}
+	if status < 200 || status >= 300 {
+		s.Log.Printf("push: test status=%d", status)
 	}
 	if status == http.StatusNotFound || status == http.StatusGone {
 		_ = s.write(ctx, func(q *db.Queries) error { return endSubscription(ctx, q, s.Clock.Now(), sub.ID, DisabledGone) })
