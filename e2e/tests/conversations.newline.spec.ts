@@ -99,8 +99,8 @@ scenario("A pill counts new messages while the owner reads above and jumps to th
 });
 
 // Owner (Drew, msg 159): "You can see it's difficult to tell there are new messages"
-scenario("Nothing shows through the floating header", { tag: ["@browser"] }, async ({ server, page, context }) => {
-  // Given the owner has conversation 41 open and scrolled so that messages pass under the header
+scenario("Nothing shows through the name and buttons at the top", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given the owner has conversation 41 open and scrolled so that messages pass under the name and buttons at the top
   const u = await uiWorld({ server, page, context });
   const conv = await createConversation(u.w.owner, { participants: ["devtool"], title: "Ship search filters" });
   for (let n = 1; n <= 40; n++) await ownerSays(u.w.owner, conv, `msg-${String(n).padStart(3, "0")} ${"words ".repeat(12)}`);
@@ -112,7 +112,7 @@ scenario("Nothing shows through the floating header", { tag: ["@browser"] }, asy
   const title = page.getByRole("heading", { name: "Ship search filters", exact: true });
   const titles = title.locator("xpath=..");
 
-  // Then the title area is part of the header and not of a message behind it
+  // Then the title area belongs to the top of the conversation and not to a message behind it
   const hit = await title.evaluate((h) => {
     const r = h.getBoundingClientRect();
     return document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)?.closest("header") !== null;

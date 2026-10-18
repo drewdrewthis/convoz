@@ -1078,7 +1078,7 @@ scenario("Agent replies use the full width", { tag: ["@browser"] }, async ({ ser
   expect(time.y + time.height).toBeLessThanOrEqual(bubble.y + 1);
 });
 
-scenario("The header shrinks while typing on a phone", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
+scenario("The name and buttons at the top shrink while typing on a phone", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
   // Given the owner has conversation 41 open on a phone
   const u = await uiWorld({ server, page, context });
   const conv = await createConversation(u.w.owner, { participants: ["devtool"], title: "Ship search filters" });
@@ -1094,7 +1094,7 @@ scenario("The header shrinks while typing on a phone", { tag: ["@browser", "@pho
   await composer(page).click();
   await page.setViewportSize({ width: 390, height: 480 });
 
-  // Then the header is one 36 px line with Back and the title
+  // Then the top of the conversation is one 36 px line with Back and the title
   // owner ruling 2026-10-18 (floating header): the 36 px bar is gone; the same floating circles stay, without the subtitle
   await expect.poll(async () => (await box(header)).height).toBe(full.height);
   await expect(backButton(page)).toBeVisible();
@@ -1123,13 +1123,13 @@ scenario("The header shrinks while typing on a phone", { tag: ["@browser", "@pho
   await composer(page).blur();
   await page.setViewportSize({ width: 390, height: 844 });
 
-  // Then the full header is back
+  // Then the full top of the conversation is back
   await expect.poll(async () => (await box(header)).height).toBe(full.height);
   await expect(details).toBeVisible();
 });
 
 // Owner ruling 2026-10-18: "You didn't do the ui update for the chat yet? It should have the floating circle buttons instead of the full header"
-scenario("The conversation header is floating circle buttons", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
+scenario("The conversation's name and buttons at the top are floating circle buttons", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
   // Given conversation 41 has more messages than fit on a phone screen
   const u = await uiWorld({ server, page, context });
   const conv = await createConversation(u.w.owner, { participants: ["devtool"], title: "Ship search filters" });
@@ -1140,7 +1140,7 @@ scenario("The conversation header is floating circle buttons", { tag: ["@browser
   await expect(composer(page)).toBeVisible();
   const header = page.locator("header").first();
 
-  // Then the header has no bar background
+  // Then the top of the conversation has no bar background
   expect(await header.evaluate((e) => { const c = getComputedStyle(e); return [c.backgroundColor, c.borderBottomWidth]; })).toEqual(["rgba(0, 0, 0, 0)", "0px"]);
 
   // And the back button and the action buttons are circles of at least 44 px

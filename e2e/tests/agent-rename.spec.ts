@@ -95,7 +95,7 @@ scenario("An agent that is not in a conversation cannot rename it", { tag: ["@cl
   expect(await renameLines(w, conv)).toEqual([]);
 });
 
-scenario("The owner sees an agent's rename in the header, the list and the chat", { tag: ["@browser"] }, async ({ server, page, context }) => {
+scenario("The owner sees an agent's rename at the top, in the list and in the chat", { tag: ["@browser"] }, async ({ server, page, context }) => {
   // Given the owner has conversation 41, titled by its first message, open with "devtool" in it
   const w = await browserWorld({ server, page, context }, { live: ["devtool"] });
   const conv = await autoTitled(w, ["devtool"]);
@@ -105,7 +105,7 @@ scenario("The owner sees an agent's rename in the header, the list and the chat"
   const res = await rename(w, w.sessions.devtool!.lease, conv, { title: "Build status" });
   expect(res.status, res.text).toBe(200);
 
-  // Then the header and the Conversations list show "Build status"
+  // Then the top of the conversation and the Conversations list show "Build status"
   await expect(page.getByRole("heading", { name: "Build status", exact: true, level: 1 })).toBeVisible();
   await page.goto(`${w.srv.origin}/chats`);
   await expect(rowsOnList(page)).toHaveText([/Build status/]);

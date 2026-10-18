@@ -116,10 +116,10 @@ Feature: Conversations
       And the title of conversation 41 is unchanged
 
     @v1 @browser
-    Scenario: The owner sees an agent's rename in the header, the list and the chat
+    Scenario: The owner sees an agent's rename at the top, in the list and in the chat
       Given the owner has conversation 41, titled by its first message, open with "devtool" in it
       When "devtool" renames it to "Build status"
-      Then the header and the Conversations list show "Build status"
+      Then the top of the conversation and the Conversations list show "Build status"
       And the chat shows the line '@devtool renamed this to "Build status"'
 
   Rule: Agents join only through a human, and see only from their join
@@ -456,9 +456,9 @@ Feature: Conversations
 
     # Owner (Drew, msg 159): "You can see it's difficult to tell there are new messages"
     @v1 @browser
-    Scenario: Nothing shows through the floating header
-      Given the owner has conversation 41 open and scrolled so that messages pass under the header
-      Then the title area is part of the header and not of a message behind it
+    Scenario: Nothing shows through the name and buttons at the top
+      Given the owner has conversation 41 open and scrolled so that messages pass under the name and buttons at the top
+      Then the title area belongs to the top of the conversation and not to a message behind it
       And the title area looks the same with the messages hidden
 
     @v1 @browser @phone

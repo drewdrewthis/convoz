@@ -441,11 +441,11 @@ scenario("Approving a pending add lets the agent in from the request", { tag: ["
   await page.goto(`${w.srv.origin}/chats/${conv}`);
   await expect(page.getByText("Approved · @docs added")).toBeVisible();
 
-  // And "docs" reads conversation 52 from message 300 onward and nothing earlier
+  // And "docs" reads conversation 52 with the earlier messages and the ones after the request
   const read = await convoz(w.box, w.sessions.docs!.sid, ["read", String(conv)]);
   expect(read.code).toBe(0);
   expect(read.stdout).toContain("Message after the request");
-  expect(read.stdout).not.toContain("Earlier message");
+  expect(read.stdout).toContain("Earlier message one");
 });
 
 scenario("Declining a pending add keeps the agent out", { tag: ["@browser"] }, async ({ server, page, context, dataDir, testApi }, info) => {
