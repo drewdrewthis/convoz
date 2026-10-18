@@ -420,6 +420,7 @@ scenario("Replying clears when the agent posts", { tag: ["@browser"] }, async ({
   const conv = await createConversation(u.w.owner, { participants: ["devtool", "docs"], title: "Ship search filters" });
   await page.goto(`${u.w.srv.origin}/chats/${conv}`);
   await expect(messageLog(page)).toBeVisible();
+  await streamOpen(page); // "typing" frames are live only: one sent before the stream opens is never seen
 
   // When "devtool" and "docs" run "convoz typing" in that conversation
   for (const handle of ["devtool", "docs"]) {
@@ -926,6 +927,8 @@ scenario("On a phone a new reply while reading older messages shows a pill inste
   for (let n = 1; n <= 40; n++) await ownerSays(u.w.owner, conv, `msg-${String(n).padStart(3, "0")} ${"words ".repeat(12)}`);
   await page.goto(`${u.w.srv.origin}/chats/${conv}`);
   const log = messageLog(page);
+  // The log snaps to the newest end once more when the chat finishes opening: scroll up only after that
+  await expect(log).toHaveAttribute("data-opened", "true");
   await expect.poll(() => fromBottom(log)).toBeLessThanOrEqual(2);
   await log.evaluate((e) => (e.scrollTop = 0));
   await expect(newMessagePill(page)).toHaveCount(0);

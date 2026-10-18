@@ -114,6 +114,8 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, hint, co
   const [pill, setPill] = useState(0);
   const firstNew = useRef<number | null>(null);
   const [hl, setHl] = useState<number | null>(null);
+  /** The opening snap is over: after the frame that follows the first one at the newest end, nothing moves the log by itself any more. */
+  const [settled, setSettled] = useState(false);
   const rows = useMemo(() => rowsOf(messages, pending, me, newFrom), [messages, pending, me, newFrom]);
   const paused = useMemo(() => pausedNow(messages), [messages]);
   const focusAt = focus ? rows.findIndex((r) => r.message?.id === focus) : -1;
@@ -165,13 +167,16 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, hint, co
   }, []);
 
   useLayoutEffect(() => {
-    if (!opened) return;
+    if (!opened) return setSettled(false);
     if (focusAt >= 0) {
       stuck.current = false; // opened at a search result: the effect below takes the log there
-      return;
+      return setSettled(true);
     }
     toBottom();
-    requestAnimationFrame(() => stuck.current && toBottom());
+    requestAnimationFrame(() => {
+      if (stuck.current) toBottom();
+      setSettled(true);
+    });
   }, [opened]);
 
   // Opened from a search result: the message goes to the middle of the log and is marked for a moment. The log stays where it is
@@ -241,8 +246,8 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, hint, co
 
   return (
     <div className="logwrap">
-      {/* data-opened: the chat has finished opening; until then the log may still be snapped to the newest end once more */}
-      <div ref={log} id="log" className="log" role="log" aria-label="Messages" aria-relevant="additions" data-opened={opened}>
+      {/* data-opened: the chat has finished opening, including the last snap to the newest end; scrolling is safe from then on */}
+      <div ref={log} id="log" className="log" role="log" aria-label="Messages" aria-relevant="additions" data-opened={opened && settled}>
         <div id="earlier" className="earlier" hidden={!hasEarlier}>
           <button id="earlier-button" className="btn small quiet" type="button" onClick={earlier}>
             Earlier messages
