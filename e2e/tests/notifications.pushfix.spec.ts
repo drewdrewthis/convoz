@@ -1,7 +1,8 @@
 import type { BrowserContext, Page } from "@playwright/test";
 import { needsHomeScreen, pushSupported } from "../../apps/web/src/features/notifications/support.ts";
 import { signInBrowser } from "../lib/machines.ts";
-import { decrypt, newSub, pushWorld, received, subBody, type PushWorld, type Sub } from "../lib/push-wp14.ts";
+import { installFakePhone } from "../lib/push-phone.ts";
+import { decrypt, pushWorld, received, type PushWorld, type Sub } from "../lib/push-wp14.ts";
 import { expect, scenario } from "../lib/scenario.ts";
 
 // Turning push on from the phone. The owner: "I'm not getting native notifications - can we fix that?" and "I added it to the Home
@@ -11,32 +12,8 @@ import { expect, scenario } from "../lib/scenario.ts";
 
 const SWITCH = "Push on this device";
 
-interface Fake {
-  endpoint: string;
-  p256dh: string;
-  auth: string;
-  neverReady: boolean;
-}
-
 async function phoneAllowing(w: PushWorld, page: Page, context: BrowserContext, o: { neverReady?: boolean } = {}): Promise<Sub> {
-  const sub = newSub();
-  const fake: Fake = { endpoint: sub.endpoint, ...subBody(sub).keys, neverReady: o.neverReady ?? false };
-  await context.addInitScript((f: Fake) => {
-    let held: unknown = null;
-    const made = { endpoint: f.endpoint, toJSON: () => ({ endpoint: f.endpoint, keys: { p256dh: f.p256dh, auth: f.auth } }) };
-    Object.defineProperty(ServiceWorkerRegistration.prototype, "pushManager", {
-      configurable: true,
-      get: () => ({ getSubscription: async () => held, subscribe: async () => (held = made) }),
-    });
-    // The prompt takes a moment, as it does on a phone.
-    let permission = "default";
-    Object.defineProperty(Notification, "permission", { configurable: true, get: () => permission });
-    Notification.requestPermission = async () => {
-      await new Promise((r) => setTimeout(r, 700));
-      return (permission = "granted") as NotificationPermission;
-    };
-    if (f.neverReady) Object.defineProperty(navigator.serviceWorker, "ready", { configurable: true, get: () => new Promise(() => {}) });
-  }, fake);
+  const sub = await installFakePhone(context, o);
   await signInBrowser(w.srv, w.owner, page, context);
   await page.route("**/api/push/vapid-key", async (route) => {
     await new Promise((r) => setTimeout(r, 800));
