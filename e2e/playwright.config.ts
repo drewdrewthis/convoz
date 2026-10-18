@@ -35,7 +35,9 @@ export default defineConfig({
     // screenshot "on": the final screenshot of each browser scenario goes into the use-proof page (pnpm proof).
     { name: "chromium", grep: /@browser/, grepInvert: /@phone/, use: { ...devices["Desktop Chrome"], screenshot: "on" }, dependencies: ["alone"] },
     { name: "mobile", grep: /@browser/, testIgnore: PERF, use: phone, dependencies: ["alone"] },
-    { name: "perf", grep: /@browser/, testMatch: PERF, use: phone },
+    // The perf scenario reaches the server through a TLS front with a throwaway self-signed cert (lib/h2-front.ts). ignoreHTTPSErrors alone
+    // does not cover the service worker's script fetch, so the browser itself is told to accept it (this project's browser only).
+    { name: "perf", grep: /@browser/, testMatch: PERF, use: { ...phone, launchOptions: { args: ["--ignore-certificate-errors"] } } },
   ],
   reporter: [
     ["list"],
