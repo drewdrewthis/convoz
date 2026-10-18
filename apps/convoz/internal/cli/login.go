@@ -16,7 +16,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
 
-// Version is the CLI version the machine reports about itself; the main package sets it at link time.
+// Version is the CLI version the machine reports about itself; SetBuild sets it.
 var Version = "dev"
 
 const (
@@ -76,6 +76,7 @@ func Login(args []string, io IO) int {
 		return fail(io, err)
 	}
 	kc := osKeychain{io.Getenv}
+	WarnIfStale(io, newClient(base))
 	if *stdin {
 		key, err := readKey(io)
 		if err != nil {

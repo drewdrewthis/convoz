@@ -24,6 +24,8 @@ const (
 var version = "dev"
 
 func main() {
+	cli.SetBuild(version)
+	version = cli.Version
 	if len(os.Args) < 2 {
 		usage()
 	}
@@ -33,14 +35,13 @@ func main() {
 	case "serve":
 		os.Exit(serve(os.Args[2:]))
 	case "version":
-		fmt.Printf("convoz %s (schema %d)\n", version, platform.LatestVersion())
+		fmt.Printf("%s (schema %d)\n", cli.VersionLine(), platform.LatestVersion())
 	default:
 		// every client command comes from the CLI registry (internal/cli/cmd_<name>.go)
 		cmd, ok := cli.Lookup(os.Args[1])
 		if !ok {
 			usage()
 		}
-		cli.Version = version
 		os.Exit(cmd.Run(os.Args[2:], processIO()))
 	}
 }

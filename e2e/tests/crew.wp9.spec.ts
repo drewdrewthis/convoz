@@ -42,6 +42,8 @@ scenario("The invite sheet is one prompt with no form and no secret", { tag: ["@
   // And the prompt names this server, the install line, "convoz login", "convoz session start" with "--create", and the brief, post, ask, status and app lines
   const prompt = sheet.getByLabel("Connect prompt");
   await expect(prompt).toContainText(c.w.srv.origin);
+  await expect(prompt).toContainText(`command -v convoz >/dev/null || curl -fsSL ${c.w.srv.origin}/install | sh`);
+  await expect(prompt).not.toContainText("go install");
   for (const part of ["command -v convoz", "convoz login --server", "convoz session start --as <your-handle> --create", "convoz brief", "convoz post", "convoz ask", "convoz status", "convoz post --app"]) await expect(prompt).toContainText(part);
 
   // And the prompt shows "--conversation" nowhere

@@ -26,10 +26,11 @@ var (
 )
 
 // compress wraps next so that its answers are compressed when the client accepts it and they are big enough.
+// A stream and a /cli/ binary go out as they are: a binary does not compress at this speed, and the installer hashes what it got.
 func compress(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		enc := chooseEncoding(r.Header.Get("Accept-Encoding"))
-		if enc == "" || r.Method == http.MethodHead || r.Header.Get("Range") != "" || strings.HasPrefix(r.URL.Path, "/api/stream") {
+		if enc == "" || r.Method == http.MethodHead || r.Header.Get("Range") != "" || strings.HasPrefix(r.URL.Path, "/api/stream") || strings.HasPrefix(r.URL.Path, "/cli/") {
 			next.ServeHTTP(w, r)
 			return
 		}

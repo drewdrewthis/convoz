@@ -11,3 +11,6 @@ apps/convoz/internal/server/console/web/*
 !apps/convoz/internal/server/console/web/placeholder.txt
 # Ladle build output (packages/ui)
 ladle-build/
+# The CLI binaries embedded by the clidist package (make cli-dist); only the placeholder is committed.
+apps/convoz/internal/server/clidist/cli/*
+!apps/convoz/internal/server/clidist/cli/placeholder.txt

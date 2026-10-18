@@ -1742,6 +1742,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A POSIX sh script that installs this server's CLI (no sudo; ~/.local/bin or $CONVOZ_INSTALL_DIR), with no credential. */
+        get: operations["getInstallScript"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cli/{file}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A CLI binary of this server (convoz-<os>-<arch>, linux or darwin, amd64 or arm64) or SHA256SUMS, with no credential. With ?v=<server version> the answer is immutable. */
+        get: operations["getCliFile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -5583,6 +5617,54 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getInstallScript: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The script. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/x-shellscript": string;
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getCliFile: {
+        parameters: {
+            query?: {
+                /** @description The server version; when it matches */
+                v?: string;
+            };
+            header?: never;
+            path: {
+                file: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The file. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                    "text/plain": string;
+                };
             };
             default: components["responses"]["Error"];
         };

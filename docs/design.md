@@ -1630,6 +1630,7 @@ All JSON (brotli/gzip). Errors `{error:{code,message}}`. Auth: **H** human cooki
 | `GET/PATCH /api/settings` | H (O for workspace) | {scope, key, value} | I-29 |
 | `POST /api/me/export` · `POST /api/me/delete` | H S | job → download · anonymize + scrub | I-49 |
 | `GET /healthz` · `GET /api/ping` · `GET /api/admin/{health,audit}` · `GET /api/version` | pub · H/L · O · pub | "ok" · RTT probe · lag, sizes, expired inbox items, RTT per client · build id | — |
+| `GET /install` · `GET /cli/:file` (`convoz-<os>-<arch>`, `SHA256SUMS`) | pub · pub | POSIX sh installer · the CLI of this server (§13.2 "CLI distribution") | — |
 
 SSE (humans only in v1): `event: <type>`, `id: epoch:seq`, `data: {…, prev_seq_for_you}`. Control: `reset`, `live_snapshot`, heartbeat every 15 s. ≤3 streams per human device.
 
@@ -1686,6 +1687,16 @@ One binary `convoz` (alias `cvz`). Credentials: `~/.config/convoz/credentials` (
 
 Exit codes: 0 ok, 1 any other failure (a 5xx, an unreadable answer), 2 usage (a unix socket path over 107 bytes included), 3 auth (HTTP 401 or 403), 4 conflict (HTTP 409), 5 rate limited (HTTP 429, after the retries of a command that retries), 6 network (the server cannot be reached, after the retries of a command that retries; the admin socket unreachable included, `convoz admin` does not retry). `convoz serve` adds 10 (key: KEK missing, unreadable, or its file mode is not 0600/0400) 11 (schema: the data dir is newer than this build) 12 (the data dir, or the `--listen` socket, is in use by another process: the data dir is locked with `flock` on `<data>/convoz.lock`) 13 (the wall: a listen address that is not loopback, `--host` missing, funnel on for this server, or the tailscale status unreadable or the binary missing under `--tailscale check`) and 14 (the admin socket cannot be created or secured: its parent directory is not ours or is writable by group or others, or a live socket is already there). The public unix socket gets the same parent-directory check; a failure there exits 13 (the wall). On Linux the admin listener also drops a connection whose peer uid cannot be read (`SO_PEERCRED`). `--json` output is one object (or one line per item for `watch`). There is no `answer` command: humans answer in the app (C-3).
 
+
+
+#### CLI distribution
+
+The server serves its own CLI, so an agent never builds one and never gets a CLI of another version than its server. `make release` and `make testhooks` first run `make cli-dist`, which cross-builds `cmd/convoz-cli` (the client commands and `convoz mcp`, no server, no web app) for linux and darwin on amd64 and arm64 with CGO off, into `internal/server/clidist/cli/`; the server embeds those four files (about 14 MB each; the release binary grows by about 56 MB). Embedding, not a directory next to the binary, because a directory can go stale against the binary and the point is one version. `SHA256SUMS` is computed from the embedded bytes when the server starts.
+
+- `GET /install` returns a POSIX sh script, with the server's origin and version written in. It picks `convoz-<os>-<arch>`, downloads it and `SHA256SUMS` from `/cli/`, refuses to install on a checksum mismatch, and moves the binary to `$CONVOZ_INSTALL_DIR` (default `~/.local/bin`) as `convoz`. It prints `convoz version` and a PATH hint, and never uses sudo. The checksum catches a damaged or cut-short download; it does not defend against the server itself, and TLS is the trust in the server.
+- `GET /cli/<file>` and `GET /cli/SHA256SUMS` need no credential. With `?v=<server version>` (the installer always sends it) the answer is `public, max-age=31536000, immutable`; otherwise `no-cache` with the digest as ETag. The files are not compressed.
+- `convoz version` prints `convoz <version> commit <commit>`; the server's adds `(schema N)`. With no `-ldflags -X main.version`, the version is the source revision (`+dirty` when the tree has changes), so a server and its CLI built from one tree agree. `convoz login` asks `GET /api/version` and warns on stderr, `update: curl -fsSL <server>/install | sh`, when the versions differ.
+- The invite prompt's install line is `command -v convoz >/dev/null || curl -fsSL <server>/install | sh`.
 
 ### 13.3 Voice transcription
 
