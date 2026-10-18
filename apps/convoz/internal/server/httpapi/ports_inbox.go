@@ -15,24 +15,22 @@ import (
 // inboxPort queues a new message for one agent with the strongest reason it gives (C-10).
 type inboxPort struct{}
 
-func (inboxPort) FanOut(ctx context.Context, d pdb.DBTX, now time.Time, identity, conv, messageID, sourceSeq int64) error {
-	if m, found, err := message.Get(ctx, d, messageID); err != nil {
-		return err
-	} else if found && m.ViaAgentID == identity {
-		return inbox.AppResult(ctx, d, now, identity, conv, messageID, sourceSeq) // the agent whose app it was: its own item, never merged
+func (inboxPort) FanOut(ctx context.Context, d pdb.DBTX, now time.Time, identity int64, a message.Arrival) error {
+	m := a.Message
+	if m.ViaAgentID == identity {
+		return inbox.AppResult(ctx, d, now, identity, m.ConversationID, m.ID, a.SourceSeq) // the agent whose app it was: its own item, never merged
 	}
-	reason, err := reasonFor(ctx, d, identity, messageID)
+	prefer, err := conversation.LastPostSession(ctx, d, m.ConversationID, identity)
 	if err != nil {
 		return err
 	}
-	prefer, err := conversation.LastPostSession(ctx, d, conv, identity)
-	if err != nil {
+	if err := inbox.FanOut(ctx, d, now, identity, m.ConversationID, m.ID, a.SourceSeq, prefer, reasonFor(identity, a)); err != nil {
 		return err
 	}
-	if err := inbox.FanOut(ctx, d, now, identity, conv, messageID, sourceSeq, prefer, reason); err != nil {
-		return err
+	if !a.HasUploads {
+		return nil
 	}
-	return holdForWords(ctx, d, now, conv, messageID)
+	return holdForWords(ctx, d, now, m.ConversationID, m.ID)
 }
 
 // holdForWords makes the item of a voice note wait for its transcript (E-5): only while an engine works on it.
@@ -49,21 +47,13 @@ func holdForWords(ctx context.Context, d pdb.DBTX, now time.Time, conv, messageI
 	return nil
 }
 
-// reasonFor is "mention" when the message mentions the agent (the mentions table, written when the message was), "thread"
-// for any other reply in a thread, else "activity".
-func reasonFor(ctx context.Context, d pdb.DBTX, identity, messageID int64) (string, error) {
-	m, found, err := message.Get(ctx, d, messageID)
-	if err != nil || !found {
-		return inbox.ReasonActivity, err
-	}
-	named, err := message.Mentioned(ctx, d, messageID)
+// reasonFor is "mention" when the message mentions the agent, "thread" for any other reply in a thread, else "activity".
+func reasonFor(identity int64, a message.Arrival) string {
 	switch {
-	case err != nil:
-		return "", err
-	case slices.Contains(named, identity):
-		return inbox.ReasonMention, nil
-	case m.ThreadRootID != 0:
-		return inbox.ReasonThread, nil
+	case slices.Contains(a.Mentioned, identity):
+		return inbox.ReasonMention
+	case a.Message.ThreadRootID != 0:
+		return inbox.ReasonThread
 	}
-	return inbox.ReasonActivity, nil
+	return inbox.ReasonActivity
 }

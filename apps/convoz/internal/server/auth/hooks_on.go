@@ -1,0 +1,15 @@
+//go:build testhooks
+
+package auth
+
+import "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform"
+
+// identityRequestsMigration is the migration that creates identity_requests.
+const identityRequestsMigration = 20
+
+// beforeIdentityRequests plays the previous release when migrations are capped under 20: that release has no
+// identity_requests table, so the machine request list and the approval must not read it.
+func beforeIdentityRequests() bool {
+	c := platform.MaxMigrationCap()
+	return c > 0 && c < identityRequestsMigration
+}

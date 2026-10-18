@@ -14,8 +14,8 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
 
-// viaApp judges the result of an app a person sends (I-46). The app message must be in this conversation, not deleted and
-// visible to the sender; the agent is the app message's author, never something the request says; the result must fit the app.
+// viaApp judges the result of an app a person sends (I-46). The app message must be in this conversation (another one is a 400),
+// not deleted and visible to the sender; the agent is the app message's author, never something the request says; the result must fit the app.
 // It writes the refusal itself and reports whether the post may go on.
 func (s *Server) viaApp(w http.ResponseWriter, r *http.Request, c *call, conv int64, in wire.ViaAppRequest) (appkit.Via, bool) {
 	ctx, d := r.Context(), s.reader()
@@ -29,7 +29,14 @@ func (s *Server) viaApp(w http.ResponseWriter, r *http.Request, c *call, conv in
 		s.internalError(w, r, err)
 		return appkit.Via{}, false
 	}
-	if !found || target.ConversationID != conv || !visible || target.ID <= floor {
+	switch {
+	case !found:
+		writeFieldErr(w, http.StatusNotFound, "not_found", "via_app", "No such app message.")
+		return appkit.Via{}, false
+	case target.ConversationID != conv: // the owner can open every conversation, so saying where the app is tells nothing new
+		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "via_app", "That app message is in another conversation.")
+		return appkit.Via{}, false
+	case !visible || target.ID <= floor:
 		writeFieldErr(w, http.StatusNotFound, "not_found", "via_app", "No such app message.")
 		return appkit.Via{}, false
 	}

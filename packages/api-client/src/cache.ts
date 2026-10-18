@@ -58,11 +58,16 @@ export interface DataCache {
 /** maxId is the newest message id held for a conversation, 0 for none. */
 export const maxId = (m: MessageList | undefined): number => (m?.list.length ? m.list[m.list.length - 1]!.id : 0);
 
-/** changed says whether an incoming copy of a held message is newer: edited, deleted, purged, with more replies, or with files
- *  that changed (a transcript came; the local copy made at send time is replaced by the server's). */
+/** askMoved says whether the incoming copy of an ask message shows a later state of its ask (`version` moves with every state change;
+ *  the asker's "seen" does not move it). Without this a copy read back from the offline cache would hide that the ask was closed since. */
+const askMoved = (a: Message, b: Message) => (b.ask?.version ?? 0) > (a.ask?.version ?? 0) || (!!b.ask?.acked_at && !a.ask?.acked_at);
+
+/** changed says whether an incoming copy of a held message is newer: edited, deleted, purged, with more replies, with an ask in a
+ *  later state, with other words (a system line names people as of the read, so a rename changes it), or with files that changed
+ *  (a transcript came; the local copy made at send time is replaced by the server's). */
 const changed = (a: Message, b: Message) =>
   a.edited_at !== b.edited_at || !!a.deleted !== !!b.deleted || !!a.purged !== !!b.purged || a.reply_count !== b.reply_count || a.last_reply_at !== b.last_reply_at ||
-  JSON.stringify(a.uploads) !== JSON.stringify(b.uploads);
+  askMoved(a, b) || a.text !== b.text || JSON.stringify(a.uploads) !== JSON.stringify(b.uploads);
 
 function merge(have: Message[], more: Message[]): Message[] {
   const byId = new Map(have.map((m) => [m.id, m]));

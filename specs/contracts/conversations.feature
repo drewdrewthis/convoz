@@ -50,6 +50,16 @@ Feature: Conversations (contracts)
 
   Rule: Agents join only through a human, and see only from their join
 
+    @v1 @api @cli @invariant @I-47
+    Scenario: Nothing claims a conversation, and an agent that is not tagged gets nothing
+      Given "docs" has a live session and is not in conversation 41
+      When the owner posts "Is anyone free to take this?" in conversation 41
+      Then "docs" has no inbox item
+      And "docs" gets 403 on conversation 41
+      And POST /api/conversations/41/pickup and POST /api/conversations/41/claim answer 404
+      And "convoz pickup 41" is not a command
+      # Owner said: "Nothing claims conversations. I need to tag." Agents join only through the owner's @mention or + Add.
+
     @v1 @api
     Scenario: An agent creates at most 20 conversations a day
       Given "devtool" created 20 conversations today
