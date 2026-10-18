@@ -89,7 +89,9 @@ function rowsOf(messages: Message[], pending: PendingSend[], me: string): Row[] 
 export function Transcript({ messages, pending, hasEarlier, me, opened, hint, conversation, working, control, onEarlier, onRetry, onDetails, focus }: TranscriptProps) {
   const log = useRef<HTMLDivElement>(null);
   const items = useRef<HTMLDivElement>(null);
-  const stuck = useRef(true);
+  // Opened at a search result, the log never starts at the newest end: rows that arrive (and a list virtualizer that measures them)
+  // must not pull it there while it goes to the message. Without a message to open at, or once none is found, it follows the end.
+  const stuck = useRef(!focus);
   const seen = useRef(new Set<string>());
   const anchor = useRef<{ height: number; top: number } | null>(null);
   const [pill, setPill] = useState(false);

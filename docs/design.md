@@ -1609,6 +1609,14 @@ On a mid-range phone profile (Playwright, CPU ×4) on **two** network profiles: 
 
 CI as draft 7 (`benchstat`, fail on >20% regression or over budget; the nightly target-VM run is the authority, on a `mktemp -d` fixture, never prod data).
 
+**The cold page.** On Fast-3G every request wave costs about one 560 ms round trip, so a cold first load of a first screen (Now at `/`, the conversation list at `/chats`) comes in **one response**: the theme boot script, the stylesheet and the main bundle inline, and the screen's first reads (`apps/web/src/first-reads.json`, the list the lean shell's head start uses too) as a JSON data block `<script type="application/json" id="cz-data">{"generated_at", "reads"}</script>` at the end. Rules:
+- The reads are the request's own GETs of those routes, run in process through each route's own authentication and Auth class; a read that does not answer 200 is left out. A page without a live session is the sign-in redirect, never a page with empty data.
+- The block is JSON escaped for HTML (`<`, `>`, `&`, U+2028, U+2029 as `\u` escapes). The CSP allows each inline block by its sha256 hash (never `'unsafe-inline'`). The page is `Cache-Control: no-store`, `Vary: Cookie`; a page restored from the back-forward cache asks `/api/me` again.
+- The service worker asks for the **lean shell** (`X-Convoz-Shell: lean`: the files by URL, no data), which keeps warm starts fast and keeps user data out of Cache Storage (I-39).
+- The build brotli-compresses the static part at the highest quality and flushes it; the server appends its part as stored brotli blocks (`console.appendStored`), so the page costs no per-request compression. Without `br` it is the plain page, which the middleware gzips.
+- The UI runs on Preact (`preact/compat`, aliased for `react`; `CONVOZ_REACT=1` builds the same commit on React). Preact is given React's effect timing (`app/effects.ts`).
+- The main bundle is one file with no static import. An inline module has no URL, so the lazy chunks read its exports from one frozen registry (`globalThis[Symbol.for("convoz.eager")]`), on the cold page and on the lean shell alike. The build fails if the main bundle imports a chunk, shares a binding that a function assigns (the registry hands out a copy), or uses `import.meta`; the bundle throws if it runs twice in one page.
+
 ### 12.3 Poor connections
 
 Owner said: "I want this to work with poor connections". The local-first design stays: the PWA renders from IndexedDB, sends optimistically through an outbox, and syncs deltas by cursor. Added:

@@ -4,7 +4,7 @@ import { uiWorld } from "../lib/chat-ui.ts";
 import { createConversation } from "../lib/chat.ts";
 import { seedMessages } from "../lib/event.ts";
 import { h2Front } from "../lib/h2-front.ts";
-import { emptyCache, phoneProfile, spread, useful, type Network, type Useful } from "../lib/perf.ts";
+import { emptyCache, firstScreenData, phoneProfile, spread, useful, type Network, type Useful } from "../lib/perf.ts";
 import { expect, scenario } from "../lib/scenario.ts";
 import { installed, stored } from "../lib/wp17.ts";
 
@@ -14,6 +14,7 @@ import { installed, stored } from "../lib/wp17.ts";
  * script runs in its pages; its CPU is slowed 4 times and its link (the page's and its service worker's) is Fast-3G or lossy (lib/perf.ts).
  * A phone has two first screens, and both are measured: Now at /, and the rail, which on a phone is the conversation list at /chats
  * (prototype v41; "On a phone the rail matches the prototype"). The time is the app's `tfus` mark, set when the screen holds its data.
+ * A cold load gets that data from the server during the load: its API answer, or the data block of the cold page (design §12.2).
  * The phone reaches the server the way it does in prod: over TLS and HTTP/2 through a front (lib/h2-front.ts), the stand-in for
  * `tailscale serve`. The document's nextHopProtocol is asserted, so the budget can never be measured on HTTP/1.1 by accident.
  * The box runs many browsers, so each screen loads TRIALS times after a warm-up, and the MEDIAN load counts: a typical load, not the
@@ -94,10 +95,11 @@ scenario("The first useful screen appears in budget", { tag: ["@browser", "@phon
 
         // Then the rail and Now are useful within <budget>
         expect.soft(median, label).toBeLessThanOrEqual(row.budget);
-        // warm, the screen came from the device: no API answer had arrived when it was useful; cold, it waited for its data
+        // warm, the screen came from the device: no API answer had arrived when it was useful; cold, it waited for its data, which came
+        // from the server during this load: its API answer, or the data block of its document, made no more than 5 s before the mark
         const answered = Object.entries(typical.api).filter(([, end]) => end <= typical.tfus).map(([path]) => path);
         if (row.start === "warm from IndexedDB") expect.soft(answered, `${label}: API answers before the mark`).toEqual([]);
-        else expect.soft(answered, `${label}: API answers before the mark`).toContain(screen.data);
+        else expect.soft(["network", "document"], `${label}: where ${screen.data} came from before the mark`).toContain(firstScreenData(typical, screen.data));
         // and the screen shows the owner's data
         await expect(screen.shows(tab)).toBeVisible({ timeout: 30_000 });
         await info.attach(`${screen.name} (${row.network}, ${row.start})`, { body: await tab.screenshot(), contentType: "image/png" });

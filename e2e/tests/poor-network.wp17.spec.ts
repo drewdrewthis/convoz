@@ -1,3 +1,4 @@
+import { brotliCompressSync, constants } from "node:zlib";
 import { chatsHeading, composer, message, messageLog, sendButton } from "../lib/chat-ui.ts";
 import { createConversation, messagesOf, ownerSays } from "../lib/chat.ts";
 import { seedMessages } from "../lib/event.ts";
@@ -221,7 +222,9 @@ scenario("The offline shell opens with the cached rail and Now", { tag: ["@brows
 });
 
 scenario("The initial download stays small", { tag: ["@browser"] }, async ({ server, page, context, browser }) => {
-  // The owner signs in first; the measured load is then a cold load of Now in a new browser: no HTTP cache, no worker.
+  // The owner signs in first; the measured load is then a cold load of Now in a new browser: no HTTP cache, no worker. A cold load
+  // carries the first screen's script and stylesheet inside the document (design §12.2), so those inline blocks count too, at the
+  // size brotli gives them; the data block is data, not code.
   const u = await world({ server, page, context });
   const cold = await browser.newContext({ storageState: await context.storageState(), serviceWorkers: "block" });
   const fresh = await cold.newPage();
@@ -229,8 +232,11 @@ scenario("The initial download stays small", { tag: ["@browser"] }, async ({ ser
   await cdp.send("Network.enable");
   await cdp.send("Network.setCacheDisabled", { cacheDisabled: true });
   const files = new Map<string, { type: string; encoding: string; bytes: number }>();
+  let documentId = "";
   cdp.on("Network.responseReceived", (e) => {
-    if (e.type === "Script" || e.type === "Stylesheet") files.set(e.requestId, { type: e.type, encoding: String(Object.entries(e.response.headers).find(([name]) => name.toLowerCase() === "content-encoding")?.[1] ?? ""), bytes: 0 });
+    const encoding = String(Object.entries(e.response.headers).find(([name]) => name.toLowerCase() === "content-encoding")?.[1] ?? "");
+    if (e.type === "Document") documentId = e.requestId;
+    if (e.type === "Script" || e.type === "Stylesheet" || e.type === "Document") files.set(e.requestId, { type: e.type, encoding, bytes: 0 });
   });
   cdp.on("Network.loadingFinished", (e) => {
     const file = files.get(e.requestId);
@@ -242,11 +248,17 @@ scenario("The initial download stays small", { tag: ["@browser"] }, async ({ ser
   await expect(fresh.getByRole("heading", { name: "Now", exact: true })).toBeVisible();
 
   // Then the initial JavaScript is at most 150 KB and the CSS at most 20 KB with brotli
+  const { body } = await cdp.send("Network.getResponseBody", { requestId: documentId });
+  const inline = (tag: string) =>
+    [...body.matchAll(new RegExp(`<${tag}(\\s[^>]*)?>([\\s\\S]*?)</${tag}>`, "g"))].filter((m) => !/\ssrc=|application\/json/.test(m[1] ?? "")).map((m) => m[2]!).join("");
+  const brotli = (text: string) => (text ? brotliCompressSync(Buffer.from(text), { params: { [constants.BROTLI_PARAM_QUALITY]: 11 } }).length : 0);
   const sum = (type: string) => [...files.values()].filter((f) => f.type === type).reduce((n, f) => n + f.bytes, 0);
+  const js = sum("Script") + brotli(inline("script"));
+  const css = sum("Stylesheet") + brotli(inline("style"));
   expect([...files.values()].filter((f) => f.encoding !== "br" && f.bytes > 1024)).toEqual([]);
-  expect(sum("Script")).toBeGreaterThan(10_000);
-  expect(sum("Script")).toBeLessThanOrEqual(150 * 1024);
-  expect(sum("Stylesheet")).toBeGreaterThan(1_000);
-  expect(sum("Stylesheet")).toBeLessThanOrEqual(20 * 1024);
+  expect(js).toBeGreaterThan(10_000);
+  expect(js).toBeLessThanOrEqual(150 * 1024);
+  expect(css).toBeGreaterThan(1_000);
+  expect(css).toBeLessThanOrEqual(20 * 1024);
   await cold.close();
 });

@@ -1,7 +1,7 @@
-// Package console serves the owner console: the React app of apps/web, built by Vite into web/ and embedded in the binary
+// Package console serves the owner console: the web app of apps/web, built by Vite into web/ and embedded in the binary
 // (`make build` and `make release` build it first, so a binary never ships a stale UI; web/placeholder.txt alone keeps
 // the package compiling before the first build, and then every page answers 503). Every page URL gets the same
-// index.html; the app picks the screen from the URL. The server keeps the sign-in redirects and the 404 of a chat that is
+// index.html (the lean shell), except a first screen's cold load (cold.go); the app picks the screen from the URL. The server keeps the sign-in redirects and the 404 of a chat that is
 // not the caller's, and marks that 404 in the document so the app shows the not-found page.
 package console
 
@@ -17,8 +17,9 @@ import (
 //go:embed all:web
 var dist embed.FS
 
-// CSP is the policy every page carries: our own script and style only, nothing framed, no plugins. The build emits no
-// inline script or style (Vite links its hashed files), so no nonce or hash is needed.
+// CSP is the policy of the lean shell: our own script and style only, nothing framed, no plugins. The shell has no inline
+// script or style (Vite links its hashed files). The cold page (cold.go) keeps this policy and allows each of its inline blocks
+// by the hash of its bytes, never by 'unsafe-inline'.
 const CSP = "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; " +
 	"object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 

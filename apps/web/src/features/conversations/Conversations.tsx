@@ -1,20 +1,20 @@
 import type { Conversation } from "@convoz/api-client";
 import { ChatIcon } from "@convoz/ui/icons";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
-import { stripCf, whenLabel } from "../../shared/chat.ts";
 import { humanError } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { markUseful } from "../../shared/perf.ts";
 import { data, useData, useLive } from "../../shared/data.ts";
-import { ChevronIcon, GripIcon, groups, moveRow, setMute, setStar, startDrag, stepRow, titleOf, type Drop } from "../rail/index.ts";
+import { ChevronIcon, groups, moveRow, setMute, setStar, stepRow, titleOf, type Drop } from "../rail/index.ts";
 import { toast } from "../pins-stars/index.ts";
 import { markAllRead } from "./actions.ts";
+import { Row, type ReorderMode } from "./Row.tsx";
+
+const VirtualList = lazy(() => import("./VirtualList.tsx"));
 
 /** Lists longer than this are virtualized (design §12.2): only the rows near the screen are in the page. */
 const VIRTUAL_ABOVE = 100;
-const ROW_HEIGHT = 64;
 
 /**
  * Conversations is /chats (prototype v41): Starred, then Conversations, both in the owner's own order (new activity never reorders
@@ -118,7 +118,14 @@ export function Conversations() {
       <p id="chats-head" className="ghdr" data-ghdr="mid" hidden={!g.mid.length}>
         Conversations
       </p>
-      {g.mid.length > VIRTUAL_ABOVE && !reorder ? <VirtualList rows={g.mid} me={me!} /> : <PlainList rows={g.mid} me={me ?? ""} grp="mid" mode={mode} />}
+      {g.mid.length > VIRTUAL_ABOVE && !reorder ? (
+        // Until the virtualizer's chunk arrives the long list shows in full, so the rows are never missing.
+        <Suspense fallback={<PlainList rows={g.mid} me={me ?? ""} grp="mid" mode={mode} />}>
+          <VirtualList rows={g.mid} me={me!} />
+        </Suspense>
+      ) : (
+        <PlainList rows={g.mid} me={me ?? ""} grp="mid" mode={mode} />
+      )}
       {g.older.length ? (
         <>
           <button type="button" id="older-toggle" className="olderbtn" aria-expanded={olderOpen} onClick={() => setOlderOpen((o) => !o)}>
@@ -139,13 +146,6 @@ export function Conversations() {
   );
 }
 
-/** The Reorder mode of the list: handles on the rows of Starred and Conversations (Older rows keep still) until Done. */
-interface ReorderMode {
-  on: boolean;
-  drop(d: Drop): void;
-  step(e: ReactKeyboardEvent<HTMLElement>, c: Conversation): void;
-}
-
 /** useAppbarEnd finds the right end of the top bar, where Done sits while the owner reorders. */
 function useAppbarEnd(): Element | null {
   const [slot, setSlot] = useState<Element | null>(null);
@@ -162,81 +162,6 @@ function PlainList({ rows, me, label = "Conversations", id = "chat-list", grp, m
     </ul>
   );
 }
-
-function VirtualList({ rows, me }: { rows: Conversation[]; me: string }) {
-  const list = useRef<HTMLUListElement>(null);
-  const [margin, setMargin] = useState(0);
-  const scroller = () => list.current?.closest("main") ?? null;
-  useLayoutEffect(() => {
-    const main = scroller();
-    if (main && list.current) setMargin(list.current.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop);
-  }, []);
-  const v = useVirtualizer({ count: rows.length, getScrollElement: scroller, estimateSize: () => ROW_HEIGHT, overscan: 8, scrollMargin: margin, getItemKey: (i) => rows[i]!.id });
-  return (
-    <ul ref={list} id="chat-list" className="chatlist" role="list" aria-label="Conversations" style={{ position: "relative", height: v.getTotalSize() }}>
-      {v.getVirtualItems().map((item) => (
-        <Row
-          key={item.key}
-          c={rows[item.index]!}
-          me={me}
-          index={item.index}
-          measure={v.measureElement}
-          style={{ position: "absolute", top: 0, left: 0, right: 0, transform: `translateY(${item.start - margin}px)` }}
-        />
-      ))}
-    </ul>
-  );
-}
-
-interface RowProps {
-  c: Conversation;
-  me: string;
-  index?: number;
-  measure?: (el: Element | null) => void;
-  style?: CSSProperties;
-  /** The group of a row that can be moved (Older rows have none). */
-  grp?: "starred" | "mid";
-  mode?: ReorderMode;
-}
-
-/** Row is one conversation; a row whose data did not change keeps its node, so a selection in it survives an update. */
-const Row = memo(function Row({ c, me, index, measure, style, grp, mode }: RowProps) {
-  const moving = Boolean(mode?.on && grp);
-  const unread = c.unread > 0;
-  const preview = c.last ? `${c.last.author_handle === me ? "You" : c.last.author_handle}: ${c.last.preview}` : "No messages yet";
-  return (
-    <li className={`${unread ? "unread" : ""}${c.muted_until ? " muted" : ""}`.trim() || undefined} data-id={c.id} data-rid={moving ? c.id : undefined} data-grp={moving ? grp : undefined} data-index={index} ref={measure} style={style}>
-      <a className="chatrow" href={`/chats/${c.id}`} draggable={false} onClick={moving ? (e) => e.preventDefault() : undefined}>
-        <div className="rowbody">
-          <div className="rowtop">
-            <h2 className="rowtitle">{stripCf(c.title ?? "") || "New conversation"}</h2>
-            <span className="sp" />
-            <time className="when">{whenLabel(c.last_activity_at)}</time>
-          </div>
-          <div className="preview">{preview}</div>
-        </div>
-        {unread ? (
-          <span className="count">
-            <span className="sr">Unread: </span>
-            <span>{c.unread > 99 ? "99+" : String(c.unread)}</span>
-          </span>
-        ) : null}
-      </a>
-      {moving && mode ? (
-        <button
-          type="button"
-          className="listgrab"
-          id={`lg-${c.id}`}
-          aria-label={`Reorder ${stripCf(c.title ?? "") || "New conversation"}. Alt plus arrow keys move it.`}
-          onPointerDown={(e) => startDrag(e, mode.drop)}
-          onKeyDown={(e) => mode.step(e, c)}
-        >
-          <GripIcon />
-        </button>
-      ) : null}
-    </li>
-  );
-});
 
 /** RowMenu is the little menu of a conversation row. Escape or a click anywhere else closes it. */
 function RowMenu({ at, row, onRead, onReorder, onClose, onFail }: { at: { x: number; y: number }; row: Conversation | undefined; onRead(): void; onReorder(): void; onClose(): void; onFail(err: unknown): void }) {

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"slices"
 	"sync"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/console"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/settings"
 )
 
 // handler is one route's code. c carries the caller already authenticated for the route's Auth class.
@@ -52,7 +54,88 @@ var Routes = slices.Concat(
 	askRoutes, prefsRoutes, uploadRoutes, transcriptRoutes, searchRoutes, notifyRoutes, settingsRoutes, unfurlRoutes, appkitRoutes, opsRoutes,
 )
 
-func appPage(_ *Server, w http.ResponseWriter, r *http.Request, _ *call) { console.Page(w, r) }
+// appPage serves the app for a page URL: the cold page with the first screen's reads inline when this page has a first screen
+// and the browser itself asks (design §12.2), else the lean shell. The caller is already authenticated for the page's route.
+func appPage(s *Server, w http.ResponseWriter, r *http.Request, _ *call) {
+	if cold != nil && !console.Lean(r) {
+		if data := s.firstReads(r); data != nil {
+			cold.Serve(w, r, data, chooseEncoding(r.Header.Get("Accept-Encoding")) == "br")
+			return
+		}
+	}
+	console.Page(w, r)
+}
+
+// cold is this build's cold page (nil without a web build); its tail carries the confusables set, which the app's markdown reads.
+var cold = func() *console.ColdPage {
+	body, _ := lookalikes()
+	page, err := console.NewColdPage(settings.BootScript, body)
+	if err != nil {
+		panic(err)
+	}
+	return page
+}()
+
+// firstReadRoutes are the route rows of every read a first screen carries inline. A read the table does not serve as a GET is a
+// build defect, found when the server is made.
+func firstReadRoutes() map[string]Route {
+	out := map[string]Route{}
+	for page, reads := range console.FirstReads() {
+		for _, path := range reads {
+			i := slices.IndexFunc(Routes, func(rt Route) bool { return rt.Method == http.MethodGet && rt.Pattern == path })
+			if i < 0 {
+				panic("httpapi: the first screen of " + page + " reads " + path + ", which is no GET route")
+			}
+			out[path] = Routes[i]
+		}
+	}
+	return out
+}
+
+var firstReadsByPage = console.FirstReads()
+
+// firstReads runs each read of this page's first screen as the request's own GET of that route, through the route's own
+// authentication and Auth class (s.route), and returns them as the data block. A read that does not answer 200 is left out (the
+// app asks for it itself); with none left, or a page with no first screen, it returns nil and the page is the lean shell, never
+// a page with empty data.
+func (s *Server) firstReads(r *http.Request) []byte {
+	reads := firstReadsByPage[r.URL.Path]
+	if len(reads) == 0 {
+		return nil
+	}
+	answers := map[string]json.RawMessage{}
+	for _, path := range reads {
+		q := r.Clone(r.Context())
+		q.Method, q.URL, q.RequestURI, q.Body, q.ContentLength = http.MethodGet, &url.URL{Path: path}, path, http.NoBody, 0
+		q.Header.Del("Accept-Encoding")
+		q.Header.Del(console.LeanHeader)
+		rec := &recorder{header: http.Header{}, status: http.StatusOK}
+		s.route(s.readRoutes[path])(rec, q)
+		if rec.status == http.StatusOK && json.Valid(rec.body.Bytes()) {
+			answers[path] = rec.body.Bytes()
+		}
+	}
+	if len(answers) == 0 {
+		return nil
+	}
+	data, err := console.DataBlock(s.Clock.Now(), answers)
+	if err != nil {
+		s.Log.Printf("cold page: %v", err)
+		return nil
+	}
+	return data
+}
+
+// recorder keeps one in-process answer: its status, headers and body.
+type recorder struct {
+	header http.Header
+	status int
+	body   bytes.Buffer
+}
+
+func (w *recorder) Header() http.Header         { return w.header }
+func (w *recorder) WriteHeader(status int)      { w.status = status }
+func (w *recorder) Write(p []byte) (int, error) { return w.body.Write(p) }
 
 func appAsset(_ *Server, w http.ResponseWriter, r *http.Request, _ *call) {
 	console.Asset(w, r, chooseEncoding(r.Header.Get("Accept-Encoding")) == "br")

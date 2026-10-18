@@ -73,6 +73,24 @@ Feature: Poor connections (contracts)
       When the production build is measured
       Then the initial JavaScript is at most 150 KB and the CSS at most 20 KB with brotli
 
+    @v1 @browser @AC-10
+    Scenario: A cold first screen comes in one response
+      When the owner opens Now and the conversation list with an empty cache
+      Then each document carries the screen's code, its stylesheet and its first reads, and the screen draws from them
+      And the browser reports no Content-Security-Policy violation
+
+    @v1 @browser @I-39
+    Scenario: The service worker never caches a page with user data
+      Given the owner opened Now and the conversation list, and the service worker controls the app
+      When both pages open again through the service worker
+      Then Cache Storage holds no page with a data block
+
+    @v1 @browser
+    Scenario: A page back from the back-forward cache checks the session again
+      Given the owner has Now open
+      When the session ends and the page comes back from the back-forward cache
+      Then the browser opens sign in
+
     @v1 @browser
     Scenario: My own message shows at once
       When the owner sends "on it" in conversation 41

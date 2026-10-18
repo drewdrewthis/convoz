@@ -2,24 +2,27 @@ package console
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"io/fs"
 	"math"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/andybalholm/brotli"
 )
 
-// builtCSS is the stylesheet the web build ships.
+// builtCSS is the stylesheet every page of the web build loads (a lazy feature's own stylesheet comes with its chunk).
 func builtCSS(t *testing.T) string {
 	t.Helper()
 	requireBuild(t)
-	names, err := fs.Glob(dist, "web/assets/*.css")
+	names, err := fs.Glob(dist, "web/assets/main-*.css")
 	if err != nil || len(names) != 1 {
 		t.Fatalf("want one built stylesheet, got %v (%v)", names, err)
 	}
@@ -88,12 +91,16 @@ func luminance(t *testing.T, hex string) float64 {
 	return 0.2126*channel(1) + 0.7152*channel(3) + 0.0722*channel(5)
 }
 
-// The page loads only our own files: no inline script or style needs a nonce, and every asset it names is served.
-func TestPageNeedsNoInlineCodeAndItsAssetsAreServed(t *testing.T) {
+// Every page (the lean shell and the cold page) runs only code the CSP names: each inline block has a CSP hash and the policy has
+// no 'unsafe-inline'. The lean shell has no inline block at all, and every asset it names is served.
+func TestEachInlineBlockHasACSPHashAndTheCSPHasNoUnsafeInline(t *testing.T) {
 	requireBuild(t)
 	page := string(index)
 	if regexp.MustCompile(`<script(?:\s[^>]*)?>[^<]`).MatchString(page) || strings.Contains(page, "<style") || strings.Contains(page, " style=") {
-		t.Fatal("index.html carries inline script or style, which the CSP refuses")
+		t.Fatal("index.html carries inline script or style, and its CSP allows none")
+	}
+	if strings.Contains(CSP, "unsafe-inline") {
+		t.Fatalf("the lean page's CSP allows unsafe-inline: %s", CSP)
 	}
 	for _, m := range regexp.MustCompile(`(?:src|href)="/assets/([^"/]+)"`).FindAllStringSubmatch(page, -1) {
 		if m[1] == "lookalikes.js" { // served by httpapi from the identity table
@@ -106,6 +113,128 @@ func TestPageNeedsNoInlineCodeAndItsAssetsAreServed(t *testing.T) {
 		if rec.Code != http.StatusOK || !strings.Contains(rec.Header().Get("Cache-Control"), "immutable") {
 			t.Fatalf("/assets/%s: %d %q", m[1], rec.Code, rec.Header().Get("Cache-Control"))
 		}
+	}
+
+	body, csp := serveCold(t, false, []byte(`{"generated_at":1,"reads":{}}`))
+	if strings.Contains(csp, "unsafe-inline") || strings.Contains(csp, "unsafe-eval") {
+		t.Fatalf("the cold page's CSP allows unsafe code: %s", csp)
+	}
+	blocks := inlineBlocks(body)
+	if len(blocks) < 5 { // theme boot, main bundle, stylesheet, confusables, data
+		t.Fatalf("the cold page has %d inline blocks", len(blocks))
+	}
+	for _, b := range blocks {
+		if !strings.Contains(csp, b.hash) {
+			t.Fatalf("an inline %s block (%.60q) has no hash in the CSP", b.kind, b.text)
+		}
+		// A changed byte is a block the policy does not allow.
+		changed := []byte(b.text)
+		changed[len(changed)/2] ^= 1
+		if strings.Contains(csp, cspHash(changed)) {
+			t.Fatalf("the CSP allows an inline %s block with a changed byte", b.kind)
+		}
+	}
+}
+
+type block struct{ kind, text, hash string }
+
+// inlineBlocks reads every inline script and style of a page, each with the CSP source of its exact bytes.
+func inlineBlocks(page string) []block {
+	var out []block
+	for _, kind := range []string{"script", "style"} {
+		for _, m := range regexp.MustCompile(`(?s)<`+kind+`(\s[^>]*)?>(.*?)</`+kind+`>`).FindAllStringSubmatch(page, -1) {
+			if strings.Contains(m[1], " src=") {
+				continue
+			}
+			out = append(out, block{kind, m[2], cspHash([]byte(m[2]))})
+		}
+	}
+	return out
+}
+
+// bootScript is the theme boot script the build inlined: the first script of the cold page. (httpapi checks that it is the
+// settings module's own; this package may not import that module.)
+func bootScript(t *testing.T) []byte {
+	t.Helper()
+	m := regexp.MustCompile(`(?s)<script>(.*?)</script>`).FindSubmatch(coldHead)
+	if m == nil {
+		t.Fatal("the cold page has no boot script")
+	}
+	return m[1]
+}
+
+// serveCold serves this build's cold page with its theme boot script and a stand-in confusables script.
+func serveCold(t *testing.T, br bool, data []byte) (string, string) {
+	t.Helper()
+	requireBuild(t)
+	p, err := NewColdPage(bootScript(t), []byte("globalThis.CONVOZ_LOOKALIKES=[];"))
+	if err != nil || p == nil {
+		t.Fatalf("cold page: %v %v", p, err)
+	}
+	rec := httptest.NewRecorder()
+	p.Serve(rec, httptest.NewRequest("GET", "/", nil), data, br)
+	body := rec.Body.Bytes()
+	if br {
+		if rec.Header().Get("Content-Encoding") != "br" {
+			t.Fatalf("br: Content-Encoding %q", rec.Header().Get("Content-Encoding"))
+		}
+		var err error
+		if body, err = io.ReadAll(brotli.NewReader(bytes.NewReader(body))); err != nil {
+			t.Fatalf("the brotli page does not decode: %v", err)
+		}
+	}
+	h := rec.Header()
+	if rec.Code != http.StatusOK || h.Get("Cache-Control") != "no-store" || !slices.Contains(h.Values("Vary"), "Cookie") {
+		t.Fatalf("cold page: %d, Cache-Control %q, Vary %q", rec.Code, h.Get("Cache-Control"), h.Values("Vary"))
+	}
+	return string(body), h.Get("Content-Security-Policy")
+}
+
+// The brotli copy is the build's static part continued in the same stream: it decodes to exactly the plain page.
+func TestColdPageInBrotliDecodesToThePlainPage(t *testing.T) {
+	data := []byte(`{"generated_at":1,"reads":{"/api/me":{"x":"` + strings.Repeat("y", 70_000) + `"}}}`) // more than one stored block
+	plain, _ := serveCold(t, false, data)
+	packed, _ := serveCold(t, true, data)
+	if packed != plain {
+		t.Fatalf("brotli %d bytes, plain %d bytes: not the same page", len(packed), len(plain))
+	}
+	if !strings.HasSuffix(plain, `<script type="application/json" id="cz-data">`+string(data)+"</script>\n</body>\n</html>\n") {
+		t.Fatal("the data block is not the end of the page")
+	}
+}
+
+// A message body cannot end the data block: <, >, & and the line separators the old JSON-in-script rules feared are escaped,
+// and the block still reads back to the same text.
+func TestDataBlockEscapesMarkupAndLineSeparators(t *testing.T) {
+	text := "</script><script>alert(1)</script> <!-- & \u2028 \u2029 end"
+	answer, _ := json.Marshal(map[string]string{"body": text})
+	out, err := DataBlock(time.UnixMilli(1234), map[string]json.RawMessage{"/api/conversations": answer})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.ContainsAny(string(out), "<>&\u2028\u2029") {
+		t.Fatalf("the data block holds raw markup or a line separator: %s", out)
+	}
+	var back struct {
+		GeneratedAt int64                        `json:"generated_at"`
+		Reads       map[string]map[string]string `json:"reads"`
+	}
+	if err := json.Unmarshal(out, &back); err != nil || back.GeneratedAt != 1234 || back.Reads["/api/conversations"]["body"] != text {
+		t.Fatalf("read back: %+v %v", back, err)
+	}
+	page, csp := serveCold(t, false, out)
+	if strings.Count(page, "</script>") != strings.Count(page, "<script") || !strings.Contains(csp, cspHash(out)) {
+		t.Fatal("the data block's text ended a script element, or its hash is not in the CSP")
+	}
+}
+
+func TestColdPageRefusesABuildWithAnotherBootScript(t *testing.T) {
+	requireBuild(t)
+	if _, err := NewColdPage([]byte("(function(){})();"), nil); err == nil {
+		t.Fatal("a cold page whose theme boot script is not the server's was accepted")
+	}
+	if _, err := NewColdPage(bootScript(t), []byte("x='</script>'")); err == nil {
+		t.Fatal("a tail script that ends its own block was accepted")
 	}
 }
 
