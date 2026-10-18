@@ -103,6 +103,7 @@ for (const mode of ["Light", "Dark"]) {
     });
     // Answering the other asks made an "Answered today" chip; the app has it only when it answered some, and its seed answers none.
     await frame.evaluate((el) => [...el.querySelectorAll("button")].filter((b) => b.textContent.trim().startsWith("Answered today")).forEach((b) => b.remove()));
+    await frame.evaluate((el) => [el, ...el.querySelectorAll("*")].forEach((n) => (n.scrollTop = 0))); // the taller cards (Reply in thread) made the clicks scroll the list
     await page.waitForTimeout(10500); // the toast stays 10 s
     await shot("now-asks");
     await page.close();
