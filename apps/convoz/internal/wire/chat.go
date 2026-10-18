@@ -70,20 +70,21 @@ type Message struct {
 	Format    string `json:"format"`
 	CreatedAt int64  `json:"created_at"`
 
-	Kind         string   `json:"kind,omitempty"` // text, ask or system
-	Ask          *AskView `json:"ask,omitempty"`  // the ask a message of kind ask carries
-	ThreadRootID int64    `json:"thread_root_id,omitempty"`
-	Broadcast    bool     `json:"broadcast,omitempty"`
-	ReplyCount   int64    `json:"reply_count,omitempty"`
-	LastReplyAt  int64    `json:"last_reply_at,omitempty"` // when the newest reply came, for a thread root
-	EditedAt     int64    `json:"edited_at,omitempty"`
-	AnswersAsk   int64    `json:"answers_ask_id,omitempty"` // the ask this message answers
-	Deleted      bool     `json:"deleted,omitempty"`        // a tombstone: Body is empty
-	Purged       bool     `json:"purged,omitempty"`
-	System       *System  `json:"system,omitempty"`
-	Text         string   `json:"text,omitempty"` // a system line's words, the plain-text projection
-	SessionLabel string   `json:"session_label,omitempty"`
-	Machine      string   `json:"machine,omitempty"`
+	Kind         string     `json:"kind,omitempty"` // text, ask or system
+	Ask          *AskView   `json:"ask,omitempty"`  // the ask a message of kind ask carries
+	ThreadRootID int64      `json:"thread_root_id,omitempty"`
+	Broadcast    bool       `json:"broadcast,omitempty"`
+	ReplyCount   int64      `json:"reply_count,omitempty"`
+	LastReplyAt  int64      `json:"last_reply_at,omitempty"` // when the newest reply came, for a thread root
+	LastReply    *LastReply `json:"last_reply,omitempty"`    // the newest reply itself, for a thread root: the peek under its reply chip
+	EditedAt     int64      `json:"edited_at,omitempty"`
+	AnswersAsk   int64      `json:"answers_ask_id,omitempty"` // the ask this message answers
+	Deleted      bool       `json:"deleted,omitempty"`        // a tombstone: Body is empty
+	Purged       bool       `json:"purged,omitempty"`
+	System       *System    `json:"system,omitempty"`
+	Text         string     `json:"text,omitempty"` // a system line's words, the plain-text projection
+	SessionLabel string     `json:"session_label,omitempty"`
+	Machine      string     `json:"machine,omitempty"`
 	// App is the app of the message in full when it is at most AppInlineBytes, else an AppStub (GET /api/messages/:id/app has the full app).
 	App json.RawMessage `json:"app,omitempty"`
 	// ViaApp is set on a message the owner sent through an app of an agent (I-46).
@@ -93,6 +94,16 @@ type Message struct {
 	Uploads []Upload `json:"uploads,omitempty"`
 	// Mentions are the identities the body @mentions, by id: a handle an agent had before still names it (I-51).
 	Mentions []MentionSpan `json:"mentions,omitempty"`
+}
+
+// LastReply is the newest reply of a thread as the reply chip shows it. Unread is set when it is newer than the reader's read point
+// in a thread the reader is involved in (DA-3), so it is per reader.
+type LastReply struct {
+	ID        int64  `json:"id"`
+	Author    Person `json:"author"`
+	Preview   string `json:"preview"` // the plain-text projection, at most 120 characters
+	CreatedAt int64  `json:"created_at"`
+	Unread    bool   `json:"unread,omitempty"`
 }
 
 // MentionSpan is one @mention: the handle as written, and the identity it names with its handle now.

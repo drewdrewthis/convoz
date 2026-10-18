@@ -1,6 +1,9 @@
 # Source: design draft 9 §8 (I-8, I-14), §8.2 (unread math, involvement rule DA-3), §13 replies route.
-# Prototype: thread pane with "Reply…", "Also send to conversation" (broadcast), agents answer inside the thread,
-# a thread reply stays unread until that thread is opened.
+# Prototype: thread pane with "Reply…", agents answer inside the thread, a thread reply stays unread until that thread is opened.
+# Owner decision 2026-10-18 (design B, mini app): "Replies stay in the thread. The message gets a bold reply chip and a faded peek of the
+# last reply. Tap the chip to open the thread." Earlier, verbatim: "'also reply in the conversation' I think this is dumb. I want a
+# better ui. Should be clear in the main, and easy to jump into a thread." The "Also send to conversation" box is gone from the web;
+# the API still takes broadcast (the CLI and agents use it).
 # Every scenario runs end to end in a browser or through the API against a real `convoz serve` on a fresh `mktemp -d` data dir.
 
 Feature: Threads
@@ -23,12 +26,6 @@ Feature: Threads
       And message 900 shows "1 reply" in the main list
       And the main list does not show the reply itself
 
-    @v1 @browser
-    Scenario: Also send to conversation copies a reply to the main list
-      When the owner replies in thread 900 with "Also send to conversation" ticked
-      Then the reply shows in the thread and in the main list
-      And it counts once in any unread total
-
     @v1 @cli
     Scenario: Reply to a message inside a thread goes to its root
       Given "docs" replied "Looks fine to me" in thread 900
@@ -43,7 +40,7 @@ Feature: Threads
       Given the owner has read conversation 41
       When "docs" posts 5 replies in thread 900
       Then conversation 41 is not bold in the rail
-      And message 900 shows "5 replies" with the time of the last one
+      And message 900 shows "5 replies · @docs"
 
     @v1 @browser @I-14
     Scenario: Replies in a thread the owner replied in count as unread
@@ -92,3 +89,45 @@ Feature: Threads
       When the owner taps the reply chip once
       Then the thread pane is open
       And the reply chip is at least 44 px tall
+
+  Rule: A thread root shows its last reply in the main list
+
+    # Owner decision 2026-10-18, design B: "Replies stay in the thread. The message gets a bold reply chip and a faded peek of the last reply.
+    # Tap the chip to open the thread." and "Should be clear in the main, and easy to jump into a thread."
+    @v1 @browser
+    Scenario: The reply chip shows the count and the last replier
+      Given "devtool" and "docs" replied in thread 900, "docs" last
+      When the owner opens conversation 41
+      Then message 900 has a chip "2 replies · @docs" at least 44 px tall
+      And a reply of the owner reads "you" in the chip
+
+    @v1 @browser
+    Scenario: The peek shows the last reply
+      Given "docs" replied with a long reply in thread 900
+      When the owner opens conversation 41
+      Then under the chip one faded line shows "docs: " and the reply as plain text, cut with an ellipsis
+
+    @v1 @browser
+    Scenario: A new reply updates the chip live
+      Given conversation 41 is open and message 900 shows "1 reply · @devtool"
+      When "docs" replies in thread 900
+      Then without a reload the chip reads "2 replies · @docs" and the peek "docs: Same here."
+
+    @v1 @browser @phone
+    Scenario: One tap on the peek opens the thread
+      Given conversation 41 is open on a phone and message 900 has a reply
+      When the owner taps the peek once
+      Then the thread pane is open with the reply
+
+    @v1 @browser
+    Scenario: The thread pane has no Also send to conversation box
+      Given the owner opened the thread of message 900
+      Then the pane has a reply box and no "Also send to conversation" box
+      And a reply stays in the thread
+
+    @v1 @browser @I-14
+    Scenario: The chip has a dot while the last reply is unread
+      Given the owner replied in thread 900 and "devtool" answered
+      Then the chip shows a dot
+      When the owner reads the thread
+      Then the dot is gone, and a newer reply brings it back

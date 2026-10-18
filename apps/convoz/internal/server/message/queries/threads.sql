@@ -26,3 +26,9 @@ SELECT CAST(COALESCE(MAX(id), 0) AS INTEGER) FROM messages WHERE conversation_id
 SELECT CAST(COALESCE(MAX(id), 0) AS INTEGER) FROM messages
 WHERE conversation_id = sqlc.arg(conversation_id) AND kind = 'text' AND deleted_at IS NULL AND author_id IN (sqlc.slice(authors))
   AND ((CAST(sqlc.arg(root) AS INTEGER) = 0 AND in_main = 1) OR (CAST(sqlc.arg(root) AS INTEGER) <> 0 AND (thread_root_id = CAST(sqlc.arg(root) AS INTEGER) OR id = CAST(sqlc.arg(root) AS INTEGER))));
+
+-- name: NewestReply :one
+-- The newest reply of a thread that still reads: the "last reply" under a root.
+SELECT * FROM message_rows
+WHERE thread_root_id = sqlc.arg(root_id) AND kind <> 'system' AND deleted_at IS NULL
+ORDER BY id DESC LIMIT 1;

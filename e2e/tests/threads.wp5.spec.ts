@@ -8,7 +8,6 @@ import { expect, scenario } from "../lib/scenario.ts";
 import {
   ROOT_TEXT,
   agentReplies,
-  alsoSend,
   closeThread,
   mainList,
   openThread,
@@ -19,6 +18,7 @@ import {
   replyBox,
   replyInThread,
   replyLine,
+  replyPeek,
   sendReply,
   threadLog,
   threadOf,
@@ -45,10 +45,13 @@ import { seedDb } from "../lib/wp3.ts";
  *   read in its thread. Opening a conversation moves the main cursor only. The rail row is bold with an "Unread: N" pill (99+ above 99).
  *
  * THE PAGE (locators are role, name and text only)
- *   Under a thread root in the main list a button "Open thread, N replies · last reply 5m" (N reply, 1 reply); "Reply in thread" is an item
+ *   Under a thread root in the main list a bold reply chip, a button "Open thread, N replies · @handle" (N reply, 1 reply; "you" for the
+ *   viewer, ", unread" after it when the last reply is past the viewer's read point), and under it a faded peek, a button "Last reply by
+ *   handle: preview". One tap on either opens the thread. A thread root carries last_reply {id, author, preview (at most 120 characters),
+ *   created_at, unread?} in the messages list and in the thread.updated frame. "Reply in thread" is an item
  *   of the "Message actions" menu of a message without replies. The thread opens as a dialog "Thread in <title>" on a phone and as a
  *   complementary "Thread in <title>" beside the chat on a wide screen. Inside: a log "Thread messages" (the root, then the replies), a
- *   textbox "Reply in thread" (placeholder "Reply…"), a checkbox "Also send to conversation", a button "Send reply", and "Close thread"
+ *   textbox "Reply in thread" (placeholder "Reply…"), a button "Send reply" (no "Also send to conversation" box), and "Close thread"
  *   (wide) or "Back" (phone). A reply that is also in the main list reads "replied to a thread" above it there.
  */
 
@@ -91,37 +94,9 @@ scenario("The owner replies in a thread", { tag: ["@browser"] }, async ({ server
 
   // And the main list does not show the reply itself
   await expect(messageLog(page).getByRole("article")).toHaveCount(1);
-  await expect(messageLog(page)).not.toContainText("Can step 1 ship on its own?");
+  await expect(replyPeek(message(page, ROOT_TEXT))).toHaveText("you: Can step 1 ship on its own?"); // owner design B: the root peeks at it, it is no message of the list
   expect((await mainList(t.w.owner, t.conv)).map((m) => m.body)).toEqual([ROOT_TEXT]);
   expect((await threadOf(t.w.owner, t.root)).messages.map((m) => m.body)).toEqual(["Can step 1 ship on its own?"]);
-});
-
-scenario("Also send to conversation copies a reply to the main list", { tag: ["@browser"] }, async ({ server, page, context }) => {
-  // Background
-  const t = await threadWorld({ server, page, context }, { browser: true });
-  await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
-  await expect(message(page, ROOT_TEXT)).toBeVisible();
-  await openThread(page, ROOT_TEXT);
-
-  // When the owner replies in thread 900 with "Also send to conversation" ticked
-  await expect(alsoSend(page)).not.toBeChecked();
-  await replyInThread(page, "Step 1 can ship alone", true);
-
-  // Then the reply shows in the thread and in the main list
-  await expect(threadLog(page).getByRole("article").filter({ hasText: "Step 1 can ship alone" })).toBeVisible();
-  await closeThread(page);
-  await expect(message(page, "Step 1 can ship alone")).toBeVisible();
-  await expect(message(page, "Step 1 can ship alone")).toContainText("replied to a thread");
-  const copy = (await mainList(t.w.owner, t.conv)).find((m) => m.body === "Step 1 can ship alone");
-  expect(copy?.thread_root_id).toBe(t.root);
-
-  // And it counts once in any unread total
-  expect(await unread(t)).toBe(0); // the owner wrote it: no unread for itself
-  await page.goto(`${t.w.srv.origin}/chats`);
-  await rail(page).waitFor();
-  await agentReplies(t, t.dev, "Also for the main list", true); // a reader's copy counts once: main list and thread are one message
-  await expect(unreadDot(rail(page))).toHaveText("Unread: 1");
-  expect(await unread(t)).toBe(1);
 });
 
 // ---- Rule: Thread replies count as unread only where the owner is involved (DA-3) ---------------------------
@@ -138,8 +113,8 @@ scenario("Replies in a thread the owner is not in never make the conversation bo
   // When "docs" posts 5 replies in thread 900
   for (let i = 1; i <= 5; i++) await agentReplies(t, t.docs, `docs reply ${i}`);
 
-  // And message 900 shows "5 replies" with the time of the last one
-  await expect(replyLine(message(page, ROOT_TEXT))).toHaveText(/^5 replies · last reply (now|\d+[mhd])$/);
+  // And message 900 shows "5 replies" with the last replier
+  await expect(replyLine(message(page, ROOT_TEXT))).toHaveText("5 replies · @docs");
 
   // Then conversation 41 is not bold in the rail
   await backButton(page).click();
@@ -238,7 +213,7 @@ scenario("A broadcast reply read in its thread is read in the main list", { tag:
 
   // When the owner reads it in the thread pane
   await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
-  await expect(message(page, "Yes, and the main list should know")).toBeVisible();
+  await expect(message(page, "Yes, and the main list should know").filter({ hasText: "replied to a thread" })).toBeVisible(); // the root's peek shows the text too
   await openThread(page, ROOT_TEXT);
   await expect(threadLog(page).getByRole("article").filter({ hasText: "Yes, and the main list should know" })).toBeVisible();
 
@@ -412,4 +387,125 @@ scenario("One tap on the reply chip opens the thread pane", { tag: ["@browser", 
   // And the reply chip is at least 44 px tall
   await closeThread(page);
   expect((await chip.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+});
+
+// ---- Rule: A thread root shows its last reply in the main list -----------------------------------------------
+// Owner decision 2026-10-18, design B in the mini app: "Replies stay in the thread. The message gets a bold reply chip and a faded peek of
+// the last reply. Tap the chip to open the thread." Earlier, verbatim: "'also reply in the conversation' I think this is dumb. I want a
+// better ui. Should be clear in the main, and easy to jump into a thread."
+
+scenario("The reply chip shows the count and the last replier", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given "devtool" and "docs" replied in thread 900, "docs" last
+  const t = await threadWorld({ server, page, context }, { browser: true });
+  await agentReplies(t, t.dev, "Fixing it to open on one tap.");
+  await agentReplies(t, t.docs, "Looks right to me.");
+
+  // When the owner opens conversation 41
+  await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
+
+  // Then message 900 has a chip "2 replies · @docs" at least 44 px tall
+  const chip = replyLine(message(page, ROOT_TEXT));
+  await expect(chip).toHaveText("2 replies · @docs");
+  expect((await chip.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  // And the server sent the last reply with the root
+  const root = (await mainList(t.w.owner, t.conv)).find((m) => m.id === t.root);
+  expect(root?.last_reply).toMatchObject({ author: { handle: "docs", kind: "agent" }, preview: "Looks right to me." });
+
+  // And a reply of the owner reads "you"
+  await ownerReplies(t, "Ship it.");
+  await expect(chip).toHaveText("3 replies · you");
+});
+
+scenario("The peek shows the last reply", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given "devtool" replied "Fixing it to open on one tap." in thread 900 and "docs" replied with a long reply
+  const t = await threadWorld({ server, page, context }, { browser: true });
+  await agentReplies(t, t.dev, "Fixing it to open on one tap.");
+  const long = "docs says this reply is long ".repeat(12);
+  await agentReplies(t, t.docs, `**${long}**`);
+
+  // When the owner opens conversation 41
+  await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
+
+  // Then under the chip one faded line shows "docs: <the reply as plain text>" cut with an ellipsis
+  const peek = replyPeek(message(page, ROOT_TEXT));
+  await expect(peek).toContainText("docs: docs says this reply is long");
+  await expect(peek).not.toContainText("**");
+  await expect(peek).toHaveCSS("text-overflow", "ellipsis");
+  const root = (await mainList(t.w.owner, t.conv)).find((m) => m.id === t.root);
+  expect(root!.last_reply!.preview.length).toBeLessThanOrEqual(120);
+  expect(root!.last_reply!.preview.length).toBeGreaterThan(100);
+});
+
+scenario("A new reply updates the chip live", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given conversation 41 is open and message 900 shows "1 reply · @devtool"
+  const t = await threadWorld({ server, page, context }, { browser: true });
+  await agentReplies(t, t.dev, "Fixing it to open on one tap.");
+  await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
+  const root = message(page, ROOT_TEXT);
+  await expect(replyLine(root)).toHaveText("1 reply · @devtool");
+
+  // When "docs" replies in thread 900
+  await agentReplies(t, t.docs, "Same here.");
+
+  // Then, without a reload, the chip reads "2 replies · @docs" and the peek "docs: Same here."
+  await expect(replyLine(root)).toHaveText("2 replies · @docs");
+  await expect(replyPeek(root)).toHaveText("docs: Same here.");
+});
+
+scenario("One tap on the peek opens the thread", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
+  // Given conversation 41 is open on a phone and message 900 has a reply
+  const t = await threadWorld({ server, page, context }, { browser: true });
+  await agentReplies(t, t.dev, "Fixing it to open on one tap.");
+  await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
+  const peek = replyPeek(message(page, ROOT_TEXT));
+  await expect(peek).toBeVisible();
+  expect((await peek.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+
+  // When the owner taps the peek once
+  await peek.tap();
+
+  // Then the thread pane is open with the reply
+  await expect(threadPane(page)).toBeVisible({ timeout: 2000 });
+  await expect(threadLog(page).getByRole("article").filter({ hasText: "Fixing it to open on one tap." })).toBeVisible();
+});
+
+scenario("The thread pane has no Also send to conversation box", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given the owner opened the thread of message 900
+  const t = await threadWorld({ server, page, context }, { browser: true });
+  await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
+  await openThread(page, ROOT_TEXT);
+
+  // Then the pane has a reply box and no "Also send to conversation" box
+  await expect(replyBox(page)).toBeVisible();
+  await expect(threadPane(page).getByRole("checkbox")).toHaveCount(0);
+  await expect(threadPane(page)).not.toContainText("Also send to conversation");
+
+  // And a reply stays in the thread
+  await replyInThread(page, "Step 1 can ship alone");
+  await expect(threadLog(page).getByRole("article").filter({ hasText: "Step 1 can ship alone" })).toBeVisible();
+  expect((await mainList(t.w.owner, t.conv)).map((m) => m.body)).toEqual([ROOT_TEXT]);
+});
+
+scenario("The chip has a dot while the last reply is unread", { tag: ["@browser", "@I-14"] }, async ({ server, page, context }) => {
+  // Given the owner replied in thread 900 and "devtool" answered
+  const t = await threadWorld({ server, page, context }, { browser: true });
+  await ownerReplies(t, "Can step 1 ship on its own?");
+  await agentReplies(t, t.dev, "Yes.");
+  await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
+  const chip = replyLine(message(page, ROOT_TEXT));
+
+  // Then the chip shows a dot
+  await expect(chip).toHaveAccessibleName(/, unread$/);
+  expect((await mainList(t.w.owner, t.conv)).find((m) => m.id === t.root)?.last_reply?.unread).toBe(true);
+
+  // When the owner reads the thread
+  await chip.click();
+  await expect(threadLog(page).getByRole("article").filter({ hasText: "Yes." })).toBeVisible();
+  await closeThread(page);
+
+  // Then the dot is gone, and a newer reply brings it back
+  await expect(chip).not.toHaveAccessibleName(/unread/);
+  await agentReplies(t, t.docs, "Another view.");
+  await expect(chip).toHaveText("3 replies · @docs");
+  await expect(chip).toHaveAccessibleName(/, unread$/);
 });

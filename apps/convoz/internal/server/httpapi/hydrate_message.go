@@ -59,13 +59,16 @@ func hydrateMessage(name string) hydrator {
 		if err := attachUploads(ctx, d, []*wire.Message{&v}); err != nil {
 			return name, nil, err
 		}
+		if err := attachLastReplies(ctx, d, dir, c.p, ev.Conversation, []*wire.Message{&v}); err != nil {
+			return name, nil, err
+		}
 		data, err := json.Marshal(messageFrame{Message: v, ConversationID: ev.Conversation, AuthorHandle: v.Author.Handle})
 		return name, data, err
 	}
 }
 
 // hydrateThread tells a reader how many replies a thread root has now and when the newest came.
-func hydrateThread(ctx context.Context, s *Server, c *call, _ directory, ev event.Event) (string, []byte, error) {
+func hydrateThread(ctx context.Context, s *Server, c *call, dir directory, ev event.Event) (string, []byte, error) {
 	if _, visible, err := canSee(ctx, s.reader(), c.p, ev.Conversation); err != nil || !visible {
 		return "thread.updated", nil, err
 	}
@@ -75,11 +78,16 @@ func hydrateThread(ctx context.Context, s *Server, c *call, _ directory, ev even
 		LastReplyID int64 `json:"last_reply_id"`
 	}
 	_ = json.Unmarshal([]byte(ev.Payload), &p)
-	frame := map[string]int64{"conversation_id": ev.Conversation, "root_id": p.RootID, "reply_count": p.ReplyCount, "last_reply_id": p.LastReplyID}
+	frame := map[string]any{"conversation_id": ev.Conversation, "root_id": p.RootID, "reply_count": p.ReplyCount, "last_reply_id": p.LastReplyID}
 	if root, ok, err := message.Get(ctx, s.reader(), p.RootID); err != nil {
 		return "thread.updated", nil, err
 	} else if ok {
 		frame["last_reply_at"] = root.LastReplyAt
+	}
+	if lr, err := lastReplyOf(ctx, s.reader(), dir, c.p, ev.Conversation, p.RootID); err != nil {
+		return "thread.updated", nil, err
+	} else if lr != nil {
+		frame["last_reply"] = lr
 	}
 	data, err := json.Marshal(frame)
 	return "thread.updated", data, err

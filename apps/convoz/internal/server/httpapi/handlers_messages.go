@@ -308,6 +308,10 @@ func (s *Server) listMessages(w http.ResponseWriter, r *http.Request, c *call) {
 		s.internalError(w, r, err)
 		return
 	}
+	if err := attachLastRepliesSlice(ctx, d, dir, c.p, id, out); err != nil {
+		s.internalError(w, r, err)
+		return
+	}
 	if hasThread {
 		out = threadWithStub(out, root, floor)
 	}

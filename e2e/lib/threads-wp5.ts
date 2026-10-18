@@ -77,7 +77,7 @@ export async function threadOf(owner: Owner, root: number): Promise<{ conversati
 }
 
 /** The main list as the owner reads it, newest page. */
-export async function mainList(owner: Owner, conv: number): Promise<{ id: number; body: string; thread_root_id?: number }[]> {
+export async function mainList(owner: Owner, conv: number): Promise<{ id: number; body: string; thread_root_id?: number; last_reply?: { id: number; author: { handle: string; kind: string }; preview: string; unread?: boolean } }[]> {
   return must(await owner.client.get(`/api/conversations/${conv}/messages?limit=100`), "read the main list").json().messages;
 }
 
@@ -87,10 +87,11 @@ export async function mainList(owner: Owner, conv: number): Promise<{ id: number
 export const threadPane = (page: Page): Locator => page.getByRole("dialog", { name: /^Thread / }).or(page.getByRole("complementary", { name: /^Thread / }));
 export const threadLog = (page: Page): Locator => threadPane(page).getByRole("log", { name: "Thread messages" });
 export const replyBox = (page: Page): Locator => threadPane(page).getByRole("textbox", { name: "Reply in thread" });
-export const alsoSend = (page: Page): Locator => threadPane(page).getByRole("checkbox", { name: "Also send to conversation" });
 export const sendReply = (page: Page): Locator => threadPane(page).getByRole("button", { name: "Send reply" });
-/** The reply line under a thread root in the main list: "5 replies · last reply now". */
+/** The reply chip under a thread root in the main list: "↳ 5 replies · @docs" (the last replier, or "you"). */
 export const replyLine = (root: Locator): Locator => root.getByRole("button", { name: /^Open thread, / });
+/** The faded peek under the chip: "docs: Looks right to me." (the last reply). */
+export const replyPeek = (root: Locator): Locator => root.getByRole("button", { name: /^Last reply by / });
 
 /** Open the thread of the message with this text: its reply line when it has replies, else "Reply in thread" in its menu. */
 export async function openThread(page: Page, text: string): Promise<void> {
@@ -114,8 +115,7 @@ export async function closeThread(page: Page): Promise<void> {
 }
 
 /** Write a reply in the open pane and send it with the button (Enter in the field does the same). */
-export async function replyInThread(page: Page, text: string, also = false): Promise<void> {
-  if (also) await alsoSend(page).check();
+export async function replyInThread(page: Page, text: string): Promise<void> {
   await replyBox(page).fill(text);
   await sendReply(page).click();
 }

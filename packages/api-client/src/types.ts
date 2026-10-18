@@ -58,6 +58,8 @@ export interface ThreadUpdatedFrame {
   last_reply_id: number;
   /** When the newest reply came (ms); absent from a server that does not send it. */
   last_reply_at?: number;
+  /** The newest reply as this reader sees it, for the reply chip; absent from a server that does not send it. */
+  last_reply?: NonNullable<Message["last_reply"]>;
 }
 
 /** The named frames of GET /api/stream and their payloads. */

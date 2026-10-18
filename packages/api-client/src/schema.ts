@@ -2283,6 +2283,17 @@ export interface components {
              * @description When the newest reply came
              */
             last_reply_at?: number;
+            /** @description The newest reply of a thread root, for the reply chip under it. Unread is per reader: set when the reply is someone else's, in a thread the reader is in, and past the reader's read point there. */
+            last_reply?: {
+                /** Format: int64 */
+                id: number;
+                author: components["schemas"]["Person"];
+                /** @description The plain-text projection of the reply, up to 120 characters. */
+                preview: string;
+                /** Format: int64 */
+                created_at: number;
+                unread?: boolean;
+            };
             /** Format: int64 */
             edited_at?: number;
             deleted?: boolean;

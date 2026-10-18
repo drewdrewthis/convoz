@@ -34,12 +34,12 @@ export interface ThreadPaneProps {
 }
 
 /**
- * ThreadPane is the open thread (prototype v41): the root and its replies, a "Reply…" box and "Also send to conversation".
+ * ThreadPane is the open thread (prototype v41): the root and its replies, and a "Reply…" box. A reply stays in the thread (owner ruling 2026-10-18).
  * Beside the chat on a wide screen, a full-screen sheet with Back on a phone. It draws nothing when no thread is open.
  */
 export function ThreadPane({ title, bubbles }: ThreadPaneProps) {
   const t = useThreads((s) => s.open);
-  const { close, setAlso, reply } = useThreads.getState();
+  const { close, reply } = useThreads.getState();
   const wide = useWide();
   const [text, setText] = useState("");
   const input = useRef<HTMLInputElement>(null);
@@ -137,10 +137,6 @@ export function ThreadPane({ title, bubbles }: ThreadPaneProps) {
             </button>
           ) : null}
         </div>
-        <label className="alsorow">
-          <input type="checkbox" checked={t.also} onChange={(e) => setAlso(e.target.checked)} />
-          Also send to conversation
-        </label>
       </form>
     </>
   );
