@@ -17,7 +17,7 @@ import (
 )
 
 func init() {
-	Register(Command{Name: "app", Order: 90, Run: App,
+	Register(Command{Name: "app", Summary: "Make and check an app before you post it.", Example: "convoz app init ./my-app", Order: 90, Run: App,
 		Usage: "convoz app init <dir>\n       convoz app build [--out DIR] <dir>\n       convoz app validate <file>"})
 }
 

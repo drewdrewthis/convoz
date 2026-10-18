@@ -171,6 +171,7 @@ export async function peekFor(box: CliMachine, sid: string, conv: number): Promi
 interface WatchLine {
   item_id: number;
   claim_token: string;
+  ack: string;
   reason: string;
   conversation_id: number;
   conversation_title: string | null;

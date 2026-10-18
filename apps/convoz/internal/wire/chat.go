@@ -215,8 +215,10 @@ type AckResponse struct {
 
 // WatchLine is what `convoz watch --json` prints for each item: one line of JSON.
 type WatchLine struct {
-	ItemID            int64   `json:"item_id"`
-	ClaimToken        string  `json:"claim_token"`
+	ItemID     int64  `json:"item_id"`
+	ClaimToken string `json:"claim_token"`
+	// Ack is the ready argument for `convoz ack`: "<item_id>:<claim_token>".
+	Ack               string  `json:"ack"`
 	Reason            string  `json:"reason"`
 	ConversationID    int64   `json:"conversation_id"`
 	ConversationTitle *string `json:"conversation_title"`

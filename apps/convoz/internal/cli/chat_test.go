@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -76,5 +77,29 @@ func TestAnInboxLineShowsNoControlCharacters(t *testing.T) {
 	got := itemLine(it)
 	if strings.ContainsAny(got, "\x1b\n") || !strings.HasSuffix(got, "@drew: hi[2J there") {
 		t.Errorf("one clean line: %q", got)
+	}
+}
+
+// `convoz ack` takes id:token, "id token" and watch lines on stdin; a wrong form names the accepted ones.
+func TestAckRefs(t *testing.T) {
+	want := []wire.AckRef{{ID: 1, ClaimToken: "50d2"}}
+	for name, in := range map[string]struct {
+		pos   []string
+		stdin string
+	}{
+		"colon form": {[]string{"1:50d2"}, ""},
+		"two words":  {[]string{"1", "50d2"}, ""},
+		"json line":  {[]string{"-"}, `{"item_id":1,"claim_token":"50d2","ack":"1:50d2","body":"x"}` + "\n"},
+		"text line":  {[]string{"-"}, `1:50d2 conv 41 "t" mention x1 #3 @drew: hi (ack: convoz ack 1:50d2)` + "\n"},
+	} {
+		got, err := ackRefs(in.pos, strings.NewReader(in.stdin))
+		if err != nil || !reflect.DeepEqual(got, want) {
+			t.Errorf("%s: got %v, %v", name, got, err)
+		}
+	}
+	for _, pos := range [][]string{{}, {"1"}, {"x:y"}, {"1:"}} {
+		if _, err := ackRefs(pos, strings.NewReader("")); err == nil || !strings.Contains(err.Error(), ackForms) {
+			t.Errorf("%v: error %v does not list the accepted forms", pos, err)
+		}
 	}
 }

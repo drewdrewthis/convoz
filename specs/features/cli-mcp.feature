@@ -130,6 +130,24 @@ Feature: The convoz CLI and MCP server for agents
       When "devtool" acks the same item again
       Then the CLI exits 4 with "claim_lost"
 
+    @v1 @cli
+    Scenario: Every command prints its usage for --help
+      When "convoz watch --help", "convoz ack -h" and "convoz help" run
+      Then each exits 0 and prints to stdout
+      And the first two show the synopsis, every flag with its help line and an example, and "convoz help" lists the commands one per line
+
+    @v1 @cli
+    Scenario: A watch line carries a ready ack and ack takes three forms
+      Given "convoz watch" printed items for conversations 41, 52 and 63
+      When "devtool" acks one with "<id> <token>", one with the watch line on stdin, and one with the "ack" text of a plain watch line
+      Then the three items are gone from the inbox
+      And "convoz ack 1" exits 2 and names the accepted forms
+
+    @v1 @browser
+    Scenario: The Add agent prompt says how to ack
+      When the owner opens the sheet "Invite agent"
+      Then the prompt on the Listen line says to ack each item with "convoz ack <id>:<token>"
+
     @later @cli
     Scenario: Watch can start a command per item
       Given the owner approved "convoz watch --exec" on "box-2"
