@@ -1,4 +1,4 @@
-// Renders the v41 prototype phone frame (Iris, light and dark) and writes the reference PNGs the parity scenarios compare against.
+// Renders the v42 prototype phone frame (Iris, light and dark) and writes the reference PNGs the parity scenarios compare against.
 //
 //   PROTOTYPE_HTML=/path/to/index.html node e2e/tools/capture-prototype.mjs [outDir]
 //
@@ -134,8 +134,9 @@ for (const mode of ["Light", "Dark"]) {
   // A plain thread: an owner message, an agent reply with bold text and a list. No prototype thread is free of asks, attachments and
   // previews except this one, and it has one agent message only.
   await frame.locator("li button").filter({ hasText: "Why did the nightly export get slower?" }).first().click();
-  // The app has no claims yet: drop the "picked this up" line under the owner's message.
-  await frame.evaluate((el) => el.querySelectorAll("span").forEach((n) => n.isConnected && n.textContent.trim() === "lane-search picked this up" && n.remove()));
+  // Nothing claims conversations (owner, 2026-10: "Nothing claims conversations"): drop the "picked this up" line under the owner's message,
+  // avatar and all. The prototype still draws it.
+  await frame.evaluate((el) => el.querySelectorAll("span").forEach((n) => n.isConnected && n.textContent.trim().endsWith("lane-search picked this up") && n.remove()));
   await frame.locator("[role=log]").evaluate((e) => (e.scrollTop = 0));
   await shot("conversation-thread");
   await frame.getByRole("button", { name: "Back" }).first().click();

@@ -327,6 +327,14 @@ Feature: Conversations
 
   Rule: A conversation reads well on a phone
 
+    @v1 @browser
+    Scenario: Agent replies use the full width
+      Given the owner has conversation 41 open
+      And the owner sent "Is the build green?" and "devtool" replied "Yes, all 11 checks pass"
+      Then the reply has no bubble and fills the message column
+      And the message column is the screen with 12 px gutters on a phone and a centred 760 px column on a desktop
+      And the owner's message is a compact bubble on the right, at most 85% wide, with its time above it
+
     @v1 @browser @phone
     Scenario: On a phone a long conversation opens at its latest message
       Given conversation 41 holds 60 messages

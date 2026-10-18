@@ -1,6 +1,7 @@
 import type { Upload } from "@convoz/api-client";
-import { FileIcon } from "@convoz/ui/icons";
+import { DownloadIcon } from "@convoz/ui/icons";
 import { Suspense, useState } from "react";
+import { FileGlyph } from "../../../shared/FileGlyph.tsx";
 import { useMediaAutoLoads } from "../../../shared/media.ts";
 import { fileSize, fileUrl } from "../../../shared/uploads.ts";
 import { VoiceNote } from "../../voice/index.ts";
@@ -27,9 +28,7 @@ export function Uploads({ uploads, body }: { uploads: Upload[]; body: string }) 
       {images.length ? (
         <div className="mimgs">
           {images.map((u) => (
-            <span key={u.id} className="mimg">
-              <MessageImage upload={u} />
-            </span>
+            <MessageImage key={u.id} upload={u} />
           ))}
         </div>
       ) : null}
@@ -38,11 +37,14 @@ export function Uploads({ uploads, body }: { uploads: Upload[]; body: string }) 
           {files.map((u) => (
             <a key={u.id} className="mfile" href={fileUrl(u.id)} download={u.name}>
               <span className="fic" aria-hidden="true">
-                <FileIcon />
+                <FileGlyph name={u.name} />
               </span>
               <span className="fmeta">
                 <span className="fname">{u.name}</span>
                 <span className="fsize">{fileSize(u.size)}</span>
+              </span>
+              <span className="fdl" aria-hidden="true">
+                <DownloadIcon />
               </span>
             </a>
           ))}
@@ -52,16 +54,27 @@ export function Uploads({ uploads, body }: { uploads: Upload[]; body: string }) 
   );
 }
 
-/** MessageImage is a safe image of a message: drawn at once where media auto-loads, else a placeholder with its size that loads on a tap. */
+/**
+ * MessageImage is a safe image of a message, at most 240 px high; a tap opens it whole in its own tab. Where media auto-loads it is
+ * drawn at once, else a placeholder with its size stands in and loads on a tap.
+ */
 function MessageImage({ upload: u }: { upload: Upload }) {
   const auto = useMediaAutoLoads();
   const [tapped, setTapped] = useState(false);
-  if (auto || tapped) return <img src={fileUrl(u.id)} alt={u.name} loading="lazy" width={u.width} height={u.height} />;
+  if (auto || tapped) {
+    return (
+      <a className="mimg" href={fileUrl(u.id)} target="_blank" rel="noopener" aria-label={`View image ${u.name}`}>
+        <img src={fileUrl(u.id)} alt={u.name} loading="lazy" width={u.width} height={u.height} />
+      </a>
+    );
+  }
   return (
-    <button type="button" className="mwait" onClick={() => setTapped(true)}>
-      <span className="mname">{u.name}</span>
-      <span className="msize">{`${fileSize(u.size)} · tap to load`}</span>
-    </button>
+    <span className="mimg">
+      <button type="button" className="mwait" onClick={() => setTapped(true)}>
+        <span className="mname">{u.name}</span>
+        <span className="msize">{`${fileSize(u.size)} · tap to load`}</span>
+      </button>
+    </span>
   );
 }
 

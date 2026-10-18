@@ -196,3 +196,50 @@ scenario("An agent's own avatar shows safely", { tag: ["@browser"] }, async ({ s
   await expect.poll(() => img.evaluate((e: HTMLImageElement) => e.naturalWidth)).toBeGreaterThan(0);
   expect(await img.getAttribute("src")).toMatch(/^\/api\/identities\/\d+\/avatar\.svg$/);
 });
+
+scenario("Pending attachments show as previews before send", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Background
+  const u = await voiceWorld({ server, page, context });
+  await openConversation(page, u.w.srv, u.conv);
+
+  // Given "chart.png" and "deploy.log" wait under "Files to send"
+  await dropFiles(page, [chart, logFile]);
+  const list = filesToSend(page);
+  await expect(list.getByRole("listitem")).toHaveCount(2);
+  await expect(page.getByRole("progressbar", { name: /^Uploading / })).toHaveCount(0, { timeout: 20_000 });
+
+  // Then "chart.png" shows as a 56 px thumbnail and "deploy.log" as a chip with its icon, name and size
+  const thumb = list.getByRole("listitem").filter({ hasText: "chart.png" }).locator("img");
+  await expect(thumb).toBeVisible();
+  await expect.poll(() => thumb.evaluate((e: HTMLImageElement) => e.naturalWidth)).toBeGreaterThan(0);
+  const t = await thumb.boundingBox();
+  expect([t!.width, t!.height]).toEqual([56, 56]);
+  const chip = list.getByRole("listitem").filter({ hasText: "deploy.log" });
+  const c = await chip.locator(".fchip").boundingBox();
+  expect(c!.height).toBe(56);
+  await expect(chip).toContainText("2 KB");
+  await expect(chip.locator("svg")).toHaveCount(2); // the file icon and the x
+
+  // And each has a remove button
+  await expect(page.getByRole("button", { name: "Remove chart.png" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Remove deploy.log" })).toBeVisible();
+
+  // When the owner sends the message
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(list).toHaveCount(0);
+
+  // Then the message shows the image at most 240 px high that opens whole in its own tab
+  const shown = messageLog(page).getByRole("img", { name: "chart.png" });
+  await expect(shown).toBeVisible();
+  await expect.poll(() => shown.evaluate((e: HTMLImageElement) => e.naturalWidth)).toBeGreaterThan(0);
+  expect((await shown.boundingBox())!.height).toBeLessThanOrEqual(240);
+  const open = messageLog(page).getByRole("link", { name: "View image chart.png" });
+  await expect(open).toHaveAttribute("target", "_blank");
+  await expect(open).toHaveAttribute("href", /^\/api\/files\//);
+
+  // And "deploy.log" shows as a file card with its icon, name, size and a download link
+  const card = messageLog(page).getByRole("link", { name: /deploy\.log/ });
+  await expect(card).toContainText("2 KB");
+  await expect(card).toHaveAttribute("download", "deploy.log");
+  await expect(card.locator("svg")).toHaveCount(2); // the file icon and the download arrow
+});

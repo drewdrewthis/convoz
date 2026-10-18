@@ -41,9 +41,10 @@ import { webauthn } from "../lib/webauthn-browser.ts";
  * CHAT  /chats/:id   app bar: link "Back" (to /chats; with history it goes back one step), heading (level 1) = title, and under it the
  *   text "@<handle>" of the agent. Browser back goes to the page before. Not a conversation of the owner -> 404 page.
  *   log "Messages": the scroll container (the app bar and the composer stay fixed; the page itself does not scroll). It holds one
- *   article per message in id order. Every message is laid out as the prototype does: the article is plain text with NO background, full
- *   width, an avatar on the left, the name and the time, then the body (once per run of messages from the same author). The owner is "You"
- *   with a round grey avatar; an agent's name reads "@<handle>" (the "@" is read, not shown). The body is text
+ *   article per message in id order. Every message is laid out as prototype v42 does: the article has NO background and is the full width
+ *   of the message column (12 px gutters on a phone, a centred 760 px column on a desktop). An agent's message has one author line (an
+ *   avatar, the name, "@<handle>" and the time; once per run of messages from the same author) over its body. The owner's message is a
+ *   compact bubble on the right (at most 85% wide) with its time above it; "You" is read, not shown. The body is text
  *   (white-space pre-wrap): never HTML. Agent bodies in format markdown are rendered: paragraphs (p), fenced code (pre > code, scrolls
  *   sideways inside itself), inline code (code), links (a with href http/https/mailto only, target=_blank, rel containing noopener and
  *   noreferrer), line breaks. Anything else, including <img onerror>, shows as literal text. Owner bodies are always plain text.
@@ -953,4 +954,91 @@ scenario("On a phone the conversation pages look right in dark and light", { tag
 
   // Then the dark pages are dark and the light pages are light
   expect(looks).toEqual(["chats dark dark", "new-chat dark dark", "conversation dark dark", "chats light light", "new-chat light light", "conversation light light"]);
+});
+
+scenario("Agent replies use the full width", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given the owner has conversation 41 open
+  const u = await uiWorld({ server, page, context });
+  const conv = await createConversation(u.w.owner, { participants: ["devtool"], title: "Ship search filters" });
+
+  // And the owner sent "Is the build green?" and "devtool" replied "Yes, all 11 checks pass"
+  await ownerSays(u.w.owner, conv, FIRST);
+  await agentPosts(u, "devtool", conv, "Yes, all 11 checks pass");
+  await page.goto(`${u.w.srv.origin}/chats/${conv}`);
+  const reply = message(page, "Yes, all 11 checks pass");
+  const mine = message(page, FIRST);
+  await expect(reply).toBeVisible();
+  await expect(mine).toBeVisible();
+
+  // Then the reply has no bubble and fills the message column
+  const log = await box(messageLog(page));
+  const column = Math.min(760, log.width);
+  const article = await box(reply);
+  const text = await box(reply.getByText("Yes, all 11 checks pass"));
+  expect(await hasBubble(reply.getByText("Yes, all 11 checks pass"))).toBe(false);
+  expect(Math.abs(article.width - column)).toBeLessThanOrEqual(1);
+  expect(Math.abs(text.width - (column - 24))).toBeLessThanOrEqual(1);
+
+  // And the message column is the screen with 12 px gutters on a phone and a centred 760 px column on a desktop
+  expect(Math.abs(text.x - (log.x + (log.width - column) / 2 + 12))).toBeLessThanOrEqual(1);
+
+  // And the owner's message is a compact bubble on the right, at most 85% wide, with its time above it
+  const bubbleText = mine.getByText(FIRST);
+  expect(await hasBubble(bubbleText)).toBe(true);
+  const bubble = await box(bubbleText);
+  const mineArticle = await box(mine);
+  expect(Math.abs(bubble.x + bubble.width - (mineArticle.x + mineArticle.width - 12))).toBeLessThanOrEqual(1);
+  expect(bubble.width).toBeLessThanOrEqual(column * 0.85 + 1);
+  expect(bubble.width).toBeLessThan(column * 0.85);
+  const time = await box(mine.locator("time"));
+  expect(time.y + time.height).toBeLessThanOrEqual(bubble.y + 1);
+});
+
+scenario("The header shrinks while typing on a phone", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
+  // Given the owner has conversation 41 open on a phone
+  const u = await uiWorld({ server, page, context });
+  const conv = await createConversation(u.w.owner, { participants: ["devtool"], title: "Ship search filters" });
+  await page.goto(`${u.w.srv.origin}/chats/${conv}`);
+  const header = page.locator("header").first();
+  const details = page.getByRole("button", { name: "Show details" });
+  await expect(composer(page)).toBeVisible();
+  const full = await box(header);
+  expect(full.height).toBeGreaterThanOrEqual(52);
+  await expect(details).toBeVisible();
+
+  // When the keyboard opens on the message box (the layout viewport shrinks, as on Android with resizes-content)
+  await composer(page).click();
+  await page.setViewportSize({ width: 390, height: 480 });
+
+  // Then the header is one 36 px line with Back and the title
+  await expect.poll(async () => (await box(header)).height).toBe(36);
+  await expect(backButton(page)).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Ship search filters" })).toBeVisible();
+  await expect(details).toBeHidden();
+  expect((await box(backButton(page))).height).toBe(36);
+
+  // And the message box grows from one line to at most four
+  const oneLine = (await box(composer(page))).height;
+  await composer(page).fill(Array.from({ length: 9 }, (_, i) => `line ${i + 1}`).join("\n"));
+  const nine = (await box(composer(page))).height;
+  expect(nine).toBeGreaterThan(oneLine + 60);
+  expect(nine).toBeLessThanOrEqual(oneLine + 72 + 0.5);
+  expect(await composer(page).evaluate((e) => e.scrollHeight > e.clientHeight)).toBe(true);
+  const form = await box(page.getByRole("form", { name: "Composer" }));
+  expect(form.y + form.height).toBeLessThanOrEqual(480.5);
+  expect(form.y + form.height).toBeGreaterThanOrEqual(469);
+
+  // And the message box asks for a new line on Return, capitals at sentence starts, spelling and autocorrect
+  await expect(composer(page)).toHaveAttribute("enterkeyhint", "enter");
+  await expect(composer(page)).toHaveAttribute("autocapitalize", "sentences");
+  await expect(composer(page)).toHaveAttribute("autocorrect", "on");
+  await expect(composer(page)).toHaveAttribute("spellcheck", "true");
+
+  // When the keyboard closes
+  await composer(page).blur();
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  // Then the full header is back
+  await expect.poll(async () => (await box(header)).height).toBe(full.height);
+  await expect(details).toBeVisible();
 });
