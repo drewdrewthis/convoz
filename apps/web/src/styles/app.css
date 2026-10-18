@@ -321,6 +321,7 @@
   .msg .main { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
   .msg.mine .main { max-width: 85%; margin-left: auto; align-items: flex-end; }
   .msg .byline { display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; }
+  .msg .byline .author { display: contents; } /* one text "Drew @devtool" for readers and tests; the flex gap still spaces the two */
   .msg.mine .byline { justify-content: flex-end; }
   .msg .who { padding: 10px 0; margin: -10px 0; font-size: 15px; font-weight: 600; color: var(--color-text); line-height: normal; }
   .msg .handle { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--color-muted); }

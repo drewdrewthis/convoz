@@ -357,8 +357,7 @@ function Article({ person, me, first, stamp, tag, onStamp, body, extra, menu, mi
             ) : (
               <>
                 <span className={`ava p${paletteOf(person.handle)}`} aria-hidden="true" data-l={initials(person.handle)} />
-                <span className="who">{stripCf(person.display_name) || person.handle}</span>
-                <span className="handle">@{person.handle}</span>
+                <span className="author"><span className="who">{stripCf(person.display_name) || person.handle}</span> <span className="handle">@{person.handle}</span></span>
               </>
             )}{" "}
             {time}
