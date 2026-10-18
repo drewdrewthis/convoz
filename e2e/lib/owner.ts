@@ -43,6 +43,11 @@ export interface Owner {
   verify: Res;
 }
 
+const ownerOfServer = new WeakMap<ServerHandle, Owner>();
+
+/** The owner a scenario made on this server with `bootstrapOwner`, or undefined: helpers that need the owner's hand (an invite) find it here. */
+export const ownerOf = (srv: ServerHandle): Owner | undefined => ownerOfServer.get(srv);
+
 /**
  * Register a passkey from a bootstrap link, over the real HTTP ceremony with the soft authenticator.
  * Contract: POST /api/auth/bootstrap/options {token, handle?, display_name?} -> {ceremony_id, options:{publicKey}};
@@ -63,7 +68,9 @@ export async function bootstrapOwner(
   ).json();
   const credential = soft.create(opt.options.publicKey);
   const verify = must(await client.post("/api/auth/bootstrap/verify", { ceremony_id: opt.ceremony_id, credential }), "bootstrap verify");
-  return { client, soft, link, codes: verify.json().recovery_codes ?? [], verify };
+  const owner = { client, soft, link, codes: verify.json().recovery_codes ?? [], verify };
+  if (!ownerOfServer.has(srv)) ownerOfServer.set(srv, owner);
+  return owner;
 }
 
 /** Sign in with a passkey: POST /api/auth/passkey/login/{options,verify}; sets the device cookie in `client`. */
