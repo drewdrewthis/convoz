@@ -57,7 +57,8 @@ var Routes = slices.Concat(
 // appPage serves the app for a page URL: the cold page with the first screen's reads inline when this page has a first screen
 // and the browser itself asks (design §12.2), else the lean shell. The caller is already authenticated for the page's route.
 func appPage(s *Server, w http.ResponseWriter, r *http.Request, _ *call) {
-	if cold != nil && !console.Lean(r) {
+	// A HEAD has no body to carry the reads, and they may write (Now wakes snoozes): it gets the lean page's headers.
+	if cold != nil && !console.Lean(r) && r.Method != http.MethodHead {
 		if data := s.firstReads(r); data != nil {
 			cold.Serve(w, r, data, chooseEncoding(r.Header.Get("Accept-Encoding")) == "br")
 			return

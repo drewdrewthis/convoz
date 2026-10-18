@@ -115,7 +115,8 @@ func TestEachInlineBlockHasACSPHashAndTheCSPHasNoUnsafeInline(t *testing.T) {
 		}
 	}
 
-	body, csp := serveCold(t, false, []byte(`{"generated_at":1,"reads":{}}`))
+	const dataBlock = `{"generated_at":1,"reads":{}}`
+	body, csp := serveCold(t, false, []byte(dataBlock))
 	if strings.Contains(csp, "unsafe-inline") || strings.Contains(csp, "unsafe-eval") {
 		t.Fatalf("the cold page's CSP allows unsafe code: %s", csp)
 	}
@@ -123,7 +124,16 @@ func TestEachInlineBlockHasACSPHashAndTheCSPHasNoUnsafeInline(t *testing.T) {
 	if len(blocks) < 5 { // theme boot, main bundle, stylesheet, confusables, data
 		t.Fatalf("the cold page has %d inline blocks", len(blocks))
 	}
+	if n := strings.Count(csp, "'sha256-"); n != len(blocks)-1 { // every block but the data block
+		t.Fatalf("the CSP lists %d hashes for %d executable or style blocks: %s", n, len(blocks)-1, csp)
+	}
 	for _, b := range blocks {
+		if b.text == dataBlock { // type="application/json": never executed, so the CSP never checks it and must not list it
+			if strings.Contains(csp, b.hash) {
+				t.Fatalf("the CSP lists the data block's hash, which it never checks: %s", csp)
+			}
+			continue
+		}
 		if !strings.Contains(csp, b.hash) {
 			t.Fatalf("an inline %s block (%.60q) has no hash in the CSP", b.kind, b.text)
 		}
@@ -223,8 +233,8 @@ func TestDataBlockEscapesMarkupAndLineSeparators(t *testing.T) {
 		t.Fatalf("read back: %+v %v", back, err)
 	}
 	page, csp := serveCold(t, false, out)
-	if strings.Count(page, "</script>") != strings.Count(page, "<script") || !strings.Contains(csp, cspHash(out)) {
-		t.Fatal("the data block's text ended a script element, or its hash is not in the CSP")
+	if strings.Count(page, "</script>") != strings.Count(page, "<script") || strings.Contains(csp, cspHash(out)) {
+		t.Fatal("the data block's text ended a script element, or its hash is in the CSP")
 	}
 }
 
@@ -235,6 +245,21 @@ func TestColdPageRefusesABuildWithAnotherBootScript(t *testing.T) {
 	}
 	if _, err := NewColdPage(bootScript(t), []byte("x='</script>'")); err == nil {
 		t.Fatal("a tail script that ends its own block was accepted")
+	}
+}
+
+func TestColdPageRefusesACarriageReturnInAnInlineBlock(t *testing.T) {
+	requireBuild(t)
+	if _, err := NewColdPage(bootScript(t), []byte("x=1;\r\ny=2;")); err == nil {
+		t.Fatal("a tail script with a carriage return was accepted")
+	}
+	boot, saved := bootScript(t), coldHead
+	t.Cleanup(func() { coldHead = saved })
+	for _, tag := range []string{"<style>", `<script type="module">`, "<script>"} { // stylesheet, main bundle, theme boot
+		coldHead = bytes.Replace(saved, []byte(tag), []byte(tag+"\r"), 1)
+		if _, err := NewColdPage(boot); err == nil {
+			t.Fatalf("a build with a carriage return after %s was accepted", tag)
+		}
 	}
 }
 

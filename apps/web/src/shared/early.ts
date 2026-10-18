@@ -15,8 +15,12 @@ let inline: Map<string, unknown> | undefined;
 function inlineReads(): Map<string, unknown> {
   if (inline) return inline;
   inline = new Map();
+  // Read once, then removed: the owner's reads must not stay in the DOM for a script or extension to find.
+  const element = document.getElementById(DATA_BLOCK_ID);
+  const text = element?.textContent;
+  element?.remove();
   try {
-    const block = JSON.parse(document.getElementById(DATA_BLOCK_ID)?.textContent || "null") as { reads?: Record<string, unknown> } | null;
+    const block = JSON.parse(text || "null") as { reads?: Record<string, unknown> } | null;
     for (const [path, body] of Object.entries(block?.reads ?? {})) inline.set(new URL(path, location.origin).href, body);
   } catch {
     /* a broken block only loses the head start: the client fetches for itself */
@@ -51,7 +55,7 @@ export function takeEarly(request: Request): Promise<Response> | undefined {
   return answer.catch(() => globalThis.fetch(request));
 }
 
-/** dropEarly forgets every answer the load held: a page back from the back-forward cache must ask the server again. */
+/** dropEarly forgets every answer the load held: a page back from the back-forward cache, or a session that ended (401, sign-out), must ask the server again. */
 export function dropEarly(): void {
   inlineReads().clear();
   early()?.clear();

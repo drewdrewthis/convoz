@@ -49,9 +49,11 @@ scenario("A cold first screen comes in one response", { tag: ["@browser"] }, asy
       expect(/<script type="module">([\s\S]*?)<\/script>/.exec(html)?.[1]?.length ?? 0, `${screen.name}: the main bundle inline`).toBeGreaterThan(10_000);
       expect(/<style>([\s\S]*?)<\/style>/.exec(html)?.[1]?.length ?? 0, `${screen.name}: the stylesheet inline`).toBeGreaterThan(1_000);
       expect(requested.filter((p) => /^\/assets\/main-.*\.(js|css)$/.test(p)), `${screen.name}: the main bundle or stylesheet asked for by URL`).toEqual([]);
-      const block = await tab.evaluate(() => JSON.parse(document.getElementById("cz-data")?.textContent ?? "null") as { generated_at: number; reads: Record<string, unknown> } | null);
+      // (the page removes its data block once it has read it, so the block is read from the response)
+      const block = JSON.parse(/<script type="application\/json" id="cz-data">([\s\S]*?)<\/script>/.exec(html)?.[1] ?? "null") as { generated_at: number; reads: Record<string, unknown> } | null;
       expect(Object.keys(block?.reads ?? {}), `${screen.name}: the reads in the data block`).toContain(screen.data);
       expect(load.inline[screen.data], `${screen.name}: ${screen.data} taken from the document before the mark at ${load.tfus}`).toBeLessThanOrEqual(load.tfus);
+      await expect(tab.locator("#cz-data"), `${screen.name}: the data block removed once read`).toHaveCount(0);
       expect(answer!.headers()["cache-control"], `${screen.name}: Cache-Control`).toBe("no-store");
       expect(answer!.headers()["content-security-policy"], `${screen.name}: the CSP`).not.toContain("unsafe-inline");
 

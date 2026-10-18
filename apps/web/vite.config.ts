@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { brotliCompressSync, constants, createBrotliCompress } from "node:zlib";
+import { brotliCompressSync, brotliDecompressSync, constants, createBrotliCompress } from "node:zlib";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, minifySync, parseSync, Visitor, type Plugin, type Rolldown } from "vite";
@@ -333,6 +333,8 @@ function coldHead(html: string, main: { fileName: string; code: string }, css: {
   // the first is escaped (it can only be in a string, a template, a regular expression or a comment, where "<\/" reads the same),
   // the second fails the build.
   const js = main.code.replace(/<\/(script)/gi, "<\\/$1");
+  const reparsed = parseSync(main.fileName, js, { sourceType: "module" });
+  if (reparsed.errors.length) throw new Error(`cold-page: the main bundle does not parse after escaping </script: ${reparsed.errors[0]!.message}`);
   if (js.includes("<!--") || /<\/style/i.test(css.source)) throw new Error("cold-page: the main bundle or stylesheet holds markup that would end its inline block");
   const swap = (page: string, from: RegExp, to: string) => {
     if (!from.test(page)) throw new Error(`cold-page: the shell page has no ${from}`);
@@ -391,7 +393,10 @@ function coldBuild(): Plugin {
         if (!html || html.type !== "asset" || !css) throw new Error("cold-page: no shell page or main stylesheet");
         const head = coldHead(String(html.source), { fileName: main.fileName, code: code.get(main.fileName)! }, { fileName: css.fileName, source: String(css.source) });
         writeFileSync(path.join(dir, "cold-head.html"), head);
-        writeFileSync(path.join(dir, "cold-head.html.br"), await brotliFlushed(Buffer.from(head)));
+        const headBr = await brotliFlushed(Buffer.from(head));
+        // The server finishes this stream with one last empty meta-block (0x03); it must then decode to exactly the head.
+        if (brotliDecompressSync(Buffer.concat([headBr, Buffer.from([0x03])])).toString() !== head) throw new Error("cold-build: cold-head.html.br does not decode to cold-head.html once finished");
+        writeFileSync(path.join(dir, "cold-head.html.br"), headBr);
         // The server reads the same list for the reads a cold page carries (src/early.ts asks for them on the lean shell).
         writeFileSync(path.join(dir, "first-reads.json"), readFileSync(path.resolve(import.meta.dirname, "src/first-reads.json")));
 

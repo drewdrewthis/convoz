@@ -2,7 +2,7 @@
 // Components never fetch; they call the store or a feature's own functions, which use `client` here.
 import { createConvozClient, type ApiErrorBody } from "@convoz/api-client";
 import { reachable, unreachable } from "./connection.ts";
-import { takeEarly } from "./early.ts";
+import { dropEarly, takeEarly } from "./early.ts";
 import { forgetOffline } from "./offline.ts";
 
 // A read the page started before the app loaded (src/early.ts) is answered from that head start.
@@ -66,6 +66,7 @@ export async function call<T>(request: Promise<Answer<T>>): Promise<T> {
     // Only a 401 that says the device or its session is gone clears the offline cache; a network error or any other
     // refusal never does, so a poor connection cannot wipe it (design §9).
     if (response.status === 401 && isRevoking(err.code)) {
+      dropEarly();
       await forgetOffline();
       if (!page.public) {
         toSignin();
@@ -125,6 +126,7 @@ export async function signOut(fail: (message: string) => void): Promise<void> {
     }
   }
   page.leaving = true;
+  dropEarly();
   await forgetOffline();
   location.assign("/signin?signed_out=1");
 }
