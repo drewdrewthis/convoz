@@ -1,5 +1,6 @@
 // Push in the worker: show what the server sent, and open the right page when it is tapped (design §10.3).
 import type { SwModule } from "./module.ts";
+import { pagePath } from "../shared/pagePath.ts";
 
 /** The payload the server sends: {v:1, reason, title, body?, url, badge, topic}. Anything else shows a plain notice. */
 interface PushPayload {
@@ -18,11 +19,6 @@ function read(event: PushEvent): PushPayload {
   }
 }
 
-/** A path on this site, nothing else: a pushed URL never sends the owner to another origin. */
-function safePath(url: string | undefined): string {
-  return typeof url === "string" && /^\/(?![/\\])[^\u0000-\u001f]*$/.test(url) ? url : "/";
-}
-
 const push: SwModule = {
   name: "push",
   install(scope) {
@@ -35,7 +31,7 @@ const push: SwModule = {
           body: p.body ?? "",
           tag: p.topic,
           icon: "/assets/icon-192.png",
-          data: { url: safePath(p.url) },
+          data: { url: pagePath(p.url) },
         }),
       ];
       if (typeof p.badge === "number" && nav.setAppBadge) work.push(nav.setAppBadge(p.badge).catch(() => undefined) as Promise<void>);
@@ -44,7 +40,7 @@ const push: SwModule = {
 
     scope.addEventListener("notificationclick", (event) => {
       event.notification.close();
-      const url = new URL(safePath((event.notification.data as { url?: string } | null)?.url), scope.location.origin).href;
+      const url = new URL(pagePath((event.notification.data as { url?: string } | null)?.url), scope.location.origin).href;
       event.waitUntil(
         (async () => {
           const open = await scope.clients.matchAll({ type: "window", includeUncontrolled: true });
