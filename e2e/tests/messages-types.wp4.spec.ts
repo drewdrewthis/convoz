@@ -107,11 +107,25 @@ async function paused(w: MsgWorld): Promise<{ dev: string; docs: string }> {
   return { dev, docs };
 }
 
-/** A JSON app of exactly `bytes` bytes. Its text pads it; the app validator of the apps work package decides later what a real one holds. */
+/**
+ * A valid table app of exactly `bytes` bytes of JSON. A code app cannot pad it: its text stops at 49152 characters (messages-apps-spec 4.1),
+ * and the app cap is 65536 bytes. Cells hold 200 characters each, so full rows fill the size and the last row takes the rest.
+ */
 function appOf(bytes: number): Record<string, unknown> {
-  const app = (text: string) => ({ v: 1, type: "code", title: "Padding", fallback: "Padding", props: { mode: "code", text } });
-  const pad = bytes - Buffer.byteLength(JSON.stringify(app("")));
-  const made = app("a".repeat(pad));
+  const cellMax = 200;
+  const app = (rows: string[][]) => ({ v: 1, type: "table", title: "Padding", fallback: "Padding", props: { columns: [{ label: "a" }, { label: "b" }], rows } });
+  const size = (rows: string[][]) => Buffer.byteLength(JSON.stringify(app(rows)));
+  const rows: string[][] = [];
+  while (rows.length < 199 && size([...rows, ["a".repeat(cellMax), "a".repeat(cellMax)], ["", ""]]) <= bytes) rows.push(["a".repeat(cellMax), "a".repeat(cellMax)]);
+  const last = ["", ""];
+  rows.push(last);
+  let pad = bytes - size(rows);
+  for (let i = 0; pad > 0; i++) {
+    const n = Math.min(pad, cellMax);
+    last[i] = "a".repeat(n);
+    pad -= n;
+  }
+  const made = app(rows);
   expect(Buffer.byteLength(JSON.stringify(made))).toBe(bytes);
   return made;
 }

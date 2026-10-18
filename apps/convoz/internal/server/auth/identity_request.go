@@ -194,6 +194,9 @@ func requestOf(id int64, ref, kind string, mreq, machine sql.NullInt64, name, ha
 
 // PendingIdentityRequests lists the waiting requests of logged-in machines, oldest first.
 func PendingIdentityRequests(ctx context.Context, d pdb.DBTX, now time.Time) ([]IdentityRequest, error) {
+	if beforeIdentityRequests() {
+		return nil, nil
+	}
 	rows, err := db.New(d).ListPendingSessionIdentityRequests(ctx, now.UnixMilli())
 	if err != nil {
 		return nil, err
@@ -207,6 +210,9 @@ func PendingIdentityRequests(ctx context.Context, d pdb.DBTX, now time.Time) ([]
 
 // LoginIdentityRequests maps each waiting device-flow request that carries an identity to that identity.
 func LoginIdentityRequests(ctx context.Context, d pdb.DBTX, now time.Time) (map[int64]IdentityRequest, error) {
+	if beforeIdentityRequests() {
+		return nil, nil
+	}
 	rows, err := db.New(d).ListPendingLoginIdentityRequests(ctx, now.UnixMilli())
 	if err != nil {
 		return nil, err
@@ -229,6 +235,9 @@ func IdentityAvatar(ctx context.Context, d pdb.DBTX, ref string) (svg string, ok
 
 // loginIdentityOf returns the identity request riding on a device-flow request; found is false when it carries none.
 func loginIdentityOf(ctx context.Context, d pdb.DBTX, machineRequestID int64) (r db.GetIdentityRequestOfLoginRow, found bool, err error) {
+	if beforeIdentityRequests() {
+		return r, false, nil
+	}
 	r, err = db.New(d).GetIdentityRequestOfLogin(ctx, nullInt(machineRequestID))
 	if errors.Is(err, sql.ErrNoRows) {
 		return r, false, nil

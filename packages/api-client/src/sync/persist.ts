@@ -29,13 +29,13 @@ export async function openOfflineCache(): Promise<CacheDb | null> {
 
 const newestFirst = (a: Conversation, b: Conversation) => b.last_activity_at - a.last_activity_at || b.id - a.id;
 
-/** What hydrate found in the store: the person it belongs to, and the message ids already written, by conversation. */
+/** What hydrate found in the store: the person it belongs to, and the messages already written (by conversation, then id). */
 export interface Stored {
   owner: number | null;
-  ids: Map<number, Set<number>>;
+  messages: Map<number, Map<number, Message>>;
 }
 
-const NOTHING: Stored = { owner: null, ids: new Map() };
+const NOTHING: Stored = { owner: null, messages: new Map() };
 
 /**
  * hydrate reads the stored cache into the shared cache, for what the network has not filled yet, and drops what the offline
@@ -73,7 +73,7 @@ export async function hydrate(cache: DataCache, dbp: Promise<CacheDb | null>, me
       await Promise.all([...drop.map((id) => tx.store.delete(id)), tx.done]);
     }
     for (const [id, list] of byConversation) cache.putMessages(id, list);
-    return { owner: me?.identity.id ?? null, ids: new Map([...byConversation].map(([id, list]) => [id, new Set(list.map((m) => m.id))])) };
+    return { owner: me?.identity.id ?? null, messages: new Map([...byConversation].map(([id, list]) => [id, new Map(list.map((m) => [m.id, m]))])) };
   } catch {
     return NOTHING;
   }
@@ -86,8 +86,8 @@ export async function hydrate(cache: DataCache, dbp: Promise<CacheDb | null>, me
 export function persist(cache: DataCache, dbp: Promise<CacheDb | null>, stored: Stored = NOTHING): () => void {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let owner = stored.owner;
-  const wrote: { me: unknown; identities: unknown; conversations: unknown; rows: unknown; lists: Map<number, unknown>; ids: Map<number, Set<number>> } = {
-    me: null, identities: null, conversations: null, rows: null, lists: new Map(), ids: new Map(stored.ids),
+  const wrote: { me: unknown; identities: unknown; conversations: unknown; rows: unknown; lists: Map<number, unknown>; messages: Map<number, Map<number, Message>> } = {
+    me: null, identities: null, conversations: null, rows: null, lists: new Map(), messages: new Map(stored.messages),
   };
   let queue: Promise<void> = Promise.resolve();
 
@@ -97,7 +97,7 @@ export function persist(cache: DataCache, dbp: Promise<CacheDb | null>, stored: 
       await clearCache(db);
       wrote.identities = wrote.conversations = wrote.rows = null;
       wrote.lists.clear();
-      wrote.ids.clear();
+      wrote.messages.clear();
       owner = null;
       return;
     }
@@ -123,12 +123,14 @@ export function persist(cache: DataCache, dbp: Promise<CacheDb | null>, stored: 
     for (const [id, held] of Object.entries(s.messages)) {
       const conv = Number(id);
       if (wrote.lists.get(conv) === held.list) continue;
-      const have = wrote.ids.get(conv) ?? new Set<number>();
+      // A message is written again when the cache replaced it (an ask answered or closed, an edit): the cache keeps the object of a
+      // message that did not change, so a different object is a newer row.
+      const have = wrote.messages.get(conv) ?? new Map<number, Message>();
       for (const m of held.list) {
-        if (!have.has(m.id)) void tx.objectStore("messages").put({ ...m, conversation_id: conv });
-        have.add(m.id);
+        if (have.get(m.id) !== m) void tx.objectStore("messages").put({ ...m, conversation_id: conv });
+        have.set(m.id, m);
       }
-      wrote.ids.set(conv, have);
+      wrote.messages.set(conv, have);
       wrote.lists.set(conv, held.list);
     }
     await tx.done;

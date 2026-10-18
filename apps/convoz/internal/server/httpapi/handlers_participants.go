@@ -156,6 +156,12 @@ func seatAgent(ctx context.Context, d pdb.DBTX, now time.Time, by int64, asAgent
 		if err := readstate.Create(ctx, d, now, target, convID, lastMessageID); err != nil {
 			return "", false, false, err
 		}
+		// The agent hears it was added (a membership notice, inbox.feature).
+		if changed {
+			if err := inbox.Joined(ctx, d, now, target, convID, lineID, seq); err != nil {
+				return "", false, false, err
+			}
+		}
 	}
 	_, err = journalChange(ctx, d, now, by, convID, target, status)
 	return status, changed, false, err

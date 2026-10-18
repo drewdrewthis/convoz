@@ -60,9 +60,18 @@ type Threads interface {
 	Replied(ctx context.Context, d pdb.DBTX, now time.Time, r Reply) error
 }
 
+// Arrival is a new message as the inbox hears of it. It carries what Post already knows, so queuing it for each agent
+// of the conversation reads nothing again.
+type Arrival struct {
+	Message    Message
+	Mentioned  []int64 // the identities the message @mentions
+	SourceSeq  int64   // the seq of the message's event
+	HasUploads bool    // it carries files: a voice note may wait for its words
+}
+
 // InboxFanOut queues the new message for one agent (inbox module).
 type InboxFanOut interface {
-	FanOut(ctx context.Context, d pdb.DBTX, now time.Time, identity, conv, messageID, sourceSeq int64) error
+	FanOut(ctx context.Context, d pdb.DBTX, now time.Time, identity int64, a Arrival) error
 }
 
 // Indexer writes the message into full-text search, inside the same transaction (search module). It is called again with
@@ -248,11 +257,12 @@ func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) 
 	if err != nil {
 		return Posted{}, err
 	}
+	arrival := Arrival{Message: m, Mentioned: mentioned, SourceSeq: seq, HasUploads: len(draft.UploadIDs) > 0}
 	for _, who := range recipients {
 		if who == asker {
 			continue // the asker gets one ask_resolved item for its answer, not a second item for the same message (I-43)
 		}
-		if err := p.Inbox.FanOut(ctx, d, now, who, draft.Conversation, m.ID, seq); err != nil {
+		if err := p.Inbox.FanOut(ctx, d, now, who, arrival); err != nil {
 			return Posted{}, err
 		}
 	}

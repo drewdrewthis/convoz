@@ -1,6 +1,6 @@
 import { composer, isBold, message, sendButton, unreadDot } from "../lib/chat-ui.ts";
 import { sidOf } from "../lib/cli.ts";
-import { agentSays, convoz, createConversation, listConversations, messagesOf, ownerPost, ownerReads, ownerSays, peekFor, unreadOf } from "../lib/chat.ts";
+import { agentSays, convoz, createConversation, inboxItems, listConversations, messagesOf, ownerPost, ownerReads, ownerSays, peekFor, unreadOf } from "../lib/chat.ts";
 import { expect, scenario } from "../lib/scenario.ts";
 import { must, signIn } from "../lib/owner.ts";
 import { send } from "../lib/http.ts";
@@ -56,12 +56,38 @@ scenario("Events from before an agent joined are not replayed to it", { tag: ["@
   // Then it receives nothing from those 10 events
   expect(read.status).toBe(200);
   expect(read.json().messages).toEqual([]);
-  expect(items).toEqual([]);
+  expect(items.map((i) => i.reason)).toEqual(["membership"]); // the one notice of the join itself (inbox.feature); no item for the 10 events
 
   // And what happens after the join reaches it
   await ownerSays(w.owner, conv, "after the join");
   expect((await asAgent(w.srv, docs.lease, "GET", `/api/conversations/${conv}/messages`)).json().messages.map((m: { body: string }) => m.body)).toEqual(["after the join"]);
-  expect((await peekFor(w.box, docs.sid, conv)).map((i) => i.reason)).toEqual(["activity"]);
+  expect((await peekFor(w.box, docs.sid, conv)).map((i) => i.reason)).toEqual(["membership", "activity"]);
+});
+
+scenario("Nothing claims a conversation, and an agent that is not tagged gets nothing", { tag: ["@api", "@cli"] }, async ({ server }) => {
+  // Given "docs" has a live session and is not in conversation 41
+  const w = await world(server);
+  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool"] });
+  const docs = await startSession(w.box, "docs", "docs");
+
+  // When the owner posts "Is anyone free to take this?" in conversation 41
+  await ownerSays(w.owner, conv, "Is anyone free to take this?");
+
+  // Then "docs" has no inbox item
+  expect(await inboxItems(w.box, docs.sid, ["--peek"])).toEqual([]);
+
+  // And "docs" gets 403 on conversation 41
+  expect((await asAgent(w.srv, docs.lease, "GET", `/api/conversations/${conv}/messages`)).status).toBe(403);
+
+  // And POST /api/conversations/41/pickup and POST /api/conversations/41/claim answer 404
+  for (const route of ["pickup", "claim"]) {
+    expect((await asAgent(w.srv, docs.lease, "POST", `/api/conversations/${conv}/${route}`, {})).status, route).toBe(404);
+  }
+
+  // And "convoz pickup 41" is not a command
+  const cmd = await convoz(w.box, docs.sid, ["pickup", String(conv)]);
+  expect(cmd.code).not.toBe(0);
+  expect(cmd.stderr).toMatch(/usage|unknown/i);
 });
 
 scenario("An agent that creates a conversation cannot pull others in", { tag: ["@api"] }, async ({ server }) => {
