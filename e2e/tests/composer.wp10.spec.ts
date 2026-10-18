@@ -215,6 +215,7 @@ scenario("Pending attachments show as previews before send", { tag: ["@browser"]
   const thumb = list.getByRole("listitem").filter({ hasText: "chart.png" }).locator("img");
   await expect(thumb).toBeVisible();
   await expect.poll(() => thumb.evaluate((e: HTMLImageElement) => e.naturalWidth)).toBeGreaterThan(0);
+  await thumb.evaluate((e) => Promise.all(e.closest(".fin")!.getAnimations().map((a) => a.finished)).then(() => undefined)); // the enter animation (finIn) has settled, so the box is not mid-translate
   const t = await thumb.boundingBox();
   expect([t!.width, t!.height]).toEqual([56, 56]);
   const chip = list.getByRole("listitem").filter({ hasText: "deploy.log" });
