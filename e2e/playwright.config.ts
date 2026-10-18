@@ -3,6 +3,8 @@ import path from "node:path";
 import { defineConfig, devices } from "@playwright/test";
 
 const here = import.meta.dirname;
+const PERF = "**/*.perf.spec.ts";
+const phone = { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3, screenshot: "on" as const };
 
 // Every scenario is one test. Retries stay at 0: a flake is a bug (docs/testing.md §8).
 export default defineConfig({
@@ -23,15 +25,16 @@ export default defineConfig({
   // The "chromium" and "headless" greps split the suite, so every scenario runs once there. "mobile" (S-U0) runs every @browser
   // scenario again as a phone (390x844, touch); @phone scenarios run ONLY there. In "mobile" the ceremony guard fails any tap
   // that starts two WebAuthn ceremonies or waits on the network before one (lib/ceremony-guard.ts, lib/fixtures.ts).
+  // "perf" measures the client's time budget (design §12.2), and a budget measured while other browsers load the box measures the box. It is
+  // the teardown of "alone", which every other project depends on, so it starts when they have all finished (a teardown runs even when a
+  // scenario failed; a plain dependency would skip the budget and hide a red row) and nothing runs beside it.
   projects: [
-    { name: "headless", grepInvert: /@browser/ },
+    { name: "alone", testMatch: /^$/, teardown: "perf" },
+    { name: "headless", grepInvert: /@browser/, dependencies: ["alone"] },
     // screenshot "on": the final screenshot of each browser scenario goes into the use-proof page (pnpm proof).
-    { name: "chromium", grep: /@browser/, grepInvert: /@phone/, use: { ...devices["Desktop Chrome"], screenshot: "on" } },
-    {
-      name: "mobile",
-      grep: /@browser/,
-      use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3, screenshot: "on" },
-    },
+    { name: "chromium", grep: /@browser/, grepInvert: /@phone/, use: { ...devices["Desktop Chrome"], screenshot: "on" }, dependencies: ["alone"] },
+    { name: "mobile", grep: /@browser/, testIgnore: PERF, use: phone, dependencies: ["alone"] },
+    { name: "perf", grep: /@browser/, testMatch: PERF, use: phone },
   ],
   reporter: [
     ["list"],

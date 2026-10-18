@@ -148,10 +148,13 @@ func (s *Server) maintainSoon(ctx context.Context) {
 	if now-s.maintainedAt.Load() < maintainEvery.Milliseconds() {
 		return
 	}
-	s.maintainedAt.Store(now)
-	if err := s.Maintain(ctx); err != nil {
+	// The run outlives the request: a page that reloads aborts its list read, and an interrupted clean-up must not make the next
+	// reader skip it. The stamp is set only after a run succeeded, so a failed run is tried again by the next list read.
+	if err := s.Maintain(context.WithoutCancel(ctx)); err != nil {
 		s.Log.Printf("maintenance: %v", err)
+		return
 	}
+	s.maintainedAt.Store(now)
 }
 
 // Maintain runs the nightly jobs of conversations (and wakes the snoozes whose time has come): it removes empty untitled conversations older than 24 hours (unless
