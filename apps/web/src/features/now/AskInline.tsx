@@ -1,14 +1,18 @@
 import type { Ask, Message } from "@convoz/api-client";
 import { AskCard, type Answer } from "@convoz/app-kit";
-import { useState, type ReactNode } from "react";
-import { AppHost } from "../apps-host/index.ts";
+import { lazy, Suspense, useState, type ReactNode } from "react";
 import { data, useData } from "../../shared/data.ts";
 import { humanError } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { pinMessage, toast, unpinMessage } from "../pins-stars/index.ts";
-import { useThreads } from "../threads/index.ts";
 import { presetsAt } from "./presets.ts";
 import { answerAsk, dismissAsk, snoozeAsk, undismissAsk, useNow } from "./store.ts";
+
+// The apps host (its kits, its frame bridge and the schemas it validates with) is a chunk of its own: this card is in the main
+// bundle with Now, and only an ask that carries an app needs the host.
+const AppHost = lazy(() => import("../apps-host/index.ts").then((f) => ({ default: f.AppHost })));
+// The thread pane (and the composer it holds) is loaded the same way, by the Reply that opens it.
+const openThread = (conversation: number, root: number) => import("../threads/index.ts").then((f) => f.useThreads.getState().openThread(conversation, root));
 
 /** AskInline is the ask card inside a conversation. Its changes go to the same routes as Now's, and the message that holds the ask
  *  takes the new state at once (the stream frame brings the same state a moment later). */
@@ -49,14 +53,18 @@ export function AskInline({ ask, labelId, inThread = false, deleteSheet }: { ask
       onDismiss={() => void run(() => dismissAsk(ask.id, ask.version))}
       onUndismiss={() => void run(() => undismissAsk(ask.id, ask.version))}
       onSnooze={(preset) => void run(() => snoozeAsk(ask.id, preset))}
-      onReply={inThread ? undefined : () => void useThreads.getState().openThread(ask.conversation_id, ask.thread_root_id ?? ask.id)}
+      onReply={inThread ? undefined : () => void openThread(ask.conversation_id, ask.thread_root_id ?? ask.id)}
       pinned={pinned}
       onPin={() => void (pinned ? unpinMessage : pinMessage)(ask.conversation_id, ask.id).catch((err) => toast(humanError(err)))}
       onDelete={() => setDeleting(true)}
       onCopyLink={() => void navigator.clipboard?.writeText(`${location.origin}/chats/${ask.conversation_id}#m${ask.id}`)}
     />
     {deleting && deleteSheet ? deleteSheet(() => setDeleting(false)) : null}
-    {ask.app ? <AppHost app={ask.app} messageId={ask.id} agent={ask.asker} conversation={ask.conversation_id} threadRoot={ask.thread_root_id} onAsk /> : null}
+    {ask.app ? (
+      <Suspense fallback={null}>
+        <AppHost app={ask.app} messageId={ask.id} agent={ask.asker} conversation={ask.conversation_id} threadRoot={ask.thread_root_id} onAsk />
+      </Suspense>
+    ) : null}
     </>
   );
 }

@@ -14,6 +14,7 @@
     "@convoz/markdown": "workspace:*",
     "@convoz/ui": "workspace:*",
     "@tanstack/react-virtual": "3.14.13",
+    "preact": "10.27.2",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "workbox-precaching": "7.4.1",

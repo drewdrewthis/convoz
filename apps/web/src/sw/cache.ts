@@ -24,13 +24,24 @@ function slowLink(): boolean {
   return typeof rtt === "number" && rtt >= SERVER_WAIT_MS;
 }
 
+/**
+ * lean asks the server for the lean shell of a page URL: the app's files by URL, which this worker holds, instead of the cold page that
+ * carries them and the owner's first reads inline (design §12.2). A worker that has the files only needs the shell, and it is never
+ * handed a page with user data in it (I-39). The request keeps its cookie and its manual redirects (the mode becomes same-origin).
+ */
+function lean(request: Request): Request {
+  const headers = new Headers(request.headers);
+  headers.set("X-Convoz-Shell", "lean");
+  return new Request(request, { headers });
+}
+
 /** openApp answers a page URL: the server when it answers in time (sign-in redirects and the 404 page stay the server's), else the cached shell. */
 async function openApp(request: Request): Promise<Response> {
   if (slowLink()) {
     const shell = await matchPrecache(SHELL);
     if (shell) return shell;
   }
-  const network = fetch(request);
+  const network = fetch(lean(request));
   network.catch(() => {}); // when the shell answers first, a later failure is nobody's news
   const quick = await Promise.race([network.catch(() => null), pause(SERVER_WAIT_MS)]);
   return quick ?? (await matchPrecache(SHELL)) ?? network;

@@ -77,6 +77,19 @@ export interface Useful {
   tfus: number;
   /** When the response of each API route the page asked for ended (ms after the navigation started), by path. */
   api: Record<string, number>;
+  /** When the request of each of those routes started (ms after the navigation started), by path. */
+  apiStart: Record<string, number>;
+  /** When the page took each read its document carried inline (the app's "inline-read <path>" mark), by path. */
+  inline: Record<string, number>;
+  /**
+   * The server's generated_at (wall clock, ms) of the document's data block, as the page's "inline-read" mark carries it (the page
+   * removes the block from the DOM once read); null when the page took no inline read.
+   */
+  generatedAt: number | null;
+  /** performance.timeOrigin: the wall clock (ms) of the navigation start, so a mark's time can meet the server's clock. */
+  timeOrigin: number;
+  /** When the document's response ended (ms after the navigation started). */
+  documentEnd: number;
   /** The document's nextHopProtocol ("h2", "http/1.1"; "" when the service worker answered from its cache). */
   proto: string;
   /** The nextHopProtocol of every resource that came over the network. */
@@ -102,18 +115,47 @@ export async function useful(page: Page, timeout: number): Promise<Useful> {
         const mark = performance.getEntriesByName("tfus")[0];
         if (!mark) return null;
         const api: Record<string, number> = {};
+        const apiStart: Record<string, number> = {};
         const resourceProtos: string[] = [];
         for (const e of performance.getEntriesByType("resource") as PerformanceResourceTiming[]) {
           const url = new URL(e.name);
-          if (url.pathname.startsWith("/api/") && !(url.pathname in api)) api[url.pathname] = e.responseEnd;
+          if (url.pathname.startsWith("/api/") && !(url.pathname in api)) {
+            api[url.pathname] = e.responseEnd;
+            apiStart[url.pathname] = e.startTime;
+          }
           if (e.nextHopProtocol) resourceProtos.push(e.nextHopProtocol);
         }
+        const inline: Record<string, number> = {};
+        let generatedAt: number | null = null;
+        for (const m of performance.getEntriesByType("mark") as PerformanceMark[]) {
+          if (!m.name.startsWith("inline-read ")) continue;
+          inline[m.name.slice("inline-read ".length)] = m.startTime;
+          generatedAt ??= (m.detail as { generated_at?: number } | null)?.generated_at ?? null;
+        }
         const [nav] = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
-        return { tfus: mark.startTime, api, proto: nav?.nextHopProtocol ?? "", resourceProtos };
+        return { tfus: mark.startTime, api, apiStart, inline, generatedAt, timeOrigin: performance.timeOrigin, documentEnd: nav?.responseEnd ?? 0, proto: nav?.nextHopProtocol ?? "", resourceProtos };
       })
       .catch(() => null); // the document may still be on its way in
     if (got) return got;
     if (Date.now() > until) throw new Error(`no tfus mark within ${timeout} ms`);
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
+}
+
+/** How old a cold first screen's data may be at the `tfus` mark (the server's generated_at, or the request of its API answer). */
+export const FRESH_MS = 5_000;
+
+/**
+ * firstScreenData says where a cold load's first screen got its data before the mark: "network" (its API answer ended before the
+ * mark, asked for within FRESH_MS of it), "document" (the page took the read from its document's data block before the mark, the
+ * document had ended by then, and the server made the block within FRESH_MS of it), or "none" with what was missing. A screen
+ * marked before its data existed is "none".
+ */
+export function firstScreenData(load: Useful, path: string): string {
+  const markAt = load.timeOrigin + load.tfus;
+  const answered = load.api[path];
+  if (answered !== undefined && answered <= load.tfus && load.apiStart[path]! >= load.tfus - FRESH_MS) return "network";
+  const took = load.inline[path];
+  if (took !== undefined && took <= load.tfus && load.documentEnd <= load.tfus && load.generatedAt !== null && load.generatedAt <= markAt && load.generatedAt >= markAt - FRESH_MS) return "document";
+  return `none: ${path} answered at ${answered ?? "-"} (asked at ${load.apiStart[path] ?? "-"}), taken inline at ${took ?? "-"}, document ended at ${load.documentEnd.toFixed(0)}, generated ${load.generatedAt === null ? "-" : (markAt - load.generatedAt).toFixed(0) + " ms"} before the mark at ${load.tfus.toFixed(0)}`;
 }

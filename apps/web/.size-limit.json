@@ -1,10 +1,8 @@
 [
   {
-    "name": "initial JS (entry chunk and the chunks it imports, brotli)",
+    "name": "initial JS (the main bundle, which imports nothing and which a cold page carries inline, and the lean shell's head start, brotli)",
     "path": [
       "../convoz/internal/server/console/web/assets/main-*.js",
-      "../convoz/internal/server/console/web/assets/core-*.js",
-      "../convoz/internal/server/console/web/assets/rolldown-runtime-*.js",
       "../convoz/internal/server/console/web/assets/early-*.js"
     ],
     "brotli": true,

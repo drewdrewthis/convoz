@@ -1,16 +1,17 @@
-// The head start of a page load (design §12.2). This script is tiny and imports nothing, so the browser runs it as soon as it
+// The head start of a page load (design §12.2) on the lean shell (the service worker's copy). A cold page carries these reads inline
+// instead (shared/early.ts). This script is tiny and imports nothing, so the browser runs it as soon as it
 // arrives, while the main bundle is still on its way. It asks at once for what the first screen of this URL waits on: its API
 // reads, and its page's chunk (listed by the build in <meta name="convoz-pages">). On a slow link those waits then overlap the
 // download of the bundle instead of following it. The app's client takes each answer once (shared/early.ts).
 
+import FIRST_READS from "./first-reads.json";
+
 /**
  * The reads each first screen makes as soon as it shows. They are the client's own requests (same headers, same cookie), so the
- * answer the client is handed is the one it would have fetched itself.
+ * answer the client is handed is the one it would have fetched itself. The server reads the same list (the build copies it into
+ * web/first-reads.json) for the reads a cold page carries inline; the build inlines it here, so this script still imports nothing.
  */
-const READS: Record<string, string[]> = {
-  "/": ["/api/now", "/api/me"],
-  "/chats": ["/api/me", "/api/conversations"],
-};
+const READS: Record<string, string[]> = FIRST_READS;
 
 const HEADERS = { "Content-Type": "application/json", "X-Convoz": "1" };
 

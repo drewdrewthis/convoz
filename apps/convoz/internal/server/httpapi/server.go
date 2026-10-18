@@ -57,8 +57,9 @@ type Server struct {
 	Push *notify.Service // the push pipeline; nil until EnablePush (a server without push keys sends nothing)
 	Bus  *platform.Bus   // wakes streams and long polls after a commit; never carries data
 
-	csrfExempt map[string]bool // "METHOD /path" of the NoCSRF routes
-	userCodes  func() string   // the next device-flow user code; random unless the test hooks seed some
+	csrfExempt map[string]bool  // "METHOD /path" of the NoCSRF routes
+	readRoutes map[string]Route // the route of each read a cold page carries inline, by path (firstReadRoutes)
+	userCodes  func() string    // the next device-flow user code; random unless the test hooks seed some
 
 	ceremonies    auth.Ceremonies
 	publicLimit   auth.Limiter // 20 hits a minute per source and public route
@@ -105,7 +106,7 @@ func NewServer(store *db.Store, clock platform.Clock, wa *webauthn.WebAuthn, key
 		}
 	}
 	return &Server{
-		Store: store, Clock: clock, WA: wa, Keys: keys, Cfg: cfg, Log: logger, csrfExempt: exempt, userCodes: auth.NewUserCode,
+		Store: store, Clock: clock, WA: wa, Keys: keys, Cfg: cfg, Log: logger, csrfExempt: exempt, readRoutes: firstReadRoutes(), userCodes: auth.NewUserCode,
 		publicLimit:        auth.Limiter{Window: time.Minute, Max: 20},
 		recoveryLimit:      auth.Limiter{Window: time.Hour, Max: 10},
 		tokenMissLimit:     auth.Limiter{Window: time.Minute, Max: 30},

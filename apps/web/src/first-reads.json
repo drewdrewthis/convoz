@@ -1,0 +1,4 @@
+{
+  "/": ["/api/now", "/api/me", "/api/me/passkeys"],
+  "/chats": ["/api/me", "/api/conversations"]
+}

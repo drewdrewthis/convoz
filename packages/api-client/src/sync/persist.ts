@@ -15,7 +15,11 @@ export type CacheDb = IDBPDatabase<ConvozDB>;
 /** What the offline shell shows: the newest messages of the most recent conversations (design §9). */
 const KEEP_CONVERSATIONS = 20;
 const KEEP_MESSAGES = 200;
-/** Writes wait this long for more changes, so a burst of frames is one transaction. */
+/**
+ * A change is written this long after it, with every change made meanwhile, so a burst of frames is one transaction. The wait counts
+ * from the first unwritten change, not the last: a sync whose reads land closer together than this (the 20 conversations of
+ * keepForOffline on a fast link) is still written as it goes, and a page closed or cut off midway keeps what it had read.
+ */
 const WRITE_DELAY_MS = 150;
 
 /** openOfflineCache opens the cache database; null when the browser has none or refuses it. */
@@ -79,11 +83,19 @@ export async function hydrate(cache: DataCache, dbp: Promise<CacheDb | null>, me
   }
 }
 
+/** The running write-through of the shared cache to IndexedDB. */
+export interface OfflineCopy {
+  /** Write what the cache holds now; resolves once it is on disk (or the disk refused it). */
+  saved(): Promise<void>;
+  /** Stop writing. */
+  stop(): void;
+}
+
 /**
  * persist writes the shared cache through to IndexedDB as it changes. When the cache learns that the signed-in person is not
- * the one the stored data belongs to, it drops what it held and the stored copy first. Returns the function that stops it.
+ * the one the stored data belongs to, it drops what it held and the stored copy first.
  */
-export function persist(cache: DataCache, dbp: Promise<CacheDb | null>, stored: Stored = NOTHING): () => void {
+export function persist(cache: DataCache, dbp: Promise<CacheDb | null>, stored: Stored = NOTHING): OfflineCopy {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let owner = stored.owner;
   const wrote: { me: unknown; identities: unknown; conversations: unknown; rows: unknown; lists: Map<number, unknown>; messages: Map<number, Map<number, Message>> } = {
@@ -138,14 +150,15 @@ export function persist(cache: DataCache, dbp: Promise<CacheDb | null>, stored: 
 
   const flush = () => {
     clearTimeout(timer);
+    timer = undefined;
     queue = queue.then(async () => {
       const db = await dbp;
       if (db) await write(db, cache.store.getState()).catch(() => {}); // a full disk loses the offline copy, not the app
     });
+    return queue;
   };
   const soon = () => {
-    clearTimeout(timer);
-    timer = setTimeout(flush, WRITE_DELAY_MS);
+    timer ??= setTimeout(flush, WRITE_DELAY_MS);
   };
   const leaving = () => {
     if (document.visibilityState === "hidden") flush();
@@ -155,19 +168,22 @@ export function persist(cache: DataCache, dbp: Promise<CacheDb | null>, stored: 
   addEventListener("pagehide", flush);
   document.addEventListener("visibilitychange", leaving);
   soon();
-  return () => {
-    unsubscribe();
-    removeEventListener("pagehide", flush);
-    document.removeEventListener("visibilitychange", leaving);
-    clearTimeout(timer);
+  return {
+    saved: flush,
+    stop: () => {
+      unsubscribe();
+      removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", leaving);
+      clearTimeout(timer);
+    },
   };
 }
 
 /**
- * startOfflineCache fills the shared cache from the store, then keeps the store in step with it. Returns the function that stops that.
+ * startOfflineCache fills the shared cache from the store, then keeps the store in step with it.
  * `messagesAfter`: when the stored messages may be read (see hydrate); at once by default.
  */
-export async function startOfflineCache(cache: DataCache, dbp: Promise<CacheDb | null>, o: { messagesAfter?: Promise<unknown> } = {}): Promise<() => void> {
+export async function startOfflineCache(cache: DataCache, dbp: Promise<CacheDb | null>, o: { messagesAfter?: Promise<unknown> } = {}): Promise<OfflineCopy> {
   return persist(cache, dbp, await hydrate(cache, dbp, o.messagesAfter));
 }
 

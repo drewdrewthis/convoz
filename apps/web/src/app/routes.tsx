@@ -1,8 +1,12 @@
 // The route table: every URL the server serves the app at, how its page is framed, and the feature that draws it. Each
-// feature is its own chunk, loaded through its index.ts before the first render (so a page never flashes empty). Features
-// that draw inside other pages instead of at a URL (rail, threads, voice, search, pins-stars, notifications, apps-host)
-// are mounted by their host page through that feature's index.ts. Prototype v41 names each screen.
+// feature is its own chunk, loaded through its index.ts before the first render (so a page never flashes empty). The two first
+// screens (Now and the conversation list) are the exception: they are in the main bundle, which a cold page carries inline
+// (design §12.2), so they show without another request. Features that draw inside other pages instead of at a URL (rail,
+// threads, voice, search, pins-stars, notifications, apps-host) are mounted by their host page through that feature's index.ts.
+// Prototype v41 names each screen.
 import type { ComponentType } from "react";
+import * as conversations from "../features/conversations/index.ts";
+import { Now } from "../features/now/index.ts";
 
 export interface PageDef {
   name: string;
@@ -35,11 +39,11 @@ export const PAGES = {
   signin: page({ name: "signin", title: "Sign in", heading: "Sign in", frame: "focus", public: true, load: () => import("../features/auth/index.ts").then((f) => f.SignIn) }),
   recover: page({ name: "recover", title: "Use a recovery code", heading: "Use a recovery code", frame: "focus", public: true, load: () => import("../features/auth/index.ts").then((f) => f.Recover) }),
   onboarding: page({ name: "onboarding", title: "Set up a second way in", heading: "Set up a second way in", frame: "focus", load: () => import("../features/onboarding/index.ts").then((f) => f.Onboarding) }),
-  now: page({ name: "now", title: "Now", heading: "Now", frame: "shell", tab: "now", open: true, useful: true, load: () => import("../features/now/index.ts").then((f) => f.Now) }),
-  chats: page({ name: "chats", title: "Conversations", heading: "Conversations", frame: "shell", tab: "chats", newChat: true, back: "/", useful: true, load: () => import("../features/conversations/index.ts").then((f) => f.Conversations) }),
-  chat: page({ name: "chat", title: "Conversation", heading: "Conversation", frame: "chat", load: () => import("../features/conversations/index.ts").then((f) => f.loadConversation()) }),
-  notfound: page({ name: "notfound", title: "Conversation not found", heading: "Conversation not found", frame: "shell", tab: "chats", back: "/chats", load: () => import("../features/conversations/index.ts").then((f) => f.loadNotFound()) }),
-  trash: page({ name: "trash", title: "Trash", heading: "Trash", frame: "shell", back: "/account", load: () => import("../features/conversations/index.ts").then((f) => f.loadTrash()) }),
+  now: page({ name: "now", title: "Now", heading: "Now", frame: "shell", tab: "now", open: true, useful: true, load: () => Promise.resolve(Now) }),
+  chats: page({ name: "chats", title: "Conversations", heading: "Conversations", frame: "shell", tab: "chats", newChat: true, back: "/", useful: true, load: () => Promise.resolve(conversations.Conversations) }),
+  chat: page({ name: "chat", title: "Conversation", heading: "Conversation", frame: "chat", load: conversations.loadConversation }),
+  notfound: page({ name: "notfound", title: "Conversation not found", heading: "Conversation not found", frame: "shell", tab: "chats", back: "/chats", load: conversations.loadNotFound }),
+  trash: page({ name: "trash", title: "Trash", heading: "Trash", frame: "shell", back: "/account", load: conversations.loadTrash }),
   crew: page({ name: "crew", title: "Crew", heading: "Crew", frame: "shell", tab: "crew", back: "/", load: () => import("../features/crew/index.ts").then((f) => f.Crew) }),
   agent: page({ name: "agent", title: "Agent", heading: "Agent", frame: "shell", tab: "crew", back: "/crew", load: () => import("../features/crew/index.ts").then((f) => f.AgentProfile) }),
   machines: page({ name: "machines", title: "Machines", heading: "Machines", frame: "shell", tab: "crew", back: "/crew", load: () => import("../features/crew/index.ts").then((f) => f.Machines) }),
