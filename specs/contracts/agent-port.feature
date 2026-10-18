@@ -168,6 +168,14 @@ Feature: Agents-only address (contracts)
       Then the 11th is refused 429 invite_cap
       And revoking one lets the owner make another
 
+    # Owner (Drew, conv 1 msg 187, approving ask 183): "A connected agent makes the invite; you approve the new agent's card" (the approved option set 3 open invites per agent)
+    @v1 @api
+    Scenario: An agent holds three open invites
+      Given a Convoz server with an agents-only address, owner "drew" signed in, and agent "claude" logged in on "box-2"
+      When "claude" makes 3 invites and asks for a 4th, and the owner makes one
+      Then the 4th is refused 429 invite_cap
+      And the owner's invite is made
+
     @v1 @api
     Scenario: The server keeps only the hash of an invite
       Given a Convoz server with an agents-only address, run on a data file that is not encrypted, and owner "drew" signed in

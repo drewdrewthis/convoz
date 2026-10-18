@@ -94,7 +94,7 @@ func inviteRefused(w http.ResponseWriter, err error) bool {
 	var invalid *auth.FieldError
 	switch {
 	case errors.Is(err, auth.ErrInviteCap):
-		writeErr(w, http.StatusTooManyRequests, wire.CodeInviteCap, "Ten invites are open. Revoke one, or wait for one to be used or to run out.")
+		writeErr(w, http.StatusTooManyRequests, wire.CodeInviteCap, "Too many invites are open. Revoke one, or wait for one to be used or to run out.")
 	case errors.Is(err, auth.ErrNotInConversation):
 		writeErr(w, http.StatusForbidden, wire.CodeNotInConversation, "You can invite only into a conversation you are in.")
 	case errors.As(err, &invalid):
