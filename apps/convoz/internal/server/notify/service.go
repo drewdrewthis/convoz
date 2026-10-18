@@ -56,7 +56,8 @@ type Service struct {
 	Client   HTTPClient
 	Presence *Presence
 	Log      *log.Logger
-	// Subject is the VAPID contact, a generic mailto the owner controls (design §10.3).
+	// Subject is the VAPID contact: a bare e-mail address such as push@host, with no "mailto:" and no port. The webpush library
+	// adds the "mailto:"; a second one makes the VAPID token invalid and Apple rejects it (design §10.3).
 	Subject string
 	// Paused, when set and true, holds the sender back (the test build uses it to make "before the push is sent" a state a scenario can hold).
 	Paused func() bool
