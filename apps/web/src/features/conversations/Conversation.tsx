@@ -14,6 +14,7 @@ import { Details } from "./Details.tsx";
 import { MessageDetails } from "./MessageDetails.tsx";
 import { useFocusReport } from "../notifications/index.ts";
 import { replyingNote, usePresence, useReplying } from "../../shared/presence.ts";
+import { backLabel, useBackCount } from "./backCount.ts";
 import { useConversations, type PendingSend } from "./store.ts";
 import { keyboardOpen, virtualKeyboard, type Screen } from "./keyboard.ts";
 import { ThreadBubbles, Transcript, type TranscriptControl } from "./Transcript.tsx";
@@ -68,6 +69,7 @@ export function Conversation() {
     document.title = `${title} - Convoz`;
   }, [title]);
 
+  const waiting = useBackCount(convId);
   const fit = useFitFrame(frame);
 
   // The details and a thread share the right edge: opening one closes the other. A thread belongs to this page.
@@ -213,8 +215,13 @@ export function Conversation() {
   return (
     <div className="chatframe" id="frame" ref={frame}>
       <header className="appbar chatbar">
-        <a id="back" className="iconbtn" href="/chats" aria-label="Back" onClick={back}>
+        <a id="back" className="iconbtn" href="/chats" aria-label={backLabel(waiting)} onClick={back}>
           <BackIcon />
+          {waiting > 0 ? (
+            <span className="backbadge" aria-hidden="true">
+              {waiting > 99 ? "99+" : waiting}
+            </span>
+          ) : null}
         </a>
         <div className="titles">
           <h1 id="heading">{title}</h1>
