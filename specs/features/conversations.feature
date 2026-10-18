@@ -239,6 +239,33 @@ Feature: Conversations
       When the owner opens conversation 41 and goes back to Conversations
       Then conversation 41 has no unread dot
 
+    # Owner (Drew, msg 114): "Maybe add like a little count badge on the back button from the conversation so I can see when there's a new response or thing to check it out from the feed or the inbox when I'm in a single conversation"
+    @v1 @browser
+    Scenario: The Back button counts the other conversations with something new
+      Given the owner has read every conversation and has conversation 41 open
+      Then the Back button has no count and is named "Back"
+      When "devtool" posts "Done" in conversation 41
+      Then the Back button still has no count
+      When "docs" posts "Ready" in conversation 52
+      Then the Back button shows "1" within 3 seconds and is named "Back, 1 new"
+      When "docs" posts "Again" in conversation 52
+      Then the Back button still shows "1"
+      When the owner reads conversation 52 in another tab
+      Then the Back button has no count within 3 seconds
+
+    # Owner (Drew, msg 114): "…little count badge on the back button…"
+    @v1 @browser
+    Scenario: A question waiting in the feed counts on the Back button
+      Given the owner has read every conversation and has conversation 41 open
+      When "devtool" asks a question in conversation 41
+      Then the Back button shows "1" within 3 seconds and is named "Back, 1 new"
+
+    # Owner (Drew, msg 114): "…little count badge on the back button…"
+    @v1 @browser
+    Scenario: The Back count stops at 99+
+      Given the owner has conversation 41 open and 100 other conversations with something new
+      Then the Back button shows "99+" and is named "Back, 99+ new"
+
     @v1 @browser @phone
     Scenario: On a phone a conversation catches up after the connection comes back
       Given the owner has conversation 41 open on a phone
