@@ -1,10 +1,10 @@
 import type { Identity, Upload } from "@convoz/api-client";
-import { AttachIcon, CloseIcon, FileIcon, MicIcon, SendIcon } from "@convoz/ui/icons";
+import { AttachIcon, MicIcon, SendIcon } from "@convoz/ui/icons";
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { initials, paletteOf, stripCf } from "../../shared/chat.ts";
-import { fileSize } from "../../shared/uploads.ts";
 import { loadRecorder, type VoiceRecording } from "../voice/index.ts";
-import type { Attachments } from "./attachments.ts";
+import { AttachmentList } from "./AttachmentList.tsx";
+import { pasteFiles, type Attachments } from "./attachments.ts";
 import { enterSends } from "./enterToSend.ts";
 
 export interface ComposerProps {
@@ -165,36 +165,7 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
           </p>
         </div>
       ) : null}
-      {files.length ? (
-        <div role="list" aria-label="Files to send" className="tosend">
-          {files.map((f) => (
-            <span key={f.key} role="listitem" className={`fin${f.state === "failed" ? " bad" : ""}`}>
-              <span className="fic" aria-hidden="true">
-                <FileIcon />
-              </span>
-              <span className="fname">{f.file.name}</span>
-              <span className="fsize">{fileSize(f.file.size)}</span>
-              {f.state === "uploading" ? <Progress name={f.file.name} pct={f.file.size ? Math.round((f.sent / f.file.size) * 100) : 0} /> : null}
-              {f.state === "failed" ? (
-                <>
-                  <span className="fbad">Upload failed</span>
-                  <button type="button" className="fretry" onClick={() => attachments.retry(f.key)}>
-                    Retry
-                  </button>
-                </>
-              ) : null}
-              <button type="button" className="fx" aria-label={`Remove ${f.file.name}`} title="Remove" onClick={() => attachments.remove(f.key)}>
-                <CloseIcon />
-              </button>
-            </span>
-          ))}
-        </div>
-      ) : null}
-      {attachments.note ? (
-        <p role="status" className="fnote">
-          {attachments.note}
-        </p>
-      ) : null}
+      <AttachmentList attachments={attachments} />
       {voice ? <voice.Bar recording={voice.recording} onDone={endVoice} /> : null}
       <form
         hidden={Boolean(voice)}
@@ -238,6 +209,7 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
           value={text}
           onChange={(e) => change(e.target.value)}
           onKeyDown={keyDown}
+          onPaste={(e) => pasteFiles(e, attachments)}
         />
         <span className="sendslot">
           {/* Send stays in the page (and disabled) under the microphone while there is nothing to send. */}
@@ -255,13 +227,5 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
         </p>
       ) : null}
     </div>
-  );
-}
-
-function Progress({ name, pct }: { name: string; pct: number }) {
-  return (
-    <span className="fbar" role="progressbar" aria-label={`Uploading ${name}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
-      <i style={{ width: `${pct}%` }} />
-    </span>
   );
 }

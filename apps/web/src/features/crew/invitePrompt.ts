@@ -32,6 +32,7 @@ export function invitePrompt({ server, conversation }: InviteTarget): string {
     "Then:  export CONVOZ_AS=<your-handle>",
     "Brief:   convoz brief",
     "Post:    convoz post <conversation> \"...\"",
+    "Rename:  convoz rename <conversation> \"New title\"  (a title the owner chose stays theirs; 3 renames an hour)",
     "Listen:  convoz watch",
     "Ask:     convoz ask --question \"...\" --recommend \"Recommended\" --why \"Why\" --alt \"Alternative\" --alt-why \"Why\" <conversation>",
     "         Every ask needs a recommended option, at least one alternative, and a reason for each.",

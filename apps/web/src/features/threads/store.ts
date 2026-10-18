@@ -13,6 +13,8 @@ export interface PendingReply {
   state: "sending" | "failed";
   base: number;
   broadcast: boolean;
+  /** The finished uploads the reply carries. */
+  uploadIds?: string[];
 }
 
 export interface OpenThread {
@@ -36,8 +38,8 @@ export interface ThreadsState {
   openThread(conversation: number, rootId: number, known?: Message): Promise<void>;
   close(): void;
   setAlso(on: boolean): void;
-  /** Send a reply; it shows at once as "sending". */
-  reply(body: string): void;
+  /** Send a reply (the body may be empty when it carries files); it shows at once as "sending". */
+  reply(body: string, uploadIds?: string[]): void;
   retry(cid: string): void;
   /** A live frame for a message: a reply of the open thread is taken in, edited or removed. */
   received(m: Message, conversation: number): void;
@@ -78,7 +80,7 @@ export const useThreads = create<ThreadsState>()((set, get) => {
       const sent = await call(
         client.POST("/api/conversations/{id}/messages", {
           params: { path: { id: t.conversation } },
-          body: { client_id: cid, body: p.body, thread_root_id: t.rootId, ...(p.broadcast ? { broadcast: true } : {}) },
+          body: { client_id: cid, body: p.body, thread_root_id: t.rootId, ...(p.broadcast ? { broadcast: true } : {}), ...(p.uploadIds?.length ? { upload_ids: p.uploadIds } : {}) },
         }),
       );
       const me = data.store.getState().me!.identity;
@@ -92,7 +94,8 @@ export const useThreads = create<ThreadsState>()((set, get) => {
         ...(p.broadcast ? { broadcast: true } : {}),
       };
       if (!isOpen(t.rootId)) return;
-      patch((now) => ({ replies: merge(now.replies, [made]), pending: now.pending.filter((x) => x.cid !== cid) }));
+      // The stream may have brought the server's copy first, with its files: keep that one.
+      patch((now) => ({ replies: now.replies.some((r) => r.id === made.id) ? now.replies : merge(now.replies, [made]), pending: now.pending.filter((x) => x.cid !== cid) }));
       if (p.broadcast) data.putMessages(t.conversation, [made]); // it is in the main list too
       void get().markRead();
     } catch (err) {
@@ -109,11 +112,11 @@ export const useThreads = create<ThreadsState>()((set, get) => {
     },
     close: () => set({ open: null }),
     setAlso: (also) => patch(() => ({ also })),
-    reply: (body) => {
+    reply: (body, uploadIds) => {
       const t = get().open;
       if (!t) return;
       const cid = newId();
-      patch((now) => ({ pending: [...now.pending, { cid, body, state: "sending", base: newest(now), broadcast: now.also }] }));
+      patch((now) => ({ pending: [...now.pending, { cid, body, uploadIds, state: "sending", base: newest(now), broadcast: now.also }] }));
       void deliver(cid);
     },
     retry: (cid) => void deliver(cid),

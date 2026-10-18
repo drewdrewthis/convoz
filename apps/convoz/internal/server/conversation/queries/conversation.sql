@@ -1,6 +1,6 @@
 -- name: InsertConversation :one
-INSERT INTO conversations (title, title_source, created_by, created_at, last_activity_at)
-VALUES (sqlc.narg(title), sqlc.arg(title_source), sqlc.arg(created_by), sqlc.arg(created_at), sqlc.arg(created_at))
+INSERT INTO conversations (title, title_source, title_set_by, created_by, created_at, last_activity_at)
+VALUES (sqlc.narg(title), sqlc.arg(title_source), sqlc.arg(title_set_by), sqlc.arg(created_by), sqlc.arg(created_at), sqlc.arg(created_at))
 RETURNING id;
 
 -- name: GetConversation :one
@@ -35,7 +35,7 @@ UPDATE conversations SET last_activity_at = max(last_activity_at, sqlc.arg(at)) 
 UPDATE conversations SET title = sqlc.arg(title) WHERE id = sqlc.arg(id) AND title IS NULL AND title_source = 'auto';
 
 -- name: SetTitle :exec
-UPDATE conversations SET title = sqlc.narg(title), title_source = 'manual' WHERE id = sqlc.arg(id);
+UPDATE conversations SET title = sqlc.narg(title), title_source = 'manual', title_set_by = sqlc.arg(title_set_by) WHERE id = sqlc.arg(id);
 
 -- name: SetLink :exec
 UPDATE conversations SET link_url = sqlc.narg(link_url) WHERE id = sqlc.arg(id);
@@ -50,15 +50,15 @@ UPDATE conversations SET deleted_at = NULL, deleted_by = NULL WHERE id = sqlc.ar
 DELETE FROM conversations WHERE deleted_at IS NOT NULL AND deleted_at < sqlc.arg(before);
 
 -- name: EmptyUntitledIDs :many
--- Candidates for the empty-conversation cleanup (I-20): nothing sent, an automatic title (so never renamed), older than the cutoff.
+-- Candidates for the empty-conversation cleanup (I-20): nothing sent, no title a person chose (an agent's rename does not count), older than the cutoff.
 SELECT id FROM conversations
-WHERE message_count = 0 AND title_source = 'auto' AND title IS NULL AND deleted_at IS NULL AND created_at < sqlc.arg(before)
+WHERE message_count = 0 AND title_set_by <> 'human' AND deleted_at IS NULL AND created_at < sqlc.arg(before)
 ORDER BY id LIMIT sqlc.arg(max_rows);
 
 -- name: DeleteEmptyConversation :execrows
 -- Re-checks the conditions in the same statement, so a send that races the cleanup keeps the conversation.
 DELETE FROM conversations
-WHERE id = sqlc.arg(id) AND message_count = 0 AND title_source = 'auto' AND title IS NULL AND deleted_at IS NULL AND created_at < sqlc.arg(before);
+WHERE id = sqlc.arg(id) AND message_count = 0 AND title_set_by <> 'human' AND deleted_at IS NULL AND created_at < sqlc.arg(before);
 
 -- name: GetParticipant :one
 SELECT status, joined_message_id FROM participants

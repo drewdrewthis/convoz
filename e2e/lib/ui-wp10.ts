@@ -61,6 +61,21 @@ export async function dropFiles(page: Page, files: FileSpec[]): Promise<void> {
   for (const type of ["dragenter", "dragover", "drop"]) await target.dispatchEvent(type, { dataTransfer: dt });
 }
 
+/**
+ * Paste files into a box the way a browser delivers them: a bubbling, cancelable `paste` ClipboardEvent whose clipboardData is a
+ * DataTransfer that holds the files. Resolves to whether the page took the paste over (preventDefault), which a paste of text must not.
+ */
+export async function pasteFiles(box: Locator, files: FileSpec[]): Promise<boolean> {
+  const payload = files.map((f) => ({ name: f.name, type: f.type, bytes: [...f.bytes] }));
+  return box.evaluate((el, list) => {
+    const clipboardData = new DataTransfer();
+    for (const f of list) clipboardData.items.add(new File([new Uint8Array(f.bytes)], f.name, { type: f.type }));
+    const event = new ClipboardEvent("paste", { clipboardData, bubbles: true, cancelable: true });
+    el.dispatchEvent(event);
+    return event.defaultPrevented;
+  }, payload);
+}
+
 /** Wait until no file under "Files to send" is still going. */
 export async function filesReady(page: Page): Promise<void> {
   await page.getByRole("progressbar", { name: /^Uploading / }).first().waitFor({ state: "detached", timeout: 30_000 }).catch(() => undefined);

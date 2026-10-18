@@ -2,11 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.convoz.dev/v1/system.json",
   "title": "messages.system_json v1",
-  "description": "Ids and enums only (no text: names and titles are looked up at render time, so a rename or a scrub never leaves stale text). <= 2048 bytes (DB CHECK). Written only by the server.",
+  "description": "Ids and enums only, except the title of conversation.renamed (names are looked up at render time, so a rename or a scrub never leaves stale text). <= 2048 bytes (DB CHECK). Written only by the server.",
   "type": "object",
   "oneOf": [
     {
       "$ref": "#/$defs/byOnly"
+    },
+    {
+      "$ref": "#/$defs/renamed"
     },
     {
       "$ref": "#/$defs/subjectOnly"
@@ -40,7 +43,6 @@
         },
         "t": {
           "enum": [
-            "conversation.renamed",
             "conversation.resumed",
             "conversation.restored"
           ]
@@ -157,6 +159,32 @@
         },
         "streak": {
           "const": 20
+        }
+      }
+    },
+    "renamed": {
+      "type": "object",
+      "required": [
+        "v",
+        "t",
+        "by"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "t": {
+          "const": "conversation.renamed"
+        },
+        "by": {
+          "$ref": "#/$defs/ref"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "The new title, quoted by the line. The one text a system line holds: a later rename must not change what this line said."
         }
       }
     }

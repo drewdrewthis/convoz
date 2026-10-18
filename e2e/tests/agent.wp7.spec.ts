@@ -21,7 +21,7 @@ async function world(server: Parameters<typeof chatWorld>[0]) {
   return { ...w, conv };
 }
 
-const TOOLS = ["whoami", "brief", "inbox", "claim", "ack", "read", "search", "post", "reply", "ask", "status", "handoff", "profile", "app_validate", "app_build"];
+const TOOLS = ["whoami", "brief", "inbox", "claim", "ack", "read", "search", "post", "reply", "ask", "status", "handoff", "profile", "app_validate", "app_build", "rename"];
 
 // ---- Rule: Setup registers the MCP server and prints a prompt with no secret -----------------------------------------------
 
@@ -77,7 +77,7 @@ scenario("The MCP server lists self-describing tools", { tag: ["@mcp"] }, async 
     // When a client lists the tools of "convoz mcp --as devtool"
     const tools = await mcp.listTools();
 
-    // Then the tools are whoami, brief, inbox, claim, ack, read, search, post, reply, ask, status, handoff, profile, app_validate and app_build
+    // Then the tools are whoami, brief, inbox, claim, ack, read, search, post, reply, ask, status, handoff, profile, app_validate, app_build and rename
     expect(tools.map((t) => t.name).sort()).toEqual([...TOOLS].sort());
 
     // And each has a one-line purpose and a JSON schema that validates

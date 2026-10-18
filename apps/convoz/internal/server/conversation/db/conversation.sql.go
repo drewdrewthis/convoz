@@ -86,7 +86,7 @@ func (q *Queries) DecideParticipant(ctx context.Context, arg DecideParticipantPa
 
 const deleteEmptyConversation = `-- name: DeleteEmptyConversation :execrows
 DELETE FROM conversations
-WHERE id = ?1 AND message_count = 0 AND title_source = 'auto' AND title IS NULL AND deleted_at IS NULL AND created_at < ?2
+WHERE id = ?1 AND message_count = 0 AND title_set_by <> 'human' AND deleted_at IS NULL AND created_at < ?2
 `
 
 type DeleteEmptyConversationParams struct {
@@ -105,7 +105,7 @@ func (q *Queries) DeleteEmptyConversation(ctx context.Context, arg DeleteEmptyCo
 
 const emptyUntitledIDs = `-- name: EmptyUntitledIDs :many
 SELECT id FROM conversations
-WHERE message_count = 0 AND title_source = 'auto' AND title IS NULL AND deleted_at IS NULL AND created_at < ?1
+WHERE message_count = 0 AND title_set_by <> 'human' AND deleted_at IS NULL AND created_at < ?1
 ORDER BY id LIMIT ?2
 `
 
@@ -114,7 +114,7 @@ type EmptyUntitledIDsParams struct {
 	MaxRows int64
 }
 
-// Candidates for the empty-conversation cleanup (I-20): nothing sent, an automatic title (so never renamed), older than the cutoff.
+// Candidates for the empty-conversation cleanup (I-20): nothing sent, no title a person chose (an agent's rename does not count), older than the cutoff.
 func (q *Queries) EmptyUntitledIDs(ctx context.Context, arg EmptyUntitledIDsParams) ([]int64, error) {
 	rows, err := q.db.QueryContext(ctx, emptyUntitledIDs, arg.Before, arg.MaxRows)
 	if err != nil {
@@ -164,7 +164,7 @@ func (q *Queries) EndParticipant(ctx context.Context, arg EndParticipantParams) 
 }
 
 const getConversation = `-- name: GetConversation :one
-SELECT id, title, title_source, created_by, created_at, link_url, last_message_id, last_main_id, last_activity_at, message_count, open_ask_count, agent_streak, paused_at, pickup_opened_at, pickup_opened_by, assign_version, deleted_at, deleted_by FROM conversations WHERE id = ?1 AND deleted_at IS NULL
+SELECT id, title, title_source, created_by, created_at, link_url, last_message_id, last_main_id, last_activity_at, message_count, open_ask_count, agent_streak, paused_at, pickup_opened_at, pickup_opened_by, assign_version, deleted_at, deleted_by, title_set_by FROM conversations WHERE id = ?1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetConversation(ctx context.Context, id int64) (Conversation, error) {
@@ -189,12 +189,13 @@ func (q *Queries) GetConversation(ctx context.Context, id int64) (Conversation, 
 		&i.AssignVersion,
 		&i.DeletedAt,
 		&i.DeletedBy,
+		&i.TitleSetBy,
 	)
 	return i, err
 }
 
 const getConversationAny = `-- name: GetConversationAny :one
-SELECT id, title, title_source, created_by, created_at, link_url, last_message_id, last_main_id, last_activity_at, message_count, open_ask_count, agent_streak, paused_at, pickup_opened_at, pickup_opened_by, assign_version, deleted_at, deleted_by FROM conversations WHERE id = ?1
+SELECT id, title, title_source, created_by, created_at, link_url, last_message_id, last_main_id, last_activity_at, message_count, open_ask_count, agent_streak, paused_at, pickup_opened_at, pickup_opened_by, assign_version, deleted_at, deleted_by, title_set_by FROM conversations WHERE id = ?1
 `
 
 func (q *Queries) GetConversationAny(ctx context.Context, id int64) (Conversation, error) {
@@ -219,6 +220,7 @@ func (q *Queries) GetConversationAny(ctx context.Context, id int64) (Conversatio
 		&i.AssignVersion,
 		&i.DeletedAt,
 		&i.DeletedBy,
+		&i.TitleSetBy,
 	)
 	return i, err
 }
@@ -274,14 +276,15 @@ func (q *Queries) GetParticipantFull(ctx context.Context, arg GetParticipantFull
 }
 
 const insertConversation = `-- name: InsertConversation :one
-INSERT INTO conversations (title, title_source, created_by, created_at, last_activity_at)
-VALUES (?1, ?2, ?3, ?4, ?4)
+INSERT INTO conversations (title, title_source, title_set_by, created_by, created_at, last_activity_at)
+VALUES (?1, ?2, ?3, ?4, ?5, ?5)
 RETURNING id
 `
 
 type InsertConversationParams struct {
 	Title       sql.NullString
 	TitleSource string
+	TitleSetBy  string
 	CreatedBy   int64
 	CreatedAt   int64
 }
@@ -290,6 +293,7 @@ func (q *Queries) InsertConversation(ctx context.Context, arg InsertConversation
 	row := q.db.QueryRowContext(ctx, insertConversation,
 		arg.Title,
 		arg.TitleSource,
+		arg.TitleSetBy,
 		arg.CreatedBy,
 		arg.CreatedAt,
 	)
@@ -364,7 +368,7 @@ func (q *Queries) ListActiveParticipants(ctx context.Context, conversationID int
 }
 
 const listAllConversations = `-- name: ListAllConversations :many
-SELECT id, title, title_source, created_by, created_at, link_url, last_message_id, last_main_id, last_activity_at, message_count, open_ask_count, agent_streak, paused_at, pickup_opened_at, pickup_opened_by, assign_version, deleted_at, deleted_by FROM conversations WHERE deleted_at IS NULL
+SELECT id, title, title_source, created_by, created_at, link_url, last_message_id, last_main_id, last_activity_at, message_count, open_ask_count, agent_streak, paused_at, pickup_opened_at, pickup_opened_by, assign_version, deleted_at, deleted_by, title_set_by FROM conversations WHERE deleted_at IS NULL
 ORDER BY last_activity_at DESC, id DESC LIMIT ?1
 `
 
@@ -396,6 +400,7 @@ func (q *Queries) ListAllConversations(ctx context.Context, maxRows int64) ([]Co
 			&i.AssignVersion,
 			&i.DeletedAt,
 			&i.DeletedBy,
+			&i.TitleSetBy,
 		); err != nil {
 			return nil, err
 		}
@@ -411,7 +416,7 @@ func (q *Queries) ListAllConversations(ctx context.Context, maxRows int64) ([]Co
 }
 
 const listConversationsOfIdentity = `-- name: ListConversationsOfIdentity :many
-SELECT c.id, c.title, c.title_source, c.created_by, c.created_at, c.link_url, c.last_message_id, c.last_main_id, c.last_activity_at, c.message_count, c.open_ask_count, c.agent_streak, c.paused_at, c.pickup_opened_at, c.pickup_opened_by, c.assign_version, c.deleted_at, c.deleted_by FROM conversations c JOIN participants p ON p.conversation_id = c.id
+SELECT c.id, c.title, c.title_source, c.created_by, c.created_at, c.link_url, c.last_message_id, c.last_main_id, c.last_activity_at, c.message_count, c.open_ask_count, c.agent_streak, c.paused_at, c.pickup_opened_at, c.pickup_opened_by, c.assign_version, c.deleted_at, c.deleted_by, c.title_set_by FROM conversations c JOIN participants p ON p.conversation_id = c.id
 WHERE p.identity_id = ?1 AND p.status = 'active' AND c.deleted_at IS NULL
 ORDER BY c.last_activity_at DESC, c.id DESC LIMIT ?2
 `
@@ -449,6 +454,7 @@ func (q *Queries) ListConversationsOfIdentity(ctx context.Context, arg ListConve
 			&i.AssignVersion,
 			&i.DeletedAt,
 			&i.DeletedBy,
+			&i.TitleSetBy,
 		); err != nil {
 			return nil, err
 		}
@@ -550,7 +556,7 @@ func (q *Queries) ListPendingOfConversations(ctx context.Context) ([]ListPending
 }
 
 const listTrash = `-- name: ListTrash :many
-SELECT id, title, title_source, created_by, created_at, link_url, last_message_id, last_main_id, last_activity_at, message_count, open_ask_count, agent_streak, paused_at, pickup_opened_at, pickup_opened_by, assign_version, deleted_at, deleted_by FROM conversations WHERE deleted_at IS NOT NULL
+SELECT id, title, title_source, created_by, created_at, link_url, last_message_id, last_main_id, last_activity_at, message_count, open_ask_count, agent_streak, paused_at, pickup_opened_at, pickup_opened_by, assign_version, deleted_at, deleted_by, title_set_by FROM conversations WHERE deleted_at IS NOT NULL
 ORDER BY deleted_at DESC, id DESC LIMIT ?1
 `
 
@@ -582,6 +588,7 @@ func (q *Queries) ListTrash(ctx context.Context, maxRows int64) ([]Conversation,
 			&i.AssignVersion,
 			&i.DeletedAt,
 			&i.DeletedBy,
+			&i.TitleSetBy,
 		); err != nil {
 			return nil, err
 		}
@@ -717,16 +724,17 @@ func (q *Queries) SetLink(ctx context.Context, arg SetLinkParams) error {
 }
 
 const setTitle = `-- name: SetTitle :exec
-UPDATE conversations SET title = ?1, title_source = 'manual' WHERE id = ?2
+UPDATE conversations SET title = ?1, title_source = 'manual', title_set_by = ?2 WHERE id = ?3
 `
 
 type SetTitleParams struct {
-	Title sql.NullString
-	ID    int64
+	Title      sql.NullString
+	TitleSetBy string
+	ID         int64
 }
 
 func (q *Queries) SetTitle(ctx context.Context, arg SetTitleParams) error {
-	_, err := q.db.ExecContext(ctx, setTitle, arg.Title, arg.ID)
+	_, err := q.db.ExecContext(ctx, setTitle, arg.Title, arg.TitleSetBy, arg.ID)
 	return err
 }
 

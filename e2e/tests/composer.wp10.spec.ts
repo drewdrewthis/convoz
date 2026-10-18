@@ -1,8 +1,10 @@
 import { agentPostWith, pageOf } from "../lib/messages-wp4.ts";
 import { send } from "../lib/http.ts";
 import { expect, scenario } from "../lib/scenario.ts";
-import { dropFiles, filesToSend, openConversation, voiceWorld } from "../lib/ui-wp10.ts";
+import { dropFiles, filesToSend, openConversation, pasteFiles, voiceWorld } from "../lib/ui-wp10.ts";
 import { messageLog } from "../lib/chat-ui.ts";
+import { ownerSays } from "../lib/chat.ts";
+import { openThread, replyBox, sendReply, threadPane } from "../lib/threads-wp5.ts";
 import { must } from "../lib/owner.ts";
 import { png, uploadWhole } from "../lib/uploads-wp10.ts";
 
@@ -74,6 +76,87 @@ scenario("More than 10 attachments are refused in the composer", { tag: ["@brows
   await expect(filesToSend(page).getByRole("listitem")).toHaveCount(10);
   await expect(page.getByRole("status").filter({ hasText: "10 is the most per message." })).toBeVisible();
   await expect(filesToSend(page)).not.toContainText("note-11.txt");
+});
+
+// ---- Rule: Pasted files attach like picked ones; pasted text stays text ---------------------------------------------------------
+// Owner ruling 2026-10-18: "Inline file paste doesn't work, but it should." Prototype v41 has onPaste on both composers: a paste that holds
+// files attaches them and is taken over (preventDefault); a paste of text is left alone.
+
+const FIRST_MESSAGE = "Step 1 is the filter chips UI";
+const screenshot = { name: "screenshot.png", type: "image/png", bytes: png(16, 16, true) };
+
+scenario("Pasting a file into the composer attaches it", { tag: ["@browser", "@I-31"] }, async ({ server, page, context }) => {
+  // Given conversation 41 is open with a thread on its first message
+  const u = await voiceWorld({ server, page, context });
+  const root = await ownerSays(u.w.owner, u.conv, FIRST_MESSAGE);
+  await openConversation(page, u.w.srv, u.conv);
+  await expect(messageLog(page).getByText(FIRST_MESSAGE)).toBeVisible();
+  const messageBox = page.getByRole("textbox", { name: /^Message/ });
+
+  // Examples: the message box, message
+  // When the owner pastes the image "screenshot.png" into the message box
+  expect(await pasteFiles(messageBox, [screenshot]), "the paste of a file is taken over").toBe(true);
+
+  // Then the message box shows "screenshot.png" under "Files to send"
+  await expect(filesToSend(page).getByRole("listitem")).toHaveCount(1);
+  await expect(filesToSend(page)).toContainText("screenshot.png");
+
+  // And "screenshot.png" is not typed into the message box as text
+  await expect(messageBox).toHaveValue("");
+
+  // And sending posts one message with the file
+  await expect(page.getByRole("progressbar", { name: /^Uploading / })).toHaveCount(0, { timeout: 20_000 });
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(filesToSend(page)).toHaveCount(0);
+  await expect.poll(async () => (await pageOf(u.w.owner, u.conv)).length).toBe(2);
+  const sent = (await pageOf(u.w.owner, u.conv)).at(-1)!;
+  expect(sent.uploads!.map((x) => x.name)).toEqual(["screenshot.png"]);
+
+  // Examples: the thread's reply box, reply
+  // When the owner pastes the image "screenshot.png" into the thread's reply box
+  await openThread(page, FIRST_MESSAGE);
+  expect(await pasteFiles(replyBox(page), [screenshot]), "the paste of a file is taken over").toBe(true);
+
+  // Then the thread's reply box shows "screenshot.png" under "Files to send"
+  const inThread = threadPane(page).getByRole("list", { name: "Files to send" });
+  await expect(inThread.getByRole("listitem")).toHaveCount(1);
+  await expect(inThread).toContainText("screenshot.png");
+
+  // And "screenshot.png" is not typed into the thread's reply box as text
+  await expect(replyBox(page)).toHaveValue("");
+
+  // And sending posts one reply with the file
+  await expect(page.getByRole("progressbar", { name: /^Uploading / })).toHaveCount(0, { timeout: 20_000 });
+  await sendReply(page).click();
+  await expect(inThread).toHaveCount(0);
+  const replies = must(await u.w.owner.client.get(`/api/messages/${root}/replies`), "thread replies").json().messages as { uploads?: { name: string }[] }[];
+  expect(replies).toHaveLength(1);
+  expect(replies[0]!.uploads!.map((x) => x.name)).toEqual(["screenshot.png"]);
+});
+
+scenario("Pasting text into the composer stays a normal paste", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given conversation 41 is open with a thread on its first message
+  const u = await voiceWorld({ server, page, context });
+  await ownerSays(u.w.owner, u.conv, FIRST_MESSAGE);
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await openConversation(page, u.w.srv, u.conv);
+  await expect(messageLog(page).getByText(FIRST_MESSAGE)).toBeVisible();
+  await page.evaluate(() => navigator.clipboard.writeText("Looks good to me"));
+  const messageBox = page.getByRole("textbox", { name: /^Message/ });
+
+  // When the owner pastes the words "Looks good to me" into the message box and into the thread's reply box
+  await messageBox.click();
+  await page.keyboard.press("ControlOrMeta+V");
+  await openThread(page, FIRST_MESSAGE);
+  await replyBox(page).click();
+  await page.keyboard.press("ControlOrMeta+V");
+
+  // Then both boxes show "Looks good to me" as text
+  await expect(messageBox).toHaveValue("Looks good to me");
+  await expect(replyBox(page)).toHaveValue("Looks good to me");
+
+  // And no file waits under "Files to send"
+  await expect(filesToSend(page)).toHaveCount(0);
 });
 
 scenario("An image from an own upload renders inline", { tag: ["@browser"] }, async ({ server, page, context }) => {

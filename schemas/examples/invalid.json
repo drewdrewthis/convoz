@@ -39,5 +39,7 @@
   {"name":"result-form-bad-key","schema":"app-result.json","data":{"v":1,"source":"form","summary":"x","value":{"fields":{"Bad Key":1}}}},
   {"name":"system-with-text","schema":"system.json","data":{"v":1,"t":"member.left","identity":12,"text":"devtool left"},"ref":"system.json#/$defs/subjectOnly"},
   {"name":"system-unknown-subtype","schema":"system.json","data":{"v":1,"t":"message.pinned","by":1}},
-  {"name":"system-added-without-via","schema":"system.json","data":{"v":1,"t":"member.added","identity":12,"by":1},"ref":"system.json#/$defs/added"}
+  {"name":"system-added-without-via","schema":"system.json","data":{"v":1,"t":"member.added","identity":12,"by":1},"ref":"system.json#/$defs/added"},
+  {"name":"system-resumed-with-title","schema":"system.json","data":{"v":1,"t":"conversation.resumed","by":1,"title":"x"},"ref":"system.json#/$defs/byOnly"},
+  {"name":"system-renamed-title-too-long","schema":"system.json","data":{"v":1,"t":"conversation.renamed","by":12,"title":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},"ref":"system.json#/$defs/renamed"}
 ]

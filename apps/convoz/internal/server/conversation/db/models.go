@@ -27,6 +27,7 @@ type Conversation struct {
 	AssignVersion  int64
 	DeletedAt      sql.NullInt64
 	DeletedBy      sql.NullInt64
+	TitleSetBy     string
 }
 
 type Participant struct {

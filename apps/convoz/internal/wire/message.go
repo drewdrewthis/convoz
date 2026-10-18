@@ -9,6 +9,7 @@ type System struct {
 	Via      string  `json:"via,omitempty"`
 	History  string  `json:"history,omitempty"`
 	Streak   int     `json:"streak,omitempty"`
+	Title    string  `json:"title,omitempty"` // conversation.renamed: the title the line quotes
 }
 
 // EditRequest is PATCH /api/messages/:id. Only the text changes; any other field is refused (I-8).

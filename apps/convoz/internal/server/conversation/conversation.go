@@ -15,6 +15,13 @@ import (
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
 
+// Who set a title (conversations.title_set_by).
+const (
+	TitleAuto  = "auto"
+	TitleHuman = "human"
+	TitleAgent = "agent"
+)
+
 // Limits (design §13.1, §7 CHECKs).
 const (
 	MaxTitleRunes   = 120
@@ -28,7 +35,8 @@ const (
 type Conversation struct {
 	ID             int64
 	Title          string // empty when the conversation has none yet
-	TitleManual    bool   // the owner chose the title; a message never renames it
+	TitleManual    bool   // someone chose the title; a message never renames it
+	TitleSetBy     string // who set the title: TitleAuto, TitleHuman or TitleAgent
 	CreatedBy      int64
 	CreatedAt      int64
 	LinkURL        string
@@ -64,6 +72,7 @@ type Member struct {
 type New struct {
 	By      int64
 	Title   string // a title the creator chose; empty for an automatic one
+	TitleBy string // TitleAgent when an agent chose Title; empty means TitleHuman
 	Members []int64
 	Pending []int64
 }
@@ -85,7 +94,7 @@ func AutoTitle(body string) string {
 
 func fromRow(r db.Conversation) Conversation {
 	return Conversation{
-		ID: r.ID, Title: r.Title.String, TitleManual: r.TitleSource == "manual", CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, LinkURL: r.LinkUrl.String,
+		ID: r.ID, Title: r.Title.String, TitleManual: r.TitleSource == "manual", TitleSetBy: r.TitleSetBy, CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, LinkURL: r.LinkUrl.String,
 		LastMessageID: r.LastMessageID, LastMainID: r.LastMainID, LastActivityAt: r.LastActivityAt, MessageCount: r.MessageCount,
 		AgentStreak: r.AgentStreak, PausedAt: r.PausedAt.Int64,
 		DeletedAt: r.DeletedAt.Int64, DeletedBy: r.DeletedBy.Int64,
@@ -96,12 +105,12 @@ func fromRow(r db.Conversation) Conversation {
 func Create(ctx context.Context, d pdb.DBTX, now time.Time, in New) (Conversation, error) {
 	q := db.New(d)
 	at := now.UnixMilli()
-	source := "auto"
+	source, by := "auto", TitleAuto
 	if in.Title != "" {
-		source = "manual"
+		source, by = "manual", cmpOr(in.TitleBy, TitleHuman)
 	}
 	id, err := q.InsertConversation(ctx, db.InsertConversationParams{
-		Title: sql.NullString{String: in.Title, Valid: in.Title != ""}, TitleSource: source, CreatedBy: in.By, CreatedAt: at,
+		Title: sql.NullString{String: in.Title, Valid: in.Title != ""}, TitleSource: source, TitleSetBy: by, CreatedBy: in.By, CreatedAt: at,
 	})
 	if err != nil {
 		return Conversation{}, err
@@ -128,7 +137,7 @@ func Create(ctx context.Context, d pdb.DBTX, now time.Time, in New) (Conversatio
 			return Conversation{}, err
 		}
 	}
-	return Conversation{ID: id, Title: in.Title, TitleManual: in.Title != "", CreatedBy: in.By, CreatedAt: at, LastActivityAt: at}, nil
+	return Conversation{ID: id, Title: in.Title, TitleManual: in.Title != "", TitleSetBy: by, CreatedBy: in.By, CreatedAt: at, LastActivityAt: at}, nil
 }
 
 // Get returns one conversation that is not deleted; ok is false when there is none.
@@ -215,9 +224,32 @@ func Touch(ctx context.Context, d pdb.DBTX, now time.Time, id int64) error {
 	return db.New(d).TouchActivity(ctx, db.TouchActivityParams{At: now.UnixMilli(), ID: id})
 }
 
-// Rename sets a title the owner chose. Later messages never change it (the source is "manual").
-func Rename(ctx context.Context, d pdb.DBTX, id int64, title string) error {
-	return db.New(d).SetTitle(ctx, db.SetTitleParams{Title: sql.NullString{String: title, Valid: true}, ID: id})
+// Rename sets a title that by (TitleHuman or TitleAgent) chose. Later messages never change it (the source is "manual").
+func Rename(ctx context.Context, d pdb.DBTX, id int64, title, by string) error {
+	return db.New(d).SetTitle(ctx, db.SetTitleParams{Title: sql.NullString{String: title, Valid: true}, TitleSetBy: by, ID: id})
+}
+
+// CleanTitle strips what an untrusted title must not carry: control characters, line breaks and the bidi marks that
+// reorder the text around them. The caller then checks ValidTitle.
+func CleanTitle(s string) string {
+	return strings.TrimSpace(strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) || unicode.In(r, unicode.Zl, unicode.Zp) || isBidi(r) {
+			return -1
+		}
+		return r
+	}, s))
+}
+
+// isBidi reports the Unicode bidirectional formatting characters: marks, embeddings, overrides and isolates.
+func isBidi(r rune) bool {
+	return r == 0x061C || r == 0x200E || r == 0x200F || r >= 0x202A && r <= 0x202E || r >= 0x2066 && r <= 0x2069
+}
+
+func cmpOr(v, fallback string) string {
+	if v == "" {
+		return fallback
+	}
+	return v
 }
 
 // SetLink sets or (with "") clears the pull request link the details show.

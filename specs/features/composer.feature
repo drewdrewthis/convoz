@@ -111,3 +111,27 @@ Feature: Composer
     Scenario: More than 10 attachments are refused in the composer
       When the owner drops 11 files on conversation 41
       Then the composer keeps 10 and says that 10 is the most per message
+
+  Rule: Pasted files attach like picked ones; pasted text stays text
+
+    # Owner ruling 2026-10-18: "Inline file paste doesn't work, but it should."
+    # Prototype v41: both composers handle paste; a paste with files attaches them and keeps the text paste normal.
+    @v1 @browser @I-31
+    Scenario Outline: Pasting a file into the composer attaches it
+      Given conversation 41 is open with a thread on its first message
+      When the owner pastes the image "screenshot.png" into <box>
+      Then <box> shows "screenshot.png" under "Files to send"
+      And "screenshot.png" is not typed into <box> as text
+      And sending posts one <sent> with the file
+
+      Examples:
+        | box                    | sent    |
+        | the message box        | message |
+        | the thread's reply box | reply   |
+
+    @v1 @browser
+    Scenario: Pasting text into the composer stays a normal paste
+      Given conversation 41 is open with a thread on its first message
+      When the owner pastes the words "Looks good to me" into the message box and into the thread's reply box
+      Then both boxes show "Looks good to me" as text
+      And no file waits under "Files to send"

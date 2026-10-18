@@ -71,6 +71,7 @@ type ProjectSystem struct {
 	By       Person
 	History  string
 	Streak   int
+	Title    string // conversation.renamed: the title the line quotes
 }
 
 // ProjectAsk is an ask.
@@ -162,6 +163,9 @@ func systemText(s ProjectSystem) string {
 	case "member.disabled":
 		return s.Identity.Ref() + " was disabled"
 	case "conversation.renamed":
+		if s.Title != "" {
+			return s.By.Ref() + " renamed this to \"" + s.Title + "\""
+		}
 		return s.By.Ref() + " renamed the conversation"
 	case "conversation.paused":
 		return fmt.Sprintf("Paused after %d agent messages in a row. Resume to let agents post.", s.Streak)

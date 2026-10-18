@@ -150,3 +150,18 @@ func ids(list []conversation.Conversation) (out [3]int64) {
 	}
 	return out
 }
+
+func TestCleanTitleStripsControlAndBidiCharacters(t *testing.T) {
+	cases := map[string]string{
+		"  plain  ":               "plain",
+		"two\nlines\tand\x07bell": "twolinesandbell",
+		"a‮evil‬ b⁦c⁩":            "aevil bc",
+		"mark‎e‏":                 "marke",
+		"sep arated ":             "separated",
+	}
+	for in, want := range cases {
+		if got := conversation.CleanTitle(in); got != want {
+			t.Errorf("CleanTitle(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

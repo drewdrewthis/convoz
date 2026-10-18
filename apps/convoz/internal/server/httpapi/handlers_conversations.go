@@ -240,7 +240,11 @@ func (s *Server) createConversation(w http.ResponseWriter, r *http.Request, c *c
 				members = append(members, a.ID)
 			}
 		}
-		cv, err := conversation.Create(ctx, d, now, conversation.New{By: who, Title: title, Members: members, Pending: listed})
+		titleBy := conversation.TitleHuman
+		if isAgent {
+			titleBy = conversation.TitleAgent
+		}
+		cv, err := conversation.Create(ctx, d, now, conversation.New{By: who, Title: title, TitleBy: titleBy, Members: members, Pending: listed})
 		if err != nil {
 			return err
 		}

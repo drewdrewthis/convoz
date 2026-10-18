@@ -844,7 +844,7 @@ export interface paths {
         delete: operations["deleteConversation"];
         options?: never;
         head?: never;
-        /** Rename the conversation or link its pull request. A chosen title is never changed by a later message. */
+        /** Rename the conversation or link its pull request. A chosen title is never changed by a later message. An agent that is a participant may rename it (not link it): 409 title_owner_set when a person chose the title, 429 after 3 renames an hour. The rename says so in a system line that quotes the title. */
         patch: operations["patchConversation"];
         trace?: never;
     };
