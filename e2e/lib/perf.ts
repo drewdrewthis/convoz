@@ -81,7 +81,10 @@ export interface Useful {
   apiStart: Record<string, number>;
   /** When the page took each read its document carried inline (the app's "inline-read <path>" mark), by path. */
   inline: Record<string, number>;
-  /** The server's generated_at (wall clock, ms) of the document's data block; null when the document has none. */
+  /**
+   * The server's generated_at (wall clock, ms) of the document's data block, as the page's "inline-read" mark carries it (the page
+   * removes the block from the DOM once read); null when the page took no inline read.
+   */
   generatedAt: number | null;
   /** performance.timeOrigin: the wall clock (ms) of the navigation start, so a mark's time can meet the server's clock. */
   timeOrigin: number;
@@ -123,12 +126,11 @@ export async function useful(page: Page, timeout: number): Promise<Useful> {
           if (e.nextHopProtocol) resourceProtos.push(e.nextHopProtocol);
         }
         const inline: Record<string, number> = {};
-        for (const m of performance.getEntriesByType("mark")) if (m.name.startsWith("inline-read ")) inline[m.name.slice("inline-read ".length)] = m.startTime;
         let generatedAt: number | null = null;
-        try {
-          generatedAt = JSON.parse(document.getElementById("cz-data")?.textContent || "null")?.generated_at ?? null;
-        } catch {
-          /* no block: null */
+        for (const m of performance.getEntriesByType("mark") as PerformanceMark[]) {
+          if (!m.name.startsWith("inline-read ")) continue;
+          inline[m.name.slice("inline-read ".length)] = m.startTime;
+          generatedAt ??= (m.detail as { generated_at?: number } | null)?.generated_at ?? null;
         }
         const [nav] = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
         return { tfus: mark.startTime, api, apiStart, inline, generatedAt, timeOrigin: performance.timeOrigin, documentEnd: nav?.responseEnd ?? 0, proto: nav?.nextHopProtocol ?? "", resourceProtos };

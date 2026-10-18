@@ -10,6 +10,8 @@ const FRESH_MS = 10_000;
 const DATA_BLOCK_ID = "cz-data";
 
 let inline: Map<string, unknown> | undefined;
+/** The block's generated_at: each "inline-read" mark carries it, since the block itself leaves the DOM once read. */
+let generatedAt: number | null = null;
 
 /** The reads of the page's data block, by absolute URL. Read once; the lean shell has no block, so it holds none. */
 function inlineReads(): Map<string, unknown> {
@@ -20,7 +22,8 @@ function inlineReads(): Map<string, unknown> {
   const text = element?.textContent;
   element?.remove();
   try {
-    const block = JSON.parse(text || "null") as { reads?: Record<string, unknown> } | null;
+    const block = JSON.parse(text || "null") as { generated_at?: number; reads?: Record<string, unknown> } | null;
+    generatedAt = block?.generated_at ?? null;
     for (const [path, body] of Object.entries(block?.reads ?? {})) inline.set(new URL(path, location.origin).href, body);
   } catch {
     /* a broken block only loses the head start: the client fetches for itself */
@@ -33,7 +36,8 @@ const early = () => (globalThis as { convozEarly?: Map<string, Promise<Response>
 /**
  * takeEarly returns the answer this load already holds for this request, or undefined when there is none (any other request, a
  * second one for the same URL, or one made late). An inline read is answered as the server answered it (200, JSON); its use sets
- * the mark "inline-read <path>", so a trace tells a screen drawn from the document from one that waited for the network. A head
+ * the mark "inline-read <path>" (detail: the block's generated_at), so a trace tells a screen drawn from the document from one that
+ * waited for the network, and how old the data was. A head
  * start that failed is tried again as a plain fetch, so a link that came back counts.
  */
 export function takeEarly(request: Request): Promise<Response> | undefined {
@@ -43,7 +47,7 @@ export function takeEarly(request: Request): Promise<Response> | undefined {
     const body = reads.get(request.url);
     reads.delete(request.url);
     if (performance.now() <= FRESH_MS) {
-      performance.mark(`inline-read ${new URL(request.url).pathname}`);
+      performance.mark(`inline-read ${new URL(request.url).pathname}`, { detail: { generated_at: generatedAt } });
       return Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } }));
     }
   }
