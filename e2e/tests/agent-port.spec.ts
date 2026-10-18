@@ -1,6 +1,6 @@
 import { CliMachine } from "../lib/cli.ts";
 import { agentPort, agentServer, startLoginViaAgent, viaAgent } from "../lib/agent-port.ts";
-import { clientId, createAgents, pendingRequests, approve, allow, signInBrowser } from "../lib/machines.ts";
+import { clientId, createAgents, pendingRequests, approve, allow, signInBrowser, loginMachine, mintSession, identityRequests, requestDeviceCode } from "../lib/machines.ts";
 import { send } from "../lib/http.ts";
 import { bootstrapOwner, must, tmpDir } from "../lib/owner.ts";
 import { expect, scenario } from "../lib/scenario.ts";
@@ -165,6 +165,9 @@ scenario("The install script and the version name the agents-only address", { ta
   expect(agentVersion.agent_url).toBe(agent.origin);
   expect(ownerVersion.agent_url).toBe(agent.origin);
 
+  // And the version on the agents-only port is a short commit, with no "+dirty" mark
+  expect(agentVersion.version).not.toContain("+");
+
   // And a server with no agents-only address carries no agent_url
   const plain = await server({ host: "localhost", dataDir: tmpDir("convoz-plain-") });
   expect(must(await send(plain.target, "GET", "/api/version"), "version of a plain server").json().agent_url).toBeUndefined();
@@ -221,4 +224,183 @@ scenario("One agent flag without the other is a usage error", { tag: ["@cli"] },
   // And a non-loopback --agent-listen is refused with the wall's code 13
   const open = await serveCli({ host: "localhost", extraArgs: ["--agent-listen", "0.0.0.0:0", "--agent-host", "dot.testonly.ts.net"] });
   expect(open.code, open.stderr).toBe(13);
+});
+
+scenario("A request that is not from the Funnel proxy is refused with 400", { tag: ["@api"] }, async ({ server }) => {
+  // Given a Convoz server with an agents-only address that knows a client only by the Funnel proxy
+  const srv = await server(agentServer({ strict: true }));
+  const agent = agentPort(srv);
+
+  // When a request arrives with no Funnel marker, and another with a forged X-Forwarded-For and no marker
+  const bare = await send(agent.target, "GET", "/healthz");
+  const forged = await send(agent.target, "GET", "/healthz", { headers: { "X-Forwarded-For": "203.0.113.9" } });
+
+  // Then both answer 400 and neither is served
+  expect(bare.status).toBe(400);
+  expect(forged.status).toBe(400);
+
+  // And a request with the marker and a client address is served
+  expect((await viaAgent(srv, "GET", "/healthz", { from: "203.0.113.9" })).status).toBe(200);
+
+  // And the log has no line that names 203.0.113.9 for the forged request
+  expect(srv.log()).not.toContain("ip=203.0.113.9 ");
+});
+
+scenario("Many addresses together cannot start more than 20 logins an hour", { tag: ["@api"] }, async ({ server }) => {
+  // Given a Convoz server with an agents-only address and owner "drew" signed in
+  const srv = await server(agentServer());
+  const owner = await bootstrapOwner(srv);
+
+  // When 20 different addresses each start the device login, the owner denying each
+  for (let i = 1; i <= 20; i++) {
+    must(await startLoginViaAgent(srv, `box-${i}`, `198.51.100.${i}`), `start ${i}`);
+    must(await owner.client.post("/api/machines/requests/deny-all"), "deny all");
+  }
+
+  // Then a 21st address is refused with 429 and a Retry-After
+  const next = await startLoginViaAgent(srv, "box-21", "198.51.100.99");
+  expect(next.status).toBe(429);
+  expect(Number(next.headers["retry-after"])).toBeGreaterThan(0);
+});
+
+scenario("A second pending request with the same machine name or handle is refused", { tag: ["@api"] }, async ({ server }) => {
+  // Given a Convoz server with an agents-only address, and one request "box-1" as @dot waiting
+  const srv = await server(agentServer());
+  must(await startLoginViaAgent(srv, "box-1", "203.0.113.1", { handle: "dot" }), "first request");
+
+  // When another address asks with the same machine name, and another with the same handle
+  const sameName = await startLoginViaAgent(srv, "box-1", "203.0.113.2", { handle: "cat" });
+  const sameHandle = await startLoginViaAgent(srv, "box-2", "203.0.113.3", { handle: "dot" });
+
+  // Then both answer 409 duplicate_pending
+  expect(sameName.status).toBe(409);
+  expect(sameName.json().error.code).toBe("duplicate_pending");
+  expect(sameHandle.status).toBe(409);
+  expect(sameHandle.json().error.code).toBe("duplicate_pending");
+
+  // And a request with a new name and handle is accepted
+  expect((await startLoginViaAgent(srv, "box-3", "203.0.113.4", { handle: "bird" })).status).toBe(200);
+});
+
+scenario("A taken handle or a missing conversation is not told to a stranger", { tag: ["@api"] }, async ({ server }) => {
+  // Given a Convoz server with an agents-only address, owner "drew" signed in, and an agent "dot" that exists
+  const srv = await server(agentServer());
+  const owner = await bootstrapOwner(srv);
+  await createAgents(owner, "dot");
+
+  // When a stranger asks on the agents-only port with the taken handle, and another with a conversation that does not exist
+  const taken = await startLoginViaAgent(srv, "box-1", "203.0.113.1", { handle: "dot" });
+  const noConversation = await startLoginViaAgent(srv, "box-2", "203.0.113.2", { handle: "fresh", conversation_id: 999999 });
+
+  // Then both are accepted like any other request
+  expect(taken.status).toBe(200);
+  expect(noConversation.status).toBe(200);
+
+  // And the same taken handle on the owner's port is refused 409 at once
+  const own = await send(srv.target, "POST", "/api/device/code", {
+    json: { name: "box-3", host_info: { hostname: "h", os: "linux", arch: "amd64", cli_version: "x" }, identity: { handle: "dot" } },
+  });
+  expect(own.status).toBe(409);
+
+  // And the owner's approval of the card for the taken handle is refused 409 handle_taken
+  const [first] = await pendingRequests(owner);
+  const refused = await approve(owner, first!.id);
+  expect(refused.status).toBe(409);
+  expect(refused.json().error.code).toBe("handle_taken");
+});
+
+scenario("A request from a logged-in machine over the internet is marked on its card", { tag: ["@api"] }, async ({ server }) => {
+  // Given a Convoz server with an agents-only address, a machine "box-2" logged in without the create_identity scope
+  const srv = await server(agentServer());
+  const owner = await bootstrapOwner(srv);
+  const box = await loginMachine(srv, owner, "box-2", allow("new*", "oth*"));
+
+  // When the machine asks for a new identity on the agents-only port, and for another on the owner's port
+  const viaNet = await viaAgent(srv, "POST", "/api/sessions", { from: "203.0.113.5", bearer: box.key, json: { as: "newbie", client_id: clientId(), create: { display_name: "Newbie" } } });
+  const own = await mintSession(srv, box.key, { as: "other", create: { display_name: "Other" } });
+  expect(viaNet.status).toBe(202);
+  expect(own.status).toBe(202);
+
+  // Then the owner's Now lists the first request with via_internet true and the second with false
+  const rows = await identityRequests(owner);
+  expect(rows.find((r) => r.handle === "newbie")?.via_internet).toBe(true);
+  expect(rows.find((r) => r.handle === "other")?.via_internet).toBe(false);
+});
+
+scenario("A session that ended is not counted as a wrong guess", { tag: ["@api"] }, async ({ server }) => {
+  // Given a Convoz server with an agents-only address and a lease that has ended
+  const srv = await server(agentServer());
+  const owner = await bootstrapOwner(srv);
+  await createAgents(owner, "dot");
+  const box = await loginMachine(srv, owner, "box-2", allow("dot"));
+  const minted = must(await viaAgent(srv, "POST", "/api/sessions", { from: "203.0.113.7", bearer: box.key, json: { as: "dot", client_id: clientId() } }), "mint", 201).json();
+  must(await viaAgent(srv, "DELETE", "/api/sessions/me", { from: "203.0.113.7", bearer: minted.lease }), "end", 204);
+
+  // When the ended lease is used 40 times from one address
+  const answers = [];
+  for (let i = 0; i < 40; i++) answers.push((await viaAgent(srv, "GET", "/api/me", { from: "203.0.113.7", bearer: minted.lease })).status);
+
+  // Then every answer is 401 and none is 429
+  expect(answers.every((s) => s === 401)).toBe(true);
+});
+
+scenario("Approving an internet request needs the last 4 characters of the code when the server asks", { tag: ["@api"] }, async ({ server }) => {
+  // Given a Convoz server run with --agent-approve-code, and owner "drew" signed in
+  const srv = await server(agentServer({ extraArgs: ["--agent-approve-code"] }));
+  const owner = await bootstrapOwner(srv);
+
+  // When a request comes in on the agents-only port, and another on the owner's port
+  const net = must(await startLoginViaAgent(srv, "box-net", "203.0.113.8"), "internet request").json();
+  const own = must(await requestDeviceCode(srv, "box-own"), "tailnet request").json();
+  const rows = await pendingRequests(owner);
+  const netRow = rows.find((r) => r.user_code === net.user_code)!;
+  const ownRow = rows.find((r) => r.user_code === own.user_code)!;
+
+  // Then only the internet request asks for the code
+  expect(netRow.code_required).toBe(true);
+  expect(ownRow.code_required).toBe(false);
+
+  // And approving it with no code, or with a wrong one, is refused 403 code_mismatch
+  const none = await approve(owner, netRow.id);
+  expect(none.status).toBe(403);
+  expect(none.json().error.code).toBe("code_mismatch");
+  const wrong = await owner.client.post(`/api/machines/requests/${netRow.id}/approve`, { allow: { mode: "list", identities: [], globs: [] }, code_tail: "ZZZZ" });
+  expect(wrong.status).toBe(403);
+
+  // And approving it with the last 4 characters of its code works, in lower case too
+  const tail = net.user_code.slice(-4).toLowerCase();
+  const ok = await owner.client.post(`/api/machines/requests/${netRow.id}/approve`, { allow: { mode: "list", identities: [], globs: [] }, code_tail: tail });
+  expect(ok.status).toBe(201);
+
+  // And the tailnet request is approved with no code
+  expect((await approve(owner, ownRow.id)).status).toBe(201);
+});
+
+scenario("The owner types the last 4 characters of the code to approve an agent from the internet", { tag: ["@cli", "@browser"] }, async ({ server, page, context }) => {
+  // Given a Convoz server run with --agent-approve-code
+  const srv = await server(agentServer({ extraArgs: ["--agent-approve-code"] }));
+  const agent = agentPort(srv);
+  const owner = await bootstrapOwner(srv);
+
+  // When "convoz login --name dot-box --as dot" runs against the agents-only address
+  const box = new CliMachine();
+  const login = box.startLogin(agent.origin, "dot-box", ["--as", "dot"]);
+  const line = await login.waitForStdout(AGENT_LINE);
+  const code = line[3]!;
+
+  // Then the card heading shows the code
+  await signInBrowser(srv, owner, page, context);
+  const card = page.getByRole("article", { name: `dot-box wants to connect as @dot · code ${code}`, exact: true });
+  await expect(card).toBeVisible();
+
+  // And Approve stays off until the last 4 characters are typed
+  const approveButton = card.getByRole("button", { name: "Approve", exact: true });
+  await expect(approveButton).toBeDisabled();
+  await card.getByLabel("Last 4 characters of the code").fill(code.slice(-4));
+  await expect(approveButton).toBeEnabled();
+
+  // And the CLI logs in once the owner approves
+  await approveButton.click();
+  const done = await login.done;
+  expect(done.code, done.stderr).toBe(0);
 });

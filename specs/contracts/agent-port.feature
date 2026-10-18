@@ -41,6 +41,16 @@ Feature: Agents-only address (contracts)
       And /api/version carries agent_url on both ports
       And a server with no agents-only address carries no agent_url
 
+  Rule: The listener knows a client only by the Funnel proxy
+
+    @v1 @api
+    Scenario: A request that is not from the Funnel proxy is refused with 400
+      Given a Convoz server with an agents-only address that knows a client only by the Funnel proxy
+      When a request arrives with no Funnel marker, and another with a forged X-Forwarded-For and no marker
+      Then both answer 400 and neither is served
+      And a request with the marker and a client address is served
+      And the log has no line that names 203.0.113.9 for the forged request
+
   Rule: The internet-facing door is rate limited per address
 
     @v1 @api
@@ -57,6 +67,52 @@ Feature: Agents-only address (contracts)
       Then they answer 401
       And its next request answers 429
       And another address still answers 401
+
+  Rule: Many look-alike cards cannot fill the owner's feed
+
+    @v1 @api
+    Scenario: Many addresses together cannot start more than 20 logins an hour
+      Given a Convoz server with an agents-only address and owner "drew" signed in
+      When 20 different addresses each start the device login, the owner denying each
+      Then a 21st address is refused with 429 and a Retry-After
+
+    @v1 @api
+    Scenario: A second pending request with the same machine name or handle is refused
+      Given a Convoz server with an agents-only address, and one request "box-1" as @dot waiting
+      When another address asks with the same machine name, and another with the same handle
+      Then both answer 409 duplicate_pending
+      And a request with a new name and handle is accepted
+
+    @v1 @api
+    Scenario: A taken handle or a missing conversation is not told to a stranger
+      Given a Convoz server with an agents-only address, owner "drew" signed in, and an agent "dot" that exists
+      When a stranger asks on the agents-only port with the taken handle, and another with a conversation that does not exist
+      Then both are accepted like any other request
+      And the same taken handle on the owner's port is refused 409 at once
+      And the owner's approval of the card for the taken handle is refused 409 handle_taken
+
+    @v1 @api
+    Scenario: A request from a logged-in machine over the internet is marked on its card
+      Given a Convoz server with an agents-only address, a machine "box-2" logged in without the create_identity scope
+      When the machine asks for a new identity on the agents-only port, and for another on the owner's port
+      Then the owner's Now lists the first request with via_internet true and the second with false
+
+    @v1 @api
+    Scenario: A session that ended is not counted as a wrong guess
+      Given a Convoz server with an agents-only address and a lease that has ended
+      When the ended lease is used 40 times from one address
+      Then every answer is 401 and none is 429
+
+  Rule: The code-match option makes the owner type part of the code
+
+    @v1 @api
+    Scenario: Approving an internet request needs the last 4 characters of the code when the server asks
+      Given a Convoz server run with --agent-approve-code, and owner "drew" signed in
+      When a request comes in on the agents-only port, and another on the owner's port
+      Then only the internet request asks for the code
+      And approving it with no code, or with a wrong one, is refused 403 code_mismatch
+      And approving it with the last 4 characters of its code works, in lower case too
+      And the tailnet request is approved with no code
 
   Rule: The flags go together
 

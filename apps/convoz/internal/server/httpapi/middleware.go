@@ -139,6 +139,8 @@ func (s *Server) csrf(next http.Handler) http.Handler {
 type statusWriter struct {
 	http.ResponseWriter
 	status int
+	// notAGuess marks a 401 that is not a wrong credential (an ended session); the agent listener's failed-auth limit skips it.
+	notAGuess bool
 }
 
 func (w *statusWriter) WriteHeader(code int) {

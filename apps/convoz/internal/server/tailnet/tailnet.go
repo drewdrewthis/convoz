@@ -57,6 +57,56 @@ func CheckFunnel(ctx context.Context, bin string, target string) error {
 	return funnelOn(out, target)
 }
 
+// ErrFunnelTCPForward means funnel forwards raw TCP to the agent listener. A TCP forward carries no Tailscale-Funnel-Request header
+// and no X-Forwarded-For, so the listener could not tell its clients apart (it would refuse every request); it must be a web proxy.
+var ErrFunnelTCPForward = errors.New("funnel must proxy the agent listener as a web service, not forward TCP")
+
+// CheckAgentFunnel fails with ErrFunnelTCPForward when tailscale forwards raw TCP from funnel to the agent listener at target.
+// A funnel web proxy to it is what is wanted and passes.
+func CheckAgentFunnel(ctx context.Context, bin string, target string) error {
+	out, err := run(ctx, bin, "serve", "status", "--json")
+	if err != nil {
+		return fmt.Errorf("cannot read tailscale status: %w", err)
+	}
+	return agentFunnelTCP(out, target)
+}
+
+func agentFunnelTCP(status []byte, target string) error {
+	var cfg serveConfig
+	if err := json.Unmarshal(status, &cfg); err != nil {
+		return fmt.Errorf("cannot read tailscale status: %w", err)
+	}
+	if hp, ok := cfg.forwards(target); ok {
+		return fmt.Errorf("%w: funnel is on for %s", ErrFunnelTCPForward, hp)
+	}
+	return nil
+}
+
+// forwards looks through this config, every foreground session and every service for a funnel host:port whose TCP forward leads to target.
+func (c *serveConfig) forwards(target string) (string, bool) {
+	for hostPort, on := range c.AllowFunnel {
+		if !on {
+			continue
+		}
+		if _, port, err := net.SplitHostPort(hostPort); err == nil {
+			if fwd, ok := c.TCP[port]; ok && sameTarget(fwd.TCPForward, target) {
+				return hostPort, true
+			}
+		}
+	}
+	for _, group := range []map[string]*serveConfig{c.Foreground, c.Services} {
+		for _, sub := range group {
+			if sub == nil {
+				continue
+			}
+			if hp, ok := sub.forwards(target); ok {
+				return hp, true
+			}
+		}
+	}
+	return "", false
+}
+
 func funnelOn(status []byte, target string) error {
 	var cfg serveConfig
 	if err := json.Unmarshal(status, &cfg); err != nil {

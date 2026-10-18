@@ -12,6 +12,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/event"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
 
 // reader is the read-only handle every module wraps with its own sqlc New.
@@ -30,8 +31,11 @@ type ownerJSON struct {
 
 func ownerOf(h auth.Human) ownerJSON { return ownerJSON{h.ID, h.Handle, h.DisplayName} }
 
-func (s *Server) version(w http.ResponseWriter, _ *http.Request, _ *call) {
+func (s *Server) version(w http.ResponseWriter, r *http.Request, _ *call) {
 	out := map[string]any{"version": s.Cfg.Version}
+	if agentClient(r.Context()) != "" {
+		out["version"] = wire.ShortVersion(s.Cfg.Version) // the internet sees a short commit, not the build id
+	}
 	if s.Cfg.AgentOrigin != "" {
 		out["agent_url"] = s.Cfg.AgentOrigin // the address an agent outside the tailnet connects to; the invite prompt shows it
 	}

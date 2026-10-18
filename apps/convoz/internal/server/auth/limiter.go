@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"sort"
 	"sync"
 	"time"
 )
@@ -50,11 +51,7 @@ func (l *Limiter) Allow(key string, now time.Time) bool {
 		l.hits = map[string][]time.Time{}
 	}
 	if len(l.hits) > maxKeys {
-		for k, h := range l.hits {
-			if len(h) == 0 || now.Sub(h[len(h)-1]) >= l.Window {
-				delete(l.hits, k)
-			}
-		}
+		l.shrink(now)
 	}
 	cutoff := now.Add(-l.Window)
 	kept := l.hits[key][:0]
@@ -69,4 +66,29 @@ func (l *Limiter) Allow(key string, now time.Time) bool {
 	}
 	l.hits[key] = append(kept, now)
 	return true
+}
+
+// shrink drops the keys with no hit in the window; if the map is still over maxKeys (a flood of live keys), it drops the keys whose
+// latest hit is oldest until it is back to maxKeys/2, so the map never grows without a bound.
+func (l *Limiter) shrink(now time.Time) {
+	for k, h := range l.hits {
+		if len(h) == 0 || now.Sub(h[len(h)-1]) >= l.Window {
+			delete(l.hits, k)
+		}
+	}
+	if len(l.hits) <= maxKeys {
+		return
+	}
+	type last struct {
+		key string
+		at  time.Time
+	}
+	all := make([]last, 0, len(l.hits))
+	for k, h := range l.hits {
+		all = append(all, last{k, h[len(h)-1]})
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i].at.Before(all[j].at) })
+	for _, e := range all[:len(all)-maxKeys/2] {
+		delete(l.hits, e.key)
+	}
 }

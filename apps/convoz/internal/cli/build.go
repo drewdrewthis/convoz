@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"runtime/debug"
 	"time"
+
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
 
 // Commit is the source revision of this binary; "unknown" when the build carries none.
@@ -51,7 +53,7 @@ func WarnIfStale(io IO, c *client) {
 	var got struct {
 		Version string `json:"version"`
 	}
-	if err := c.call(ctx, "GET", "/api/version", "", nil, &got); err != nil || got.Version == "" || got.Version == Version {
+	if err := c.call(ctx, "GET", "/api/version", "", nil, &got); err != nil || got.Version == "" || wire.ShortVersion(got.Version) == wire.ShortVersion(Version) {
 		return
 	}
 	fmt.Fprintf(io.Stderr, "convoz: warning: this CLI is %s and the server is %s. update: curl -fsSL %s/install | sh\n", Version, got.Version, c.base)

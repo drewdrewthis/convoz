@@ -19,6 +19,8 @@ type MintRequest struct {
 	ClientID   string
 	Label      string
 	Create     *CreateIdentity // make the agent when there is none
+	// ViaInternet says the request came in on the agents-only listener; a request it files for the owner carries the mark.
+	ViaInternet bool
 }
 
 // CreateIdentity asks MintSession to make the agent when it does not exist. The agent sends its own identity: a machine with the
@@ -111,6 +113,11 @@ func sessionIdentity(ctx context.Context, d pdb.DBTX, p Ports, m Machine, in Min
 		f, err := FileSessionIdentity(ctx, d, p, m, pkg, now)
 		if err != nil {
 			return Agent{}, nil, err
+		}
+		if in.ViaInternet {
+			if err := MarkViaInternet(ctx, d, f.Ref); err != nil {
+				return Agent{}, nil, err
+			}
 		}
 		return Agent{}, &f, nil
 	}

@@ -30,6 +30,9 @@ import (
 
 var hostRE = regexp.MustCompile(`^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$`)
 
+// agentMaxConns caps the open connections of the agent listener; the per-address cap on requests being served is in httpapi.
+const agentMaxConns = 256
+
 // serve runs the server and returns the process exit code.
 func serve(args []string) int {
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
@@ -39,6 +42,7 @@ func serve(args []string) int {
 	host := fs.String("host", "", "the name clients reach this server by, NAME or NAME:PORT when `tailscale serve` listens on a non-443 HTTPS port, e.g. convoz.<tailnet>.ts.net:8473 (required)")
 	agentListen := fs.String("agent-listen", "", "off by default: a loopback IP with a port for the agents-only listener, the one `tailscale funnel` points at (needs --agent-host)")
 	agentHost := fs.String("agent-host", "", "the public name agents reach the agents-only listener by, NAME or NAME:PORT, e.g. convoz.<tailnet>.ts.net:8443; agents are told this address")
+	agentApprove := fs.Bool("agent-approve-code", false, "an internet request shows its code in the card heading and Approve asks for the last 4 characters of it (needs --agent-listen)")
 	adminSocket := fs.String("admin-socket", "", "unix socket for break-glass admin commands (mode 0600)")
 	tailscaleBin := fs.String("tailscale-bin", "tailscale", "the tailscale command")
 	tailscaleMode := fs.String("tailscale", "check", "check: read tailscale status at start and refuse if funnel is on; off: skip (development)")
@@ -75,6 +79,9 @@ func serve(args []string) int {
 		return fail(exitWall, err)
 	case err != nil:
 		return fail(exitUsage, err)
+	}
+	if *agentApprove && !agent.on {
+		return fail(exitUsage, errors.New("--agent-approve-code needs --agent-listen and --agent-host"))
 	}
 	if *adminSocket != "" && len(*adminSocket) > maxUnixPath {
 		return fail(exitUsage, errUnixPathLength)
@@ -115,6 +122,7 @@ func serve(args []string) int {
 		if agentLn, err = net.Listen("tcp", agent.listen); err != nil {
 			return fail(1, err)
 		}
+		agentLn = httpapi.LimitConns(agentLn, agentMaxConns)
 		defer agentLn.Close()
 	}
 	var admin net.Listener
@@ -131,6 +139,11 @@ func serve(args []string) int {
 		if err := tailnet.CheckFunnel(ctx, *tailscaleBin, spec.target(pub)); err != nil {
 			return fail(exitWall, err)
 		}
+		if agentLn != nil {
+			if err := tailnet.CheckAgentFunnel(ctx, *tailscaleBin, agentLn.Addr().String()); err != nil {
+				return fail(exitWall, err)
+			}
+		}
 	}
 
 	cfg := httpapi.Config{Host: name, Unix: spec.unix, PublicPort: publicPort, Version: version, TailscaleBin: *tailscaleBin, TailscaleOn: *tailscaleMode == "check", DataDir: dir, BlobKey: blobDEK}
@@ -140,6 +153,7 @@ func serve(args []string) int {
 	cfg.Origin = originFor(name, publicPort, cfg)
 	if agentLn != nil {
 		cfg.AgentHost, cfg.AgentPublicPort, cfg.AgentPort = agent.name, agent.publicPort, agentLn.Addr().(*net.TCPAddr).Port
+		cfg.AgentApproveCode = *agentApprove
 		cfg.AgentOrigin = originFor(agent.name, agent.publicPort, httpapi.Config{Port: cfg.AgentPort})
 	}
 	wa, err := auth.NewRelyingParty(name, cfg.Origin)
@@ -167,14 +181,7 @@ func serve(args []string) int {
 	}}
 	listeners := []net.Listener{pub}
 	if agentLn != nil {
-		servers = append(servers, &http.Server{
-			Handler:           api.AgentHandler(),
-			ReadHeaderTimeout: 10 * time.Second,
-			BaseContext:       func(net.Listener) context.Context { return ctx },
-			IdleTimeout:       2 * time.Minute,
-			MaxHeaderBytes:    1 << 16,
-			ErrorLog:          logger,
-		})
+		servers = append(servers, api.AgentHTTPServer(ctx, logger, httpapi.AgentReadTimeout))
 		listeners = append(listeners, agentLn)
 	}
 	if admin != nil {

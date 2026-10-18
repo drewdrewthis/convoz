@@ -57,6 +57,7 @@ export function RequestCard({ item, changed, approved }: CardProps) {
   const { say, fail } = useNotice();
   const id = useId();
   const [busy, setBusy] = useState(false);
+  const [tail, setTail] = useState("");
   const machine = item.kind === "session" ? null : item.machine;
   const intro = item.kind === "session" ? item.request : (machine?.identity ?? null);
   const name = item.kind === "session" ? item.request.machine : item.machine.name;
@@ -72,7 +73,7 @@ export function RequestCard({ item, changed, approved }: CardProps) {
         const p = { params: { path: { id: item.machine.id } } };
         await call(
           approve
-            ? client.POST("/api/machines/requests/{id}/approve", { ...p, body: { allow: { mode: "list", identities: [], globs: [] } } })
+            ? client.POST("/api/machines/requests/{id}/approve", { ...p, body: { allow: { mode: "list", identities: [], globs: [] }, ...(item.machine.code_required ? { code_tail: tail.trim().toUpperCase() } : {}) } })
             : client.POST("/api/machines/requests/{id}/deny", { ...p, body: {} }),
         );
       }
@@ -88,7 +89,7 @@ export function RequestCard({ item, changed, approved }: CardProps) {
 
   return (
     <article className="card" aria-labelledby={id} data-request={path}>
-      <h3 id={id}>{intro ? `${name} wants to connect as @${intro.handle}` : `${name} wants to connect`}</h3>
+      <h3 id={id}>{(intro ? `${name} wants to connect as @${intro.handle}` : `${name} wants to connect`) + (machine?.code_required ? ` · code ${machine.user_code}` : "")}</h3>
       {intro ? (
         <Who handle={intro.handle} name={intro.display_name} description={intro.description} avatar={intro.avatar_url} conversation={intro.conversation} />
       ) : null}
@@ -101,10 +102,16 @@ export function RequestCard({ item, changed, approved }: CardProps) {
           <p className="sub">{sourceLine(machine)}</p>
         </>
       ) : (
-        <p className="sub">This machine is already connected.</p>
+        <p className="sub">{`This machine is already connected.${item.kind === "session" && item.request.via_internet ? " · via internet" : ""}`}</p>
       )}
+      {machine?.code_required ? (
+        <label className="sub">
+          {"Type the last 4 characters of the code the agent printed"}
+          <input value={tail} onChange={(e) => setTail(e.target.value)} maxLength={4} autoComplete="off" spellCheck={false} aria-label="Last 4 characters of the code" />
+        </label>
+      ) : null}
       <div className="btns">
-        <button className="btn primary" type="button" disabled={busy} onClick={() => void decide(true)}>
+        <button className="btn primary" type="button" disabled={busy || (machine?.code_required === true && tail.trim().length !== 4)} onClick={() => void decide(true)}>
           Approve
         </button>
         <button className="btn" type="button" disabled={busy} onClick={() => void decide(false)}>

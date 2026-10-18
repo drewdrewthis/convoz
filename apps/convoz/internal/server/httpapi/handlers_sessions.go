@@ -19,7 +19,7 @@ func (s *Server) mintSession(w http.ResponseWriter, r *http.Request, c *call) {
 	if !decode(w, r, &in) {
 		return
 	}
-	req := auth.MintRequest{MachineKey: c.token, As: in.As, ClientID: in.ClientID, Label: in.Label}
+	req := auth.MintRequest{MachineKey: c.token, As: in.As, ClientID: in.ClientID, Label: in.Label, ViaInternet: agentClient(r.Context()) != ""}
 	if in.Create != nil {
 		avatar, ok := cleanAvatar(w, in.Create.AvatarSVG)
 		if !ok {

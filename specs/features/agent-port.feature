@@ -30,3 +30,13 @@ Feature: Agents outside the tailnet connect through an agents-only address
       When the owner opens the invite sheet in Crew
       Then the prompt names the agents-only address as the server
       And the prompt does not name the tailnet address
+
+  Rule: The owner can ask for proof that the agent at the terminal is the one on the card
+
+    @v1 @cli @browser
+    Scenario: The owner types the last 4 characters of the code to approve an agent from the internet
+      Given a Convoz server run with the code-match option
+      When "convoz login --name dot-box --as dot" runs against the agents-only address
+      Then the card heading shows the code
+      And Approve stays off until the last 4 characters are typed
+      And the CLI logs in once the owner approves

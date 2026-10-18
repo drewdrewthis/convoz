@@ -39,6 +39,8 @@ type Config struct {
 	AgentPublicPort int // the port agents type; 0 for 443
 	AgentPort       int // bound TCP port of the agent listener
 	AgentOrigin     string
+	// AgentApproveCode makes the owner type the last 4 characters of the code to approve an internet request (--agent-approve-code).
+	AgentApproveCode bool
 
 	// DataDir and BlobKey (the keyring's blob DEK) open the sealed upload files under <DataDir>/blobs. Without them there are no uploads.
 	DataDir string
@@ -74,12 +76,13 @@ type Server struct {
 	dayIdentityLimit auth.Limiter
 	dayMachineLimit  auth.Limiter
 	// The agent listener's limits per client address (agent.go).
-	agentStartLimit, agentPollLimit, agentFailLimit auth.Limiter
-	streams                                         streamSet
-	maintainedAt                                    atomic.Int64  // server time (unix ms) of the last clean-up run Maintain made on a list read
-	maintaining                                     sync.Mutex    // held while a list read runs the clean-up, so a second list read waits for it instead of reading the list before the clean-up
-	exports                                         ops.Exports   // export jobs; the zero value is ready
-	heartbeat                                       time.Duration // how often a quiet stream sends ": hb" and checks its device; heartbeatEvery unless a test shortens it
+	agentStartLimit, agentStartAll, agentPollLimit, agentFailLimit, agentDownloadLimit auth.Limiter
+	agentInflight                                                                      inflight
+	streams                                                                            streamSet
+	maintainedAt                                                                       atomic.Int64  // server time (unix ms) of the last clean-up run Maintain made on a list read
+	maintaining                                                                        sync.Mutex    // held while a list read runs the clean-up, so a second list read waits for it instead of reading the list before the clean-up
+	exports                                                                            ops.Exports   // export jobs; the zero value is ready
+	heartbeat                                                                          time.Duration // how often a quiet stream sends ": hb" and checks its device; heartbeatEvery unless a test shortens it
 }
 
 // Daily message caps (design §13.1).
@@ -105,18 +108,20 @@ func NewServer(store *db.Store, clock platform.Clock, wa *webauthn.WebAuthn, key
 	}
 	return &Server{
 		Store: store, Clock: clock, WA: wa, Keys: keys, Cfg: cfg, Log: logger, csrfExempt: exempt, userCodes: auth.NewUserCode,
-		publicLimit:      auth.Limiter{Window: time.Minute, Max: 20},
-		recoveryLimit:    auth.Limiter{Window: time.Hour, Max: 10},
-		tokenMissLimit:   auth.Limiter{Window: time.Minute, Max: 30},
-		postLimit:        auth.Limiter{Window: 20 * time.Second, Max: 20},
-		statusLimit:      auth.Limiter{Window: 50 * time.Second, Max: 10},
-		agentStartLimit:  auth.Limiter{Window: time.Hour, Max: agentStartsPerHour},
-		agentPollLimit:   auth.Limiter{Window: time.Minute, Max: agentPollsPerMin},
-		agentFailLimit:   auth.Limiter{Window: agentFailWindow, Max: agentFailsPer10Min},
-		Bus:              platform.NewBus(),
-		heartbeat:        heartbeatEvery,
-		dayIdentityLimit: auth.Limiter{Window: 24 * time.Hour, Max: dayMessagesIdentity},
-		dayMachineLimit:  auth.Limiter{Window: 24 * time.Hour, Max: dayMessagesMachine},
+		publicLimit:        auth.Limiter{Window: time.Minute, Max: 20},
+		recoveryLimit:      auth.Limiter{Window: time.Hour, Max: 10},
+		tokenMissLimit:     auth.Limiter{Window: time.Minute, Max: 30},
+		postLimit:          auth.Limiter{Window: 20 * time.Second, Max: 20},
+		statusLimit:        auth.Limiter{Window: 50 * time.Second, Max: 10},
+		agentStartLimit:    auth.Limiter{Window: time.Hour, Max: agentStartsPerHour},
+		agentStartAll:      auth.Limiter{Window: time.Hour, Max: agentStartsAllPerHour},
+		agentDownloadLimit: auth.Limiter{Window: time.Hour, Max: agentDownloadsPerHour},
+		agentPollLimit:     auth.Limiter{Window: time.Minute, Max: agentPollsPerMin},
+		agentFailLimit:     auth.Limiter{Window: agentFailWindow, Max: agentFailsPer10Min},
+		Bus:                platform.NewBus(),
+		heartbeat:          heartbeatEvery,
+		dayIdentityLimit:   auth.Limiter{Window: 24 * time.Hour, Max: dayMessagesIdentity},
+		dayMachineLimit:    auth.Limiter{Window: 24 * time.Hour, Max: dayMessagesMachine},
 	}
 }
 

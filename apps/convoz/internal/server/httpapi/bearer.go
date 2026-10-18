@@ -57,6 +57,7 @@ func (s *Server) authenticateLease(w http.ResponseWriter, r *http.Request, token
 	}
 	switch {
 	case dead != nil:
+		notAGuess(w)
 		writeErr(w, http.StatusUnauthorized, "session_ended", sessionEndedMessage(dead.Reason))
 		return nil, errAnswered
 	case !ok:

@@ -1727,6 +1727,33 @@ func (q *Queries) ListSessions(ctx context.Context, maxRows int64) ([]ListSessio
 	return items, nil
 }
 
+const listViaInternetIdentityRefs = `-- name: ListViaInternetIdentityRefs :many
+SELECT ref FROM identity_requests WHERE via_internet = 1 AND state = 'pending'
+`
+
+func (q *Queries) ListViaInternetIdentityRefs(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listViaInternetIdentityRefs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var ref string
+		if err := rows.Scan(&ref); err != nil {
+			return nil, err
+		}
+		items = append(items, ref)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const liveSessionIdentitiesOnMachine = `-- name: LiveSessionIdentitiesOnMachine :many
 SELECT DISTINCT identity_id FROM sessions WHERE machine_id = ?1 AND ended_at IS NULL AND expires_at > ?2
 `
@@ -1757,6 +1784,15 @@ func (q *Queries) LiveSessionIdentitiesOnMachine(ctx context.Context, arg LiveSe
 		return nil, err
 	}
 	return items, nil
+}
+
+const markIdentityRequestViaInternet = `-- name: MarkIdentityRequestViaInternet :exec
+UPDATE identity_requests SET via_internet = 1 WHERE ref = ?1
+`
+
+func (q *Queries) MarkIdentityRequestViaInternet(ctx context.Context, ref string) error {
+	_, err := q.db.ExecContext(ctx, markIdentityRequestViaInternet, ref)
+	return err
 }
 
 const markRequestDelivered = `-- name: MarkRequestDelivered :exec
@@ -1821,6 +1857,29 @@ func (q *Queries) MintsOnMachine(ctx context.Context, arg MintsOnMachineParams) 
 	var i MintsOnMachineRow
 	err := row.Scan(&i.N, &i.Oldest)
 	return i, err
+}
+
+const pendingNameOrHandleTaken = `-- name: PendingNameOrHandleTaken :one
+SELECT CAST(
+  EXISTS (SELECT 1 FROM machine_requests m WHERE m.state = 'pending' AND m.expires_at > ?1 AND m.requested_name = ?2)
+  OR (?3 <> '' AND (
+    EXISTS (SELECT 1 FROM identity_requests r JOIN machine_requests q ON q.id = r.machine_request_id
+            WHERE r.kind = 'login' AND q.state = 'pending' AND q.expires_at > ?1 AND r.handle = ?3)
+    OR EXISTS (SELECT 1 FROM identity_requests s WHERE s.kind = 'session' AND s.state = 'pending' AND s.expires_at > ?1 AND s.handle = ?3)))
+AS INTEGER) AS taken
+`
+
+type PendingNameOrHandleTakenParams struct {
+	Now    int64
+	Name   string
+	Handle interface{}
+}
+
+func (q *Queries) PendingNameOrHandleTaken(ctx context.Context, arg PendingNameOrHandleTakenParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, pendingNameOrHandleTaken, arg.Now, arg.Name, arg.Handle)
+	var taken int64
+	err := row.Scan(&taken)
+	return taken, err
 }
 
 const replaceMachineKey = `-- name: ReplaceMachineKey :execrows

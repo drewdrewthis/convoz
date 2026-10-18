@@ -291,6 +291,7 @@
               name: { type: string }
               allow: { $ref: "../openapi.yaml#/components/schemas/Allow" }
               scopes: { type: array, items: { type: string } }
+              code_tail: { type: string, description: "The last 4 characters of the request's code. Required for an internet request when the server runs with --agent-approve-code; 403 code_mismatch otherwise." }
     responses:
       "201":
         description: The machine is connected.

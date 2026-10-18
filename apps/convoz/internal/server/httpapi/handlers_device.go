@@ -75,7 +75,8 @@ func (s *Server) deviceCode(w http.ResponseWriter, r *http.Request, _ *call) {
 	info, _ := json.Marshal(wire.HostInfo{Hostname: clip(in.HostInfo.Hostname), OS: clip(in.HostInfo.OS), Arch: clip(in.HostInfo.Arch), CLIVersion: clip(in.HostInfo.CLIVersion)})
 	source := s.source(r)
 	node := s.nodeName(r.Context(), source)
-	if agentClient(r.Context()) != "" {
+	via := agentClient(r.Context()) != ""
+	if via {
 		source = viaInternet + source
 	}
 	req := auth.DeviceRequest{Name: in.Name, HostInfo: string(info), Source: source, SourceNode: node, Interval: s.interval()}
@@ -85,7 +86,21 @@ func (s *Server) deviceCode(w http.ResponseWriter, r *http.Request, _ *call) {
 		now := s.Clock.Now()
 		// The identity is checked before the request is made: a refused handle makes no request, and a request reserves nothing.
 		if intro != nil {
-			if *intro, err = auth.CheckIdentityPackage(ctx, tx.DBTX(), flowPorts, *intro); err != nil {
+			if via {
+				*intro, err = checkIntroBlind(ctx, tx.DBTX(), *intro)
+			} else {
+				*intro, err = auth.CheckIdentityPackage(ctx, tx.DBTX(), flowPorts, *intro)
+			}
+			if err != nil {
+				return err
+			}
+		}
+		if via {
+			handle := ""
+			if intro != nil {
+				handle = intro.Handle
+			}
+			if err = auth.CheckNoPendingDuplicate(ctx, tx.DBTX(), in.Name, handle, now); err != nil {
 				return err
 			}
 		}
@@ -98,7 +113,7 @@ func (s *Server) deviceCode(w http.ResponseWriter, r *http.Request, _ *call) {
 			}
 		}
 		// The owner is told (a card in Now, a push): the event names the request, the push reads its name and code when it is sent.
-		_, err = event.Append(ctx, tx.DBTX(), now, eventMachineRequested, map[string]any{"request_id": out.RequestID})
+		_, err = event.Append(ctx, tx.DBTX(), now, eventMachineRequested, map[string]any{"request_id": out.RequestID, "via_internet": via})
 		return err
 	})
 	if err == nil {
@@ -107,6 +122,8 @@ func (s *Server) deviceCode(w http.ResponseWriter, r *http.Request, _ *call) {
 	var limited *auth.RateLimitedError
 	switch {
 	case identityRefused(w, err, "handle"):
+	case errors.Is(err, auth.ErrDuplicatePending):
+		writeErr(w, http.StatusConflict, "duplicate_pending", "A request with that name or handle is already waiting for the owner.")
 	case errors.Is(err, auth.ErrTooManyPending):
 		writeErr(w, http.StatusTooManyRequests, wire.CodeTooManyPending, "Three machines are already waiting. Deny the waiting requests in Convoz, then run convoz login again.")
 	case errors.Is(err, auth.ErrPendingFull):
@@ -186,15 +203,17 @@ type requestJSON struct {
 	HostInfo json.RawMessage `json:"host_info"`
 	SourceIP *string         `json:"source_ip"`
 	// ViaInternet is true when the request came in on the agent listener; the card then says "via internet".
-	ViaInternet bool    `json:"via_internet"`
-	NodeName    *string `json:"node_name"`
-	CreatedAt   int64   `json:"created_at"`
-	ExpiresAt   int64   `json:"expires_at"`
+	ViaInternet bool `json:"via_internet"`
+	// CodeRequired is true when the owner must type the last 4 characters of the code to approve (--agent-approve-code, internet requests).
+	CodeRequired bool    `json:"code_required"`
+	NodeName     *string `json:"node_name"`
+	CreatedAt    int64   `json:"created_at"`
+	ExpiresAt    int64   `json:"expires_at"`
 	// Identity is what the agent that ran convoz login --as said about itself; null for a plain login.
 	Identity *introJSON `json:"identity"`
 }
 
-func requestsJSON(list []auth.Request, intros map[int64]introJSON) []requestJSON {
+func (s *Server) requestsJSON(list []auth.Request, intros map[int64]introJSON) []requestJSON {
 	out := make([]requestJSON, 0, len(list))
 	for _, q := range list {
 		row := requestJSON{ID: q.ID, Name: q.Name, UserCode: q.UserCode, HostInfo: json.RawMessage("null"), CreatedAt: q.CreatedAt, ExpiresAt: q.ExpiresAt}
@@ -206,6 +225,8 @@ func requestsJSON(list []auth.Request, intros map[int64]introJSON) []requestJSON
 		}
 		src, via := strings.CutPrefix(q.Source, viaInternet)
 		row.ViaInternet = via
+		row.CodeRequired = via && s.Cfg.AgentApproveCode
+		row.CodeRequired = via && s.Cfg.AgentApproveCode
 		if net.ParseIP(src) != nil {
 			row.SourceIP = &src
 		}
@@ -229,5 +250,26 @@ func (s *Server) machineRequests(w http.ResponseWriter, r *http.Request, _ *call
 		s.internalError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"requests": requestsJSON(list, intros)})
+	writeJSON(w, http.StatusOK, map[string]any{"requests": s.requestsJSON(list, intros)})
+}
+
+// checkIntroBlind is CheckIdentityPackage for a caller nobody has vouched for. A taken or retired handle, a look-alike display name and
+// a conversation that is not available all give the same accepted answer as a clean package, so the open door cannot be used to probe the
+// owner's people and chats; the approval runs the full rules again and refuses with its reason. A conversation that is not available is dropped.
+func checkIntroBlind(ctx context.Context, d pdb.DBTX, in auth.IdentityPackage) (auth.IdentityPackage, error) {
+	conv := in.ConversationID
+	in.ConversationID = 0
+	out, err := auth.CheckIdentityPackage(ctx, d, flowPorts, in)
+	var field *auth.FieldError
+	if err != nil && !errors.Is(err, auth.ErrHandleTaken) && !(errors.As(err, &field) && field.Field == "display_name") {
+		return out, err
+	}
+	if conv != 0 {
+		if _, ok, cerr := flowPorts.Conversations.OwnerConversation(ctx, d, conv); cerr != nil {
+			return out, cerr
+		} else if ok {
+			out.ConversationID = conv
+		}
+	}
+	return out, nil
 }
