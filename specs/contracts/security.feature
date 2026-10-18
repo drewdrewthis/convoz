@@ -281,11 +281,7 @@ Feature: Security walls (contracts)
       Then "docs" is listed as pending
       And "docs" cannot read the conversation until the owner approves
 
-    @v1 @api @I-47 @AC-26
-    Scenario: A conversation not opened for pickup cannot be picked up
-      Given machine "box-2" has the pickup scope
-      When "devtool" runs "convoz pickup 41" for a conversation nobody opened for pickup
-      Then the server answers 403
+    # Removed: "A conversation not opened for pickup cannot be picked up" (pickup was removed). Owner said: "Nothing claims conversations. I need to tag."
 
     @v1 @api @I-40
     Scenario: The audit trail names machine and session

@@ -174,7 +174,6 @@ var scopeRefusals = map[string]string{
 	"status": "This machine may not report a status.",
 	"upload": "This machine may not upload.",
 	"read":   "This machine may not read.",
-	"pickup": "This machine may not pick up conversations.",
 }
 
 // leaseHas reports whether the lease holds scope; a route that needs none ("") is open to every lease.

@@ -16,7 +16,7 @@ import { useConversations, type PendingSend } from "./store.ts";
 import { ThreadBubbles, Transcript, type TranscriptControl } from "./Transcript.tsx";
 
 const NEW = "new";
-const GONE = "This chat does not exist, or it is not yours.";
+const GONE = "This conversation does not exist, or it is not yours.";
 const NONE: Message[] = [];
 const NO_SENDS: PendingSend[] = [];
 
@@ -55,8 +55,8 @@ export function Conversation() {
   const agents = (conversation?.participants ?? []).filter((p) => p.kind === "agent");
   const agent = agentHandle ? { handle: agentHandle, online: Boolean(people?.find((p) => p.handle === agentHandle)?.online) } : null;
   const working = agent && thread?.working?.handle === agent.handle ? thread.working : null;
-  // An existing chat is "Chat" until its row is in; an untitled one is "New conversation".
-  const title = gone ? "Chat not found" : !isNew && !conversation ? "Chat" : stripCf(conversation?.title ?? "") || "New conversation";
+  // An existing chat is "Conversation" until its row is in; an untitled one is "New conversation".
+  const title = gone ? "Conversation not found" : !isNew && !conversation ? "Conversation" : stripCf(conversation?.title ?? "") || "New conversation";
 
   useEffect(() => {
     document.title = `${title} - Convoz`;

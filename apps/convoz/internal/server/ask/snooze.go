@@ -18,12 +18,12 @@ const (
 
 // tonightAt and tomorrowAt are the local hours of the two presets.
 const (
-	tonightAt  = 20
+	tonightAt  = 18
 	tomorrowAt = 9
 )
 
-// PresetTime is when a preset wakes the ask, read in the person's time zone: 1 hour from now; Tonight 20:00 the same day,
-// which is not offered from 20:00 (ErrPresetGone); Tomorrow 09:00 the next day.
+// PresetTime is when a preset wakes the ask, read in the person's time zone: 1 hour from now; Tonight 18:00 (6:00 PM) the same day,
+// which is not offered from 18:00 (ErrPresetGone); Tomorrow 09:00 the next day.
 func PresetTime(preset string, now time.Time, loc *time.Location) (time.Time, error) {
 	local := now.In(loc)
 	y, m, d := local.Date()

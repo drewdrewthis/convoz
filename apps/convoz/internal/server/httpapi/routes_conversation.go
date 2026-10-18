@@ -2,7 +2,7 @@ package httpapi
 
 import "github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
 
-// conversationRoutes are the routes of conversations, participants, pickup, trash. Only the work package that owns this module edits this file.
+// conversationRoutes are the routes of conversations, participants, trash. Only the work package that owns this module edits this file.
 var conversationRoutes = []Route{
 	{Method: "GET", Pattern: "/api/conversations", Auth: authz.Human, Lease: true, handle: (*Server).listConversations},
 	{Method: "POST", Pattern: "/api/conversations", Auth: authz.Human, Lease: true, Scope: "post", handle: (*Server).createConversation},
@@ -15,6 +15,4 @@ var conversationRoutes = []Route{
 	{Method: "POST", Pattern: "/api/conversations/:id/participants/:iid/decline", Auth: authz.Human, handle: decideParticipant(false)},
 	{Method: "DELETE", Pattern: "/api/conversations/:id/participants/:iid", Auth: authz.Human, handle: (*Server).removeParticipant},
 	{Method: "POST", Pattern: "/api/conversations/:id/leave", Auth: authz.Human, Lease: true, handle: (*Server).leaveConversation},
-	{Method: "POST", Pattern: "/api/conversations/:id/pickup/open", Auth: authz.Human, handle: (*Server).openPickup},
-	{Method: "POST", Pattern: "/api/conversations/:id/pickup", Auth: authz.Lease, Scope: "pickup", handle: (*Server).pickupConversation},
 }

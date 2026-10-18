@@ -8,12 +8,13 @@ import { useNotice } from "../../shared/notice.tsx";
 import { markUseful } from "../../shared/perf.ts";
 import { StepUpSheet, useSheets } from "../../shared/sheets.tsx";
 import { data } from "../../shared/data.ts";
-import { answerAsk, dismissAsk, snoozeAsk, unsnoozeAsk, useNow } from "./store.ts";
+import { toast } from "../pins-stars/index.ts";
+import { answerAsk, dismissAsk, snoozeAsk, undismissAsk, unsnoozeAsk, useNow, type Settled } from "./store.ts";
 import { parseAllow } from "../crew/index.ts";
 import { presetsAt } from "./presets.ts";
 
 /** Now is /: what needs the owner. Open asks first (urgent, then the newest), then the adds agents wait on and the machines waiting
- *  to connect; Snoozed and Answered today fold away below. With nothing waiting, "All clear". */
+ *  to connect; Snoozed, Answered today and Dismissed today fold away below. With nothing waiting, "All clear". */
 export function Now() {
   const { say, fail } = useNotice();
   const load = useNow((s) => s.load);
@@ -23,7 +24,7 @@ export function Now() {
   const [me, setMe] = useState<Me | null>(null);
   const [onePasskey, setOnePasskey] = useState(false);
   const [busy, setBusy] = useState<ReadonlySet<number>>(new Set());
-  const [folds, setFolds] = useState({ snoozed: false, answered: false });
+  const [folds, setFolds] = useState({ snoozed: false, answered: false, dismissed: false });
   const focusAfter = useRef<number | null>(null);
   const deepLinked = useRef(false);
 
@@ -46,6 +47,7 @@ export function Now() {
   const adds = now?.pending_adds ?? [];
   const snoozed = now?.snoozed ?? [];
   const answered = now?.answered_today ?? [];
+  const dismissed = now?.dismissed_today ?? [];
   const some = Boolean(pending && (pending.length || asks.length || adds.length));
 
   // After a card leaves the list the next one takes the focus, so the keys go on working.
@@ -56,10 +58,11 @@ export function Now() {
   }, [now]);
 
   const reload = useCallback(() => load().then(() => undefined), [load]);
+  const presets = presetsAt(Date.now() + skew);
 
   /** act runs one change of an ask once at a time. Where the card goes away, focus moves to its neighbour. */
-  const act = async (ask: Ask, leaves: boolean, run: () => Promise<{ ask: Ask; lost: boolean }>, label?: string) => {
-    if (busy.has(ask.id)) return;
+  const act = async (ask: Ask, leaves: boolean, run: () => Promise<Settled>, label?: string): Promise<Settled | null> => {
+    if (busy.has(ask.id)) return null;
     setBusy((b) => new Set(b).add(ask.id));
     if (leaves) {
       const at = asks.findIndex((a) => a.id === ask.id);
@@ -70,8 +73,10 @@ export function Now() {
       if (r.ask.state === "answered") setFolds((f) => ({ ...f, answered: true }));
       if (r.lost && label) say(lostNote(r.ask, label));
       await reload();
+      return r;
     } catch (err) {
       fail(humanError(err));
+      return null;
     } finally {
       setBusy((b) => {
         const next = new Set(b);
@@ -79,6 +84,21 @@ export function Now() {
         return next;
       });
     }
+  };
+
+  /** undoing reverses only the change the toast announced; if the ask moved on meanwhile, the server says so and nothing changes. */
+  const undo = (run: () => Promise<Settled>) => () => run().then(reload, (err) => fail(humanError(err)));
+
+  const dismiss = async (ask: Ask) => {
+    const r = await act(ask, true, () => dismissAsk(ask.id, ask.version));
+    if (r && !r.lost) toast("Dismissed", undo(() => undismissAsk(ask.id, r.ask.version)));
+  };
+
+  const snooze = async (ask: Ask, preset: string) => {
+    const r = await act(ask, true, () => snoozeAsk(ask.id, preset));
+    if (!r || r.lost) return;
+    const label = presets.find((p) => p.key === preset)?.label ?? preset;
+    toast(`Snoozed until ${label}, ${clockText(r.ask.snoozed_until ?? 0)}`, undo(() => unsnoozeAsk(ask.id)));
   };
 
   const answer = (ask: Ask, a: Answer) =>
@@ -141,8 +161,6 @@ export function Now() {
     }
   }, [pending, approve]);
 
-  const presets = presetsAt(Date.now() + skew);
-
   return (
     <>
       <div id="notes">
@@ -170,14 +188,16 @@ export function Now() {
       <Folds
         snoozed={snoozed}
         answered={answered}
+        dismissed={dismissed}
         open={folds}
         toggle={(k) => setFolds((f) => ({ ...f, [k]: !f[k] }))}
         unsnooze={(ask) => void act(ask, false, () => unsnoozeAsk(ask.id))}
+        reopen={(ask) => void act(ask, false, () => undismissAsk(ask.id, ask.version))}
       />
       {asks.length ? (
         <section id="asks" className="asks" onKeyDown={moveFocus}>
           {asks.map((ask) => (
-            <NowAsk key={ask.id} ask={ask} busy={busy.has(ask.id)} presets={presets} act={act} answer={answer} />
+            <NowAsk key={ask.id} ask={ask} busy={busy.has(ask.id)} presets={presets} answer={answer} dismiss={dismiss} snooze={snooze} />
           ))}
         </section>
       ) : null}
@@ -212,6 +232,9 @@ function lostNote(won: Ask, tried: string): string {
   return `${how} Your answer "${tried}" was not used.`;
 }
 
+/** clockText is a time of day as the owner reads it: "6:00 PM". */
+const clockText = (at: number): string => new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
 /** untilText is a snooze end as the owner reads it: the time today, else the weekday and the time. */
 function untilText(at: number): string {
   const d = new Date(at);
@@ -219,7 +242,7 @@ function untilText(at: number): string {
   return d.toLocaleString([], today ? { hour: "numeric", minute: "2-digit" } : { weekday: "short", hour: "numeric", minute: "2-digit" });
 }
 
-function NowAsk({ ask, busy, presets, act, answer }: { ask: Ask; busy: boolean; presets: { key: string; label: string }[]; act: ActFn; answer: (ask: Ask, a: Answer) => void }) {
+function NowAsk({ ask, busy, presets, answer, dismiss, snooze }: { ask: Ask; busy: boolean; presets: { key: string; label: string }[]; answer: (ask: Ask, a: Answer) => void; dismiss: (ask: Ask) => void; snooze: (ask: Ask, preset: string) => void }) {
   const id = useId();
   return (
     <AskCard
@@ -231,20 +254,20 @@ function NowAsk({ ask, busy, presets, act, answer }: { ask: Ask; busy: boolean; 
       dataId={ask.id}
       openHref={`/chats/${ask.conversation_id}`}
       onAnswer={(a) => answer(ask, a)}
-      onDismiss={() => void act(ask, true, () => dismissAsk(ask.id, ask.version))}
+      onDismiss={() => dismiss(ask)}
       onUndismiss={() => undefined}
-      onSnooze={(preset) => void act(ask, true, () => snoozeAsk(ask.id, preset))}
+      onSnooze={(preset) => snooze(ask, preset)}
     />
   );
 }
 
-type ActFn = (ask: Ask, leaves: boolean, run: () => Promise<{ ask: Ask; lost: boolean }>, label?: string) => Promise<void>;
+type FoldKey = "snoozed" | "answered" | "dismissed";
 
-/** Folds are the chips under the top bar ("Snoozed · 1", "Answered today · 3") and, when one is open, its rows. A chip is not there when it has no rows. */
-function Folds({ snoozed, answered, open, toggle, unsnooze }: { snoozed: Ask[]; answered: Ask[]; open: { snoozed: boolean; answered: boolean }; toggle: (k: "snoozed" | "answered") => void; unsnooze: (ask: Ask) => void }) {
+/** Folds are the chips under the top bar ("Snoozed · 1", "Answered today · 3", "Dismissed today · 1") and, when one is open, its rows. A chip is not there when it has no rows. */
+function Folds({ snoozed, answered, dismissed, open, toggle, unsnooze, reopen }: { snoozed: Ask[]; answered: Ask[]; dismissed: Ask[]; open: Record<FoldKey, boolean>; toggle: (k: FoldKey) => void; unsnooze: (ask: Ask) => void; reopen: (ask: Ask) => void }) {
   const id = useId();
-  if (!snoozed.length && !answered.length) return null;
-  const chip = (key: "snoozed" | "answered", name: string, rows: Ask[]) =>
+  if (!snoozed.length && !answered.length && !dismissed.length) return null;
+  const chip = (key: FoldKey, name: string, rows: Ask[]) =>
     rows.length ? (
       <button className="foldbtn" type="button" onMouseDown={(e) => e.preventDefault()} aria-expanded={open[key]} aria-controls={`${id}-${key}`} onClick={() => toggle(key)}>
         <span>{name}</span>
@@ -255,7 +278,7 @@ function Folds({ snoozed, answered, open, toggle, unsnooze }: { snoozed: Ask[]; 
         </svg>
       </button>
     ) : null;
-  const rowsOf = (key: "snoozed" | "answered", rows: Ask[], tail: (ask: Ask) => React.ReactNode) =>
+  const rowsOf = (key: FoldKey, rows: Ask[], tail: (ask: Ask) => React.ReactNode) =>
     open[key] && rows.length ? (
       <ul id={`${id}-${key}`} className="foldrows">
         {rows.map((ask) => (
@@ -272,6 +295,7 @@ function Folds({ snoozed, answered, open, toggle, unsnooze }: { snoozed: Ask[]; 
       <div className="foldchips">
         {chip("snoozed", "Snoozed", snoozed)}
         {chip("answered", "Answered today", answered)}
+        {chip("dismissed", "Dismissed today", dismissed)}
       </div>
       {rowsOf("snoozed", snoozed, (ask) => (
         <>
@@ -283,6 +307,14 @@ function Folds({ snoozed, answered, open, toggle, unsnooze }: { snoozed: Ask[]; 
       ))}
       {rowsOf("answered", answered, (ask) => (
         <span className="foldstate">{stateLine(ask)}</span>
+      ))}
+      {rowsOf("dismissed", dismissed, (ask) => (
+        <>
+          <span className="foldstate">Dismissed</span>
+          <button className="askbtn" type="button" onClick={() => reopen(ask)}>
+            Reopen
+          </button>
+        </>
       ))}
     </div>
   );

@@ -7,7 +7,7 @@ import { useSearchUi } from "../search/index.ts";
 import { startDrag, type Drop } from "./drag.ts";
 import { Logo } from "./Logo.tsx";
 import { BackArrow, ChevronIcon, ComposeGlyph, CrewGlyph, InviteGlyph, ForwardArrow, GripIcon, NowGlyph, SearchGlyph, StarIcon } from "./icons.tsx";
-import { groups, rowLabel, titleOf } from "./model.ts";
+import { groups, isOlder, rowLabel, titleOf } from "./model.ts";
 import { moveRow, setStar, stepRow } from "./actions.ts";
 
 const openedId = (): number => Number(/^\/chats\/(\d+)$/.exec(location.pathname)?.[1] ?? 0);
@@ -28,7 +28,7 @@ export default function Sidebar() {
   useEffect(() => {
     Promise.all([data.loadMe(), data.loadConversations(), data.loadIdentities()]).catch(() => {});
   }, []);
-  const g = useMemo(() => groups(list ?? [], "rank"), [list]);
+  const g = useMemo(() => groups(list ?? []), [list]);
 
   // After a keyboard move the row is a new node: put the focus back on its handle.
   useEffect(() => {
@@ -44,7 +44,7 @@ export default function Sidebar() {
       const by = (id: number) => titleOf((data.store.getState().conversations ?? []).find((c) => c.id === id)!);
       moveRow(d.id, d.starred, d.after).then(
         () => {
-          const place = (data.store.getState().conversations ?? []).filter((c) => c.starred === d.starred && (d.starred || !c.older)).sort((a, b) => b.rank - a.rank || b.id - a.id);
+          const place = (data.store.getState().conversations ?? []).filter((c) => c.starred === d.starred && (d.starred || !isOlder(c))).sort((a, b) => b.rank - a.rank || b.id - a.id);
           setSaid(`${by(d.id)} moved to ${d.starred ? "Starred" : "Conversations"}, position ${place.findIndex((c) => c.id === d.id) + 1} of ${place.length}`);
         },
         fail,

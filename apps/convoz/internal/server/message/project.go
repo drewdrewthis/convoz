@@ -70,7 +70,6 @@ type ProjectSystem struct {
 	Identity Person
 	By       Person
 	History  string
-	Reason   string
 	Streak   int
 }
 
@@ -170,12 +169,6 @@ func systemText(s ProjectSystem) string {
 		return s.By.Ref() + " resumed the conversation"
 	case "conversation.restored":
 		return s.By.Ref() + " restored this conversation from Trash"
-	case "pickup.opened":
-		return s.By.Ref() + " opened this conversation for pickup"
-	case "pickup.taken":
-		return s.Identity.Ref() + " picked up this conversation"
-	case "pickup.released":
-		return s.Identity.Ref() + " released this conversation (" + strings.ReplaceAll(s.Reason, "_", " ") + ")"
 	}
 	return ""
 }

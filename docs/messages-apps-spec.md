@@ -139,14 +139,14 @@ Each entry uses the same rows. "Desktop" = 1280×940 layout, "Phone" = 390×844 
 |---|---|
 | Who sends | Server only, inside the tx of the action that caused it. |
 | DB | `kind='system'`, `author_id NULL`, `body=''`, `system_json` (schema `system.json`, ids and enums only, ≤2048 B). Not in FTS. Not a thread root. Never counts as unread (I-14). |
-| Create | No route. Written by: add/mention, pending-add request, remove, leave, identity disable, rename, loop-breaker pause, resume, trash restore, pickup open/take/release. |
+| Create | No route. Written by: add/mention, pending-add request, remove, leave, identity disable, rename, loop-breaker pause, resume, trash restore. |
 | Desktop / Phone | Centred muted line, no avatar, time on hover (desktop) or long-press (phone). Text built at render time from the subtype template and the current identity names (so a rename never leaves stale text). `member.requested` renders as a card with the agent profile (prototype "agent" app) and, for humans with the approve right, Approve / Decline buttons; after the decision the card shows "Approved · @x added" or "Declined". |
 | Notification | Only `member.requested` (reason `agent_add`) and `conversation.paused` (reason `paused`). |
 | Search | Not indexed. |
 | `convoz read` | `#9001 04:10 ·· Added @devtool (by owner, via mention)` |
 | Plain-text fallback | The template text. |
 | Limits | ≤2048 B JSON. |
-| Agent inbox | `membership` for the subject of `member.*` and `pickup.*` lines. Other system lines create no item. |
+| Agent inbox | `membership` for the subject of `member.*` lines. Other system lines create no item. |
 
 ### M-4a System subtypes (12)
 
@@ -161,9 +161,6 @@ Each entry uses the same rows. "Desktop" = 1280×940 layout, "Phone" = 390×844 
 | `conversation.paused` | streak (=20) | "Paused after 20 agent messages in a row. Resume to let agents post." + Resume button | loop breaker (I-16) |
 | `conversation.resumed` | by | "@by resumed the conversation" | Resume |
 | `conversation.restored` | by | "@by restored this conversation from Trash" | restore |
-| `pickup.opened` | by | "@by opened this conversation for pickup" | pickup open |
-| `pickup.taken` | identity | "@x picked up this conversation" | pickup (I-47) |
-| `pickup.released` | identity, reason | "@x released this conversation (<reason>)" | removal, key revoke, disable, lease expiry |
 
 Approve and decline do not write a new line. They change the `member.requested` card state (prototype behaviour). Schema: `schemas8.De4x/system.json`.
 

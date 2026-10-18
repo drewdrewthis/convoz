@@ -239,6 +239,5 @@
   { "name": "system-requested", "schema": "system.json", "data": { "v": 1, "t": "member.requested", "identity": 14, "by": 12 } },
   { "name": "system-paused", "schema": "system.json", "data": { "v": 1, "t": "conversation.paused", "streak": 20 } },
   { "name": "system-left", "schema": "system.json", "data": { "v": 1, "t": "member.left", "identity": 12 } },
-  { "name": "system-pickup-released", "schema": "system.json", "data": { "v": 1, "t": "pickup.released", "identity": 12, "reason": "key_revoked" } },
   { "name": "system-renamed", "schema": "system.json", "data": { "v": 1, "t": "conversation.renamed", "by": 1 } }
 ]

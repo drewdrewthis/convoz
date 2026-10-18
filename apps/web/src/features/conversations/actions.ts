@@ -4,8 +4,8 @@ import { data } from "../../shared/data.ts";
 
 const reload = (id: number) => data.loadConversation(id).then(() => undefined);
 
-/** addAgent brings an agent in at once; `history` says what it sees (the whole conversation, or only what comes after). */
-export async function addAgent(id: number, identityId: number, history: "since_now" | "full"): Promise<void> {
+/** addAgent brings an agent in at once; `history` says what it sees: only what comes after (the default), or the whole conversation. */
+export async function addAgent(id: number, identityId: number, history: "since_now" | "full" = "since_now"): Promise<void> {
   await call(client.POST("/api/conversations/{id}/participants", { params: { path: { id } }, body: { identity_id: identityId, history } }));
   await reload(id);
 }
@@ -25,11 +25,6 @@ export async function decideAdd(id: number, iid: number, approve: boolean): Prom
 
 export async function rename(id: number, title: string): Promise<void> {
   await call(client.PATCH("/api/conversations/{id}", { params: { path: { id } }, body: { title } }));
-  await reload(id);
-}
-
-export async function openPickup(id: number): Promise<void> {
-  await call(client.POST("/api/conversations/{id}/pickup/open", { params: { path: { id } }, body: {} }));
   await reload(id);
 }
 

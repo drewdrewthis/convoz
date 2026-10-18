@@ -81,8 +81,6 @@ paths:
   /api/conversations/{id}/participants/{iid}/decline: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}~1participants~1{iid}~1decline" }
   /api/conversations/{id}/leave: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}~1leave" }
   /api/conversations/{id}/resume: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}~1resume" }
-  /api/conversations/{id}/pickup/open: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}~1pickup~1open" }
-  /api/conversations/{id}/pickup: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}~1pickup" }
   # ---- readstate
   /api/conversations/{id}/read: { $ref: "paths/readstate.yaml#/~1api~1conversations~1{id}~1read" }
   # ---- message

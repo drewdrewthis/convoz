@@ -36,7 +36,7 @@ Feature: Machine login with a device flow
       Given a pending machine request "box-2"
       When the owner approves it with allow-list "devtool" and "dev-*" and the default scopes
       Then Crew → Machines lists "box-2" with a key hint that starts with "cvz_m_"
-      And its scopes are read, post, ask, status and upload, without pickup or create_identity
+      And its scopes are read, post, ask, status and upload, without create_identity
       And the owner's audit view lists "machine approved · box-2"
 
     @v1 @browser @I-36

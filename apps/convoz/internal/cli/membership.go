@@ -75,42 +75,6 @@ func Leave(args []string, io IO) int {
 	return ExitOK
 }
 
-// Pickup runs `convoz pickup <conv>`: it takes a conversation the owner opened for pickup. Exactly one agent wins;
-// the others get exit 4 and the name of the winner. The machine needs the pickup scope (exit 3 without it).
-func Pickup(args []string, io IO) int {
-	f := newChatFlags("pickup", io)
-	pos, ok := f.parse(args, io)
-	if !ok {
-		return ExitUsage
-	}
-	if len(pos) != 1 {
-		return usageError(io, "usage: convoz pickup <conv>")
-	}
-	conv, ok := convArg(io, pos[0])
-	if !ok {
-		return ExitUsage
-	}
-	k, code := f.open(io)
-	if k == nil {
-		return code
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), k.timeout)
-	defer cancel()
-	var out struct {
-		ConversationID int64 `json:"conversation_id"`
-		Fence          int64 `json:"fence"`
-	}
-	if err := k.call(ctx, "POST", convPath(conv, "pickup"), struct{}{}, &out); err != nil {
-		return k.fail(err)
-	}
-	if k.asJSON {
-		k.printJSON(out)
-	} else {
-		fmt.Fprintf(k.io.Stdout, "picked up %d\n", out.ConversationID)
-	}
-	return ExitOK
-}
-
 // systemWho is how `convoz read` names the author of a line the conversation says about itself.
 const systemWho = "system"
 

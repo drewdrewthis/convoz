@@ -190,7 +190,6 @@ export function createDataCache(source: DataSource): DataCache {
         const next: Conversation = { ...c, rank: rank ?? c.rank };
         if (c.id === p.conversation_id) {
           next.starred = p.starred;
-          next.older = p.starred ? false : c.older; // a starred conversation never folds into Older
           if (p.muted_until === null) delete next.muted_until;
           else next.muted_until = p.muted_until;
         }

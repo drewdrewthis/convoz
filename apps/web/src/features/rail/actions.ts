@@ -3,7 +3,7 @@
 import type { Conversation } from "@convoz/api-client";
 import { call, client } from "../../shared/api.ts";
 import { data } from "../../shared/data.ts";
-import { byRank, FOREVER } from "./model.ts";
+import { byRank, FOREVER, isOlder } from "./model.ts";
 
 const rows = (): Conversation[] => data.store.getState().conversations ?? [];
 /** One row, from the list or, on a page that never loaded the list, from the conversation it holds. */
@@ -36,14 +36,14 @@ export async function moveRow(id: number, starred: boolean, after: number | null
   const was = find(id);
   if (!was) return;
   const others = section(starred).filter((c) => c.id !== id);
-  data.patchConversation(id, { starred, rank: guess(others, after), older: starred ? false : was.older });
+  data.patchConversation(id, { starred, rank: guess(others, after) });
   await patch(id, { ...(was.starred === starred ? {} : { starred }), place: { after } });
 }
 
 /** setStar stars or unstars: it goes to the top of the group it lands in. */
 export async function setStar(id: number, starred: boolean): Promise<void> {
   const was = find(id);
-  if (was) data.patchConversation(id, { starred, rank: guess(section(starred), null), older: starred ? false : was.older });
+  if (was) data.patchConversation(id, { starred, rank: guess(section(starred), null) });
   await patch(id, { starred });
 }
 
@@ -61,7 +61,7 @@ export async function setMute(id: number, muted: boolean): Promise<void> {
 export async function stepRow(id: number, dir: -1 | 1): Promise<string | null> {
   const c = rows().find((x) => x.id === id);
   if (!c) return null;
-  const mine = section(c.starred).filter((x) => c.starred || !x.older); // Older is folded away: a step passes what is in view
+  const mine = section(c.starred).filter((x) => c.starred || !isOlder(x)); // Older is folded away: a step passes what is in view
   const at = mine.findIndex((x) => x.id === id);
   const listAfter = (list: Conversation[], index: number): number | null => (index < 0 ? null : (list[index]?.id ?? null));
   let starred = c.starred;

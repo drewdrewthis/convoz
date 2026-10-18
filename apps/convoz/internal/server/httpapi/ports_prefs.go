@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
@@ -17,9 +16,6 @@ const (
 	eventPinChanged    = "pin.changed.v1"
 	eventStatusChanged = "agent.status_changed.v1"
 )
-
-// olderAfter is how long a conversation is quiet before it folds into Older (C-9).
-const olderAfter = 14 * 24 * time.Hour
 
 // railList is the conversations of the caller's rail: the owner's are all of them, anyone else's the ones they are in.
 func railList(ctx context.Context, d pdb.DBTX, p authz.Principal) ([]conversation.Conversation, error) {
@@ -41,7 +37,7 @@ func railSection(list []conversation.Conversation, all map[int64]prefs.Pref, sta
 	return rows
 }
 
-// withRail fills in what the caller's own prefs say about the rows (star, rank, Older, mute) with one read. An agent's rows keep the
+// withRail fills in what the caller's own prefs say about the rows (star, rank, mute) with one read. An agent's rows keep the
 // defaults: prefs are personal (I-22) and an agent has none.
 func (s *Server) withRail(ctx context.Context, d pdb.DBTX, p authz.Principal, views ...*wire.Conversation) error {
 	if p.SessionID != 0 || len(views) == 0 {
@@ -51,12 +47,10 @@ func (s *Server) withRail(ctx context.Context, d pdb.DBTX, p authz.Principal, vi
 	if err != nil {
 		return err
 	}
-	now := s.Clock.Now()
 	for _, v := range views {
 		pf := all[v.ID]
 		v.Starred = pf.Starred
 		v.Rank = pf.RankOf(v.CreatedAt)
-		v.Older = !pf.Starred && now.UnixMilli()-v.LastActivityAt >= olderAfter.Milliseconds()
 		if pf.MutedUntil != 0 {
 			v.MutedUntil = ptr(pf.MutedUntil)
 		}

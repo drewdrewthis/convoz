@@ -301,6 +301,34 @@ func (q *Queries) DeleteSnoozesOf(ctx context.Context, messageID int64) error {
 	return err
 }
 
+const dismissedSince = `-- name: DismissedSince :many
+SELECT message_id FROM asks WHERE state = 'dismissed' AND resolved_at >= ?1 ORDER BY resolved_at DESC, message_id DESC LIMIT 50
+`
+
+// Still dismissed (a reopened or answered ask is no longer in this state).
+func (q *Queries) DismissedSince(ctx context.Context, since sql.NullInt64) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, dismissedSince, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var message_id int64
+		if err := rows.Scan(&message_id); err != nil {
+			return nil, err
+		}
+		items = append(items, message_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const dueSnoozes = `-- name: DueSnoozes :many
 SELECT message_id, identity_id, until_at FROM ask_snoozes WHERE woke_at IS NULL AND until_at <= ?1 ORDER BY until_at, message_id
 `

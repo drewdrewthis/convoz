@@ -84,74 +84,6 @@ func (q *Queries) DecideParticipant(ctx context.Context, arg DecideParticipantPa
 	return result.RowsAffected()
 }
 
-const deleteAssignment = `-- name: DeleteAssignment :exec
-DELETE FROM assignments WHERE conversation_id = ?1
-`
-
-func (q *Queries) DeleteAssignment(ctx context.Context, conversationID int64) error {
-	_, err := q.db.ExecContext(ctx, deleteAssignment, conversationID)
-	return err
-}
-
-const deleteAssignmentOfAgent = `-- name: DeleteAssignmentOfAgent :many
-DELETE FROM assignments WHERE conversation_id = ?1 AND agent_id = ?2 RETURNING conversation_id
-`
-
-type DeleteAssignmentOfAgentParams struct {
-	ConversationID int64
-	AgentID        int64
-}
-
-func (q *Queries) DeleteAssignmentOfAgent(ctx context.Context, arg DeleteAssignmentOfAgentParams) ([]int64, error) {
-	rows, err := q.db.QueryContext(ctx, deleteAssignmentOfAgent, arg.ConversationID, arg.AgentID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []int64
-	for rows.Next() {
-		var conversation_id int64
-		if err := rows.Scan(&conversation_id); err != nil {
-			return nil, err
-		}
-		items = append(items, conversation_id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const deleteAssignmentsOfSession = `-- name: DeleteAssignmentsOfSession :many
-DELETE FROM assignments WHERE session_id = ?1 RETURNING conversation_id
-`
-
-func (q *Queries) DeleteAssignmentsOfSession(ctx context.Context, sessionID sql.NullInt64) ([]int64, error) {
-	rows, err := q.db.QueryContext(ctx, deleteAssignmentsOfSession, sessionID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []int64
-	for rows.Next() {
-		var conversation_id int64
-		if err := rows.Scan(&conversation_id); err != nil {
-			return nil, err
-		}
-		items = append(items, conversation_id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const deleteEmptyConversation = `-- name: DeleteEmptyConversation :execrows
 DELETE FROM conversations
 WHERE id = ?1 AND message_count = 0 AND title_source = 'auto' AND title IS NULL AND deleted_at IS NULL AND created_at < ?2
@@ -229,24 +161,6 @@ func (q *Queries) EndParticipant(ctx context.Context, arg EndParticipantParams) 
 		return 0, err
 	}
 	return result.RowsAffected()
-}
-
-const getAssignment = `-- name: GetAssignment :one
-SELECT conversation_id, agent_id, session_id, fence, picked_up_at, lease_until FROM assignments WHERE conversation_id = ?1
-`
-
-func (q *Queries) GetAssignment(ctx context.Context, conversationID int64) (Assignment, error) {
-	row := q.db.QueryRowContext(ctx, getAssignment, conversationID)
-	var i Assignment
-	err := row.Scan(
-		&i.ConversationID,
-		&i.AgentID,
-		&i.SessionID,
-		&i.Fence,
-		&i.PickedUpAt,
-		&i.LeaseUntil,
-	)
-	return i, err
 }
 
 const getConversation = `-- name: GetConversation :one
@@ -357,32 +271,6 @@ func (q *Queries) GetParticipantFull(ctx context.Context, arg GetParticipantFull
 		&i.StatusAt,
 	)
 	return i, err
-}
-
-const insertAssignment = `-- name: InsertAssignment :exec
-INSERT INTO assignments (conversation_id, agent_id, session_id, fence, picked_up_at, lease_until)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-`
-
-type InsertAssignmentParams struct {
-	ConversationID int64
-	AgentID        int64
-	SessionID      sql.NullInt64
-	Fence          int64
-	At             int64
-	LeaseUntil     int64
-}
-
-func (q *Queries) InsertAssignment(ctx context.Context, arg InsertAssignmentParams) error {
-	_, err := q.db.ExecContext(ctx, insertAssignment,
-		arg.ConversationID,
-		arg.AgentID,
-		arg.SessionID,
-		arg.Fence,
-		arg.At,
-		arg.LeaseUntil,
-	)
-	return err
 }
 
 const insertConversation = `-- name: InsertConversation :one
@@ -708,32 +596,6 @@ func (q *Queries) ListTrash(ctx context.Context, maxRows int64) ([]Conversation,
 	return items, nil
 }
 
-const nextAssignVersion = `-- name: NextAssignVersion :one
-UPDATE conversations SET assign_version = assign_version + 1 WHERE id = ?1 RETURNING assign_version
-`
-
-func (q *Queries) NextAssignVersion(ctx context.Context, id int64) (int64, error) {
-	row := q.db.QueryRowContext(ctx, nextAssignVersion, id)
-	var assign_version int64
-	err := row.Scan(&assign_version)
-	return assign_version, err
-}
-
-const openPickup = `-- name: OpenPickup :exec
-UPDATE conversations SET pickup_opened_at = ?1, pickup_opened_by = ?2 WHERE id = ?3
-`
-
-type OpenPickupParams struct {
-	At sql.NullInt64
-	By sql.NullInt64
-	ID int64
-}
-
-func (q *Queries) OpenPickup(ctx context.Context, arg OpenPickupParams) error {
-	_, err := q.db.ExecContext(ctx, openPickup, arg.At, arg.By, arg.ID)
-	return err
-}
-
 const purgeTrashBefore = `-- name: PurgeTrashBefore :execrows
 DELETE FROM conversations WHERE deleted_at IS NOT NULL AND deleted_at < ?1
 `
@@ -762,31 +624,6 @@ type RecordMainPostParams struct {
 func (q *Queries) RecordMainPost(ctx context.Context, arg RecordMainPostParams) error {
 	_, err := q.db.ExecContext(ctx, recordMainPost, arg.MessageID, arg.At, arg.ID)
 	return err
-}
-
-const renewAssignment = `-- name: RenewAssignment :execrows
-UPDATE assignments SET lease_until = ?1
-WHERE conversation_id = ?2 AND agent_id = ?3 AND fence = ?4
-`
-
-type RenewAssignmentParams struct {
-	LeaseUntil     int64
-	ConversationID int64
-	AgentID        int64
-	Fence          int64
-}
-
-func (q *Queries) RenewAssignment(ctx context.Context, arg RenewAssignmentParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, renewAssignment,
-		arg.LeaseUntil,
-		arg.ConversationID,
-		arg.AgentID,
-		arg.Fence,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
 }
 
 const restore = `-- name: Restore :execrows

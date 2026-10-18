@@ -2,7 +2,6 @@ package conversation_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -10,38 +9,6 @@ import (
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/dbtest"
 )
-
-func TestPickupIsForOneAgentAndTheFenceCountsUpForEver(t *testing.T) {
-	s := seeded(t)
-	c := create(t, s, t0, conversation.New{By: owner})
-	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error {
-		if _, err := conversation.Pickup(ctx, d, t0, c.ID, devtool, 0); !errors.Is(err, conversation.ErrNotOpen) {
-			t.Errorf("a conversation nobody opened cannot be picked up: %v", err)
-		}
-		if err := conversation.OpenPickup(ctx, d, t0, c.ID, owner); err != nil {
-			return err
-		}
-		first, err := conversation.Pickup(ctx, d, t0, c.ID, devtool, 0)
-		if err != nil || first.Fence != 1 {
-			t.Fatalf("the first pickup holds fence 1: %+v %v", first, err)
-		}
-		var taken conversation.TakenError
-		if _, err := conversation.Pickup(ctx, d, t0, c.ID, docs, 0); !errors.As(err, &taken) || taken.Agent != devtool {
-			t.Errorf("the second pickup is told who has it: %v", err)
-		}
-		if freed, err := conversation.ReleaseOf(ctx, d, c.ID, devtool); err != nil || !freed {
-			t.Fatalf("release: %v %v", freed, err)
-		}
-		next, err := conversation.Pickup(ctx, d, t0, c.ID, docs, 0)
-		if err != nil || next.Fence != 2 {
-			t.Errorf("the fence never resets: %+v %v", next, err)
-		}
-		if err := conversation.Renew(ctx, d, t0, c.ID, devtool, first.Fence); !errors.Is(err, conversation.ErrStaleFence) {
-			t.Errorf("the old holder is stale: %v", err)
-		}
-		return conversation.Renew(ctx, d, t0, c.ID, docs, next.Fence)
-	})
-}
 
 func TestTwentyAgentMessagesInARowPauseAndAPersonResumes(t *testing.T) {
 	s := seeded(t)

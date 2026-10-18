@@ -8,14 +8,11 @@ import type { ServerHandle, ServerOptions } from "./fixtures.ts";
 import { bootstrapOwner, must, type Owner } from "./owner.ts";
 
 /**
- * Helpers for the WP3 scenarios: conversations, participants, pickup and trash. The routes they call are
+ * Helpers for the WP3 scenarios: conversations, participants and trash. The routes they call are
  * POST|GET|PATCH|DELETE /api/conversations..., POST .../participants (+ /:iid/approve|decline, DELETE /:iid), POST .../leave,
- * .../resume, .../pickup/open and .../pickup (design §13). A conversation view carries `participants` (active), `pending`
- * (waiting adds), `paused`, `pickup` ("closed" | "open" | "taken") and, in the trash, `deleted_at` and `purges_at`.
+ * .../resume (design §13). A conversation view carries `participants` (active), `pending`
+ * (waiting adds), `paused` and, in the trash, `deleted_at` and `purges_at`.
  */
-
-/** The pickup scope on top of the default ones (design §2.2). */
-export const WITH_PICKUP = [...DEFAULT_SCOPES, "pickup"];
 
 /** `GET /api/identities`: handle -> identity id. */
 export async function idsOf(owner: Owner): Promise<Record<string, number>> {
@@ -35,8 +32,6 @@ export interface ConversationView {
   participants: PersonRow[];
   pending?: { person: PersonRow; requested_by?: PersonRow }[];
   paused?: boolean;
-  pickup?: string;
-  picked_up_by?: PersonRow;
   started_by?: PersonRow;
   link_url?: string;
   deleted_at?: number;
@@ -82,13 +77,13 @@ export function asAgent(srv: ServerHandle, leaseToken: string, method: string, p
   return send(srv.target, method, path, { ...(json !== undefined ? { json } : {}), ...bearer(leaseToken) });
 }
 
-/** A second machine, logged in with the pickup scope (or any scopes) and an installed CLI. */
+/** A second machine, logged in with the default scopes (or any scopes) and an installed CLI. */
 export async function machineWith(
   srv: ServerHandle,
   owner: Owner,
   name: string,
   handles: string[],
-  scopes: string[] = WITH_PICKUP,
+  scopes: string[] = DEFAULT_SCOPES,
 ): Promise<{ login: LoggedIn; box: CliMachine }> {
   const login = await loginMachine(srv, owner, name, allow(...handles), { scopes });
   return { login, box: await installedMachine(srv.origin, name, login.key) };
@@ -101,18 +96,18 @@ export type World = Awaited<ReturnType<typeof chatWorld>>;
 
 /**
  * The Background of the WP3 scenarios: a fresh server with owner "drew" signed in, the agents, and machine "box-2" logged in with
- * an allow-list of them. With `pickup` the machine has the pickup scope. With `plaintext` the data file is the encryption-off build's,
+ * an allow-list of them. With `plaintext` the data file is the encryption-off build's,
  * so a scenario can seed rows the API has no route for.
  */
 export async function world(
   server: (o?: ServerOptions) => Promise<ServerHandle>,
-  o: { agents?: string[]; pickup?: boolean; plaintext?: boolean } = {},
+  o: { agents?: string[]; plaintext?: boolean } = {},
 ): Promise<World> {
   const agents = o.agents ?? ["devtool", "docs", "release-bot"];
   const srv = await server({ host: "localhost", adminSocket: true, env: { CONVOZ_TEST_POLL_MS: "250", ...(o.plaintext ? { CONVOZ_TEST_PLAINTEXT: "1" } : {}) } });
   const owner = await bootstrapOwner(srv);
   await createAgents(owner, ...agents);
-  const box2 = await loginMachine(srv, owner, "box-2", allow(...agents), o.pickup ? { scopes: WITH_PICKUP } : {});
+  const box2 = await loginMachine(srv, owner, "box-2", allow(...agents));
   const box = await installedMachine(srv.origin, "box-2", box2.key);
   return { srv, owner, box2, box };
 }
@@ -186,7 +181,7 @@ export async function unreadFor(srv: ServerHandle, leaseToken: string, conv: num
  */
 export async function browserWorld(
   fx: { server: (o?: ServerOptions) => Promise<ServerHandle>; page: Page; context: BrowserContext },
-  o: { agents?: string[]; live?: string[]; pickup?: boolean; plaintext?: boolean; beforeSignIn?: (w: World) => Promise<void> } = {},
+  o: { agents?: string[]; live?: string[]; plaintext?: boolean; beforeSignIn?: (w: World) => Promise<void> } = {},
 ): Promise<World & { sessions: Record<string, Awaited<ReturnType<typeof startSession>>> }> {
   const w = await world(fx.server, o);
   const sessions: Record<string, Awaited<ReturnType<typeof startSession>>> = {};

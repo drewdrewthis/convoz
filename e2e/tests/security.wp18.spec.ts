@@ -65,15 +65,14 @@ scenario("API routes answer 401 without credentials", { tag: ["@api"] }, async (
 
 scenario("Every route enforces the auth, scope and role its contract declares", { tag: ["@api"] }, async ({ server, dataDir }, info) => {
   info.setTimeout(120_000);
-  // Background: owner "drew", machines "box-2" (the default scopes: no pickup) and "laptop-1" with allow-list "devtool"; and a machine
-  // with the pickup scope only, so there is a lease that lacks every other scope
+  // Background: owner "drew", machines "box-2" (the default scopes) and "laptop-1" with allow-list "devtool"; and a machine
+  // with the create_identity scope only, so there is a lease that lacks every other scope
   const w = await world(server, { agents: ["devtool"], plaintext: true });
   await loginMachine(w.srv, w.owner, "laptop-1", allow("devtool"));
-  const pickupOnly = await loginMachine(w.srv, w.owner, "pickup-only", allow("devtool"), { scopes: ["pickup"] });
+  const narrowMachine = await loginMachine(w.srv, w.owner, "narrow-only", allow("devtool"), { scopes: ["create_identity"] });
   const lease = (key: string, label: string) => mintLease(w.srv, key, { as: "devtool", label });
   const full = await lease(w.box2.key, "matrix-full");
-  const narrow = await lease(pickupOnly.key, "matrix-narrow");
-  const pickup = narrow;
+  const narrow = await lease(narrowMachine.key, "matrix-narrow");
   const db = plainDb(dataDir);
   const member = memberDevice(db);
   let nextCode = 0;
@@ -150,13 +149,13 @@ scenario("Every route enforces the auth, scope and role its contract declares", 
     await probe(op, "no credential", {}, (s) => s === 401, "401", route);
 
     if (leaseMeets) {
-      const holder = op.operationId === "endSession" ? await lease(w.box2.key, "matrix-ends") : a.scope === "pickup" ? pickup : full;
+      const holder = op.operationId === "endSession" ? await lease(w.box2.key, "matrix-ends") : full;
       await probe(op, "a lease with the scope", { bearer: holder }, (s, _c, m) => s !== 401 && !(s === 403 && m === LEASE_REFUSED), "the lease let in", route);
     } else if (a.lease === "refuse") {
       await probe(op, "a lease", { bearer: full }, (s, _c, m) => s === 403 && m === LEASE_REFUSED, `403 "${LEASE_REFUSED}"`, route);
     } else await probe(op, "a lease", { bearer: full }, (s) => s === 401, "401", route);
 
-    if (a.scope && leaseMeets) await probe(op, `a lease without the ${a.scope} scope`, { bearer: a.scope === "pickup" ? full : narrow }, (s) => s === 403, "403", route);
+    if (a.scope && leaseMeets) await probe(op, `a lease without the ${a.scope} scope`, { bearer: narrow }, (s) => s === 403, "403", route);
 
     if (a.auth === "machine") await probe(op, "a machine key", { bearer: w.box2.key }, (s) => s !== 401, "the key let in", route);
     else await probe(op, "a machine key", { bearer: w.box2.key }, (s) => s === 401, "401", route);

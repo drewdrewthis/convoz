@@ -173,7 +173,7 @@ var (
 	ErrNotAsker = errors.New("only the asking agent may do that")
 	// ErrCap is the create-time limit: the agent already has 20 open asks.
 	ErrCap = errors.New("an agent holds at most 20 open asks")
-	// ErrPresetGone is Tonight asked for at 20:00 or later.
+	// ErrPresetGone is Tonight asked for at 18:00 or later.
 	ErrPresetGone = errors.New("Tonight is over")
 )
 

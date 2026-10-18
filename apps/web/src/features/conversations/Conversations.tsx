@@ -1,13 +1,14 @@
 import type { Conversation } from "@convoz/api-client";
 import { ChatIcon } from "@convoz/ui/icons";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from "react";
+import { createPortal } from "react-dom";
 import { stripCf, whenLabel } from "../../shared/chat.ts";
 import { humanError } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { markUseful } from "../../shared/perf.ts";
 import { data, useData, useLive } from "../../shared/data.ts";
-import { ChevronIcon, groups, setMute, setStar } from "../rail/index.ts";
+import { ChevronIcon, GripIcon, groups, moveRow, setMute, setStar, startDrag, stepRow, titleOf, type Drop } from "../rail/index.ts";
 import { toast } from "../pins-stars/index.ts";
 import { markAllRead } from "./actions.ts";
 
@@ -16,8 +17,8 @@ const VIRTUAL_ABOVE = 100;
 const ROW_HEIGHT = 64;
 
 /**
- * Conversations is /chats: Starred (in the owner's order) on top, then the conversations with the newest activity first, live (new
- * messages, reads and new conversations reorder it with no reload), then Older folded away (design I-21, C-9).
+ * Conversations is /chats (prototype v41): Starred, then Conversations, both in the owner's own order (new activity never reorders
+ * rows, I-21), then Older folded away. A long press on a row opens its actions; Reorder shows a handle on every row until Done.
  */
 export function Conversations() {
   const { fail } = useNotice();
@@ -34,8 +35,35 @@ export function Conversations() {
   const [menu, setMenu] = useState<{ id: number; x: number; y: number } | null>(null);
   const ready = list !== null && me !== undefined;
   const rows = ready ? list : [];
-  const g = groups(rows, "activity");
+  const g = groups(rows);
   const [olderOpen, setOlderOpen] = useState(false);
+  const [reorder, setReorder] = useState(false);
+  const [said, setSaid] = useState("");
+  const [focusId, setFocusId] = useState(0);
+  const slot = useAppbarEnd();
+  // After a keyboard move the row is a new node: put the focus back on its handle.
+  useEffect(() => {
+    if (focusId) document.getElementById(`lg-${focusId}`)?.focus();
+  }, [focusId, list]);
+  const drop = useCallback(
+    (d: Drop) => {
+      const by = (id: number) => titleOf((data.store.getState().conversations ?? []).find((c) => c.id === id)!);
+      moveRow(d.id, d.starred, d.after).then(() => setSaid(`${by(d.id)} moved`), (err) => fail(humanError(err)));
+    },
+    [fail],
+  );
+  const step = useCallback(
+    (e: ReactKeyboardEvent<HTMLElement>, c: Conversation) => {
+      if (!e.altKey || e.metaKey || e.ctrlKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
+      e.preventDefault();
+      stepRow(c.id, e.key === "ArrowUp" ? -1 : 1).then((edge) => {
+        setSaid(edge ? `${titleOf(c)} is already ${edge}` : `${titleOf(c)} moved`);
+        setFocusId(c.id);
+      }, (err) => fail(humanError(err)));
+    },
+    [fail],
+  );
+  const mode = useMemo<ReorderMode>(() => ({ on: reorder, drop, step }), [reorder, drop, step]);
   useEffect(() => {
     if (ready) markUseful();
   }, [ready]);
@@ -57,32 +85,52 @@ export function Conversations() {
     }
   };
   return (
-    <div id="chats" className="chats" aria-busy={ready ? undefined : true} onContextMenu={onContextMenu}>
-      {menu ? <RowMenu at={menu} row={rows.find((c) => c.id === menu.id)} onRead={() => void read(menu.id)} onClose={() => setMenu(null)} onFail={(err) => fail(humanError(err))} /> : null}
+    <div id="chats" className="chats" data-rscroll="1" aria-busy={ready ? undefined : true} onContextMenu={onContextMenu}>
+      {reorder && slot
+        ? createPortal(
+            <button type="button" className="donebtn" onClick={() => (setReorder(false), setSaid("Order saved"))}>
+              Done
+            </button>,
+            slot,
+          )
+        : null}
+      <p className="sr" role="status" aria-live="polite">
+        {reorder && !said ? "Reorder mode. Drag the handles to move conversations. Press Done when finished." : said}
+      </p>
+      {menu ? (
+        <RowMenu
+          at={menu}
+          row={rows.find((c) => c.id === menu.id)}
+          onRead={() => void read(menu.id)}
+          onReorder={() => (setMenu(null), setSaid(""), setReorder(true))}
+          onClose={() => setMenu(null)}
+          onFail={(err) => fail(humanError(err))}
+        />
+      ) : null}
       {g.starred.length ? (
         <>
-          <p id="starred-head" className="ghdr">
+          <p id="starred-head" className="ghdr" data-ghdr="starred">
             Starred
           </p>
-          <PlainList rows={g.starred} me={me ?? ""} label="Starred conversations" id="starred-list" />
+          <PlainList rows={g.starred} me={me ?? ""} label="Starred conversations" id="starred-list" grp="starred" mode={mode} />
         </>
       ) : null}
-      <p id="chats-head" className="ghdr" hidden={!g.mid.length}>
+      <p id="chats-head" className="ghdr" data-ghdr="mid" hidden={!g.mid.length}>
         Conversations
       </p>
-      {g.mid.length > VIRTUAL_ABOVE ? <VirtualList rows={g.mid} me={me!} /> : <PlainList rows={g.mid} me={me ?? ""} />}
+      {g.mid.length > VIRTUAL_ABOVE && !reorder ? <VirtualList rows={g.mid} me={me!} /> : <PlainList rows={g.mid} me={me ?? ""} grp="mid" mode={mode} />}
       {g.older.length ? (
         <>
           <button type="button" id="older-toggle" className="olderbtn" aria-expanded={olderOpen} onClick={() => setOlderOpen((o) => !o)}>
             <ChevronIcon open={olderOpen} />
             <span>{`Older · ${g.older.length}`}</span>
           </button>
-          {olderOpen ? <PlainList rows={g.older} me={me ?? ""} label="Older conversations" id="older-list" /> : null}
+          {olderOpen ? <PlainList rows={g.older} me={me ?? ""} label="Older conversations" id="older-list" mode={mode} /> : null}
         </>
       ) : null}
       <div id="chats-empty" className="emptystate" hidden={!ready || rows.length !== 0}>
         <ChatIcon />
-        <p className="lead">No chats yet. A chat starts with an agent.</p>
+        <p className="lead">No conversations yet. Start one and type @ to bring in an agent.</p>
         <a className="btn primary" href="/chats/new">
           New conversation
         </a>
@@ -91,11 +139,25 @@ export function Conversations() {
   );
 }
 
-function PlainList({ rows, me, label = "Conversations", id = "chat-list" }: { rows: Conversation[]; me: string; label?: string; id?: string }) {
+/** The Reorder mode of the list: handles on the rows of Starred and Conversations (Older rows keep still) until Done. */
+interface ReorderMode {
+  on: boolean;
+  drop(d: Drop): void;
+  step(e: ReactKeyboardEvent<HTMLElement>, c: Conversation): void;
+}
+
+/** useAppbarEnd finds the right end of the top bar, where Done sits while the owner reorders. */
+function useAppbarEnd(): Element | null {
+  const [slot, setSlot] = useState<Element | null>(null);
+  useEffect(() => setSlot(document.querySelector(".appbar-end")), []);
+  return slot;
+}
+
+function PlainList({ rows, me, label = "Conversations", id = "chat-list", grp, mode }: { rows: Conversation[]; me: string; label?: string; id?: string; grp?: "starred" | "mid"; mode?: ReorderMode }) {
   return (
     <ul id={id} className="chatlist" role="list" aria-label={label} hidden={!rows.length}>
       {rows.map((c) => (
-        <Row key={c.id} c={c} me={me} />
+        <Row key={c.id} c={c} me={me} grp={grp} mode={mode} />
       ))}
     </ul>
   );
@@ -132,15 +194,19 @@ interface RowProps {
   index?: number;
   measure?: (el: Element | null) => void;
   style?: CSSProperties;
+  /** The group of a row that can be moved (Older rows have none). */
+  grp?: "starred" | "mid";
+  mode?: ReorderMode;
 }
 
 /** Row is one conversation; a row whose data did not change keeps its node, so a selection in it survives an update. */
-const Row = memo(function Row({ c, me, index, measure, style }: RowProps) {
+const Row = memo(function Row({ c, me, index, measure, style, grp, mode }: RowProps) {
+  const moving = Boolean(mode?.on && grp);
   const unread = c.unread > 0;
   const preview = c.last ? `${c.last.author_handle === me ? "You" : c.last.author_handle}: ${c.last.preview}` : "No messages yet";
   return (
-    <li className={`${unread ? "unread" : ""}${c.muted_until ? " muted" : ""}`.trim() || undefined} data-id={c.id} data-index={index} ref={measure} style={style}>
-      <a className="chatrow" href={`/chats/${c.id}`}>
+    <li className={`${unread ? "unread" : ""}${c.muted_until ? " muted" : ""}`.trim() || undefined} data-id={c.id} data-rid={moving ? c.id : undefined} data-grp={moving ? grp : undefined} data-index={index} ref={measure} style={style}>
+      <a className="chatrow" href={`/chats/${c.id}`} draggable={false} onClick={moving ? (e) => e.preventDefault() : undefined}>
         <div className="rowbody">
           <div className="rowtop">
             <h2 className="rowtitle">{stripCf(c.title ?? "") || "New conversation"}</h2>
@@ -156,12 +222,24 @@ const Row = memo(function Row({ c, me, index, measure, style }: RowProps) {
           </span>
         ) : null}
       </a>
+      {moving && mode ? (
+        <button
+          type="button"
+          className="listgrab"
+          id={`lg-${c.id}`}
+          aria-label={`Reorder ${stripCf(c.title ?? "") || "New conversation"}. Alt plus arrow keys move it.`}
+          onPointerDown={(e) => startDrag(e, mode.drop)}
+          onKeyDown={(e) => mode.step(e, c)}
+        >
+          <GripIcon />
+        </button>
+      ) : null}
     </li>
   );
 });
 
 /** RowMenu is the little menu of a conversation row. Escape or a click anywhere else closes it. */
-function RowMenu({ at, row, onRead, onClose, onFail }: { at: { x: number; y: number }; row: Conversation | undefined; onRead(): void; onClose(): void; onFail(err: unknown): void }) {
+function RowMenu({ at, row, onRead, onReorder, onClose, onFail }: { at: { x: number; y: number }; row: Conversation | undefined; onRead(): void; onReorder(): void; onClose(): void; onFail(err: unknown): void }) {
   const first = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     first.current?.focus();
@@ -192,6 +270,15 @@ function RowMenu({ at, row, onRead, onClose, onFail }: { at: { x: number; y: num
           </button>
           <button type="button" role="menuitem" onClick={() => act(setMute(row.id, !row.muted_until), row.muted_until ? "Unmuted" : "Muted")}>
             {row.muted_until ? "Unmute" : "Mute"}
+          </button>
+          <button type="button" role="menuitem" onClick={() => act(stepRow(row.id, -1).then(() => undefined))}>
+            Move up
+          </button>
+          <button type="button" role="menuitem" onClick={() => act(stepRow(row.id, 1).then(() => undefined))}>
+            Move down
+          </button>
+          <button type="button" role="menuitem" onClick={onReorder}>
+            Reorder…
           </button>
         </>
       ) : null}

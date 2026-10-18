@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity"
@@ -187,4 +188,10 @@ func (s *Server) sessions(w http.ResponseWriter, r *http.Request, _ *call) {
 		out = append(out, row)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"sessions": out})
+}
+
+// releaseEnded is the release every path that ends a lease runs in its transaction (I-38): the inbox claims of the ended
+// sessions let go.
+func releaseEnded(ctx context.Context, d pdb.DBTX, now time.Time, ended []int64) ([]inbox.Released, error) {
+	return inbox.ReleaseSessions(ctx, d, now, ended)
 }

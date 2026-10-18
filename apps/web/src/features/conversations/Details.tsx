@@ -8,10 +8,10 @@ import { initials, paletteOf, stripCf } from "../../shared/chat.ts";
 import { data } from "../../shared/data.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { useSheets, CancelButton } from "../../shared/sheets.tsx";
-import { PinnedList } from "../pins-stars/index.ts";
+import { PinnedList, toast } from "../pins-stars/index.ts";
 import { setMute } from "../rail/index.ts";
 import { AddAgentSheet } from "./AddAgentSheet.tsx";
-import { addAgent, decideAdd, deleteConversation, markAllRead, openPickup, removeAgent, rename } from "./actions.ts";
+import { addAgent, decideAdd, deleteConversation, markAllRead, removeAgent, rename } from "./actions.ts";
 
 export interface DetailsProps {
   row: Conversation;
@@ -44,8 +44,13 @@ export function Details({ row, onClose }: DetailsProps) {
     }
   };
 
+  /** Removing is at once; the toast offers Undo, which puts the agent back with what it saw before (its closed asks stay closed). */
+  const remove = async (iid: number, handle: string) => {
+    await removeAgent(row.id, iid);
+    toast(`Removed @${handle}`, () => addAgent(row.id, iid, "full").catch((err) => fail(humanError(err))));
+  };
+
   const agents = row.participants.filter((p) => p.kind === "agent");
-  const taken = row.pickup === "taken";
   return (
     <aside className="details" aria-label={`Details for ${title}`} onKeyDown={(event) => event.key === "Escape" && onClose()}>
       <header className="detailsbar">
@@ -62,7 +67,7 @@ export function Details({ row, onClose }: DetailsProps) {
         <section aria-labelledby="det-parts" className="detsec">
           <div className="dethead">
             <h3 id="det-parts">Participants</h3>
-            <button type="button" className="btn small quiet" onClick={() => open((done) => <AddAgentSheet id={row.id} done={done} onAdd={(who, history) => addAgent(row.id, who, history)} />)}>
+            <button type="button" className="btn small quiet" onClick={() => open((done) => <AddAgentSheet id={row.id} done={done} onAdd={(who, handle) => addAgent(row.id, who).then(() => toast(`${handle} joined ${title}`))} />)}>
               + Add
             </button>
           </div>
@@ -71,7 +76,7 @@ export function Details({ row, onClose }: DetailsProps) {
               <li key={p.handle} className="prow">
                 <Who person={p} />
                 {p.kind === "agent" && p.id ? (
-                  <button type="button" className="btn small quiet" aria-label={`Remove @${p.handle}`} onClick={() => void run(() => removeAgent(row.id, p.id!))}>
+                  <button type="button" className="btn small quiet" aria-label={`Remove @${p.handle}`} onClick={() => void run(() => remove(p.id!, p.handle))}>
                     Remove
                   </button>
                 ) : null}
@@ -110,7 +115,6 @@ export function Details({ row, onClose }: DetailsProps) {
             <Row label="Created" value={fmtDate(row.created_at)} />
             <Row label="Muted" value={row.muted_until ? `Until ${fmtDate(row.muted_until)}` : "No"} />
             <Row label="Pull request" value={row.link_url ? <a href={row.link_url} target="_blank" rel="noopener noreferrer">{row.link_url}</a> : "None"} />
-            <Row label="Pickup" value={taken ? `Picked up by @${row.picked_up_by?.handle ?? ""}` : row.pickup === "open" ? "Open for pickup" : "Closed"} />
           </dl>
         </section>
 
@@ -124,11 +128,6 @@ export function Details({ row, onClose }: DetailsProps) {
           <button type="button" className="btn" onClick={() => open((done) => <RenameSheet current={row.title ?? ""} done={done} onSave={(t) => rename(row.id, t)} />)}>
             Rename
           </button>
-          {row.pickup === "closed" ? (
-            <button type="button" className="btn" onClick={() => void run(() => openPickup(row.id))}>
-              Open for pickup
-            </button>
-          ) : null}
           <button type="button" className="btn danger" onClick={() => open((done) => <DeleteSheet id={row.id} done={done} />)}>
             Delete conversation
           </button>

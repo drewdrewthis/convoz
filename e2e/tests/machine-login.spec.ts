@@ -31,8 +31,8 @@
  *   GET  /api/now  O -> {machine_requests:[same rows]}
  *   POST /api/machines/requests/:id/approve  O S(machine.approve, target = request id)
  *        {name?, allow:{mode:"list"|"any", identities:[handles], globs:[patterns]}, scopes?:[names], typed_code?}
- *     -> 201 {machine:{id,name,key_hint,scopes,allow}}. Default scopes read, post, ask, status, upload. The extra scopes are
- *        pickup and create_identity. 403 step_up_required (no header). 403 step_up_invalid (used, expired, other action or target).
+ *     -> 201 {machine:{id,name,key_hint,scopes,allow}}. Default scopes read, post, ask, status, upload. The extra scope is
+ *        create_identity. 403 step_up_required (no header). 403 step_up_invalid (used, expired, other action or target).
  *        400 code_mismatch ("The code does not match") when more than one request is pending and typed_code differs.
  *        409 machine_name_taken, 409 machine_cap (10 active). A failed approve leaves the step-up unused.
  *   POST /api/machines/requests/:id/deny and POST /api/machines/requests/deny-all  O (no step-up) -> 200
@@ -236,7 +236,7 @@ scenario("Approval creates the machine with its allow-list and scopes", { tag: [
   expect(machines).toHaveLength(1);
   expect(machines[0].key_hint.startsWith("cvz_m_")).toBe(true);
 
-  // And its scopes are read, post, ask, status and upload, without pickup or create_identity
+  // And its scopes are read, post, ask, status and upload, without create_identity
   expect(machines[0].scopes).toEqual(DEFAULT_SCOPES);
   expect(machines[0].allow).toEqual(allow("devtool", "dev-*"));
 

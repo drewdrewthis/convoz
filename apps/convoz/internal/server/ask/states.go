@@ -82,10 +82,11 @@ func fromRow(r askRow) Ask {
 
 // Waiting is what Now lists for one person.
 type Waiting struct {
-	Open     []Ask           // open and not snoozed: urgent first, then the newest
-	Snoozed  []Ask           // open and snoozed by this person: the soonest wake first
-	Until    map[int64]int64 // the snooze time of each snoozed ask
-	Answered []Ask           // answered since the cut: newest first
+	Open      []Ask           // open and not snoozed: urgent first, then the newest
+	Snoozed   []Ask           // open and snoozed by this person: the soonest wake first
+	Until     map[int64]int64 // the snooze time of each snoozed ask
+	Answered  []Ask           // answered since the cut: newest first
+	Dismissed []Ask           // dismissed since the cut and still dismissed: newest first
 }
 
 // ForNow reads the asks that wait for a person at now, and the ones answered since `since`.
@@ -99,6 +100,10 @@ func ForNow(ctx context.Context, d pdb.DBTX, person int64, now time.Time, since 
 	if err != nil {
 		return Waiting{}, err
 	}
+	dismissed, err := q.DismissedSince(ctx, sql.NullInt64{Int64: since, Valid: true})
+	if err != nil {
+		return Waiting{}, err
+	}
 	snoozes, err := q.ActiveSnoozes(ctx, db.ActiveSnoozesParams{IdentityID: person, Now: now.UnixMilli()})
 	if err != nil {
 		return Waiting{}, err
@@ -107,7 +112,7 @@ func ForNow(ctx context.Context, d pdb.DBTX, person int64, now time.Time, since 
 	for _, s := range snoozes {
 		until[s.MessageID] = s.UntilAt
 	}
-	ids := append(append([]int64{}, open...), answered...)
+	ids := append(append(append([]int64{}, open...), answered...), dismissed...)
 	byID, err := Views(ctx, d, ids)
 	if err != nil {
 		return Waiting{}, err
@@ -123,6 +128,9 @@ func ForNow(ctx context.Context, d pdb.DBTX, person int64, now time.Time, since 
 	sortByWake(w.Snoozed, until)
 	for _, id := range answered {
 		w.Answered = append(w.Answered, byID[id])
+	}
+	for _, id := range dismissed {
+		w.Dismissed = append(w.Dismissed, byID[id])
 	}
 	return w, nil
 }

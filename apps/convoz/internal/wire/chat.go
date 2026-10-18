@@ -30,13 +30,6 @@ type LastMessage struct {
 	Preview      string `json:"preview"` // at most 140 runes, one line
 }
 
-// Pickup states of a conversation (SEC-6).
-const (
-	PickupClosed = "closed" // nobody opened it for pickup
-	PickupOpen   = "open"   // opened, and no agent holds it
-	PickupTaken  = "taken"  // an agent holds it
-)
-
 // PendingAdd is an agent that waits to be added until a human approves, and the agent that asked.
 type PendingAdd struct {
 	Person      Person  `json:"person"`
@@ -45,7 +38,7 @@ type PendingAdd struct {
 }
 
 // Conversation is one row of the list, and the body of the single-conversation routes. The fields after Unread are
-// the details: the list sends the cheap ones (paused, pickup, deleted_at) and the single-conversation route all of them.
+// the details: the list sends the cheap ones (paused, deleted_at) and the single-conversation route all of them.
 type Conversation struct {
 	ID             int64        `json:"id"`
 	Title          *string      `json:"title"`
@@ -56,15 +49,12 @@ type Conversation struct {
 	Unread         int64        `json:"unread"`
 	Starred        bool         `json:"starred"`
 	Rank           float64      `json:"rank"`
-	Older          bool         `json:"older"`
 
 	StartedBy  *Person      `json:"started_by,omitempty"`
 	LinkURL    *string      `json:"link_url,omitempty"`
 	MutedUntil *int64       `json:"muted_until,omitempty"`
 	Pinned     *[]Message   `json:"pinned,omitempty"`
 	Paused     bool         `json:"paused,omitempty"`
-	Pickup     string       `json:"pickup,omitempty"`
-	PickedUpBy *Person      `json:"picked_up_by,omitempty"`
 	Pending    []PendingAdd `json:"pending,omitempty"`
 	DeletedAt  *int64       `json:"deleted_at,omitempty"`
 	PurgesAt   *int64       `json:"purges_at,omitempty"`
