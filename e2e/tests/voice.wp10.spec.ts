@@ -227,6 +227,33 @@ scenario("With no transcription engine the note has no transcript", { tag: ["@br
   expect(note.transcript).toBeUndefined();
 });
 
+scenario("A note sent before transcription was on gets its words later", { tag: ["@browser", "@cli"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(60_000);
+  // Background
+  const u = await voiceWorld({ server, page, context });
+  await openConversation(page, u.w.srv, u.conv);
+
+  // Given transcription was off when the owner sent a voice note
+  await setEngine(owner(u) as { srv: typeof u.w.srv; owner: typeof u.w.owner }, "none");
+  await recordAndSend(page, 2_500);
+  await expect(voiceMessages(page)).toHaveCount(1);
+  await wait(2_500);
+  expect((await pageOf(u.w.owner, u.conv))[0]!.uploads![0]!.transcript).toBeUndefined();
+
+  // When the owner sets the transcription engine
+  await setEngine(owner(u) as { srv: typeof u.w.srv; owner: typeof u.w.owner }, "fake", "words that came later");
+
+  // Then the voice message shows the transcript, without the note being sent again
+  await expect.poll(async () => (await pageOf(u.w.owner, u.conv))[0]?.uploads?.[0]?.transcript?.state, { timeout: 20_000 }).toBe("done");
+  const note = voiceMessages(page).first();
+  await note.getByRole("button", { name: "Transcript" }).click();
+  await expect(note.getByText("words that came later")).toBeVisible();
+
+  // And "devtool" reads the transcript with "convoz read 41"
+  const read = await convoz(u.w.box, u.devtool.sid, ["read", String(u.conv)]);
+  expect(read.stdout).toContain("words that came later");
+});
+
 scenario("Search finds words that are only in the transcript", { tag: ["@browser", "@cli"] }, async ({ server, page, context }) => {
   // Background
   const u = await voiceWorld({ server, page, context });
