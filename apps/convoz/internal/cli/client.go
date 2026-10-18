@@ -79,6 +79,28 @@ func (c *client) callRaw(ctx context.Context, method, path, token, contentType s
 	return c.do(ctx, method, path, token, contentType, headers, bytes.NewReader(body), out)
 }
 
+// headUpload asks where an upload stands (HEAD): the offset to resume from and its state.
+func (c *client) headUpload(ctx context.Context, path, token string) (offset int64, state string, err error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, c.base+path, nil)
+	if err != nil {
+		return 0, "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	res, err := c.http.Do(req)
+	if err != nil {
+		return 0, "", fmt.Errorf("%w: cannot reach %s: %v", errUnreachable, c.base, err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return 0, "", &statusError{status: res.StatusCode, msg: fmt.Sprintf("the server answered %d", res.StatusCode), retryAfter: retryAfter(res)}
+	}
+	offset, err = strconv.ParseInt(res.Header.Get(wire.HeaderUploadOffset), 10, 64)
+	if err != nil || offset < 0 {
+		return 0, "", errors.New("the server's answer about the upload is not readable")
+	}
+	return offset, res.Header.Get(wire.HeaderUploadState), nil
+}
+
 func (c *client) do(ctx context.Context, method, path, token, contentType string, headers map[string]string, body io.Reader, out any) error {
 	req, err := http.NewRequestWithContext(ctx, method, c.base+path, body)
 	if err != nil {

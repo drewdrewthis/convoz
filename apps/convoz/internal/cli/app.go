@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bytes"
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -190,9 +189,7 @@ func (o appOpts) send(k *chatCmd, conv int64, raw []byte, bundle string) (json.R
 		return nil, usageError(k.io, fmt.Sprintf("the bundle %s cannot be read", bundle))
 	}
 	sum := sha256.Sum256(content)
-	ctx, cancel := context.WithTimeout(context.Background(), k.timeout)
-	defer cancel()
-	stored, err := k.uploadFile(ctx, conv, "app", filepath.Base(bundle), content, sum[:])
+	stored, err := k.uploadFile(conv, "app", filepath.Base(bundle), content, sum[:])
 	if err != nil {
 		return nil, k.fail(err)
 	}
@@ -206,17 +203,11 @@ func (o appOpts) send(k *chatCmd, conv int64, raw []byte, bundle string) (json.R
 	return bytes.Clone(final), ExitOK
 }
 
-// uploadFile sends a file that fits one chunk through POST and PATCH /api/uploads and returns the finished upload.
-func (k *chatCmd) uploadFile(ctx context.Context, conv int64, kind, name string, content, sum []byte) (wire.UploadState, error) {
-	var st wire.UploadState
-	req := wire.CreateUploadRequest{ConversationID: conv, Kind: kind, Filename: name, Size: int64(len(content)), SHA256: hex.EncodeToString(sum)}
-	if err := k.call(ctx, "POST", "/api/uploads", req, &st); err != nil {
+// uploadFile sends a bundle through POST and PATCH /api/uploads and returns the finished upload; a lost connection resumes (finishUpload).
+func (k *chatCmd) uploadFile(conv int64, kind, name string, content, sum []byte) (wire.UploadState, error) {
+	st, err := k.createUpload(conv, kind, name, int64(len(content)), sum)
+	if err != nil {
 		return st, err
 	}
-	head := map[string]string{wire.HeaderUploadOffset: "0"}
-	err := k.c.callRaw(ctx, "PATCH", "/api/uploads/"+st.ID, k.lease, wire.ChunkType, head, content, &st)
-	if err == nil && st.State != "complete" {
-		err = errors.New("the server did not finish the upload")
-	}
-	return st, err
+	return k.finishUpload(st.ID, content, false)
 }

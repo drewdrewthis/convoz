@@ -126,7 +126,8 @@ func convArg(io IO, s string) (int64, bool) {
 
 // ---- post ---------------------------------------------------------------------------------------------
 
-// Post runs `convoz post [--format F] [--app FILE] [--client-id C] <conv> <text|->`. It prints the message id. A lost answer
+// Post runs `convoz post [--format F] [--app FILE] [--file PATH]... [--client-id C] <conv> [text|-]`. It prints the message id (with
+// --json also the files it carries). The text may be left out when files are given. A lost answer
 // is retried with the same client id (see callRetry), so the server stores the message once. When Convoz says to slow down
 // (429 with Retry-After) it waits that long and sends again.
 func Post(args []string, io IO) int {
@@ -136,20 +137,21 @@ func Post(args []string, io IO) int {
 	if !ok {
 		return ExitUsage
 	}
-	if len(pos) != 2 {
-		return usageError(io, "usage: convoz post [--format F] [--app FILE] [--client-id C] <conv> <text|->")
+	if !opt.argsOK(pos) {
+		return usageError(io, postUsage)
 	}
 	conv, ok := convArg(io, pos[0])
 	if !ok {
 		return ExitUsage
 	}
-	return opt.send(f, io, conv, 0, pos[1])
+	return opt.send(f, io, conv, 0, opt.textOf(pos))
 }
 
 // postFlags are the flags `post` and `reply` share.
 type postFlags struct {
 	format, clientID *string
 	app              appOpts
+	files            *fileList
 	broadcast        bool // reply only: also show the reply in the main thread
 }
 
@@ -157,8 +159,29 @@ func newPostFlags(f *chatFlags) postFlags {
 	return postFlags{
 		format:   f.fs.String("format", "", "markdown, markdownv2 or plain"),
 		app:      newAppOpts(f, "a file holding an app (app.v1 JSON) to send with the text"),
+		files:    filesFlag(f),
 		clientID: f.fs.String("client-id", "", "the id that makes a retry safe; random when not given"),
 	}
+}
+
+const postUsage = "usage: convoz post [--format F] [--app FILE] [--file PATH]... [--client-id C] <conv> [text|-]"
+
+func filesFlag(f *chatFlags) *fileList {
+	l := &fileList{}
+	f.fs.Var(l, "file", "a file to attach, of any type, up to 10 times; the text may then be left out")
+	return l
+}
+
+// argsOK says whether pos is the id and the text; with files the text may be left out.
+func (o postFlags) argsOK(pos []string) bool {
+	return len(pos) == 2 || (len(pos) == 1 && len(*o.files) > 0)
+}
+
+func (o postFlags) textOf(pos []string) string {
+	if len(pos) == 2 {
+		return pos[1]
+	}
+	return ""
 }
 
 // send posts text (or standard input for "-") to conversation conv, as a reply to thread when thread is not 0.
@@ -170,8 +193,12 @@ func (o postFlags) send(f *chatFlags, io IO, conv, thread int64, text string) in
 		}
 		text = strings.TrimRight(raw, "\r\n")
 	}
-	if strings.TrimSpace(text) == "" {
+	if strings.TrimSpace(text) == "" && len(*o.files) == 0 {
 		return usageError(io, "the message is empty")
+	}
+	files, err := readAttachments(*o.files)
+	if err != nil {
+		return usageError(io, err.Error())
 	}
 	var app json.RawMessage
 	var bundle string
@@ -181,9 +208,6 @@ func (o postFlags) send(f *chatFlags, io IO, conv, thread int64, text string) in
 			return code
 		}
 		app, bundle = raw, b
-	}
-	if *o.clientID == "" {
-		*o.clientID = "convoz-" + randomHex(8)
 	}
 	k, code := f.open(io)
 	if k == nil {
@@ -202,13 +226,39 @@ func (o postFlags) send(f *chatFlags, io IO, conv, thread int64, text string) in
 			return code
 		}
 	}
-	req := wire.PostRequest{ClientID: *o.clientID, Body: text, Format: *o.format, ThreadRoot: thread, Broadcast: o.broadcast, App: app}
+	clientID := *o.clientID
+	var pending *pendingPost
+	var sent []sentFile
+	if len(files) > 0 {
+		// The record keeps the client id and the uploads across runs, so a re-run after a failure resumes and posts once.
+		if pending, err = k.openPending(conv, thread, *o.format, text, clientID, files); err != nil {
+			return k.fail(err)
+		}
+		clientID = pending.ClientID
+		if sent, err = k.attach(conv, files, pending); err != nil {
+			return k.fail(err)
+		}
+	}
+	if clientID == "" {
+		clientID = "convoz-" + randomHex(8)
+	}
+	req := wire.PostRequest{ClientID: clientID, Body: text, Format: *o.format, ThreadRoot: thread, Broadcast: o.broadcast, App: app}
+	for _, u := range sent {
+		req.UploadIDs = append(req.UploadIDs, u.ID)
+	}
 	out, err := k.sendPost(conv, req)
 	if err != nil {
 		return k.fail(err)
 	}
+	if pending != nil {
+		pending.done()
+	}
 	if k.asJSON {
-		k.printJSON(map[string]int64{"id": out.ID, "conversation_id": out.ConversationID})
+		res := map[string]any{"id": out.ID, "conversation_id": out.ConversationID}
+		if len(sent) > 0 {
+			res["uploads"] = sent
+		}
+		k.printJSON(res)
 	} else {
 		fmt.Fprintln(k.io.Stdout, out.ID)
 	}

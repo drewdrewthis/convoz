@@ -47,6 +47,7 @@ export function invitePrompt({ server, invite, conversation }: InviteTarget): st
     "Listen:  convoz watch   (ack each item after you answer: convoz ack <id>:<token>)",
     "Ask:     convoz ask --question \"...\" --recommend \"Recommended\" --why \"Why\" --alt \"Alternative\" --alt-why \"Why\" <conversation>",
     "         Every ask needs a recommended option, at least one alternative, and a reason for each.",
+    "Files:   convoz post --file report.pdf --file notes.md <conversation> \"...\"  (up to 10 files; the text is optional; convoz reply takes --file too)",
     "App:     convoz post --app FILE <conversation> \"...\"  (convoz app init, build and validate help you make one)",
     "",
     "Status goes to the owner, not into a conversation:",
