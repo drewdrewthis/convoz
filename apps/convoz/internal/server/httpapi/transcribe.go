@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"net/http"
 	"sync"
 	"time"
 
@@ -118,7 +119,7 @@ func (s *Server) transcribeDue(ctx context.Context) {
 }
 
 // transcribeOne hands one voice note to its engine and stores the outcome. A failure books another try, and after the last one
-// marks the transcript failed; either way the inbox items held for the words are let go once they will not come.
+// marks the transcript failed (or, for a redo, done again with its old words); either way the inbox items held for the words are let go once they will not come.
 func (s *Server) transcribeOne(ctx context.Context, svc *upload.Service, job transcript.Job) {
 	text, engineName, up, err := s.transcribeAudio(ctx, svc, job)
 	now := s.Clock.Now()
@@ -128,14 +129,14 @@ func (s *Server) transcribeOne(ctx context.Context, svc *upload.Service, job tra
 			if gerr := transcript.GiveUp(ctx, d, now, job); gerr != nil {
 				return gerr
 			}
-			return s.releaseVoice(ctx, d, now, up)
+			return s.settleVoice(ctx, d, now, up)
 		}
 		if err != nil {
 			gaveUp, rerr := transcript.Retry(ctx, d, now, job)
 			if rerr != nil || !gaveUp {
 				return rerr
 			}
-			return s.releaseVoice(ctx, d, now, up)
+			return s.settleVoice(ctx, d, now, up)
 		}
 		if err := transcript.Finish(ctx, d, now, job.UploadID, engineName, text); err != nil {
 			return err
@@ -163,6 +164,7 @@ func (s *Server) transcribeAudio(ctx context.Context, svc *upload.Service, job t
 	if !found || !ok {
 		return "", "", up, transcript.ErrNoEngine
 	}
+	ctx = transcript.WithDuration(ctx, up.DurationMS)
 	rd, err := svc.Blobs.Open(up)
 	if err != nil {
 		return "", "", up, err
@@ -195,10 +197,56 @@ func (s *Server) announceTranscript(ctx context.Context, d pdb.DBTX, now time.Ti
 	return err
 }
 
+// settleVoice is what a transcript that will not come changes: the held inbox items are let go and readers are told, since a redo shows
+// its earlier words again.
+func (s *Server) settleVoice(ctx context.Context, d pdb.DBTX, now time.Time, up upload.Row) error {
+	if err := s.releaseVoice(ctx, d, now, up); err != nil || up.MessageID == 0 {
+		return err
+	}
+	_, err := event.Write(ctx, d, now, event.Entry{Type: eventTranscribed, Conversation: up.ConversationID, Message: up.MessageID,
+		Payload: map[string]any{"id": up.MessageID, "upload": up.PublicID}})
+	return err
+}
+
 // releaseVoice lets the inbox items that waited for a voice note be claimed (E-5).
 func (s *Server) releaseVoice(ctx context.Context, d pdb.DBTX, now time.Time, up upload.Row) error {
 	if up.MessageID == 0 {
 		return nil
 	}
 	return inbox.ReleaseVoice(ctx, d, now, up.ConversationID, up.MessageID)
+}
+
+// transcribeAgain is POST /api/uploads/:id/transcribe: the owner puts the transcript of a voice note back in the queue, with no tries
+// made, for the engine the workspace setting picks now. The worker takes it like a new note.
+func (s *Server) transcribeAgain(w http.ResponseWriter, r *http.Request, c *call) {
+	ctx := r.Context()
+	up, found, err := upload.ByPublicID(ctx, s.reader(), r.PathValue("id"))
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	if !found || up.Kind != upload.KindAudio || up.MessageID == 0 {
+		writeErr(w, http.StatusNotFound, "not_found", "No such voice note.")
+		return
+	}
+	engine := s.currentEngine(ctx)
+	if engine == transcript.None {
+		writeErr(w, http.StatusConflict, "transcription_off", "Transcription is off.")
+		return
+	}
+	err = s.Store.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) error {
+		d, now := tx.DBTX(), s.Clock.Now()
+		if err := transcript.Requeue(ctx, d, now, up.ID, engine); err != nil {
+			return err
+		}
+		_, err := event.Write(ctx, d, now, event.Entry{Type: eventTranscribed, Conversation: up.ConversationID, Message: up.MessageID,
+			Payload: map[string]any{"id": up.MessageID, "upload": up.PublicID}})
+		return err
+	})
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	s.Bus.Notify()
+	writeJSON(w, http.StatusAccepted, map[string]string{"state": transcript.Pending})
 }

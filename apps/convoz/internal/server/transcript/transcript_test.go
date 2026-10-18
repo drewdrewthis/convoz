@@ -119,3 +119,84 @@ func TestAnEngineIsFoundByNameAndNoneIsNoEngine(t *testing.T) {
 		}
 	}
 }
+
+func TestRequeueResetsADoneTranscriptToPendingWithNoTriesAndKeepsTheOldWords(t *testing.T) {
+	s := seeded(t)
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error { return transcript.Enqueue(ctx, d, t0, 7, "fake") })
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error {
+		_, err := transcript.Retry(ctx, d, t0, transcript.Job{UploadID: 7, Attempts: 1})
+		return err
+	})
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error {
+		return transcript.Finish(ctx, d, t0, 7, "groq", "for me to be able to make")
+	})
+	later := t0.Add(time.Hour)
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error { return transcript.Requeue(ctx, d, later, 7, "auto") })
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error {
+		got, err := transcript.ForUploads(ctx, d, []int64{7})
+		if got[7].State != transcript.Pending || got[7].Attempts != 0 || got[7].Text != "for me to be able to make" {
+			t.Fatalf("got %+v", got[7])
+		}
+		job, ok, _ := transcript.Next(ctx, d, later)
+		if !ok || job.UploadID != 7 || job.Engine != "auto" || job.Attempts != 0 {
+			t.Fatalf("not due again: %+v %v", job, ok)
+		}
+		return err
+	})
+}
+
+func TestARedoKeepsTheOldWordsWhilePendingAndGetsThemBackWhenEveryTryFails(t *testing.T) {
+	s := seeded(t)
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error { return transcript.Enqueue(ctx, d, t0, 7, "fake") })
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error {
+		return transcript.Finish(ctx, d, t0, 7, "groq", "for me to be able to make")
+	})
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error { return transcript.Requeue(ctx, d, t0, 7, "fake") })
+	read := func() transcript.Of {
+		var got map[int64]transcript.Of
+		dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) (err error) {
+			got, err = transcript.ForUploads(ctx, d, []int64{7})
+			return err
+		})
+		return got[7]
+	}
+	if got := read(); got.State != transcript.Pending || got.Text != "for me to be able to make" || got.RedoFailed {
+		t.Fatalf("pending redo: %+v", got)
+	}
+	var gaveUp bool
+	for i := int64(0); i < transcript.Attempts; i++ {
+		dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) (err error) {
+			gaveUp, err = transcript.Retry(ctx, d, t0, transcript.Job{UploadID: 7, Attempts: i})
+			return err
+		})
+	}
+	if got := read(); !gaveUp || got.State != transcript.Done || got.Text != "for me to be able to make" || !got.RedoFailed {
+		t.Fatalf("after the last try (gave up %v): %+v", gaveUp, got)
+	}
+	// a redo that finishes replaces the words and clears the mark
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error { return transcript.Requeue(ctx, d, t0, 7, "fake") })
+	if got := read(); got.RedoFailed {
+		t.Fatalf("requeue kept the mark: %+v", got)
+	}
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error {
+		return transcript.Finish(ctx, d, t0, 7, "groq", "the whole note")
+	})
+	if got := read(); got.State != transcript.Done || got.Text != "the whole note" || got.RedoFailed {
+		t.Fatalf("finished redo: %+v", got)
+	}
+}
+
+func TestAFirstTranscriptThatFailsEveryTryIsFailedWithNoWords(t *testing.T) {
+	s := seeded(t)
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error { return transcript.Requeue(ctx, d, t0, 7, "fake") })
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error {
+		return transcript.GiveUp(ctx, d, t0, transcript.Job{UploadID: 7})
+	})
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error {
+		got, err := transcript.ForUploads(ctx, d, []int64{7})
+		if got[7].State != transcript.Failed || got[7].Text != "" || got[7].RedoFailed {
+			t.Fatalf("got %+v", got[7])
+		}
+		return err
+	})
+}

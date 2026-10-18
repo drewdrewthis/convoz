@@ -1500,6 +1500,31 @@ export interface paths {
         patch: operations["patchUpload"];
         trace?: never;
     };
+    "/api/uploads/{id}/transcribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The public id of the voice note. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The owner puts the transcript of a voice note back in the queue ("Transcribe again").
+         * @description The transcript goes to pending with no tries made, for the engine the workspace setting picks now; the old words go. The worker
+         *     takes it like a new note and readers get the message again when it is done. An upload that is not a voice note of a message is
+         *     404; with transcription off it is 409 `transcription_off`.
+         */
+        post: operations["transcribeUploadAgain"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/files/{public_id}": {
         parameters: {
             query?: never;
@@ -2330,7 +2355,10 @@ export interface components {
         Transcript: {
             /** @enum {string} */
             state: "pending" | "done" | "failed";
+            /** @description The words when done; the earlier words while "Transcribe again" is pending. */
             text?: string;
+            /** @description "Transcribe again" gave up; text is the earlier transcript. */
+            redo_failed?: boolean;
         };
         Posted: {
             /** Format: int64 */
@@ -5422,6 +5450,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UploadState"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    transcribeUploadAgain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The public id of the voice note. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Queued. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        state: "pending";
+                    };
                 };
             };
             default: components["responses"]["Error"];

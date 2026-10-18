@@ -29,7 +29,8 @@ func (q *Queries) EnqueueTranscript(ctx context.Context, arg EnqueueTranscriptPa
 }
 
 const failTranscript = `-- name: FailTranscript :exec
-UPDATE transcripts SET state = 'failed', attempts = attempts + 1, next_attempt_at = NULL, updated_at = ?1
+UPDATE transcripts SET state = CASE WHEN previous_text IS NULL THEN 'failed' ELSE 'done' END, text = previous_text, redo_failed = previous_text IS NOT NULL,
+  previous_text = NULL, attempts = attempts + 1, next_attempt_at = NULL, updated_at = ?1
 WHERE upload_id = ?2 AND state = 'pending'
 `
 
@@ -44,7 +45,7 @@ func (q *Queries) FailTranscript(ctx context.Context, arg FailTranscriptParams) 
 }
 
 const finishTranscript = `-- name: FinishTranscript :exec
-UPDATE transcripts SET state = 'done', text = ?1, engine = ?2, next_attempt_at = NULL, updated_at = ?3
+UPDATE transcripts SET state = 'done', text = ?1, previous_text = NULL, redo_failed = 0, engine = ?2, next_attempt_at = NULL, updated_at = ?3
 WHERE upload_id = ?4 AND state = 'pending'
 `
 
@@ -83,6 +84,25 @@ func (q *Queries) NextTranscript(ctx context.Context, now sql.NullInt64) (NextTr
 	return i, err
 }
 
+const requeueTranscript = `-- name: RequeueTranscript :exec
+INSERT INTO transcripts (upload_id, state, engine, attempts, next_attempt_at, updated_at)
+VALUES (?1, 'pending', ?2, 0, ?3, ?3)
+ON CONFLICT (upload_id) DO UPDATE SET previous_text = CASE WHEN transcripts.state = 'done' THEN transcripts.text ELSE transcripts.previous_text END,
+  state = 'pending', text = NULL, redo_failed = 0, engine = excluded.engine, attempts = 0,
+  next_attempt_at = excluded.next_attempt_at, updated_at = excluded.updated_at
+`
+
+type RequeueTranscriptParams struct {
+	UploadID int64
+	Engine   sql.NullString
+	Now      sql.NullInt64
+}
+
+func (q *Queries) RequeueTranscript(ctx context.Context, arg RequeueTranscriptParams) error {
+	_, err := q.db.ExecContext(ctx, requeueTranscript, arg.UploadID, arg.Engine, arg.Now)
+	return err
+}
+
 const retryTranscript = `-- name: RetryTranscript :exec
 UPDATE transcripts SET attempts = attempts + 1, next_attempt_at = ?1, updated_at = ?2
 WHERE upload_id = ?3 AND state = 'pending'
@@ -100,14 +120,15 @@ func (q *Queries) RetryTranscript(ctx context.Context, arg RetryTranscriptParams
 }
 
 const transcriptsOf = `-- name: TranscriptsOf :many
-SELECT upload_id, state, text, attempts FROM transcripts WHERE upload_id IN (/*SLICE:upload_ids*/?)
+SELECT upload_id, state, COALESCE(text, previous_text) AS text, attempts, redo_failed FROM transcripts WHERE upload_id IN (/*SLICE:upload_ids*/?)
 `
 
 type TranscriptsOfRow struct {
-	UploadID int64
-	State    string
-	Text     sql.NullString
-	Attempts int64
+	UploadID   int64
+	State      string
+	Text       sql.NullString
+	Attempts   int64
+	RedoFailed int64
 }
 
 func (q *Queries) TranscriptsOf(ctx context.Context, uploadIds []int64) ([]TranscriptsOfRow, error) {
@@ -134,6 +155,7 @@ func (q *Queries) TranscriptsOf(ctx context.Context, uploadIds []int64) ([]Trans
 			&i.State,
 			&i.Text,
 			&i.Attempts,
+			&i.RedoFailed,
 		); err != nil {
 			return nil, err
 		}

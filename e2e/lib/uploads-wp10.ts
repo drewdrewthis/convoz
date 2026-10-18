@@ -113,9 +113,9 @@ export function postWith(who: Actor, conv: number, body: string, uploadIds: stri
 export const getFile = (who: Actor, id: string, headers: Record<string, string> = {}): Promise<Raw> => raw(who, "GET", `/api/files/${id}`, { headers });
 
 /** Set the workspace transcription engine ("none" or "fake") and what the fake engine answers. */
-export async function setEngine(who: { srv: ServerHandle; owner: Owner }, engine: string, text = "fake transcript"): Promise<void> {
+export async function setEngine(who: { srv: ServerHandle; owner: Owner }, engine: string, text = "fake transcript", delayMs = 0): Promise<void> {
   must(await who.owner.client.request("PATCH", "/api/settings", { csrf: true, json: { scope: "workspace", key: "transcription.engine", value: engine } }), "set engine");
-  must(await who.owner.client.request("POST", "/__test/transcriber", { csrf: true, json: { text, fail: false } }), "set fake text");
+  must(await who.owner.client.request("POST", "/__test/transcriber", { csrf: true, json: { text, fail: false, delay_ms: delayMs } }), "set fake text");
 }
 
 // ---- fixtures ------------------------------------------------------------------------------------------

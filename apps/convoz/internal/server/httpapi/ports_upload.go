@@ -90,7 +90,7 @@ func (a attachment) wire() wire.Upload {
 		u.Waveform = append(u.Waveform, int(p))
 	}
 	if a.Transcript != nil {
-		u.Transcript = &wire.Transcript{State: a.Transcript.State, Text: a.Transcript.Text}
+		u.Transcript = &wire.Transcript{State: a.Transcript.State, Text: a.Transcript.Text, RedoFailed: a.Transcript.RedoFailed}
 	}
 	return u
 }

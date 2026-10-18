@@ -34,7 +34,8 @@ Transcript:
   description: The words of a voice note. Absent when no transcription engine is set.
   properties:
     state: { type: string, enum: [pending, done, failed] }
-    text: { type: string }
+    text: { type: string, description: The words when done; the earlier words while "Transcribe again" is pending. }
+    redo_failed: { type: boolean, description: '"Transcribe again" gave up; text is the earlier transcript.' }
 Upload:
   type: object
   required: [id, kind, name, size, mime, inline]

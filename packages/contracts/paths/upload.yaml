@@ -69,6 +69,28 @@
           application/json:
             schema: { $ref: "../openapi.yaml#/components/schemas/UploadState" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/uploads/{id}/transcribe:
+  parameters:
+    - { name: id, in: path, required: true, schema: { type: string }, description: The public id of the voice note. }
+  post:
+    x-authz: { auth: owner }
+    operationId: transcribeUploadAgain
+    summary: The owner puts the transcript of a voice note back in the queue ("Transcribe again").
+    description: |
+      The transcript goes to pending with no tries made, for the engine the workspace setting picks now; the old words go. The worker
+      takes it like a new note and readers get the message again when it is done. An upload that is not a voice note of a message is
+      404; with transcription off it is 409 `transcription_off`.
+    responses:
+      "202":
+        description: Queued.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [state]
+              properties:
+                state: { type: string, enum: [pending] }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/files/{public_id}:
   get:
     x-authz: { auth: human, lease: accept, scope: read }
