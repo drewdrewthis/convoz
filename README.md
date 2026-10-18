@@ -38,7 +38,7 @@ pnpm proof origin/master # after pnpm e2e: e2e/report/proof.html, each scenario'
 
 - `CONVOZ_BIN` picks the binary under test (default `apps/convoz/bin/convoz-test`, the testhooks build).
 - `GO_BIN` picks the Go tool for the e2e suite and the scripts (default: `go` on `PATH`).
-- SQL lives in `apps/convoz/internal/server/<module>/queries/*.sql`, one sqlc package per module. After a change run `make -C apps/convoz sqlc`; the generated code is committed and CI checks it with `go tool sqlc diff`. sqlc is pinned by the `tool` line in `apps/convoz/go.mod`.
+- SQL lives in `apps/convoz/internal/server/<module>/queries/*.sql`, one sqlc package per module. After a change run `make -C apps/convoz sqlc`; the generated code is committed and CI checks it with `go tool sqlc diff`. sqlc is pinned by the `tool` line in `apps/convoz/tools/sqlc/go.mod`, a module of its own so that the build's `go mod verify` does not re-hash sqlc's large dependency graph (CI verifies that module too).
 - `make -C apps/convoz lint-boundaries` checks the module boundaries: Go imports and table ownership (design §4.3).
 - Run a local server: `convoz serve --data-dir D --kek-file F --host localhost --tailscale off --admin-socket D/admin.sock`, then `convoz admin bootstrap-link --admin-socket D/admin.sock` and open the link it prints.
 

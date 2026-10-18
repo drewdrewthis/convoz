@@ -4,7 +4,8 @@
 Checks (exit 1 on any failure, one line per problem):
   1. every `uses:` in .github/workflows is pinned to a 40-hex commit SHA;
   2. CI installs with `pnpm install --frozen-lockfile` and builds Go with -mod=readonly;
-  3. `go mod verify` passes in apps/convoz;
+  3. `go mod verify` passes in apps/convoz (the build's graph; the sqlc tool module, tools/sqlc, has its own CI step, because
+     verify re-hashes every module of its graph and sqlc's graph alone cost twice what the build's does);
   4. the SQLite module's go.sum line equals apps/convoz/sqlite-module.sum;
   5. the WebAuthn library is required at the pinned version and go.sum has its checksum;
   6. Playwright is pinned to an exact version and CI installs its chromium;
