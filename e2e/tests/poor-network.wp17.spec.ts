@@ -199,6 +199,9 @@ scenario("The offline shell opens with the cached rail and Now", { tag: ["@brows
   await page.goto(`${u.w.srv.origin}/chats`);
   await expect(chatsHeading(page)).toBeVisible();
   await installed(page);
+  // The page signed in on (Now) synced while the conversations were being made, and its copy can already hold 200 messages of the
+  // busy thread: only this page's `kept-offline` mark (set once its sync is on disk) says the copy holds all 21 threads and the newest.
+  await page.waitForFunction(() => performance.getEntriesByName("kept-offline").length > 0, undefined, { timeout: 30_000 });
   await cachedMessages(page, big, 200);
   await expect.poll(async () => (await stored(page))?.meta).toContain("now");
 
