@@ -69,6 +69,19 @@ func privateDir(path string) error {
 	return checkMode(path, dirMode)
 }
 
+// checkWritable proves the config directory can be made and a private file written in it, so a login fails before it asks the owner.
+func checkWritable(dir string) error {
+	if err := privateDir(dir); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(dir, ".probe-*") // 0600
+	if err != nil {
+		return err
+	}
+	tmp.Close()
+	return os.Remove(tmp.Name())
+}
+
 // writePrivate writes data to path as a 0600 file: a temp file in the same directory, then a rename, so a
 // reader never sees a half-written key.
 func writePrivate(path string, data []byte) error {
