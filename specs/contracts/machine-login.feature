@@ -122,13 +122,14 @@ Feature: Machine login with a device flow (contracts)
       Then the server answers 409 with the code "handle_taken"
       And GET /api/machines does not list the machine
 
+    # Owner (Drew, msg 143): "History should be accessible yes"
     @v1 @api @I-3 @I-17 @I-36
     Scenario: Approving a login with an identity makes the machine, the agent, its allow-list and its seat in one step
       Given a login request for "code-review" naming conversation 41 is pending
       When the owner approves it with an empty body
       Then the machine allows "code-review" and no create_identity scope
       And "code-review" has its description, its avatar and is marked created by the machine
-      And "code-review" is an active participant of conversation 41 and cannot read the messages before the add
+      And "code-review" is an active participant of conversation 41 and can read the messages before the add
       And the machine can fetch its key and start a session as "code-review"
 
     @v1 @api @I-36

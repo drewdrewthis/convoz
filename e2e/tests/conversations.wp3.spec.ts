@@ -49,18 +49,16 @@ scenario("Events from before an agent joined are not replayed to it", { tag: ["@
   must(await ownerAdds(w.owner, conv, ids.docs!), "add docs", 201);
   const docs = await startSession(w.box, "docs", "docs");
 
-  // When "docs" reads the conversation and its inbox
-  const read = await asAgent(w.srv, docs.lease, "GET", `/api/conversations/${conv}/messages`);
+  // When "docs" reads its inbox
   const items = await peekFor(w.box, docs.sid, conv);
 
   // Then it receives nothing from those 10 events
-  expect(read.status).toBe(200);
-  expect(read.json().messages).toEqual([]);
   expect(items.map((i) => i.reason)).toEqual(["membership"]); // the one notice of the join itself (inbox.feature); no item for the 10 events
 
   // And what happens after the join reaches it
   await ownerSays(w.owner, conv, "after the join");
-  expect((await asAgent(w.srv, docs.lease, "GET", `/api/conversations/${conv}/messages`)).json().messages.map((m: { body: string }) => m.body)).toEqual(["after the join"]);
+  const read = await asAgent(w.srv, docs.lease, "GET", `/api/conversations/${conv}/messages`);
+  expect(read.json().messages.map((m: { body: string }) => m.body).at(-1)).toBe("after the join");
   expect((await peekFor(w.box, docs.sid, conv)).map((i) => i.reason)).toEqual(["membership", "activity"]);
 });
 
@@ -114,7 +112,7 @@ scenario("An agent that creates a conversation cannot pull others in", { tag: ["
   expect((await convoz(w.box, bot.sid, ["read", String(conv)])).code).toBe(3);
 });
 
-scenario("An agent sees a reply under a hidden root as a stub", { tag: ["@cli"] }, async ({ server, dataDir }) => {
+scenario("An agent sees a thread whose root was posted before it joined", { tag: ["@cli"] }, async ({ server, dataDir }) => {
   // Given "docs" was added to conversation 41 after thread root 900 was posted
   const w = await world(server, { plaintext: true });
   const ids = await idsOf(w.owner);
@@ -129,11 +127,50 @@ scenario("An agent sees a reply under a hidden root as a stub", { tag: ["@cli"] 
   // When "docs" runs "convoz read 41 --thread 900"
   const res = await convoz(w.box, docs.sid, ["read", String(conv), "--thread", String(root)]);
 
-  // Then it sees the reply and a stub "earlier message not shown" for the root
+  // Then it sees the reply and no "earlier message not shown" stub for the root
   expect(res.code, res.stderr).toBe(0);
   expect(res.stdout).toContain("The reply after the add");
-  expect(res.stdout).toContain("earlier message not shown");
-  expect(res.stdout).not.toContain("The thread root");
+  expect(res.stdout).not.toContain("earlier message not shown");
+  const replies = await asAgent(w.srv, docs.lease, "GET", `/api/messages/${root}/replies`);
+  expect(replies.json().root.body).toBe("The thread root");
+});
+
+scenario("An agent added to a conversation reads the messages from before it joined", { tag: ["@cli"] }, async ({ server }) => {
+  // Given conversation 41 had 3 messages before the owner added "docs"
+  const w = await world(server);
+  const ids = await idsOf(w.owner);
+  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool"] });
+  for (const n of [1, 2, 3]) await ownerSays(w.owner, conv, `before ${n}`);
+  must(await ownerAdds(w.owner, conv, ids.docs!), "add docs", 201);
+  const docs = await startSession(w.box, "docs", "docs");
+
+  // When "docs" runs "convoz read 41"
+  const res = await convoz(w.box, docs.sid, ["read", "--json", String(conv)]);
+
+  // Then it sees all 3 earlier messages
+  expect(res.code, res.stderr).toBe(0);
+  const bodies = (JSON.parse(res.stdout).messages as { body: string; author: { kind: string } }[]).filter((m) => m.author.kind !== "system").map((m) => m.body);
+  expect(bodies).toEqual(["before 1", "before 2", "before 3"]);
+});
+
+scenario("Joining does not put old messages in the new member's inbox", { tag: ["@cli"] }, async ({ server }) => {
+  // Given conversation 41 had 3 messages before the owner added "docs"
+  const w = await world(server);
+  const ids = await idsOf(w.owner);
+  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool"] });
+  for (const n of [1, 2, 3]) await ownerSays(w.owner, conv, `before ${n}`);
+  must(await ownerAdds(w.owner, conv, ids.docs!), "add docs", 201);
+  const docs = await startSession(w.box, "docs", "docs");
+
+  // When "docs" peeks at its inbox
+  const items = await peekFor(w.box, docs.sid, conv);
+
+  // Then it has only the notice that it was added and no item for the 3 earlier messages
+  expect(items.map((i) => i.reason)).toEqual(["membership"]);
+  expect(items.some((i) => i.message.body.startsWith("before"))).toBe(false);
+
+  // And "docs" has no unread messages in conversation 41
+  expect(await unreadFor(w.srv, docs.lease, conv)).toBe(0);
 });
 
 // ---- Rule: Removing an agent cuts it off in one step (AC-6) ---------------------------------------------------
@@ -337,7 +374,7 @@ scenario("Mentioning an agent adds it at once", { tag: ["@browser"] }, async ({ 
   expect(items[0]!.message.body).toBe("@devtool please look at #412");
 });
 
-scenario("Adding an agent with + Add joins it at once and it sees only what comes after", { tag: ["@browser"] }, async ({ server, page, context }) => {
+scenario("Adding an agent with + Add joins it at once and it sees the whole history", { tag: ["@browser"] }, async ({ server, page, context }) => {
   // Given conversation 41 with 20 messages
   const w = await browserWorld({ server, page, context }, { live: ["docs"] });
   const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool"] });
@@ -355,11 +392,11 @@ scenario("Adding an agent with + Add joins it at once and it sees only what come
   await expect(page.getByRole("radio")).toHaveCount(0);
   await ownerSays(w.owner, conv, "after the add");
 
-  // And "docs" runs "convoz read 41" and sees only messages after the add
+  // And "docs" runs "convoz read 41" and sees the 20 messages from before the add and the ones after
   const read = await convoz(w.box, w.sessions.docs!.sid, ["read", "--json", String(conv)]);
   expect(read.code, read.stderr).toBe(0);
   const bodies = (JSON.parse(read.stdout).messages as { body: string; author: { kind: string } }[]).filter((m) => m.author.kind !== "system").map((m) => m.body);
-  expect(bodies).toEqual(["after the add"]);
+  expect(bodies).toEqual([...Array.from({ length: 20 }, (_, i) => `message ${i + 1}`), "after the add"]);
 
   // And "docs" has no unread messages in conversation 41
   expect(await unreadFor(w.srv, w.sessions.docs!.lease, conv)).toBe(0);

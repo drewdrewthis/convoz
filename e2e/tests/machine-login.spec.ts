@@ -813,7 +813,7 @@ scenario("An agent login may name a conversation, and the card shows its title",
   must(await approveBare(owner, row!.id), "approve", 201);
   expect((await login.done).code).toBe(0);
 
-  // Then "code-review" is an active participant of conversation 41 and sees only what comes after
+  // Then "code-review" is an active participant of conversation 41 and sees the whole history
   const listed = must(await owner.client.get(`/api/conversations/${conv}`), "conversation").json().conversation.participants as { handle: string }[];
   expect(listed.map((p) => p.handle)).toContain("code-review");
 });
@@ -952,10 +952,10 @@ scenario("Approving a login with an identity makes the machine, the agent, its a
   const tok = must(await pollToken(srv, res.json().device_code), "key").json();
   const token = await lease(srv, tok.machine_key, { as: "code-review" });
 
-  // And "code-review" is an active participant of conversation 41 and cannot read the messages before the add
+  // And "code-review" is an active participant of conversation 41 and can read the messages before the add
   const seen = await send(srv.target, "GET", `/api/conversations/${conv}/messages`, bearer(token));
   expect(seen.status, seen.text).toBe(200);
-  expect((seen.json().messages as { id: number }[]).every((m) => m.id > before)).toBe(true);
+  expect((seen.json().messages as { id: number }[]).some((m) => m.id === before)).toBe(true);
   const members = must(await owner.client.get(`/api/conversations/${conv}`), "conversation").json().conversation.participants as { handle: string }[];
   expect(members.map((m) => m.handle)).toContain("code-review");
 });

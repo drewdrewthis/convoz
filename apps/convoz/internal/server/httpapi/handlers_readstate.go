@@ -100,8 +100,7 @@ func readThread(ctx context.Context, d pdb.DBTX, now time.Time, who int64, cv co
 	return moved, false, err
 }
 
-// listReplies is GET /api/messages/:id/replies?after=&limit=: the thread of one root, oldest first, with the root itself (a stub
-// when the caller joined after it). The conversation is found from the message, so a caller needs no conversation id.
+// listReplies is GET /api/messages/:id/replies?after=&limit=: the thread of one root, oldest first, with the root itself. The conversation is found from the message, so a caller needs no conversation id.
 func (s *Server) listReplies(w http.ResponseWriter, r *http.Request, c *call) {
 	rootID, ok := pathID(w, r)
 	if !ok {
@@ -176,9 +175,6 @@ func (s *Server) listReplies(w http.ResponseWriter, r *http.Request, c *call) {
 	if err := attachUploads(ctx, d, []*wire.Message{&head}); err != nil {
 		s.internalError(w, r, err)
 		return
-	}
-	if root.ID <= floor {
-		head = wire.Message{ID: root.ID, Author: systemAuthor, Body: threadStubWords, Format: "plain"}
 	}
 	_, seen, err := seenIn(ctx, d, dir, root.ConversationID, rootID)
 	if err != nil {

@@ -131,7 +131,7 @@ func (seatPort) IdentityIn(ctx context.Context, d pdb.DBTX, id, who int64) (bool
 	return found && m.Active, err
 }
 
-// Join is the participants path of I-17: a person adds the agent at once and it sees what comes after (since_now); with no person
+// Join is the participants path of I-17: a person adds the agent at once and it sees the whole history; with no person
 // (byHuman 0) the agent asks for the seat itself and waits for the owner to approve.
 func (seatPort) Join(ctx context.Context, d pdb.DBTX, now time.Time, conv, agent, byHuman int64) error {
 	cv, found, err := conversation.Get(ctx, d, conv)
@@ -142,7 +142,7 @@ func (seatPort) Join(ctx context.Context, d pdb.DBTX, now time.Time, conv, agent
 	if byHuman == 0 {
 		by, asAgent = agent, true
 	}
-	_, _, _, err = seatAgent(ctx, d, now, by, asAgent, conv, cv.LastMessageID, agent, historySinceNow)
+	_, _, _, err = seatAgent(ctx, d, now, by, asAgent, conv, cv.LastMessageID, agent)
 	return err
 }
 

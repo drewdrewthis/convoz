@@ -80,17 +80,17 @@ func AllPending(ctx context.Context, d pdb.DBTX) ([]PendingAdd, error) {
 	return out, nil
 }
 
-// Join says how a person comes into a conversation. FloorID is the newest message id they may NOT see (0 = full
-// history) and Seq the event floor (I-7). RequestedBy is the agent that asked, for a pending add.
+// Join says how a person comes into a conversation. A member always sees the whole history of it (owner, msg 143), so there is
+// no message floor; Seq is the event floor (I-7). RequestedBy is the agent that asked, for a pending add.
 type Join struct {
 	Conversation, Identity, By int64
 	Status                     string // StatusActive or StatusPending
-	FloorID, Seq               int64
+	Seq                        int64
 	RequestedBy                int64
 }
 
 // Add seats a person. A person who is active already is left as is (changed false); one who left, was removed or was
-// declined comes back with the new floor, and one who is pending is activated by a human add.
+// declined comes back, and one who is pending is activated by a human add.
 func Add(ctx context.Context, d pdb.DBTX, now time.Time, j Join) (changed bool, err error) {
 	q := db.New(d)
 	at := now.UnixMilli()
@@ -116,26 +116,24 @@ func Add(ctx context.Context, d pdb.DBTX, now time.Time, j Join) (changed bool, 
 	requested := sql.NullInt64{Int64: j.RequestedBy, Valid: j.RequestedBy != 0}
 	if !found {
 		return true, q.InsertParticipant(ctx, db.InsertParticipantParams{
-			ConversationID: j.Conversation, IdentityID: j.Identity, Status: j.Status, JoinedMessageID: j.FloorID, JoinedSeq: j.Seq,
+			ConversationID: j.Conversation, IdentityID: j.Identity, Status: j.Status, JoinedSeq: j.Seq,
 			AddedBy: j.By, RequestedBy: requested, At: at,
 		})
 	}
 	return true, q.ReviveParticipant(ctx, db.ReviveParticipantParams{
-		Status: j.Status, JoinedMessageID: j.FloorID, JoinedSeq: j.Seq, AddedBy: j.By, RequestedBy: requested, At: at,
+		Status: j.Status, JoinedSeq: j.Seq, AddedBy: j.By, RequestedBy: requested, At: at,
 		ConversationID: j.Conversation, IdentityID: j.Identity,
 	})
 }
 
-// Decide approves (active, with the new floor) or declines a pending add. It reports false when there was none.
-func Decide(ctx context.Context, d pdb.DBTX, now time.Time, conv, identityID, human int64, approve bool, floorID, seq int64) (bool, error) {
+// Decide approves or declines a pending add. It reports false when there was none.
+func Decide(ctx context.Context, d pdb.DBTX, now time.Time, conv, identityID, human int64, approve bool) (bool, error) {
 	status := StatusDeclined
 	if approve {
 		status = StatusActive
-	} else {
-		floorID, seq = 0, 0
 	}
 	n, err := db.New(d).DecideParticipant(ctx, db.DecideParticipantParams{
-		Status: status, JoinedMessageID: floorID, JoinedSeq: seq, DecidedBy: sql.NullInt64{Int64: human, Valid: true}, At: now.UnixMilli(),
+		Status: status, DecidedBy: sql.NullInt64{Int64: human, Valid: true}, At: now.UnixMilli(),
 		ConversationID: conv, IdentityID: identityID,
 	})
 	return n > 0, err
@@ -147,10 +145,6 @@ func End(ctx context.Context, d pdb.DBTX, now time.Time, conv, identityID int64,
 	n, err := db.New(d).EndParticipant(ctx, db.EndParticipantParams{Status: status, At: now.UnixMilli(), ConversationID: conv, IdentityID: identityID})
 	return n > 0, err
 }
-
-// FirstFloor is the floor a person re-added "with the original history" gets: the floor they had the first time.
-// Zero for a person who never was here.
-func FirstFloor(s Seat) int64 { return s.JoinedMessageID }
 
 // NoteAgentPost records which session of the agent posted last in the conversation: its inbox items for that conversation
 // go to that session first (design §3.8).

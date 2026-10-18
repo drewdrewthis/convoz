@@ -131,26 +131,44 @@ Feature: Conversations
       Then the participants show "devtool"
       And "devtool" gets a mention item
 
-    # Per prototype v41 (+ Add, addAgents): the agent joins at once, there is no history sheet, and it sees what comes after.
+    # Per prototype v41 (+ Add, addAgents): the agent joins at once and there is no history sheet.
+    # Owner (Drew, msg 143): "History should be accessible yes"
     @v1 @browser @I-15
-    Scenario: Adding an agent with + Add joins it at once and it sees only what comes after
+    Scenario: Adding an agent with + Add joins it at once and it sees the whole history
       Given conversation 41 with 20 messages
       When the owner adds "docs" with + Add
       Then the participants show "docs" at once and no history question was asked
-      And "docs" runs "convoz read 41" and sees only messages after the add
+      And "docs" runs "convoz read 41" and sees the 20 messages from before the add and the ones after
       And "docs" has no unread messages in conversation 41
 
+    # Owner (Drew, msg 143): "History should be accessible yes"
     @v1 @cli @I-7
-    Scenario: An agent sees a reply under a hidden root as a stub
+    Scenario: An agent sees a thread whose root was posted before it joined
       Given "docs" was added to conversation 41 after thread root 900 was posted
       And the owner replies in thread 900 after the add
       When "docs" runs "convoz read 41 --thread 900"
-      Then it sees the reply and a stub "earlier message not shown" for the root
+      Then it sees the reply and no "earlier message not shown" stub for the root
 
+    # Owner (Drew, msg 143): "History should be accessible yes"
+    @v1 @cli @I-7
+    Scenario: An agent added to a conversation reads the messages from before it joined
+      Given conversation 41 had 3 messages before the owner added "docs"
+      When "docs" runs "convoz read 41"
+      Then it sees all 3 earlier messages
+
+    # Owner (Drew, msg 143): "History should be accessible yes"
+    @v1 @cli @I-7
+    Scenario: Joining does not put old messages in the new member's inbox
+      Given conversation 41 had 3 messages before the owner added "docs"
+      When "docs" peeks at its inbox
+      Then it has only the notice that it was added and no item for the 3 earlier messages
+      And "docs" has no unread messages in conversation 41
+
+    # Owner (Drew, msg 143): "History should be accessible yes"
     @v1 @api @I-7
     Scenario: Events from before an agent joined are not replayed to it
       Given "docs" joined conversation 41 after 10 events in it
-      When "docs" reads the conversation and its inbox
+      When "docs" reads its inbox
       Then it receives nothing from those 10 events
 
     @v1 @api @I-17 @AC-26

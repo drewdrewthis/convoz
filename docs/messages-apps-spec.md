@@ -153,7 +153,7 @@ Each entry uses the same rows. "Desktop" = 1280×940 layout, "Phone" = 390×844 
 | `t` | Fields | Template (render) | Written by |
 |---|---|---|---|
 | `member.added` | identity, by, via (`mention`\|`add`\|`create`), history? | "Added @x" (+ " · full history" when `history=full`) | human @mention (I-18), + Add, human-created conversation |
-| `member.requested` | identity, by (agent) | "@by wants to add @x" + Approve/Decline card; this line is `joined_message_id` on approval (I-17) | agent add request, agent-created conversation |
+| `member.requested` | identity, by (agent) | "@by wants to add @x" + Approve/Decline card; this line is where the agent's seat starts on approval (I-17); it reads the whole history | agent add request, agent-created conversation |
 | `member.removed` | identity, by | "@x was removed" | remove (I-19) |
 | `member.left` | identity | "@x left" | leave |
 | `member.disabled` | identity | "@x was disabled" | identity disable (asks there → `closed(agent_revoked)`) |

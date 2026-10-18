@@ -9,7 +9,7 @@ export interface AddAgentProps {
   /** The conversation; the sheet reads its row from the cache, so it follows the agents that come and go meanwhile. */
   id: number;
   done(): void;
-  /** Brings the agent in; it joins at once and sees what comes after (prototype v41: no history question). */
+  /** Brings the agent in; it joins at once and sees the whole history (prototype v41: no history question). */
   onAdd(identityId: number, handle: string): Promise<void>;
   /** "Invite a new agent": closes this dialog and opens the invite prompt for the conversation. */
   onInvite(): void;

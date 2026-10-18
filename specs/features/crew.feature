@@ -55,6 +55,7 @@ Feature: Crew: identities, machines and sessions
       Then the sheet says "Connected: code-review is online."
       And "convoz session start --as code-review" works on "box-5"
 
+    # Owner (Drew, msg 143): "History should be accessible yes"
     @v1 @cli @browser @I-17
     Scenario: Inviting an agent from a conversation puts it in that conversation
       Given the owner is in the conversation "Ship search filters"
@@ -64,7 +65,7 @@ Feature: Crew: identities, machines and sessions
       When the agent runs the prompt's "convoz login --name box-5 --as code-review --conversation" with that conversation on a new machine
       And the owner taps Approve on the card
       Then the sheet says "Connected: code-review is online and in “Ship search filters”."
-      And "code-review" is a participant of "Ship search filters" and sees only what comes after
+      And "code-review" is a participant of "Ship search filters" and sees the whole history
 
     @v1 @browser
     Scenario: The details panel and the invite button in the rail open the same sheet

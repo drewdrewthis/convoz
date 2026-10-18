@@ -232,9 +232,8 @@ func systemView(dir directory, m message.Message) (*wire.System, string) {
 }
 
 // listMessages is GET /api/conversations/:id/messages: oldest first. after=N the oldest page past N, before=N the
-// newest page before N, neither the newest page. Messages from before the caller joined are never shown. A deleted
-// message is a tombstone in its place; a system line has no author. thread=ID reads one thread instead: its root (a stub
-// when the caller joined after it) and the replies the caller may see.
+// newest page before N, neither the newest page. A deleted
+// message is a tombstone in its place; a system line has no author. thread=ID reads the replies of one thread instead.
 func (s *Server) listMessages(w http.ResponseWriter, r *http.Request, c *call) {
 	id, ok := pathID(w, r)
 	if !ok {
@@ -312,22 +311,7 @@ func (s *Server) listMessages(w http.ResponseWriter, r *http.Request, c *call) {
 		s.internalError(w, r, err)
 		return
 	}
-	if hasThread {
-		out = threadWithStub(out, root, floor)
-	}
 	writeJSON(w, http.StatusOK, wire.MessagesResponse{Messages: out, AsOfSeq: seq})
-}
-
-// threadStubWords stands in for a thread root the caller may not see (I-7).
-const threadStubWords = "earlier message not shown"
-
-// threadWithStub puts a stub for the root in front of the replies when the root is older than the caller's floor.
-func threadWithStub(replies []wire.Message, root, floor int64) []wire.Message {
-	if root > floor {
-		return replies
-	}
-	stub := wire.Message{ID: root, Author: systemAuthor, Body: threadStubWords, Format: "plain"}
-	return append([]wire.Message{stub}, replies...)
 }
 
 // askViewsOf reads the asks that the messages of a page carry, by message id: each with its options and history.

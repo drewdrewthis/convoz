@@ -84,7 +84,7 @@ func (a Auth) Check(p Principal) error {
 // Member is one identity's standing in one conversation.
 type Member struct {
 	Active          bool
-	JoinedMessageID int64 // the first message it may see is the next one; 0 = all history
+	JoinedMessageID int64 // 0 = all history; every member has 0 (owner msg 143, migration 0028)
 }
 
 // ParticipantReader is the port canSee needs. The composition root implements it over the conversation module.
@@ -93,8 +93,8 @@ type ParticipantReader interface {
 }
 
 // CanSee is the one visibility rule (design §2.3): the owner sees every conversation, anyone else only one where
-// it is an active participant, and only from the message after the one it joined at. floor is the highest message
-// id the caller may NOT see; every read path passes it down to the message queries.
+// it is an active participant, and with the whole history (owner, msg 143: "History should be accessible yes"). floor is the highest message
+// id the caller may NOT see: 0 for every member now; read paths still pass it down to the message queries.
 func CanSee(ctx context.Context, r ParticipantReader, p Principal, conversationID int64) (floor int64, ok bool, err error) {
 	if p.Authenticated && p.Role == "owner" {
 		return 0, true, nil
