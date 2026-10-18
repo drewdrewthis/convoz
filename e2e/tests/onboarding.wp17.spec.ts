@@ -4,7 +4,8 @@ import { installed, world } from "../lib/wp17.ts";
 /*
  * PWA (WP17), installing the app. Settings → Notifications is the "Notifications" row of /settings; the guide is the region named
  * "Add to Home Screen". An update that waits is the status line "Update ready · Reload" (button "Reload"); the worker that runs is told
- * apart by the id each worker start makes (it answers {type:"instance"} on a MessageChannel).
+ * apart by its script URL. The page is never made to message the running worker for it: a message wakes the outgoing worker while
+ * the new one takes over, which can stall that hand-over.
  */
 
 const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
@@ -45,15 +46,7 @@ scenario("An update waits for the owner's tap", { tag: ["@browser"] }, async ({ 
   const u = await world({ server, page, context });
   await page.goto(`${u.w.srv.origin}/`);
   await installed(page);
-  const instance = () =>
-    page.evaluate(
-      () =>
-        new Promise<string>((resolve) => {
-          const channel = new MessageChannel();
-          channel.port1.onmessage = (event) => resolve(event.data as string);
-          navigator.serviceWorker.controller!.postMessage({ type: "instance" }, [channel.port2]);
-        }),
-    );
+  const instance = () => page.evaluate(() => navigator.serviceWorker.controller?.scriptURL ?? "none");
   const before = await instance();
 
   // Given a new build is deployed while the app is open

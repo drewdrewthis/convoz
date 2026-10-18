@@ -23,12 +23,24 @@ function watch(reg: ServiceWorkerRegistration): void {
 }
 
 /**
+ * claimLoosePage: the first worker claims the open pages when it activates, but a page that was still loading then is missed and
+ * stays outside the worker (no update toast, no controllerchange) until its next load. Such a page asks the worker to claim it.
+ */
+function claimLoosePage(): void {
+  void navigator.serviceWorker.ready.then(({ active }) => {
+    if (!navigator.serviceWorker.controller) active?.postMessage({ type: "claim" });
+  });
+}
+
+/**
  * registerServiceWorker installs /sw.js (scope /) once the page has loaded, when the build has worker modules and the
  * browser can run one. A failure is logged and never breaks the page: the app works without its worker. It looks for a new
  * build whenever the app comes back to the screen.
  */
 export function registerServiceWorker(): void {
   if (!MODULES.length || !("serviceWorker" in navigator)) return;
+  // Signing out cleared the device (Clear-Site-Data): a worker installed now would fill Cache Storage again at once.
+  if (new URLSearchParams(location.search).has("signed_out")) return;
   addEventListener("load", () => {
     // An existing registration is kept and asked to look for a new build; only the first visit registers.
     navigator.serviceWorker
@@ -37,6 +49,7 @@ export function registerServiceWorker(): void {
       .then((reg) => {
         registration = reg;
         watch(reg);
+        claimLoosePage();
         void reg.update().catch(() => {});
       })
       .catch((err) => console.warn("service worker:", err));

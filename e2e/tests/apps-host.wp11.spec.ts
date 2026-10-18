@@ -889,6 +889,9 @@ scenario("A message from another frame's port is ignored", { tag: ["@browser"] }
   expect(viaAppRows(dataDir)).toEqual([]);
 });
 
+/** The hostile code waits this long after "ran N" shows: the row that leaves the page removes the frame, and a short wait lets a busy machine miss the sentinel. */
+const ACT_AFTER_MS = 1500;
+
 scenario("A hostile frame sends nothing and reaches nothing", { tag: ["@browser"] }, async ({ server, page, context, dataDir }, info) => {
   info.setTimeout(120_000);
   // Background
@@ -904,12 +907,12 @@ scenario("A hostile frame sends nothing and reaches nothing", { tag: ["@browser"
   for (const [i, [does, code]] of rows.entries()) {
     // Given a Tier-2 test app whose script <does>
     const title = `Hostile ${i + 1}`;
-    await postFrame(a, frameHtml(`<p id="s">starting</p>`, `convoz.onInit(function () { document.getElementById("s").textContent = "ran ${i + 1}"; setTimeout(function () { ${code} }, 100); });`), { title });
+    await postFrame(a, frameHtml(`<p id="s">starting</p>`, `convoz.onInit(function () { document.getElementById("s").textContent = "ran ${i + 1}"; setTimeout(function () { ${code} }, ${ACT_AFTER_MS}); });`), { title });
     await openConversation(page, a.w.srv, a.conv);
 
     // When the owner opens it and taps nothing
     await openApp(page, title, `ran ${i + 1}`);
-    await page.waitForTimeout(700);
+    await page.waitForTimeout(ACT_AFTER_MS + 700);
 
     // Then no message is sent
     expect({ does, sent: viaAppRows(dataDir).length, owner: (await pageOf(a)).filter((m) => m.author.handle === "drew").length }).toEqual({ does, sent: 0, owner: 0 });
