@@ -157,12 +157,13 @@ func init() {
 			return runnerOf(ctx).run("search", "", append(argv, "--", a.Query)...)
 		}})
 
-	Register(Tool{Name: "post", Order: 8, Description: "Post a message to a conversation you are in. It may carry an app.",
+	Register(Tool{Name: "post", Order: 8, Description: "Post a message to a conversation you are in. It may carry an app and up to 10 files.",
 		InputSchema: object([]string{"conversation", "text"}, props{
 			"conversation": conv(),
 			"text":         text("The message text."),
 			"format":       oneOf("How the text is written.", "markdown", "markdownv2", "plain"),
 			"app":          appSchema(),
+			"files":        filesSchema(),
 		}),
 		Call: func(ctx context.Context, args json.RawMessage) (any, error) {
 			var a struct {
@@ -170,17 +171,18 @@ func init() {
 				Text         string          `json:"text"`
 				Format       string          `json:"format"`
 				App          json.RawMessage `json:"app"`
+				Files        []string        `json:"files"`
 			}
 			if err := decodeArgs(args, &a); err != nil {
 				return nil, err
 			}
 			return withApp(a.App, func(file string) (Output, error) {
-				argv := withFlag(withFlag(nil, "format", a.Format), "app", file)
+				argv := withFiles(withFlag(withFlag(nil, "format", a.Format), "app", file), a.Files)
 				return runnerOf(ctx).run("post", a.Text, append(argv, strconv.FormatInt(a.Conversation, 10), "-")...)
 			})
 		}})
 
-	Register(Tool{Name: "reply", Order: 9, Description: "Reply in the thread of a main message of a conversation you are in. It may carry an app.",
+	Register(Tool{Name: "reply", Order: 9, Description: "Reply in the thread of a main message of a conversation you are in. It may carry an app and up to 10 files.",
 		InputSchema: object([]string{"conversation", "message", "text"}, props{
 			"conversation": conv(),
 			"message":      integer("The id of the main message that starts the thread.", 1, 1<<53-1),
@@ -188,6 +190,7 @@ func init() {
 			"broadcast":    boolean("Also show the reply in the main thread."),
 			"format":       oneOf("How the text is written.", "markdown", "markdownv2", "plain"),
 			"app":          appSchema(),
+			"files":        filesSchema(),
 		}),
 		Call: func(ctx context.Context, args json.RawMessage) (any, error) {
 			var a struct {
@@ -197,12 +200,13 @@ func init() {
 				Broadcast    bool            `json:"broadcast"`
 				Format       string          `json:"format"`
 				App          json.RawMessage `json:"app"`
+				Files        []string        `json:"files"`
 			}
 			if err := decodeArgs(args, &a); err != nil {
 				return nil, err
 			}
 			return withApp(a.App, func(file string) (Output, error) {
-				argv := withFlag(withFlag(withFlag(nil, "format", a.Format), "app", file), "broadcast", a.Broadcast)
+				argv := withFiles(withFlag(withFlag(withFlag(nil, "format", a.Format), "app", file), "broadcast", a.Broadcast), a.Files)
 				return runnerOf(ctx).run("reply", a.Text, append(argv, strconv.FormatInt(a.Message, 10), "-")...)
 			})
 		}})
@@ -224,4 +228,16 @@ func withApp(app json.RawMessage, do func(file string) (Output, error)) (Output,
 		return Output{}, fmt.Errorf("cannot keep the app for a moment: %w", err)
 	}
 	return do(f.Name())
+}
+
+func filesSchema() props {
+	return list("Paths of files on this machine to attach, up to 10, of any type (PDF, Markdown, ...). The text may be empty then.", props{"type": "string", "minLength": 1}, 1, 10)
+}
+
+// withFiles appends --file for each path.
+func withFiles(argv, files []string) []string {
+	for _, f := range files {
+		argv = append(argv, "--file", f)
+	}
+	return argv
 }

@@ -217,3 +217,55 @@ Feature: The convoz CLI and MCP server for agents
       Given a message in conversation 41 carries the file "notes.txt"
       When the "file" tool is called with the id of the file and a path
       Then the answer names that path and the file there holds the bytes that were sent
+
+  Rule: An agent sends ordinary files with a post or a reply
+
+    # Owner (Drew, voice call via @dot, conv 2 msg 185): "support sending ordinary files, especially PDFs and Markdown, through the agent CLI"
+    @v1 @cli
+    Scenario: An agent posts a PDF and a Markdown file
+      When "devtool" runs "convoz post --file report.pdf --file notes.md 41 'Report and notes'"
+      Then the CLI prints one line holding the message id and exits 0
+      And conversation 41 shows one message "Report and notes" that carries "report.pdf" and "notes.md"
+      And the text may be left out: "convoz post --json --file notes.md 41" prints the message id and the id, name and size of the file
+
+    @v1 @browser
+    Scenario: The owner sees the files an agent posted
+      Given "devtool" posted "report.pdf" and "notes.md" in conversation 41 with "convoz post --file"
+      When the owner opens conversation 41
+      Then the message shows a download card for "report.pdf" and one for "notes.md"
+
+    @v1 @cli
+    Scenario: An agent that is not in the conversation cannot attach files
+      Given "docs" is an agent on "box-2" that is not in conversation 41
+      When "docs" runs "convoz post --file report.pdf 41 'Report'"
+      Then the CLI exits 3 and the error names "report.pdf"
+      And no file is sent and conversation 41 holds no message from "docs"
+
+    @v1 @cli
+    Scenario: A message with 11 files is refused before anything is sent
+      When "devtool" runs "convoz post" with 11 "--file" flags for 41
+      Then the CLI exits 2 and says a message carries at most 10 files
+      And Convoz received no request from that command
+
+    @v1 @cli
+    Scenario: A reply with a file lands in the thread
+      Given the owner wrote a message in conversation 41
+      When "devtool" runs "convoz reply --file report.pdf <message>" with no text
+      Then the reply is in the thread of that message and carries "report.pdf"
+      And the main list of conversation 41 does not show the reply
+
+    @v1 @cli @lossy @I-24
+    Scenario: A dropped connection mid-upload resumes and posts once
+      Given a fault proxy cuts the connection in the middle of the first upload of a 3 MB file
+      When "devtool" runs "convoz post --file big.pdf 41 'Big report'"
+      Then the proxy log shows the upload continued from where Convoz stopped, not from the start
+      And the CLI exits 0
+      And conversation 41 shows "Big report" once with "big.pdf" whole
+
+    @v1 @cli @lossy @I-24
+    Scenario: A post that failed after its files were sent is run again without a second message
+      Given the first post of "convoz post --file report.pdf 41 'Report'" is refused after the file was uploaded
+      When "devtool" runs the same command again
+      Then the CLI exits 0
+      And the file is not uploaded a second time
+      And conversation 41 shows "Report" once with "report.pdf"
