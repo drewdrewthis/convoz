@@ -71,8 +71,6 @@ paths:
   /api/identities/{id}/disable: { $ref: "paths/identity.yaml#/~1api~1identities~1{id}~1disable" }
   /api/me/handle: { $ref: "paths/identity.yaml#/~1api~1me~1handle" }
   /api/identities/{id}/handle: { $ref: "paths/identity.yaml#/~1api~1identities~1{id}~1handle" }
-  /api/handle-requests/{ref}/approve: { $ref: "paths/identity.yaml#/~1api~1handle-requests~1{ref}~1approve" }
-  /api/handle-requests/{ref}/deny: { $ref: "paths/identity.yaml#/~1api~1handle-requests~1{ref}~1deny" }
   # ---- inbox
   /api/inbox: { $ref: "paths/inbox.yaml#/~1api~1inbox" }
   /api/inbox/claim: { $ref: "paths/inbox.yaml#/~1api~1inbox~1claim" }
@@ -289,9 +287,7 @@ components:
     Identity: { $ref: "components/identity.yaml#/Identity" }
     ProfileRequest: { $ref: "components/identity.yaml#/ProfileRequest" }
     Profile: { $ref: "components/identity.yaml#/Profile" }
-    HandleRequestBody: { $ref: "components/identity.yaml#/HandleRequestBody" }
-    HandleRequestState: { $ref: "components/identity.yaml#/HandleRequestState" }
-    HandleRequest: { $ref: "components/identity.yaml#/HandleRequest" }
+    HandleChangeBody: { $ref: "components/identity.yaml#/HandleChangeBody" }
     HandleChanged: { $ref: "components/identity.yaml#/HandleChanged" }
     PreviousHandle: { $ref: "components/identity.yaml#/PreviousHandle" }
     MentionSpan: { $ref: "components/identity.yaml#/MentionSpan" }

@@ -275,11 +275,17 @@ func (q *Queries) GetProfile(ctx context.Context, id int64) (GetProfileRow, erro
 }
 
 const handleWasUsed = `-- name: HandleWasUsed :one
-SELECT EXISTS (SELECT 1 FROM retired_handles WHERE handle = ?1)
+SELECT EXISTS (SELECT 1 FROM retired_handles WHERE handle = ?1 AND identity_id <> ?2)
 `
 
-func (q *Queries) HandleWasUsed(ctx context.Context, handle string) (bool, error) {
-	row := q.db.QueryRowContext(ctx, handleWasUsed, handle)
+type HandleWasUsedParams struct {
+	Handle string
+	OwnID  int64
+}
+
+// Another identity's: an identity may take back a handle it retired itself.
+func (q *Queries) HandleWasUsed(ctx context.Context, arg HandleWasUsedParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, handleWasUsed, arg.Handle, arg.OwnID)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
@@ -417,11 +423,12 @@ func (q *Queries) ListIdentities(ctx context.Context) ([]ListIdentitiesRow, erro
 }
 
 const retiredHandles = `-- name: RetiredHandles :many
-SELECT handle FROM retired_handles
+SELECT handle FROM retired_handles WHERE identity_id <> ?1
 `
 
-func (q *Queries) RetiredHandles(ctx context.Context) ([]string, error) {
-	rows, err := q.db.QueryContext(ctx, retiredHandles)
+// The handles other identities retired: the look-alike rule never counts the asker's own.
+func (q *Queries) RetiredHandles(ctx context.Context, ownID int64) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, retiredHandles, ownID)
 	if err != nil {
 		return nil, err
 	}

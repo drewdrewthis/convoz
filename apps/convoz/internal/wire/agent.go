@@ -132,25 +132,9 @@ type PrefsResult struct {
 	Ranks          []Rail `json:"ranks"`
 }
 
-// HandleRequest is POST /api/me/handle: the agent asks the owner for a new handle. With Request it asks what became of that request.
-type HandleRequest struct {
-	Handle  string `json:"handle"`
-	Request string `json:"request,omitempty"`
-}
-
-// HandleRequestState is a waiting handle request (202).
-type HandleRequestState struct {
-	Ref        string `json:"ref"`
-	State      string `json:"state"`
-	From       string `json:"from"`
-	To         string `json:"to"`
-	ExpiresAt  int64  `json:"expires_at"`
-	IntervalMs int64  `json:"interval_ms"`
-}
-
-// HandlePending is the 202 answer of POST /api/me/handle.
-type HandlePending struct {
-	Request HandleRequestState `json:"request"`
+// HandleChange is POST /api/me/handle: the agent changes its own handle, at once.
+type HandleChange struct {
+	Handle string `json:"handle"`
 }
 
 // HandleChanged is the answer once a handle changed.
@@ -159,6 +143,8 @@ type HandleChanged struct {
 		ID             int64  `json:"id"`
 		Handle         string `json:"handle"`
 		PreviousHandle string `json:"previous_handle"`
+		// PreviousUntil is when the old handle stops reaching the agent (epoch ms).
+		PreviousUntil int64 `json:"previous_until"`
 	} `json:"identity"`
 }
 

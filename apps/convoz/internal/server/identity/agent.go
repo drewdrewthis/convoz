@@ -111,11 +111,12 @@ func CreateAgent(ctx context.Context, d pdb.DBTX, in NewAgent, now time.Time) (P
 // and not a look-alike (UTS #39 skeleton) of any handle, retired handle or display name, disabled identities included (I-3). A
 // request runs it when it is filed and again when the owner approves it, so a request reserves nothing.
 func CheckNewHandle(ctx context.Context, d pdb.DBTX, handle string) error {
-	return checkHandle(ctx, d, handle, "")
+	return checkHandle(ctx, d, handle, "", 0)
 }
 
-// checkHandle is CheckNewHandle for the identity whose handle is now own ("" for a new one): its own display name does not count.
-func checkHandle(ctx context.Context, d pdb.DBTX, handle, own string) error {
+// checkHandle is CheckNewHandle for the identity ownID whose handle is now own ("" and 0 for a new one): its own display name does
+// not count, and a handle it retired itself may be taken back.
+func checkHandle(ctx context.Context, d pdb.DBTX, handle, own string, ownID int64) error {
 	q := db.New(d)
 	if !ValidHandle(handle) || Reserved[handle] {
 		return ErrInvalidHandle
@@ -125,7 +126,7 @@ func checkHandle(ctx context.Context, d pdb.DBTX, handle, own string) error {
 	} else if found {
 		return ErrHandleTaken
 	}
-	if used, err := q.HandleWasUsed(ctx, handle); err != nil {
+	if used, err := q.HandleWasUsed(ctx, db.HandleWasUsedParams{Handle: handle, OwnID: ownID}); err != nil {
 		return err
 	} else if used {
 		return ErrHandleTaken
@@ -140,7 +141,7 @@ func checkHandle(ctx context.Context, d pdb.DBTX, handle, own string) error {
 			return ErrConfusableHandle
 		}
 	}
-	retired, err := q.RetiredHandles(ctx)
+	retired, err := q.RetiredHandles(ctx, ownID)
 	if err != nil {
 		return err
 	}

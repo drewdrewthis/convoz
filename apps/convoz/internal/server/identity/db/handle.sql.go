@@ -10,62 +10,6 @@ import (
 	"database/sql"
 )
 
-const decideHandleRequest = `-- name: DecideHandleRequest :execrows
-UPDATE handle_requests SET state = ?1, decided_by = ?2, decided_at = ?3
-WHERE id = ?4 AND state = 'pending'
-`
-
-type DecideHandleRequestParams struct {
-	State     string
-	DecidedBy sql.NullInt64
-	DecidedAt sql.NullInt64
-	ID        int64
-}
-
-func (q *Queries) DecideHandleRequest(ctx context.Context, arg DecideHandleRequestParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, decideHandleRequest,
-		arg.State,
-		arg.DecidedBy,
-		arg.DecidedAt,
-		arg.ID,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
-const getHandleRequestByRef = `-- name: GetHandleRequestByRef :one
-SELECT id, ref, identity_id, from_handle, to_handle, state, created_at, expires_at FROM handle_requests WHERE ref = ?1
-`
-
-type GetHandleRequestByRefRow struct {
-	ID         int64
-	Ref        string
-	IdentityID int64
-	FromHandle string
-	ToHandle   string
-	State      string
-	CreatedAt  int64
-	ExpiresAt  int64
-}
-
-func (q *Queries) GetHandleRequestByRef(ctx context.Context, ref string) (GetHandleRequestByRefRow, error) {
-	row := q.db.QueryRowContext(ctx, getHandleRequestByRef, ref)
-	var i GetHandleRequestByRefRow
-	err := row.Scan(
-		&i.ID,
-		&i.Ref,
-		&i.IdentityID,
-		&i.FromHandle,
-		&i.ToHandle,
-		&i.State,
-		&i.CreatedAt,
-		&i.ExpiresAt,
-	)
-	return i, err
-}
-
 const getHandleState = `-- name: GetHandleState :one
 SELECT i.id, i.kind, i.handle, i.display_name, i.display_skeleton, i.disabled_at, i.handle_changed_at
 FROM identities i WHERE i.id = ?1
@@ -126,35 +70,6 @@ func (q *Queries) GetRetiredHandle(ctx context.Context, handle string) (GetRetir
 	return i, err
 }
 
-const insertHandleRequest = `-- name: InsertHandleRequest :one
-INSERT INTO handle_requests (ref, identity_id, from_handle, to_handle, created_at, expires_at)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-RETURNING id
-`
-
-type InsertHandleRequestParams struct {
-	Ref        string
-	IdentityID int64
-	FromHandle string
-	ToHandle   string
-	CreatedAt  int64
-	ExpiresAt  int64
-}
-
-func (q *Queries) InsertHandleRequest(ctx context.Context, arg InsertHandleRequestParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, insertHandleRequest,
-		arg.Ref,
-		arg.IdentityID,
-		arg.FromHandle,
-		arg.ToHandle,
-		arg.CreatedAt,
-		arg.ExpiresAt,
-	)
-	var id int64
-	err := row.Scan(&id)
-	return id, err
-}
-
 const lastRetiredHandle = `-- name: LastRetiredHandle :one
 SELECT r.handle, r.retired_at FROM retired_handles r JOIN identities i ON i.id = r.identity_id
 WHERE i.id = ?1 AND i.kind = 'agent' ORDER BY r.retired_at DESC, r.handle LIMIT 1
@@ -173,48 +88,29 @@ func (q *Queries) LastRetiredHandle(ctx context.Context, id int64) (LastRetiredH
 	return i, err
 }
 
-const listPendingHandleRequests = `-- name: ListPendingHandleRequests :many
-SELECT h.id, h.ref, h.identity_id, h.from_handle, h.to_handle, h.state, h.created_at, h.expires_at, i.display_name
-FROM handle_requests h JOIN identities i ON i.id = h.identity_id
-WHERE h.state = 'pending' AND h.expires_at > ?1 AND i.handle = h.from_handle AND i.disabled_at IS NULL
-ORDER BY h.created_at, h.id
+const recentHandleChanges = `-- name: RecentHandleChanges :many
+SELECT changed_at FROM handle_changes WHERE identity_id = ?1 AND changed_at > ?2 ORDER BY changed_at DESC LIMIT 3
 `
 
-type ListPendingHandleRequestsRow struct {
-	ID          int64
-	Ref         string
-	IdentityID  int64
-	FromHandle  string
-	ToHandle    string
-	State       string
-	CreatedAt   int64
-	ExpiresAt   int64
-	DisplayName string
+type RecentHandleChangesParams struct {
+	ID    int64
+	Since int64
 }
 
-func (q *Queries) ListPendingHandleRequests(ctx context.Context, now int64) ([]ListPendingHandleRequestsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listPendingHandleRequests, now)
+// When the agent changed its handle in the window, newest first: the rate limit counts them.
+func (q *Queries) RecentHandleChanges(ctx context.Context, arg RecentHandleChangesParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, recentHandleChanges, arg.ID, arg.Since)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListPendingHandleRequestsRow
+	var items []int64
 	for rows.Next() {
-		var i ListPendingHandleRequestsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Ref,
-			&i.IdentityID,
-			&i.FromHandle,
-			&i.ToHandle,
-			&i.State,
-			&i.CreatedAt,
-			&i.ExpiresAt,
-			&i.DisplayName,
-		); err != nil {
+		var changed_at int64
+		if err := rows.Scan(&changed_at); err != nil {
 			return nil, err
 		}
-		items = append(items, i)
+		items = append(items, changed_at)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -223,38 +119,6 @@ func (q *Queries) ListPendingHandleRequests(ctx context.Context, now int64) ([]L
 		return nil, err
 	}
 	return items, nil
-}
-
-const pendingHandleRequestOf = `-- name: PendingHandleRequestOf :one
-SELECT id, ref, identity_id, from_handle, to_handle, state, created_at, expires_at FROM handle_requests
-WHERE identity_id = ?1 AND state = 'pending'
-`
-
-type PendingHandleRequestOfRow struct {
-	ID         int64
-	Ref        string
-	IdentityID int64
-	FromHandle string
-	ToHandle   string
-	State      string
-	CreatedAt  int64
-	ExpiresAt  int64
-}
-
-func (q *Queries) PendingHandleRequestOf(ctx context.Context, identityID int64) (PendingHandleRequestOfRow, error) {
-	row := q.db.QueryRowContext(ctx, pendingHandleRequestOf, identityID)
-	var i PendingHandleRequestOfRow
-	err := row.Scan(
-		&i.ID,
-		&i.Ref,
-		&i.IdentityID,
-		&i.FromHandle,
-		&i.ToHandle,
-		&i.State,
-		&i.CreatedAt,
-		&i.ExpiresAt,
-	)
-	return i, err
 }
 
 const renameAgent = `-- name: RenameAgent :execrows
@@ -313,18 +177,4 @@ func (q *Queries) RetiredHandlesOf(ctx context.Context, id int64) ([]RetiredHand
 		return nil, err
 	}
 	return items, nil
-}
-
-const withdrawHandleRequests = `-- name: WithdrawHandleRequests :exec
-UPDATE handle_requests SET state = 'withdrawn', decided_at = ?1 WHERE identity_id = ?2 AND state = 'pending'
-`
-
-type WithdrawHandleRequestsParams struct {
-	Now        sql.NullInt64
-	IdentityID int64
-}
-
-func (q *Queries) WithdrawHandleRequests(ctx context.Context, arg WithdrawHandleRequestsParams) error {
-	_, err := q.db.ExecContext(ctx, withdrawHandleRequests, arg.Now, arg.IdentityID)
-	return err
 }
