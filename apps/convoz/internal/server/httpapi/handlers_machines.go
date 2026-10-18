@@ -2,12 +2,9 @@ package httpapi
 
 import (
 	"context"
-	"crypto/subtle"
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
-	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity"
@@ -65,8 +62,6 @@ type approveBody struct {
 	Name   string    `json:"name"`
 	Allow  allowJSON `json:"allow"`
 	Scopes []string  `json:"scopes"`
-	// CodeTail is the last 4 characters of the request's code; an internet request needs it when the server runs with --agent-approve-code.
-	CodeTail string `json:"code_tail"`
 }
 
 func (s *Server) approveRequest(w http.ResponseWriter, r *http.Request, c *call) {
@@ -89,9 +84,6 @@ func (s *Server) approveRequest(w http.ResponseWriter, r *http.Request, c *call)
 	var machine auth.Machine
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
 		var err error
-		if err = s.checkApproveCode(ctx, tx.DBTX(), id, in.CodeTail, now); err != nil {
-			return err
-		}
 		machine, err = auth.ApproveRequest(ctx, tx.DBTX(), s.Keys, flowPorts, auth.ApproveInput{
 			RequestID: id, Name: in.Name, Allow: in.Allow.spec(), Scopes: scopes,
 			Human: c.human, DeviceID: c.dev.ID,
@@ -101,8 +93,6 @@ func (s *Server) approveRequest(w http.ResponseWriter, r *http.Request, c *call)
 	var bad auth.BadAllowError
 	var taken *auth.NameTakenError
 	switch {
-	case errors.Is(err, errCodeMismatch):
-		writeFieldErr(w, http.StatusForbidden, "code_mismatch", "code_tail", "Type the last 4 characters of the code the agent printed.")
 	case errors.Is(err, auth.ErrNoRequest), errors.Is(err, auth.ErrIdentityGone):
 		writeErr(w, http.StatusNotFound, "not_found", "That request is gone. It was decided or it expired.")
 	case identityRefused(w, err, "handle"):
@@ -307,27 +297,4 @@ func (s *Server) revokeMachine(w http.ResponseWriter, r *http.Request, c *call) 
 		s.publishReleased(r.Context(), released)
 	}
 	s.keyAnswer(w, r, err, func() map[string]any { return map[string]any{} })
-}
-
-var errCodeMismatch = errors.New("the code does not match")
-
-// checkApproveCode is the code-match rule (--agent-approve-code): the owner approves an internet request only by typing the last 4
-// characters of the code the agent's terminal printed, so a card an impostor filed cannot be approved by mistake for the real agent's.
-// A request from the tailnet, and a server without the flag, need nothing.
-func (s *Server) checkApproveCode(ctx context.Context, d pdb.DBTX, id int64, tail string, now time.Time) error {
-	if !s.Cfg.AgentApproveCode {
-		return nil
-	}
-	req, err := auth.PendingRequest(ctx, d, id, now)
-	if err != nil {
-		return err
-	}
-	if !strings.HasPrefix(req.Source, viaInternet) {
-		return nil
-	}
-	want := req.UserCode[len(req.UserCode)-4:]
-	if len(tail) != 4 || subtle.ConstantTimeCompare([]byte(strings.ToUpper(tail)), []byte(want)) != 1 {
-		return errCodeMismatch
-	}
-	return nil
 }

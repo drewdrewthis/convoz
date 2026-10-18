@@ -373,18 +373,19 @@ func (s *Server) nowScreen(w http.ResponseWriter, r *http.Request, c *call) {
 	if err == nil {
 		intros, err = s.loginIntros(ctx, d, now)
 	}
+	var logins, sessions map[int64]*inviteMarkJSON
 	if err == nil {
-		out.IdentityRequests, err = s.identityRequestViews(ctx, d, now)
+		logins, sessions, err = s.inviteMarks(ctx, d, now)
 	}
 	if err == nil {
-		out.HandleRequests, err = handleRequestViews(ctx, d, now)
+		out.IdentityRequests, err = s.identityRequestViews(ctx, d, now, sessions)
 	}
 	if err != nil {
 		s.internalError(w, r, err)
 		return
 	}
 	out.Badge = len(out.Asks)
-	out.MachineRequests = s.requestsJSON(machines, intros)
+	out.MachineRequests = s.requestsJSON(machines, intros, logins)
 	writeJSON(w, http.StatusOK, out)
 }
 
@@ -401,8 +402,6 @@ type nowView struct {
 	MachineRequests []requestJSON        `json:"machine_requests"`
 	// IdentityRequests are the identities that agents on logged-in machines ask to be made.
 	IdentityRequests []identityRequestJSON `json:"identity_requests"`
-	// HandleRequests are the agents that ask for a new handle (I-51).
-	HandleRequests []handleRequestJSON `json:"handle_requests"`
 }
 
 // liveAskViews is askViews without the asks of a conversation that is in the trash or gone.
@@ -465,7 +464,8 @@ func (s *Server) wakeSnoozes(ctx context.Context) error {
 // snoozeCheckEvery is how often the server looks for snoozes that came due when nobody has Now open.
 const snoozeCheckEvery = 10 * time.Second
 
-// RunTimers runs the jobs that follow the clock, until ctx ends: waking the snoozes whose time has come.
+// RunTimers runs the jobs that follow the clock, until ctx ends: waking the snoozes whose time has come, and writing the expiry of
+// the invites that ran out.
 func (s *Server) RunTimers(ctx context.Context) {
 	if s.Push != nil {
 		go s.Push.Run(ctx, s.Bus.Changed) // the push worker: events in, pushes out
@@ -479,6 +479,9 @@ func (s *Server) RunTimers(ctx context.Context) {
 		case <-tick.C:
 			if err := s.wakeSnoozes(ctx); err != nil && ctx.Err() == nil {
 				s.Log.Printf("snooze wake: %v", err)
+			}
+			if err := s.expireInvites(ctx); err != nil && ctx.Err() == nil {
+				s.Log.Printf("invite expiry: %v", err)
 			}
 		}
 	}

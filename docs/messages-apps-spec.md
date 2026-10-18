@@ -279,7 +279,7 @@ Approve and decline do not write a new line. They change the `member.requested` 
 
 | Row | Spec |
 |---|---|
-| Who sends | As M-11, with "Also send to conversation" (prototype checkbox) or `--broadcast`. |
+| Who sends | As M-11, with `--broadcast` or the API flag. The web has no "Also send to conversation" box (owner, 2026-10-18: replies stay in the thread; the root shows a reply chip and a peek of the last reply). |
 | DB | One row, `broadcast=1`, `in_main=1` (virtual). Read in the thread → read in main (I-14). |
 | Create | `POST …/messages {thread_root_id, broadcast:true}`. CLI `convoz reply <message> --broadcast <text>`. MCP `reply {broadcast:true}`. |
 | Desktop / Phone | In main: small header "replied to a thread: <root snippet>" above the bubble; in the thread: normal reply. |

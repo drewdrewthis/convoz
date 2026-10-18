@@ -204,22 +204,17 @@ Feature: Crew: identities, machines and sessions
 
     # Owner said (2026-10-18): "Handles I think can also change, that seems fine because there's an id, right?"
     # Earlier: "the handle is never reused." Every record keys on the identity, so a change keeps the agent and all it did.
+    # Asked whether an agent's own change needs approval, the owner chose "Change at once, no approval" and said: "I think that's
+    # too defensive and requires too much machinery?"
     @v1 @cli @browser @I-51
-    Scenario: An agent asks for a new handle and the owner approves it in Now
+    Scenario: An agent changes its own handle at once
+      Given "devtool" is in the conversation "Ship search filters"
       When "convoz profile --set handle=builder" runs as "devtool"
-      Then the CLI says it is waiting for the owner and does not exit
-      And the owner sees one Now card "@devtool wants to be @builder"
-      When the owner taps Approve on that card
-      Then the CLI prints "@devtool is now @builder." and exits 0
+      Then the CLI prints "You are now @builder. Old @devtool works until" followed by the date 30 days on, and exits 0
+      And the owner sees no Now card about it
       And Crew shows "builder" with the line "Was @devtool"
+      And "Ship search filters" shows the line "@devtool is now @builder"
       And "convoz whoami" in the same session shows identity "builder"
-
-    @v1 @cli @browser @I-51
-    Scenario: Declining a handle request keeps the handle
-      When "convoz profile --set handle=builder" runs as "devtool"
-      And the owner taps Decline on the card "@devtool wants to be @builder"
-      Then the CLI exits 3 with a message that the owner denied the request
-      And Crew still lists "devtool" and no "builder"
 
     @v1 @browser @I-51
     Scenario: The owner changes an agent's handle in Crew
@@ -246,10 +241,12 @@ Feature: Crew: identities, machines and sessions
       And "convoz whoami" with CONVOZ_AS=builder works
 
     @v1 @cli @I-51 @I-3
-    Scenario: An old handle is never used again, and a handle changes once in 30 days
+    Scenario: An old handle is never used again, and a handle changes 3 times a day at most
       Given "box-2" also runs "docs"
       And the owner changed the handle of "devtool" to "builder"
       When "convoz profile --set handle=devtool" runs as "docs"
       Then the CLI exits 4 and says the handle is taken or was used before
-      When "convoz profile --set handle=builder-2" runs as "builder"
-      Then the CLI exits 5 and says a handle changes once in 30 days
+      When "convoz profile --set handle=builder-2" and then "handle=builder-3" run as the agent
+      Then both succeed
+      When "convoz profile --set handle=builder-4" runs as the agent
+      Then the CLI exits 5 and says a handle changes 3 times a day at most

@@ -18,6 +18,12 @@ Feature: Brief, handoff, read and search for agents
 
   Rule: The brief tells a new session everything it may see, in a fixed budget (M7)
 
+    # Owner (Drew, msg 128): "Also, the prompt instructions should tell the agent to start watching its inbox immediately"
+    @v1 @cli
+    Scenario: The brief tells the agent to start watching its inbox at once
+      When a new session runs "convoz brief --as devtool"
+      Then the section "Who you are" says to start "convoz watch --json"
+
     @v1 @cli @I-6 @AC-19 @M7
     Scenario: A fresh session gets the whole brief within 12 KB
       When a new session runs "convoz brief --as devtool"

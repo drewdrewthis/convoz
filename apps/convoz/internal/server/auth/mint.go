@@ -19,7 +19,8 @@ type MintRequest struct {
 	ClientID   string
 	Label      string
 	Create     *CreateIdentity // make the agent when there is none
-	// ViaInternet says the request came in on the agents-only listener; a request it files for the owner carries the mark.
+	// ViaInternet says the request came in on the agents-only listener; a request it files for the owner carries the mark and needs
+	// an invite.
 	ViaInternet bool
 }
 
@@ -32,6 +33,7 @@ type CreateIdentity struct {
 	AvatarSVG      string // cleaned by the caller (I-32)
 	ConversationID int64
 	Request        string
+	Invite         string // the invite a request over the internet spends (ViaInternet)
 }
 
 // Refusals of a session request that waits on the owner; the HTTP layer maps each to an answer.
@@ -136,11 +138,15 @@ func sessionIdentity(ctx context.Context, d pdb.DBTX, p Ports, m Machine, in Min
 	}
 	pkg := IdentityPackage{Handle: handle, DisplayName: in.Create.DisplayName, Description: in.Create.Description, AvatarSVG: in.Create.AvatarSVG, ConversationID: in.Create.ConversationID}
 	if m.Scopes&ScopeCreateIdentity == 0 || !m.Allow.CoversHandle(handle) {
-		f, err := FileSessionIdentity(ctx, d, p, m, pkg, now)
+		var invite *InviteToken
+		if in.ViaInternet {
+			invite = &InviteToken{Token: in.Create.Invite}
+		}
+		f, err := FileSessionIdentity(ctx, d, p, m, pkg, invite, now)
 		if err != nil {
 			return Agent{}, nil, err
 		}
-		if in.ViaInternet {
+		if in.ViaInternet && !f.fake {
 			if err := MarkViaInternet(ctx, d, f.Ref); err != nil {
 				return Agent{}, nil, err
 			}

@@ -16,6 +16,6 @@ func session(args []string, io IO) int {
 			return SessionEnd(args[1:], io)
 		}
 	}
-	fmt.Fprintln(io.Stderr, "convoz: usage: convoz session start --as HANDLE [--create [--name NAME] [--description TEXT] [--avatar FILE.svg] [--conversation ID]] [--label L] [--client-id C]\n       convoz session end [--sid SID]")
+	fmt.Fprintln(io.Stderr, "convoz: usage: convoz session start --as HANDLE [--create [--name NAME] [--description TEXT] [--avatar FILE.svg] [--conversation ID] [--invite TOKEN]] [--label L] [--client-id C]\n       convoz session end [--sid SID]")
 	return 2
 }

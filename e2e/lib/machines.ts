@@ -109,6 +109,13 @@ export async function seedUserCodes(srv: ServerHandle, codes: string[]): Promise
   must(await send(srv.target, "POST", "/__test/user-codes", { json: { codes } }), "seed user codes");
 }
 
+/** Who made the invite a request spent: the card says "invited by @by", or "invited by you" when by_owner. */
+export interface InviteMark {
+  by: string;
+  by_owner: boolean;
+  note: string;
+}
+
 export interface PendingRequest {
   id: number;
   name: string;
@@ -116,7 +123,8 @@ export interface PendingRequest {
   host_info: Record<string, string> | null;
   source_ip: string | null;
   via_internet: boolean;
-  code_required: boolean;
+  /** Who invited the agent behind the request; null for a request from the tailnet. */
+  invite: InviteMark | null;
   node_name: string | null;
   created_at: number;
   expires_at: number;
@@ -205,7 +213,7 @@ export interface MintOptions {
   clientId?: string;
   label?: string;
   /** Make the identity too (needs the create_identity scope). */
-  create?: { display_name?: string; description?: string; avatar_svg?: string; conversation_id?: number; request?: string };
+  create?: { display_name?: string; description?: string; avatar_svg?: string; conversation_id?: number; request?: string; invite?: string };
 }
 
 /** `POST /api/sessions` with a machine key. 201 `{lease, session:{id, identity, machine, client_id, label, expires_at}}`. */
@@ -227,6 +235,7 @@ export interface IdentityRequestRow {
   machine: string;
   machine_id: number;
   via_internet: boolean;
+  invite: InviteMark | null;
   created_at: number;
   expires_at: number;
 }

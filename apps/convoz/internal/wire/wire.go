@@ -5,6 +5,9 @@ package wire
 // AdminBootstrapLink is the admin-socket route that mints a bootstrap link. It is never on the HTTP listener.
 const AdminBootstrapLink = "/admin/bootstrap-link"
 
+// AdminInvites is the admin-socket route that makes an invite for the owner (`convoz invite` on the server's own box). It is never on the HTTP listener.
+const AdminInvites = "/admin/invites"
+
 // BootstrapLink is the admin-socket answer to AdminBootstrapLink.
 type BootstrapLink struct {
 	Token     string `json:"token"`
@@ -38,6 +41,8 @@ const (
 	CodeHandleTaken          = "handle_taken"
 	CodeRequestDenied        = "request_denied"
 	CodeRequestExpired       = "request_expired"
+	CodeInviteCap            = "invite_cap"
+	CodeNotInConversation    = "not_in_conversation"
 	// CodeHandleRenamed refuses `as` with a handle the agent gave up more than 30 days ago; the message names the new one (I-51).
 	CodeHandleRenamed = "handle_renamed"
 )
@@ -49,6 +54,8 @@ const (
 	RouteSessions    = "/api/sessions"
 	RouteSessionsMe  = "/api/sessions/me"
 	RouteMe          = "/api/me"
+	RouteInvites     = "/api/invites"
+	RouteFiles       = "/api/files"
 )
 
 // HostInfo is what a machine says about itself when it asks to log in. The owner sees it labelled as reported.
@@ -74,6 +81,8 @@ type DeviceCodeRequest struct {
 	Name     string         `json:"name"`
 	HostInfo HostInfo       `json:"host_info"`
 	Identity *IdentityIntro `json:"identity,omitempty"`
+	// Invite is the one-use token a request over the internet needs; the server ignores it on the tailnet.
+	Invite string `json:"invite,omitempty"`
 }
 
 // DeviceCodeResponse starts the wait: the CLI prints UserCode and polls with DeviceCode every IntervalMs.
@@ -105,6 +114,8 @@ type CreateIdentity struct {
 	AvatarSVG      string `json:"avatar_svg,omitempty"`
 	ConversationID int64  `json:"conversation_id,omitempty"`
 	Request        string `json:"request,omitempty"`
+	// Invite is the one-use token a request over the internet needs; the server ignores it on the tailnet.
+	Invite string `json:"invite,omitempty"`
 }
 
 // MintPending is the 202 answer of POST /api/sessions while the owner has not decided the identity request.

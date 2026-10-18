@@ -297,6 +297,11 @@ export interface paths {
          * @description The body may carry `identity` {handle, display_name?, description?, avatar_svg?, conversation_id?}: the agent's own identity package.
          *     A handle that exists or was used is 409 handle_taken; a reserved, invalid or look-alike one, a bad description (one plain line,
          *     at most 80 characters), a bad avatar or a conversation the owner is not in is 400. A request reserves no handle.
+         *
+         *     On the agents-only listener the body must carry `invite`, an unused, unexpired invite (`POST /api/invites`). It is spent when the
+         *     request is made, and a request the owner declines does not give it back. Without a usable invite the answer is 200 and looks like
+         *     any other, but no request is made: no card and no push, and the device code polls as expired. The tailnet needs no invite and
+         *     ignores one.
          */
         post: operations["requestDeviceCode"];
         delete?: never;
@@ -544,6 +549,8 @@ export interface paths {
          *     scope and allows the handle; otherwise the answer is 202 with `request.ref`, and the machine asks again with
          *     `create.request` = that ref until the owner decides (201 with the lease; 403 request_denied; 410 request_expired).
          *     A machine files at most 5 requests in 24 hours; a request lives 24 hours. Only the machine that filed a request can ask about it.
+         *     On the agents-only listener a new request needs `create.invite`, an unused, unexpired invite, which it spends. Without one the answer
+         *     is 202 like any other, but no request is made (its ref is unknown when asked about). The tailnet needs no invite.
          *     `as` may name a handle the agent had before (I-51): for 30 days after the change the lease is minted for that agent and the answer
          *     carries `renamed` {from, to, until}; after that it is 403 `handle_renamed`, whose message names the new handle.
          */
@@ -583,6 +590,46 @@ export interface paths {
         post?: never;
         /** The agent ends its own session. */
         delete: operations["endSession"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The invites that can still be used, newest first. The owner sees every maker's, an agent its own. */
+        get: operations["listInvites"];
+        put?: never;
+        /**
+         * Make an invite that lets one agent outside the tailnet ask for access. The owner's, or an approved agent's. No passkey check.
+         * @description Owner ruling (2026-10-18): invites are always one use. It works once, for 24 hours; only its hash is kept, so the token is in this
+         *     answer only. The maker is the credential. An agent may name only a conversation it is in (403 not_in_conversation); a maker holds
+         *     at most 10 open invites (429 invite_cap). The audit log gets invite.created, invite.used, invite.revoked and invite.expired.
+         */
+        post: operations["createInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/invites/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke an open invite. The owner may revoke any, an agent its own. No passkey check. */
+        delete: operations["revokeInvite"];
         options?: never;
         head?: never;
         patch?: never;
@@ -715,15 +762,16 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * An agent asks the owner for a new handle (one tap in Now). Without `request` it files; with it, it asks what became of it.
-         * @description Owner said: "Handles I think can also change, that seems fine because there's an id, right?" and "the handle is never reused".
+         * An agent changes its own handle. It applies at once, with no approval.
+         * @description Owner said: "Handles I think can also change, that seems fine because there's an id, right?" and "the handle is never reused";
+         *     asked whether the agent's own change needs approval: "Change at once, no approval".
          *     The new handle passes every rule of a new one (valid, not reserved, not taken, never used before, no UTS-39 look-alike of any
-         *     handle or display name; the agent's own display name excepted), and a handle changes at most once in 30 days (429 `rate_limited`
-         *     with Retry-After). A handle that would bring the agent under the glob of a machine that may not act as it now is 400. Filing again
-         *     for the same handle gives the waiting request back; for another handle it replaces it. A request waits 24 hours.
-         *     Asking with `request`: 202 while it waits, 200 once the owner approved it, 403 `request_denied`, 410 `request_expired`.
+         *     handle or display name; the agent's own display name excepted), and a handle changes at most 3 times a day (429 `rate_limited`
+         *     with Retry-After). A handle that would bring the agent under the glob of a machine that may not act as it now is 400. One
+         *     transaction, as the owner's change: the old handle stays an alias until `previous_until` (30 days), and every conversation the
+         *     agent is in gets the line "@old is now @new". It sends no push.
          */
-        post: operations["requestHandle"];
+        post: operations["changeOwnHandle"];
         delete?: never;
         options?: never;
         head?: never;
@@ -741,48 +789,10 @@ export interface paths {
         put?: never;
         /**
          * The owner changes an agent's handle in Crew → the agent profile. No passkey check.
-         * @description The same rules as an agent's request (I-51). One transaction: the old handle is retired at once and never used again, every
-         *     conversation the agent is in gets the line "@old is now @new", and a waiting request of that agent is withdrawn. A human's handle
-         *     never changes here (400).
+         * @description The same rules and the same path as an agent's own change (I-51). One transaction: the old handle is retired at once and never
+         *     used again, and every conversation the agent is in gets the line "@old is now @new". A human's handle never changes here (400).
          */
         post: operations["changeHandle"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/handle-requests/{ref}/approve": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * One tap on the card "@old wants to be @new" in Now. No passkey check.
-         * @description Every rule is checked again here (the handle may have been taken since). A request that was decided, withdrawn or expired, or whose
-         *     agent changed its handle since, is 404.
-         */
-        post: operations["approveHandleRequest"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/handle-requests/{ref}/deny": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["denyHandleRequest"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2007,38 +2017,9 @@ export interface components {
             /** @description Present when the caller set an avatar. */
             avatar_url?: string;
         };
-        HandleRequestBody: {
+        HandleChangeBody: {
             /** @description The new handle. */
             handle: string;
-            /** @description The ref of a request filed before: ask what became of it. */
-            request?: string;
-        };
-        HandleRequestState: {
-            /** @description hdr_ and 32 hex characters. */
-            ref: string;
-            /** @enum {string} */
-            state: "pending";
-            from: string;
-            to: string;
-            /** Format: int64 */
-            expires_at: number;
-            /** @description How long to wait before asking again. */
-            interval_ms: number;
-        };
-        /** @description An agent that asks the owner for a new handle, as Now shows it. */
-        HandleRequest: {
-            ref: string;
-            /** Format: int64 */
-            identity_id: number;
-            /** @description The agent's handle now. */
-            from: string;
-            /** @description The handle it asks for. */
-            to: string;
-            display_name: string;
-            /** Format: int64 */
-            created_at: number;
-            /** Format: int64 */
-            expires_at: number;
         };
         HandleChanged: {
             identity: {
@@ -2046,6 +2027,11 @@ export interface components {
                 id: number;
                 handle: string;
                 previous_handle: string;
+                /**
+                 * Format: int64
+                 * @description When the old handle stops reaching the agent (epoch ms).
+                 */
+                previous_until: number;
             };
         };
         /** @description A handle the agent had before. A mention of it still reaches the agent; as --as it works until `until`. */
@@ -2104,8 +2090,8 @@ export interface components {
             source_ip: string | null;
             /** @description True when the request came in on the agents-only listener (over the internet); the card says so. */
             via_internet: boolean;
-            /** @description True when Approve needs the last 4 characters of user_code (an internet request on a server run with --agent-approve-code). */
-            code_required: boolean;
+            /** @description Who invited the agent behind the request; null for a request from the tailnet, which needs no invite. */
+            invite: components["schemas"]["InviteMark"] | null;
             node_name: string | null;
             /** Format: int64 */
             created_at: number;
@@ -2142,10 +2128,58 @@ export interface components {
             machine_id: number;
             /** @description True when the request came in on the agents-only listener; the card says so. */
             via_internet: boolean;
+            /** @description Who invited the agent; null for a request from the tailnet. */
+            invite: components["schemas"]["InviteMark"] | null;
             /** Format: int64 */
             created_at: number;
             /** Format: int64 */
             expires_at: number;
+        };
+        /** @description Who invited the agent behind a waiting request. The card says "invited by @by", or "invited by you" when by_owner. */
+        InviteMark: {
+            /** @description The handle of the owner or agent that made the invite. */
+            by: string;
+            by_owner: boolean;
+            /** @description One line of plain text the maker wrote */
+            note: string;
+        };
+        /**
+         * @description An agent invite: one use, 24 hours. token, server and login are in the answer that makes it and nowhere else; the server keeps only
+         *     the hash of the token.
+         */
+        Invite: {
+            /** Format: int64 */
+            id: number;
+            /** @description The last 4 characters of the token. It tells invites apart in a list and cannot be used. */
+            hint: string;
+            /** @description The handle of the owner or agent that made it. */
+            maker: string;
+            maker_is_owner: boolean;
+            /**
+             * Format: int64
+             * @description The conversation the invited agent asks to join; left out for none.
+             */
+            conversation_id?: number;
+            note: string;
+            /** Format: int64 */
+            created_at: number;
+            /** Format: int64 */
+            expires_at: number;
+            /** @description The invite (cvz_i_ and 43 characters). Shown once. */
+            token?: string;
+            /** @description The address the invited agent connects to; the agents-only address when the server has one. */
+            server?: string;
+            /** @description The command the invited agent runs. */
+            login?: string;
+        };
+        CreateInviteRequest: {
+            /**
+             * Format: int64
+             * @description The conversation the invited agent asks to join. The maker must be in it
+             */
+            conversation_id?: number;
+            /** @description One line of plain text for the owner's card. */
+            note?: string;
         };
         Allow: {
             /** @enum {string} */
@@ -2283,6 +2317,17 @@ export interface components {
              * @description When the newest reply came
              */
             last_reply_at?: number;
+            /** @description The newest reply of a thread root, for the reply chip under it. Unread is per reader: set when the reply is someone else's, in a thread the reader is in, and past the reader's read point there. */
+            last_reply?: {
+                /** Format: int64 */
+                id: number;
+                author: components["schemas"]["Person"];
+                /** @description The plain-text projection of the reply, up to 120 characters. */
+                preview: string;
+                /** Format: int64 */
+                created_at: number;
+                unread?: boolean;
+            };
             /** Format: int64 */
             edited_at?: number;
             deleted?: boolean;
@@ -3051,8 +3096,6 @@ export interface components {
             machine_requests: components["schemas"]["MachineRequest"][];
             /** @description Agents on logged-in machines that ask to be made. */
             identity_requests: components["schemas"]["IdentityRequest"][];
-            /** @description Agents that ask for a new handle, oldest first. Always sent; optional only so a Now kept on the device from before still reads. */
-            handle_requests?: components["schemas"]["HandleRequest"][];
         };
         RepliesResponse: {
             /** Format: int64 */
@@ -3730,8 +3773,6 @@ export interface operations {
                     name?: string;
                     allow?: components["schemas"]["Allow"];
                     scopes?: string[];
-                    /** @description The last 4 characters of the request's code. Required for an internet request when the server runs with --agent-approve-code; 403 code_mismatch otherwise. */
-                    code_tail?: string;
                 };
             };
         };
@@ -4038,6 +4079,77 @@ export interface operations {
             default: components["responses"]["Error"];
         };
     };
+    listInvites: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The open invites, without tokens. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        invites: components["schemas"]["Invite"][];
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    createInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateInviteRequest"];
+            };
+        };
+        responses: {
+            /** @description The invite, with its token. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        invite: components["schemas"]["Invite"];
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    revokeInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The invite is revoked. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
     me: {
         parameters: {
             query?: never;
@@ -4185,7 +4297,7 @@ export interface operations {
             default: components["responses"]["Error"];
         };
     };
-    requestHandle: {
+    changeOwnHandle: {
         parameters: {
             query?: never;
             header?: never;
@@ -4194,28 +4306,17 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["HandleRequestBody"];
+                "application/json": components["schemas"]["HandleChangeBody"];
             };
         };
         responses: {
-            /** @description The owner approved the request; the handle changed. */
+            /** @description The handle changed. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["HandleChanged"];
-                };
-            };
-            /** @description The request waits for the owner. */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        request: components["schemas"]["HandleRequestState"];
-                    };
                 };
             };
             default: components["responses"]["Error"];
@@ -4247,44 +4348,6 @@ export interface operations {
                     "application/json": components["schemas"]["HandleChanged"];
                 };
             };
-            default: components["responses"]["Error"];
-        };
-    };
-    approveHandleRequest: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                ref: string;
-            };
-            cookie?: never;
-        };
-        requestBody: components["requestBodies"]["Empty"];
-        responses: {
-            /** @description The handle changed. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HandleChanged"];
-                };
-            };
-            default: components["responses"]["Error"];
-        };
-    };
-    denyHandleRequest: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                ref: string;
-            };
-            cookie?: never;
-        };
-        requestBody: components["requestBodies"]["Empty"];
-        responses: {
-            200: components["responses"]["Empty"];
             default: components["responses"]["Error"];
         };
     };

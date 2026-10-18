@@ -105,7 +105,10 @@ export const messageLog = (page: Page): Locator => page.getByRole("log", { name:
 export const message = (page: Page, text: string | RegExp): Locator => messageLog(page).getByRole("article").filter({ hasText: text });
 export const composer = (page: Page): Locator => page.getByRole("textbox", { name: /^Message @/ });
 export const sendButton = (page: Page): Locator => page.getByRole("button", { name: "Send", exact: true });
-export const backButton = (page: Page): Locator => page.getByRole("link", { name: "Back", exact: true });
+/** The Back link of an open chat; its name carries the count when something waits ("Back, 3 new"). */
+export const backButton = (page: Page): Locator => page.getByRole("link", { name: /^Back(, \S+ new)?$/ });
+/** The count pill on the Back link (absent at 0). */
+export const backBadge = (page: Page): Locator => page.locator("#back .backbadge");
 export const workingNote = (page: Page): Locator => page.getByRole("status").filter({ hasText: /(is|are) replying/ });
 export const newMessagePill = (page: Page): Locator => page.getByRole("button", { name: "New message ↓" });
 

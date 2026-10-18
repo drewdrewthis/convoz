@@ -39,8 +39,6 @@ type Config struct {
 	AgentPublicPort int // the port agents type; 0 for 443
 	AgentPort       int // bound TCP port of the agent listener
 	AgentOrigin     string
-	// AgentApproveCode makes the owner type the last 4 characters of the code to approve an internet request (--agent-approve-code).
-	AgentApproveCode bool
 
 	// DataDir and BlobKey (the keyring's blob DEK) open the sealed upload files under <DataDir>/blobs. Without them there are no uploads.
 	DataDir string

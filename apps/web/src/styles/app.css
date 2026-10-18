@@ -74,6 +74,7 @@
   * { box-sizing: border-box; }
   html { height: 100%; -webkit-text-size-adjust: 100%; }
   body {
+    touch-action: manipulation; /* no double-tap zoom */
     margin: 0; height: 100%; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; position: relative;
     background: var(--color-surface); color: var(--color-text);
     font: 14px/1.4 var(--font-sans);
@@ -111,7 +112,7 @@
     display: flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 44px; height: 44px; padding: 0;
     border: 0; border-radius: 999px; background: transparent; color: var(--color-accent-text); text-decoration: none;
   }
-  .iconbtn:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+  @media (hover: hover) { .iconbtn:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); } }
   .iconbtn svg, .avatar svg { fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
   .iconbtn svg { width: 22px; height: 22px; stroke-width: 2.2; }
   .avatar { display: flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 44px; height: 44px; margin: -6px -8px -6px 0; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--color-accent-text); }
@@ -162,6 +163,11 @@
   .banner { padding: 12px 16px; border-radius: 14px; background: var(--color-selection); color: var(--color-text); margin: 0 0 16px; }
   .banner.error, [role="alert"] { padding: 12px 16px; border-radius: 14px; margin: 0 0 16px; color: var(--color-danger); background: color-mix(in srgb, var(--color-danger) 14%, var(--color-raised)); font-weight: 600; }
   .banner.ok { color: var(--color-success); background: color-mix(in srgb, var(--color-success) 14%, var(--color-raised)); }
+  .pushbanner { margin: 0 0 12px; padding: 4px 4px 4px 14px; border-radius: 14px; background: var(--color-selection); color: var(--color-text); }
+  .pushbanner-row { display: flex; align-items: center; gap: 8px; min-height: 44px; font-weight: 600; }
+  .pushbanner-row .grow { flex: 1; min-width: 0; }
+  .pushbanner .iconbtn { margin: 0; }
+  .pushbanner [role="alert"] { margin: 0 10px 10px 0; padding: 0; background: none; }
   .step { color: var(--color-muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; margin: 8px 0 0; }
 
   /* ---- focused flows (sign in, setup, recovery): the wordmark and one task ---- */
@@ -262,7 +268,7 @@
   .chatlist { list-style: none; margin: 0; padding: 0; }
   .chatlist li { display: flex; align-items: center; border-radius: 14px; }
   .chatrow { flex: 1 1 auto; min-width: 0; min-height: 64px; display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 14px; color: var(--color-text); text-decoration: none; }
-  .chatrow:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+  @media (hover: hover) { .chatrow:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); } }
   .rowbody { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .rowtop { display: flex; align-items: baseline; gap: 8px; }
   .rowtitle { flex: 0 1 auto; min-width: 0; margin: 0; font-size: 14px; font-weight: 400; line-height: inherit; color: var(--color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -278,11 +284,26 @@
   /* ---- a conversation: the frame fills the visible screen, the log scrolls, the composer is pinned ---- */
   body[data-chat] { overscroll-behavior: none; }
   .chatframe { position: fixed; left: 0; right: 0; top: var(--vv-top, 0px); height: var(--vv-h, 100dvh); display: flex; flex-direction: column; background: var(--color-surface); }
-  .chatbar { gap: 2px; justify-content: flex-start; padding: calc(var(--top) + 4px) 6px 4px; }
+  /* Owner ruling 2026-10-18: no bar and no border. Floating 44 px circles over the messages, which scroll under a fade of the page colour. */
+  .chatframe { --headh: calc(var(--top) + 68px); }
+  .chatbar {
+    position: absolute; top: 0; left: 0; right: 0; z-index: 3; gap: 8px; justify-content: flex-start; align-items: flex-start; padding: calc(var(--top) + 8px) 12px 16px;
+    border-bottom: 0; pointer-events: none;
+    background: linear-gradient(to bottom, var(--color-surface) 0, color-mix(in srgb, var(--color-surface) 94%, transparent) 62%, transparent 100%);
+  }
+  .chatbar .iconbtn, .chatbar .slot { pointer-events: auto; }
+  .chatbar .iconbtn { background: var(--color-raised); color: var(--color-text); box-shadow: var(--float); }
+  .chatbar .iconbtn { position: relative; }
+  .backbadge { position: absolute; top: -4px; right: -4px; min-width: 18px; padding: 0 5px; border-radius: 999px; background: var(--color-accent); color: var(--color-on-accent); font-size: 12px; font-weight: 700; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums; }
+  .chatbar .titles { align-items: center; text-align: center; padding: 0 4px; }
+  .chatbar .titles h1 { font-size: 16px; font-weight: 700; }
+  .chatbar .subtitle { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; line-height: 1.3; color: var(--color-muted); }
+  .chatbar .subtitle .presence::before { content: "\00B7"; margin: 0 4px; }
   .titles { flex: 1 1 auto; min-width: 0; min-height: 44px; display: flex; flex-direction: column; justify-content: center; padding: 0 8px; }
   .titles h1 { margin: 0; max-width: 100%; font-size: 16px; line-height: normal; font-weight: 600; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .subtitle { margin: 0; }
   .subbar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; min-height: 45px; padding: 0 12px; border-bottom: 1px solid var(--color-border); }
+  .chatframe > .subbar { display: none; } /* the people strip: the header names the agent, the details panel lists everyone */
   .chip { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; }
   .ava { flex: none; display: flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--ab, var(--color-avatar-5-bg)); color: var(--af, var(--color-avatar-5-fg)); font-weight: 600; text-transform: uppercase; }
   .chip .ava { width: 28px; height: 28px; font-size: 13px; }
@@ -291,7 +312,9 @@
   .chatmain { flex: 1 1 auto; min-height: 0; width: 100%; max-width: none; margin: 0; padding: 0; overflow: hidden; display: flex; flex-direction: column; }
   .convo { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
   .logwrap { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-  .log { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; padding: 8px 0 16px; }
+  .log { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; padding: var(--headh) 0 16px; }
+  .pausebar ~ .chatmain .log { padding-top: 8px; }
+  .chatframe > .pausebar { position: relative; z-index: 2; margin-top: var(--headh); }
   .items { display: flex; flex-direction: column; }
   .earlier { display: flex; justify-content: center; }
   .hintbox { max-width: 760px; margin-inline: auto; padding: 56px 16px; text-align: center; font-size: 14px; color: var(--color-muted); }
@@ -305,6 +328,7 @@
   .msg .main { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
   .msg.mine .main { max-width: 85%; margin-left: auto; align-items: flex-end; }
   .msg .byline { display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; }
+  .msg .byline .author { display: contents; } /* one text "Drew @devtool" for readers and tests; the flex gap still spaces the two */
   .msg.mine .byline { justify-content: flex-end; }
   .msg .who { padding: 10px 0; margin: -10px 0; font-size: 15px; font-weight: 600; color: var(--color-text); line-height: normal; }
   .msg .handle { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--color-muted); }
@@ -327,19 +351,26 @@
   .msg .text .host::after { content: ")"; }
   .msg .text .mention { font-weight: 600; }
   .msg .text .spoiler { background: var(--color-text); color: transparent; border-radius: 4px; }
-  .msg .text .spoiler:hover, .msg .text .spoiler:focus { color: inherit; background: var(--color-raised); }
+  .msg .text .spoiler:focus { color: inherit; background: var(--color-raised); }
   .msg .text.tombstone { color: var(--color-muted); font-style: normal; }
   .msg .edited { align-self: flex-start; padding: 0; border: 0; background: none; font: inherit; font-size: 13px; color: var(--color-muted); cursor: pointer; }
-  .msg .edited:hover { text-decoration: underline; }
   .edit-history { margin: 0; padding-left: 20px; white-space: pre-wrap; overflow-wrap: break-word; }
   /* The actions button takes no room (the row looks as drawn) and shows on hover or focus; 44px for a thumb. */
   .msg-actions { position: absolute; top: 4px; right: 4px; width: 44px; height: 44px; }
   .msg-actions-btn { width: 100%; height: 100%; padding: 0; border: 0; border-radius: 12px; background: none; opacity: 0; cursor: pointer; }
   .msg-actions-btn::before { content: "\22EF"; font-size: 20px; color: var(--color-muted); }
-  .msg:hover .msg-actions-btn, .msg-actions-btn:focus-visible, .msg-actions-btn[aria-expanded="true"] { opacity: 1; background: var(--color-raised); }
+  .msg-actions-btn:focus-visible, .msg-actions-btn[aria-expanded="true"] { opacity: 1; background: var(--color-raised); }
   .msg-menu { position: absolute; top: 44px; right: 0; z-index: 5; display: flex; flex-direction: column; min-width: 8rem; padding: 4px; border-radius: 12px; background: var(--color-raised); border: 1px solid var(--color-border); }
   .msg-menu button { min-height: 44px; padding: 0 12px; border: 0; border-radius: 8px; background: none; color: var(--color-text); font: inherit; text-align: left; cursor: pointer; }
-  .msg-menu button:hover, .msg-menu button:focus-visible { background: var(--color-border); }
+  .msg-menu button:focus-visible { background: var(--color-border); }
+  /* Hover styles only where a pointer really hovers: on iOS a tap on an element whose :hover (or whose ancestor's :hover) changes what shows is
+     taken as the hover and the click is swallowed, so opening a thread took two taps (owner, 2026-10-18: "Also opening it requires a double click"). */
+  @media (hover: hover) {
+    .msg .text .spoiler:hover { color: inherit; background: var(--color-raised); }
+    .msg .edited:hover { text-decoration: underline; }
+    .msg:hover .msg-actions-btn { opacity: 1; background: var(--color-raised); }
+    .msg-menu button:hover { background: var(--color-border); }
+  }
   .notice-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 12px 3px 60px; color: var(--color-muted); font-size: 13.5px; line-height: 1.4; }
   .notice-line::before { content: "\2022"; margin-left: -24px; width: 16px; text-align: center; }
   .notice-line[data-t="conversation.paused"]::before { content: "\23F8"; }
@@ -352,18 +383,12 @@
   @keyframes pulse { 0%, 80%, 100% { opacity: .3; } 40% { opacity: 1; } }
   .pill { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); min-height: 44px; padding: 0 18px; border: 0; border-radius: 999px; background: var(--color-accent); color: var(--color-on-accent); font: inherit; font-size: 14px; font-weight: 600; box-shadow: var(--float); cursor: pointer; z-index: 2; }
   .chatbar .slot { flex: 0 0 auto; width: 44px; height: 44px; } /* where the prototype has Show details */
-  .compose { position: relative; flex: none; padding: 6px 12px calc(10px + var(--bottom)); }
-  .kbd .compose { padding-bottom: 6px; }
+  .compose { position: relative; flex: none; padding: 2px 12px calc(2px + var(--bottom)); }
+  .kbd .compose { padding-bottom: 2px; }
   /* The phone keyboard is open (prototype v42): the header is one 36 px line with Back and the title, and the people strip goes, so the
      messages and the box get the screen. The safe-area inset stays: the line must still clear the notch. */
-  .kbd .chatbar { box-sizing: border-box; height: calc(36px + var(--top)); min-height: 0; padding: var(--top) 6px 0; }
-  .kbd .chatbar > :not(#back):not(.titles) { display: none; }
-  .kbd .chatbar #back { width: 36px; height: 36px; }
-  .kbd .chatbar #back svg { width: 20px; height: 20px; }
-  .kbd .chatbar .titles { min-height: 0; }
-  .kbd .chatbar .titles h1 { font-size: 15px; }
-  .kbd .subbar { display: none; }
-  .composer { position: relative; display: flex; align-items: flex-end; gap: 4px; min-height: 56px; box-sizing: border-box; padding: 6px 6px 6px 8px; border-radius: 26px; border-color: var(--color-edge); }
+  .kbd .chatbar .subtitle { display: none; }
+  .composer { position: relative; display: flex; align-items: flex-end; gap: 4px; min-height: 48px; box-sizing: border-box; padding: 1px 3px 1px 4px; border-radius: 24px; border-color: var(--color-edge); box-shadow: var(--float); }
   .composer:focus-within::after {
     content: ""; position: absolute; inset: -2px; border-radius: inherit; padding: 2px; background: var(--gradring); pointer-events: none;
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
@@ -428,4 +453,10 @@
 
   /* The prototype's rows, tabs and names are buttons, whose line height is the font's own, not the page's 1.4. */
   .chatrow, .crow, .tabbar a, .fab, .msg .who, .agentbtn, .titles h1, .count { line-height: normal; }
+}
+
+/* iOS zooms a page when a text box under 16 px takes focus, and the viewport does not allow it to stay zoomed: a phone text box is 16 px or more. */
+@media (max-width: 600px) {
+  input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="button"], [type="submit"], [type="hidden"]),
+  textarea, select, [contenteditable]:not([contenteditable="false"]) { font-size: 16px; }
 }

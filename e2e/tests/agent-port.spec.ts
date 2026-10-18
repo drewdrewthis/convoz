@@ -1,6 +1,7 @@
-import { CliMachine } from "../lib/cli.ts";
-import { agentPort, agentServer, startLoginViaAgent, viaAgent } from "../lib/agent-port.ts";
-import { clientId, createAgents, pendingRequests, approve, allow, signInBrowser, loginMachine, mintSession, identityRequests, requestDeviceCode } from "../lib/machines.ts";
+import { CliMachine, installedMachine } from "../lib/cli.ts";
+import { agentPort, agentServer, auditActions, INVITE_RE, makeInvite, openInvites, ownerInvite, startLoginViaAgent, viaAgent } from "../lib/agent-port.ts";
+import { convoz, createConversation, startSession } from "../lib/chat.ts";
+import { clientId, createAgents, dataFileBytes, countOf, plainDb, pendingRequests, approve, allow, signInBrowser, loginMachine, mintSession, identityRequests, requestDeviceCode, HOUR } from "../lib/machines.ts";
 import { send } from "../lib/http.ts";
 import { bootstrapOwner, must, tmpDir } from "../lib/owner.ts";
 import { expect, scenario } from "../lib/scenario.ts";
@@ -14,6 +15,11 @@ import { expect, scenario } from "../lib/scenario.ts";
  *   The client address is the peer, or the last X-Forwarded-For entry when the peer is loopback (the local Funnel proxy).
  *   GET /api/machines/requests rows carry via_internet (true when the request came in on the agent listener).
  *   GET /api/version carries agent_url when the listener is on. /install on the agent listener names the agent origin.
+ *   An internet request needs an invite (owner ruling 2026-10-18; docs/design.md 3.4a): POST /api/invites (owner or an approved agent's lease)
+ *   {conversation_id?, note?} -> 201 {invite:{id, hint, maker, maker_is_owner, token, server, login, ...}}; GET /api/invites; DELETE /api/invites/:id.
+ *   POST /api/device/code {invite} and POST /api/sessions {create:{invite}} on the agent listener spend it; without a usable one the answer
+ *   looks accepted and nothing is made. The cards (GET /api/now, GET /api/machines/requests) carry invite {by, by_owner, note} or null.
+ *   Audit actions: invite.created, invite.used, invite.revoked, invite.expired.
  */
 
 const AGENT_LINE = /Approve "([a-z0-9.-]+)" as @([a-z0-9-]+) in Convoz\. Code: ([A-Z]{4}-[A-Z]{4})/;
@@ -23,10 +29,11 @@ scenario("An agent outside the tailnet connects with one tap", { tag: ["@cli", "
   const srv = await server(agentServer());
   const agent = agentPort(srv);
   const owner = await bootstrapOwner(srv);
+  const invite = await ownerInvite(owner);
 
   // When "convoz login --name dot-box --as dot" runs against the agents-only address
   const box = new CliMachine();
-  const login = box.startLogin(agent.origin, "dot-box", ["--as", "dot"]);
+  const login = box.startLogin(agent.origin, "dot-box", ["--as", "dot", "--invite", invite]);
 
   // Then the CLI prints 'Approve "dot-box" as @dot in Convoz.' with the code
   const line = await login.waitForStdout(AGENT_LINE);
@@ -266,6 +273,7 @@ scenario("Many addresses together cannot start more than 20 logins an hour", { t
 scenario("A second pending request with the same machine name or handle is refused", { tag: ["@api"] }, async ({ server }) => {
   // Given a Convoz server with an agents-only address, and one request "box-1" as @dot waiting
   const srv = await server(agentServer());
+  await bootstrapOwner(srv);
   must(await startLoginViaAgent(srv, "box-1", "203.0.113.1", { handle: "dot" }), "first request");
 
   // When another address asks with the same machine name, and another with the same handle
@@ -314,9 +322,10 @@ scenario("A request from a logged-in machine over the internet is marked on its 
   const srv = await server(agentServer());
   const owner = await bootstrapOwner(srv);
   const box = await loginMachine(srv, owner, "box-2", allow("new*", "oth*"));
+  const invite = await ownerInvite(owner);
 
   // When the machine asks for a new identity on the agents-only port, and for another on the owner's port
-  const viaNet = await viaAgent(srv, "POST", "/api/sessions", { from: "203.0.113.5", bearer: box.key, json: { as: "newbie", client_id: clientId(), create: { display_name: "Newbie" } } });
+  const viaNet = await viaAgent(srv, "POST", "/api/sessions", { from: "203.0.113.5", bearer: box.key, json: { as: "newbie", client_id: clientId(), create: { display_name: "Newbie", invite } } });
   const own = await mintSession(srv, box.key, { as: "other", create: { display_name: "Other" } });
   expect(viaNet.status).toBe(202);
   expect(own.status).toBe(202);
@@ -344,63 +353,345 @@ scenario("A session that ended is not counted as a wrong guess", { tag: ["@api"]
   expect(answers.every((s) => s === 401)).toBe(true);
 });
 
-scenario("Approving an internet request needs the last 4 characters of the code when the server asks", { tag: ["@api"] }, async ({ server }) => {
-  // Given a Convoz server run with --agent-approve-code, and owner "drew" signed in
-  const srv = await server(agentServer({ extraArgs: ["--agent-approve-code"] }));
+// ---- Rule: An agent outside the tailnet needs a one-use invite -----------------------------------------------------------------
+// Owner ruling (Drew, 2026-10-18): "if something requests access, there's never really a way to know without access to that agents internal
+// session. What we could do I require a token to request access that always changes, but I want agents to be able to invite other agents.
+// So I guess invites are always 1 time use?"
+
+const inviteButton = (page: import("@playwright/test").Page) => page.getByRole("button", { name: /^(Add|Invite) agent$/ }).first();
+const promptOf = (page: import("@playwright/test").Page) => page.getByRole("dialog", { name: "Invite agent" }).getByLabel("Connect prompt");
+
+/** An agent on a machine that is logged in at the owner's address: its CLI, its session and its lease. */
+async function agentOnBox(srv: Parameters<typeof loginMachine>[0], owner: Parameters<typeof loginMachine>[1], agents: string[]) {
+  await createAgents(owner, ...agents);
+  const box2 = await loginMachine(srv, owner, "box-2", allow(...agents));
+  const box = await installedMachine(srv.origin, "box-2", box2.key);
+  const sessions: Record<string, { sid: string; lease: string }> = {};
+  for (const a of agents) sessions[a] = await startSession(box, a, `invite-${a}`);
+  return { box, sessions };
+}
+
+scenario("The invite prompt carries the invite", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given a Convoz server with an agents-only address
+  const srv = await server(agentServer());
   const owner = await bootstrapOwner(srv);
+  await signInBrowser(srv, owner, page, context);
 
-  // When a request comes in on the agents-only port, and another on the owner's port
-  const net = must(await startLoginViaAgent(srv, "box-net", "203.0.113.8"), "internet request").json();
-  const own = must(await requestDeviceCode(srv, "box-own"), "tailnet request").json();
-  const rows = await pendingRequests(owner);
-  const netRow = rows.find((r) => r.user_code === net.user_code)!;
-  const ownRow = rows.find((r) => r.user_code === own.user_code)!;
+  // When the owner opens the invite sheet in Crew
+  await page.goto(`${srv.origin}/crew`);
+  await inviteButton(page).click();
 
-  // Then only the internet request asks for the code
-  expect(netRow.code_required).toBe(true);
-  expect(ownRow.code_required).toBe(false);
+  // Then the prompt carries an invite in its install line and in its "convoz login" and "convoz session start" lines
+  const prompt = promptOf(page);
+  await expect(prompt).toContainText(/export CONVOZ_INVITE=cvz_i_\w+; command -v convoz >\/dev\/null \|\| curl -fsSL http:\/\/localhost:\d+\/install \| sh/);
+  await expect(prompt).toContainText(/convoz login --server http:\/\/localhost:\d+ --invite cvz_i_\w+ --as <your-handle>/);
+  await expect(prompt).toContainText(/convoz session start --as <your-handle> --create --invite cvz_i_\w+/);
 
-  // And approving it with no code, or with a wrong one, is refused 403 code_mismatch
-  const none = await approve(owner, netRow.id);
-  expect(none.status).toBe(403);
-  expect(none.json().error.code).toBe("code_mismatch");
-  const wrong = await owner.client.post(`/api/machines/requests/${netRow.id}/approve`, { allow: { mode: "list", identities: [], globs: [] }, code_tail: "ZZZZ" });
-  expect(wrong.status).toBe(403);
-
-  // And approving it with the last 4 characters of its code works, in lower case too
-  const tail = net.user_code.slice(-4).toLowerCase();
-  const ok = await owner.client.post(`/api/machines/requests/${netRow.id}/approve`, { allow: { mode: "list", identities: [], globs: [] }, code_tail: tail });
-  expect(ok.status).toBe(201);
-
-  // And the tailnet request is approved with no code
-  expect((await approve(owner, ownRow.id)).status).toBe(201);
+  // And the invite is one the owner can see as open
+  const token = INVITE_RE.exec(await prompt.innerText())![0];
+  const script = must(await viaAgent(srv, "GET", "/install"), "install via the agent port").text;
+  expect(script).toMatch(/CONVOZ_INVITE:-[^\n]*\n[^\n]*convoz login --server \$SERVER --invite \$CONVOZ_INVITE/); // the install output carries the invite when the shell has one
+  await expect.poll(async () => (await openInvites(owner)).map((i) => i.hint)).toEqual([token.slice(-4)]);
 });
 
-scenario("The owner types the last 4 characters of the code to approve an agent from the internet", { tag: ["@cli", "@browser"] }, async ({ server, page, context }) => {
-  // Given a Convoz server run with --agent-approve-code
-  const srv = await server(agentServer({ extraArgs: ["--agent-approve-code"] }));
+scenario("The owner revokes an invite", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given a Convoz server with an agents-only address
+  const srv = await server(agentServer());
+  const owner = await bootstrapOwner(srv);
+  await signInBrowser(srv, owner, page, context);
+
+  // And the owner opened the invite sheet in Crew
+  await page.goto(`${srv.origin}/crew`);
+  await inviteButton(page).click();
+  await expect(promptOf(page)).toContainText("--invite cvz_i_");
+  const token = INVITE_RE.exec(await promptOf(page).innerText())![0];
+
+  // When the owner taps "Revoke invite"
+  await page.getByRole("dialog", { name: "Invite agent" }).getByRole("button", { name: "Revoke invite", exact: true }).click();
+
+  // Then the sheet says the invite is revoked
+  await expect(page.getByRole("dialog", { name: "Invite agent" }).getByText("Invite revoked.", { exact: false })).toBeVisible();
+  expect(await openInvites(owner)).toHaveLength(0);
+
+  // And an agent that asks with that invite makes no card in Now
+  const asked = await startLoginViaAgent(srv, "dot-box", "203.0.113.9", { handle: "dot" }, token);
+  expect(asked.status).toBe(200);
+  expect(await pendingRequests(owner)).toHaveLength(0);
+  await page.getByRole("dialog", { name: "Invite agent" }).getByRole("button", { name: "Close", exact: true }).click();
+  await page.goto(`${srv.origin}/`);
+  await expect(page.getByRole("article")).toHaveCount(0);
+});
+
+scenario("An agent invites another agent and the card says who invited it", { tag: ["@cli", "@browser"] }, async ({ server, page, context }) => {
+  // Given a Convoz server with an agents-only address and the agent "claude" logged in on "box-2"
+  const srv = await server(agentServer());
+  const agent = agentPort(srv);
+  const owner = await bootstrapOwner(srv);
+  const { box, sessions } = await agentOnBox(srv, owner, ["claude"]);
+
+  // When "claude" runs "convoz invite" and a new agent runs "convoz login --invite" with that invite against the agents-only address
+  const made = await convoz(box, sessions.claude!.sid, ["invite", "--json"]);
+  expect(made.code, made.stderr).toBe(0);
+  const invite = JSON.parse(made.stdout) as { token: string; maker: string; login: string };
+  expect(invite.maker).toBe("claude");
+  expect(invite.login).toBe(`convoz login --server ${agent.origin} --invite ${invite.token}`);
+  const newcomer = new CliMachine();
+  const login = newcomer.startLogin(agent.origin, "dot-box", ["--as", "dot", "--invite", invite.token]);
+  await login.waitForStdout(AGENT_LINE);
+
+  // Then the owner sees one Now card "dot-box wants to connect as @dot"
+  await signInBrowser(srv, owner, page, context);
+  await expect(page.getByRole("article")).toHaveCount(1);
+  const card = page.getByRole("article", { name: "dot-box wants to connect as @dot", exact: true });
+  await expect(card).toBeVisible();
+
+  // And the card says it was "invited by @claude"
+  await expect(card).toContainText("invited by @claude");
+  await card.getByRole("button", { name: "Approve", exact: true }).click();
+  const done = await login.done;
+  expect(done.code, done.stderr).toBe(0);
+});
+
+scenario("The owner makes an invite with the CLI on the server's own machine", { tag: ["@cli", "@browser"] }, async ({ server, page, context }) => {
+  // Given a Convoz server with an agents-only address
+  const srv = await server(agentServer());
   const agent = agentPort(srv);
   const owner = await bootstrapOwner(srv);
 
-  // When "convoz login --name dot-box --as dot" runs against the agents-only address
-  const box = new CliMachine();
-  const login = box.startLogin(agent.origin, "dot-box", ["--as", "dot"]);
-  const line = await login.waitForStdout(AGENT_LINE);
-  const code = line[3]!;
+  // When the owner runs "convoz invite --note 'for dot'" on the server's machine and a new agent runs "convoz login --invite" with it
+  const onServer = new CliMachine();
+  const made = await onServer.run(["invite", "--admin-socket", srv.adminSocket!, "--note", "for dot", "--json"]);
+  expect(made.code, made.stderr).toBe(0);
+  const invite = JSON.parse(made.stdout) as { token: string; maker_is_owner: boolean; server: string };
+  expect(invite.maker_is_owner).toBe(true);
+  expect(invite.server).toBe(agent.origin);
+  const newcomer = new CliMachine();
+  const login = newcomer.startLogin(agent.origin, "dot-box", ["--as", "dot", "--invite", invite.token]);
+  await login.waitForStdout(AGENT_LINE);
 
-  // Then the card heading shows the code
+  // Then the owner sees one Now card "dot-box wants to connect as @dot"
   await signInBrowser(srv, owner, page, context);
-  const card = page.getByRole("article", { name: `dot-box wants to connect as @dot · code ${code}`, exact: true });
+  await expect(page.getByRole("article")).toHaveCount(1);
+  const card = page.getByRole("article", { name: "dot-box wants to connect as @dot", exact: true });
   await expect(card).toBeVisible();
 
-  // And Approve stays off until the last 4 characters are typed
-  const approveButton = card.getByRole("button", { name: "Approve", exact: true });
-  await expect(approveButton).toBeDisabled();
-  await card.getByLabel("Last 4 characters of the code").fill(code.slice(-4));
-  await expect(approveButton).toBeEnabled();
-
-  // And the CLI logs in once the owner approves
-  await approveButton.click();
+  // And the card says it was "invited by you" and shows the note "for dot"
+  await expect(card).toContainText("invited by you");
+  await expect(card).toContainText("Note: for dot");
+  await card.getByRole("button", { name: "Approve", exact: true }).click();
   const done = await login.done;
   expect(done.code, done.stderr).toBe(0);
+});
+
+scenario("A request over the internet without an invite makes no card", { tag: ["@api"] }, async ({ server }) => {
+  // Given a Convoz server with an agents-only address and owner "drew" signed in
+  const srv = await server(agentServer());
+  const owner = await bootstrapOwner(srv);
+
+  // When a stranger starts the device login on the agents-only port with no invite, and another with an invite nobody made
+  const none = await startLoginViaAgent(srv, "box-1", "203.0.113.1", { handle: "dot" }, null);
+  const unknown = await startLoginViaAgent(srv, "box-2", "203.0.113.2", { handle: "cat" }, "cvz_i_TESTONLY" + "x".repeat(43));
+
+  // Then both answer 200 like an accepted request, with a code that polls as expired
+  for (const res of [none, unknown]) {
+    expect(res.status).toBe(200);
+    expect(res.json().user_code).toMatch(/^[A-Z]{4}-[A-Z]{4}$/);
+    expect(res.json().device_code).toMatch(/^cvz_c_/);
+    const polled = await viaAgent(srv, "POST", "/api/device/token", { from: "203.0.113.3", json: { device_code: res.json().device_code } });
+    expect(polled.status).toBe(400);
+    expect(polled.json().error.code).toBe("expired_token");
+  }
+
+  // And no request waits for the owner
+  expect(await pendingRequests(owner)).toHaveLength(0);
+  expect((await identityRequests(owner)).length).toBe(0);
+
+  // And the same login on the owner's port needs no invite
+  expect((await requestDeviceCode(srv, "box-3")).status).toBe(200);
+  expect(await pendingRequests(owner)).toHaveLength(1);
+});
+
+scenario("An invite works once, even when the owner declines the request", { tag: ["@api"] }, async ({ server }) => {
+  // Given a Convoz server with an agents-only address and owner "drew" signed in
+  const srv = await server(agentServer());
+  const owner = await bootstrapOwner(srv);
+
+  // When a machine starts the device login on the agents-only port with a fresh invite, and the owner denies the request
+  const invite = await ownerInvite(owner);
+  must(await startLoginViaAgent(srv, "box-1", "203.0.113.1", undefined, invite), "first start");
+  const [first] = await pendingRequests(owner);
+  expect(first?.invite).toEqual({ by: "drew", by_owner: true, note: "" });
+  must(await owner.client.post(`/api/machines/requests/${first!.id}/deny`, {}), "deny");
+
+  // And another machine starts the device login with the same invite
+  const again = await startLoginViaAgent(srv, "box-2", "203.0.113.2", undefined, invite);
+
+  // Then the second start answers 200 and no request waits for the owner
+  expect(again.status).toBe(200);
+  expect(await pendingRequests(owner)).toHaveLength(0);
+
+  // And the invite is no longer listed as open
+  expect(await openInvites(owner)).toHaveLength(0);
+  expect(srv.log()).not.toContain(invite); // a token never reaches the log
+
+  // And the audit log has invite.created and invite.used
+  const actions = await auditActions(owner);
+  expect(actions).toContain("invite.created");
+  expect(actions).toContain("invite.used");
+});
+
+scenario("An invite that ran out makes no card", { tag: ["@api"] }, async ({ server, testApi }) => {
+  // Given a Convoz server with an agents-only address and owner "drew" signed in
+  const srv = await server(agentServer());
+  const owner = await bootstrapOwner(srv);
+
+  // And the owner made an invite
+  const invite = await ownerInvite(owner);
+  expect(await openInvites(owner)).toHaveLength(1);
+
+  // When the clock moves 25 hours on and a machine starts the device login with it
+  await testApi(srv).advanceClock(25 * HOUR);
+  const started = await startLoginViaAgent(srv, "box-1", "203.0.113.1", undefined, invite);
+
+  // Then the start answers 200 and no request waits for the owner
+  expect(started.status).toBe(200);
+  expect(await pendingRequests(owner)).toHaveLength(0);
+
+  // And the audit log has invite.expired
+  expect(await auditActions(owner)).toContain("invite.expired");
+  expect(await openInvites(owner)).toHaveLength(0);
+});
+
+scenario("A request from a logged-in machine over the internet needs an invite", { tag: ["@api"] }, async ({ server }) => {
+  // Given a Convoz server with an agents-only address, a machine "box-2" logged in without the create_identity scope
+  const srv = await server(agentServer());
+  const owner = await bootstrapOwner(srv);
+  const box = await loginMachine(srv, owner, "box-2", allow("new*", "oth*"));
+  const ask = (handle: string, create: Record<string, unknown>) =>
+    viaAgent(srv, "POST", "/api/sessions", { from: "203.0.113.5", bearer: box.key, json: { as: handle, client_id: clientId(), create: { display_name: handle, ...create } } });
+
+  // When the machine asks for a new identity on the agents-only port with no invite, and then with one
+  const without = await ask("newbie", {});
+  const invite = await ownerInvite(owner, { note: "for newbie" });
+  const withInvite = await ask("newbie", { invite });
+
+  // Then the first answers 202 and no request waits for the owner, and its ref is unknown when asked about
+  expect(without.status).toBe(202);
+  const asked = await ask("newbie", { request: without.json().request.ref });
+  expect(asked.status).toBe(404);
+
+  // And the second answers 202 and the owner's Now lists one request marked via_internet, with the invite's maker
+  expect(withInvite.status).toBe(202);
+  const rows = await identityRequests(owner);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({ handle: "newbie", via_internet: true, invite: { by: "drew", by_owner: true, note: "for newbie" } });
+  expect(await openInvites(owner)).toHaveLength(0);
+
+  // And the same ask on the owner's port needs no invite
+  const own = await mintSession(srv, box.key, { as: "other", create: { display_name: "Other" } });
+  expect(own.status).toBe(202);
+  expect((await identityRequests(owner)).find((r) => r.handle === "other")?.invite).toBeNull();
+});
+
+scenario("An agent invites only into a conversation it is in", { tag: ["@api"] }, async ({ server }) => {
+  // Given a Convoz server with an agents-only address, agent "claude" logged in on "box-2", in conversation A and not in conversation B
+  const srv = await server(agentServer());
+  const owner = await bootstrapOwner(srv);
+  const { sessions } = await agentOnBox(srv, owner, ["claude", "other"]);
+  const lease = sessions.claude!.lease;
+  const convA = await createConversation(owner, { participants: ["claude"], title: "Alpha" });
+  const convB = await createConversation(owner, { participants: ["other"], title: "Beta" });
+
+  // When "claude" makes an invite for conversation B, and then one for conversation A
+  const forB = await makeInvite({ srv, lease }, { conversation_id: convB });
+  const forA = await makeInvite({ srv, lease }, { conversation_id: convA });
+
+  // Then the first is refused 403 not_in_conversation
+  expect(forB.status).toBe(403);
+  expect(forB.json().error.code).toBe("not_in_conversation");
+
+  // And the second is made with claude as its maker
+  expect(forA.status).toBe(201);
+  expect(forA.json().invite).toMatchObject({ maker: "claude", maker_is_owner: false, conversation_id: convA });
+
+  // And the new agent that spends it is shown joining conversation A, whatever conversation it asked for
+  const started = await startLoginViaAgent(srv, "dot-box", "203.0.113.9", { handle: "newcomer", conversation_id: convB }, forA.json().invite.token);
+  expect(started.status).toBe(200);
+  const [request] = must(await owner.client.get("/api/now"), "now").json().machine_requests as { invite: { by: string } | null; identity: { conversation: { id: number; title: string } | null } }[];
+  expect(request?.invite?.by).toBe("claude");
+  expect(request?.identity.conversation).toEqual({ id: convA, title: "Alpha" });
+});
+
+scenario("The owner revokes any invite and an agent only its own", { tag: ["@api"] }, async ({ server }) => {
+  // Given a Convoz server with an agents-only address, owner "drew" signed in, and agents "claude" and "dot" logged in on "box-2"
+  const srv = await server(agentServer());
+  const owner = await bootstrapOwner(srv);
+  const { sessions } = await agentOnBox(srv, owner, ["claude", "dot"]);
+  const leaseOf = (h: string) => sessions[h]!.lease;
+  const revoke = (id: number, as: string) => viaAgent(srv, "DELETE", `/api/invites/${id}`, { from: "203.0.113.5", bearer: leaseOf(as) });
+
+  // When "claude" makes an invite and "dot" tries to revoke it, then "dot" makes one and revokes it, then the owner revokes the invite of claude
+  const claudes = (await makeInvite({ srv, lease: leaseOf("claude") })).json().invite;
+  const tried = await revoke(claudes.id, "dot");
+  const dots = (await makeInvite({ srv, lease: leaseOf("dot") })).json().invite;
+  const dotsList = (await viaAgent(srv, "GET", "/api/invites", { from: "203.0.113.5", bearer: leaseOf("dot") })).json().invites as { maker: string }[];
+  expect(dotsList.map((i) => i.maker)).toEqual(["dot"]); // an agent lists only its own
+  const dotRevoked = await revoke(dots.id, "dot");
+  expect((await openInvites(owner)).map((i) => i.maker)).toEqual(["claude"]); // the owner lists every maker's
+  const ownerRevoked = await owner.client.request("DELETE", `/api/invites/${claudes.id}`, { csrf: true });
+
+  // Then dot's try on the invite of claude answers 404
+  expect(tried.status).toBe(404);
+
+  // And the other two revokes answer 204
+  expect(dotRevoked.status).toBe(204);
+  expect(ownerRevoked.status).toBe(204);
+
+  // And no invite is open, and a start with a revoked invite makes no request
+  expect(await openInvites(owner)).toHaveLength(0);
+  expect((await startLoginViaAgent(srv, "box-1", "203.0.113.1", undefined, claudes.token)).status).toBe(200);
+  expect(await pendingRequests(owner)).toHaveLength(0);
+
+  // And the audit log has invite.revoked
+  expect(await auditActions(owner)).toContain("invite.revoked");
+});
+
+scenario("A maker holds ten open invites", { tag: ["@api"] }, async ({ server }) => {
+  // Given a Convoz server with an agents-only address and owner "drew" signed in
+  const srv = await server(agentServer());
+  const owner = await bootstrapOwner(srv);
+
+  // When the owner makes 10 invites and asks for an 11th
+  for (let i = 0; i < 10; i++) must(await makeInvite({ owner }), `invite ${i + 1}`, 201);
+  const eleventh = await makeInvite({ owner });
+
+  // Then the 11th is refused 429 invite_cap
+  expect(eleventh.status).toBe(429);
+  expect(eleventh.json().error.code).toBe("invite_cap");
+
+  // And revoking one lets the owner make another
+  const [one] = await openInvites(owner);
+  must(await owner.client.request("DELETE", `/api/invites/${one!.id}`, { csrf: true }), "revoke", 204);
+  expect((await makeInvite({ owner })).status).toBe(201);
+});
+
+scenario("The server keeps only the hash of an invite", { tag: ["@api"] }, async ({ server, dataDir }) => {
+  // Given a Convoz server with an agents-only address, run on a data file that is not encrypted, and owner "drew" signed in
+  const srv = await server(agentServer({ dataDir, env: { CONVOZ_TEST_POLL_MS: "250", CONVOZ_TEST_AGENT_PEER: "1", CONVOZ_TEST_PLAINTEXT: "1" } }));
+  const owner = await bootstrapOwner(srv);
+
+  // When the owner makes an invite
+  const made = must(await makeInvite({ owner }), "make an invite", 201).json().invite as { token: string; hint: string };
+
+  // Then the invite is cvz_i_ and 43 characters, 32 bytes or more of randomness
+  expect(made.token).toMatch(/^cvz_i_(TESTONLY)?[A-Za-z0-9]{43}$/); // 43 base62 characters are 256 bits
+
+  // And the data file does not hold the token, and the list of open invites shows only its last 4 characters
+  const rows = plainDb(dataDir).prepare("SELECT hex(token_hash) AS hash, hint FROM agent_invites").all() as { hash: string; hint: string }[];
+  expect(rows).toHaveLength(1);
+  expect(rows[0]!.hash).toHaveLength(64);
+  expect(countOf(dataFileBytes(dataDir), made.token)).toBe(0);
+  const [listed] = await openInvites(owner);
+  expect(listed).toMatchObject({ hint: made.token.slice(-4) });
+  expect(listed!.token).toBeUndefined();
 });

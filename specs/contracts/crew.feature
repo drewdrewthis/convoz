@@ -91,25 +91,34 @@ Feature: Crew: identities, machines and sessions (contracts)
         | "docs" (used before)                     | 409    | handle_taken    |
         | "re1ease-bot" (a look-alike)             | 400    | invalid_request |
 
+    # Owner said (2026-10-18), asked whether an agent's own change needs approval: "Change at once, no approval"; "I think that's too
+    # defensive and requires too much machinery?"
     @v1 @api @I-51 @I-26
-    Scenario: An agent asks with its lease and only the owner decides, with one tap
+    Scenario: An agent changes its own handle with its lease, at once
+      Given "devtool" is in conversations 41 and 52
       When the "devtool" session sends POST /api/me/handle with {"handle": "builder"}
-      Then the server answers 202 with a ref of "hdr_" and 32 hex characters
-      And GET /api/now lists the handle request from "devtool" to "builder"
-      When a machine key, a session lease and a caller with no credential each try to approve it
-      Then the server answers 401 every time
-      When the owner approves it with no step-up
-      Then the server answers 200
-      And asking again with the ref answers 200 with the handle "builder"
-      And the audit has "identity.handle_requested" with the session of "devtool" and "identity.handle_changed" with both handles
+      Then the server answers 200 with the handle "builder", the previous handle "devtool" and a previous_until 30 days on
+      And GET /api/now lists no handle requests
+      And conversations 41 and 52 each end with the system line "@devtool is now @builder"
+      And the audit has "identity.handle_changed" with the session of "devtool" and both handles
+      When a machine key and a caller with no credential each send POST /api/me/handle
+      Then the server answers 401 or 403 both times
 
     @v1 @api @I-51
-    Scenario: Two changes at once: one wins, and a post during them reaches the same agent
-      Given "devtool" filed a request for "maker"
-      When the owner approves that request, changes the handle to "builder", and posts "@devtool status?" all at once
-      Then exactly one change answers 200 and the other is refused
-      And the agent has the handle of the change that won, and "devtool" is retired once
+    Scenario: Two changes at once: both apply in turn, and a post during them reaches the same agent
+      When "devtool" changes its own handle to "maker", the owner changes it to "builder", and the owner posts "@devtool status?" all at once
+      Then both changes answer 200, one after the other
+      And the agent has the handle of the change that came last, and "devtool" and the handle between are each retired once
       And the post records a mention of the agent's id
+
+    # Owner chose the option that said "you can rename it back from Crew", so an identity may take back a handle it retired itself.
+    @v1 @api @I-51 @I-3
+    Scenario: The owner renames an agent back to its own old handle, and nobody else may take a retired handle
+      Given the agents "devtool" and "docs" exist and the owner changed the handle of "devtool" to "builder"
+      When the owner changes the handle of "builder" back to "devtool" from Crew
+      Then the server answers 200 with the handle "devtool" and the previous handle "builder"
+      And retired_handles no longer holds "devtool" and holds "builder" for that id
+      And "docs" asking for "devtool" or for "builder" gets 409 with the code "handle_taken"
 
     @v1 @api @I-51 @I-18
     Scenario: A post to the old handle records the mention and names the current handle
@@ -127,13 +136,13 @@ Feature: Crew: identities, machines and sessions (contracts)
       And changing the handle of "devtool" to "ops-tool" answers 400 naming "handle"
 
     @v1 @api @I-51
-    Scenario: The 30-day rules run on the server clock
-      Given the owner changed the handle of "devtool" to "builder"
+    Scenario: The change limit and the old handle's 30 days run on the server clock
+      Given the owner changed the handle of "devtool" to "builder", then to "builder-2" and to "builder-3"
       When the owner changes it again
-      Then the server answers 429 with a Retry-After of about 30 days
-      And "box-2" asking for a lease as "devtool" answers 201 with renamed from "devtool" to "builder"
+      Then the server answers 429 with a Retry-After of about 24 hours
+      And "box-2" asking for a lease as "devtool" answers 201 with renamed from "devtool" to "builder-3"
       When the test clock moves forward 30 days and 1 second
-      Then asking for a lease as "devtool" answers 403 with the code "handle_renamed" and a message that names "@builder"
+      Then asking for a lease as "devtool" answers 403 with the code "handle_renamed" and a message that names "@builder-3"
       And the owner can change the handle again
 
     @v1 @api @I-51
@@ -145,8 +154,8 @@ Feature: Crew: identities, machines and sessions (contracts)
       Then the push title names "Dev Tool @builder" and not "was"
 
     @v1 @api @I-51 @I-1
-    Scenario: The schema refuses a human's change, a reused handle and a second change within 30 days
+    Scenario: The schema refuses a human's change, a reused handle and a change without its time
       Given the owner changed the handle of "devtool" to "builder"
-      When a second connection to the data file tries to change the owner's handle, to give "docs" the handle "devtool", and to change "builder" again
+      When a second connection to the data file tries to change the owner's handle, to give "docs" the handle "devtool", and to change "builder" with no new time
       Then the schema refuses each write
       And the owner's own handle cannot be changed through POST /api/identities/:id/handle

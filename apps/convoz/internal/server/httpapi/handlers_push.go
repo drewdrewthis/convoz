@@ -4,15 +4,30 @@ import (
 	"context"
 	"errors"
 	"log"
+	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/notify"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
 
-// pushSubject is the VAPID contact: a generic mailto at the server's own name, not a personal address (design §10.3).
-func (s *Server) pushSubject() string { return "mailto:push@" + s.Cfg.Host }
+// pushSubject is the VAPID contact: a generic address at the server's own name, not a personal one (design §10.3).
+func (s *Server) pushSubject() string { return pushSubjectFor(s.Cfg.Host) }
+
+// pushSubjectFor builds the bare address push@<host>. It carries no "mailto:" (webpush-go adds it, and a second one makes the
+// token invalid) and no port (an e-mail domain has none). An IPv6 host becomes a domain literal.
+func pushSubjectFor(host string) string {
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	host = strings.Trim(host, "[]")
+	if strings.Contains(host, ":") {
+		host = "[" + host + "]"
+	}
+	return "push@" + host
+}
 
 // EnablePush turns the push pipeline on with the keys of the keyring. Without it the push routes answer 503 and nothing is sent.
 func (s *Server) EnablePush(keys notify.Keys) {
@@ -109,6 +124,8 @@ func (s *Server) pushSubscribe(w http.ResponseWriter, r *http.Request, c *call) 
 	case err != nil:
 		s.internalError(w, r, err)
 	default:
+		// The host of the push service only: the endpoint path is a secret that lets anyone push to this device.
+		s.Push.Log.Printf("push: subscribed device=%d person=%d host=%s", c.dev.ID, c.human.ID, sub.Host)
 		writeJSON(w, http.StatusCreated, map[string]any{"subscription": viewOfSubscription(sub, c.dev.ID)})
 	}
 }
@@ -134,6 +151,7 @@ func (s *Server) pushTest(w http.ResponseWriter, r *http.Request, c *call) {
 		return
 	}
 	delivered, err := s.Push.SendTest(r.Context(), c.dev.ID)
+	s.Push.Log.Printf("push: test device=%d delivered=%t err=%v", c.dev.ID, delivered, err)
 	switch {
 	case errors.Is(err, notify.ErrNoSubscription):
 		writeErr(w, http.StatusConflict, "no_subscription", "Turn push on for this device first.")

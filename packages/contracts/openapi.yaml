@@ -60,6 +60,8 @@ paths:
   /api/sessions: { $ref: "paths/auth.yaml#/~1api~1sessions" }
   /api/sessions/renew: { $ref: "paths/auth.yaml#/~1api~1sessions~1renew" }
   /api/sessions/me: { $ref: "paths/auth.yaml#/~1api~1sessions~1me" }
+  /api/invites: { $ref: "paths/auth.yaml#/~1api~1invites" }
+  /api/invites/{id}: { $ref: "paths/auth.yaml#/~1api~1invites~1{id}" }
   # ---- identity
   /api/me: { $ref: "paths/identity.yaml#/~1api~1me" }
   /api/me/profile: { $ref: "paths/identity.yaml#/~1api~1me~1profile" }
@@ -69,8 +71,6 @@ paths:
   /api/identities/{id}/disable: { $ref: "paths/identity.yaml#/~1api~1identities~1{id}~1disable" }
   /api/me/handle: { $ref: "paths/identity.yaml#/~1api~1me~1handle" }
   /api/identities/{id}/handle: { $ref: "paths/identity.yaml#/~1api~1identities~1{id}~1handle" }
-  /api/handle-requests/{ref}/approve: { $ref: "paths/identity.yaml#/~1api~1handle-requests~1{ref}~1approve" }
-  /api/handle-requests/{ref}/deny: { $ref: "paths/identity.yaml#/~1api~1handle-requests~1{ref}~1deny" }
   # ---- inbox
   /api/inbox: { $ref: "paths/inbox.yaml#/~1api~1inbox" }
   /api/inbox/claim: { $ref: "paths/inbox.yaml#/~1api~1inbox~1claim" }
@@ -287,9 +287,7 @@ components:
     Identity: { $ref: "components/identity.yaml#/Identity" }
     ProfileRequest: { $ref: "components/identity.yaml#/ProfileRequest" }
     Profile: { $ref: "components/identity.yaml#/Profile" }
-    HandleRequestBody: { $ref: "components/identity.yaml#/HandleRequestBody" }
-    HandleRequestState: { $ref: "components/identity.yaml#/HandleRequestState" }
-    HandleRequest: { $ref: "components/identity.yaml#/HandleRequest" }
+    HandleChangeBody: { $ref: "components/identity.yaml#/HandleChangeBody" }
     HandleChanged: { $ref: "components/identity.yaml#/HandleChanged" }
     PreviousHandle: { $ref: "components/identity.yaml#/PreviousHandle" }
     MentionSpan: { $ref: "components/identity.yaml#/MentionSpan" }
@@ -299,6 +297,9 @@ components:
     MachineRequest: { $ref: "components/auth.yaml#/MachineRequest" }
     AgentIntro: { $ref: "components/auth.yaml#/AgentIntro" }
     IdentityRequest: { $ref: "components/auth.yaml#/IdentityRequest" }
+    InviteMark: { $ref: "components/auth.yaml#/InviteMark" }
+    Invite: { $ref: "components/auth.yaml#/Invite" }
+    CreateInviteRequest: { $ref: "components/auth.yaml#/CreateInviteRequest" }
     Allow: { $ref: "components/auth.yaml#/Allow" }
     Machine: { $ref: "components/auth.yaml#/Machine" }
     Session: { $ref: "components/auth.yaml#/Session" }

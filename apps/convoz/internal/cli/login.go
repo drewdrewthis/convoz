@@ -47,6 +47,7 @@ func Login(args []string, io IO) int {
 	stdin := fs.Bool("stdin", false, "store the key given on standard input instead of asking the owner")
 	store := fs.String("store", storeAuto, "where the key lives: file, keychain or auto")
 	as := fs.String("as", "", "the handle of the agent that asks to connect; the owner's one Approve makes the machine and this agent")
+	invite := fs.String("invite", io.Getenv("CONVOZ_INVITE"), "the one-use invite that lets an agent outside the tailnet ask to connect (CONVOZ_INVITE also sets it); a server on the tailnet needs none")
 	more := addIntroFlags(fs)
 	if !parseNoArgs(fs, args, io) {
 		return ExitUsage
@@ -76,15 +77,15 @@ func Login(args []string, io IO) int {
 		return fail(io, err)
 	}
 	kc := osKeychain{io.Getenv}
-	WarnIfStale(io, newClient(base))
-	if *stdin {
+	if *stdin { // storing a key contacts no server, so there is no version to compare
 		key, err := readKey(io)
 		if err != nil {
 			return usageError(io, err.Error())
 		}
 		return finishLogin(io, dir, kc, Credentials{Server: base, Machine: *name, Key: key}, *store)
 	}
-	return deviceFlow(io, dir, kc, newClient(base), base, *name, *store, intro)
+	WarnIfStale(io, newClient(base))
+	return deviceFlow(io, dir, kc, newClient(base), base, *name, *store, intro, strings.TrimSpace(*invite))
 }
 
 func usageError(io IO, msg string) int {
@@ -148,14 +149,15 @@ func finishLogin(io IO, dir string, kc keychain, c Credentials, store string) in
 		return fail(io, err)
 	}
 	fmt.Fprintf(io.Stdout, "Logged in as machine %q.\n", c.Machine)
+	fmt.Fprintln(io.Stdout, watchNext)
 	return ExitOK
 }
 
-func deviceFlow(io IO, dir string, kc keychain, c *client, base, name, store string, intro *wire.IdentityIntro) int {
+func deviceFlow(io IO, dir string, kc keychain, c *client, base, name, store string, intro *wire.IdentityIntro, invite string) int {
 	host, _ := os.Hostname()
 	var code wire.DeviceCodeResponse
 	err := c.call(context.Background(), "POST", wire.RouteDeviceCode, "", wire.DeviceCodeRequest{
-		Name: name, HostInfo: wire.HostInfo{Hostname: host, OS: runtime.GOOS, Arch: runtime.GOARCH, CLIVersion: Version}, Identity: intro,
+		Name: name, HostInfo: wire.HostInfo{Hostname: host, OS: runtime.GOOS, Arch: runtime.GOARCH, CLIVersion: Version}, Identity: intro, Invite: invite,
 	}, &code)
 	if err != nil {
 		return fail(io, err)
@@ -190,17 +192,22 @@ func deviceFlow(io IO, dir string, kc keychain, c *client, base, name, store str
 			fmt.Fprintln(io.Stderr, "convoz: The owner denied the request.")
 			return ExitAuth
 		case errCode == wire.CodeExpiredToken:
-			return expired(io)
+			return expired(io, invite != "")
 		case status == 0 || status >= 500 || status == 429:
 			// The server could not be reached, or the answer got lost: ask again with the same device code.
 		default:
 			return fail(io, err)
 		}
 	}
-	return expired(io)
+	return expired(io, invite != "")
 }
 
-func expired(io IO) int {
+// expired ends a login whose code is of no use. A server over the internet answers a start it will not honour (an invite that is
+// used, revoked, out of date or wrong) like an accepted one and lets the code die, so with an invite the message names that cause too.
+func expired(io IO, withInvite bool) int {
 	fmt.Fprintln(io.Stderr, "convoz: The code expired. Run convoz login again.")
+	if withInvite {
+		fmt.Fprintln(io.Stderr, "convoz: If the invite was already used, revoked or older than 24 hours, ask for a new one.")
+	}
 	return ExitAuth
 }

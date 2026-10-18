@@ -103,16 +103,77 @@ Feature: Agents-only address (contracts)
       When the ended lease is used 40 times from one address
       Then every answer is 401 and none is 429
 
-  Rule: The code-match option makes the owner type part of the code
+  Rule: A request over the internet needs an invite that works once
+
+    # Owner ruling (Drew, 2026-10-18), on whether to add a code check to approvals, and who may invite:
+    # "if something requests access, there's never really a way to know without access to that agents internal session. What we could do I require a token to request access that always changes, but I want agents to be able to invite other agents. So I guess invites are always 1 time use?"
+    # Standing rulings: "Approvals just go into the feed, right?" and "Removal is just revoking their key."
+    # An invite lasts 24 hours, holds 32 random bytes, is stored hashed, and is made by the owner or by an approved agent. A request
+    # without a usable invite gets the answer of an accepted request (the oracle stays collapsed) and makes no card and no push.
 
     @v1 @api
-    Scenario: Approving an internet request needs the last 4 characters of the code when the server asks
-      Given a Convoz server run with --agent-approve-code, and owner "drew" signed in
-      When a request comes in on the agents-only port, and another on the owner's port
-      Then only the internet request asks for the code
-      And approving it with no code, or with a wrong one, is refused 403 code_mismatch
-      And approving it with the last 4 characters of its code works, in lower case too
-      And the tailnet request is approved with no code
+    Scenario: A request over the internet without an invite makes no card
+      Given a Convoz server with an agents-only address and owner "drew" signed in
+      When a stranger starts the device login on the agents-only port with no invite, and another with an invite nobody made
+      Then both answer 200 like an accepted request, with a code that polls as expired
+      And no request waits for the owner
+      And the same login on the owner's port needs no invite
+
+    @v1 @api
+    Scenario: An invite works once, even when the owner declines the request
+      Given a Convoz server with an agents-only address and owner "drew" signed in
+      When a machine starts the device login on the agents-only port with a fresh invite, and the owner denies the request
+      And another machine starts the device login with the same invite
+      Then the second start answers 200 and no request waits for the owner
+      And the invite is no longer listed as open
+      And the audit log has invite.created and invite.used
+
+    @v1 @api
+    Scenario: An invite that ran out makes no card
+      Given a Convoz server with an agents-only address and owner "drew" signed in
+      And the owner made an invite
+      When the clock moves 25 hours on and a machine starts the device login with it
+      Then the start answers 200 and no request waits for the owner
+      And the audit log has invite.expired
+
+    @v1 @api
+    Scenario: A request from a logged-in machine over the internet needs an invite
+      Given a Convoz server with an agents-only address, a machine "box-2" logged in without the create_identity scope
+      When the machine asks for a new identity on the agents-only port with no invite, and then with one
+      Then the first answers 202 and no request waits for the owner, and its ref is unknown when asked about
+      And the second answers 202 and the owner's Now lists one request marked via_internet, with the invite's maker
+      And the same ask on the owner's port needs no invite
+
+    @v1 @api
+    Scenario: An agent invites only into a conversation it is in
+      Given a Convoz server with an agents-only address, agent "claude" logged in on "box-2", in conversation A and not in conversation B
+      When "claude" makes an invite for conversation B, and then one for conversation A
+      Then the first is refused 403 not_in_conversation
+      And the second is made with claude as its maker
+      And the new agent that spends it is shown joining conversation A, whatever conversation it asked for
+
+    @v1 @api
+    Scenario: The owner revokes any invite and an agent only its own
+      Given a Convoz server with an agents-only address, owner "drew" signed in, and agents "claude" and "dot" logged in on "box-2"
+      When "claude" makes an invite and "dot" tries to revoke it, then "dot" makes one and revokes it, then the owner revokes the invite of claude
+      Then dot's try on the invite of claude answers 404
+      And the other two revokes answer 204
+      And no invite is open, and a start with a revoked invite makes no request
+      And the audit log has invite.revoked
+
+    @v1 @api
+    Scenario: A maker holds ten open invites
+      Given a Convoz server with an agents-only address and owner "drew" signed in
+      When the owner makes 10 invites and asks for an 11th
+      Then the 11th is refused 429 invite_cap
+      And revoking one lets the owner make another
+
+    @v1 @api
+    Scenario: The server keeps only the hash of an invite
+      Given a Convoz server with an agents-only address, run on a data file that is not encrypted, and owner "drew" signed in
+      When the owner makes an invite
+      Then the invite is cvz_i_ and 43 characters, 32 bytes or more of randomness
+      And the data file does not hold the token, and the list of open invites shows only its last 4 characters
 
   Rule: The flags go together
 

@@ -49,6 +49,8 @@ type AgentPort interface {
 type ConversationPort interface {
 	// OwnerConversation reports the title of a live conversation the owner is an active participant of; ok is false otherwise.
 	OwnerConversation(ctx context.Context, d pdb.DBTX, id int64) (title string, ok bool, err error)
+	// IdentityIn reports whether the identity is an active participant of a live conversation.
+	IdentityIn(ctx context.Context, d pdb.DBTX, conversationID, identityID int64) (bool, error)
 	// Join seats the agent in the conversation the way a person adds it: active at once, history since the add (I-15, I-18).
 	Join(ctx context.Context, d pdb.DBTX, now time.Time, conversationID, agentID, byHuman int64) error
 }

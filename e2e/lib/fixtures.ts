@@ -198,6 +198,8 @@ export const test = base.extend<Fixtures & { transcript: void }>({
   // Every browser context carries the ceremony guard. In the "mobile" project a tap that breaks the one-ceremony rule
   // fails the test at teardown, whichever scenario it was; in "chromium" only scenarios that assert on guard.violations() fail.
   context: async ({ context }: { context: BrowserContext }, use, testInfo: TestInfo) => {
+    // A browser that has not decided on notifications shows the "Turn on notifications" banner; scenarios about it reset the permission.
+    await context.grantPermissions(["notifications"]);
     const guard = await installCeremonyGuard(context);
     await use(context);
     const seen = guard.violations();

@@ -3,6 +3,7 @@
 import { lazy } from "react";
 
 export type { VoiceRecording } from "./recorder.tsx";
+export { micNote, RecorderLoadError } from "./micNote.ts";
 
 /** loadRecorder loads the recorder on the first tap of the microphone. */
 export const loadRecorder = () => import("./recorder.tsx");

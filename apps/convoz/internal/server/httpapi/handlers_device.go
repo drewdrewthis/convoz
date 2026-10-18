@@ -81,9 +81,23 @@ func (s *Server) deviceCode(w http.ResponseWriter, r *http.Request, _ *call) {
 	}
 	req := auth.DeviceRequest{Name: in.Name, HostInfo: string(info), Source: source, SourceNode: node, Interval: s.interval()}
 	var out auth.DeviceCode
+	spent := !via // over the internet a request is made only for a usable invite, which it spends
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
 		var err error
 		now := s.Clock.Now()
+		var inv auth.Invite
+		if via {
+			if inv, spent, err = auth.TakeInvite(ctx, tx.DBTX(), flowPorts, in.Invite, now); err != nil || !spent {
+				return err // no invite: nothing is made, and the answer below looks like an accepted request
+			}
+			// The global limit counts the starts that carry an invite only: a flood without one makes no card, so it must not use up the hour.
+			if !s.agentStartAll.Allow("all", now) {
+				return errAgentStartsFull
+			}
+			if intro != nil {
+				intro.ConversationID = inv.ConversationID // the invited agent never picks another conversation
+			}
+		}
 		// The identity is checked before the request is made: a refused handle makes no request, and a request reserves nothing.
 		if intro != nil {
 			if via {
@@ -112,15 +126,23 @@ func (s *Server) deviceCode(w http.ResponseWriter, r *http.Request, _ *call) {
 				return err
 			}
 		}
+		if via {
+			if err = auth.SpendInvite(ctx, tx.DBTX(), flowPorts, inv, auth.InviteLogin, out.RequestID, now); err != nil {
+				return err
+			}
+		}
 		// The owner is told (a card in Now, a push): the event names the request, the push reads its name and code when it is sent.
 		_, err = event.Append(ctx, tx.DBTX(), now, eventMachineRequested, map[string]any{"request_id": out.RequestID, "via_internet": via})
 		return err
 	})
-	if err == nil {
+	if err == nil && spent {
 		s.Bus.Notify()
 	}
 	var limited *auth.RateLimitedError
 	switch {
+	case errors.Is(err, errAgentStartsFull):
+		w.Header().Set("Retry-After", "3600")
+		writeErr(w, http.StatusTooManyRequests, "rate_limited", "Too many login requests. Try again later.")
 	case identityRefused(w, err, "handle"):
 	case errors.Is(err, auth.ErrDuplicatePending):
 		writeErr(w, http.StatusConflict, "duplicate_pending", "A request with that name or handle is already waiting for the owner.")
@@ -133,6 +155,12 @@ func (s *Server) deviceCode(w http.ResponseWriter, r *http.Request, _ *call) {
 		writeErr(w, http.StatusTooManyRequests, "rate_limited", "This machine asked too often. Try again later.")
 	case err != nil:
 		s.internalError(w, r, err)
+	case !spent:
+		// The stranger's answer: the same as an accepted request. The code belongs to nothing and polls like an expired one.
+		writeJSON(w, http.StatusOK, wire.DeviceCodeResponse{
+			DeviceCode: auth.FakeDeviceCode(), UserCode: auth.NewUserCode(),
+			Interval: max(1, int(s.interval()/time.Second)), IntervalMs: s.interval().Milliseconds(), ExpiresIn: int(auth.RequestTTL / time.Second),
+		})
 	default:
 		writeJSON(w, http.StatusOK, wire.DeviceCodeResponse{
 			DeviceCode: out.DeviceCode, UserCode: out.UserCode,
@@ -140,6 +168,9 @@ func (s *Server) deviceCode(w http.ResponseWriter, r *http.Request, _ *call) {
 		})
 	}
 }
+
+// errAgentStartsFull rolls a start back when the hour's global budget for starts with an invite is used up.
+var errAgentStartsFull = errors.New("too many login starts with an invite this hour")
 
 // expiredToken is the one answer for every code that is not worth anything: unknown, expired, denied and
 // told, or already used. The same bytes every time, so a probe learns nothing.
@@ -203,20 +234,20 @@ type requestJSON struct {
 	HostInfo json.RawMessage `json:"host_info"`
 	SourceIP *string         `json:"source_ip"`
 	// ViaInternet is true when the request came in on the agent listener; the card then says "via internet".
-	ViaInternet bool `json:"via_internet"`
-	// CodeRequired is true when the owner must type the last 4 characters of the code to approve (--agent-approve-code, internet requests).
-	CodeRequired bool    `json:"code_required"`
-	NodeName     *string `json:"node_name"`
-	CreatedAt    int64   `json:"created_at"`
-	ExpiresAt    int64   `json:"expires_at"`
+	ViaInternet bool    `json:"via_internet"`
+	NodeName    *string `json:"node_name"`
+	CreatedAt   int64   `json:"created_at"`
+	ExpiresAt   int64   `json:"expires_at"`
+	// Invite says who invited the agent behind the request; null for a request from the tailnet.
+	Invite *inviteMarkJSON `json:"invite"`
 	// Identity is what the agent that ran convoz login --as said about itself; null for a plain login.
 	Identity *introJSON `json:"identity"`
 }
 
-func (s *Server) requestsJSON(list []auth.Request, intros map[int64]introJSON) []requestJSON {
+func (s *Server) requestsJSON(list []auth.Request, intros map[int64]introJSON, invites map[int64]*inviteMarkJSON) []requestJSON {
 	out := make([]requestJSON, 0, len(list))
 	for _, q := range list {
-		row := requestJSON{ID: q.ID, Name: q.Name, UserCode: q.UserCode, HostInfo: json.RawMessage("null"), CreatedAt: q.CreatedAt, ExpiresAt: q.ExpiresAt}
+		row := requestJSON{ID: q.ID, Name: q.Name, UserCode: q.UserCode, HostInfo: json.RawMessage("null"), CreatedAt: q.CreatedAt, ExpiresAt: q.ExpiresAt, Invite: invites[q.ID]}
 		if in, ok := intros[q.ID]; ok {
 			row.Identity = &in
 		}
@@ -225,8 +256,6 @@ func (s *Server) requestsJSON(list []auth.Request, intros map[int64]introJSON) [
 		}
 		src, via := strings.CutPrefix(q.Source, viaInternet)
 		row.ViaInternet = via
-		row.CodeRequired = via && s.Cfg.AgentApproveCode
-		row.CodeRequired = via && s.Cfg.AgentApproveCode
 		if net.ParseIP(src) != nil {
 			row.SourceIP = &src
 		}
@@ -246,11 +275,15 @@ func (s *Server) machineRequests(w http.ResponseWriter, r *http.Request, _ *call
 	if err == nil {
 		intros, err = s.loginIntros(r.Context(), s.reader(), now)
 	}
+	var logins map[int64]*inviteMarkJSON
+	if err == nil {
+		logins, _, err = s.inviteMarks(r.Context(), s.reader(), now)
+	}
 	if err != nil {
 		s.internalError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"requests": s.requestsJSON(list, intros)})
+	writeJSON(w, http.StatusOK, map[string]any{"requests": s.requestsJSON(list, intros, logins)})
 }
 
 // checkIntroBlind is CheckIdentityPackage for a caller nobody has vouched for. A taken or retired handle, a look-alike display name and

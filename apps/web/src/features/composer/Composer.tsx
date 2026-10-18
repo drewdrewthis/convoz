@@ -1,8 +1,8 @@
 import type { Identity, Upload } from "@convoz/api-client";
 import { AttachIcon, MicIcon, SendIcon } from "@convoz/ui/icons";
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type RefObject } from "react";
 import { initials, paletteOf, stripCf } from "../../shared/chat.ts";
-import { loadRecorder, type VoiceRecording } from "../voice/index.ts";
+import { loadRecorder, micNote, RecorderLoadError, type VoiceRecording } from "../voice/index.ts";
 import { AttachmentList } from "./AttachmentList.tsx";
 import { pasteFiles, type Attachments } from "./attachments.ts";
 import { enterSends } from "./enterToSend.ts";
@@ -27,6 +27,13 @@ export interface ComposerProps {
   mentions?: { crew: Identity[]; onPick?(who: Identity): void; onInvite?(): void };
 }
 
+/**
+ * keepFocus is the mousedown of every control on the composer: a tap on it must not move focus off the message box. Focus leaving the
+ * box reads as "keyboard closed" (keyboard.ts), which re-lays the page out between the press and the release of the tap, and the
+ * release then lands on something else (iPhone, owner 2026-10-18: "once you start typing in the input the paperclip stops working").
+ */
+const keepFocus = (event: MouseEvent) => event.preventDefault();
+
 type Recorder = Awaited<ReturnType<typeof loadRecorder>>;
 
 /**
@@ -37,7 +44,7 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
   const [text, setText] = useState("");
   const [menu, setMenu] = useState<{ shown: Identity[]; active: number } | null>(null);
   const [voice, setVoice] = useState<{ Bar: Recorder["RecordingBar"]; recording: VoiceRecording } | null>(null);
-  const [micError, setMicError] = useState(false);
+  const [micError, setMicError] = useState("");
   const picker = useRef<HTMLInputElement>(null);
   const mic = useRef<HTMLButtonElement>(null);
   const files = attachments.items;
@@ -48,12 +55,12 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
   const startVoice = async () => {
     if (starting.current) return; // a second tap while the microphone prompt is open
     starting.current = true;
-    setMicError(false);
+    setMicError("");
     try {
-      const recorder = await loadRecorder(); // the recorder's code loads on the first tap
+      const recorder = await loadRecorder().catch(() => Promise.reject(new RecorderLoadError())); // the recorder's code loads on the first tap
       setVoice({ Bar: recorder.RecordingBar, recording: await recorder.startRecording(conversationId) });
-    } catch {
-      setMicError(true);
+    } catch (err) {
+      setMicError(micNote(err));
     } finally {
       starting.current = false;
     }
@@ -81,7 +88,7 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
   };
   const change = (value: string) => {
     setText(value);
-    setMicError(false);
+    setMicError("");
     if (mentions) setMenu(menuFor(value, mentions.crew));
   };
 
@@ -140,7 +147,7 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
           <ul id="agents" className="agents" role="list" aria-label="Agents">
             {(menu?.shown ?? []).map((who, i) => (
               <li key={who.handle} role="presentation">
-                <button className="agentbtn" type="button" tabIndex={-1} aria-selected={i === menu!.active} onClick={() => pick(who)} onMouseDown={(e) => e.preventDefault()}>
+                <button className="agentbtn" type="button" tabIndex={-1} aria-selected={i === menu!.active} onClick={() => pick(who)} onMouseDown={keepFocus}>
                   <span className={`ava p${paletteOf(who.handle)}`} aria-hidden="true" data-l={initials(who.handle)} />
                   <span className="who">
                     <span className="handle" aria-label={`@${who.handle}`}>
@@ -157,7 +164,7 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
             ))}
           </ul>
           {mentions.onInvite ? (
-            <button className="agentbtn invite" type="button" role="option" tabIndex={-1} aria-selected={menu ? menu.active >= menu.shown.length : false} hidden={!menu} onClick={invite} onMouseDown={(e) => e.preventDefault()}>
+            <button className="agentbtn invite" type="button" role="option" tabIndex={-1} aria-selected={menu ? menu.active >= menu.shown.length : false} hidden={!menu} onClick={invite} onMouseDown={keepFocus}>
               Invite a new agent…
             </button>
           ) : null}
@@ -185,7 +192,7 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
           onSend(body, sent);
         }}
       >
-        <button type="button" className="attachbtn" aria-label="Attach a file" title="Attach a file" disabled={!conversationId} onClick={() => picker.current?.click()}>
+        <button type="button" className="attachbtn" aria-label="Attach a file" title="Attach a file" disabled={!conversationId} onMouseDown={keepFocus} onClick={() => picker.current?.click()}>
           <AttachIcon />
         </button>
         <input
@@ -216,17 +223,17 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
         />
         <span className="sendslot">
           {/* Send stays in the page (and disabled) under the microphone while there is nothing to send. */}
-          <button id="send" className={`sendbtn${empty ? " under" : ""}`} type="submit" aria-label="Send" disabled={!canSend}>
+          <button id="send" className={`sendbtn${empty ? " under" : ""}`} type="submit" aria-label="Send" disabled={!canSend} onMouseDown={keepFocus}>
             <SendIcon />
           </button>
-          <button ref={mic} type="button" className="sendbtn mic" aria-label="Record a voice message" title="Record a voice message" hidden={!empty} disabled={!conversationId} onClick={() => void startVoice()}>
+          <button ref={mic} type="button" className="sendbtn mic" aria-label="Record a voice message" title="Record a voice message" hidden={!empty} disabled={!conversationId} onMouseDown={keepFocus} onClick={() => void startVoice()}>
             <MicIcon />
           </button>
         </span>
       </form>
       {micError ? (
         <p role="alert" className="micnote">
-          The microphone is not available.
+          {micError}
         </p>
       ) : null}
     </div>

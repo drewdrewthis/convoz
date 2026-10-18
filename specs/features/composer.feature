@@ -154,3 +154,83 @@ Feature: Composer
       When the owner pastes the words "Looks good to me" into the message box and into the thread's reply box
       Then both boxes show "Looks good to me" as text
       And no file waits under "Files to send"
+
+  Rule: The phone composer is compact and the page does not zoom
+
+    # Owner ruling 2026-10-18 (iPhone, Chrome): "I think you should also disable zoom, tighten the input component to save space,
+    # and get rid of the padding under 'also send to conversation'"
+    @v1 @browser @phone
+    Scenario: The phone composer is compact and the page does not zoom
+      Given conversation 41 is open with a thread on its first message
+      When the owner opens conversation 41 on a 390 by 844 phone with the keyboard closed
+      Then the viewport has maximum-scale=1
+      And every text box has a font size of at least 16 px
+      And the empty composer is at most 56 px tall
+      When the owner opens the thread
+      Then its reply box is 16 px too
+
+  Rule: The @ mention and the paperclip work on a phone with the keyboard up
+
+    # Owner report 2026-10-18 (iPhone, Chrome): "Also the @ mention is weird. I doesn't stay in the input - some weird behavior there"
+    @v1 @browser @phone
+    Scenario: The @ text stays as typed while the list is open on a phone
+      Given conversation 41 is open on a phone with the keyboard up
+      When the owner types "@cl" key by key
+      Then the message box shows "@cl" and the list offers "claude-convoz"
+      And the same holds when the keyboard sends the letters as one insert or as a composition
+
+    @v1 @browser @phone
+    Scenario: Tapping a name leaves the handle in the box on a phone
+      Given conversation 41 is open on a phone with the keyboard up and "@cl" typed
+      When the owner taps "claude-convoz" in the list
+      Then the message box holds "@claude-convoz " with the caret after it
+      And it survives the keyboard closing and opening
+
+    @v1 @browser @phone
+    Scenario: A mention sent from a phone is in the message
+      Given conversation 41 is open on a phone with the keyboard up and "@claude-convoz " picked by a tap
+      When the owner types "hi" and taps Send
+      Then the message is "@claude-convoz hi" and "claude-convoz" is in the conversation
+
+    # Owner report 2026-10-18 (iPhone, Chrome): "once you start typing in the input the paperclip stops working"
+    @v1 @browser @phone
+    Scenario: The paperclip works after the owner types on a phone
+      Given conversation 41 is open on a phone with the keyboard up
+      When the owner types "hello" and taps the paperclip once
+      Then the file chooser opens
+      And the message box still holds "hello"
+
+  Rule: The conversation header floats over the messages
+
+    # Owner ruling 2026-10-18: "You didn't do the ui update for the chat yet? It should have the floating circle buttons instead of the full header"
+    @v1 @browser @phone
+    Scenario: The conversation header is floating circle buttons
+      Given conversation 41 has more messages than fit on a phone screen
+      When the owner opens conversation 41 on a phone
+      Then the header has no bar background
+      And the back button and the action buttons are circles of at least 44 px
+      And the title is visible
+      And the message list scrolls under the top area
+
+  Rule: The microphone note says why it is not available
+
+    # Owner (Drew, ask 119): "Chrome"
+    @v1 @browser
+    Scenario: Chrome on iPhone without a microphone API is told to use Safari
+      Given the owner's browser is Chrome on an iPhone with no microphone API
+      When the owner taps the microphone
+      Then the note says "Chrome on iPhone can't use the microphone here. Open Convoz in Safari and add it to the Home Screen from there."
+
+    # Owner (Drew, ask 119): "Chrome"
+    @v1 @browser
+    Scenario: Another browser without a microphone API says it cannot record
+      Given the owner's browser has no microphone API and is not Chrome on an iPhone
+      When the owner taps the microphone
+      Then the note says "This browser can't record audio."
+
+    # Owner (Drew, ask 119): "Chrome"
+    @v1 @browser
+    Scenario: A refused microphone says access is off
+      Given the owner's browser refuses the microphone with NotAllowedError
+      When the owner taps the microphone
+      Then the note says "Microphone access is off. Allow it in Settings for this app, then try again."

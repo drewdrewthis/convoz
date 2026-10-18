@@ -27,7 +27,7 @@ func (s *Server) mintSession(w http.ResponseWriter, r *http.Request, c *call) {
 		}
 		req.Create = &auth.CreateIdentity{
 			DisplayName: in.Create.DisplayName, Description: in.Create.Description, AvatarSVG: avatar,
-			ConversationID: in.Create.ConversationID, Request: in.Create.Request,
+			ConversationID: in.Create.ConversationID, Request: in.Create.Request, Invite: in.Create.Invite,
 		}
 	}
 	var minted auth.MintedSession

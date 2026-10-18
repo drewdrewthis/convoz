@@ -78,6 +78,12 @@ func (f *fakePush) Do(req *http.Request) (*http.Response, error) {
 	if c, ok := f.status[endpoint]; ok {
 		code = c
 	}
+	// Like Apple, refuse a VAPID token whose sub is not a mailto of one address or an https URL.
+	if claims, err := notify.VAPIDClaims(req.Header.Get("Authorization")); err != nil {
+		code = http.StatusForbidden
+	} else if sub, _ := claims["sub"].(string); !notify.ValidVAPIDSubject(sub) {
+		code = http.StatusForbidden
+	}
 	rec := pushRecord{
 		Endpoint: endpoint, Topic: req.Header.Get("Topic"), Urgency: req.Header.Get("Urgency"), TTL: req.Header.Get("TTL"),
 		Encoding: req.Header.Get("Content-Encoding"), Auth: req.Header.Get("Authorization"), Size: len(body),

@@ -113,6 +113,15 @@ func (seatPort) OwnerConversation(ctx context.Context, d pdb.DBTX, id int64) (st
 	return cv.Title, true, nil
 }
 
+// IdentityIn says whether the identity is an active participant of a live conversation.
+func (seatPort) IdentityIn(ctx context.Context, d pdb.DBTX, id, who int64) (bool, error) {
+	if _, found, err := conversation.Get(ctx, d, id); err != nil || !found {
+		return false, err
+	}
+	m, found, err := conversation.Membership(ctx, d, id, who)
+	return found && m.Active, err
+}
+
 // Join is the participants path of I-17: a person adds the agent at once and it sees what comes after (since_now); with no person
 // (byHuman 0) the agent asks for the seat itself and waits for the owner to approve.
 func (seatPort) Join(ctx context.Context, d pdb.DBTX, now time.Time, conv, agent, byHuman int64) error {

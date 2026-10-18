@@ -99,9 +99,102 @@ Feature: Notifications
       And "devtool" asks a question
       Then the iPhone shows the notification and the app badge shows 1
 
+  Rule: Turning push on shows each step and confirms with a push
+
+    # The owner, on an iPhone with Convoz on the Home Screen: "I'm not getting native notifications - can we fix that?" and
+    # "I added it to the Home Screen already. I didn't get a notification for notifications being turned on".
+
+    @v1 @browser
+    Scenario: Turning push on shows each step and ends On
+      Given the owner's phone allows notifications
+      When the owner turns on "Push on this device" in Settings
+      Then Settings says "Asking iPhone for permission…" and then "Signing up this device…"
+      And Settings shows this device as "On"
+
+    @v1 @browser
+    Scenario: Turning push on sends a confirmation push
+      Given the owner's phone allows notifications
+      When the owner turns on "Push on this device" in Settings
+      Then the fake push service receives one push titled "Notifications are on"
+      And the push reads "You'll get messages from your agents here."
+
+    @v1 @browser
+    Scenario: A background worker that never starts shows an error
+      Given the owner's phone allows notifications
+      And the app's background worker never becomes ready
+      When the owner turns on "Push on this device" in Settings
+      Then Settings shows an error saying the background worker did not start
+      And this device is not signed up for push
+
+    @v1 @api
+    Scenario: A browser with push only on its background worker can turn push on
+      Given a phone browser whose window has no push support but whose background worker has it
+      Then Settings treats the phone as able to receive push
+
+  Rule: A banner on first open asks to turn notifications on
+
+    # Owner (Drew, ask 111): "Banner on first open"
+    # "A one-tap 'Turn on notifications' banner at the top of the Home Screen app the first time you open it, until you turn it on or
+    # dismiss it. iPhone needs your tap, so this is the closest to asking by itself."
+
+    @v1 @browser
+    Scenario: The banner shows on first open when push is possible and undecided
+      Given the owner's phone can receive push and has not decided on notifications
+      When the owner opens Conversations
+      Then the banner "Turn on notifications" shows with a "Turn on" button and a "Dismiss" button
+
+    @v1 @browser
+    Scenario: Tapping Turn on subscribes the device and the banner leaves
+      Given the owner's phone can receive push and has not decided on notifications
+      When the owner taps "Turn on" in the banner
+      Then the banner goes away
+      And the fake push service receives one push titled "Notifications are on"
+      And Settings shows this device as "On"
+
+    @v1 @browser
+    Scenario: Dismissing the banner keeps it gone after a reload
+      Given the owner's phone can receive push and has not decided on notifications
+      When the owner dismisses the banner
+      And the owner reloads the page
+      Then the banner does not show
+
+    @v1 @browser
+    Scenario Outline: No banner once notifications are decided
+      Given the owner's phone has notifications <permission>
+      When the owner opens Conversations
+      Then the banner does not show
+
+      Examples:
+        | permission |
+        | allowed    |
+        | blocked    |
+
+    @v1 @browser
+    Scenario: No banner when the browser cannot receive push
+      Given the owner's browser cannot receive push
+      When the owner opens Conversations
+      Then the banner does not show
+
   Rule: Answering from the notification is later and off by default (I-35)
 
     @later @api @I-35
     Scenario: Push action buttons are off by default
       When "devtool" asks a question
       Then the push has no action buttons
+
+  Rule: Chrome on iPhone is told to use Safari
+
+    # Owner (Drew, ask 119): "Chrome"
+    @v1 @browser
+    Scenario: Settings tells Chrome on iPhone to use Safari
+      Given the owner's browser is Chrome on an iPhone
+      When the owner opens Settings
+      Then "This device" says "Chrome on iPhone has no notifications for web apps. Open Convoz in Safari and add it to the Home Screen from there."
+
+    # Owner (Drew, ask 119): "Chrome"
+    @v1 @browser
+    Scenario: The banner tells Chrome on iPhone to use Safari and can be dismissed
+      Given the owner's browser is Chrome on an iPhone
+      When the owner opens Conversations
+      Then the banner says "Chrome on iPhone has no notifications for web apps. Open Convoz in Safari and add it to the Home Screen from there." with no "Turn on" button
+      And dismissing the banner keeps it gone after a reload

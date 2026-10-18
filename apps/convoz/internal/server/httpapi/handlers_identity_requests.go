@@ -38,6 +38,8 @@ type identityRequestJSON struct {
 	ViaInternet bool  `json:"via_internet"`
 	CreatedAt   int64 `json:"created_at"`
 	ExpiresAt   int64 `json:"expires_at"`
+	// Invite says who invited the agent; null for a request from the tailnet.
+	Invite *inviteMarkJSON `json:"invite"`
 }
 
 func (s *Server) introOf(ctx context.Context, d pdb.DBTX, r auth.IdentityRequest) (introJSON, error) {
@@ -76,7 +78,7 @@ func (s *Server) loginIntros(ctx context.Context, d pdb.DBTX, now time.Time) (ma
 	return out, nil
 }
 
-func (s *Server) identityRequestViews(ctx context.Context, d pdb.DBTX, now time.Time) ([]identityRequestJSON, error) {
+func (s *Server) identityRequestViews(ctx context.Context, d pdb.DBTX, now time.Time, invites map[int64]*inviteMarkJSON) ([]identityRequestJSON, error) {
 	list, err := auth.PendingIdentityRequests(ctx, d, now)
 	if err != nil {
 		return nil, err
@@ -91,7 +93,7 @@ func (s *Server) identityRequestViews(ctx context.Context, d pdb.DBTX, now time.
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, identityRequestJSON{introJSON: intro, Machine: r.MachineName, MachineID: r.MachineID, ViaInternet: via[r.Ref], CreatedAt: r.CreatedAt, ExpiresAt: r.ExpiresAt})
+		out = append(out, identityRequestJSON{introJSON: intro, Machine: r.MachineName, MachineID: r.MachineID, ViaInternet: via[r.Ref], CreatedAt: r.CreatedAt, ExpiresAt: r.ExpiresAt, Invite: invites[r.ID]})
 	}
 	return out, nil
 }
