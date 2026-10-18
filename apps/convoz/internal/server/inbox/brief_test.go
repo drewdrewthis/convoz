@@ -69,3 +69,10 @@ func TestRender_SizeIsKeptBetween4And64KB(t *testing.T) {
 		}
 	}
 }
+
+func TestRender_WhoYouAreTellsTheAgentToStartWatching(t *testing.T) {
+	b := inbox.Render(inbox.BriefInput{Handle: "devtool", MaxBytes: inbox.DefaultBriefBytes, Page: 1})
+	if !strings.Contains(b.Sections[0].Text, "Start `convoz watch --json` now") {
+		t.Fatalf("the first section lacks the watch line:\n%s", b.Sections[0].Text)
+	}
+}

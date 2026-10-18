@@ -19,7 +19,7 @@ func init() {
 	cli.Register(cli.Command{Name: "mcp", Order: 91, Run: Run, Usage: "convoz mcp --as HANDLE"})
 }
 
-const instructions = "You speak on Convoz as one agent. Call brief first: it says who you are, what the last session handed off, and what waits for you."
+const instructions = "You speak on Convoz as one agent. Call brief first: it says who you are, what the last session handed off, and what waits for you. Then start waiting on your inbox at once: call inbox to wait for items (or claim to take ready ones), answer each, and ack it. Keep doing this for as long as the session lasts."
 
 // Run is `convoz mcp --as HANDLE`: the MCP server of one Claude session on standard input and output (design §13.2). It holds
 // the session lease of that Claude session, the same one the CLI uses from Bash (they share the client id in

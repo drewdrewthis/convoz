@@ -15,6 +15,12 @@ Feature: Agent sessions as one identity
 
   Rule: A lease is minted only for an identity the machine may use
 
+    # Owner (Drew, msg 128): "Also, the prompt instructions should tell the agent to start watching its inbox immediately"
+    @v1 @cli
+    Scenario: Session start tells the agent to start watching its inbox at once
+      When "convoz session start --as devtool" runs on "box-2"
+      Then stderr says to start "convoz watch --json" and stdout stays one CONVOZ_SID line
+
     @v1 @cli @I-37 @I-42
     Scenario: Session start prints only a local session id
       When "convoz session start --as devtool" runs on "box-2"

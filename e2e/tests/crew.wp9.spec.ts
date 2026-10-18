@@ -186,6 +186,24 @@ scenario("The Add agent prompt says how to ack", { tag: ["@browser"] }, async ({
   );
 });
 
+scenario("The add-agent prompt tells the agent to start watching its inbox at once", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  const c = await crewWorld({ server, page, context }, { agents: ["devtool"] });
+
+  // When the owner opens the sheet "Invite agent"
+  await page.goto(`${c.w.srv.origin}/crew?invite`);
+
+  // Then the watch line comes right after the connect lines and before "Then:"
+  const prompt = sheetNamed(page, "Invite agent").getByLabel("Connect prompt");
+  await expect(prompt).toContainText("convoz session start --as <your-handle> --create");
+  const text = (await prompt.innerText()).replace(/\u00a0/g, " ");
+  const watch = "Right after you connect, start `convoz watch --json` and keep it running in the background: it prints one line per message or ask for you. Answer, then `convoz ack <ack>`.";
+  const lines = text.split("\n");
+  const at = lines.indexOf(watch);
+  expect(at).toBeGreaterThan(-1);
+  expect(lines[at - 2]).toContain("If this machine may not make identities");
+  expect(lines[at + 2]).toContain("Then:  export CONVOZ_AS=<your-handle>");
+});
+
 scenario("What an agent says about itself shows as data", { tag: ["@browser", "@cli"] }, async ({ server, page, context }) => {
   // Given an agent sent the description "<b>bold</b> **stars** https://evil.example" and an SVG avatar with a script in it
   const c = await crewWorld({ server, page, context }, { agents: ["devtool"] });

@@ -60,6 +60,17 @@ scenario("A fresh session gets the whole brief within 12 KB", { tag: ["@cli"] },
   expect(occurrences(out, "Secret merger plan")).toBe(0);
 });
 
+scenario("The brief tells the agent to start watching its inbox at once", { tag: ["@cli"] }, async ({ server, dataDir }) => {
+  const w = await briefWorld({ server, dataDir });
+
+  // When a new session runs "convoz brief --as devtool"
+  const res = await asDevtool(w, "fresh", ["brief"]);
+  expect(res.code, res.stderr).toBe(0);
+
+  // Then the section "Who you are" says to start "convoz watch --json"
+  expect(sectionOf(res.stdout, "Who you are")).toContain("Start `convoz watch --json` now and keep it running");
+});
+
 scenario("The handoff and the asks come first and keep their budget", { tag: ["@cli"] }, async ({ server, dataDir }) => {
   // Given "devtool" has 60 conversations with unread messages
   const w = await briefWorld({ server, dataDir });

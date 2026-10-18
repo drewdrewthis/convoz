@@ -216,8 +216,12 @@ func SessionStart(args []string, io IO) int {
 		return fail(io, err)
 	}
 	fmt.Fprintf(io.Stdout, "CONVOZ_SID=%s\n", sid)
+	fmt.Fprintln(io.Stderr, watchNext) // stderr: stdout stays the one CONVOZ_SID line scripts read
 	return ExitOK
 }
+
+// watchNext is the first step after a connect. The owner asked (msg 128) that agents start watching their inbox at once.
+const watchNext = "Next: start `convoz watch --json` now and keep it running: it prints one line per message or ask for you. Answer, then `convoz ack <ack>`."
 
 // waitForOwner is how long `session start --create` waits for the owner before it gives up. The request itself stays for a day:
 // the same command, run again, picks it up.

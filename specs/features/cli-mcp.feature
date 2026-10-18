@@ -148,6 +148,12 @@ Feature: The convoz CLI and MCP server for agents
       When the owner opens the sheet "Invite agent"
       Then the prompt on the Listen line says to ack each item with "convoz ack <id>:<token>"
 
+    # Owner (Drew, msg 128): "Also, the prompt instructions should tell the agent to start watching its inbox immediately"
+    @v1 @browser
+    Scenario: The add-agent prompt tells the agent to start watching its inbox at once
+      When the owner opens the sheet "Invite agent"
+      Then the prompt has the line "Right after you connect, start `convoz watch --json`" right after the connect lines
+
     # Owner ruling 2026-10-18, on "let agents rename conversations they're in, with a system line?": "Yes."
     @v1 @mcp
     Scenario: An agent renames a conversation through MCP
