@@ -715,15 +715,16 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * An agent asks the owner for a new handle (one tap in Now). Without `request` it files; with it, it asks what became of it.
-         * @description Owner said: "Handles I think can also change, that seems fine because there's an id, right?" and "the handle is never reused".
+         * An agent changes its own handle. It applies at once, with no approval.
+         * @description Owner said: "Handles I think can also change, that seems fine because there's an id, right?" and "the handle is never reused";
+         *     asked whether the agent's own change needs approval: "Change at once, no approval".
          *     The new handle passes every rule of a new one (valid, not reserved, not taken, never used before, no UTS-39 look-alike of any
-         *     handle or display name; the agent's own display name excepted), and a handle changes at most once in 30 days (429 `rate_limited`
-         *     with Retry-After). A handle that would bring the agent under the glob of a machine that may not act as it now is 400. Filing again
-         *     for the same handle gives the waiting request back; for another handle it replaces it. A request waits 24 hours.
-         *     Asking with `request`: 202 while it waits, 200 once the owner approved it, 403 `request_denied`, 410 `request_expired`.
+         *     handle or display name; the agent's own display name excepted), and a handle changes at most 3 times a day (429 `rate_limited`
+         *     with Retry-After). A handle that would bring the agent under the glob of a machine that may not act as it now is 400. One
+         *     transaction, as the owner's change: the old handle stays an alias until `previous_until` (30 days), and every conversation the
+         *     agent is in gets the line "@old is now @new". It sends no push.
          */
-        post: operations["requestHandle"];
+        post: operations["changeOwnHandle"];
         delete?: never;
         options?: never;
         head?: never;
@@ -741,48 +742,10 @@ export interface paths {
         put?: never;
         /**
          * The owner changes an agent's handle in Crew → the agent profile. No passkey check.
-         * @description The same rules as an agent's request (I-51). One transaction: the old handle is retired at once and never used again, every
-         *     conversation the agent is in gets the line "@old is now @new", and a waiting request of that agent is withdrawn. A human's handle
-         *     never changes here (400).
+         * @description The same rules and the same path as an agent's own change (I-51). One transaction: the old handle is retired at once and never
+         *     used again, and every conversation the agent is in gets the line "@old is now @new". A human's handle never changes here (400).
          */
         post: operations["changeHandle"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/handle-requests/{ref}/approve": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * One tap on the card "@old wants to be @new" in Now. No passkey check.
-         * @description Every rule is checked again here (the handle may have been taken since). A request that was decided, withdrawn or expired, or whose
-         *     agent changed its handle since, is 404.
-         */
-        post: operations["approveHandleRequest"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/handle-requests/{ref}/deny": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["denyHandleRequest"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2007,38 +1970,9 @@ export interface components {
             /** @description Present when the caller set an avatar. */
             avatar_url?: string;
         };
-        HandleRequestBody: {
+        HandleChangeBody: {
             /** @description The new handle. */
             handle: string;
-            /** @description The ref of a request filed before: ask what became of it. */
-            request?: string;
-        };
-        HandleRequestState: {
-            /** @description hdr_ and 32 hex characters. */
-            ref: string;
-            /** @enum {string} */
-            state: "pending";
-            from: string;
-            to: string;
-            /** Format: int64 */
-            expires_at: number;
-            /** @description How long to wait before asking again. */
-            interval_ms: number;
-        };
-        /** @description An agent that asks the owner for a new handle, as Now shows it. */
-        HandleRequest: {
-            ref: string;
-            /** Format: int64 */
-            identity_id: number;
-            /** @description The agent's handle now. */
-            from: string;
-            /** @description The handle it asks for. */
-            to: string;
-            display_name: string;
-            /** Format: int64 */
-            created_at: number;
-            /** Format: int64 */
-            expires_at: number;
         };
         HandleChanged: {
             identity: {
@@ -2046,6 +1980,11 @@ export interface components {
                 id: number;
                 handle: string;
                 previous_handle: string;
+                /**
+                 * Format: int64
+                 * @description When the old handle stops reaching the agent (epoch ms).
+                 */
+                previous_until: number;
             };
         };
         /** @description A handle the agent had before. A mention of it still reaches the agent; as --as it works until `until`. */
@@ -3051,8 +2990,6 @@ export interface components {
             machine_requests: components["schemas"]["MachineRequest"][];
             /** @description Agents on logged-in machines that ask to be made. */
             identity_requests: components["schemas"]["IdentityRequest"][];
-            /** @description Agents that ask for a new handle, oldest first. Always sent; optional only so a Now kept on the device from before still reads. */
-            handle_requests?: components["schemas"]["HandleRequest"][];
         };
         RepliesResponse: {
             /** Format: int64 */
@@ -4185,7 +4122,7 @@ export interface operations {
             default: components["responses"]["Error"];
         };
     };
-    requestHandle: {
+    changeOwnHandle: {
         parameters: {
             query?: never;
             header?: never;
@@ -4194,28 +4131,17 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["HandleRequestBody"];
+                "application/json": components["schemas"]["HandleChangeBody"];
             };
         };
         responses: {
-            /** @description The owner approved the request; the handle changed. */
+            /** @description The handle changed. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["HandleChanged"];
-                };
-            };
-            /** @description The request waits for the owner. */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        request: components["schemas"]["HandleRequestState"];
-                    };
                 };
             };
             default: components["responses"]["Error"];
@@ -4247,44 +4173,6 @@ export interface operations {
                     "application/json": components["schemas"]["HandleChanged"];
                 };
             };
-            default: components["responses"]["Error"];
-        };
-    };
-    approveHandleRequest: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                ref: string;
-            };
-            cookie?: never;
-        };
-        requestBody: components["requestBodies"]["Empty"];
-        responses: {
-            /** @description The handle changed. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HandleChanged"];
-                };
-            };
-            default: components["responses"]["Error"];
-        };
-    };
-    denyHandleRequest: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                ref: string;
-            };
-            cookie?: never;
-        };
-        requestBody: components["requestBodies"]["Empty"];
-        responses: {
-            200: components["responses"]["Empty"];
             default: components["responses"]["Error"];
         };
     };

@@ -9,14 +9,15 @@ import { expect, scenario } from "../lib/scenario.ts";
 /*
  * crew.feature, rule "An agent's handle can change" (I-51), user-facing and contract bindings.
  * Owner (2026-10-18): "Handles I think can also change, that seems fine because there's an id, right?" Earlier: "the handle is never reused."
+ * Asked whether an agent's own change needs approval, the owner chose "Change at once, no approval": "I think that's too defensive and
+ * requires too much machinery?"
  *
  * Contract these bindings rely on:
- *   POST /api/me/handle (lease) {handle, request?} -> 202 {request:{ref "hdr_"+32 hex, state, from, to, expires_at, interval_ms}} | 200 {identity:{id, handle, previous_handle}}
- *   POST /api/identities/:id/handle (owner, no step-up) {handle} -> 200 {identity:{id, handle, previous_handle}}
- *   POST /api/handle-requests/:ref/{approve,deny} (owner, no step-up); GET /api/now handle_requests [{ref, identity_id, from, to, display_name}]
+ *   POST /api/me/handle (lease) {handle} -> 200 {identity:{id, handle, previous_handle, previous_until}}; 3 changes a day at most (429 + Retry-After)
+ *   POST /api/identities/:id/handle (owner, no step-up) {handle} -> 200 {identity:{id, handle, previous_handle, previous_until}}
  *   GET /api/identities: previous_handles, handle_changed_at; a message: mentions [{as_written, identity_id, handle}]
  *   POST /api/sessions with a retired `as`: 201 + renamed {from, to, until} for 30 days, then 403 handle_renamed.
- *   Page: Now card <article> named "@old wants to be @new" (Approve, Decline); /crew/<handle> shows "Was @old", button "Change handle" opens the
+ *   Page: /crew/<handle> shows "Was @old", button "Change handle" opens the
  *   group "Change handle" with the textbox "New handle" and the button "Save".
  */
 
@@ -50,8 +51,8 @@ async function changed(owner: Owner, from: string, to: string): Promise<number> 
   return id;
 }
 
-/** An agent asks for a handle with its lease. */
-const askHandle = (srv: { target: Parameters<typeof send>[0] }, token: string, body: Record<string, unknown>): Promise<Res> =>
+/** An agent changes its own handle with its lease. */
+const ownHandle = (srv: { target: Parameters<typeof send>[0] }, token: string, body: Record<string, unknown>): Promise<Res> =>
   send(srv.target, "POST", "/api/me/handle", { json: body, ...bearer(token) });
 
 const errorOf = (res: Res): { code: string; message: string; field?: string } => res.json().error;
@@ -66,34 +67,40 @@ async function auditRows(owner: Owner): Promise<{ action: string; target_id: num
 
 // ---- user-facing: specs/features/crew.feature -------------------------------------------------------------------------------------
 
-scenario("An agent asks for a new handle and the owner approves it in Now", { tag: ["@cli", "@browser"] }, async ({ server, page, context }) => {
+scenario("An agent changes its own handle at once", { tag: ["@cli", "@browser"] }, async ({ server, page, context }) => {
+  // Given "devtool" is in the conversation "Ship search filters"
   const w = await chatWorld(server, { agents: ["devtool"] });
+  const conv = await createConversation(w.owner, { participants: ["devtool"], title: "Ship search filters" });
   const s = await startSession(w.box, "devtool", "handle-ask");
+  const before = await serverNow(w.owner);
 
   // When "convoz profile --set handle=builder" runs as "devtool"
-  const run = w.box.start(["profile", "--sid", s.sid, "--set", "handle=builder"], { timeoutMs: 60_000 });
+  const done = await w.box.run(["profile", "--sid", s.sid, "--set", "handle=builder"], { timeoutMs: 20_000 });
 
-  // Then the CLI says it is waiting for the owner and does not exit
-  await expect.poll(() => run.stderr(), { timeout: 10_000 }).toMatch(/Waiting for the owner to approve @builder/);
-  expect(await Promise.race([run.done.then(() => "exited"), new Promise((r) => setTimeout(() => r("waiting"), 700))])).toBe("waiting");
-
-  // And the owner sees one Now card "@devtool wants to be @builder"
-  await signInBrowser(w.srv, w.owner, page, context);
-  const card = page.getByRole("article", { name: "@devtool wants to be @builder", exact: true });
-  await expect(card).toHaveCount(1);
-
-  // When the owner taps Approve on that card
-  await card.getByRole("button", { name: "Approve", exact: true }).click();
-
-  // Then the CLI prints "@devtool is now @builder." and exits 0
-  const done = await run.done;
+  // Then the CLI prints "You are now @builder. Old @devtool works until" followed by the date 30 days on, and exits 0
   expect(done.code, done.stderr).toBe(0);
-  expect(done.stdout).toBe("@devtool is now @builder.\n");
+  const day = (ms: number) => new Date(ms + 30 * DAY).toISOString().slice(0, 10);
+  const dates = new Set([day(before), day(await serverNow(w.owner))]);
+  const printed = /^You are now @builder\. Old @devtool works until (\d{4}-\d{2}-\d{2})\.\n$/.exec(done.stdout);
+  expect(printed, done.stdout).not.toBeNull();
+  expect(dates.has(printed![1]!), `${printed![1]} in ${[...dates]}`).toBe(true);
+
+  // And the owner sees no Now card about it
+  await signInBrowser(w.srv, w.owner, page, context);
+  const nowLoaded = page.waitForResponse((r) => r.url().endsWith("/api/now"));
+  await page.reload();
+  await nowLoaded;
+  await expect(page.getByRole("article")).toHaveCount(0);
+  expect(must(await w.owner.client.get("/api/now"), "now").json().handle_requests).toBeUndefined();
 
   // And Crew shows "builder" with the line "Was @devtool"
   await page.goto(`${w.srv.origin}/crew/builder`);
   await expect(page.getByRole("heading", { level: 2 })).toContainText("@builder");
   await expect(page.getByText("Was @devtool", { exact: true })).toBeVisible();
+
+  // And "Ship search filters" shows the line "@devtool is now @builder"
+  await page.goto(`${w.srv.origin}/chats/${conv}`);
+  await expect(page.getByText("@devtool is now @builder", { exact: true })).toBeVisible();
 
   // And "convoz whoami" in the same session shows identity "builder"
   const who = await w.box.whoami(["--sid", s.sid]);
@@ -101,29 +108,6 @@ scenario("An agent asks for a new handle and the owner approves it in Now", { ta
   expect(who.stdout).toContain("identity: builder");
   const file = JSON.parse(fs.readFileSync(w.box.sessionPath(s.sid), "utf8")) as { identity: string; as: string; identity_id: number };
   expect([file.identity, file.as]).toEqual(["builder", "devtool"]);
-});
-
-scenario("Declining a handle request keeps the handle", { tag: ["@cli", "@browser"] }, async ({ server, page, context }) => {
-  const w = await chatWorld(server, { agents: ["devtool"] });
-  const s = await startSession(w.box, "devtool", "handle-decline");
-
-  // When "convoz profile --set handle=builder" runs as "devtool"
-  const run = w.box.start(["profile", "--sid", s.sid, "--set", "handle=builder"], { timeoutMs: 60_000 });
-  await expect.poll(() => run.stderr(), { timeout: 10_000 }).toMatch(/Waiting for the owner/);
-
-  // And the owner taps Decline on the card "@devtool wants to be @builder"
-  await signInBrowser(w.srv, w.owner, page, context);
-  await page.getByRole("article", { name: "@devtool wants to be @builder", exact: true }).getByRole("button", { name: "Decline", exact: true }).click();
-
-  // Then the CLI exits 3 with a message that the owner denied the request
-  const done = await run.done;
-  expect(done.code, done.stderr).toBe(3);
-  expect(done.stderr).toMatch(/owner denied the request/i);
-
-  // And Crew still lists "devtool" and no "builder"
-  const handles = (await identities(w.owner)).map((i) => i.handle);
-  expect(handles).toContain("devtool");
-  expect(handles).not.toContain("builder");
 });
 
 scenario("The owner changes an agent's handle in Crew", { tag: ["@browser"] }, async ({ server, page, context }) => {
@@ -205,7 +189,7 @@ scenario("The old handle works for 30 days with a warning, then is refused with 
   expect(ok.stderr).toBe("");
 });
 
-scenario("An old handle is never used again, and a handle changes once in 30 days", { tag: ["@cli"] }, async ({ server }) => {
+scenario("An old handle is never used again, and a handle changes 3 times a day at most", { tag: ["@cli"] }, async ({ server }) => {
   // Given "box-2" also runs "docs", and the owner changed the handle of "devtool" to "builder"
   const w = await chatWorld(server, { agents: ["devtool", "docs"] });
   await changed(w.owner, "devtool", "builder");
@@ -217,12 +201,19 @@ scenario("An old handle is never used again, and a handle changes once in 30 day
   expect(reused.code, reused.stderr).toBe(4);
   expect(reused.stderr).toMatch(/taken or was used before/);
 
-  // When "convoz profile --set handle=builder-2" runs as "builder"
-  const again = await w.box.run(["profile", "--set", "handle=builder-2"], { as: "builder", timeoutMs: 20_000 });
+  // When "convoz profile --set handle=builder-2" and then "handle=builder-3" run as the agent
+  const second = await w.box.run(["profile", "--set", "handle=builder-2"], { as: "builder", timeoutMs: 20_000 });
+  const third = await w.box.run(["profile", "--set", "handle=builder-3"], { as: "builder-2", timeoutMs: 20_000 });
 
-  // Then the CLI exits 5 and says a handle changes once in 30 days
-  expect(again.code, again.stderr).toBe(5);
-  expect(again.stderr).toMatch(/A handle changes once in 30 days/);
+  // Then both succeed
+  expect([second.code, third.code], `${second.stderr} | ${third.stderr}`).toEqual([0, 0]);
+
+  // When "convoz profile --set handle=builder-4" runs as the agent
+  const fourth = await w.box.run(["profile", "--set", "handle=builder-4"], { as: "builder-3", timeoutMs: 20_000 });
+
+  // Then the CLI exits 5 and says a handle changes 3 times a day at most
+  expect(fourth.code, fourth.stderr).toBe(5);
+  expect(fourth.stderr).toMatch(/A handle changes 3 times a day at most/);
 });
 
 // ---- contracts: specs/contracts/crew.feature ----------------------------------------------------------------------------------------
@@ -240,7 +231,7 @@ scenario("A handle change retires the old handle at once and tells every convers
 
   // Then the server answers 200 with the handle "builder" and the previous handle "devtool"
   expect(res.status, res.text).toBe(200);
-  expect(res.json().identity).toEqual({ id, handle: "builder", previous_handle: "devtool" });
+  expect(res.json().identity).toMatchObject({ id, handle: "builder", previous_handle: "devtool" });
 
   // And GET /api/identities lists "builder" under the same id with previous_handles ["devtool"]
   const row = (await identities(w.owner)).find((i) => i.id === id)!;
@@ -295,76 +286,69 @@ scenario("A new handle passes every rule of a new one", { tag: ["@api"] }, async
   expect((await identities(w.owner)).find((i) => i.id === id)?.handle).toBe("devtool");
 });
 
-scenario("An agent asks with its lease and only the owner decides, with one tap", { tag: ["@api"] }, async ({ server }) => {
+scenario("An agent changes its own handle with its lease, at once", { tag: ["@api"] }, async ({ server }) => {
+  // Given "devtool" is in conversations 41 and 52
   const w = await chatWorld(server, { agents: ["devtool"] });
+  const convs = [await createConversation(w.owner, { participants: ["devtool"] }), await createConversation(w.owner, { participants: ["devtool"] })];
+  const id = await idOf(w.owner, "devtool");
   const token = await lease(w.srv, w.box2.key, { as: "devtool" });
   const session = must(await whoamiApi(w.srv, token), "whoami").json().session.id as number;
+  const before = await serverNow(w.owner);
 
   // When the "devtool" session sends POST /api/me/handle with {"handle": "builder"}
-  const filed = await askHandle(w.srv, token, { handle: "builder" });
+  const res = await ownHandle(w.srv, token, { handle: "builder" });
+  const after = await serverNow(w.owner);
 
-  // Then the server answers 202 with a ref of "hdr_" and 32 hex characters
-  expect(filed.status, filed.text).toBe(202);
-  const ref = filed.json().request.ref as string;
-  expect(ref).toMatch(/^hdr_[0-9a-f]{32}$/);
-  expect(filed.json().request).toMatchObject({ state: "pending", from: "devtool", to: "builder" });
+  // Then the server answers 200 with the handle "builder", the previous handle "devtool" and a previous_until 30 days on
+  expect(res.status, res.text).toBe(200);
+  expect(res.json().identity).toMatchObject({ id, handle: "builder", previous_handle: "devtool" });
+  expect(res.json().identity.previous_until).toBeGreaterThanOrEqual(before + 30 * DAY);
+  expect(res.json().identity.previous_until).toBeLessThanOrEqual(after + 30 * DAY);
 
-  // And GET /api/now lists the handle request from "devtool" to "builder"
-  const now = must(await w.owner.client.get("/api/now"), "now").json().handle_requests as { ref: string; from: string; to: string }[];
-  expect(now.map((h) => [h.ref, h.from, h.to])).toEqual([[ref, "devtool", "builder"]]);
+  // And GET /api/now lists no handle requests
+  expect(must(await w.owner.client.get("/api/now"), "now").json().handle_requests).toBeUndefined();
 
-  // When a machine key, a session lease and a caller with no credential each try to approve it
-  const route = `/api/handle-requests/${ref}/approve`;
+  // And conversations 41 and 52 each end with the system line "@devtool is now @builder"
+  for (const conv of convs) {
+    const last = (await messagesOf(w.owner, conv)).at(-1) as unknown as { kind?: string; text?: string };
+    expect([last.kind, last.text]).toEqual(["system", "@devtool is now @builder"]);
+  }
+
+  // And the audit has "identity.handle_changed" with the session of "devtool" and both handles
+  const changedRow = (await auditRows(w.owner)).find((a) => a.action === "identity.handle_changed");
+  expect(changedRow).toMatchObject({ session_id: session, detail: { from: "devtool", to: "builder" } });
+
+  // When a machine key and a caller with no credential each send POST /api/me/handle
   const got = [
-    (await send(w.srv.target, "POST", route, { json: {}, ...bearer(w.box2.key) })).status,
-    (await send(w.srv.target, "POST", route, { json: {}, ...bearer(token) })).status,
-    (await send(w.srv.target, "POST", route, { json: {} })).status,
+    (await send(w.srv.target, "POST", "/api/me/handle", { json: { handle: "other" }, ...bearer(w.box2.key) })).status,
+    (await send(w.srv.target, "POST", "/api/me/handle", { json: { handle: "other" } })).status,
   ];
 
-  // Then the server answers 401 every time
+  // Then the server answers 401 or 403 both times
   expect(got.every((status) => status === 401 || status === 403), JSON.stringify(got)).toBe(true);
-
-  // When the owner approves it with no step-up
-  const approved = await w.owner.client.post(route, {});
-
-  // Then the server answers 200
-  expect(approved.status, approved.text).toBe(200);
-
-  // And asking again with the ref answers 200 with the handle "builder"
-  const polled = await askHandle(w.srv, token, { handle: "builder", request: ref });
-  expect(polled.status, polled.text).toBe(200);
-  expect(polled.json().identity).toMatchObject({ handle: "builder", previous_handle: "devtool" });
-
-  // And the audit has "identity.handle_requested" with the session of "devtool" and "identity.handle_changed" with both handles
-  const audit = await auditRows(w.owner);
-  expect(audit.find((a) => a.action === "identity.handle_requested")).toMatchObject({ session_id: session, detail: { from: "devtool", to: "builder" } });
-  expect(audit.find((a) => a.action === "identity.handle_changed")?.detail).toEqual({ from: "devtool", to: "builder" });
 });
 
-scenario("Two changes at once: one wins, and a post during them reaches the same agent", { tag: ["@api"] }, async ({ server, dataDir }) => {
-  // Given "devtool" filed a request for "maker"
+scenario("Two changes at once: both apply in turn, and a post during them reaches the same agent", { tag: ["@api"] }, async ({ server, dataDir }) => {
   const w = await chatWorld(server, { agents: ["devtool"], env: PLAIN });
   const id = await idOf(w.owner, "devtool");
   const token = await lease(w.srv, w.box2.key, { as: "devtool" });
-  const ref = must(await askHandle(w.srv, token, { handle: "maker" }), "file", 202).json().request.ref as string;
   const conv = await createConversation(w.owner, { participants: [] });
 
-  // When the owner approves that request, changes the handle to "builder", and posts "@devtool status?" all at once
-  const [approve, direct, post] = await Promise.all([
-    w.owner.client.post(`/api/handle-requests/${ref}/approve`, {}),
+  // When "devtool" changes its own handle to "maker", the owner changes it to "builder", and the owner posts "@devtool status?" all at once
+  const [own, direct, post] = await Promise.all([
+    ownHandle(w.srv, token, { handle: "maker" }),
     changeHandle(w.owner, id, "builder"),
     ownerPost(w.owner, conv, "@devtool status?"),
   ]);
 
-  // Then exactly one change answers 200 and the other is refused
-  const statuses = [approve.status, direct.status];
-  expect(statuses.filter((s) => s === 200), `${approve.text} | ${direct.text}`).toHaveLength(1);
-  expect(statuses.find((s) => s !== 200)).toBeGreaterThanOrEqual(400);
+  // Then both changes answer 200, one after the other
+  expect([own.status, direct.status], `${own.text} | ${direct.text}`).toEqual([200, 200]);
 
-  // And the agent has the handle of the change that won, and "devtool" is retired once
-  const won = approve.status === 200 ? "maker" : "builder";
+  // And the agent has the handle of the change that came last, and "devtool" and the handle between are each retired once
   const row = (await identities(w.owner)).find((i) => i.id === id)!;
-  expect([row.handle, row.previous_handles]).toEqual([won, ["devtool"]]);
+  const last = own.json().identity.previous_handle === "devtool" ? "builder" : "maker";
+  const first = last === "builder" ? "maker" : "builder";
+  expect([row.handle, [...(row.previous_handles ?? [])].sort()]).toEqual([last, ["devtool", first].sort()]);
 
   // And the post records a mention of the agent's id
   expect(post.status, post.text).toBe(201);
@@ -376,6 +360,41 @@ scenario("Two changes at once: one wins, and a post during them reaches the same
   } finally {
     db.close();
   }
+});
+
+scenario("The owner renames an agent back to its own old handle, and nobody else may take a retired handle", { tag: ["@api"] }, async ({ server, dataDir }) => {
+  // Given the agents "devtool" and "docs" exist and the owner changed the handle of "devtool" to "builder"
+  const w = await chatWorld(server, { agents: ["devtool", "docs"], env: PLAIN });
+  const id = await changed(w.owner, "devtool", "builder");
+
+  // When the owner changes the handle of "builder" back to "devtool" from Crew
+  const back = await changeHandle(w.owner, id, "devtool");
+
+  // Then the server answers 200 with the handle "devtool" and the previous handle "builder"
+  expect(back.status, back.text).toBe(200);
+  expect(back.json().identity).toMatchObject({ id, handle: "devtool", previous_handle: "builder" });
+
+  // And retired_handles no longer holds "devtool" and holds "builder" for that id
+  const db = plainDb(dataDir);
+  try {
+    expect(db.prepare("SELECT identity_id FROM retired_handles WHERE handle = 'devtool'").all()).toEqual([]);
+    expect(db.prepare("SELECT identity_id FROM retired_handles WHERE handle = 'builder'").all()).toEqual([{ identity_id: id }]);
+  } finally {
+    db.close();
+  }
+
+  // And "docs" asking for "devtool" or for "builder" gets 409 with the code "handle_taken"
+  const docs = await idOf(w.owner, "docs");
+  for (const handle of ["devtool", "builder"]) {
+    const refused = await changeHandle(w.owner, docs, handle);
+    expect(refused.status, `${handle}: ${refused.text}`).toBe(409);
+    expect(errorOf(refused).code, handle).toBe("handle_taken");
+  }
+
+  // And docs asking with its own lease gets the same answer
+  const token = await lease(w.srv, w.box2.key, { as: "docs" });
+  const own = await ownHandle(w.srv, token, { handle: "builder" });
+  expect([own.status, errorOf(own).code]).toEqual([409, "handle_taken"]);
 });
 
 scenario("A post to the old handle records the mention and names the current handle", { tag: ["@api"] }, async ({ server }) => {
@@ -422,36 +441,38 @@ scenario("A handle change keeps the machines that may act as the agent", { tag: 
   expect(errorOf(widened).field).toBe("handle");
 });
 
-scenario("The 30-day rules run on the server clock", { tag: ["@api"] }, async ({ server, testApi }) => {
-  // Given the owner changed the handle of "devtool" to "builder"
+scenario("The change limit and the old handle's 30 days run on the server clock", { tag: ["@api"] }, async ({ server, testApi }) => {
+  // Given the owner changed the handle of "devtool" to "builder", then to "builder-2" and to "builder-3"
   const w = await chatWorld(server, { agents: ["devtool"] });
   const id = await changed(w.owner, "devtool", "builder");
+  must(await changeHandle(w.owner, id, "builder-2"), "second change");
+  must(await changeHandle(w.owner, id, "builder-3"), "third change");
 
   // When the owner changes it again
-  const again = await changeHandle(w.owner, id, "builder-2");
+  const again = await changeHandle(w.owner, id, "builder-4");
 
-  // Then the server answers 429 with a Retry-After of about 30 days
+  // Then the server answers 429 with a Retry-After of about 24 hours
   expect(again.status, again.text).toBe(429);
-  expect(Math.abs(Number(again.headers["retry-after"]) - 30 * 86_400)).toBeLessThan(120);
+  expect(Math.abs(Number(again.headers["retry-after"]) - DAY / 1000)).toBeLessThan(120);
 
-  // And "box-2" asking for a lease as "devtool" answers 201 with renamed from "devtool" to "builder"
+  // And "box-2" asking for a lease as "devtool" answers 201 with renamed from "devtool" to "builder-3"
   const graced = await mintSession(w.srv, w.box2.key, { as: "devtool" });
   expect(graced.status, graced.text).toBe(201);
-  expect(graced.json().renamed).toMatchObject({ from: "devtool", to: "builder" });
-  expect(graced.json().session).toMatchObject({ identity: "builder", identity_id: id });
+  expect(graced.json().renamed).toMatchObject({ from: "devtool", to: "builder-3" });
+  expect(graced.json().session).toMatchObject({ identity: "builder-3", identity_id: id });
 
   // When the test clock moves forward 30 days and 1 second
   await testApi(w.srv).advanceClock(30 * DAY + 1_000);
 
-  // Then asking for a lease as "devtool" answers 403 with the code "handle_renamed" and a message that names "@builder"
+  // Then asking for a lease as "devtool" answers 403 with the code "handle_renamed" and a message that names "@builder-3"
   const late = await mintSession(w.srv, w.box2.key, { as: "devtool" });
   expect(late.status, late.text).toBe(403);
   expect(errorOf(late).code).toBe("handle_renamed");
-  expect(errorOf(late).message).toContain("@builder");
+  expect(errorOf(late).message).toContain("@builder-3");
 
   // And the owner can change the handle again
   must(await signIn(w.owner.client, w.owner.soft), "sign in again after 30 days");
-  expect((await changeHandle(w.owner, id, "builder-2")).status).toBe(200);
+  expect((await changeHandle(w.owner, id, "builder-4")).status).toBe(200);
 });
 
 /** Run an action and return the one push it causes. */
@@ -487,21 +508,21 @@ scenario("A push says who an agent was for 7 days", { tag: ["@api"] }, async ({ 
   expect(later.title).not.toContain("was");
 });
 
-scenario("The schema refuses a human's change, a reused handle and a second change within 30 days", { tag: ["@api"] }, async ({ server, dataDir }) => {
+scenario("The schema refuses a human's change, a reused handle and a change without its time", { tag: ["@api"] }, async ({ server, dataDir }) => {
   // Given the owner changed the handle of "devtool" to "builder"
   const w = await chatWorld(server, { agents: ["devtool", "docs"], env: PLAIN });
   const id = await changed(w.owner, "devtool", "builder");
   const docs = await idOf(w.owner, "docs");
   const owner = must(await w.owner.client.get("/api/me"), "me").json().identity.id as number;
 
-  // When a second connection to the data file tries to change the owner's handle, to give "docs" the handle "devtool", and to change "builder" again
+  // When a second connection to the data file tries to change the owner's handle, to give "docs" the handle "devtool", and to change "builder" with no new time
   const db = plainDb(dataDir);
   try {
     const at = (db.prepare("SELECT handle_changed_at AS at FROM identities WHERE id = ?").get(id) as { at: number }).at;
     const writes: [string, RegExp][] = [
       [`UPDATE identities SET handle = 'drew-2', handle_changed_at = ${at} WHERE id = ${owner}`, /handle is immutable/],
       [`UPDATE identities SET handle = 'devtool', handle_changed_at = ${at} WHERE id = ${docs}`, /handle was used before/],
-      [`UPDATE identities SET handle = 'builder-2', handle_changed_at = ${at + 10 * DAY} WHERE id = ${id}`, /once in 30 days/],
+      [`UPDATE identities SET handle = 'builder-2', handle_changed_at = ${at} WHERE id = ${id}`, /needs its time/],
       [`UPDATE identities SET handle = 'builder-3' WHERE id = ${id}`, /needs its time/],
     ];
 

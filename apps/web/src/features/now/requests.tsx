@@ -1,4 +1,4 @@
-import type { HandleRequest, HostInfo, IdentityRequest, MachineRequest, Now } from "@convoz/api-client";
+import type { HostInfo, IdentityRequest, MachineRequest, Now } from "@convoz/api-client";
 import { useId, useState } from "react";
 import { call, client, humanError } from "../../shared/api.ts";
 import { initials, paletteOf } from "../../shared/chat.ts";
@@ -112,46 +112,6 @@ export function RequestCard({ item, changed, approved }: CardProps) {
       ) : null}
       <div className="btns">
         <button className="btn primary" type="button" disabled={busy || (machine?.code_required === true && tail.trim().length !== 4)} onClick={() => void decide(true)}>
-          Approve
-        </button>
-        <button className="btn" type="button" disabled={busy} onClick={() => void decide(false)}>
-          Decline
-        </button>
-      </div>
-    </article>
-  );
-}
-
-/**
- * HandleRequestCard is an agent that asks for a new handle (I-51). One tap decides it, like a connect request: the owner's signed-in
- * session is the authority. The old handle is retired either way it is approved, so the card says what the change keeps.
- */
-export function HandleRequestCard({ request, changed }: { request: HandleRequest; changed: () => Promise<void> | void }) {
-  const { say, fail } = useNotice();
-  const id = useId();
-  const [busy, setBusy] = useState(false);
-  const decide = async (approve: boolean) => {
-    setBusy(true);
-    try {
-      const p = { params: { path: { ref: request.ref } }, body: {} };
-      await call(approve ? client.POST("/api/handle-requests/{ref}/approve", p) : client.POST("/api/handle-requests/{ref}/deny", p));
-      say(approve ? `Approved @${request.to}` : `Declined @${request.to}`);
-      await changed();
-    } catch (err) {
-      fail(humanError(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <article className="card" aria-labelledby={id} data-request={`/api/handle-requests/${request.ref}`}>
-      <h3 id={id}>{`@${request.from} wants to be @${request.to}`}</h3>
-      <p className="who">
-        <strong>{request.display_name}</strong> <code>{`@${request.from}`}</code>
-      </p>
-      <p className="sub">{`Mentions of @${request.from} still reach it. @${request.from} is never used again.`}</p>
-      <div className="btns">
-        <button className="btn primary" type="button" disabled={busy} onClick={() => void decide(true)}>
           Approve
         </button>
         <button className="btn" type="button" disabled={busy} onClick={() => void decide(false)}>

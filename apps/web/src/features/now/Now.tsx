@@ -10,7 +10,7 @@ import { data } from "../../shared/data.ts";
 import { toast } from "../pins-stars/index.ts";
 import { answerAsk, dismissAsk, snoozeAsk, undismissAsk, unsnoozeAsk, useNow, type Settled } from "./store.ts";
 import { parseAllow } from "../crew/index.ts";
-import { agentRequests, HandleRequestCard, RequestCard } from "./requests.tsx";
+import { agentRequests, RequestCard } from "./requests.tsx";
 import { presetsAt } from "./presets.ts";
 import { Attention } from "./Attention.tsx";
 
@@ -48,11 +48,10 @@ export function Now() {
   const waiting = plain.length + connecting.length;
   const asks = now?.asks ?? [];
   const adds = now?.pending_adds ?? [];
-  const handles = now?.handle_requests ?? [];
   const snoozed = now?.snoozed ?? [];
   const answered = now?.answered_today ?? [];
   const dismissed = now?.dismissed_today ?? [];
-  const some = Boolean(pending && (waiting || asks.length || adds.length || handles.length));
+  const some = Boolean(pending && (waiting || asks.length || adds.length));
 
   // After a card leaves the list the next one takes the focus, so the keys go on working.
   useEffect(() => {
@@ -180,13 +179,6 @@ export function Now() {
         <section id="adds" className="block" aria-label="Adds to decide">
           {adds.map((add) => (
             <PendingAdd key={`${add.conversation.id}-${add.person.id}`} add={add} reload={reload} />
-          ))}
-        </section>
-      ) : null}
-      {handles.length ? (
-        <section id="handles" className="block" aria-label="Handle requests">
-          {handles.map((h) => (
-            <HandleRequestCard key={h.ref} request={h} changed={reload} />
           ))}
         </section>
       ) : null}

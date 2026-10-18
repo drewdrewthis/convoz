@@ -48,7 +48,8 @@ VALUES (sqlc.arg(identity_id), sqlc.narg(created_by_human), sqlc.narg(created_by
 UPDATE identities SET disabled_at = sqlc.arg(disabled_at) WHERE id = sqlc.arg(id) AND kind = 'agent' AND disabled_at IS NULL;
 
 -- name: HandleWasUsed :one
-SELECT EXISTS (SELECT 1 FROM retired_handles WHERE handle = sqlc.arg(handle));
+-- Another identity's: an identity may take back a handle it retired itself.
+SELECT EXISTS (SELECT 1 FROM retired_handles WHERE handle = sqlc.arg(handle) AND identity_id <> sqlc.arg(own_id));
 
 -- name: ActiveSkeletons :many
 SELECT handle, display_skeleton FROM identities WHERE disabled_at IS NULL;
@@ -80,7 +81,8 @@ SELECT avatar_svg FROM identities WHERE id = sqlc.arg(id) AND avatar_svg IS NOT 
 SELECT handle, display_skeleton FROM identities;
 
 -- name: RetiredHandles :many
-SELECT handle FROM retired_handles;
+-- The handles other identities retired: the look-alike rule never counts the asker's own.
+SELECT handle FROM retired_handles WHERE identity_id <> sqlc.arg(own_id);
 
 -- name: SetAgentDescription :exec
 UPDATE agents SET description = sqlc.arg(description) WHERE identity_id = sqlc.arg(id);

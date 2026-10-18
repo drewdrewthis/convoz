@@ -83,46 +83,24 @@ Profile:
     description: { type: string }
     capabilities: { type: array, items: { type: string } }
     avatar_url: { type: string, description: "Present when the caller set an avatar." }
-HandleRequestBody:
+HandleChangeBody:
   type: object
   required: [handle]
   additionalProperties: false
   properties:
     handle: { type: string, description: The new handle. }
-    request: { type: string, description: "The ref of a request filed before: ask what became of it." }
-HandleRequestState:
-  type: object
-  required: [ref, state, from, to, expires_at, interval_ms]
-  properties:
-    ref: { type: string, description: "hdr_ and 32 hex characters." }
-    state: { type: string, enum: [pending] }
-    from: { type: string }
-    to: { type: string }
-    expires_at: { type: integer, format: int64 }
-    interval_ms: { type: integer, description: How long to wait before asking again. }
-HandleRequest:
-  type: object
-  description: An agent that asks the owner for a new handle, as Now shows it.
-  required: [ref, identity_id, from, to, display_name, created_at, expires_at]
-  properties:
-    ref: { type: string }
-    identity_id: { type: integer, format: int64 }
-    from: { type: string, description: The agent's handle now. }
-    to: { type: string, description: The handle it asks for. }
-    display_name: { type: string }
-    created_at: { type: integer, format: int64 }
-    expires_at: { type: integer, format: int64 }
 HandleChanged:
   type: object
   required: [identity]
   properties:
     identity:
       type: object
-      required: [id, handle, previous_handle]
+      required: [id, handle, previous_handle, previous_until]
       properties:
         id: { type: integer, format: int64 }
         handle: { type: string }
         previous_handle: { type: string }
+        previous_until: { type: integer, format: int64, description: When the old handle stops reaching the agent (epoch ms). }
 PreviousHandle:
   type: object
   required: [handle, until, works]

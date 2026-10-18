@@ -76,12 +76,12 @@ func init() {
 			return runnerOf(ctx).run("handoff", a.Note, "-")
 		}})
 
-	Register(Tool{Name: "profile", Order: 13, Description: "Show your profile, or change it (once an hour). A new handle is a request the owner approves in Now: this files it and returns at once; your old handle keeps working for 30 days.",
+	Register(Tool{Name: "profile", Order: 13, Description: "Show your profile, or change it (once an hour). A new handle applies at once, with no approval; your old handle keeps working for 30 days.",
 		InputSchema: object(nil, props{
 			"display_name": props{"type": "string", "minLength": 1, "maxLength": 80, "description": "The name people see next to your handle."},
 			"description":  props{"type": "string", "maxLength": 80, "description": "What you do, in one line."},
 			"capabilities": list("What you can do, one word or phrase each.", props{"type": "string", "minLength": 1, "maxLength": 40}, 0, 20),
-			"handle":       props{"type": "string", "minLength": 2, "maxLength": 41, "description": "Ask the owner for this new handle (once in 30 days)."},
+			"handle":       props{"type": "string", "minLength": 2, "maxLength": 41, "description": "Your new handle, at once (3 changes a day at most)."},
 		}),
 		Call: func(ctx context.Context, args json.RawMessage) (any, error) {
 			var a struct {
@@ -103,17 +103,13 @@ func init() {
 			if a.Capabilities != nil {
 				set = append(set, "capabilities="+strings.Join(*a.Capabilities, ","))
 			}
-			if a.Handle != nil { // a tool call cannot wait 10 minutes for the owner: it files the request and says so
+			if a.Handle != nil {
 				set = append(set, "handle="+*a.Handle)
 			}
 			if len(set) == 0 {
 				return runnerOf(ctx).run("profile", "")
 			}
-			argv := append([]string{"--set"}, set...)
-			if a.Handle != nil {
-				argv = append(argv, "--no-wait")
-			}
-			return runnerOf(ctx).run("profile", "", argv...)
+			return runnerOf(ctx).run("profile", "", append([]string{"--set"}, set...)...)
 		}})
 }
 
