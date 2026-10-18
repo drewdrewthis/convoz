@@ -232,6 +232,7 @@ function NowAsk({ ask, busy, presets, answer, dismiss, snooze }: { ask: Ask; bus
       onDismiss={() => dismiss(ask)}
       onUndismiss={() => undefined}
       onSnooze={(preset) => snooze(ask, preset)}
+      onReply={() => location.assign(`/chats/${ask.conversation_id}#reply=${ask.id}`)}
     />
   );
 }

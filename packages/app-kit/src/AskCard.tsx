@@ -56,6 +56,14 @@ export interface AskCardProps {
   onDismiss(): void;
   onUndismiss(): void;
   onSnooze(preset: string): void;
+  /** "Reply in thread": opens the thread on this ask. No button where the Reply box is already beside the card. */
+  onReply?(): void;
+  /** Pin and Delete of the message that holds the ask; no item when the caller gives none. */
+  onPin?(): void;
+  pinned?: boolean;
+  onDelete?(): void;
+  /** "Copy link" of the ask's menu; no item when the caller has no link to give. */
+  onCopyLink?(): void;
   /** The link to the conversation, in Now. */
   openHref?: string;
   /** Carried to the article, so the list can find the card again after a change. */
@@ -98,7 +106,7 @@ const Icon = ({ d }: { d: string }) => (
 );
 
 /** AskCard draws one ask. It keeps only what the eye needs (which panel is open); every change goes up through a callback. */
-export function AskCard({ ask, where, labelId, as = "article", presets, busy, notice, onAnswer, onDismiss, onUndismiss, onSnooze, openHref, dataId }: AskCardProps) {
+export function AskCard({ ask, where, labelId, as = "article", presets, busy, notice, onAnswer, onDismiss, onUndismiss, onSnooze, onReply, onPin, pinned, onDelete, onCopyLink, openHref, dataId }: AskCardProps) {
   const [panel, setPanel] = useState<"" | "reply" | "snooze" | "history" | "options">("");
   const [text, setText] = useState("");
   const [optionsOnSnooze, setOptionsOnSnooze] = useState(false);
@@ -164,7 +172,7 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
             <button className="askbtn" type="button" aria-expanded={panel === "history"} onClick={() => toggle("history")}>
               History
             </button>
-            {open || ask.state === "dismissed" ? (
+            {open || ask.state === "dismissed" || onCopyLink ? (
               <button className="askbtn" type="button" aria-label="Ask options" aria-haspopup="menu" aria-expanded={panel === "options"} onClick={() => (setOptionsOnSnooze(false), toggle("options"))}>
                 <span aria-hidden="true">⋯</span>
               </button>
@@ -224,15 +232,20 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
           </button>
         </div>
       ) : null}
-      {open ? (
-        <div className="askopts">
-          {ask.options.map((o, i) => (
-            <button key={i} className={`askopt${i === 0 ? " rec" : ""}`} type="button" disabled={busy} onClick={() => onAnswer(i === 0 ? { choice: "recommended" } : { choice: "alternative", index: i })}>
-              {o.label}
-            </button>
-          ))}
-        </div>
-      ) : null}
+      <div className="askopts">
+        {open
+          ? ask.options.map((o, i) => (
+              <button key={i} className={`askopt${i === 0 ? " rec" : ""}`} type="button" disabled={busy} onClick={() => onAnswer(i === 0 ? { choice: "recommended" } : { choice: "alternative", index: i })}>
+                {o.label}
+              </button>
+            ))
+          : null}
+        {onReply ? (
+          <button className="askopt" type="button" onClick={onReply}>
+            Reply in thread
+          </button>
+        ) : null}
+      </div>
       {panel === "reply" ? (
         <form
           className="askreply"
@@ -248,26 +261,46 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
         </form>
       ) : null}
       {panel === "snooze" ? menu(presetItems) : null}
-      {panel === "options" ? (open && !optionsOnSnooze ? (
-        menu(
-          <>
-            <button role="menuitem" type="button" onClick={() => setOptionsOnSnooze(true)}>
-              Snooze
-            </button>
-            <button role="menuitem" type="button" onClick={() => (shut(), onDismiss())}>
-              Dismiss
-            </button>
-          </>,
+      {panel === "options" ? (
+        optionsOnSnooze ? (
+          menu(presetItems)
+        ) : (
+          menu(
+            <>
+              {open ? (
+                <>
+                  <button role="menuitem" type="button" onClick={() => setOptionsOnSnooze(true)}>
+                    Snooze
+                  </button>
+                  <button role="menuitem" type="button" onClick={() => (shut(), onDismiss())}>
+                    Dismiss
+                  </button>
+                </>
+              ) : null}
+              {ask.state === "dismissed" ? (
+                <button role="menuitem" type="button" onClick={() => (shut(), onUndismiss())}>
+                  Reopen
+                </button>
+              ) : null}
+              {onCopyLink ? (
+                <button role="menuitem" type="button" onClick={() => (shut(), onCopyLink())}>
+                  Copy link
+                </button>
+              ) : null}
+              {onPin ? (
+                <button role="menuitem" type="button" onClick={() => (shut(), onPin())}>
+                  {pinned ? "Unpin" : "Pin"}
+                </button>
+              ) : null}
+              {onDelete ? (
+                <button role="menuitem" type="button" onClick={() => (shut(), onDelete())}>
+                  Delete
+                </button>
+              ) : null}
+            </>,
+          )
         )
-      ) : optionsOnSnooze ? (
-        menu(presetItems)
-      ) : (
-        menu(
-          <button role="menuitem" type="button" onClick={() => (shut(), onUndismiss())}>
-            Reopen
-          </button>,
-        )
-      )) : null}
+      ) : null}
       {panel === "history" ? (
         <ul className="askhist" aria-label="History">
           {(ask.history ?? []).map((h, i) => (

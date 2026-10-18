@@ -26,8 +26,7 @@
   .askbar { display: flex; align-items: center; gap: 8px; min-height: 32px; margin: 0 -14px; padding: 0 6px 0 14px; border-bottom: 1px solid var(--color-border); font-size: 12px; }
   .asklabel { font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--color-text); }
   .askbar .askurgent { font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-  /* The message menu button sits over the top right corner of a message (44px), so the card keeps its own buttons clear of it. */
-  .askbar-end { margin-left: auto; margin-right: 44px; display: flex; align-items: center; gap: 2px; }
+  .askbar-end { margin-left: auto; display: flex; align-items: center; gap: 2px; }
   .askwhys { display: flex; flex-direction: column; gap: 1px; margin: 6px 0 9px; font-size: 13px; line-height: 18px; color: var(--color-muted); }
   .askwhys p { margin: 0; }
   .askwhys b { font-weight: 600; color: var(--color-text); }
@@ -44,6 +43,7 @@
     display: flex; align-items: center; justify-content: center; width: 100%; min-height: 50px; padding: 0 16px; border: 1px solid var(--color-border); border-radius: 999px;
     background: var(--color-raised); color: var(--color-text); font: inherit; font-size: 14px; font-weight: 500; cursor: pointer;
   }
+  .askopts .askopt:not(.rec):last-child { border-style: dashed; color: var(--color-muted); }
   .askopt.rec { background: var(--grad); border-color: transparent; color: var(--color-on-accent); font-weight: 600; }
   .askopt:disabled { opacity: .55; cursor: default; }
   .askreply { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
