@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { call, client, humanError } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
-import { deviceState, onIosThirdPartyBrowser, PushStepError, turnOff, turnOn, type DeviceState } from "./push.ts";
+import { CHROME_IOS_HINT, deviceState, onIosThirdPartyBrowser, PushStepError, turnOff, turnOn, type DeviceState } from "./push.ts";
 
 type Values = Record<string, unknown>;
 interface Device {
@@ -19,7 +19,7 @@ const REASONS_WITH_SWITCH: [key: string, name: string][] = [
   ["notify.machine_requests", "Machine requests"],
 ];
 
-const STATE_NAME: Record<DeviceState, string> = { on: "On", off: "Off", blocked: "Blocked", "needs-home-screen": "Needs Home Screen", unsupported: "Not available" };
+const STATE_NAME: Record<DeviceState, string> = { on: "On", off: "Off", blocked: "Blocked", "needs-home-screen": "Needs Home Screen", unsupported: "Not available", "chrome-ios": "Not available" };
 
 const WHY_OFF: Record<string, string> = { gone: "gone", failures: "failing", device_revoked: "signed out", user: "turned off" };
 
@@ -85,7 +85,14 @@ export function NotificationSettings() {
   return (
     <>
       <h2>Notifications</h2>
-      {state === "needs-home-screen" ? (
+      {state === "chrome-ios" ? (
+        <div className="group">
+          <div className="row">
+            <span>This device</span>
+            <span className="sub">Chrome on iPhone has no notifications for web apps. {CHROME_IOS_HINT}</span>
+          </div>
+        </div>
+      ) : state === "needs-home-screen" ? (
         <section className="group" aria-label="Add to Home Screen">
           <p className="sub row stacked">
             {onIosThirdPartyBrowser()

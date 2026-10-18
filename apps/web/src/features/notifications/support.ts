@@ -2,7 +2,7 @@
 
 /** The parts of the browser that push needs; the real ones by default. */
 export interface PushEnv {
-  navigator?: { serviceWorker?: unknown; userAgent?: string; standalone?: boolean };
+  navigator?: { serviceWorker?: unknown; userAgent?: string; vendor?: string; standalone?: boolean };
   window?: object;
   ServiceWorkerRegistration?: { prototype: object };
   matchMedia?: (query: string) => { matches: boolean };
@@ -23,6 +23,17 @@ export function pushSupported(env: PushEnv = real()): boolean {
 export function onIos(env: PushEnv = real()): boolean {
   return /iPhone|iPad|iPod/.test(env.navigator?.userAgent ?? "");
 }
+
+/**
+ * Chrome on an iPhone. A Home Screen app added from Chrome may report no "CriOS" (and even a desktop UA), but Chrome's vendor is
+ * still Google while Safari's is Apple; so the UA token or an iOS UA with a Google vendor counts.
+ */
+export function isChromeOnIOS(env: PushEnv = real()): boolean {
+  return /CriOS/.test(env.navigator?.userAgent ?? "") || (onIos(env) && env.navigator?.vendor === "Google Inc.");
+}
+
+/** What Chrome on iPhone is told, for push and for the microphone alike: only a Home Screen app added from Safari gets them. */
+export const CHROME_IOS_HINT = "Open Convoz in Safari and add it to the Home Screen from there.";
 
 /** A third-party browser on iOS (Chrome, Firefox, Edge): its Home Screen shortcut is not a Safari web app, so it cannot get push. */
 export function onIosThirdPartyBrowser(env: PushEnv = real()): boolean {

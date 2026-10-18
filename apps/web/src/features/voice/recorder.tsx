@@ -3,6 +3,7 @@ import { ArrowIcon, CloseIcon } from "@convoz/ui/icons";
 import { useEffect, useRef, useState } from "react";
 import { asUpload, streamUpload } from "../../shared/uploads.ts";
 import { mmss } from "./mmss.ts";
+import { NoRecorderApiError } from "./micNote.ts";
 
 /** A voice note stops by itself at five minutes. */
 const MOST_MS = 300_000;
@@ -27,7 +28,7 @@ export interface VoiceRecording {
  * throws when there is no microphone, no MediaRecorder, or the person said no.
  */
 export async function startRecording(conversationId: number): Promise<VoiceRecording> {
-  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") throw new Error("no microphone");
+  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") throw new NoRecorderApiError("no microphone");
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   const release = () => stream.getTracks().forEach((t) => t.stop());
   let recorder: MediaRecorder;
