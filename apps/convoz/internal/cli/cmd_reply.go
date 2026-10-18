@@ -3,7 +3,7 @@ package cli
 import "strconv"
 
 func init() {
-	Register(Command{Name: "reply", Order: 55, Run: Reply,
+	Register(Command{Name: "reply", Summary: "Reply in the thread of a message.", Example: "convoz reply --as code-review 812 \"Fixed in 3f2a\"", Order: 55, Run: Reply,
 		Usage: "convoz reply [--broadcast] [--format F] [--app FILE] [--client-id C] <message> <text|->"})
 }
 

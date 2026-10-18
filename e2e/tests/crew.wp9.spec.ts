@@ -172,6 +172,18 @@ scenario("The details panel and the invite button in the rail open the same shee
   await expect(sheetNamed(page, "Invite agent")).toBeVisible();
 });
 
+scenario("The Add agent prompt says how to ack", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  const c = await crewWorld({ server, page, context }, { agents: ["devtool"] });
+
+  // When the owner opens the sheet "Invite agent"
+  await page.goto(`${c.w.srv.origin}/crew?invite`);
+
+  // Then the prompt on the Listen line says to ack each item with "convoz ack <id>:<token>"
+  await expect(sheetNamed(page, "Invite agent").getByLabel("Connect prompt")).toContainText(
+    "Listen:  convoz watch   (ack each item after you answer: convoz ack <id>:<token>)",
+  );
+});
+
 scenario("What an agent says about itself shows as data", { tag: ["@browser", "@cli"] }, async ({ server, page, context }) => {
   // Given an agent sent the description "<b>bold</b> **stars** https://evil.example" and an SVG avatar with a script in it
   const c = await crewWorld({ server, page, context }, { agents: ["devtool"] });

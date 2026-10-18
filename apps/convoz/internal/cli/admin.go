@@ -77,6 +77,11 @@ func Admin(args []string, stdout, stderr io.Writer) int {
 	socket := fs.String("admin-socket", DefaultAdminSocket, "admin socket of the running server")
 	fs.SetOutput(io.Discard)
 	if err := fs.Parse(args[1:]); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			fs.SetOutput(stdout)
+			fs.PrintDefaults()
+			return ExitUsage
+		}
 		fmt.Fprintf(stderr, "convoz: %s\n", err)
 		return ExitUsage
 	}

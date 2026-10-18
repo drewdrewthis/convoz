@@ -205,6 +205,73 @@ scenario("Ack removes an item and refuses a stale claim", { tag: ["@cli"] }, asy
   expect({ code: again.code, says: again.stdout.includes("claim_lost") }).toEqual({ code: 4, says: true });
 });
 
+scenario("Every command prints its usage for --help", { tag: ["@cli"] }, async ({ server }) => {
+  const w = await chatWorld(server, { agents: ["devtool"] });
+
+  // When "convoz watch --help", "convoz ack -h" and "convoz help" run
+  const watch = await w.box.run(["watch", "--help"]);
+  const ack = await w.box.run(["ack", "-h"]);
+  const help = await w.box.run(["help"]);
+
+  // Then each exits 0 and prints to stdout
+  for (const r of [watch, ack, help]) expect({ code: r.code, stderr: r.stderr }).toEqual({ code: 0, stderr: "" });
+
+  // And the first two show the synopsis, every flag with its help line and an example
+  expect(watch.stdout).toContain("convoz watch [--json]");
+  expect(watch.stdout).toContain("-timeout duration\n    \tgive up after this long");
+  expect(watch.stdout).toContain("Example:\n  convoz watch");
+  expect(ack.stdout).toContain("convoz ack <id>:<token>");
+  expect(ack.stdout).toContain("-sid string");
+  expect(ack.stdout).toContain("Example:\n  convoz ack");
+
+  // and "convoz help" lists the commands one per line
+  expect(help.stdout).toMatch(/^watch +Print one line per new inbox item/m);
+  expect(help.stdout).toMatch(/^ack +Remove an item from your inbox/m);
+});
+
+scenario("A watch line carries a ready ack and ack takes three forms", { tag: ["@cli"] }, async ({ server }) => {
+  // Given "convoz watch" printed items for conversations 41, 52 and 63
+  const w = await chatWorld(server, { agents: ["devtool"] });
+  const convs = [
+    await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool"] }),
+    await createConversation(w.owner, { title: "Deploy alerts runbook", participants: ["devtool"] }),
+    await createConversation(w.owner, { title: "Release notes", participants: ["devtool"] }),
+  ];
+  const s = await startSession(w.box, "devtool", "ackforms");
+  const json = startWatch(w.box, s.sid);
+  let lines;
+  try {
+    for (const c of convs.slice(0, 2)) await ownerSays(w.owner, c, "Is the build green?");
+    lines = await watchLines(json, 2, 5_000);
+  } finally {
+    json.stop();
+  }
+  expect(lines[0]!.ack).toBe(`${lines[0]!.item_id}:${lines[0]!.claim_token}`);
+
+  // When "devtool" acks one with "<id> <token>", one with the watch line on stdin, and one with the "ack" text of a plain watch line
+  // (each ack comes before the next watch starts: a new watch takes the claims over)
+  const two = await convoz(w.box, s.sid, ["ack", String(lines[0]!.item_id), lines[0]!.claim_token]);
+  const piped = await convoz(w.box, s.sid, ["ack", "-"], JSON.stringify(lines[1]) + "\n");
+  const text = w.box.start(["watch", "--sid", s.sid], { timeoutMs: 25_000 });
+  let textRef: string;
+  try {
+    await ownerSays(w.owner, convs[2]!, "Is the build green?");
+    textRef = (await text.waitForStdout(/\(ack: convoz ack (\d+:\S+)\)/, 5_000))[1]!;
+  } finally {
+    text.stop();
+  }
+  const plain = await convoz(w.box, s.sid, ["ack", textRef]);
+  for (const r of [two, piped, plain]) expect(r.code, r.stdout + r.stderr).toBe(0);
+
+  // Then the three items are gone from the inbox
+  for (const c of convs) expect(await peekFor(w.box, s.sid, c)).toEqual([]);
+
+  // And "convoz ack 1" exits 2 and names the accepted forms
+  const wrong = await convoz(w.box, s.sid, ["ack", "1"]);
+  expect(wrong.code).toBe(2);
+  expect(wrong.stderr).toContain("convoz ack <id>:<token>... | convoz ack <id> <token> | convoz ack -");
+});
+
 // ---- conversations.feature -----------------------------------------------------------------------------------
 
 scenario("An agent reads what the owner wrote", { tag: ["@cli"] }, async ({ server }) => {

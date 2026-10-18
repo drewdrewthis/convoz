@@ -3,7 +3,7 @@ package cli
 import "fmt"
 
 func init() {
-	Register(Command{Name: "session", Order: 40, Run: session, Usage: "convoz session start|end ..."})
+	Register(Command{Name: "session", Summary: "Start or end an agent session.", Example: "convoz session start --as code-review --create", Subs: []string{"start", "end"}, Order: 40, Run: session, Usage: "convoz session start|end ..."})
 }
 
 // session dispatches `convoz session start|end`.

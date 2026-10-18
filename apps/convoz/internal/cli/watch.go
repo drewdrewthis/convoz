@@ -86,14 +86,14 @@ func retryable(err error) bool {
 
 func (k *chatCmd) writeWatchLine(it wire.InboxItem) error {
 	if !k.asJSON {
-		_, err := fmt.Fprintln(k.io.Stdout, itemLine(it))
+		_, err := fmt.Fprintf(k.io.Stdout, "%s (ack: convoz ack %s)\n", itemLine(it), ackArg(it))
 		return err
 	}
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf) // one line: the encoder escapes newlines inside strings
 	enc.SetEscapeHTML(false)
 	err := enc.Encode(wire.WatchLine{
-		ItemID: it.ID, ClaimToken: it.ClaimToken, Reason: it.Reason, ConversationID: it.Conversation.ID, ConversationTitle: it.Conversation.Title,
+		ItemID: it.ID, ClaimToken: it.ClaimToken, Ack: ackArg(it), Reason: it.Reason, ConversationID: it.Conversation.ID, ConversationTitle: it.Conversation.Title,
 		Count: it.Count, MessageID: it.Message.ID, Author: it.Message.Author.Handle, Body: it.Message.Body,
 		CreatedAt: time.UnixMilli(it.Message.CreatedAt).UTC().Format(time.RFC3339),
 	})
@@ -103,3 +103,6 @@ func (k *chatCmd) writeWatchLine(it wire.InboxItem) error {
 	_, err = k.io.Stdout.Write(buf.Bytes())
 	return err
 }
+
+// ackArg is the word that acks an item: "<id>:<token>".
+func ackArg(it wire.InboxItem) string { return strconv.FormatInt(it.ID, 10) + ":" + it.ClaimToken }

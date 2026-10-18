@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -412,25 +413,22 @@ func plain(s string) string {
 	}, s)
 }
 
+// ackForms is what `convoz ack` accepts; a wrong form prints it.
+const ackForms = "convoz ack <id>:<token>... | convoz ack <id> <token> | convoz ack - (a watch line, or id:token, on stdin)"
+
 // Ack runs `convoz ack <id:token>...`: one line per item, "ok" or "claim_lost". Any lost claim is exit 4.
+// It also takes `<id> <token>` as two words, and `-` for the watch lines (JSON or text) on stdin.
 func Ack(args []string, io IO) int {
 	f := newChatFlags("ack", io)
 	pos, ok := f.parse(args, io)
 	if !ok {
 		return ExitUsage
 	}
-	if len(pos) == 0 {
-		return usageError(io, "usage: convoz ack <id:token>...")
+	items, err := ackRefs(pos, io.Stdin)
+	if err != nil {
+		return usageError(io, err.Error())
 	}
-	var req wire.AckRequest
-	for _, a := range pos {
-		id, token, ok := strings.Cut(a, ":")
-		n, err := strconv.ParseInt(id, 10, 64)
-		if !ok || err != nil || n <= 0 || token == "" {
-			return usageError(io, fmt.Sprintf("%q is not <id>:<token>", a))
-		}
-		req.Items = append(req.Items, wire.AckRef{ID: n, ClaimToken: token})
-	}
+	req := wire.AckRequest{Items: items}
 	k, code := f.open(io)
 	if k == nil {
 		return code
@@ -438,7 +436,7 @@ func Ack(args []string, io IO) int {
 	ctx, cancel := context.WithTimeout(context.Background(), k.timeout)
 	defer cancel()
 	var out wire.AckResponse
-	err := k.call(ctx, "POST", wire.RouteInboxAck, req, &out)
+	err = k.call(ctx, "POST", wire.RouteInboxAck, req, &out)
 	lost := false
 	if status, code := statusCode(err); status == 409 && code == wire.AckClaimLost {
 		err, lost = nil, true // the body still says which items were acked
@@ -542,4 +540,81 @@ func printApp(io IO, m wire.Message) {
 	for _, line := range strings.Split(a.Fallback, "\n") {
 		fmt.Fprintf(io.Stdout, "    %s\n", plain(line))
 	}
+}
+
+func badAck(what string) error {
+	return fmt.Errorf("%q is not an item to ack; use: %s", what, ackForms)
+}
+
+func ackRef(id, token string) (wire.AckRef, bool) {
+	n, err := strconv.ParseInt(id, 10, 64)
+	return wire.AckRef{ID: n, ClaimToken: token}, err == nil && n > 0 && token != ""
+}
+
+// ackRefs reads the items to ack from the positional words: "id:token", "id token", or "-" for lines on stdin.
+func ackRefs(pos []string, stdin stdio.Reader) ([]wire.AckRef, error) {
+	if len(pos) == 0 {
+		return nil, fmt.Errorf("usage: %s", ackForms)
+	}
+	var refs []wire.AckRef
+	for i := 0; i < len(pos); i++ {
+		a := pos[i]
+		if a == "-" {
+			more, err := ackRefsFromLines(stdin)
+			if err != nil {
+				return nil, err
+			}
+			refs = append(refs, more...)
+			continue
+		}
+		id, token, _ := strings.Cut(a, ":")
+		if !strings.Contains(a, ":") && i+1 < len(pos) {
+			i++
+			token, a = pos[i], a+" "+pos[i]
+		}
+		ref, ok := ackRef(id, token)
+		if !ok {
+			return nil, badAck(a)
+		}
+		refs = append(refs, ref)
+	}
+	return refs, nil
+}
+
+// ackRefsFromLines reads watch lines: JSON ones by item_id and claim_token, text ones by their first word (id:token).
+func ackRefsFromLines(r stdio.Reader) ([]wire.AckRef, error) {
+	var refs []wire.AckRef
+	sc := bufio.NewScanner(r)
+	sc.Buffer(nil, 1<<20)
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if line == "" {
+			continue
+		}
+		var ref wire.AckRef
+		var ok bool
+		if strings.HasPrefix(line, "{") {
+			var w struct {
+				ItemID     int64  `json:"item_id"`
+				ClaimToken string `json:"claim_token"`
+			}
+			if json.Unmarshal([]byte(line), &w) == nil {
+				ref, ok = ackRef(strconv.FormatInt(w.ItemID, 10), w.ClaimToken)
+			}
+		} else {
+			id, token, _ := strings.Cut(strings.Fields(line)[0], ":")
+			ref, ok = ackRef(id, token)
+		}
+		if !ok {
+			return nil, badAck(line)
+		}
+		refs = append(refs, ref)
+	}
+	if err := sc.Err(); err != nil {
+		return nil, err
+	}
+	if len(refs) == 0 {
+		return nil, fmt.Errorf("nothing to ack on stdin; use: %s", ackForms)
+	}
+	return refs, nil
 }

@@ -28,6 +28,8 @@ func main() {
 		usage()
 	}
 	switch os.Args[1] {
+	case "help", "-h", "--help", "-help":
+		os.Exit(help(os.Args[2:]))
 	case "serve":
 		os.Exit(serve(os.Args[2:]))
 	case "version":
@@ -52,4 +54,22 @@ func usage() {
 		cli.Usages()...)
 	fmt.Fprintln(os.Stderr, "convoz: usage: "+strings.Join(append(lines, "convoz version"), "\n       "))
 	os.Exit(exitUsage)
+}
+
+// help prints the commands with one line each, or with a command name that command's usage. Both go to stdout and exit 0.
+func help(args []string) int {
+	if len(args) > 0 {
+		if cmd, ok := cli.Lookup(args[0]); ok {
+			return cmd.Run([]string{"--help"}, processIO())
+		}
+		fmt.Fprintf(os.Stderr, "convoz: unknown command %q; `convoz help` lists them\n", args[0])
+		return exitUsage
+	}
+	fmt.Println("convoz: usage: convoz <command> [flags]   (convoz <command> --help shows one command)")
+	fmt.Println()
+	fmt.Printf("%-8s %s\n%-8s %s\n", "serve", "Run the Convoz server.", "version", "Print the version.")
+	for _, line := range cli.Overview() {
+		fmt.Println(line)
+	}
+	return 0
 }

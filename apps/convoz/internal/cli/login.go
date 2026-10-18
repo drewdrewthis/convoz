@@ -95,6 +95,11 @@ func usageError(io IO, msg string) int {
 func parseFlags(fs *flag.FlagSet, args []string, io IO) bool {
 	fs.SetOutput(stdio.Discard)
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			fs.SetOutput(io.Stdout) // the flags, for `convoz <cmd> --help`
+			fs.PrintDefaults()
+			return false
+		}
 		usageError(io, err.Error())
 		return false
 	}
