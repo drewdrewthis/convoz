@@ -6,14 +6,18 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message/db"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
 
-// SystemLine is one system line: ids and enums only (schemas/system.json, system.v1). Names and titles are looked up when
-// the line is shown, so a rename or a scrub never leaves stale text (AC-M15). Which fields a subtype takes is below.
+// SystemLine is one system line: ids and enums only (schemas/system.json, system.v1). Names are looked up when the line is
+// shown, so a rename or a scrub never leaves stale text (AC-M15). The one text is the title in conversation.renamed: it is
+// what the line quotes, and a later rename must not change what an earlier line said. Which fields a subtype takes is below.
 type SystemLine struct {
 	T        string // the subtype
 	Identity int64  // the subject
@@ -21,6 +25,7 @@ type SystemLine struct {
 	Via      string // member.added: mention, add or create
 	History  string // member.added: since_now or full
 	Streak   int    // conversation.paused: LoopLimit
+	Title    string // conversation.renamed: the new title, quoted by the line (optional; at most MaxTitleRunes, no control characters)
 }
 
 // ErrSystemLine means a system line that does not match system.v1.
@@ -37,7 +42,7 @@ func (l SystemLine) Valid() error {
 	bad := func() error { return fmt.Errorf("%w: %+v", ErrSystemLine, l) }
 	switch {
 	case slices.Contains(byOnly, l.T):
-		if l.By <= 0 {
+		if l.By <= 0 || l.Title != "" && (l.T != "conversation.renamed" || !quotableTitle(l.Title)) {
 			return bad()
 		}
 	case slices.Contains(subjectOnly, l.T):
@@ -63,6 +68,13 @@ func (l SystemLine) Valid() error {
 	return nil
 }
 
+// quotableTitle reports whether t can be quoted by a rename line: 1 to 120 characters and no control characters (the
+// conversation module cleans a title before it gets here; a message module may not import it).
+func quotableTitle(t string) bool {
+	n := utf8.RuneCountInString(t)
+	return n >= 1 && n <= 120 && !strings.ContainsFunc(t, unicode.IsControl)
+}
+
 // JSON is the stored form, {"v":1,"t":...} with only the fields the subtype takes.
 func (l SystemLine) JSON() (string, error) {
 	if err := l.Valid(); err != nil {
@@ -76,7 +88,8 @@ func (l SystemLine) JSON() (string, error) {
 		Via      string `json:"via,omitempty"`
 		History  string `json:"history,omitempty"`
 		Streak   int    `json:"streak,omitempty"`
-	}{1, l.T, l.Identity, l.By, l.Via, l.History, l.Streak}
+		Title    string `json:"title,omitempty"`
+	}{1, l.T, l.Identity, l.By, l.Via, l.History, l.Streak, l.Title}
 	raw, err := json.Marshal(doc)
 	return string(raw), err
 }
@@ -90,11 +103,12 @@ func ParseSystem(raw string) (SystemLine, bool) {
 		Via      string `json:"via"`
 		History  string `json:"history"`
 		Streak   int    `json:"streak"`
+		Title    string `json:"title"`
 	}
 	if json.Unmarshal([]byte(raw), &doc) != nil || doc.T == "" {
 		return SystemLine{}, false
 	}
-	return SystemLine{T: doc.T, Identity: doc.Identity, By: doc.By, Via: doc.Via, History: doc.History, Streak: doc.Streak}, true
+	return SystemLine{T: doc.T, Identity: doc.Identity, By: doc.By, Via: doc.Via, History: doc.History, Streak: doc.Streak, Title: doc.Title}, true
 }
 
 // WriteSystem writes a system line in the transaction of the action that caused it (M-4). It is not a post: it moves no

@@ -6,9 +6,9 @@ import (
 	"testing"
 )
 
-var wantTools = []string{"whoami", "brief", "inbox", "claim", "ack", "read", "search", "post", "reply", "ask", "status", "handoff", "profile", "app_validate", "app_build"}
+var wantTools = []string{"whoami", "brief", "inbox", "claim", "ack", "read", "search", "post", "reply", "ask", "status", "handoff", "profile", "app_validate", "app_build", "rename"}
 
-func TestTools_AreTheFifteenInTheirOrder(t *testing.T) {
+func TestTools_AreInTheirOrder(t *testing.T) {
 	var got []string
 	for _, tool := range Tools() {
 		got = append(got, tool.Name)

@@ -89,6 +89,39 @@ Feature: Conversations
       When the test clock moves 25 hours
       Then the rail still shows both
 
+  Rule: An agent in a conversation may rename it; a title the owner chose stays the owner's
+
+    # Owner ruling 2026-10-18, on "let agents rename conversations they're in, with a system line?": "Yes."
+    # An agent may rename only a title that is automatic or an agent's own. A title the owner chose is the owner's, with no timer.
+    @v1 @cli
+    Scenario: An agent renames a conversation it is in
+      Given conversation 41 with "devtool", titled by its first message
+      When "devtool" runs "convoz rename 41 'Build status'"
+      Then conversation 41 shows the system line '@devtool renamed this to "Build status"'
+      And the title of conversation 41 is "Build status"
+
+    @v1 @cli
+    Scenario: An agent cannot rename a title the owner chose
+      Given conversation 41 "Ship search filters", named by the owner, with "devtool"
+      When "devtool" runs "convoz rename 41 'Something else'"
+      Then the command exits 4 and says that a person chose the title
+      And the title of conversation 41 is still "Ship search filters"
+      And conversation 41 shows no rename line
+
+    @v1 @cli
+    Scenario: An agent that is not in a conversation cannot rename it
+      Given conversation 41 with "devtool" only
+      When "docs" runs "convoz rename 41 'Not mine'"
+      Then the command exits 3
+      And the title of conversation 41 is unchanged
+
+    @v1 @browser
+    Scenario: The owner sees an agent's rename in the header, the list and the chat
+      Given the owner has conversation 41, titled by its first message, open with "devtool" in it
+      When "devtool" renames it to "Build status"
+      Then the header and the Conversations list show "Build status"
+      And the chat shows the line '@devtool renamed this to "Build status"'
+
   Rule: Agents join only through a human, and see only from their join
 
     @v1 @browser @I-18

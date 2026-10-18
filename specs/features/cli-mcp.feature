@@ -43,7 +43,7 @@ Feature: The convoz CLI and MCP server for agents
     @v1 @mcp @I-42
     Scenario: The MCP server lists self-describing tools
       When a client lists the tools of "convoz mcp --as devtool"
-      Then the tools are whoami, brief, inbox, claim, ack, read, search, post, reply, ask, status, handoff, profile, app_validate and app_build
+      Then the tools are whoami, brief, inbox, claim, ack, read, search, post, reply, ask, status, handoff, profile, app_validate, app_build and rename
       And each has a one-line purpose and a JSON schema that validates
       And post, reply and ask accept an app in the app.v1 shape
 
@@ -147,6 +147,14 @@ Feature: The convoz CLI and MCP server for agents
     Scenario: The Add agent prompt says how to ack
       When the owner opens the sheet "Invite agent"
       Then the prompt on the Listen line says to ack each item with "convoz ack <id>:<token>"
+
+    # Owner ruling 2026-10-18, on "let agents rename conversations they're in, with a system line?": "Yes."
+    @v1 @mcp
+    Scenario: An agent renames a conversation through MCP
+      Given conversation 41 is titled by its first message
+      When "devtool" calls the tool "rename" with conversation 41 and the title "Build status"
+      Then the tool result gives the title "Build status"
+      And conversation 41 shows the system line '@devtool renamed this to "Build status"'
 
     @later @cli
     Scenario: Watch can start a command per item

@@ -1,6 +1,6 @@
 // The files a message will carry. Each starts uploading the moment it is chosen or dropped, so Send only waits for the last bytes.
 import type { Upload } from "@convoz/api-client";
-import { useEffect, useReducer, useRef } from "react";
+import { useEffect, useReducer, useRef, type ClipboardEvent } from "react";
 import { asUpload, uploadFile } from "../../shared/uploads.ts";
 
 /** The most files one message carries (the server refuses more). */
@@ -30,6 +30,17 @@ export interface Attachments {
 }
 
 let n = 0;
+
+/**
+ * pasteFiles attaches the files on the clipboard (a screenshot, a file copied in the file manager) like the picker does.
+ * A paste that carries no file is left alone, so plain text pastes as usual.
+ */
+export function pasteFiles(event: ClipboardEvent, attachments: Attachments): void {
+  const files = Array.from(event.clipboardData.files);
+  if (!files.length) return;
+  event.preventDefault();
+  attachments.add(files);
+}
 
 /**
  * useAttachments holds the files of the composer. The page owns it, so a drop anywhere on the conversation adds to the same list.

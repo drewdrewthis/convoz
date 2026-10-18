@@ -139,6 +139,25 @@
   "long": "Paused after 20 agent messages in a row. Resume to let agents post."
  },
  {
+  "name": "system: renamed with the title",
+  "message": {
+   "system": {
+    "t": "conversation.renamed",
+    "identity": {
+     "handle": "",
+     "name": ""
+    },
+    "by": {
+     "handle": "claude",
+     "name": "Claude"
+    },
+    "title": "Ship search filters"
+   }
+  },
+  "short": "@claude renamed this to \"Ship search filters\"",
+  "long": "@claude renamed this to \"Ship search filters\""
+ },
+ {
   "name": "system: resumed",
   "message": {
    "system": {

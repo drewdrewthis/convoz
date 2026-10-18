@@ -122,6 +122,7 @@ Legend: ✓ allowed, ✗ denied, P = only as a participant of that conversation,
 | Delete own message (tombstone) | ✓ | ✓ | ✓ | ✓ | — |
 | Delete someone else's message | ✓ | ✗ | ✗ | ✗ | R |
 | Delete a conversation (soft) / purge (hard scrub) | ✓ / ✓ S | ✗ | ✗ | ✗ | R |
+| Rename a conversation | ✓ (any title; the title is then the owner's) | P | ✗ | P + `post`, only a title that is `auto` or `agent` (a person's title answers 409 `title_owner_set`, no timer), 3 an hour per conversation, with a system line | K+R |
 | Pin, star, rail order, mute, read state | ✓ | ✓ | ✓ | read state only | K |
 | Set status | ✗ | ✗ | ✗ | own + `status` | K |
 | Upload a file | ✓ | P | P | P + `upload` | K+R |
@@ -141,6 +142,8 @@ Legend: ✓ allowed, ✗ denied, P = only as a participant of that conversation,
 | Delete my data | workspace destroy (CLI) | ✓ S | ✓ S | ✗ | R |
 
 Member and guest cells are **DEFAULT (owner to confirm)**. They are dormant until invites ship.
+
+Owner said (2026-10-18), asked "let agents rename conversations they're in, with a system line?": "Yes." So an agent that is a participant, with its lease and the `post` scope (no new scope), may rename a conversation. The title is stored with who set it (`title_set_by`: `auto`, `human` or `agent`). An agent may change only an `auto` or `agent` title; a title a person set stays theirs (409 `title_owner_set`, no timer). The rename writes a system line that quotes the title, `@claude renamed this to "X"`, and the event and audit actor is the agent. The title is untrusted text (control and bidi characters stripped, 1 to 120 characters), an agent has 3 renames an hour per conversation, and only a human rename keeps an empty conversation from the 24 h clean-up (I-20).
 
 ## 3. Agent identity and credentials
 
@@ -385,7 +388,7 @@ The fan-out in a post tx upserts the conversation item with `INSERT … ON CONFL
 
 **Setup.**
 - `convoz setup [--as devtool] [--scope project|user]` registers `convoz mcp` as an MCP server in Claude Code. It uses `claude mcp add` when that command is present and prints the config otherwise. **S-A spike:** confirm the current Claude Code MCP config command and file locations before writing anything; never edit an unknown settings file.
-- The MCP tools describe themselves (name, one-line purpose, JSON schema): `whoami`, `brief`, `inbox`, `claim`, `ack`, `read`, `search`, `post`, `reply`, `ask`, `status`, `handoff`, `profile`, `app_validate`, `app_build`. `post`, `reply` and `ask` take `app` (schema `app.v1`). Tool output never contains a key or lease (I-42).
+- The MCP tools describe themselves (name, one-line purpose, JSON schema): `whoami`, `brief`, `inbox`, `claim`, `ack`, `read`, `search`, `post`, `reply`, `ask`, `status`, `handoff`, `profile`, `app_validate`, `app_build`, `rename`. `post`, `reply` and `ask` take `app` (schema `app.v1`). Tool output never contains a key or lease (I-42).
 - The agent prompt shrinks to one line: "You're @devtool on Convoz. Run convoz brief first."
 
 ### 3.9 Later (not v1)
@@ -835,6 +838,7 @@ CREATE TABLE conversations (
   id INTEGER PRIMARY KEY,
   title        TEXT CHECK (title IS NULL OR length(title) BETWEEN 1 AND 120),
   title_source TEXT NOT NULL DEFAULT 'auto' CHECK (title_source IN ('auto','manual')),
+  title_set_by TEXT NOT NULL DEFAULT 'auto' CHECK (title_set_by IN ('auto','human','agent')),  -- who set the title (migration 0021): an agent may rename only auto or agent titles; only 'human' keeps an empty conversation (I-20)
   created_by   INTEGER NOT NULL REFERENCES identities(id),
   created_at   INTEGER NOT NULL,
   link_url     TEXT CHECK (link_url IS NULL OR (length(link_url) <= 500 AND link_url LIKE 'https://%')),
@@ -1346,7 +1350,7 @@ Notes:
 - Sessions and machines are never hard-deleted in v1 (audit and inbox rows point at them; a few thousand rows a year). Handoffs beyond the newest 50 per identity are deleted by the nightly sweep.
 - Avatars live on `identities.avatar_svg`; served from `/api/identities/:id/avatar.svg` with `CSP: default-src 'none'; style-src 'unsafe-inline'; sandbox` and rendered only via `<img>` (I-32).
 - `message_refs` is gone: the Shared tab reads `uploads_conv`; `has:link` is an FTS match on `http`/`https` tokens; `is:app` is `app_json IS NOT NULL` on the conversation range.
-- `system_json` follows `system.v1` (12 subtypes; `docs/messages-apps-spec.md` M-4a). `app_json` follows `app.v1`, `app_result_json` follows `app-result.v1` (`schemas/`, mirrored in `packages/contracts/schemas/v1`).
+- `system_json` follows `system.v1` (12 subtypes; `docs/messages-apps-spec.md` M-4a). It holds ids and enums only, with one exception: `conversation.renamed` may carry the new `title` (1 to 120 characters, cleaned), because the line quotes what the agent chose and a later rename must not change what an earlier line said. It is the one text a system line stores; the thin events still carry no title (I-23). `app_json` follows `app.v1`, `app_result_json` follows `app-result.v1` (`schemas/`, mirrored in `packages/contracts/schemas/v1`).
 - `inbox_items.claim_token` is stored as is: it is a fence that only works together with the claiming session's lease, never a credential on its own.
 
 The DDL above and the §3.8 statements were loaded unchanged on SQLite 3.50.4 (`node:sqlite`, no encryption) and probed: 44 of 44 probes behave as intended. **Accepted:** re-mint by ending the old row as `replaced`; an approved device request that expires 10 min after approval; 30 posts making 1 conversation item (count 30); a mention raising it to `mention` (count 31); a re-poll returning the held item with the same token and no delivery counted (M1); the ack with the right token (M3); two expired claims of one conversation merging into the ready item (M4); a poison item expired while 3 healthy items are claimed (M2); claim extension (M8); the 30-s preference window; a via_app result by the owner; a kind `app` upload and an audio waveform; `answer_via 'inline'`; ask history rows; a 4096-byte handoff in two-byte characters. **Rejected:** a pending device request living 11 min (the probe found this hole in a first version; the second CHECK fixes it); an approved request expiring 11 min after approval; a second open lease for one client id; a wrong-token ack; an ack that leaves the claim columns set (why the ack SQL clears them); another session claiming a held conversation; the naive reset of an expired claim next to a ready item (the DA failure, shown); a claim at 5 deliveries (why step 2 runs first); via_app sent by an agent, aimed at a non-app or at another agent's app; `app_result_json` without via_app; a waveform on an image; `answer_via 'cli'`; rewriting ask history; `ask_snoozed`; `parked`; a 4097-byte handoff. Script: `work9.dLN2/t9.js`. Draft 8's own probe script (`ddl8.o54O/t.js`) also passes unchanged on this DDL (cross-row, seal, scrub, cascade, owner, handle and cursor probes); its 2 "FK not indexed" lines are the composite `(identity_id, kind)` FKs whose leading column is the primary key, the same as in draft 8.
@@ -1378,7 +1382,7 @@ Enforcement: **DB** = constraint, trigger or index; **TX** = checked inside `tx(
 | I-17 | Pending add: an agent request, and every participant an agent lists when it creates a conversation, is `pending` until a human approves. Approve → `active`, `joined_message_id` = the request line. Humans are never pending. | TX | `TestPendingAdd_RequestApproveJoinsAtRequest`, `TestPendingAdd_Decline`, `TestPendingAdd_HumanTargetRejected`, `TestPendingAdd_PendingHasNoAccess`, `TestAgentCreateConversation_ParticipantsPending` |
 | I-18 | An @mention in a human message adds a non-disabled agent at once (`joined_message_id` = that message). An agent's @mention never adds. Mentions in code and quotes are ignored; TS and Go parsers agree. | TX + APP | `TestMention_HumanAddsAgent`, `TestMention_AgentNeverAdds`, `TestMention_InCodeIgnored`, `TestMention_ParserDifferentialFuzz` |
 | I-19 | Removal or leave, one tx: status → `removed`/`left`; the subject's **open and dismissed** asks there → `closed(removed)`; its assignment released; its other inbox items there → `expired(removed)`; **one `membership` notice item** for the subject, exempt from the canSee re-check and delivered once (C-1); a system line. After commit the hub drops the subscription; after the notice the subject gets nothing more from that conversation. | TX + APP | `TestRemove_ClosesAsksAndAssignment`, `TestRemove_ClosesDismissedAsks`, `TestRemove_ExpiresInboxItemsButDeliversNotice`, `TestRemove_NoEventDeliveredAfterCommit`, `TestReAdd_OriginalHistoryOption` |
-| I-20 | Empty-conversation GC as in draft 7 (no messages, > 24 h, auto title, not starred), re-checked in the DELETE tx. | TX | `TestGC_DeletesEmptyAfter24h`, `TestGC_KeepsStarredOrRenamed`, `TestGC_RaceWithSendIsAtomic` |
+| I-20 | Empty-conversation GC as in draft 7 (no messages, > 24 h, no title a person chose, not starred), re-checked in the DELETE tx. Only a human rename counts as "renamed" (`title_set_by = 'human'`): an empty conversation an agent renamed is still cleaned up. | TX | `TestGC_DeletesEmptyAfter24h`, `TestGC_KeepsStarredOrRenamed`, `TestGC_RaceWithSendIsAtomic` |
 | I-21 | Rail order per (user, section) = `coalesce(rail_rank, created_at)` DESC. Activity never reorders the rail or the phone Conversations list, per prototype v41: the phone list is owner-ordered too, with a Reorder mode (long-press a row, Reorder…, handles until Done). New conversations go top. A drag sets `rail_rank` to the midpoint of its neighbours' keys; star/unstar sets it to `now` (top of the target section). When a midpoint cannot be represented, that user's section is renormalized in one tx. No prefs row is needed for an unranked, unstarred, unmuted conversation. The **Older** group is a view of the Conversations section: not starred, not new, and no message since yesterday, read in the owner's time zone by the client, per prototype v41 (P:6089-6091); it never changes the order. | TX | `TestRail_ActivityDoesNotReorder`, `TestRail_NewGoesTop`, `TestRail_DragBetweenNeighbours`, `TestRail_RenormalizeOnExhaustion`, `TestRail_NoPrefsRowNeeded` |
 | I-22 | Per-user state never crosses users. | APP + DB keys | `TestPerUserState_Isolation` |
 | I-23 | `events.seq` is monotonic and never reused. Events are **immutable** (trigger) and **thin**: payloads ≤1 KB, ids/enums/counters only, never body, title, question, option, answer or file name. Returned cursor = highest seq scanned. Reset on epoch mismatch, `< pruned_through` or `> max`. | DB + APP | `TestEvents_CursorAdvancesPastFiltered`, `TestEvents_ResetOnEpochChange`, `TestEvents_UpdateRejected`, `TestEvents_PayloadNeverContainsText`, `TestPost_16KBBodyAnd64KBAppSucceed` |
@@ -1604,7 +1608,7 @@ All JSON (brotli/gzip). Errors `{error:{code,message}}`. Auth: **H** human cooki
 | `POST /api/inbox/claim` · `POST /api/inbox/ack` | L | {n, visibility, conv?} → items with `claim_token` (held items first, like the poll) · {items:[{id, claim_token}]} → `results` per item `ok` \| `claim_lost`; an item without a well-formed token is 400, and any lost claim makes the answer 409 `claim_lost` with the same `results` | I-43 |
 | `GET /api/brief?max_bytes=` · `POST /api/handoffs` · `GET /api/handoffs?identity=` | L · L · O/L(self) | brief · {body, client_id} · notes | I-6 |
 | `POST /api/conversations` · `GET /api/conversations` | H/L | {title?, participants?} → conv (agent-listed participants pending) · rail | I-14 I-17 I-21 |
-| `GET/PATCH/DELETE /api/conversations/:id` · `POST …/restore` | H/L · O | title, link · soft delete · restore from trash | I-6 I-49 |
+| `GET/PATCH/DELETE /api/conversations/:id` · `POST …/restore` | H/L · H/L (`post`) · O | title, link · rename: `{title?, link_url?}`; an agent may send only `title` (a link is 403, no title is 400). A participant agent gets the conversation (a non-participant 403, as for every agent read); a title a person chose is 409 `title_owner_set`; the 4th rename within an hour by one agent in one conversation is 429. The title is untrusted text: control and bidi characters are stripped, then 1 to 120 characters (400 `title`). The rename writes the system line `@claude renamed this to "X"`; the event and the audit line `conversation.rename` name the agent · soft delete · restore from trash | I-6 I-20 I-49 |
 | `PATCH /api/conversations/:id/prefs` | H | {starred?, rail_rank?, muted_until?} | I-21 I-22 |
 | `POST /api/conversations/:id/participants` · `…/:iid/{approve,decline}` · `DELETE …/:iid` · `POST …/leave` | H/L · H · H · H/L | {identity_id, history: since_now\|full} | I-17 I-18 I-19 |
 | `POST …/resume` | H | | I-16 |
@@ -1675,6 +1679,7 @@ One binary `convoz` (alias `cvz`). Credentials: `~/.config/convoz/credentials` (
 | `convoz status --state S [--doing D] [--next N]` | status | `status` |
 | `convoz handoff "<note>"` · `convoz handoff --list` | store (≤4096 bytes) / list notes | `handoff` |
 | `convoz add <conv> @agent` · `convoz leave <conv>` | request an add (pending) · leave | — |
+| `convoz rename <conv> <title\|->` | give a conversation you are in a new title (`-` reads it from stdin); exit 4 when a person chose the title, 5 after 3 renames an hour | `post` (MCP `rename {conversation, title}`) |
 | `convoz watch [--json]` | long-poll loop that prints each inbox item as a JSON line; `--exec` and SSE `--follow` are later (§3.9) | — |
 | `convoz mcp [--as H]` | MCP server on stdio for Claude Code; holds the lease for the session | — |
 | `convoz setup [--as H] [--scope project\|user]` | register `convoz mcp` with Claude Code; print the one-line prompt | — |

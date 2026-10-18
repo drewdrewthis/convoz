@@ -28,6 +28,13 @@ Feature: Crew: identities, machines and sessions
       And the sheet shows "Waiting for an agent to connect…"
       And the sheet shows no key and no string starting with "cvz_"
 
+    # Owner ruling 2026-10-18, on "let agents rename conversations they're in, with a system line?": "Yes."
+    @v1 @browser
+    Scenario: The invite prompt tells an agent it may rename a conversation
+      When the owner opens Crew and taps "Invite agent"
+      Then the prompt has a rename line with "convoz rename <conversation>"
+      And the rename line says that a title the owner chose stays the owner's
+
     @v1 @cli @browser @I-3 @I-42
     Scenario: Adding an agent from a machine that is already logged in
       Given "box-2" is logged in without the create_identity scope

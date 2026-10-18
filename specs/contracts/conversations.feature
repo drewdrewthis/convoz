@@ -26,6 +26,87 @@ Feature: Conversations (contracts)
       When the owner sends "wait" at the moment the cleanup runs
       Then the conversation exists with the message "wait"
 
+  Rule: An agent in a conversation may rename it; a title the owner chose stays the owner's
+
+    # Owner ruling 2026-10-18, on "let agents rename conversations they're in, with a system line?": "Yes."
+    # The title is untrusted text, the owner's title is never overwritten (no timer), and the budget is 3 renames an hour.
+    @v1 @api
+    Scenario: A participant agent with the post scope renames a conversation
+      Given conversation 41 with "devtool", titled by its first message
+      When "devtool" sends PATCH /api/conversations/41 with the title "Build status"
+      Then the server answers 200 and conversation 41 is titled "Build status"
+      And conversation 41 has the system line '@devtool renamed this to "Build status"'
+      And the change event and the audit line name "devtool" as the actor, not the owner
+
+    @v1 @api
+    Scenario: An agent without the post scope cannot rename
+      Given conversation 41 with "devtool", titled by its first message, and a session of "devtool" on a machine without the post scope
+      When that session sends PATCH /api/conversations/41 with the title "Build status"
+      Then the server answers 403 and the title is unchanged
+
+    @v1 @api
+    Scenario: An agent outside a conversation cannot rename it or learn whether it exists
+      Given conversation 41 with "devtool" only
+      When "docs" sends PATCH /api/conversations/41 with the title "Not mine"
+      And "docs" sends PATCH /api/conversations/9999 with the title "Not there"
+      Then both answers are 403 with the same body, and conversation 41 keeps its title
+
+    @v1 @api
+    Scenario: An agent can rename the title and nothing else
+      Given conversation 41 with "devtool", titled by its first message
+      When "devtool" sends PATCH /api/conversations/41 with only a link_url
+      Then the server answers 403 and conversation 41 has no link
+      When "devtool" sends PATCH /api/conversations/41 with no title
+      Then the server answers 400 on the field "title"
+
+    @v1 @api
+    Scenario: A title the owner chose answers 409 title_owner_set to an agent, however old it is
+      Given conversation 41 "Ship search filters", named by the owner, with "devtool"
+      When "devtool" sends PATCH /api/conversations/41 with the title "Something else"
+      Then the server answers 409 with the code "title_owner_set" and the title is unchanged
+      When the test clock moves 30 days
+      And "devtool" sends PATCH /api/conversations/41 with the title "Something else"
+      Then the server answers 409 with the code "title_owner_set" again
+
+    @v1 @api
+    Scenario: An agent renames an automatic or an agent-set title, and the owner's rename takes the title over
+      Given conversation 41 with "devtool", titled by its first message
+      When "devtool" renames it to "First name" and then to "Second name"
+      Then both answers are 200 and the title is "Second name"
+      When the owner renames it to "Owner name"
+      And "devtool" sends PATCH /api/conversations/41 with the title "Third name"
+      Then the server answers 409 with the code "title_owner_set" and the title is "Owner name"
+
+    @v1 @api
+    Scenario: An agent's title is cleaned and bounded
+      Given conversation 41 with "devtool", titled by its first message
+      When "devtool" renames it to a title that holds a line break, a bell, a right-to-left override and an isolate
+      Then the stored title and the quoted title have all four removed
+      When "devtool" sends a title of 121 characters
+      Then the server answers 400 on the field "title"
+      When "devtool" sends a title that is only control and direction characters
+      Then the server answers 400 on the field "title"
+      When "devtool" sends a title of 120 characters
+      Then the server answers 200
+      And conversation 41 has exactly two rename lines, one for each answer of 200
+
+    @v1 @api
+    Scenario: An agent may rename a conversation 3 times an hour
+      Given conversations 41 and 42 with "devtool", titled by their first messages
+      When "devtool" renames conversation 41 to "One", "Two" and "Three"
+      And "devtool" sends PATCH /api/conversations/41 with the title "Four"
+      Then the server answers 429 with a Retry-After and the title is "Three"
+      And "devtool" can still rename conversation 42
+      When the test clock moves 61 minutes
+      Then "devtool" can rename conversation 41 to "Four"
+
+    @v1 @api @invariant @I-20
+    Scenario: An empty conversation an agent renamed is still cleaned up after 24 hours
+      Given an empty conversation 41 with "devtool" and an empty conversation 42 the owner renamed
+      When "devtool" renames conversation 41 to "Build status"
+      And the test clock moves 24 hours and 1 minute and the cleanup runs
+      Then conversation 41 is gone and conversation 42 exists
+
   Rule: The list shows the latest activity first, and who is online and working
 
     @v1 @api

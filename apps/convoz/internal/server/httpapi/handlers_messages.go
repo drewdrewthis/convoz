@@ -218,8 +218,8 @@ func systemView(dir directory, m message.Message) (*wire.System, string) {
 	if !ok {
 		return nil, ""
 	}
-	sys := &wire.System{T: line.T, Via: line.Via, History: line.History, Streak: line.Streak}
-	proj := message.ProjectSystem{T: line.T, History: line.History, Streak: line.Streak}
+	sys := &wire.System{T: line.T, Via: line.Via, History: line.History, Streak: line.Streak, Title: line.Title}
+	proj := message.ProjectSystem{T: line.T, History: line.History, Streak: line.Streak, Title: line.Title}
 	if line.Identity != 0 {
 		p := dir.person(line.Identity)
 		sys.Identity, proj.Identity = &p, message.Person{Handle: p.Handle, Name: p.DisplayName}
@@ -373,13 +373,13 @@ func (s *Server) listEdits(w http.ResponseWriter, r *http.Request, c *call) {
 // Agents may edit 30 times an hour (design §13.1): edits bypass the loop breaker, so they have a budget of their own.
 const agentEditsPerHour = 30
 
-// messageBudgets are the rate budgets of this module that the shared Server struct does not carry. One set per server.
-type messageBudgets struct{ edits auth.Limiter }
+// messageBudgets are the rate budgets of this module (and the agent rename budget) that the shared Server struct does not carry. One set per server.
+type messageBudgets struct{ edits, renames auth.Limiter }
 
 var budgetsOf sync.Map // *Server -> *messageBudgets
 
 func (s *Server) budgets() *messageBudgets {
-	b, _ := budgetsOf.LoadOrStore(s, &messageBudgets{edits: auth.Limiter{Window: time.Hour, Max: agentEditsPerHour}})
+	b, _ := budgetsOf.LoadOrStore(s, &messageBudgets{edits: auth.Limiter{Window: time.Hour, Max: agentEditsPerHour}, renames: auth.Limiter{Window: time.Hour, Max: agentRenamesPerHour}})
 	return b.(*messageBudgets)
 }
 

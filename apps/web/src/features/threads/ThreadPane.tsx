@@ -1,7 +1,8 @@
-import { BackIcon, SendIcon } from "@convoz/ui/icons";
+import { AttachIcon, BackIcon, SendIcon } from "@convoz/ui/icons";
 import type { Message } from "@convoz/api-client";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { stripCf } from "../../shared/chat.ts";
+import { AttachmentList, pasteFiles, useAttachments } from "../composer/index.ts";
 import { useThreads, type PendingReply } from "./store.ts";
 
 /** A thread sits beside the chat from this width, and fills the screen below it. */
@@ -41,14 +42,17 @@ export function ThreadPane({ title, bubbles }: ThreadPaneProps) {
   const wide = useWide();
   const [text, setText] = useState("");
   const input = useRef<HTMLInputElement>(null);
+  const picker = useRef<HTMLInputElement>(null);
+  const attachments = useAttachments(t?.conversation ?? 0);
   const log = useRef<HTMLDivElement>(null);
   const root = t?.rootId;
   const total = (t?.replies.length ?? 0) + (t?.pending.length ?? 0);
 
   useEffect(() => {
     setText("");
+    attachments.clear();
     input.current?.focus();
-  }, [root]);
+  }, [root]); // only when another thread opens
 
   // the newest reply is in view when one comes
   useEffect(() => {
@@ -58,12 +62,15 @@ export function ThreadPane({ title, bubbles }: ThreadPaneProps) {
 
   if (!t) return null;
   const heading = `in ${stripCf(title)}`;
+  const files = attachments.items;
+  const canSend = (text.trim() !== "" || files.length > 0) && files.every((f) => f.state === "done");
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    const body = text.trim();
-    if (!body) return;
+    if (!canSend) return;
+    const sent = files.map((f) => f.upload!.id);
     setText("");
-    reply(body);
+    attachments.clear();
+    reply(text.trim(), sent);
   };
   const key = (event: KeyboardEvent) => {
     if (event.key === "Escape") {
@@ -99,13 +106,28 @@ export function ThreadPane({ title, bubbles }: ThreadPaneProps) {
         {bubbles(t.replies, t.pending)}
       </div>
       <form className="threadform" onSubmit={submit}>
+        <AttachmentList attachments={attachments} />
         <div className="composer glass thrcomposer">
+          <button type="button" className="attachbtn" aria-label="Attach a file to the reply" title="Attach a file" onClick={() => picker.current?.click()}>
+            <AttachIcon />
+          </button>
+          <input
+            ref={picker}
+            type="file"
+            multiple
+            aria-label="Attach files to the reply"
+            hidden
+            onChange={(e) => {
+              attachments.add(Array.from(e.target.files ?? []));
+              e.target.value = ""; // the same file can be chosen again
+            }}
+          />
           <label htmlFor="thr-composer" className="sr">
             Reply in thread
           </label>
-          <input ref={input} id="thr-composer" value={text} onChange={(e) => setText(e.target.value)} placeholder="Reply…" autoComplete="off" enterKeyHint="send" />
-          {text.trim() ? (
-            <button type="submit" className="sendbtn" aria-label="Send reply">
+          <input ref={input} id="thr-composer" value={text} onChange={(e) => setText(e.target.value)} onPaste={(e) => pasteFiles(e, attachments)} placeholder="Reply…" autoComplete="off" enterKeyHint="send" />
+          {text.trim() || files.length ? (
+            <button type="submit" className="sendbtn" aria-label="Send reply" disabled={!canSend}>
               <SendIcon />
             </button>
           ) : null}

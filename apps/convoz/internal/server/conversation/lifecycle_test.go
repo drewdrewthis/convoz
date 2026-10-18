@@ -82,3 +82,25 @@ func TestTheTrashKeepsThirtyDaysThenPurges(t *testing.T) {
 		return nil
 	})
 }
+
+func TestCleanEmptyCountsOnlyAPersonsRename(t *testing.T) {
+	s := seeded(t)
+	byAgent := create(t, s, t0, conversation.New{By: owner, Members: []int64{devtool}})
+	byPerson := create(t, s, t0, conversation.New{By: owner, Members: []int64{devtool}})
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error {
+		if err := conversation.Rename(ctx, d, byAgent.ID, "Agent title", conversation.TitleAgent); err != nil {
+			return err
+		}
+		if err := conversation.Rename(ctx, d, byPerson.ID, "Person title", conversation.TitleHuman); err != nil {
+			return err
+		}
+		never := func(int64) (bool, error) { return false, nil }
+		if gone, err := conversation.CleanEmpty(ctx, d, t0.Add(25*time.Hour), never); err != nil || gone != 1 {
+			t.Fatalf("only the agent-titled conversation goes: gone=%d err=%v", gone, err)
+		}
+		if _, found, _ := conversation.Get(ctx, d, byPerson.ID); !found {
+			t.Error("a title a person chose keeps the conversation")
+		}
+		return nil
+	})
+}
