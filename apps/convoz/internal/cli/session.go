@@ -180,6 +180,7 @@ func SessionStart(args []string, io IO) int {
 	create := fs.Bool("create", false, "make the identity if it does not exist: at once with the create_identity scope, else the owner approves a request")
 	display := fs.String("name", "", "the display name for --create (default: the handle)")
 	more := addIntroFlags(fs)
+	invite := fs.String("invite", io.Getenv("CONVOZ_INVITE"), "with --create over the internet: the one-use invite that lets this machine ask for a new agent (CONVOZ_INVITE also sets it)")
 	label := fs.String("label", "convoz cli", "what the owner sees next to the session")
 	clientID := fs.String("client-id", io.Getenv("CLAUDE_CODE_SESSION_ID"), "the client id; the same one replaces the older lease")
 	if !parseNoArgs(fs, args, io) {
@@ -210,7 +211,7 @@ func SessionStart(args []string, io IO) int {
 	if err != nil {
 		return fail(io, err)
 	}
-	sid, err := startSession(io, dir, newClient(creds.Server), creds, strings.ToLower(*as), *clientID, *label, intro)
+	sid, err := startSession(io, dir, newClient(creds.Server), creds, strings.ToLower(*as), *clientID, *label, intro, strings.TrimSpace(*invite))
 	if err != nil {
 		return fail(io, err)
 	}
@@ -224,10 +225,10 @@ const waitForOwner = 10 * time.Minute
 
 // startSession mints a lease for (as, clientID) and returns the local session id of its file. With an intro the identity is
 // created when missing; when the owner has to approve it first, startSession files the request and asks again until the owner decides.
-func startSession(io IO, dir string, c *client, creds Credentials, as, clientID, label string, intro *wire.IdentityIntro) (string, error) {
+func startSession(io IO, dir string, c *client, creds Credentials, as, clientID, label string, intro *wire.IdentityIntro, invite string) (string, error) {
 	req := wire.MintRequest{As: as, ClientID: clientID, Label: label}
 	if intro != nil {
-		req.Create = &wire.CreateIdentity{DisplayName: intro.DisplayName, Description: intro.Description, AvatarSVG: intro.AvatarSVG, ConversationID: intro.ConversationID}
+		req.Create = &wire.CreateIdentity{DisplayName: intro.DisplayName, Description: intro.Description, AvatarSVG: intro.AvatarSVG, ConversationID: intro.ConversationID, Invite: invite}
 	}
 	deadline := time.Now().Add(waitForOwner)
 	for announced := false; ; announced = true {
@@ -236,6 +237,9 @@ func startSession(io IO, dir string, c *client, creds Credentials, as, clientID,
 			Request *wire.IdentityRequestState `json:"request"`
 		}
 		if err := c.call(context.Background(), "POST", wire.RouteSessions, creds.Key, req, &out); err != nil {
+			if status, _ := statusCode(err); status == http.StatusNotFound && req.Create != nil && req.Create.Request != "" && invite != "" {
+				err = fmt.Errorf("the server has no request to wait for: the invite may be used, revoked or older than 24 hours: %w", err)
+			}
 			return "", describeIdentityRefusal(err, as)
 		}
 		if out.Request == nil {

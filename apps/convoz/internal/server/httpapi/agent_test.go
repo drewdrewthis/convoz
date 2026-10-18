@@ -216,10 +216,13 @@ func startDevice(h http.Handler, ip, body string) *httptest.ResponseRecorder {
 	return serve(h, viaFunnel("POST", "/api/device/code", ip, body))
 }
 
-func deviceBody(name, handle string) string {
+func deviceBody(name, handle, invite string) string {
 	id := ""
 	if handle != "" {
 		id = `,"identity":{"handle":"` + handle + `"}`
+	}
+	if invite != "" {
+		id += `,"invite":"` + invite + `"`
 	}
 	return `{"name":"` + name + `","host_info":{"hostname":"h","os":"linux","arch":"amd64","cli_version":"x"}` + id + `}`
 }
@@ -240,15 +243,36 @@ func TestAgentListenerLimitsLoginStartsPerClient(t *testing.T) {
 }
 
 func TestAgentListenerCapsLoginStartsOfEveryoneTogether(t *testing.T) {
-	h := agentTestServer(t)
+	s := agentTestAPI(t)
+	h := s.AgentHandler()
+	invites := testInvites(t, s, agentStartsAllPerHour+1)
 	for i := 0; i < agentStartsAllPerHour; i++ {
-		if got := startDevice(h, fmt.Sprintf("198.51.100.%d", i+1), `{}`).Code; got != http.StatusBadRequest {
-			t.Fatalf("start %d: got %d want 400", i+1, got)
+		if got := startDevice(h, fmt.Sprintf("198.51.100.%d", i+1), deviceBody(fmt.Sprintf("box-%d", i), "", invites[i])).Code; got != http.StatusOK {
+			t.Fatalf("start %d: got %d want 200", i+1, got)
 		}
+		denyAll(t, s)
 	}
-	rec := startDevice(h, "198.51.100.200", `{}`)
+	rec := startDevice(h, "198.51.100.200", deviceBody("box-last", "", invites[agentStartsAllPerHour]))
 	if rec.Code != http.StatusTooManyRequests || rec.Header().Get("Retry-After") == "" {
 		t.Fatalf("21st start from a new client: got %d %v", rec.Code, rec.Header())
+	}
+	if n := openInvites(t, s); n != 1 {
+		t.Fatalf("the refused start must not spend its invite: %d open", n)
+	}
+}
+
+// A start without a usable invite makes no request, so it must not use up the hour's global budget for the ones that carry one.
+func TestAgentListenerCountsOnlyStartsWithAnInviteInTheGlobalCap(t *testing.T) {
+	s := agentTestAPI(t)
+	h := s.AgentHandler()
+	invites := testInvites(t, s, 1)
+	for i := 0; i < agentStartsAllPerHour+5; i++ {
+		if got := startDevice(h, fmt.Sprintf("198.51.100.%d", i+1), deviceBody(fmt.Sprintf("stranger-%d", i), "", "")).Code; got != http.StatusOK {
+			t.Fatalf("stranger %d: got %d want 200", i+1, got)
+		}
+	}
+	if got := startDevice(h, "198.51.100.250", deviceBody("box-1", "", invites[0])).Code; got != http.StatusOK {
+		t.Fatalf("a start with an invite after the strangers: got %d want 200", got)
 	}
 }
 
@@ -263,18 +287,23 @@ func TestAgentListenerLimitsStartsOfOneIPv6Subscriber(t *testing.T) {
 }
 
 func TestAgentListenerRefusesADuplicatePendingNameOrHandle(t *testing.T) {
-	h := agentTestServer(t)
-	if got := startDevice(h, "203.0.113.1", deviceBody("box-1", "dot")).Code; got != http.StatusOK {
+	s := agentTestAPI(t)
+	h := s.AgentHandler()
+	invites := testInvites(t, s, 4)
+	if got := startDevice(h, "203.0.113.1", deviceBody("box-1", "dot", invites[0])).Code; got != http.StatusOK {
 		t.Fatalf("first request: got %d", got)
 	}
-	for name, body := range map[string]string{"same machine name": deviceBody("box-1", "other"), "same handle": deviceBody("box-2", "dot")} {
+	for name, body := range map[string]string{"same machine name": deviceBody("box-1", "other", invites[1]), "same handle": deviceBody("box-2", "dot", invites[2])} {
 		rec := startDevice(h, "203.0.113.2", body)
 		if rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), "duplicate_pending") {
 			t.Errorf("%s: got %d %s", name, rec.Code, rec.Body.String())
 		}
 	}
-	if got := startDevice(h, "203.0.113.3", deviceBody("box-3", "cat")).Code; got != http.StatusOK {
+	if got := startDevice(h, "203.0.113.3", deviceBody("box-3", "cat", invites[3])).Code; got != http.StatusOK {
 		t.Errorf("a different name and handle: got %d", got)
+	}
+	if n := openInvites(t, s); n != 2 {
+		t.Errorf("a refused duplicate keeps its invite: %d open, want the 2 of the refused starts", n)
 	}
 }
 

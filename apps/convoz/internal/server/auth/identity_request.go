@@ -130,21 +130,43 @@ func AttachLoginIdentity(ctx context.Context, d pdb.DBTX, machineRequestID int64
 type IdentityFiled struct {
 	Ref       string
 	ExpiresAt int64
+	// fake marks the answer to a request that was not made, because it came over the internet without a usable invite.
+	fake bool
 }
 
+// Fake reports whether no request stands behind the answer.
+func (f IdentityFiled) Fake() bool { return f.fake }
+
+// InviteToken is the invite a request over the internet carries. A nil one is a request from the tailnet, which needs none.
+type InviteToken struct{ Token string }
+
 // FileSessionIdentity files the request of a logged-in machine that may not create identities itself. The same machine asking again for
-// the same handle gets its waiting request back. A machine files at most IdentityRequestsPerDay requests in 24 hours. Run it in a write
-// transaction; it writes the audit line and the event that wakes Now.
-func FileSessionIdentity(ctx context.Context, d pdb.DBTX, p Ports, m Machine, in IdentityPackage, now time.Time) (IdentityFiled, error) {
+// the same handle gets its waiting request back. A machine files at most IdentityRequestsPerDay requests in 24 hours. Over the internet
+// (invite is not nil) a new request needs a usable invite, which it spends; without one the answer looks like an accepted request, and
+// none is made, so no card and no push follow. Run it in a write transaction; it writes the audit line and the event that wakes Now.
+func FileSessionIdentity(ctx context.Context, d pdb.DBTX, p Ports, m Machine, in IdentityPackage, invite *InviteToken, now time.Time) (IdentityFiled, error) {
 	q := db.New(d)
+	var inv Invite
+	if invite != nil {
+		if waiting, found, err := waitingRequest(ctx, q, m, in.Handle, now); err != nil || found {
+			return waiting, err
+		}
+		var ok bool
+		var err error
+		if inv, ok, err = TakeInvite(ctx, d, p, invite.Token, now); err != nil {
+			return IdentityFiled{}, err
+		}
+		if !ok {
+			return IdentityFiled{Ref: FakeIdentityRef(), ExpiresAt: now.Add(IdentityRequestTTL).UnixMilli(), fake: true}, nil
+		}
+		in = withInviteConversation(ctx, d, p, in, inv)
+	}
 	in, err := CheckIdentityPackage(ctx, d, p, in)
 	if err != nil {
 		return IdentityFiled{}, err
 	}
-	if waiting, err := q.FindPendingIdentityRequestOfMachine(ctx, db.FindPendingIdentityRequestOfMachineParams{MachineID: nullInt(m.ID), Handle: in.Handle, Now: now.UnixMilli()}); err == nil {
-		return IdentityFiled{Ref: waiting.Ref, ExpiresAt: waiting.ExpiresAt}, nil
-	} else if !errors.Is(err, sql.ErrNoRows) {
-		return IdentityFiled{}, err
+	if waiting, found, err := waitingRequest(ctx, q, m, in.Handle, now); err != nil || found {
+		return waiting, err
 	}
 	since := now.Add(-24 * time.Hour)
 	row, err := q.CountIdentityRequestsOfMachineSince(ctx, db.CountIdentityRequestsOfMachineSinceParams{MachineID: nullInt(m.ID), Since: since.UnixMilli()})
@@ -160,6 +182,11 @@ func FileSessionIdentity(ctx context.Context, d pdb.DBTX, p Ports, m Machine, in
 	if err != nil {
 		return IdentityFiled{}, err
 	}
+	if invite != nil {
+		if err := SpendInvite(ctx, d, p, inv, InviteSession, id, now); err != nil {
+			return IdentityFiled{}, err
+		}
+	}
 	if err := p.Journal.Audit(ctx, d, now, AuditEntry{Machine: m.ID, Action: "identity.requested", TargetKind: "identity_request", TargetID: id}); err != nil {
 		return IdentityFiled{}, err
 	}
@@ -167,6 +194,28 @@ func FileSessionIdentity(ctx context.Context, d pdb.DBTX, p Ports, m Machine, in
 		return IdentityFiled{}, err
 	}
 	return IdentityFiled{Ref: arg.Ref, ExpiresAt: arg.ExpiresAt}, nil
+}
+
+// waitingRequest is the pending request of the machine for the handle, if there is one.
+func waitingRequest(ctx context.Context, q *db.Queries, m Machine, handle string, now time.Time) (IdentityFiled, bool, error) {
+	waiting, err := q.FindPendingIdentityRequestOfMachine(ctx, db.FindPendingIdentityRequestOfMachineParams{MachineID: nullInt(m.ID), Handle: handle, Now: now.UnixMilli()})
+	if errors.Is(err, sql.ErrNoRows) {
+		return IdentityFiled{}, false, nil
+	}
+	return IdentityFiled{Ref: waiting.Ref, ExpiresAt: waiting.ExpiresAt}, err == nil, err
+}
+
+// withInviteConversation fixes the conversation a request over the internet asks to join: the invite's, or none. The invited agent
+// never picks another one, so an invite made by an agent cannot send a new agent into a conversation its maker is not in. A
+// conversation the owner cannot see is dropped, as for any request from a stranger.
+func withInviteConversation(ctx context.Context, d pdb.DBTX, p Ports, in IdentityPackage, inv Invite) IdentityPackage {
+	in.ConversationID = inv.ConversationID
+	if in.ConversationID != 0 {
+		if _, ok, err := p.Conversations.OwnerConversation(ctx, d, in.ConversationID); err != nil || !ok {
+			in.ConversationID = 0
+		}
+	}
+	return in
 }
 
 // PollIdentity is how the requesting machine learns what became of its request. A ref that is unknown, or belongs to another

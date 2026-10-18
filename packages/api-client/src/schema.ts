@@ -297,6 +297,11 @@ export interface paths {
          * @description The body may carry `identity` {handle, display_name?, description?, avatar_svg?, conversation_id?}: the agent's own identity package.
          *     A handle that exists or was used is 409 handle_taken; a reserved, invalid or look-alike one, a bad description (one plain line,
          *     at most 80 characters), a bad avatar or a conversation the owner is not in is 400. A request reserves no handle.
+         *
+         *     On the agents-only listener the body must carry `invite`, an unused, unexpired invite (`POST /api/invites`). It is spent when the
+         *     request is made, and a request the owner declines does not give it back. Without a usable invite the answer is 200 and looks like
+         *     any other, but no request is made: no card and no push, and the device code polls as expired. The tailnet needs no invite and
+         *     ignores one.
          */
         post: operations["requestDeviceCode"];
         delete?: never;
@@ -544,6 +549,8 @@ export interface paths {
          *     scope and allows the handle; otherwise the answer is 202 with `request.ref`, and the machine asks again with
          *     `create.request` = that ref until the owner decides (201 with the lease; 403 request_denied; 410 request_expired).
          *     A machine files at most 5 requests in 24 hours; a request lives 24 hours. Only the machine that filed a request can ask about it.
+         *     On the agents-only listener a new request needs `create.invite`, an unused, unexpired invite, which it spends. Without one the answer
+         *     is 202 like any other, but no request is made (its ref is unknown when asked about). The tailnet needs no invite.
          *     `as` may name a handle the agent had before (I-51): for 30 days after the change the lease is minted for that agent and the answer
          *     carries `renamed` {from, to, until}; after that it is 403 `handle_renamed`, whose message names the new handle.
          */
@@ -583,6 +590,46 @@ export interface paths {
         post?: never;
         /** The agent ends its own session. */
         delete: operations["endSession"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The invites that can still be used, newest first. The owner sees every maker's, an agent its own. */
+        get: operations["listInvites"];
+        put?: never;
+        /**
+         * Make an invite that lets one agent outside the tailnet ask for access. The owner's, or an approved agent's. No passkey check.
+         * @description Owner ruling (2026-10-18): invites are always one use. It works once, for 24 hours; only its hash is kept, so the token is in this
+         *     answer only. The maker is the credential. An agent may name only a conversation it is in (403 not_in_conversation); a maker holds
+         *     at most 10 open invites (429 invite_cap). The audit log gets invite.created, invite.used, invite.revoked and invite.expired.
+         */
+        post: operations["createInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/invites/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke an open invite. The owner may revoke any, an agent its own. No passkey check. */
+        delete: operations["revokeInvite"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2104,8 +2151,8 @@ export interface components {
             source_ip: string | null;
             /** @description True when the request came in on the agents-only listener (over the internet); the card says so. */
             via_internet: boolean;
-            /** @description True when Approve needs the last 4 characters of user_code (an internet request on a server run with --agent-approve-code). */
-            code_required: boolean;
+            /** @description Who invited the agent behind the request; null for a request from the tailnet, which needs no invite. */
+            invite: components["schemas"]["InviteMark"] | null;
             node_name: string | null;
             /** Format: int64 */
             created_at: number;
@@ -2142,10 +2189,58 @@ export interface components {
             machine_id: number;
             /** @description True when the request came in on the agents-only listener; the card says so. */
             via_internet: boolean;
+            /** @description Who invited the agent; null for a request from the tailnet. */
+            invite: components["schemas"]["InviteMark"] | null;
             /** Format: int64 */
             created_at: number;
             /** Format: int64 */
             expires_at: number;
+        };
+        /** @description Who invited the agent behind a waiting request. The card says "invited by @by", or "invited by you" when by_owner. */
+        InviteMark: {
+            /** @description The handle of the owner or agent that made the invite. */
+            by: string;
+            by_owner: boolean;
+            /** @description One line of plain text the maker wrote */
+            note: string;
+        };
+        /**
+         * @description An agent invite: one use, 24 hours. token, server and login are in the answer that makes it and nowhere else; the server keeps only
+         *     the hash of the token.
+         */
+        Invite: {
+            /** Format: int64 */
+            id: number;
+            /** @description The last 4 characters of the token. It tells invites apart in a list and cannot be used. */
+            hint: string;
+            /** @description The handle of the owner or agent that made it. */
+            maker: string;
+            maker_is_owner: boolean;
+            /**
+             * Format: int64
+             * @description The conversation the invited agent asks to join; left out for none.
+             */
+            conversation_id?: number;
+            note: string;
+            /** Format: int64 */
+            created_at: number;
+            /** Format: int64 */
+            expires_at: number;
+            /** @description The invite (cvz_i_ and 43 characters). Shown once. */
+            token?: string;
+            /** @description The address the invited agent connects to; the agents-only address when the server has one. */
+            server?: string;
+            /** @description The command the invited agent runs. */
+            login?: string;
+        };
+        CreateInviteRequest: {
+            /**
+             * Format: int64
+             * @description The conversation the invited agent asks to join. The maker must be in it
+             */
+            conversation_id?: number;
+            /** @description One line of plain text for the owner's card. */
+            note?: string;
         };
         Allow: {
             /** @enum {string} */
@@ -3730,8 +3825,6 @@ export interface operations {
                     name?: string;
                     allow?: components["schemas"]["Allow"];
                     scopes?: string[];
-                    /** @description The last 4 characters of the request's code. Required for an internet request when the server runs with --agent-approve-code; 403 code_mismatch otherwise. */
-                    code_tail?: string;
                 };
             };
         };
@@ -4030,6 +4123,77 @@ export interface operations {
         responses: {
             /** @description The answer. */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listInvites: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The open invites, without tokens. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        invites: components["schemas"]["Invite"][];
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    createInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateInviteRequest"];
+            };
+        };
+        responses: {
+            /** @description The invite, with its token. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        invite: components["schemas"]["Invite"];
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    revokeInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The invite is revoked. */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -91,7 +91,7 @@ func sessionForAgent(io IO, dir string, c *client, creds Credentials, as, client
 	if clientID == "" {
 		clientID = "convoz-" + randomHex(8)
 	}
-	return startSession(io, dir, c, creds, as, clientID, "convoz cli", nil) // no identity to make: only a rename warning prints
+	return startSession(io, dir, c, creds, as, clientID, "convoz cli", nil, "") // no identity to make: only a rename warning prints
 }
 
 // followHandle keeps a session file true to the agent's handle now (it is rewritten on a change) and checks the handle the caller

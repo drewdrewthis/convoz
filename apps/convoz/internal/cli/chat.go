@@ -299,6 +299,7 @@ func Read(args []string, io IO) int {
 				fmt.Fprintf(k.io.Stdout, "  %s\n", plain(line))
 			}
 			printApp(k.io, m)
+			printUploads(k.io, m)
 			if m.Ask != nil {
 				printAsk(k.io, *m.Ask)
 			}
@@ -541,6 +542,13 @@ func printApp(io IO, m wire.Message) {
 	fmt.Fprintf(io.Stdout, "  [app %s %q v%d]\n", a.Type, a.Title, a.V)
 	for _, line := range strings.Split(a.Fallback, "\n") {
 		fmt.Fprintf(io.Stdout, "    %s\n", plain(line))
+	}
+}
+
+// printUploads names each file a message carries, with the id that `convoz file` takes.
+func printUploads(io IO, m wire.Message) {
+	for _, u := range m.Uploads {
+		fmt.Fprintf(io.Stdout, "  [file: %s (%s)]\n", plain(u.Name), u.ID)
 	}
 }
 

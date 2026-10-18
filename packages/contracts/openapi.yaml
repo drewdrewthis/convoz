@@ -60,6 +60,8 @@ paths:
   /api/sessions: { $ref: "paths/auth.yaml#/~1api~1sessions" }
   /api/sessions/renew: { $ref: "paths/auth.yaml#/~1api~1sessions~1renew" }
   /api/sessions/me: { $ref: "paths/auth.yaml#/~1api~1sessions~1me" }
+  /api/invites: { $ref: "paths/auth.yaml#/~1api~1invites" }
+  /api/invites/{id}: { $ref: "paths/auth.yaml#/~1api~1invites~1{id}" }
   # ---- identity
   /api/me: { $ref: "paths/identity.yaml#/~1api~1me" }
   /api/me/profile: { $ref: "paths/identity.yaml#/~1api~1me~1profile" }
@@ -299,6 +301,9 @@ components:
     MachineRequest: { $ref: "components/auth.yaml#/MachineRequest" }
     AgentIntro: { $ref: "components/auth.yaml#/AgentIntro" }
     IdentityRequest: { $ref: "components/auth.yaml#/IdentityRequest" }
+    InviteMark: { $ref: "components/auth.yaml#/InviteMark" }
+    Invite: { $ref: "components/auth.yaml#/Invite" }
+    CreateInviteRequest: { $ref: "components/auth.yaml#/CreateInviteRequest" }
     Allow: { $ref: "components/auth.yaml#/Allow" }
     Machine: { $ref: "components/auth.yaml#/Machine" }
     Session: { $ref: "components/auth.yaml#/Session" }

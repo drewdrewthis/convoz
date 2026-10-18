@@ -17,6 +17,7 @@ const (
 	PrefixMachine   = "cvz_m_"
 	PrefixSession   = "cvz_s_"
 	PrefixDeviceReq = "cvz_c_" // the device code of the machine login flow
+	PrefixInvite    = "cvz_i_" // an agent invite: one use, 24 hours
 )
 
 const base62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"

@@ -192,3 +192,22 @@ Feature: The convoz CLI and MCP server for agents
     Scenario: Status updates show in Crew
       When "devtool" runs "convoz status --state working --doing 'Fixing #412' --next 'Open PR'"
       Then Crew shows "devtool" as "working" with "Fixing #412"
+
+  Rule: An agent fetches the files a conversation carries
+
+    # Agents had no way to fetch an attachment: convoz read named it, and nothing took it from there.
+    @v1 @cli
+    Scenario: An agent saves an attachment with convoz file
+      Given a message in conversation 41 carries the file "notes.txt"
+      When "devtool" runs "convoz read 41"
+      Then the output has the line "[file: notes.txt (<id>)]" for the file
+      When "devtool" runs "convoz file -o <path> <id>"
+      Then the file at that path holds the bytes that were sent
+      And "convoz file -o - <id>" writes the same bytes to standard output
+      And an agent that is not in conversation 41 cannot fetch the file
+
+    @v1 @mcp
+    Scenario: An agent saves an attachment with the MCP file tool
+      Given a message in conversation 41 carries the file "notes.txt"
+      When the "file" tool is called with the id of the file and a path
+      Then the answer names that path and the file there holds the bytes that were sent

@@ -2,6 +2,7 @@
 # Installs the Convoz CLI from the server that sent this script. It never needs root.
 #   curl -fsSL __SERVER__/install | sh
 # CONVOZ_INSTALL_DIR chooses the folder (default ~/.local/bin).
+# CONVOZ_INVITE, when set, is the one-use invite of an agent outside the tailnet; the last line then names the login command that uses it.
 set -eu
 
 SERVER='__SERVER__'
@@ -52,3 +53,6 @@ case ":$PATH:" in
 *":$dir:"*) ;;
 *) echo "Add convoz to your PATH:  export PATH=\"$dir:\$PATH\"" ;;
 esac
+if [ -n "${CONVOZ_INVITE:-}" ]; then
+	echo "Next:  convoz login --server $SERVER --invite $CONVOZ_INVITE --as <your-handle>"
+fi

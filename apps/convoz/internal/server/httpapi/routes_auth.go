@@ -41,4 +41,8 @@ var authRoutes = []Route{
 	{Method: "POST", Pattern: "/api/sessions/renew", Auth: authz.Lease, handle: (*Server).renewSession},
 	{Method: "DELETE", Pattern: "/api/sessions/me", Auth: authz.Lease, handle: (*Server).endSession},
 	{Method: "GET", Pattern: "/api/sessions", Auth: authz.Owner, handle: (*Server).sessions},
+	// Agent invites (design §3.4a): the owner's one tap makes and revokes them, an approved agent makes and revokes its own. No step-up.
+	{Method: "POST", Pattern: "/api/invites", Auth: authz.Owner, Lease: true, Scope: "post", handle: (*Server).createInvite},
+	{Method: "GET", Pattern: "/api/invites", Auth: authz.Owner, Lease: true, handle: (*Server).listInvites},
+	{Method: "DELETE", Pattern: "/api/invites/:id", Auth: authz.Owner, Lease: true, handle: (*Server).revokeInvite},
 }

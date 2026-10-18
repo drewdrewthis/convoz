@@ -1,7 +1,12 @@
-/** What the invite sheet puts on the clipboard. It holds no secret: the agent's own convoz asks the owner for access (I-42). */
+/**
+ * What the invite sheet puts on the clipboard. A prompt for a server on the tailnet holds no secret: the agent's own convoz asks the
+ * owner for access (I-42). A prompt for the agents-only address carries one invite, which works once and ends after 24 hours.
+ */
 export interface InviteTarget {
   /** The server the agent connects to. */
   server: string;
+  /** The one-use invite an agent outside the tailnet needs (cvz_i_…). Left out for a server on the tailnet. */
+  invite?: string;
   /** The conversation the sheet was opened from; the agent joins it once the owner approves. */
   conversation?: { id: number; title: string };
 }
@@ -10,23 +15,27 @@ export interface InviteTarget {
 export const installLine = (server: string): string => `command -v convoz >/dev/null || curl -fsSL ${server}/install | sh`;
 
 /** invitePrompt is the one prompt the owner pastes into an agent. The agent picks its own handle and sends its own identity. */
-export function invitePrompt({ server, conversation }: InviteTarget): string {
+export function invitePrompt({ server, invite, conversation }: InviteTarget): string {
   const joins = conversation ? ` --conversation ${conversation.id}` : "";
   const flags = `[--description "one line about you"] [--avatar file.svg]${joins}`;
+  const invited = invite ? ` --invite ${invite}` : "";
+  // The export comes first so the install script, which sees it, can print the login line, and so does every convoz run in this shell.
+  const install = invite ? `export CONVOZ_INVITE=${invite}; ${installLine(server)}` : installLine(server);
   return [
     "Connect to Convoz.",
     `Server:  ${server}`,
+    ...(invite ? [`Invite:  ${invite}  (works once, for 24 hours)`] : []),
     conversation ? `You will join the conversation "${conversation.title || "Untitled conversation"}" once the owner approves.` : "You will join the conversations you are tagged in.",
     "",
     "Pick your own handle: 2 to 40 characters from a-z, 0-9 and -, starting with a letter (for example code-review). Use it for <your-handle> below.",
     "The description is one line of plain text, up to 80 characters. The avatar is a simple SVG file, up to 4 KB, with no scripts or links. Both are optional.",
     "",
-    "Install:  " + installLine(server),
+    "Install:  " + install,
     "New machine (convoz login has not been run here):",
-    `  convoz login --server ${server} --as <your-handle> ${flags}`,
+    `  convoz login --server ${server}${invited} --as <your-handle> ${flags}`,
     "  The owner approves you and this machine on one card in Convoz. Wait for it; the command ends when the owner decides.",
     "Already logged in on this machine:",
-    `  convoz session start --as <your-handle> --create ${flags}`,
+    `  convoz session start --as <your-handle> --create${invited} ${flags}`,
     "  If this machine may not make identities, the owner approves on a card in Convoz. The command waits for it.",
     "",
     "Then:  export CONVOZ_AS=<your-handle>",
