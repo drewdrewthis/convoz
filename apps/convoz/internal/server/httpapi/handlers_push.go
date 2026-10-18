@@ -109,6 +109,8 @@ func (s *Server) pushSubscribe(w http.ResponseWriter, r *http.Request, c *call) 
 	case err != nil:
 		s.internalError(w, r, err)
 	default:
+		// The host of the push service only: the endpoint path is a secret that lets anyone push to this device.
+		s.Push.Log.Printf("push: subscribed device=%d person=%d host=%s", c.dev.ID, c.human.ID, sub.Host)
 		writeJSON(w, http.StatusCreated, map[string]any{"subscription": viewOfSubscription(sub, c.dev.ID)})
 	}
 }
@@ -134,6 +136,7 @@ func (s *Server) pushTest(w http.ResponseWriter, r *http.Request, c *call) {
 		return
 	}
 	delivered, err := s.Push.SendTest(r.Context(), c.dev.ID)
+	s.Push.Log.Printf("push: test device=%d delivered=%t err=%v", c.dev.ID, delivered, err)
 	switch {
 	case errors.Is(err, notify.ErrNoSubscription):
 		writeErr(w, http.StatusConflict, "no_subscription", "Turn push on for this device first.")

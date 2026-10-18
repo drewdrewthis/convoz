@@ -99,6 +99,38 @@ Feature: Notifications
       And "devtool" asks a question
       Then the iPhone shows the notification and the app badge shows 1
 
+  Rule: Turning push on shows each step and confirms with a push
+
+    # The owner, on an iPhone with Convoz on the Home Screen: "I'm not getting native notifications - can we fix that?" and
+    # "I added it to the Home Screen already. I didn't get a notification for notifications being turned on".
+
+    @v1 @browser
+    Scenario: Turning push on shows each step and ends On
+      Given the owner's phone allows notifications
+      When the owner turns on "Push on this device" in Settings
+      Then Settings says "Asking iPhone for permission…" and then "Signing up this device…"
+      And Settings shows this device as "On"
+
+    @v1 @browser
+    Scenario: Turning push on sends a confirmation push
+      Given the owner's phone allows notifications
+      When the owner turns on "Push on this device" in Settings
+      Then the fake push service receives one push titled "Notifications are on"
+      And the push reads "You'll get messages from your agents here."
+
+    @v1 @browser
+    Scenario: A background worker that never starts shows an error
+      Given the owner's phone allows notifications
+      And the app's background worker never becomes ready
+      When the owner turns on "Push on this device" in Settings
+      Then Settings shows an error saying the background worker did not start
+      And this device is not signed up for push
+
+    @v1 @api
+    Scenario: A browser with push only on its background worker can turn push on
+      Given a phone browser whose window has no push support but whose background worker has it
+      Then Settings treats the phone as able to receive push
+
   Rule: Answering from the notification is later and off by default (I-35)
 
     @later @api @I-35
