@@ -201,6 +201,74 @@ scenario("A quick reply answers with custom text", { tag: ["@browser"] }, async 
   expect(mine.map((m) => [m.id, m.ask.chosen])).toEqual([[id, { kind: "custom", text: "Split it in two" }]]);
 });
 
+scenario("An ask has a Reply in thread button", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  // Given an open ask of "devtool" and an answered ask of "devtool" in conversation 41
+  const w = await browserWorld({ server, page, context }, { agents: ["devtool", "docs"], live: ["devtool"] });
+  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  const lease = w.sessions.devtool!.lease;
+  const done = await agentAsks(w.srv, lease, conv, { question: "Answered question?" });
+  must(await answerAsk(w.owner, done), "answer");
+  const id = await agentAsks(w.srv, lease, conv);
+
+  // When the owner opens the ask menu in the conversation
+  await page.goto(`${w.srv.origin}/chats/${conv}`);
+  const open = askCard(page);
+  await open.getByRole("button", { name: "Ask options" }).click();
+
+  // Then the ask menu has no Reply item
+  await expect(page.getByRole("menu")).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Reply in thread" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  // When the owner taps "Reply in thread" on the open ask
+  await expect(open.getByRole("button", { name: "Merge it", exact: true }), "the options come first").toBeVisible();
+  await open.getByRole("button", { name: "Reply in thread", exact: true }).click();
+
+  // Then the thread of the ask opens and its Reply box has focus
+  await expect(page.getByRole("textbox", { name: "Reply in thread" })).toBeFocused();
+
+  // When the owner taps "Reply in thread" on the ask in Now
+  await openNow(page, w.srv);
+  await askCard(page).getByRole("button", { name: "Reply in thread", exact: true }).click();
+
+  // Then conversation 41 opens with the thread of the ask and its Reply box has focus
+  await expect(page).toHaveURL(new RegExp(`/chats/${conv}#reply=${id}$`));
+  await expect(page.getByRole("textbox", { name: "Reply in thread" })).toBeFocused();
+
+  // And the answered ask has no option buttons and keeps "Reply in thread"
+  // a thread is beside the chat from 900px (Close thread) and a full screen below it (Back)
+  await page.getByRole("button", { name: (page.viewportSize()?.width ?? 0) >= 900 ? "Close thread" : "Back", exact: true }).last().click();
+  const answered = askCard(page, "Answered question?");
+  await expect(answered.getByRole("button", { name: "Merge it", exact: true })).toHaveCount(0);
+  await expect(answered.getByRole("button", { name: "Reply in thread", exact: true })).toBeVisible();
+});
+
+scenario("The ask menu opens once", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  // Given an open ask of "devtool" in conversation 41
+  const w = await browserWorld({ server, page, context }, { agents: ["devtool", "docs"], live: ["devtool"] });
+  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  await agentAsks(w.srv, w.sessions.devtool!.lease, conv);
+  await page.goto(`${w.srv.origin}/chats/${conv}`);
+
+  // When the owner taps "Ask options" on the ask
+  const card = askCard(page);
+  await card.getByRole("button", { name: "Ask options" }).click();
+
+  // Then one menu opens with "Snooze", "Dismiss" and "Copy link"
+  await expect(page.getByRole("menu")).toHaveCount(1);
+  for (const name of ["Snooze", "Dismiss", "Copy link", "Pin", "Delete"]) await expect(page.getByRole("menuitem", { name })).toBeVisible();
+
+  // And the ask has no second "Message actions" button
+  await expect(card.getByRole("button", { name: "Message actions" })).toHaveCount(0);
+
+  // And the ask at the top of its own thread has no "Reply in thread" button
+  await page.keyboard.press("Escape");
+  await card.getByRole("button", { name: "Reply in thread", exact: true }).click();
+  await expect(page.getByRole("log", { name: "Thread messages" }).getByRole("button", { name: "Reply in thread", exact: true })).toHaveCount(0);
+});
+
 scenario("A double tap on an option answers once", { tag: ["@browser"] }, async ({ server, page, context, dataDir, testApi }, info) => {
   info.setTimeout(90_000);
   // Given an open ask of "devtool"

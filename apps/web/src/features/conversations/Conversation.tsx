@@ -124,6 +124,9 @@ export function Conversation() {
         throw err;
       }
       if (target) await loadUntil(s, key, id, target);
+      // Now's "Reply in thread" lands here with #reply=<ask id>.
+      const reply = Number(/^#reply=(\d+)$/.exec(location.hash)?.[1] ?? 0);
+      if (reply) void useThreads.getState().openThread(id, reply);
       rememberChat(id);
       const who = data.store.getState().rows[id]!.participants.find((p) => p.kind === "agent") ?? { handle: "agent" };
       setAgentHandle(who.handle);

@@ -79,6 +79,25 @@ Feature: Asks and their state machine
       Then the ask shows "Replied · Split it in two"
       And "devtool" gets an "ask_resolved" item with the custom text
 
+    @v1 @browser
+    Scenario: An ask has a Reply in thread button
+      Given an open ask of "devtool" and an answered ask of "devtool" in conversation 41
+      When the owner opens the ask menu in the conversation
+      Then the ask menu has no Reply item
+      When the owner taps "Reply in thread" on the open ask
+      Then the thread of the ask opens and its Reply box has focus
+      When the owner taps "Reply in thread" on the ask in Now
+      Then conversation 41 opens with the thread of the ask and its Reply box has focus
+      And the answered ask has no option buttons and keeps "Reply in thread"
+
+    @v1 @browser
+    Scenario: The ask menu opens once
+      Given an open ask of "devtool" in conversation 41
+      When the owner taps "Ask options" on the ask
+      Then one menu opens with "Snooze", "Dismiss", "Copy link", "Pin" and "Delete"
+      And the ask has no second "Message actions" button
+      And the ask at the top of its own thread has no "Reply in thread" button
+
     @v1 @browser @I-24 @C-4
     Scenario: A double tap on an option answers once
       Given an open ask of "devtool"

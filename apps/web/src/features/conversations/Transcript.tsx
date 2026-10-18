@@ -294,7 +294,7 @@ const MessageRow = memo(function MessageRow({ row, threaded, me, paused, convers
     // only markdown draws an image of an upload in the body; plain text and markdownv2 leave it to the file list
     const files = m.uploads?.length ? <Uploads uploads={m.uploads} body={format === "markdown" ? m.body : ""} /> : null;
     const said = !text && files ? null : format ? <Markdown text={text} format={format} /> : <div className="text">{text}</div>;
-    const askCard = m.kind === "ask" && m.ask ? <AskInline ask={m.ask} labelId={label} /> : null;
+    const askCard = m.kind === "ask" && m.ask ? <AskInline ask={m.ask} labelId={label} inThread={threaded} /> : null;
     const body = askCard ?? (
       <>
         {said}
@@ -303,7 +303,8 @@ const MessageRow = memo(function MessageRow({ row, threaded, me, paused, convers
     );
     const app = m.app && m.kind !== "ask" ? <AppHost app={m.app} messageId={m.id} agent={m.author} conversation={conversation} threadRoot={m.thread_root_id} /> : null;
     const edited = m.edited_at ? <><ViaAppMark message={m} />{app}<EditedMark id={m.id} /></> : <><ViaAppMark message={m} />{app}</>;
-    const menu = <MessageMenu message={m} mine={m.author.handle === me} conversation={conversation} />;
+    // The ask card has its own ⋯; a second one over the same corner was the "another three dots".
+    const menu = askCard ? undefined : <MessageMenu message={m} mine={m.author.handle === me} conversation={conversation} />;
     const detail = onDetails && m.author.kind === "agent" ? () => onDetails(m) : undefined;
     const replies = threaded || m.thread_root_id ? null : <ReplyLine message={m} conversation={conversation} />;
     const tag = !threaded && m.thread_root_id ? "replied to a thread" : undefined;

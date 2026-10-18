@@ -105,7 +105,7 @@ function EditSheet({ message, close }: { message: Message; close(): void }) {
   );
 }
 
-function DeleteSheet({ message, close }: { message: Message; close(): void }) {
+export function DeleteSheet({ message, close }: { message: Message; close(): void }) {
   const [alert, setAlert] = useState("");
   const remove = async () => {
     try {
