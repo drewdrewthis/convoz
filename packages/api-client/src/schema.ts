@@ -1897,6 +1897,8 @@ export interface components {
             user_code: string;
             host_info: components["schemas"]["HostInfo"] | null;
             source_ip: string | null;
+            /** @description True when the request came in on the agents-only listener (over the internet); the card says so. */
+            via_internet: boolean;
             node_name: string | null;
             /** Format: int64 */
             created_at: number;
@@ -5611,7 +5613,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The answer. */
+            /** @description The answer: {version}, and {agent_url} when the server has an agents-only listener (the address an agent outside the tailnet connects to). */
             200: {
                 headers: {
                     [name: string]: unknown;

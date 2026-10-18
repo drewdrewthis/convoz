@@ -31,7 +31,11 @@ type ownerJSON struct {
 func ownerOf(h auth.Human) ownerJSON { return ownerJSON{h.ID, h.Handle, h.DisplayName} }
 
 func (s *Server) version(w http.ResponseWriter, _ *http.Request, _ *call) {
-	writeJSON(w, http.StatusOK, map[string]any{"version": s.Cfg.Version})
+	out := map[string]any{"version": s.Cfg.Version}
+	if s.Cfg.AgentOrigin != "" {
+		out["agent_url"] = s.Cfg.AgentOrigin // the address an agent outside the tailnet connects to; the invite prompt shows it
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // ceremonyBody is the finish half of every WebAuthn ceremony.

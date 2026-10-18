@@ -29,6 +29,9 @@ type call struct {
 // source names who is calling for rate limits. Over TCP it is the peer address; behind the serve socket it is
 // the last X-Forwarded-For entry, which `tailscale serve` writes. Never an auth input.
 func (s *Server) source(r *http.Request) string {
+	if ip := agentClient(r.Context()); ip != "" {
+		return ip
+	}
 	if s.Cfg.Unix {
 		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 			parts := strings.Split(xff, ",")

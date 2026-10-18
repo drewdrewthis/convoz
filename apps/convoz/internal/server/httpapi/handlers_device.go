@@ -45,7 +45,7 @@ func (s *Server) interval() time.Duration {
 // nodeName asks Tailscale which node an address belongs to. It is empty when Tailscale is off, the address
 // is not an IP, or whois cannot say: the owner then sees "unknown". It is shown, never trusted.
 func (s *Server) nodeName(ctx context.Context, source string) string {
-	if !s.Cfg.TailscaleOn || net.ParseIP(source) == nil {
+	if !s.Cfg.TailscaleOn || agentClient(ctx) != "" || net.ParseIP(source) == nil { // an internet address is no node of ours
 		return ""
 	}
 	node, err := tailnet.Whois(ctx, s.Cfg.TailscaleBin, source)
@@ -74,7 +74,11 @@ func (s *Server) deviceCode(w http.ResponseWriter, r *http.Request, _ *call) {
 	}
 	info, _ := json.Marshal(wire.HostInfo{Hostname: clip(in.HostInfo.Hostname), OS: clip(in.HostInfo.OS), Arch: clip(in.HostInfo.Arch), CLIVersion: clip(in.HostInfo.CLIVersion)})
 	source := s.source(r)
-	req := auth.DeviceRequest{Name: in.Name, HostInfo: string(info), Source: source, SourceNode: s.nodeName(r.Context(), source), Interval: s.interval()}
+	node := s.nodeName(r.Context(), source)
+	if agentClient(r.Context()) != "" {
+		source = viaInternet + source
+	}
+	req := auth.DeviceRequest{Name: in.Name, HostInfo: string(info), Source: source, SourceNode: node, Interval: s.interval()}
 	var out auth.DeviceCode
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
 		var err error
@@ -176,14 +180,16 @@ func retryAfter(w http.ResponseWriter, d time.Duration) {
 
 // requestJSON is one pending machine request as the owner sees it.
 type requestJSON struct {
-	ID        int64           `json:"id"`
-	Name      string          `json:"name"`
-	UserCode  string          `json:"user_code"`
-	HostInfo  json.RawMessage `json:"host_info"`
-	SourceIP  *string         `json:"source_ip"`
-	NodeName  *string         `json:"node_name"`
-	CreatedAt int64           `json:"created_at"`
-	ExpiresAt int64           `json:"expires_at"`
+	ID       int64           `json:"id"`
+	Name     string          `json:"name"`
+	UserCode string          `json:"user_code"`
+	HostInfo json.RawMessage `json:"host_info"`
+	SourceIP *string         `json:"source_ip"`
+	// ViaInternet is true when the request came in on the agent listener; the card then says "via internet".
+	ViaInternet bool    `json:"via_internet"`
+	NodeName    *string `json:"node_name"`
+	CreatedAt   int64   `json:"created_at"`
+	ExpiresAt   int64   `json:"expires_at"`
 	// Identity is what the agent that ran convoz login --as said about itself; null for a plain login.
 	Identity *introJSON `json:"identity"`
 }
@@ -198,9 +204,10 @@ func requestsJSON(list []auth.Request, intros map[int64]introJSON) []requestJSON
 		if q.HostInfo != "" {
 			row.HostInfo = json.RawMessage(q.HostInfo)
 		}
-		if net.ParseIP(q.Source) != nil {
-			ip := q.Source
-			row.SourceIP = &ip
+		src, via := strings.CutPrefix(q.Source, viaInternet)
+		row.ViaInternet = via
+		if net.ParseIP(src) != nil {
+			row.SourceIP = &src
 		}
 		if q.SourceNode != "" {
 			node := strings.TrimSuffix(q.SourceNode, ".")

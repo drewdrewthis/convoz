@@ -37,6 +37,8 @@ func serve(args []string) int {
 	kekFile := fs.String("kek-file", "", "KEK credential file")
 	listen := fs.String("listen", "127.0.0.1:0", "listen address: a loopback IP with a port, or unix:///path.sock (the socket behind `tailscale serve`)")
 	host := fs.String("host", "", "the name clients reach this server by, NAME or NAME:PORT when `tailscale serve` listens on a non-443 HTTPS port, e.g. convoz.<tailnet>.ts.net:8473 (required)")
+	agentListen := fs.String("agent-listen", "", "off by default: a loopback IP with a port for the agents-only listener, the one `tailscale funnel` points at (needs --agent-host)")
+	agentHost := fs.String("agent-host", "", "the public name agents reach the agents-only listener by, NAME or NAME:PORT, e.g. convoz.<tailnet>.ts.net:8443; agents are told this address")
 	adminSocket := fs.String("admin-socket", "", "unix socket for break-glass admin commands (mode 0600)")
 	tailscaleBin := fs.String("tailscale-bin", "tailscale", "the tailscale command")
 	tailscaleMode := fs.String("tailscale", "check", "check: read tailscale status at start and refuse if funnel is on; off: skip (development)")
@@ -65,6 +67,13 @@ func serve(args []string) int {
 	}
 	name, publicPort, err := parseHost(*host)
 	if err != nil {
+		return fail(exitUsage, err)
+	}
+	agent, err := parseAgent(*agentListen, *agentHost)
+	switch {
+	case errors.Is(err, errNotLoopback):
+		return fail(exitWall, err)
+	case err != nil:
 		return fail(exitUsage, err)
 	}
 	if *adminSocket != "" && len(*adminSocket) > maxUnixPath {
@@ -101,6 +110,13 @@ func serve(args []string) int {
 		return code
 	}
 	defer pub.Close()
+	var agentLn net.Listener
+	if agent.on {
+		if agentLn, err = net.Listen("tcp", agent.listen); err != nil {
+			return fail(1, err)
+		}
+		defer agentLn.Close()
+	}
 	var admin net.Listener
 	if *adminSocket != "" {
 		if admin, err = bindAdmin(*adminSocket); err != nil {
@@ -122,6 +138,10 @@ func serve(args []string) int {
 		cfg.Port = pub.Addr().(*net.TCPAddr).Port
 	}
 	cfg.Origin = originFor(name, publicPort, cfg)
+	if agentLn != nil {
+		cfg.AgentHost, cfg.AgentPublicPort, cfg.AgentPort = agent.name, agent.publicPort, agentLn.Addr().(*net.TCPAddr).Port
+		cfg.AgentOrigin = originFor(agent.name, agent.publicPort, httpapi.Config{Port: cfg.AgentPort})
+	}
 	wa, err := auth.NewRelyingParty(name, cfg.Origin)
 	if err != nil {
 		return fail(1, err)
@@ -146,6 +166,17 @@ func serve(args []string) int {
 		ErrorLog:       logger,
 	}}
 	listeners := []net.Listener{pub}
+	if agentLn != nil {
+		servers = append(servers, &http.Server{
+			Handler:           api.AgentHandler(),
+			ReadHeaderTimeout: 10 * time.Second,
+			BaseContext:       func(net.Listener) context.Context { return ctx },
+			IdleTimeout:       2 * time.Minute,
+			MaxHeaderBytes:    1 << 16,
+			ErrorLog:          logger,
+		})
+		listeners = append(listeners, agentLn)
+	}
 	if admin != nil {
 		servers = append(servers, &http.Server{
 			Handler:           httpapi.NewAdminHandler(store, clock, cfg.Origin, logger),
@@ -156,7 +187,7 @@ func serve(args []string) int {
 	}
 
 	if *readyFile != "" {
-		if err := writeReady(*readyFile, spec, pub, *adminSocket); err != nil {
+		if err := writeReady(*readyFile, spec, pub, *adminSocket, agentLn); err != nil {
 			return fail(1, err)
 		}
 	}
@@ -304,7 +335,7 @@ func openStore(dataDir string, kek []byte, clock platform.Clock) (*db.Store, *au
 }
 
 // writeReady publishes the addresses atomically so a watcher never reads half a file.
-func writeReady(path string, spec listenSpec, pub net.Listener, adminPath string) error {
+func writeReady(path string, spec listenSpec, pub net.Listener, adminPath string, agentLn net.Listener) error {
 	listen := "tcp://" + pub.Addr().String()
 	if spec.unix {
 		listen = "unix://" + spec.addr
@@ -312,6 +343,9 @@ func writeReady(path string, spec listenSpec, pub net.Listener, adminPath string
 	doc := map[string]any{"listen": listen, "pid": os.Getpid()}
 	if adminPath != "" {
 		doc["admin"] = "unix://" + adminPath
+	}
+	if agentLn != nil {
+		doc["agent"] = "tcp://" + agentLn.Addr().String()
 	}
 	raw, _ := json.Marshal(doc)
 	tmp := path + ".tmp"

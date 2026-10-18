@@ -22,7 +22,7 @@ HostInfo:
     cli_version: { type: string }
 MachineRequest:
   type: object
-  required: [id, name, user_code, host_info, source_ip, node_name, created_at, expires_at]
+  required: [id, name, user_code, host_info, source_ip, via_internet, node_name, created_at, expires_at]
   properties:
     id: { type: integer, format: int64 }
     name: { type: string }
@@ -32,6 +32,7 @@ MachineRequest:
         - $ref: "../openapi.yaml#/components/schemas/HostInfo"
         - type: "null"
     source_ip: { type: ["string", "null"] }
+    via_internet: { type: boolean, description: "True when the request came in on the agents-only listener (over the internet); the card says so." }
     node_name: { type: ["string", "null"] }
     created_at: { type: integer, format: int64 }
     expires_at: { type: integer, format: int64 }

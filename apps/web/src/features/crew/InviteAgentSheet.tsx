@@ -4,7 +4,7 @@ import { humanError } from "../../shared/api.ts";
 import { data, useData } from "../../shared/data.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { agentRequests, RequestCard, useNow, type AgentRequest } from "../now/index.ts";
-import { invitePrompt } from "./invitePrompt.ts";
+import { fetchAgentUrl, invitePrompt } from "./invitePrompt.ts";
 
 interface Props {
   close: () => void;
@@ -28,12 +28,15 @@ export default function InviteAgentSheet({ close, conversation }: Props) {
   const [connected, setConnected] = useState<string | null>(null);
   const baseline = useRef<Set<string> | null>(null);
   const tracked = useRef<{ key: string; handle: string } | null>(null);
-  const prompt = useMemo(() => invitePrompt({ server: location.origin, conversation }), [conversation]);
+  const [agentUrl, setAgentUrl] = useState<string | null>(null);
+  // An agent outside the tailnet cannot reach this page's address; the server says where it can connect, when it has such an address.
+  const prompt = useMemo(() => invitePrompt({ server: agentUrl ?? location.origin, conversation }), [agentUrl, conversation]);
 
   useEffect(() => {
     const stop = useNow.getState().start();
     useNow.getState().load().catch((err) => fail(humanError(err)));
     data.loadIdentities().catch(() => {});
+    fetchAgentUrl().then(setAgentUrl, () => {});
     return stop;
   }, [fail]);
 

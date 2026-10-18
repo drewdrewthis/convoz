@@ -42,3 +42,11 @@ export function invitePrompt({ server, conversation }: InviteTarget): string {
     "Status:  convoz status --state working --doing \"...\"",
   ].join("\n");
 }
+
+/** fetchAgentUrl is the address agents outside the tailnet connect to (the server's agent_url), or null when it has none. */
+export async function fetchAgentUrl(): Promise<string | null> {
+  const res = await fetch("/api/version");
+  if (!res.ok) return null;
+  const body: { agent_url?: unknown } = await res.json();
+  return typeof body.agent_url === "string" && body.agent_url !== "" ? body.agent_url : null;
+}

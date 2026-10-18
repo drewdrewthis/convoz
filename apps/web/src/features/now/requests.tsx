@@ -19,7 +19,7 @@ export function agentRequests(now: Now | null): AgentRequest[] {
 }
 
 const hostInfoLine = (info: HostInfo | null) => (info && [info.hostname, info.os, info.arch, info.cli_version].filter(Boolean).join(" · ")) || "nothing";
-const sourceLine = (req: MachineRequest) => `Source: ${req.node_name || "unknown"}${req.source_ip ? ` (${req.source_ip})` : ""}`;
+const sourceLine = (req: MachineRequest) => `Source: ${req.node_name || "unknown"}${req.source_ip ? ` (${req.source_ip})` : ""}${req.via_internet ? " · via internet" : ""}`;
 
 /**
  * Who is a short block about an agent that asks to connect. The server's own words (the machine name) are never in it: everything

@@ -161,7 +161,11 @@ func (s *Server) logRequests(next http.Handler) http.Handler {
 					writeErr(sw, http.StatusInternalServerError, "internal", "Something went wrong on the server.")
 				}
 			}
-			s.Log.Printf("%s %s %d %dms", r.Method, loggablePath(r), sw.status, s.Clock.Now().Sub(start)/time.Millisecond)
+			ip := ""
+			if c := agentClient(r.Context()); c != "" {
+				ip = " ip=" + c // the agent listener: the address the request came from, never the header of a stranger
+			}
+			s.Log.Printf("%s %s %d %dms%s", r.Method, loggablePath(r), sw.status, s.Clock.Now().Sub(start)/time.Millisecond, ip)
 		}()
 		next.ServeHTTP(sw, r)
 	})

@@ -23,8 +23,8 @@ var authRoutes = []Route{
 	{Method: "GET", Pattern: "/api/me/recovery-codes", Auth: authz.Human, handle: (*Server).recoveryCount},
 	{Method: "POST", Pattern: "/api/me/recovery-codes", Auth: authz.Human, StepUp: "recovery.regenerate", handle: (*Server).regenerateRecoveryCodes},
 	// The machine login (device flow): no cookie and no credential, so no Origin check; the protocol limits the polls.
-	{Method: "POST", Pattern: "/api/device/code", Auth: authz.Pub, NoCSRF: true, handle: (*Server).deviceCode},
-	{Method: "POST", Pattern: "/api/device/token", Auth: authz.Pub, NoCSRF: true, NoLimit: true, handle: (*Server).deviceToken},
+	{Method: "POST", Pattern: "/api/device/code", Auth: authz.Pub, NoCSRF: true, Agent: "device login: start", handle: (*Server).deviceCode},
+	{Method: "POST", Pattern: "/api/device/token", Auth: authz.Pub, NoCSRF: true, NoLimit: true, Agent: "device login: poll", handle: (*Server).deviceToken},
 	{Method: "GET", Pattern: "/api/machines/requests", Auth: authz.Owner, handle: (*Server).machineRequests},
 	{Method: "POST", Pattern: "/api/machines/requests/deny-all", Auth: authz.Owner, handle: (*Server).denyAllRequests},
 	{Method: "POST", Pattern: "/api/machines/requests/:id/approve", Auth: authz.Owner, handle: (*Server).approveRequest},

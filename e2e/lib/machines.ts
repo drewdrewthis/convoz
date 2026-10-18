@@ -115,6 +115,7 @@ export interface PendingRequest {
   user_code: string;
   host_info: Record<string, string> | null;
   source_ip: string | null;
+  via_internet: boolean;
   node_name: string | null;
   created_at: number;
   expires_at: number;

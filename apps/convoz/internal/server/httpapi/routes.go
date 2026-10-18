@@ -31,7 +31,10 @@ type Route struct {
 	RefuseLease bool   // a lease is told 403, not 401: an agent credential can never do this
 	NoCSRF      bool   // a write that carries no cookie and no Authorization (a CLI), so the browser Origin check does not apply
 	NoLimit     bool   // exempt from the per-source public limit (its own protocol limits it)
-	handle      handler
+	// Agent is the reason the agent listener serves a route that needs no credential ("" refuses it there). A route that a
+	// lease (Lease) or a machine key (Auth) meets is served without saying so; see AgentReason.
+	Agent  string
+	handle handler
 }
 
 // check is Auth.Check, widened by Lease.

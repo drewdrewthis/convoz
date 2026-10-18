@@ -238,6 +238,18 @@ The tailnet is the perimeter, so it must be real:
 - Admin actions that must not be HTTP (break-glass) use a second Unix socket, `/run/convoz/admin.sock`, mode 0600, owned by the service user.
 - **Needs verification (S1 spike, read-only):** `serve` → Unix socket support; that `serve` passes the original node identity; that the service user can call LocalAPI `whois` and `funnel status`. Until the whois part passes, "source" shows "unknown" (every request behind `serve` looks like loopback).
 
+### 3.4a The agents-only address
+
+Owner ruling (Drew, 2026-10-18), on the ask "Let agents outside your tailnet (like dot) connect?": he chose **"Funnel an agents-only port"**: "Tailscale Funnel on a separate port that serves only device login and the agent API, with the web app and owner routes refused. You still approve each agent with one tap."
+
+The wall in 3.4 is unchanged: the owner's listener still refuses funnel. A second listener is added, off by default:
+- `--agent-listen 127.0.0.1:PORT --agent-host NAME[:PORT]` (both or neither; loopback only). `--agent-host` is the Funnel name. Agents are told that name: `/install` on this listener bakes it in, `GET /api/version` returns `agent_url` (the web invite prompt shows it; with no agent host the prompt keeps the tailnet URL).
+- **Allow-list from the route table** (`Route.AgentReason`), never a deny-list. Served: rows with `Lease` or a lease/machine-key `Auth` (scopes enforced as before), and the pub rows that carry `Agent: "<reason>"`: `/healthz`, `/api/version`, `/install`, `/cli/:file`, `POST /api/device/code`, `POST /api/device/token`. Anything else, including owner routes, pages, approvals, passkey, push, settings, admin and testhooks, is 404 (the same body as an unknown path). A Go test walks the whole table and fails when a route is served without a reason or refused while the table serves it; the pub list is pinned by name.
+- **Cookies are dropped** before routing, so an owner session cookie gives no right here. There is no CSRF check on this listener because nothing ambient is honoured. `Host` must be the agent name (alone, with the public port, or with the bound port), else 421.
+- **Client address** for logs and limits: the peer, or the last `X-Forwarded-For` entry when the peer is loopback (the local Funnel proxy). It is logged as `ip=` and stored with a device request as `internet:<ip>`.
+- **Limits per client address**: 10 login starts an hour, 60 token polls a minute, 30 answers of 401 in 10 minutes (then 429 with `Retry-After`). The per-machine caps (3 pending, 5 identity requests a day), the body limit and the per-source device limits still apply.
+- **Approval is unchanged**: one tap on the owner's tailnet app. The card says "via internet" when the request came in on this listener (`via_internet` on the request row). An identity request from an already logged-in machine (`POST /api/sessions` with `create`) carries no such mark yet; it has no source column.
+
 ### 3.5 Loss, compromise, many machines
 
 | Situation | What happens |
