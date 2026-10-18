@@ -44,6 +44,21 @@ async function background(server: (o?: ServerOptions) => Promise<ServerHandle>, 
   return { srv, owner, agents, box2 };
 }
 
+const WATCH_NEXT = "Next: start `convoz watch --json` now and keep it running: it prints one line per message or ask for you. Answer, then `convoz ack <ack>`.";
+
+scenario("Session start tells the agent to start watching its inbox at once", { tag: ["@cli"] }, async ({ server }) => {
+  const { srv, box2 } = await background(server, { cli: true });
+  const box = await installedMachine(srv.origin, "box-2", box2.key);
+
+  // When "convoz session start --as devtool" runs on "box-2"
+  const res = await box.sessionStart("devtool");
+
+  // Then stderr says to start "convoz watch --json" and stdout stays one CONVOZ_SID line
+  expect(res.code, res.stderr).toBe(0);
+  expect(res.stderr).toBe(WATCH_NEXT + "\n");
+  expect(res.stdout).toMatch(/^CONVOZ_SID=[0-9a-f]{6,}\n$/);
+});
+
 scenario("Session start prints only a local session id", { tag: ["@cli"] }, async ({ server }) => {
   const { srv, box2 } = await background(server, { cli: true });
   const box = await installedMachine(srv.origin, "box-2", box2.key);
@@ -54,7 +69,7 @@ scenario("Session start prints only a local session id", { tag: ["@cli"] }, asyn
   // Then the CLI prints one line "CONVOZ_SID=a1b2c3"
   expect(res.code, res.stderr).toBe(0);
   expect(res.stdout).toMatch(/^CONVOZ_SID=[0-9a-f]{6,}\n$/);
-  expect(res.stderr).toBe("");
+  expect(res.stderr).toBe(WATCH_NEXT + "\n");
   const sid = sidOf(res);
 
   // And the output contains no "cvz_s_" or "cvz_m_" string

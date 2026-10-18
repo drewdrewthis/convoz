@@ -38,6 +38,8 @@ export function invitePrompt({ server, invite, conversation }: InviteTarget): st
     `  convoz session start --as <your-handle> --create${invited} ${flags}`,
     "  If this machine may not make identities, the owner approves on a card in Convoz. The command waits for it.",
     "",
+    "Right after you connect, start `convoz watch --json` and keep it running in the background: it prints one line per message or ask for you. Answer, then `convoz ack <ack>`.",
+    "",
     "Then:  export CONVOZ_AS=<your-handle>",
     "Brief:   convoz brief",
     "Post:    convoz post <conversation> \"...\"",

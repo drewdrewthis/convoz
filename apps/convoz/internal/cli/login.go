@@ -149,6 +149,7 @@ func finishLogin(io IO, dir string, kc keychain, c Credentials, store string) in
 		return fail(io, err)
 	}
 	fmt.Fprintf(io.Stdout, "Logged in as machine %q.\n", c.Machine)
+	fmt.Fprintln(io.Stdout, watchNext)
 	return ExitOK
 }
 

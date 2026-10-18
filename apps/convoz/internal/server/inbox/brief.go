@@ -168,7 +168,7 @@ func identitySection(in BriefInput, budget int) string {
 	if in.DisplayName != "" {
 		name = fmt.Sprintf("%s (@%s)", oneLine(in.DisplayName), in.Handle)
 	}
-	lines := []string{"## Who you are", "You are " + name + "."}
+	lines := []string{"## Who you are", "You are " + name + ".", "Start `convoz watch --json` now and keep it running: it prints one line per message or ask for you. Answer, then `convoz ack <ack>`."}
 	if in.Description != "" {
 		lines = append(lines, oneLine(in.Description))
 	}

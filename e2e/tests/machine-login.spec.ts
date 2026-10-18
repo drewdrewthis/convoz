@@ -731,6 +731,7 @@ scenario("A login as an agent shows one card and one tap connects the machine an
   const done = await login.done;
   expect(done.code, done.stderr).toBe(0);
   expect(done.stdout).toContain('Logged in as machine "box-2".');
+  expect(done.stdout).toContain("convoz watch --json");
   expect(done.stdout + done.stderr).not.toMatch(/cvz_[a-z]_/);
 
   // And Crew lists "code-review" marked "created by box-2"
