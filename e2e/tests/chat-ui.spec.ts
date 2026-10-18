@@ -1095,11 +1095,12 @@ scenario("The header shrinks while typing on a phone", { tag: ["@browser", "@pho
   await page.setViewportSize({ width: 390, height: 480 });
 
   // Then the header is one 36 px line with Back and the title
-  await expect.poll(async () => (await box(header)).height).toBe(36);
+  // owner ruling 2026-10-18 (floating header): the 36 px bar is gone; the same floating circles stay, without the subtitle
+  await expect.poll(async () => (await box(header)).height).toBe(full.height);
   await expect(backButton(page)).toBeVisible();
   await expect(page.getByRole("heading", { level: 1, name: "Ship search filters" })).toBeVisible();
-  await expect(details).toBeHidden();
-  expect((await box(backButton(page))).height).toBe(36);
+  await expect(details).toBeVisible();
+  expect((await box(backButton(page))).height).toBe(44);
 
   // And the message box grows from one line to at most four
   const oneLine = (await box(composer(page))).height;
@@ -1125,4 +1126,38 @@ scenario("The header shrinks while typing on a phone", { tag: ["@browser", "@pho
   // Then the full header is back
   await expect.poll(async () => (await box(header)).height).toBe(full.height);
   await expect(details).toBeVisible();
+});
+
+// Owner ruling 2026-10-18: "You didn't do the ui update for the chat yet? It should have the floating circle buttons instead of the full header"
+scenario("The conversation header is floating circle buttons", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
+  // Given conversation 41 has more messages than fit on a phone screen
+  const u = await uiWorld({ server, page, context });
+  const conv = await createConversation(u.w.owner, { participants: ["devtool"], title: "Ship search filters" });
+  for (let i = 1; i <= 30; i++) await ownerSays(u.w.owner, conv, `message number ${i}`);
+
+  // When the owner opens conversation 41 on a phone
+  await page.goto(`${u.w.srv.origin}/chats/${conv}`);
+  await expect(composer(page)).toBeVisible();
+  const header = page.locator("header").first();
+
+  // Then the header has no bar background
+  expect(await header.evaluate((e) => { const c = getComputedStyle(e); return [c.backgroundColor, c.borderBottomWidth]; })).toEqual(["rgba(0, 0, 0, 0)", "0px"]);
+
+  // And the back button and the action buttons are circles of at least 44 px
+  for (const button of [backButton(page), page.getByRole("button", { name: /star conversation/i }), page.getByRole("button", { name: "Show details" })]) {
+    await expect(button).toBeVisible();
+    const b = await box(button);
+    expect(b.width).toBeGreaterThanOrEqual(44);
+    expect(b.height).toBeGreaterThanOrEqual(44);
+    expect(await button.evaluate((e) => parseFloat(getComputedStyle(e).borderTopLeftRadius))).toBeGreaterThanOrEqual(22);
+  }
+
+  // And the title is visible
+  await expect(page.getByRole("heading", { level: 1, name: "Ship search filters" })).toBeVisible();
+
+  // And the message list scrolls under the top area
+  const bar = await box(header);
+  expect((await box(messageLog(page))).y).toBeLessThan(bar.y + bar.height);
+  await messageLog(page).evaluate((e) => { e.scrollTop = 0; });
+  await expect(messageLog(page).getByText("message number 1", { exact: true })).toBeVisible();
 });

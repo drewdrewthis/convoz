@@ -82,3 +82,13 @@ Feature: Threads
         | the owner's own message from another device        |
         | a system line "@docs joined"                       |
         | a message from "devtool" that it deletes at once   |
+
+  Rule: One tap opens a thread on a phone
+
+    # Owner ruling 2026-10-18 (iPhone, Chrome): "Also opening it requires a double click."
+    @v1 @browser @phone
+    Scenario: One tap on the reply chip opens the thread pane
+      Given conversation 41 is open on a phone with a thread on its first message
+      When the owner taps the reply chip once
+      Then the thread pane is open
+      And the reply chip is at least 44 px tall
