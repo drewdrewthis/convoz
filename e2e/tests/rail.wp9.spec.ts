@@ -9,7 +9,7 @@ import { seedDb } from "../lib/wp3.ts";
  * rail.feature (and its contract in specs/contracts/rail.feature): the owner's rail. The page contract is the comment block of
  * lib/rail-wp9.ts. 41, 52 and 60 are "Ship search filters", "Deploy alerts runbook" and "Weekly usage", created in that order.
  * The rail is the desktop sidebar, so each binding that looks at it widens the window first (desktopWindow): the "mobile" project runs
- * the same steps. Rows of the phone Chats list (/chats) keep their own order, by latest activity; the rail keeps the owner's.
+ * the same steps. Rows of the phone Conversations list (/chats) keep the owner's order too (prototype v41); new activity never reorders either.
  */
 
 const DAY = 86_400_000;
@@ -39,7 +39,7 @@ scenario("Activity never reorders the rail", { tag: ["@browser"] }, async ({ ser
   // When "devtool" posts in conversation 41
   await agentSays(u.w, "devtool", u.c[41], "Tests are green");
 
-  // Then conversation 41 is bold with its new preview (the Chats list in the page shows the preview line)
+  // Then conversation 41 is bold with its new preview (the Conversations list in the page shows the preview line)
   await expect(chatRow(page, T41).getByText("devtool: Tests are green")).toBeVisible({ timeout: 5_000 });
   expect(await isBold(chatRow(page, T41).getByRole("heading"))).toBe(true);
   await expect(railRow(page, T41).getByRole("link")).toHaveClass(/unread/);
@@ -128,11 +128,11 @@ scenario("Many drags between the same two rows keep a stable order", { tag: ["@b
   await expect(railGroup(page, "Conversations").locator(".rtitle")).toHaveText(made.map((id) => names.get(id)!));
 });
 
-scenario("Quiet conversations fold into Older", { tag: ["@browser"] }, async ({ server, page, context, dataDir }) => {
+scenario("Conversations with no message since yesterday fold into Older", { tag: ["@browser"] }, async ({ server, page, context, dataDir }) => {
   const u = await railWorld({ server, page, context });
 
-  // Given conversation 41 is not starred and its last activity was 15 days ago
-  ageOf(dataDir, u.c[41], 15);
+  // Given conversation 41 is not starred and its last message was yesterday
+  ageOf(dataDir, u.c[41], 1);
 
   // When the owner opens the rail
   await openRail(page, u.w.srv);
@@ -149,11 +149,10 @@ scenario("Quiet conversations fold into Older", { tag: ["@browser"] }, async ({ 
   await expect(railGroup(page, "Older").locator(".rtitle")).toHaveText([T41]);
 });
 
-scenario("Only quiet, unstarred conversations fold into Older", { tag: ["@browser"] }, async ({ server, page, context, dataDir }) => {
+scenario("Only unstarred conversations with no message today fold into Older", { tag: ["@browser"] }, async ({ server, page, context, dataDir }) => {
   const u = await railWorld({ server, page, context });
 
-  // Given conversation 52 is not starred and its last activity was 13 days ago
-  ageOf(dataDir, u.c[52], 13);
+  // Given conversation 52 is not starred and its last message was today
 
   // When the owner opens the rail
   await openRail(page, u.w.srv);
@@ -162,9 +161,9 @@ scenario("Only quiet, unstarred conversations fold into Older", { tag: ["@browse
   await expect(railGroup(page, "Conversations").locator(".rtitle")).toHaveText([T60, T52, T41]);
   await expect(rail(page).getByRole("button", { name: /^Older/ })).toHaveCount(0);
 
-  // Given conversation 52 is starred and its last activity was 40 days ago
+  // Given conversation 52 is starred and its last message was 40 days ago
   await setPrefs(u.w.owner, u.c[52], { starred: true });
-  ageOf(dataDir, u.c[52], 27);
+  ageOf(dataDir, u.c[52], 40);
 
   // When the owner opens the rail
   await page.reload();

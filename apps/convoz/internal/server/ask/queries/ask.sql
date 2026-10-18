@@ -89,6 +89,10 @@ SELECT message_id FROM asks WHERE state = 'open' ORDER BY urgent DESC, message_i
 -- name: AnsweredSince :many
 SELECT message_id FROM asks WHERE state = 'answered' AND resolved_at >= sqlc.arg(since) ORDER BY resolved_at DESC, message_id DESC LIMIT 50;
 
+-- name: DismissedSince :many
+-- Still dismissed (a reopened or answered ask is no longer in this state).
+SELECT message_id FROM asks WHERE state = 'dismissed' AND resolved_at >= sqlc.arg(since) ORDER BY resolved_at DESC, message_id DESC LIMIT 50;
+
 -- name: AsksOfAskerToClose :many
 SELECT message_id FROM asks WHERE asker_id = sqlc.arg(asker_id) AND state IN ('open','dismissed') ORDER BY message_id;
 

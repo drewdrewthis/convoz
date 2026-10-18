@@ -8,15 +8,6 @@ import (
 	"database/sql"
 )
 
-type Assignment struct {
-	ConversationID int64
-	AgentID        int64
-	SessionID      sql.NullInt64
-	Fence          int64
-	PickedUpAt     int64
-	LeaseUntil     int64
-}
-
 type Conversation struct {
 	ID             int64
 	Title          sql.NullString

@@ -84,17 +84,6 @@ Feature: Conversations (contracts)
       When an old tab reports a read position of message 90
       Then the owner's read position is still message 120
 
-  Rule: A conversation can be offered to any agent for pickup (SEC-6)
+    # Removed: "An agent without the pickup scope cannot pick up" (pickup was removed). Owner said: "Nothing claims conversations. I need to tag."
 
-    @v1 @api @I-47
-    Scenario: An agent without the pickup scope cannot pick up
-      Given the owner opened conversation 60 for pickup
-      When "devtool" on a machine without the pickup scope picks it up
-      Then the server answers 403
-
-    @v1 @api @invariant @I-47
-    Scenario: A stale pickup holder cannot act after a release
-      Given "devtool" picked up conversation 60 and the pickup was released when its machine was revoked
-      And "docs" picked it up next
-      When the old "devtool" pickup sends a pickup-only action with its old fence
-      Then the server answers 409
+    # Removed: "A stale pickup holder cannot act after a release" (pickup was removed). Owner said: "Nothing claims conversations. I need to tag."

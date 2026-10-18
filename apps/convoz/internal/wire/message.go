@@ -8,7 +8,6 @@ type System struct {
 	By       *Person `json:"by,omitempty"`
 	Via      string  `json:"via,omitempty"`
 	History  string  `json:"history,omitempty"`
-	Reason   string  `json:"reason,omitempty"`
 	Streak   int     `json:"streak,omitempty"`
 }
 

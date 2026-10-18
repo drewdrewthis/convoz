@@ -40,7 +40,7 @@ Feature: Messages and their types (contracts)
     @v1 @api @invariant @AC-M15
     Scenario: System lines hold ids, never text
       Given a conversation titled "ZQX-title" with an agent named "ZQX-name"
-      When each of the 12 system line subtypes is caused by its action
+      When each of the 9 system line subtypes is caused by its action
       Then each line is written in the same transaction as its action and matches system.v1
       And no stored system line contains either seeded string
 

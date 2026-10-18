@@ -171,6 +171,55 @@ scenario("Dismiss removes an ask from Now", { tag: ["@browser"] }, async ({ serv
   expect((await askOf(w.owner, id)).state).toBe("dismissed");
 });
 
+scenario("Dismiss shows an Undo toast and Undo puts the ask back", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  // Given an open ask of "devtool"
+  const w = await browserWorld({ server, page, context }, WORLD);
+  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  const id = await agentAsks(w.srv, w.sessions.devtool!.lease, conv);
+  await openNow(page, w.srv);
+
+  // When the owner dismisses it
+  await askCard(page).getByRole("button", { name: "Dismiss" }).click();
+
+  // Then a toast says "Dismissed" with an Undo button for 10 seconds
+  const toast = page.getByRole("status").filter({ hasText: "Dismissed" });
+  await expect(toast).toBeVisible();
+  await expect(toast.getByRole("button", { name: "Undo" })).toBeVisible();
+
+  // When the owner taps Undo
+  await toast.getByRole("button", { name: "Undo" }).click();
+
+  // Then Now lists the ask as open again
+  await expect(askCard(page)).toHaveCount(1);
+  expect((await askOf(w.owner, id)).state).toBe("open");
+});
+
+scenario("The Dismissed fold lists dismissed asks and Reopen puts one back", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  // Given an open ask of "devtool" that the owner dismissed
+  const w = await browserWorld({ server, page, context }, WORLD);
+  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  const id = await agentAsks(w.srv, w.sessions.devtool!.lease, conv);
+  await openNow(page, w.srv);
+  await askCard(page).getByRole("button", { name: "Dismiss" }).click();
+  await expect(askCard(page)).toHaveCount(0);
+
+  // When the owner opens "Dismissed today" in Now
+  await page.getByRole("button", { name: /^Dismissed today/ }).click();
+
+  // Then it lists the ask as "Dismissed" with a "Reopen" button
+  const row = page.locator(".foldrows li");
+  await expect(row).toContainText("Dismissed");
+
+  // When the owner taps "Reopen"
+  await row.getByRole("button", { name: "Reopen" }).click();
+
+  // Then Now lists the ask as open again
+  await expect(askCard(page)).toHaveCount(1);
+  expect((await askOf(w.owner, id)).state).toBe("open");
+});
+
 scenario("The ask bar works from the keyboard", { tag: ["@browser"] }, async ({ server, page, context, dataDir, testApi }, info) => {
   info.setTimeout(90_000);
   // Given an open ask of "devtool" has focus in Now
@@ -242,7 +291,7 @@ scenario("A snoozed ask returns at its time", { tag: ["@browser"] }, async ({ se
   // Then Now lists it under snoozed with its wake time
   await expect(askCard(page)).toHaveCount(0);
   await openFold(page, "Snoozed");
-  await expect(page.getByText(/Snoozed until/)).toBeVisible();
+  await expect(page.locator(".foldrows").getByText(/Snoozed until/)).toBeVisible();
   const until = (await nowOf(w.owner)).snoozed.find((a) => a.id === id)?.snoozed_until;
   expect(until).toBeGreaterThan(Date.now());
 
@@ -261,6 +310,32 @@ scenario("A snoozed ask returns at its time", { tag: ["@browser"] }, async ({ se
     }
   };
   expect(reasons()).toEqual(["snooze_wake"]);
+});
+
+scenario("Snooze shows an Undo toast and Undo puts the ask back", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  // Given an open ask of "devtool"
+  const w = await browserWorld({ server, page, context }, WORLD);
+  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  const id = await agentAsks(w.srv, w.sessions.devtool!.lease, conv);
+  await openNow(page, w.srv);
+
+  // When the owner snoozes it for "1 hour"
+  await askCard(page).getByRole("button", { name: "Snooze" }).click();
+  await page.getByRole("menuitem", { name: "1 hour", exact: true }).click();
+
+  // Then a toast says "Snoozed until 1 hour" with the wake time and an Undo button for 10 seconds
+  const toast = page.getByRole("status").filter({ hasText: /Snoozed until 1 hour, \d{1,2}:\d{2}\s[AP]M/ });
+  await expect(toast).toBeVisible();
+  await expect(toast.getByRole("button", { name: "Undo" })).toBeVisible();
+
+  // When the owner taps Undo
+  await toast.getByRole("button", { name: "Undo" }).click();
+
+  // Then Now lists the ask as open again
+  await expect(askCard(page)).toHaveCount(1);
+  expect((await nowOf(w.owner)).snoozed).toEqual([]);
+  expect((await askOf(w.owner, id)).state).toBe("open");
 });
 
 scenario("Unsnooze returns an ask at once", { tag: ["@browser"] }, async ({ server, page, context, dataDir, testApi }, info) => {
@@ -290,7 +365,7 @@ scenario("Snooze presets set the right wake time", { tag: ["@browser"] }, async 
   await setServerTime(testApi(w.srv), w.owner, "2026-10-16T14:00:00-04:00");
   const rows: [preset: string, wake: string][] = [
     ["1 hour", "2026-10-16T15:00:00"],
-    ["Tonight", "2026-10-16T20:00:00"],
+    ["Tonight", "2026-10-16T18:00:00"],
     ["Tomorrow", "2026-10-17T09:00:00"],
   ];
   for (const [preset, wake] of rows) {
@@ -330,13 +405,13 @@ scenario("The count updates in every open tab", { tag: ["@browser"] }, async ({ 
   await expect(other.getByRole("article")).toHaveCount(2);
 });
 
-scenario("Tonight is not offered after 20:00", { tag: ["@browser"] }, async ({ server, page, context, dataDir, testApi }, info) => {
+scenario("Tonight is not offered from 6:00 PM", { tag: ["@browser"] }, async ({ server, page, context, dataDir, testApi }, info) => {
   info.setTimeout(90_000);
-  // Given the time is 2026-10-16 21:30 in the owner's time zone
+  // Given the time is 2026-10-16 19:30 in the owner's time zone
   const w = await browserWorld({ server, page, context }, WORLD);
   const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
   await agentAsks(w.srv, w.sessions.devtool!.lease, conv);
-  await setServerTime(testApi(w.srv), w.owner, "2026-10-16T21:30:00-04:00");
+  await setServerTime(testApi(w.srv), w.owner, "2026-10-16T19:30:00-04:00");
 
   // When the owner opens the snooze menu of an open ask
   await openNow(page, w.srv);

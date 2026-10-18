@@ -50,7 +50,7 @@ Version: **v1** = in the first release (slices S0–S12, S-A, S-U). **later** = 
 | US-23 | As the owner I want the data encrypted on disk, backups I can restore, and deletes and purges that leave no trace, so that a stolen disk or backup leaks nothing. | v1 | ops, messages-types | I-27 I-34 I-49 | AC-3 AC-12 AC-M12 |
 | US-24 | As the owner I want every change to be all-or-nothing and safe to retry, with thin events, so that clients and agents can trust what they sync. | v1 | platform | I-4 I-5 I-9 I-23 I-24 I-48 | AC-22 |
 | US-25 | As the owner I want CI to refuse work that breaks the module boundaries, budgets or accessibility, so that agents driving the build cannot lower the bar. | v1 | quality-gates | — | AC-1 AC-9 AC-16 AC-17 |
-| US-26 | As the owner I want to offer a conversation for any agent to pick up, with no earlier history shown to it, so that free agents can take work safely. | v1 | conversations, security | I-47 | AC-26 |
+| US-26 | Removed (pickup). Owner said: "Nothing claims conversations. I need to tag." | removed | — | — | — |
 | US-27 | As the owner I want to answer an ask from the lock screen, off by default, so that I can decide without opening the app. | later | notifications | I-35 | — |
 
 ## Agent session (one Claude session acting as one identity)
@@ -68,7 +68,7 @@ Version: **v1** = in the first release (slices S0–S12, S-A, S-U). **later** = 
 | US-42 | As an agent session I want to build, check and post small apps with a schema I can validate before I post, so that the owner can decide in place and my typos fail loudly. | v1 | apps-host | I-50 | AC-M2 AC-M3 AC-M4 | — |
 | US-43 | As an agent session I want the owner's picks and form answers from my apps as inbox items, so that I act on them like any other reply. | v1 | apps-host, inbox | I-43 I-46 | AC-M6 | — |
 | US-38 | As an agent session I want to set my own profile and status, never my handle, so that the owner knows who I am and what I am doing. | v1 | cli-mcp, crew | I-3 I-32 I-40 | — | — |
-| US-39 | As an agent session with the pickup right I want to pick up a conversation the owner opened, so that free agents can take work. | v1 | conversations, security | I-47 | AC-26 | — |
+| US-39 | Removed (pickup). Owner said: "Nothing claims conversations. I need to tag." | removed | — | — | — | — |
 | US-40 | As an agent session I want to request that another agent be added, or leave, so that the right crew is in each conversation. | v1 | cli-mcp, now | I-17 | — | — |
 | US-41 | As a daemon agent I want to follow my inbox as a stream and run a command per item, so that long-running workers react at once. | later | inbox, cli-mcp | — | — | cut from v1 |
 
@@ -109,7 +109,7 @@ Version: **v1** = in the first release (slices S0–S12, S-A, S-U). **later** = 
 | Foreign Origin rejected · unlisted Host rejected · off the tailnet | Kept → security (missing Origin also rejected; unknown Host → 421). |
 | A rich message cannot reach the network | Updated → apps-host (Tier-2 frame). |
 | Rich body caps | Updated → messages-types (body 16 KB, app 64 KB, 10 attachments, 5 URLs) and asks (≤4 alternatives). |
-| Two agents race to claim an open question · non-open cannot be claimed · non-member cannot claim | Updated → conversations / security: "pickup" of a conversation the owner opened; no pickup without it; no pickup without the scope. |
+| Two agents race to claim an open question · non-open cannot be claimed · non-member cannot claim | Removed with pickup. Owner said: "Nothing claims conversations. I need to tag." |
 | Unknown or revoked token rejected | Updated → security: a revoked machine key. |
 | An agent cannot post under another name · into a conversation it is not in | Kept → messages-types (an extra `author` field is now a 400). |
 | Only the owner adds agents, and the token is shown once | Dropped: Add agent makes no key; the machine key comes once through the device flow (machine-login) or Reveal (security). |

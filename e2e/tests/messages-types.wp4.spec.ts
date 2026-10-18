@@ -603,9 +603,9 @@ function systemV1(doc: Record<string, unknown>): boolean {
   const ref = (k: string) => Number.isInteger(doc[k]) && (doc[k] as number) >= 1;
   if (doc.v !== 1) return false;
   switch (doc.t) {
-    case "conversation.renamed": case "conversation.resumed": case "conversation.restored": case "pickup.opened":
+    case "conversation.renamed": case "conversation.resumed": case "conversation.restored":
       return has("by") && ref("by");
-    case "member.left": case "member.disabled": case "pickup.taken":
+    case "member.left": case "member.disabled":
       return has("identity") && ref("identity");
     case "member.requested": case "member.removed":
       return has("identity", "by") && ref("identity") && ref("by");
@@ -613,8 +613,6 @@ function systemV1(doc: Record<string, unknown>): boolean {
       return (has("identity", "by", "via") || has("identity", "by", "via", "history")) && ref("identity") && ref("by") && ["mention", "add", "create"].includes(doc.via as string) && (doc.history === undefined || ["since_now", "full"].includes(doc.history as string));
     case "conversation.paused":
       return has("streak") && doc.streak === 20;
-    case "pickup.released":
-      return has("identity", "reason") && ref("identity") && ["removed", "key_revoked", "disabled", "lease_expired"].includes(doc.reason as string);
   }
   return false;
 }
@@ -626,8 +624,8 @@ scenario("System lines hold ids, never text", { tag: ["@api"] }, async ({ server
   const db = w.db();
   const before = maxEventSeq(db);
 
-  // When each of the 12 system line subtypes is caused by its action
-  // (the pause and the resume by their real actions; the ten that belong to the conversation work package by the system-line hook)
+  // When each of the 9 system line subtypes is caused by its action
+  // (the pause and the resume by their real actions; the seven that belong to the conversation work package by the system-line hook)
   const { dev } = await paused(w);
   expect((await agentPost(w.srv, dev, w.conv, "stopped")).status).toBe(429);
   must(await ownerResumes(w.owner, w.conv), "resume");
@@ -639,15 +637,12 @@ scenario("System lines hold ids, never text", { tag: ["@api"] }, async ({ server
     { t: "member.disabled", identity: "zqx" },
     { t: "conversation.renamed", by: "drew" },
     { t: "conversation.restored", by: "drew" },
-    { t: "pickup.opened", by: "drew" },
-    { t: "pickup.taken", identity: "zqx" },
-    { t: "pickup.released", identity: "zqx", reason: "key_revoked" },
   ];
   for (const line of hooked) await systemLine(w, w.conv, line);
 
   // Then each line is written in the same transaction as its action and matches system.v1
   const stored = (db.prepare("SELECT system_json AS j FROM messages WHERE kind = 'system' ORDER BY id").all() as { j: string }[]).map((r) => JSON.parse(r.j) as Record<string, unknown>);
-  expect(new Set(stored.map((d) => d.t)).size).toBe(12);
+  expect(new Set(stored.map((d) => d.t)).size).toBe(9);
   expect(stored.filter((d) => !systemV1(d)), "lines that do not match system.v1").toEqual([]);
   const events = eventTypesAfter(db, before);
   expect(events).toContain("conversation.paused.v1");

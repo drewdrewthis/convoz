@@ -93,9 +93,6 @@ func conversationView(ctx context.Context, d pdb.DBTX, p authz.Principal, dir di
 		return wire.Conversation{}, err
 	}
 	out.Paused = cv.Paused()
-	if out.Pickup, out.PickedUpBy, err = pickupView(ctx, d, dir, cv); err != nil {
-		return wire.Conversation{}, err
-	}
 	if cv.DeletedAt != 0 {
 		out.DeletedAt, out.PurgesAt = ptr(cv.DeletedAt), ptr(cv.DeletedAt+conversation.TrashRetention.Milliseconds())
 	}
@@ -103,19 +100,6 @@ func conversationView(ctx context.Context, d pdb.DBTX, p authz.Principal, dir di
 }
 
 func ptr[T any](v T) *T { return &v }
-
-// pickupView is the pickup state of a conversation and the agent holding it.
-func pickupView(ctx context.Context, d pdb.DBTX, dir directory, cv conversation.Conversation) (string, *wire.Person, error) {
-	if cv.PickupOpenedAt == 0 {
-		return wire.PickupClosed, nil, nil
-	}
-	a, held, err := conversation.AssignmentOf(ctx, d, cv.ID)
-	if err != nil || !held {
-		return wire.PickupOpen, nil, err
-	}
-	who := dir.person(a.Agent)
-	return wire.PickupTaken, &who, nil
-}
 
 // publishWorking sends the live-only "agent.working" frame: an agent started or stopped on a conversation.
 // A working frame carries until (unix ms), the end of the agent's claim, and is sent again when a renewal moves it.

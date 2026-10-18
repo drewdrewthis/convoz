@@ -83,8 +83,9 @@ export function startDrag(e: ReactPointerEvent<HTMLElement>, onDrop: (d: Drop) =
 let stop: () => void = () => {};
 
 function begin(d: Drag): boolean {
-  const els = [...document.querySelectorAll<HTMLElement>("[data-rid]")].filter((el) => el.offsetParent !== null);
   const scroll = d.row.closest<HTMLElement>("[data-rscroll]");
+  // Only the rows of the list being dragged: the desktop rail and the Conversations page can be on screen together.
+  const els = scroll ? [...scroll.querySelectorAll<HTMLElement>("[data-rid]")].filter((el) => el.offsetParent !== null) : [];
   if (!scroll || !els.length) return false;
   const sr = scroll.getBoundingClientRect();
   d.scroll = scroll;
@@ -104,7 +105,7 @@ function begin(d: Drag): boolean {
     }
   }
   d.step = d.items[d.i]!.h + gap;
-  const header = document.querySelector("[data-ghdr='mid']");
+  const header = scroll.querySelector("[data-ghdr='mid']");
   const hr = header?.getBoundingClientRect();
   d.hdrMid = hr ? hr.top + hr.height / 2 : null;
   const line = document.createElement("div");

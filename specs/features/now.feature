@@ -59,6 +59,23 @@ Feature: Now
       Then Now no longer lists it
       And the ask in conversation 41 shows "Dismissed"
 
+    # Per prototype v41 (P:5006-5025): Dismiss and Snooze each show a 10 second toast with Undo; the Dismissed fold has Reopen (P:6772).
+    @v1 @browser
+    Scenario: Dismiss shows an Undo toast and Undo puts the ask back
+      Given an open ask of "devtool"
+      When the owner dismisses it
+      Then a toast says "Dismissed" with an Undo button for 10 seconds
+      When the owner taps Undo
+      Then Now lists the ask as open again
+
+    @v1 @browser
+    Scenario: The Dismissed fold lists dismissed asks and Reopen puts one back
+      Given an open ask of "devtool" that the owner dismissed
+      When the owner opens "Dismissed today" in Now
+      Then it lists the ask as "Dismissed" with a "Reopen" button
+      When the owner taps "Reopen"
+      Then Now lists the ask as open again
+
     @v1 @browser
     Scenario: The ask bar works from the keyboard
       Given an open ask of "devtool" has focus in Now
@@ -83,12 +100,21 @@ Feature: Now
       And the owner gets a "snooze_wake" notification
 
     @v1 @browser @I-13
+    Scenario: Snooze shows an Undo toast and Undo puts the ask back
+      Given an open ask of "devtool"
+      When the owner snoozes it for "1 hour"
+      Then a toast says "Snoozed until 1 hour" with the wake time and an Undo button for 10 seconds
+      When the owner taps Undo
+      Then Now lists the ask as open again
+
+    @v1 @browser @I-13
     Scenario: Unsnooze returns an ask at once
       Given an ask snoozed until tomorrow 09:00
       When the owner unsnoozes it
       Then Now lists it as open
 
-    # Draft 9 (C-9): 1 hour; Tonight = 20:00 local the same day, not offered from 20:00; Tomorrow = 09:00 local.
+    # Per prototype v41 (P:3925): 1 hour; Tonight = 6:00 PM (18:00) local the same day; Tomorrow = 9:00 AM local.
+    # DEFAULT (owner to confirm): the prototype offers Tonight at any hour; a real wake time cannot be in the past, so Tonight is not offered from 6:00 PM.
     @v1 @browser @I-13 @C-9 @AC-29
     Scenario Outline: Snooze presets set the right wake time
       Given the time is 2026-10-16 14:00 in the owner's time zone
@@ -98,7 +124,7 @@ Feature: Now
       Examples:
         | preset   | wake                |
         | 1 hour   | 2026-10-16 15:00    |
-        | Tonight  | 2026-10-16 20:00    |
+        | Tonight  | 2026-10-16 18:00    |
         | Tomorrow | 2026-10-17 09:00    |
 
     @v1 @browser
@@ -108,8 +134,8 @@ Feature: Now
       Then both tabs show 2 open asks with no reload
 
     @v1 @browser @I-13 @C-9 @AC-29
-    Scenario: Tonight is not offered after 20:00
-      Given the time is 2026-10-16 21:30 in the owner's time zone
+    Scenario: Tonight is not offered from 6:00 PM
+      Given the time is 2026-10-16 19:30 in the owner's time zone
       When the owner opens the snooze menu of an open ask
       Then it offers "1 hour" and "Tomorrow" but not "Tonight"
 

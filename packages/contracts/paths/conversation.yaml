@@ -44,7 +44,7 @@
     x-authz: { auth: human, lease: accept }
     security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     operationId: getConversation
-    summary: One conversation with its details (who started it, the link, pending adds, pickup).
+    summary: One conversation with its details (who started it, the link, pending adds).
     parameters:
       - $ref: "../openapi.yaml#/components/parameters/Id"
     responses:
@@ -196,45 +196,4 @@
           schema: { type: object }
     responses:
       "200": { $ref: "../openapi.yaml#/components/responses/Empty" }
-      default: { $ref: "../openapi.yaml#/components/responses/Error" }
-/api/conversations/{id}/pickup/open:
-  post:
-    x-authz: { auth: human }
-    operationId: openPickup
-    summary: Offer the conversation to any agent that has the pickup scope.
-    parameters:
-      - $ref: "../openapi.yaml#/components/parameters/Id"
-    requestBody:
-      content:
-        application/json:
-          schema: { type: object }
-    responses:
-      "200": { $ref: "../openapi.yaml#/components/responses/Empty" }
-      default: { $ref: "../openapi.yaml#/components/responses/Error" }
-/api/conversations/{id}/pickup:
-  post:
-    x-authz: { auth: lease, scope: pickup }
-    security: [{ leaseBearer: [] }]
-    operationId: pickupConversation
-    summary: An agent with the pickup scope takes an open conversation (exactly one wins). With a fence it renews its hold.
-    parameters:
-      - $ref: "../openapi.yaml#/components/parameters/Id"
-    requestBody:
-      content:
-        application/json:
-          schema:
-            type: object
-            properties:
-              fence: { type: integer, format: int64 }
-    responses:
-      "200":
-        description: The agent holds the conversation under this fence.
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [conversation_id, fence]
-              properties:
-                conversation_id: { type: integer, format: int64 }
-                fence: { type: integer, format: int64 }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }

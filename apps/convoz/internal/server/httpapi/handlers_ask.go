@@ -337,7 +337,7 @@ func (s *Server) writeConflict(w http.ResponseWriter, r *http.Request, c *call, 
 }
 
 // nowScreen is GET /api/now: what waits for the owner. Open asks that are not snoozed (urgent first, then the newest), the
-// owner's snoozed ones, the ones answered in the last day, the adds agents wait on, and the machines waiting to connect.
+// owner's snoozed ones, the ones answered or dismissed in the last day, the adds agents wait on, and the machines waiting to connect.
 func (s *Server) nowScreen(w http.ResponseWriter, r *http.Request, c *call) {
 	ctx, d := r.Context(), s.reader()
 	if err := s.wakeSnoozes(ctx); err != nil {
@@ -358,6 +358,9 @@ func (s *Server) nowScreen(w http.ResponseWriter, r *http.Request, c *call) {
 	}
 	if err == nil {
 		out.AnsweredToday, err = liveAskViews(ctx, d, dir, waiting.Answered, nil)
+	}
+	if err == nil {
+		out.DismissedToday, err = liveAskViews(ctx, d, dir, waiting.Dismissed, nil)
 	}
 	if err == nil {
 		out.PendingAdds, err = pendingAdds(ctx, d, dir)
@@ -383,6 +386,7 @@ type nowView struct {
 	Asks            []wire.AskView       `json:"asks"`
 	Snoozed         []wire.AskView       `json:"snoozed"`
 	AnsweredToday   []wire.AskView       `json:"answered_today"`
+	DismissedToday  []wire.AskView       `json:"dismissed_today"`
 	PendingAdds     []wire.NowPendingAdd `json:"pending_adds"`
 	MachineRequests []requestJSON        `json:"machine_requests"`
 }

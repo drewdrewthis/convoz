@@ -25,7 +25,6 @@ func registerMessageHooks(mux *http.ServeMux, s *Server) {
 			By           string `json:"by"`
 			Via          string `json:"via"`
 			History      string `json:"history"`
-			Reason       string `json:"reason"`
 			Streak       int    `json:"streak"`
 		}
 		if json.NewDecoder(r.Body).Decode(&in) != nil {
@@ -46,7 +45,7 @@ func registerMessageHooks(mux *http.ServeMux, s *Server) {
 				}
 				return 0
 			}
-			line := message.SystemLine{T: in.T, Identity: idOf(in.Identity), By: idOf(in.By), Via: in.Via, History: in.History, Reason: in.Reason, Streak: in.Streak}
+			line := message.SystemLine{T: in.T, Identity: idOf(in.Identity), By: idOf(in.By), Via: in.Via, History: in.History, Streak: in.Streak}
 			m, err := message.WriteSystem(ctx, tx.DBTX(), messagePorts(authz.Principal{}), s.Clock.Now(), in.Conversation, line)
 			id = m.ID
 			return err

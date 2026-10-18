@@ -19,9 +19,6 @@
     },
     {
       "$ref": "#/$defs/paused"
-    },
-    {
-      "$ref": "#/$defs/released"
     }
   ],
   "$defs": {
@@ -45,8 +42,7 @@
           "enum": [
             "conversation.renamed",
             "conversation.resumed",
-            "conversation.restored",
-            "pickup.opened"
+            "conversation.restored"
           ]
         },
         "by": {
@@ -69,8 +65,7 @@
         "t": {
           "enum": [
             "member.left",
-            "member.disabled",
-            "pickup.taken"
+            "member.disabled"
           ]
         },
         "identity": {
@@ -162,35 +157,6 @@
         },
         "streak": {
           "const": 20
-        }
-      }
-    },
-    "released": {
-      "type": "object",
-      "required": [
-        "v",
-        "t",
-        "identity",
-        "reason"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "v": {
-          "const": 1
-        },
-        "t": {
-          "const": "pickup.released"
-        },
-        "identity": {
-          "$ref": "#/$defs/ref"
-        },
-        "reason": {
-          "enum": [
-            "removed",
-            "key_revoked",
-            "disabled",
-            "lease_expired"
-          ]
         }
       }
     }

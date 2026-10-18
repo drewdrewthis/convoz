@@ -157,25 +157,6 @@
   "long": "@drew resumed the conversation"
  },
  {
-  "name": "system: released",
-  "message": {
-   "system": {
-    "t": "pickup.released",
-    "identity": {
-     "handle": "devtool",
-     "name": "Devtool"
-    },
-    "by": {
-     "handle": "",
-     "name": ""
-    },
-    "reason": "key_revoked"
-   }
-  },
-  "short": "@devtool released this conversation (key revoked)",
-  "long": "@devtool released this conversation (key revoked)"
- },
- {
   "name": "ask",
   "message": {
    "ask": {

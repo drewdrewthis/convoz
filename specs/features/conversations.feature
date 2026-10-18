@@ -1,7 +1,7 @@
 # Source: design draft 9 §2.3, §8 (I-7, I-9, I-15, I-16, I-17, I-19, I-20, I-47), §8.2 (unread), §14 (soft delete), AC-6, AC-26.
 # Prototype: blank new conversation (⌘J, "Type @ to bring in an agent"), rename, details sidebar (I), participants.
-# Kept from the draft-6 spec (D-7), reworded: two agents race for an open question → two agents race to pick up
-# a conversation the owner opened for pickup; an agent without the right is refused.
+# Pickup was removed. Owner said: "Nothing claims conversations. I need to tag." Agents join only when the owner tags them.
+# Words follow prototype v41: the tab and list are "Conversations", the button is "New conversation".
 # Every scenario runs end to end against a real `convoz serve` on a fresh `mktemp -d` data dir.
 
 Feature: Conversations
@@ -18,7 +18,7 @@ Feature: Conversations
     @v1 @browser
     Scenario: A new conversation starts blank and takes a title from its first message
       When the owner starts a new conversation with Cmd+J and sends "Plan the search filters launch"
-      Then the Chats list shows the conversation at the top titled "Plan the search filters launch"
+      Then the Conversations list shows the conversation at the top titled "Plan the search filters launch"
 
     @v1 @browser @phone
     Scenario: On a phone the first page after sign-in is Now
@@ -28,48 +28,48 @@ Feature: Conversations
       And "Now" is marked as the current tab
 
     @v1 @browser @phone
-    Scenario: On a phone an empty Chats list explains itself and offers New chat
-      Given the owner has no chats yet
-      When the owner opens Chats on a phone
-      Then the page says there are no chats yet and that a chat starts with an agent
-      And the page offers "New chat"
+    Scenario: On a phone an empty Conversations list explains itself and offers New conversation
+      Given the owner has no conversations yet
+      When the owner opens Conversations on a phone
+      Then the page says there are no conversations yet and that typing @ brings in an agent
+      And the page offers "New conversation"
 
     @v1 @browser @phone
-    Scenario: On a phone New chat lists the crew agents and opens a focused composer
+    Scenario: On a phone New conversation opens a blank composer where @ lists the crew agents
       Given "devtool" has a live session and "docs" has none
-      When the owner taps "New chat" and types "@"
+      When the owner taps "New conversation" and types "@"
       Then the list shows "devtool" as online and "docs" as offline
       When the owner picks "docs"
       Then the message box for "docs" has focus
 
     @v1 @browser @phone
-    Scenario: On a phone a new chat takes its title from the first message and goes to the top of Chats
-      Given the owner has chats "Ship search filters" and "Deploy alerts runbook" on a phone
-      When the owner taps "New chat", picks "devtool" and sends "Plan the search filters launch"
-      Then the chat is titled "Plan the search filters launch" and names "@devtool"
-      And a reload shows the same chat with the message
-      And Chats lists "Plan the search filters launch" above the other two
+    Scenario: On a phone a new conversation takes its title from the first message and goes to the top of Conversations
+      Given the owner has conversations "Ship search filters" and "Deploy alerts runbook" on a phone
+      When the owner taps "New conversation", types "@", picks "devtool" and sends "Plan the search filters launch"
+      Then the conversation is titled "Plan the search filters launch" and names "@devtool"
+      And a reload shows the same conversation with the message
+      And Conversations lists "Plan the search filters launch" above the other two
 
     @v1 @browser @phone
-    Scenario: On a phone back returns from a chat to Chats
-      Given the owner opened a chat from the Chats list on a phone
+    Scenario: On a phone back returns from a conversation to Conversations
+      Given the owner opened a conversation from the Conversations list on a phone
       When the owner taps the back button
-      Then the Chats list shows
-      When the owner opens the chat again and uses the browser back
-      Then the Chats list shows
+      Then the Conversations list shows
+      When the owner opens the conversation again and uses the browser back
+      Then the Conversations list shows
 
     @v1 @browser @phone
     Scenario: On a phone Conversations shows plain previews, and the composer names the agent
-      Given "devtool" replied in one chat with markdown and the owner wrote in another chat with "docs"
+      Given "devtool" replied in one conversation with markdown and the owner wrote in another conversation with "docs"
       When the owner opens Conversations
       Then the preview is plain text: no markers, the link as its text and the code block as "code"
       And the message box is named after the agent
 
     @v1 @browser @phone
-    Scenario: On a phone a chat that does not exist shows a not-found page with a way back
+    Scenario: On a phone a conversation that does not exist shows a not-found page with a way back
       Given the owner is signed in on a phone
-      When the owner opens a chat id that is missing, not a number, or not a whole number
-      Then the page says the chat was not found, in the console style, with a link back to Chats
+      When the owner opens a conversation id that is missing, not a number, or not a whole number
+      Then the page says the conversation was not found, in the console style, with a link back to Conversations
 
     @v1 @browser
     Scenario: The details sidebar shows who is here and how the conversation is set
@@ -98,17 +98,14 @@ Feature: Conversations
       Then the participants show "devtool"
       And "devtool" gets a mention item
 
+    # Per prototype v41 (+ Add, addAgents): the agent joins at once, there is no history sheet, and it sees what comes after.
     @v1 @browser @I-15
-    Scenario Outline: Adding an agent sets what history it sees
+    Scenario: Adding an agent with + Add joins it at once and it sees only what comes after
       Given conversation 41 with 20 messages
-      When the owner adds "docs" with history "<history>"
-      Then "docs" runs "convoz read 41" and sees <seen>
+      When the owner adds "docs" with + Add
+      Then the participants show "docs" at once and no history question was asked
+      And "docs" runs "convoz read 41" and sees only messages after the add
       And "docs" has no unread messages in conversation 41
-
-      Examples:
-        | history   | seen                                |
-        | since now | only messages after the add         |
-        | full      | all 20 messages                     |
 
     @v1 @cli @I-7
     Scenario: An agent sees a reply under a hidden root as a stub
@@ -148,10 +145,18 @@ Feature: Conversations
       Then the CLI exits 3
 
     @v1 @browser @I-19
-    Scenario: Adding an agent back offers the original history
+    Scenario: Adding an agent back joins it at once with no history question
       Given the owner removed "devtool" from conversation 41
-      When the owner adds "devtool" again
-      Then the add sheet offers "since now" and "full history"
+      When the owner adds "devtool" again with + Add
+      Then the participants show "devtool" at once and no history question was asked
+
+    @v1 @browser @I-19
+    Scenario: Remove agent shows a 10 second Undo toast and Undo puts the agent back
+      Given "devtool" is in conversation 41
+      When the owner removes "devtool" from conversation 41
+      Then a toast says "Removed @devtool" with an Undo button for 10 seconds
+      When the owner taps Undo
+      Then the participants show "devtool" again
 
   Rule: Read position is honest (DA-2, DA-4)
 
@@ -170,16 +175,8 @@ Feature: Conversations
       Then a banner says the agents are paused after 20 messages in a row
       And the banner has a Resume button
 
-  Rule: A conversation can be offered to any agent for pickup (SEC-6)
-
-    @v1 @browser @cli @I-47
-    Scenario: The owner opens a conversation for pickup and one agent takes it
-      Given machine "box-2" has the pickup scope
-      And the owner opened conversation 60 for pickup
-      When "devtool" and "docs" run "convoz pickup 60" at the same time
-      Then exactly one exits 0
-      And the other exits 4 naming the agent that picked it up
-      And conversation 60 shows one system line naming the winner
+  # Removed: "A conversation can be offered to any agent for pickup" (SEC-6, I-47).
+  # Owner said: "Nothing claims conversations. I need to tag." Agents join only through the owner's @mention or + Add.
 
   Rule: Messages arrive live
 
@@ -192,25 +189,25 @@ Feature: Conversations
       And "Conversations" is marked as the current tab
 
     @v1 @browser @phone
-    Scenario: On a phone the owner starts a chat with an agent and sees its reply
+    Scenario: On a phone the owner starts a conversation with an agent and sees its reply
       Given "devtool" runs "convoz watch --json"
-      When the owner taps "New chat", picks "devtool" and sends "Is the build green?"
+      When the owner taps "New conversation", types "@", picks "devtool" and sends "Is the build green?"
       Then the message shows with the name "You" and an avatar on the left
       And the watch stream prints one JSON line with "Is the build green?" within 3 seconds
       When "devtool" runs "convoz post" in that conversation with "Yes, all 11 checks pass"
       Then the reply shows on the left within 3 seconds with no reload
-      And the Chats list shows the conversation with no unread dot
+      And the Conversations list shows the conversation with no unread dot
 
     @v1 @browser @phone
-    Scenario: On a phone an unread chat shows a dot until opened
-      Given the owner is on the Chats list on a phone
+    Scenario: On a phone an unread conversation shows a dot until opened
+      Given the owner is on the Conversations list on a phone
       When "devtool" posts "Done" in conversation 41
       Then conversation 41 shows an unread dot and "Done" as its preview within 3 seconds
-      When the owner opens conversation 41 and goes back to Chats
+      When the owner opens conversation 41 and goes back to Conversations
       Then conversation 41 has no unread dot
 
     @v1 @browser @phone
-    Scenario: On a phone a chat catches up after the connection comes back
+    Scenario: On a phone a conversation catches up after the connection comes back
       Given the owner has conversation 41 open on a phone
       And the phone goes offline
       When "devtool" posts "one", "two" and "three" in conversation 41
@@ -219,26 +216,26 @@ Feature: Conversations
 
     @v1 @browser @phone
     Scenario: On a phone a working agent shows a note until it replies
-      Given "devtool" runs "convoz watch --json" and the owner has a chat with "devtool" open on a phone
+      Given "devtool" runs "convoz watch --json" and the owner has a conversation with "devtool" open on a phone
       When the owner sends "Is the build green?"
-      Then the chat shows "@devtool is working…" within 3 seconds
-      When "devtool" runs "convoz post" in that chat with "Yes"
+      Then the conversation shows "@devtool is working…" within 3 seconds
+      When "devtool" runs "convoz post" in that conversation with "Yes"
       Then the note is gone and the reply shows
 
     @v1 @browser @phone
     Scenario: On a phone the working note goes away when the agent finishes without a reply
-      Given "devtool" runs "convoz watch --json" and the owner has a chat with "devtool" open on a phone
+      Given "devtool" runs "convoz watch --json" and the owner has a conversation with "devtool" open on a phone
       When the owner sends "Is the build green?" and "devtool" runs "convoz ack" without a reply
-      Then the chat shows no working note
+      Then the conversation shows no working note
 
     @v1 @browser @phone
     Scenario: On a phone the working note goes away when its time runs out
-      Given the owner has a chat open on a phone and "devtool" is shown as working for 2 seconds
+      Given the owner has a conversation open on a phone and "devtool" is shown as working for 2 seconds
       When 2 seconds pass with no reply
-      Then the chat shows no working note
+      Then the conversation shows no working note
 
     @v1 @browser @phone
-    Scenario: On a phone a chat catches up when the app returns to the foreground
+    Scenario: On a phone a conversation catches up when the app returns to the foreground
       Given the owner has conversation 41 open on a phone
       And the phone stops the live connection without telling the page
       When "devtool" posts "four" in conversation 41 and the app returns to the foreground
@@ -269,25 +266,36 @@ Feature: Conversations
       When "mia" opens the rail
       Then she sees conversation 41 and no other
 
-  Rule: The Chats list puts the latest activity first
+  Rule: The Conversations list keeps the owner's order
 
-    # DEFAULT (owner to confirm): the phone Chats list orders by latest activity, so I-21 ("activity never reorders") holds for the desktop rail only.
+    # Per prototype v41 (P:2072, P:5036): owner-ordered on the phone too, with a Reorder mode; new activity never reorders rows.
     @v1 @browser
-    Scenario: A new conversation goes to the top of the Chats list
+    Scenario: A new conversation goes to the top of the Conversations list
       Given conversations 41 "Ship search filters", 52 "Deploy alerts runbook" and 60 "Weekly usage" were created in that order with "devtool"
-      Then the Chats list shows 60, 52, 41 in that order
+      Then the Conversations list shows 60, 52, 41 in that order
 
-    @v1 @browser
-    Scenario: A new message moves its conversation to the top of the list
+    @v1 @browser @I-21
+    Scenario: New activity never reorders the Conversations list
       Given conversations 41 "Ship search filters", 52 "Deploy alerts runbook" and 60 "Weekly usage" were created in that order with "devtool"
-      And the owner opened the Chats list
+      And the owner opened the Conversations list
       When "devtool" posts in conversation 41
-      Then the Chats list shows 41, 60, 52 in that order without a reload
+      Then the Conversations list still shows 60, 52, 41 in that order without a reload
+      And conversation 41 shows its new preview
+
+    @v1 @browser @phone @I-21
+    Scenario: On a phone Reorder mode moves a conversation and Done ends it
+      Given conversations 41 "Ship search filters", 52 "Deploy alerts runbook" and 60 "Weekly usage" were created in that order with "devtool"
+      When the owner long presses conversation 41 and picks "Reorder…"
+      Then every row shows a handle and the top bar shows "Done"
+      When the owner moves conversation 41 up with the keyboard handle
+      Then the Conversations list shows 60, 41, 52 in that order
+      When the owner taps "Done"
+      Then the handles are gone and a reload shows 60, 41, 52
 
   Rule: A conversation reads well on a phone
 
     @v1 @browser @phone
-    Scenario: On a phone a long chat opens at its latest message
+    Scenario: On a phone a long conversation opens at its latest message
       Given conversation 41 holds 60 messages
       When the owner opens conversation 41 on a phone
       Then the latest message is in view
@@ -313,13 +321,13 @@ Feature: Conversations
       And a message shows at most 200 links, the rest as plain text, and failed link attempts count toward the 200
 
     @v1 @browser @phone
-    Scenario: On a phone the chat pages fit a 320 px screen with large tap targets
+    Scenario: On a phone the conversation pages fit a 320 px screen with large tap targets
       Given the owner has a long conversation with long words and a wide code line
-      When the owner opens Chats, New chat and the conversation at 320 px and at 390 px
+      When the owner opens Conversations, New conversation and the conversation at 320 px and at 390 px
       Then no page scrolls sideways and every button, link and field is at least 44 px tall
 
     @v1 @browser @phone
-    Scenario: On a phone the chat pages look right in dark and light
+    Scenario: On a phone the conversation pages look right in dark and light
       Given the owner has a conversation with messages from both sides
-      When the owner opens Chats, New chat and the conversation in dark and in light
+      When the owner opens Conversations, New conversation and the conversation in dark and in light
       Then the dark pages are dark and the light pages are light

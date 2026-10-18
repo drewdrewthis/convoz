@@ -7,7 +7,7 @@ const (
 	ScopeAsk                              // 4
 	ScopeStatus                           // 8
 	ScopeUpload                           // 16
-	ScopePickup                           // 32
+	_                                     // 32: was "pickup", removed (owner: nothing claims conversations); the bit stays reserved
 	ScopeCreateIdentity                   // 64
 )
 
@@ -15,14 +15,14 @@ const (
 const DefaultScopes = ScopeRead | ScopePost | ScopeAsk | ScopeStatus | ScopeUpload
 
 // scopeNames is in bit order, which is also the order the API lists them in.
-var scopeNames = []string{"read", "post", "ask", "status", "upload", "pickup", "create_identity"}
+var scopeNames = []string{"read", "post", "ask", "status", "upload", "", "create_identity"}
 
 // ScopeMask turns scope names into a bitmask. ok is false for an unknown name or an empty list.
 func ScopeMask(names []string) (mask int64, ok bool) {
 	for _, n := range names {
 		found := false
 		for bit, known := range scopeNames {
-			if n == known {
+			if known != "" && n == known {
 				mask |= 1 << bit
 				found = true
 			}
@@ -38,7 +38,7 @@ func ScopeMask(names []string) (mask int64, ok bool) {
 func ScopeNames(mask int64) []string {
 	out := []string{}
 	for bit, n := range scopeNames {
-		if mask&(1<<bit) != 0 {
+		if n != "" && mask&(1<<bit) != 0 {
 			out = append(out, n)
 		}
 	}

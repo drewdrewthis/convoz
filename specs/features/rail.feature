@@ -1,5 +1,5 @@
 # Source: design draft 9 I-14 (unread math), I-21 (rail order), §8.2, §12.1 (BenchmarkRail_FloorZero1M), AC-13.
-# Prototype: groups Starred, Conversations and a collapsed "Older · N" (not starred, not fresh, no live agent),
+# Prototype: groups Starred, Conversations and a collapsed "Older · N" (not starred, not fresh, no message since yesterday),
 # row preview "You: …" / "@agent: …" / "No messages yet", drag to reorder, "Reorder {title}. Alt plus arrow keys move it.",
 # back and forward (Cmd+[ / Cmd+]), Cmd+K search.
 # Every scenario runs end to end in a browser against a real `convoz serve` on a fresh `mktemp -d` data dir.
@@ -46,24 +46,24 @@ Feature: Rail
 
   Rule: Older conversations fold away
 
-    # Draft 9 (C-9): Older = not starred and no activity for 14 days. It is a view; the order stays the owner's.
+    # Per prototype v41 (P:6089-6091): Older = not starred, not new, and no message since yesterday. It is a view; the order stays the owner's.
     @v1 @browser @I-21 @C-9
-    Scenario: Quiet conversations fold into Older
-      Given conversation 41 is not starred and its last activity was 15 days ago
+    Scenario: Conversations with no message since yesterday fold into Older
+      Given conversation 41 is not starred and its last message was yesterday
       When the owner opens the rail
       Then 41 sits in the collapsed group "Older · 1"
       And expanding "Older · 1" shows it
 
     @v1 @browser @I-21 @C-9
-    Scenario Outline: Only quiet, unstarred conversations fold into Older
-      Given conversation 52 <starred> and its last activity was <days> days ago
+    Scenario Outline: Only unstarred conversations with no message today fold into Older
+      Given conversation 52 <starred> and its last message was <when>
       When the owner opens the rail
       Then conversation 52 is in the <group> group
 
       Examples:
-        | starred         | days | group         |
-        | is not starred  | 13   | Conversations |
-        | is starred      | 40   | Starred       |
+        | starred         | when        | group         |
+        | is not starred  | today       | Conversations |
+        | is starred      | 40 days ago | Starred       |
 
   Rule: Rows tell what is new (I-14)
 

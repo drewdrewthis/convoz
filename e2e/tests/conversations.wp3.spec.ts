@@ -28,13 +28,15 @@ import {
 } from "../lib/wp3.ts";
 
 /*
- * WP3: conversations, participants, pickup and trash (specs/features/conversations.feature and specs/contracts/conversations.feature).
+ * WP3: conversations, participants and trash (specs/features/conversations.feature and specs/contracts/conversations.feature).
  * Routes (design §13): POST /api/conversations/:id/participants {identity_id|handle, history: since_now|full} (a person adds at once, an
  * agent only asks: "pending"), POST .../participants/:iid/{approve,decline}, DELETE .../participants/:iid, POST .../leave, POST .../resume,
- * POST .../pickup/open, POST .../pickup (lease with the pickup scope), PATCH|DELETE /api/conversations/:id, POST .../restore and
+ * PATCH|DELETE /api/conversations/:id, POST .../restore and
  * GET /api/conversations?deleted=1 (the trash). An agent that may not see a conversation is told 403 (the CLI exits 3), a person 404.
  * A visibility floor is the newest message id the reader may NOT see; a person who joins "since now" gets the id of the line that says so.
  */
+
+// Pickup was removed. Owner said: "Nothing claims conversations. I need to tag." Agents join only through the owner's tag.
 
 // ---- Rule: Agents join only through a human, and see only from their join --------------------------------------
 
@@ -167,53 +169,6 @@ scenario("A read position never moves backward", { tag: ["@api"] }, async ({ ser
   expect(await unreadOf(w.owner, conv)).toBe(1);
 });
 
-// ---- contracts: A conversation can be offered to any agent for pickup (SEC-6) -------------------------------------
-
-scenario("An agent without the pickup scope cannot pick up", { tag: ["@api"] }, async ({ server }) => {
-  // Given the owner opened conversation 60 for pickup
-  const w = await world(server);
-  const conv = await createConversation(w.owner, { title: "Weekly usage", participants: [] });
-  must(await w.owner.client.post(`/api/conversations/${conv}/pickup/open`), "open for pickup");
-  const dev = await startSession(w.box, "devtool", "devtool");
-
-  // When "devtool" on a machine without the pickup scope picks it up
-  const res = await asAgent(w.srv, dev.lease, "POST", `/api/conversations/${conv}/pickup`, {});
-
-  // Then the server answers 403
-  expect(res.status).toBe(403);
-  expect((await viewOf(w.owner, conv)).pickup).toBe("open");
-});
-
-scenario("A stale pickup holder cannot act after a release", { tag: ["@api"] }, async ({ server }) => {
-  // Given "devtool" picked up conversation 60 and the pickup was released when its machine was revoked
-  const w = await world(server, { pickup: true });
-  const ids = await idsOf(w.owner);
-  const conv = await createConversation(w.owner, { title: "Weekly usage", participants: [] });
-  must(await w.owner.client.post(`/api/conversations/${conv}/pickup/open`), "open for pickup");
-  const dev = await startSession(w.box, "devtool", "devtool");
-  const taken = must(await asAgent(w.srv, dev.lease, "POST", `/api/conversations/${conv}/pickup`, {}), "devtool picks up");
-  const oldFence = taken.json().fence as number;
-  expect(oldFence).toBeGreaterThanOrEqual(1);
-  const renewed = await asAgent(w.srv, dev.lease, "POST", `/api/conversations/${conv}/pickup`, { fence: oldFence });
-  expect(renewed.status).toBe(200);
-  const { stepped } = await import("../lib/machines.ts");
-  must(await stepped(w.owner, "POST", `/api/machines/${w.box2.id}/revoke`, {}, "machine.revoke", w.box2.id), "revoke box-2");
-
-  // And "docs" picked it up next
-  const other = await machineWith(w.srv, w.owner, "laptop-1", ["docs"]);
-  const docs = await startSession(other.box, "docs", "docs");
-  const next = must(await asAgent(w.srv, docs.lease, "POST", `/api/conversations/${conv}/pickup`, {}), "docs picks up");
-  expect(next.json().fence).toBeGreaterThan(oldFence);
-
-  // When the old "devtool" pickup sends a pickup-only action with its old fence
-  const stale = await asAgent(w.srv, docs.lease, "POST", `/api/conversations/${conv}/pickup`, { fence: oldFence });
-
-  // Then the server answers 409
-  expect(stale.status).toBe(409);
-  expect(stale.json().error.code).toBe("stale_fence");
-  expect(ids.docs).toBeGreaterThan(0);
-});
-
 // ---- contracts: The owner starts and names conversations ------------------------------------------------------
 
 scenario("An agent creates at most 20 conversations a day", { tag: ["@api"] }, async ({ server }) => {
@@ -308,7 +263,7 @@ scenario("An empty untitled conversation is cleaned up after 24 hours", { tag: [
   // Then the rail no longer shows it
   await page.reload();
   await expect(rowsOnList(page)).toHaveCount(0);
-  await expect(page.getByText(/no chats yet/i)).toBeVisible();
+  await expect(page.getByText(/no conversations yet/i)).toBeVisible();
 });
 
 scenario("A starred or renamed empty conversation is kept", { tag: ["@browser"] }, async ({ server, page, context, testApi, dataDir }) => {
@@ -356,43 +311,32 @@ scenario("Mentioning an agent adds it at once", { tag: ["@browser"] }, async ({ 
   expect(items[0]!.message.body).toBe("@devtool please look at #412");
 });
 
-scenario("Adding an agent sets what history it sees", { tag: ["@browser"] }, async ({ server, page, context }) => {
+scenario("Adding an agent with + Add joins it at once and it sees only what comes after", { tag: ["@browser"] }, async ({ server, page, context }) => {
   // Given conversation 41 with 20 messages
   const w = await browserWorld({ server, page, context }, { live: ["docs"] });
-  const ids = await idsOf(w.owner);
-  const examples = [
-    { history: "since now", radio: /^Since now/, seen: (bodies: string[]) => expect(bodies).toEqual(["after the add"]) },
-    {
-      history: "full",
-      radio: /^Full history/,
-      seen: (bodies: string[]) => expect(bodies.filter((b) => b.startsWith("message "))).toHaveLength(20),
-    },
-  ];
-  for (const ex of examples) {
-    const conv = await createConversation(w.owner, { title: `History ${ex.history}`, participants: ["devtool"] });
-    for (let i = 1; i <= 20; i++) await ownerSays(w.owner, conv, `message ${i}`);
+  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool"] });
+  for (let i = 1; i <= 20; i++) await ownerSays(w.owner, conv, `message ${i}`);
 
-    // When the owner adds "docs" with history "<history>"
-    await openChat(page, w.srv, conv, `History ${ex.history}`);
-    const panel = await showDetails(page);
-    await panel.getByRole("button", { name: "+ Add" }).click();
-    const sheet = page.getByRole("dialog", { name: "Add agent" });
-    await sheet.getByRole("list", { name: "Agents to add" }).getByRole("button", { name: /@docs/ }).click();
-    await sheet.getByRole("radio", { name: ex.radio }).check();
-    await sheet.getByRole("button", { name: "Add @docs" }).click();
-    await expect(panel.getByRole("list", { name: "Participants" }).getByRole("listitem")).toHaveText([/Drew/, /@devtool/, /@docs/]);
-    await ownerSays(w.owner, conv, "after the add");
+  // When the owner adds "docs" with + Add
+  await openChat(page, w.srv, conv, "Ship search filters");
+  const panel = await showDetails(page);
+  await panel.getByRole("button", { name: "+ Add" }).click();
+  const sheet = page.getByRole("dialog", { name: "Add agent" });
+  await sheet.getByRole("list", { name: "Agents to add" }).getByRole("button", { name: /@docs/ }).click();
 
-    // Then "docs" runs "convoz read 41" and sees <seen>
-    const read = await convoz(w.box, w.sessions.docs!.sid, ["read", "--json", String(conv)]);
-    expect(read.code, read.stderr).toBe(0);
-    const bodies = (JSON.parse(read.stdout).messages as { body: string; author: { kind: string } }[]).filter((m) => m.author.kind !== "system").map((m) => m.body);
-    ex.seen(bodies);
+  // Then the participants show "docs" at once and no history question was asked
+  await expect(panel.getByRole("list", { name: "Participants" }).getByRole("listitem")).toHaveText([/Drew/, /@devtool/, /@docs/]);
+  await expect(page.getByRole("radio")).toHaveCount(0);
+  await ownerSays(w.owner, conv, "after the add");
 
-    // And "docs" has no unread messages in conversation 41
-    expect(await unreadFor(w.srv, w.sessions.docs!.lease, conv)).toBe(0);
-  }
-  expect(ids.docs).toBeGreaterThan(0);
+  // And "docs" runs "convoz read 41" and sees only messages after the add
+  const read = await convoz(w.box, w.sessions.docs!.sid, ["read", "--json", String(conv)]);
+  expect(read.code, read.stderr).toBe(0);
+  const bodies = (JSON.parse(read.stdout).messages as { body: string; author: { kind: string } }[]).filter((m) => m.author.kind !== "system").map((m) => m.body);
+  expect(bodies).toEqual(["after the add"]);
+
+  // And "docs" has no unread messages in conversation 41
+  expect(await unreadFor(w.srv, w.sessions.docs!.lease, conv)).toBe(0);
 });
 
 scenario("A removed agent gets nothing more from that conversation", { tag: ["@browser", "@cli"] }, async ({ server, page, context, dataDir }) => {
@@ -437,7 +381,7 @@ scenario("A removed agent gets nothing more from that conversation", { tag: ["@b
   expect((await peekFor(w.box, dev.sid, c52)).map((i) => i.message.body)).toEqual(["Still listening?"]);
 });
 
-scenario("Adding an agent back offers the original history", { tag: ["@browser"] }, async ({ server, page, context }) => {
+scenario("Adding an agent back joins it at once with no history question", { tag: ["@browser"] }, async ({ server, page, context }) => {
   // Given the owner removed "devtool" from conversation 41
   const w = await browserWorld({ server, page, context });
   const ids = await idsOf(w.owner);
@@ -446,17 +390,37 @@ scenario("Adding an agent back offers the original history", { tag: ["@browser"]
   must(await ownerRemoves(w.owner, conv, ids.devtool!), "remove devtool");
   await openChat(page, w.srv, conv, "Ship search filters");
 
-  // When the owner adds "devtool" again
+  // When the owner adds "devtool" again with + Add
   const panel = await showDetails(page);
   await panel.getByRole("button", { name: "+ Add" }).click();
   const sheet = page.getByRole("dialog", { name: "Add agent" });
   await sheet.getByRole("list", { name: "Agents to add" }).getByRole("button", { name: /@devtool/ }).click();
 
-  // Then the add sheet offers "since now" and "full history"
-  await expect(sheet.getByRole("radio", { name: /since now/i })).toBeVisible();
-  await expect(sheet.getByRole("radio", { name: /full history/i })).toBeVisible();
-  await sheet.getByRole("radio", { name: /full history/i }).check();
-  await sheet.getByRole("button", { name: "Add @devtool" }).click();
+  // Then the participants show "devtool" at once and no history question was asked
+  await expect(panel.getByRole("list", { name: "Participants" }).getByRole("listitem")).toHaveText([/Drew/, /@devtool/]);
+  await expect(page.getByRole("radio")).toHaveCount(0);
+});
+
+scenario("Remove agent shows a 10 second Undo toast and Undo puts the agent back", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given "devtool" is in conversation 41
+  const w = await browserWorld({ server, page, context });
+  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool"] });
+  await openChat(page, w.srv, conv, "Ship search filters");
+
+  // When the owner removes "devtool" from conversation 41
+  const panel = await showDetails(page);
+  await panel.getByRole("button", { name: "Remove @devtool" }).click();
+  await expect(panel.getByRole("list", { name: "Participants" }).getByRole("listitem")).toHaveText([/Drew/]);
+
+  // Then a toast says "Removed @devtool" with an Undo button for 10 seconds
+  const toast = page.getByRole("status").filter({ hasText: "Removed @devtool" });
+  await expect(toast).toBeVisible();
+  await expect(toast.getByRole("button", { name: "Undo" })).toBeVisible();
+
+  // When the owner taps Undo
+  await toast.getByRole("button", { name: "Undo" }).click();
+
+  // Then the participants show "devtool" again
   await expect(panel.getByRole("list", { name: "Participants" }).getByRole("listitem")).toHaveText([/Drew/, /@devtool/]);
 });
 
@@ -513,39 +477,6 @@ scenario("A paused conversation shows a banner with Resume", { tag: ["@browser"]
   await banner.getByRole("button", { name: "Resume" }).click();
   await expect(banner).toHaveCount(0);
   expect((await viewOf(w.owner, conv)).paused).toBeFalsy();
-});
-
-// ---- Rule: A conversation can be offered to any agent for pickup (SEC-6) -------------------------------------------------
-
-scenario("The owner opens a conversation for pickup and one agent takes it", { tag: ["@browser", "@cli"] }, async ({ server, page, context }) => {
-  // Given machine "box-2" has the pickup scope
-  const w = await browserWorld({ server, page, context }, { live: ["devtool", "docs"], pickup: true });
-  const conv = await createConversation(w.owner, { title: "Weekly usage", participants: [] });
-  await openChat(page, w.srv, conv, "Weekly usage");
-
-  // And the owner opened conversation 60 for pickup
-  const panel = await showDetails(page);
-  await panel.getByRole("button", { name: "Open for pickup" }).click();
-  await expect(panel.locator("dd", { hasText: /^Open for pickup$/ })).toBeVisible();
-  await panel.getByRole("button", { name: "Close details" }).click();
-
-  // When "devtool" and "docs" run "convoz pickup 60" at the same time
-  const runs = await Promise.all([w.sessions.devtool!, w.sessions.docs!].map((s) => convoz(w.box, s.sid, ["pickup", String(conv)])));
-
-  // Then exactly one exits 0
-  expect(runs.map((r) => r.code).sort()).toEqual([0, 4]);
-  const [won, lost] = runs[0]!.code === 0 ? [runs[0]!, runs[1]!] : [runs[1]!, runs[0]!];
-  const winner = runs[0]!.code === 0 ? "devtool" : "docs";
-  expect(won.stdout).toContain(`picked up ${conv}`);
-
-  // And the other exits 4 naming the agent that picked it up
-  expect(lost.stderr).toContain(`@${winner} already picked up`);
-
-  // And conversation 60 shows one system line naming the winner
-  const lines = page.getByRole("log", { name: "Messages" }).getByText(/picked up this conversation/);
-  await expect(lines).toHaveCount(1);
-  await expect(lines).toHaveText(`@${winner} picked up this conversation`);
-  expect((await viewOf(w.owner, conv)).picked_up_by?.handle).toBe(winner);
 });
 
 // ---- Rule: Messages arrive live ----------------------------------------------------------------------------------------------

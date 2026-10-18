@@ -23,9 +23,9 @@ import { webauthn } from "../lib/webauthn-browser.ts";
  *   <meta name="viewport"> contains viewport-fit=cover and interactive-widget=resizes-content.
  *
  * CHATS  /chats   heading "Conversations" (exact, level 1). Link "New conversation" (to /chats/new), a button that floats above the bar.
- *   Empty (no conversation): no list. Text /no chats yet/i and text /agent/i (a chat starts with an agent). The page body (main) also
- *   has link "New conversation". With chats: list "Conversations" with one listitem per conversation, newest ACTIVITY first (last_activity_at DESC, id
- *   DESC; plan DA amendment 3). A listitem has: a link to /chats/:id that fills the row (the whole row is the tap target, >= 44 px
+ *   Empty (no conversation): no list. Text /no conversations yet/i and text /agent/i (typing @ brings in an agent). The page body (main) also
+ *   has link "New conversation". With chats: list "Conversations" with one listitem per conversation, in the OWNER'S order (rank DESC, id DESC; per prototype v41 new
+ *   activity never reorders rows; Reorder mode, from a row's long-press menu, shows a handle on each row until Done). A listitem has: a link to /chats/:id that fills the row (the whole row is the tap target, >= 44 px
  *   tall); heading (level 2) = the title ("New conversation" while untitled); a preview line "devtool: Done" (agent) or "You: ..." (owner);
  *   when unread > 0: the count pill (text "Unread: 3": a hidden "Unread: " and the count; prototype v41 has no dot), and the title heading is bold (weight >= 600).
  *   Read rows: no dot, no count, normal weight. Live: SSE frames (message.created, read.moved, conversation.created) update the rows
@@ -118,31 +118,31 @@ scenario("On a phone the bottom bar leads to Now, Conversations and Crew", { tag
   await expect(page.locator('meta[name="viewport"]')).toHaveAttribute("content", /interactive-widget=resizes-content/);
 });
 
-scenario("On a phone an empty Chats list explains itself and offers New chat", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
-  // Given the owner has no chats yet
+scenario("On a phone an empty Conversations list explains itself and offers New conversation", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
+  // Given the owner has no conversations yet
   const u = await uiWorld({ server, page, context });
 
-  // When the owner opens Chats on a phone
+  // When the owner opens Conversations on a phone
   await page.goto(`${u.w.srv.origin}/chats`);
 
-  // Then the page says there are no chats yet and that a chat starts with an agent
+  // Then the page says there are no conversations yet and that typing @ brings in an agent
   const body = page.getByRole("main");
-  await expect(body).toContainText(/no chats yet/i);
+  await expect(body).toContainText(/no conversations yet/i);
   await expect(body).toContainText(/agent/i);
   await expect(chatList(page)).toHaveCount(0);
 
-  // And the page offers "New chat"
+  // And the page offers "New conversation"
   await expect(body.getByRole("link", { name: "New conversation" })).toBeVisible();
   await body.getByRole("link", { name: "New conversation" }).click();
   await expect(page).toHaveURL(`${u.w.srv.origin}/chats/new`);
 });
 
-scenario("On a phone New chat lists the crew agents and opens a focused composer", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
+scenario("On a phone New conversation opens a blank composer where @ lists the crew agents", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
   // Given "devtool" has a live session and "docs" has none
   const u = await uiWorld({ server, page, context, live: ["devtool"] });
   await page.goto(`${u.w.srv.origin}/chats`);
 
-  // When the owner taps "New chat" and types "@"
+  // When the owner taps "New conversation" and types "@"
   await newChat(page).click();
   await openMentions(page);
 
@@ -161,7 +161,7 @@ scenario("On a phone New chat lists the crew agents and opens a focused composer
 });
 
 scenario("A new conversation starts blank and takes a title from its first message", { tag: ["@browser"] }, async ({ server, page, context }) => {
-  // Given the owner is on the Chats list
+  // Given the owner is on the Conversations list
   const u = await uiWorld({ server, page, context });
   await page.goto(`${u.w.srv.origin}/chats`);
 
@@ -173,45 +173,45 @@ scenario("A new conversation starts blank and takes a title from its first messa
   await composer(page).fill("Plan the search filters launch");
   await sendButton(page).click();
 
-  // Then the Chats list shows the conversation at the top titled "Plan the search filters launch"
+  // Then the Conversations list shows the conversation at the top titled "Plan the search filters launch"
   await expect(page.getByRole("heading", { level: 1, name: "Plan the search filters launch" })).toBeVisible();
   await backButton(page).click();
   await expect(chatList(page).getByRole("heading").first()).toHaveText("Plan the search filters launch");
   expect((await listConversations(u.w.owner))[0]?.title).toBe("Plan the search filters launch");
 });
 
-scenario("On a phone a new chat takes its title from the first message and goes to the top of Chats", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
-  // Given the owner has chats "Ship search filters" and "Deploy alerts runbook" on a phone
+scenario("On a phone a new conversation takes its title from the first message and goes to the top of Conversations", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
+  // Given the owner has conversations "Ship search filters" and "Deploy alerts runbook" on a phone
   const u = await uiWorld({ server, page, context });
   await createConversation(u.w.owner, { participants: ["devtool"], title: "Ship search filters" });
   await createConversation(u.w.owner, { participants: ["devtool"], title: "Deploy alerts runbook" });
   await page.goto(`${u.w.srv.origin}/chats`);
 
-  // When the owner taps "New chat", picks "devtool" and sends "Plan the search filters launch"
+  // When the owner taps "New conversation", types "@", picks "devtool" and sends "Plan the search filters launch"
   await newChat(page).click();
   await chooseAgent(page, "devtool");
   await composer(page).fill("Plan the search filters launch");
   await sendButton(page).click();
 
-  // Then the chat is titled "Plan the search filters launch" and names "@devtool"
+  // Then the conversation is titled "Plan the search filters launch" and names "@devtool"
   const title = page.getByRole("heading", { level: 1, name: "Plan the search filters launch" });
   await expect(title).toBeVisible();
   await expect(page.getByText("@devtool", { exact: true }).first()).toBeVisible();
   await expect(page).toHaveURL(/\/chats\/\d+$/);
 
-  // And a reload shows the same chat with the message
+  // And a reload shows the same conversation with the message
   await page.reload();
   await expect(title).toBeVisible();
   await expect(message(page, "Plan the search filters launch")).toBeVisible();
   await expect(page).toHaveURL(/\/chats\/\d+$/);
 
-  // And Chats lists "Plan the search filters launch" above the other two
+  // And Conversations lists "Plan the search filters launch" above the other two
   await backButton(page).click();
   await expect(chatList(page).getByRole("heading")).toHaveText(["Plan the search filters launch", "Deploy alerts runbook", "Ship search filters"]);
 });
 
-scenario("On a phone back returns from a chat to Chats", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
-  // Given the owner opened a chat from the Chats list on a phone
+scenario("On a phone back returns from a conversation to Conversations", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
+  // Given the owner opened a conversation from the Conversations list on a phone
   const u = await uiWorld({ server, page, context });
   const conv = await createConversation(u.w.owner, { participants: ["devtool"], title: "Ship search filters" });
   await page.goto(`${u.w.srv.origin}/chats`);
@@ -222,29 +222,29 @@ scenario("On a phone back returns from a chat to Chats", { tag: ["@browser", "@p
   // When the owner taps the back button
   await backButton(page).click();
 
-  // Then the Chats list shows
+  // Then the Conversations list shows
   await expect(page).toHaveURL(`${u.w.srv.origin}/chats`);
   await expect(chatList(page)).toBeVisible();
   await expect(mainNav(page).getByRole("link", { name: "Conversations" })).toHaveAttribute("aria-current", "page");
 
-  // When the owner opens the chat again and uses the browser back
+  // When the owner opens the conversation again and uses the browser back
   await chatRow(page, "Ship search filters").getByRole("link").click();
   await expect(page).toHaveURL(`${u.w.srv.origin}/chats/${conv}`);
   await page.goBack();
 
-  // Then the Chats list shows
+  // Then the Conversations list shows
   await expect(page).toHaveURL(`${u.w.srv.origin}/chats`);
   await expect(chatList(page)).toBeVisible();
 });
 
-scenario("On a phone the owner starts a chat with an agent and sees its reply", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
+scenario("On a phone the owner starts a conversation with an agent and sees its reply", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
   // Given "devtool" runs "convoz watch --json"
   const u = await uiWorld({ server, page, context });
   const watch = startWatch(u.w.box, u.sessions.devtool!.sid);
   try {
     await page.goto(`${u.w.srv.origin}/chats`);
 
-    // When the owner taps "New chat", picks "devtool" and sends "Is the build green?"
+    // When the owner taps "New conversation", types "@", picks "devtool" and sends "Is the build green?"
     await newChat(page).click();
     await chooseAgent(page, "devtool");
     await composer(page).fill(FIRST);
@@ -277,7 +277,7 @@ scenario("On a phone the owner starts a chat with an agent and sees its reply", 
     await expect(reply).toContainText("@devtool");
     expect(await page.evaluate(() => (window as any).__kept)).toBe(1);
 
-    // And the Chats list shows the conversation with no unread dot
+    // And the Conversations list shows the conversation with no unread dot
     await backButton(page).click();
     await expect(chatRow(page, FIRST)).toBeVisible();
     await expect(unreadDot(chatRow(page, FIRST))).toHaveCount(0);
@@ -350,8 +350,8 @@ scenario("On a phone the working note goes away when its time runs out", { tag: 
   await expect(workingNote(page)).toHaveCount(0, { timeout: 4_000 });
 });
 
-scenario("On a phone an unread chat shows a dot until opened", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
-  // Given the owner is on the Chats list on a phone
+scenario("On a phone an unread conversation shows a dot until opened", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
+  // Given the owner is on the Conversations list on a phone
   const u = await uiWorld({ server, page, context });
   const conv = await createConversation(u.w.owner, { participants: ["devtool"], title: "Ship search filters" });
   await page.goto(`${u.w.srv.origin}/chats`);
@@ -367,7 +367,7 @@ scenario("On a phone an unread chat shows a dot until opened", { tag: ["@browser
   await expect(row).toContainText("devtool: Done");
   await expect.poll(() => isBold(row.getByRole("heading"))).toBe(true);
 
-  // When the owner opens conversation 41 and goes back to Chats
+  // When the owner opens conversation 41 and goes back to Conversations
   await row.getByRole("link").click();
   await expect(message(page, "Done")).toBeVisible();
   await backButton(page).click();
@@ -401,23 +401,23 @@ scenario("On a phone Conversations shows plain previews, and the composer names 
   await expect(composer(page)).toHaveAccessibleName("Message @devtool");
 });
 
-scenario("On a phone a chat that does not exist shows a not-found page with a way back", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
+scenario("On a phone a conversation that does not exist shows a not-found page with a way back", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
   // Given the owner is signed in on a phone
   const u = await uiWorld({ server, page, context });
 
-  // When the owner opens a chat id that is missing, not a number, or not a whole number
+  // When the owner opens a conversation id that is missing, not a number, or not a whole number
   for (const id of ["99999", "abc", "-4"]) {
     const response = await page.goto(`${u.w.srv.origin}/chats/${id}`);
 
-    // Then the page says the chat was not found, in the console style, with a link back to Chats
+    // Then the page says the conversation was not found, in the console style, with a link back to Conversations
     expect(response?.status()).toBe(404);
-    await expect(page.getByRole("heading", { level: 1, name: "Chat not found" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Conversation not found" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Back to Conversations" })).toHaveAttribute("href", "/chats");
     await expect(mainNav(page)).toBeVisible();
   }
 });
 
-scenario("On a phone a chat catches up after the connection comes back", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
+scenario("On a phone a conversation catches up after the connection comes back", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
   // Given the owner has conversation 41 open on a phone
   const u = await uiWorld({ server, page, context });
   const conv = await createConversation(u.w.owner, { participants: ["devtool"], title: "Ship search filters" });
@@ -437,7 +437,7 @@ scenario("On a phone a chat catches up after the connection comes back", { tag: 
   await expect(messageLog(page).getByRole("article")).toHaveText([/\bone\b/, /\btwo\b/, /\bthree\b/], { timeout: 5_000 });
 });
 
-scenario("On a phone a chat catches up when the app returns to the foreground", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
+scenario("On a phone a conversation catches up when the app returns to the foreground", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
   // Given the owner has conversation 41 open on a phone
   const u = await uiWorld({ server, page, context });
   const conv = await createConversation(u.w.owner, { participants: ["devtool"], title: "Ship search filters" });
@@ -661,18 +661,18 @@ scenario("On a phone a failed send is retried once without a duplicate", { tag: 
   expect((await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["retry me"]);
 });
 
-scenario("A new conversation goes to the top of the Chats list", { tag: ["@browser"] }, async ({ server, page, context }) => {
+scenario("A new conversation goes to the top of the Conversations list", { tag: ["@browser"] }, async ({ server, page, context }) => {
   // Given conversations 41, 52 and 60 were created in that order with "devtool"
   const u = await uiWorld({ server, page, context });
   for (const title of ["Ship search filters", "Deploy alerts runbook", "Weekly usage"]) await createConversation(u.w.owner, { participants: ["devtool"], title });
 
-  // Then the Chats list shows 60, 52, 41 in that order
+  // Then the Conversations list shows 60, 52, 41 in that order
   await page.goto(`${u.w.srv.origin}/chats`);
   await expect(chatList(page).getByRole("heading")).toHaveText(["Weekly usage", "Deploy alerts runbook", "Ship search filters"]);
 });
 
-scenario("A new message moves its conversation to the top of the list", { tag: ["@browser"] }, async ({ server, page, context }) => {
-  // Given the owner opened the Chats list
+scenario("New activity never reorders the Conversations list", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given the owner opened the Conversations list
   const u = await uiWorld({ server, page, context });
   const ids: number[] = [];
   for (const title of ["Ship search filters", "Deploy alerts runbook", "Weekly usage"]) ids.push(await createConversation(u.w.owner, { participants: ["devtool"], title }));
@@ -682,9 +682,43 @@ scenario("A new message moves its conversation to the top of the list", { tag: [
   // When "devtool" posts in conversation 41
   await agentPosts(u, "devtool", ids[0]!, "Done");
 
-  // Then the Chats list shows 41, 60, 52 in that order without a reload
-  await expect(chatList(page).getByRole("heading")).toHaveText(["Ship search filters", "Weekly usage", "Deploy alerts runbook"], { timeout: 3_000 });
+  // Then the Conversations list still shows 60, 52, 41 in that order without a reload
+  await expect(chatRow(page, "Ship search filters").getByText("devtool: Done")).toBeVisible({ timeout: 3_000 });
+  await expect(chatList(page).getByRole("heading")).toHaveText(["Weekly usage", "Deploy alerts runbook", "Ship search filters"]);
+
+  // And conversation 41 shows its new preview
   expect(await rowTitles(page)).toHaveLength(3);
+});
+
+scenario("On a phone Reorder mode moves a conversation and Done ends it", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
+  // Given conversations 41, 52 and 60 were created in that order with "devtool"
+  const u = await uiWorld({ server, page, context });
+  for (const title of ["Ship search filters", "Deploy alerts runbook", "Weekly usage"]) await createConversation(u.w.owner, { participants: ["devtool"], title });
+  await page.goto(`${u.w.srv.origin}/chats`);
+  await expect(chatList(page).getByRole("heading")).toHaveText(["Weekly usage", "Deploy alerts runbook", "Ship search filters"]);
+
+  // When the owner long presses conversation 41 and picks "Reorder…"
+  await chatRow(page, "Ship search filters").dispatchEvent("contextmenu");
+  await page.getByRole("menuitem", { name: "Reorder…" }).click();
+
+  // Then every row shows a handle and the top bar shows "Done"
+  await expect(page.getByRole("button", { name: /^Reorder .*Alt plus arrow keys move it\.$/ })).toHaveCount(3);
+  await expect(page.getByRole("button", { name: "Done", exact: true })).toBeVisible();
+
+  // When the owner moves conversation 41 up with the keyboard handle
+  await page.getByRole("button", { name: "Reorder Ship search filters. Alt plus arrow keys move it." }).focus();
+  await page.keyboard.press("Alt+ArrowUp");
+
+  // Then the Conversations list shows 60, 41, 52 in that order
+  await expect(chatList(page).getByRole("heading")).toHaveText(["Weekly usage", "Ship search filters", "Deploy alerts runbook"]);
+
+  // When the owner taps "Done"
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+
+  // Then the handles are gone and a reload shows 60, 41, 52
+  await expect(page.getByRole("button", { name: /Alt plus arrow keys move it\.$/ })).toHaveCount(0);
+  await page.reload();
+  await expect(chatList(page).getByRole("heading")).toHaveText(["Weekly usage", "Ship search filters", "Deploy alerts runbook"]);
 });
 
 scenario("Unread conversations are bold with a count", { tag: ["@browser"] }, async ({ server, page, context }) => {
@@ -713,7 +747,7 @@ scenario("Unread conversations are bold with a count", { tag: ["@browser"] }, as
   await expect.poll(() => isBold(chatRow(page, "Deploy alerts runbook").getByRole("heading"))).toBe(false);
 });
 
-scenario("On a phone a long chat opens at its latest message", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
+scenario("On a phone a long conversation opens at its latest message", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
   // Given conversation 41 holds 60 messages
   const u = await uiWorld({ server, page, context });
   const conv = await createConversation(u.w.owner, { participants: ["devtool"], title: "Ship search filters" });
@@ -869,14 +903,14 @@ scenario("On a phone an agent reply shows paragraphs, code and links safely", { 
   expect(links(render("[a](http://[) ".repeat(200) + "[ok](http://a.b)"))).toBe(0);
 });
 
-scenario("On a phone the chat pages fit a 320 px screen with large tap targets", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
+scenario("On a phone the conversation pages fit a 320 px screen with large tap targets", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
   // Given the owner has a long conversation with long words and a wide code line
   const u = await uiWorld({ server, page, context });
   const conv = await createConversation(u.w.owner, { participants: ["devtool"], title: "A very long title that keeps going and going so the app bar has to cope with it" });
   await ownerSays(u.w.owner, conv, `${"x".repeat(240)} https://example.com/${"path/".repeat(30)}`);
   await agentPosts(u, "devtool", conv, ["```\n" + "wide_code_line_".repeat(20) + "\n```", "A paragraph " + "y".repeat(240)].join("\n\n"));
 
-  // When the owner opens Chats, New chat and the conversation at 320 px and at 390 px
+  // When the owner opens Conversations, New conversation and the conversation at 320 px and at 390 px
   const wide: string[] = [];
   const small: string[] = [];
   for (const width of [390, 320]) {
@@ -896,7 +930,7 @@ scenario("On a phone the chat pages fit a 320 px screen with large tap targets",
   expect(small).toEqual([]);
 });
 
-scenario("On a phone the chat pages look right in dark and light", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {
+scenario("On a phone the conversation pages look right in dark and light", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {
   // Given the owner has a conversation with messages from both sides
   const u = await uiWorld({ server, page, context });
   const conv = await createConversation(u.w.owner, { participants: ["devtool"], title: "Ship search filters" });
@@ -904,7 +938,7 @@ scenario("On a phone the chat pages look right in dark and light", { tag: ["@bro
   await agentPosts(u, "devtool", conv, "Yes, **all 11** checks pass.\n\n```\nmake test\n```");
   await createConversation(u.w.owner, { participants: ["docs"], title: "Weekly usage" });
 
-  // When the owner opens Chats, New chat and the conversation in dark and in light
+  // When the owner opens Conversations, New conversation and the conversation in dark and in light
   const looks: string[] = [];
   for (const scheme of ["dark", "light"] as const) {
     await page.emulateMedia({ colorScheme: scheme });

@@ -78,9 +78,15 @@
   .dropline { position: absolute; display: none; height: 2px; border-radius: 2px; background: var(--color-accent); pointer-events: none; z-index: 6; }
   .rolder { min-height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border: 0; border-radius: 999px; background: transparent; color: var(--color-muted); font-size: 12px; font-weight: 500; text-align: left; }
 
+  .chats { position: relative; }
+  .chatlist li.dragging { position: relative; z-index: 5; box-shadow: var(--float); background: var(--color-raised); transition: none; will-change: transform; }
+  .listgrab { flex: none; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--color-muted); touch-action: none; cursor: grab; }
+  .appbar-end .donebtn { order: -1; min-height: 44px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; color: var(--color-accent); font-size: 16px; font-weight: 600; }
+
   .toastbox { position: fixed; left: 0; right: 0; bottom: calc(88px + var(--bottom)); z-index: 70; display: flex; justify-content: center; pointer-events: none; }
   body[data-desk] .toastbox { bottom: 24px; }
-  .toast { max-width: min(90vw, 28rem); padding: 12px 18px; border-radius: 999px; background: var(--color-raised); color: var(--color-text); border: 1px solid var(--color-border); box-shadow: var(--float); font-size: 14px; font-weight: 500; }
+  .toast { display: flex; align-items: center; gap: 12px; pointer-events: auto; max-width: min(90vw, 28rem); padding: 12px 18px; border-radius: 999px; background: var(--color-raised); color: var(--color-text); border: 1px solid var(--color-border); box-shadow: var(--float); font-size: 14px; font-weight: 500; }
+  .toastact { min-height: 32px; padding: 0 4px; border: 0; background: transparent; color: var(--color-accent); font: inherit; font-weight: 600; }
 
   .keys { margin: 0; display: flex; flex-direction: column; }
   .keyrow { display: flex; align-items: baseline; gap: 16px; padding: 8px 0; border-top: 1px solid var(--color-border); }

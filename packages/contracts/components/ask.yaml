@@ -128,7 +128,7 @@ NowPendingAdd:
     at: { type: integer, format: int64 }
 Now:
   type: object
-  required: [now, poll_ms, badge, asks, snoozed, answered_today, pending_adds, machine_requests]
+  required: [now, poll_ms, badge, asks, snoozed, answered_today, dismissed_today, pending_adds, machine_requests]
   properties:
     now: { type: integer, format: int64, description: The server's clock, epoch ms. Snooze times and "tonight" are read against it. }
     poll_ms: { type: integer, description: How often an open Now asks again, for what only time changes (a snooze waking, a request expiring). }
@@ -136,5 +136,6 @@ Now:
     asks: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Ask" }, description: "Open and not snoozed; urgent first, then the newest." }
     snoozed: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Ask" }, description: "The caller's snoozed open asks, the soonest wake first." }
     answered_today: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Ask" }, description: Answered in the last 24 hours, newest first. }
+    dismissed_today: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Ask" }, description: Dismissed in the last 24 hours and still dismissed, newest first. }
     pending_adds: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/NowPendingAdd" } }
     machine_requests: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/MachineRequest" } }

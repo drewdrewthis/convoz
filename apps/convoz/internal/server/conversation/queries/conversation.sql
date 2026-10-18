@@ -60,32 +60,6 @@ ORDER BY id LIMIT sqlc.arg(max_rows);
 DELETE FROM conversations
 WHERE id = sqlc.arg(id) AND message_count = 0 AND title_source = 'auto' AND title IS NULL AND deleted_at IS NULL AND created_at < sqlc.arg(before);
 
--- name: OpenPickup :exec
-UPDATE conversations SET pickup_opened_at = sqlc.arg(at), pickup_opened_by = sqlc.arg(by) WHERE id = sqlc.arg(id);
-
--- name: NextAssignVersion :one
-UPDATE conversations SET assign_version = assign_version + 1 WHERE id = sqlc.arg(id) RETURNING assign_version;
-
--- name: GetAssignment :one
-SELECT conversation_id, agent_id, session_id, fence, picked_up_at, lease_until FROM assignments WHERE conversation_id = sqlc.arg(conversation_id);
-
--- name: InsertAssignment :exec
-INSERT INTO assignments (conversation_id, agent_id, session_id, fence, picked_up_at, lease_until)
-VALUES (sqlc.arg(conversation_id), sqlc.arg(agent_id), sqlc.arg(session_id), sqlc.arg(fence), sqlc.arg(at), sqlc.arg(lease_until));
-
--- name: DeleteAssignment :exec
-DELETE FROM assignments WHERE conversation_id = sqlc.arg(conversation_id);
-
--- name: DeleteAssignmentOfAgent :many
-DELETE FROM assignments WHERE conversation_id = sqlc.arg(conversation_id) AND agent_id = sqlc.arg(agent_id) RETURNING conversation_id;
-
--- name: DeleteAssignmentsOfSession :many
-DELETE FROM assignments WHERE session_id = sqlc.arg(session_id) RETURNING conversation_id;
-
--- name: RenewAssignment :execrows
-UPDATE assignments SET lease_until = sqlc.arg(lease_until)
-WHERE conversation_id = sqlc.arg(conversation_id) AND agent_id = sqlc.arg(agent_id) AND fence = sqlc.arg(fence);
-
 -- name: GetParticipant :one
 SELECT status, joined_message_id FROM participants
 WHERE conversation_id = sqlc.arg(conversation_id) AND identity_id = sqlc.arg(identity_id);

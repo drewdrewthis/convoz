@@ -15,7 +15,7 @@ import { browserWorld, world } from "./wp3.ts";
  *   conversation (", N unread" after it when unread) with the title text in .rtitle; its star is the button "Star conversation <title>" /
  *   "Unstar conversation <title>" and its grip the button "Reorder <title>. Alt plus arrow keys move it.". "Older · N" is a button
  *   (aria-expanded) that shows the group's rows. Below 900 px the phone UI has no sidebar.
- *   GET /api/conversations rows carry starred, rank (coalesce(rail_rank, created_at)), older and muted_until (only when muted).
+ *   GET /api/conversations rows carry starred, rank (coalesce(rail_rank, created_at)) and muted_until (only when muted).
  *   PATCH /api/conversations/:id/prefs {starred?, muted_until?, place?:{after}} answers {conversation_id, starred, muted_until, ranks}.
  */
 
@@ -90,7 +90,6 @@ export interface RailRowJson {
   last_activity_at: number;
   starred: boolean;
   rank: number;
-  older: boolean;
   muted_until?: number;
   unread: number;
 }

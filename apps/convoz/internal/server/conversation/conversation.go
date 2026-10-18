@@ -38,9 +38,6 @@ type Conversation struct {
 	MessageCount   int64
 	AgentStreak    int64
 	PausedAt       int64
-	PickupOpenedAt int64
-	PickupOpenedBy int64
-	AssignVersion  int64
 	DeletedAt      int64
 	DeletedBy      int64
 }
@@ -90,8 +87,8 @@ func fromRow(r db.Conversation) Conversation {
 	return Conversation{
 		ID: r.ID, Title: r.Title.String, TitleManual: r.TitleSource == "manual", CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, LinkURL: r.LinkUrl.String,
 		LastMessageID: r.LastMessageID, LastMainID: r.LastMainID, LastActivityAt: r.LastActivityAt, MessageCount: r.MessageCount,
-		AgentStreak: r.AgentStreak, PausedAt: r.PausedAt.Int64, PickupOpenedAt: r.PickupOpenedAt.Int64, PickupOpenedBy: r.PickupOpenedBy.Int64,
-		AssignVersion: r.AssignVersion, DeletedAt: r.DeletedAt.Int64, DeletedBy: r.DeletedBy.Int64,
+		AgentStreak: r.AgentStreak, PausedAt: r.PausedAt.Int64,
+		DeletedAt: r.DeletedAt.Int64, DeletedBy: r.DeletedBy.Int64,
 	}
 }
 

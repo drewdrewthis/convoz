@@ -269,7 +269,7 @@ func (s *Server) leaveConversation(w http.ResponseWriter, r *http.Request, c *ca
 }
 
 // endSeat takes one active agent out of a conversation, for the routes that remove and leave. One transaction (I-19):
-// the seat ends, the pickup is released, the agent's open and dismissed asks close, its other inbox items expire, a
+// the seat ends, the agent's open and dismissed asks close, its other inbox items expire, a
 // removal leaves ONE notice for it, and the conversation says so.
 func (s *Server) endSeat(w http.ResponseWriter, r *http.Request, c *call, convID, who int64, status string) {
 	now := s.Clock.Now()
@@ -292,9 +292,6 @@ func (s *Server) endSeat(w http.ResponseWriter, r *http.Request, c *call, convID
 			return nil
 		}
 		if ended, err = conversation.End(ctx, d, now, convID, who, status); err != nil || !ended {
-			return err
-		}
-		if _, err := conversation.ReleaseOf(ctx, d, convID, who); err != nil {
 			return err
 		}
 		if err := ask.CloseForRemoval(ctx, d, askPorts(c.p, &askEffects{}), now, convID, who); err != nil {

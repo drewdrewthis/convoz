@@ -763,7 +763,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** One conversation with its details (who started it, the link, pending adds, pickup). */
+        /** One conversation with its details (who started it, the link, pending adds). */
         get: operations["getConversation"];
         put?: never;
         post?: never;
@@ -888,40 +888,6 @@ export interface paths {
         put?: never;
         /** Let paused agents post again. */
         post: operations["resumeConversation"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/conversations/{id}/pickup/open": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Offer the conversation to any agent that has the pickup scope. */
-        post: operations["openPickup"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/conversations/{id}/pickup": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** An agent with the pickup scope takes an open conversation (exactly one wins). With a fence it renews its hold. */
-        post: operations["pickupConversation"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1903,8 +1869,6 @@ export interface components {
              *     rank is first; activity never changes it (I-21).
              */
             rank: number;
-            /** @description Not starred and no activity for 14 days (C-9). A view of the Conversations section; it never changes the order. */
-            older: boolean;
             started_by?: components["schemas"]["Person"];
             /** @description The linked pull request (https). */
             link_url?: string;
@@ -1917,9 +1881,6 @@ export interface components {
             pinned?: components["schemas"]["Message"][];
             /** @description The loop breaker stopped the agents after 20 messages in a row. */
             paused?: boolean;
-            /** @enum {string} */
-            pickup?: "closed" | "open" | "taken";
-            picked_up_by?: components["schemas"]["Person"];
             /** @description Agents that wait for a person to add them, and the agent that asked. */
             pending?: {
                 person: components["schemas"]["Person"];
@@ -2684,6 +2645,8 @@ export interface components {
             snoozed: components["schemas"]["Ask"][];
             /** @description Answered in the last 24 hours */
             answered_today: components["schemas"]["Ask"][];
+            /** @description Dismissed in the last 24 hours and still dismissed */
+            dismissed_today: components["schemas"]["Ask"][];
             pending_adds: components["schemas"]["NowPendingAdd"][];
             machine_requests: components["schemas"]["MachineRequest"][];
         };
@@ -4189,60 +4152,6 @@ export interface operations {
         };
         responses: {
             200: components["responses"]["Empty"];
-            default: components["responses"]["Error"];
-        };
-    };
-    openPickup: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["Id"];
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": Record<string, never>;
-            };
-        };
-        responses: {
-            200: components["responses"]["Empty"];
-            default: components["responses"]["Error"];
-        };
-    };
-    pickupConversation: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["Id"];
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": {
-                    /** Format: int64 */
-                    fence?: number;
-                };
-            };
-        };
-        responses: {
-            /** @description The agent holds the conversation under this fence. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** Format: int64 */
-                        conversation_id: number;
-                        /** Format: int64 */
-                        fence: number;
-                    };
-                };
-            };
             default: components["responses"]["Error"];
         };
     };
