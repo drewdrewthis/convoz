@@ -640,7 +640,9 @@ scenario("There is no answer path for agents or the CLI in v1", { tag: ["@api", 
   // And "convoz --help" lists no answer command
   const help = await w.box.run(["--help"]);
   const text = `${help.stdout}${help.stderr}`;
-  expect(text).toContain("convoz ask ");
+  // the command list prints one command per line, name first (cli Register, chat-cli "Every command prints its usage for --help")
+  expect(text).toMatch(/^ask +\S/m);
+  expect(text).not.toMatch(/^answer\b/m);
   expect(text).not.toMatch(/convoz answer\b/);
   expect((await askOf(w.owner, id)).state).toBe("open");
 });
