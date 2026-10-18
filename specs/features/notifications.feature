@@ -131,6 +131,50 @@ Feature: Notifications
       Given a phone browser whose window has no push support but whose background worker has it
       Then Settings treats the phone as able to receive push
 
+  Rule: A banner on first open asks to turn notifications on
+
+    # Owner (Drew, ask 111): "Banner on first open"
+    # "A one-tap 'Turn on notifications' banner at the top of the Home Screen app the first time you open it, until you turn it on or
+    # dismiss it. iPhone needs your tap, so this is the closest to asking by itself."
+
+    @v1 @browser
+    Scenario: The banner shows on first open when push is possible and undecided
+      Given the owner's phone can receive push and has not decided on notifications
+      When the owner opens Conversations
+      Then the banner "Turn on notifications" shows with a "Turn on" button and a "Dismiss" button
+
+    @v1 @browser
+    Scenario: Tapping Turn on subscribes the device and the banner leaves
+      Given the owner's phone can receive push and has not decided on notifications
+      When the owner taps "Turn on" in the banner
+      Then the banner goes away
+      And the fake push service receives one push titled "Notifications are on"
+      And Settings shows this device as "On"
+
+    @v1 @browser
+    Scenario: Dismissing the banner keeps it gone after a reload
+      Given the owner's phone can receive push and has not decided on notifications
+      When the owner dismisses the banner
+      And the owner reloads the page
+      Then the banner does not show
+
+    @v1 @browser
+    Scenario Outline: No banner once notifications are decided
+      Given the owner's phone has notifications <permission>
+      When the owner opens Conversations
+      Then the banner does not show
+
+      Examples:
+        | permission |
+        | allowed    |
+        | blocked    |
+
+    @v1 @browser
+    Scenario: No banner when the browser cannot receive push
+      Given the owner's browser cannot receive push
+      When the owner opens Conversations
+      Then the banner does not show
+
   Rule: Answering from the notification is later and off by default (I-35)
 
     @later @api @I-35

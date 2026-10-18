@@ -163,6 +163,11 @@
   .banner { padding: 12px 16px; border-radius: 14px; background: var(--color-selection); color: var(--color-text); margin: 0 0 16px; }
   .banner.error, [role="alert"] { padding: 12px 16px; border-radius: 14px; margin: 0 0 16px; color: var(--color-danger); background: color-mix(in srgb, var(--color-danger) 14%, var(--color-raised)); font-weight: 600; }
   .banner.ok { color: var(--color-success); background: color-mix(in srgb, var(--color-success) 14%, var(--color-raised)); }
+  .pushbanner { margin: 0 0 12px; padding: 4px 4px 4px 14px; border-radius: 14px; background: var(--color-selection); color: var(--color-text); }
+  .pushbanner-row { display: flex; align-items: center; gap: 8px; min-height: 44px; font-weight: 600; }
+  .pushbanner-row .grow { flex: 1; min-width: 0; }
+  .pushbanner .iconbtn { margin: 0; }
+  .pushbanner [role="alert"] { margin: 0 10px 10px 0; padding: 0; background: none; }
   .step { color: var(--color-muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; margin: 8px 0 0; }
 
   /* ---- focused flows (sign in, setup, recovery): the wordmark and one task ---- */

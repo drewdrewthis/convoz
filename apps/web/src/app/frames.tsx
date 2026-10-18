@@ -6,6 +6,7 @@ import { signOut } from "../shared/api.ts";
 import { keepForOffline } from "../shared/data.ts";
 import { Banners, useNoticeState } from "../shared/notice.tsx";
 import { PageHeadContext, type PageHead } from "../shared/page-head.tsx";
+import { PushBanner } from "../features/notifications/index.ts";
 import { openCount, useNow } from "../features/now/index.ts";
 import { SearchButton, SearchHost, useSearchShortcut } from "../features/search/index.ts";
 import type { PageDef } from "./routes.tsx";
@@ -85,6 +86,7 @@ export function ShellFrame({ def, children }: { def: PageDef; children: ReactNod
       {account.menu}
       <div className="screen">
         <main>
+          {def.tab ? <PushBanner /> : null}
           <Banners status={status} alert={alert} />
           <div id="view">{children}</div>
         </main>
