@@ -38,6 +38,8 @@ const (
 	CodeHandleTaken          = "handle_taken"
 	CodeRequestDenied        = "request_denied"
 	CodeRequestExpired       = "request_expired"
+	// CodeHandleRenamed refuses `as` with a handle the agent gave up more than 30 days ago; the message names the new one (I-51).
+	CodeHandleRenamed = "handle_renamed"
 )
 
 // Routes of the machine login and the session lease, as the CLI calls them.
@@ -129,18 +131,35 @@ type MintRequest struct {
 
 // SessionInfo describes one lease.
 type SessionInfo struct {
-	ID        int64  `json:"id"`
-	Identity  string `json:"identity"`
-	Machine   string `json:"machine"`
-	ClientID  string `json:"client_id"`
-	Label     string `json:"label"`
-	ExpiresAt int64  `json:"expires_at"`
+	ID         int64  `json:"id"`
+	Identity   string `json:"identity"`
+	IdentityID int64  `json:"identity_id,omitempty"`
+	Machine    string `json:"machine"`
+	ClientID   string `json:"client_id"`
+	Label      string `json:"label"`
+	ExpiresAt  int64  `json:"expires_at"`
 }
 
 // MintResponse holds the lease, which is shown once.
 type MintResponse struct {
 	Lease   string      `json:"lease"`
 	Session SessionInfo `json:"session"`
+	// Renamed is set when `as` named a handle the agent had before: it works until Until, then the mint is refused (I-51).
+	Renamed *Renamed `json:"renamed,omitempty"`
+}
+
+// Renamed says that a handle the caller used is the agent's old one.
+type Renamed struct {
+	From  string `json:"from"`
+	To    string `json:"to"`
+	Until int64  `json:"until"`
+}
+
+// PreviousHandle is a handle a lease's agent had before; `--as` with it works until Until (Works says whether it still does).
+type PreviousHandle struct {
+	Handle string `json:"handle"`
+	Until  int64  `json:"until"`
+	Works  bool   `json:"works"`
 }
 
 // MeResponse is GET /api/me with a lease.
@@ -153,6 +172,8 @@ type MeResponse struct {
 		// Description and Capabilities are the agent's own words about itself (convoz profile).
 		Description  string   `json:"description,omitempty"`
 		Capabilities []string `json:"capabilities,omitempty"`
+		// PreviousHandles are the handles the agent had before, newest first (I-51).
+		PreviousHandles []PreviousHandle `json:"previous_handles,omitempty"`
 	} `json:"identity"`
 	Machine struct {
 		ID   int64  `json:"id"`

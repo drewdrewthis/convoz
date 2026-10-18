@@ -36,7 +36,7 @@ func Whoami(args []string, io IO) int {
 	}
 	c := newClient(creds.Server)
 	if *sid == "" {
-		if *sid, err = sessionForAgent(dir, c, creds, *as, io.Getenv("CLAUDE_CODE_SESSION_ID")); err != nil {
+		if *sid, err = sessionForAgent(io, dir, c, creds, *as, io.Getenv("CLAUDE_CODE_SESSION_ID")); err != nil {
 			return sessionEnded(io, err)
 		}
 	}
@@ -68,16 +68,22 @@ func printLocal(io IO, creds Credentials, asJSON bool) int {
 }
 
 // sessionForAgent finds the live session of (as, clientID) or starts one. A session whose lease the server
-// no longer honours is replaced. Without a client id there is nothing to match on, so it starts one.
-func sessionForAgent(dir string, c *client, creds Credentials, as, clientID string) (string, error) {
+// no longer honours is replaced. Without a client id there is nothing to match on, so it starts one. When `as` is a handle the
+// agent had before (I-51), it warns on stderr for 30 days and then refuses, naming the new handle.
+func sessionForAgent(io IO, dir string, c *client, creds Credentials, as, clientID string) (string, error) {
+	as = strings.ToLower(as)
 	if clientID != "" {
 		if sid := findSession(dir, as, clientID); sid != "" {
 			s, err := loadSession(dir, sid)
 			if err != nil {
 				return "", err
 			}
-			err = c.call(context.Background(), "GET", wire.RouteMe, s.Lease, nil, nil)
-			if _, code := statusCode(err); err == nil || code != wire.CodeSessionEnded {
+			var me wire.MeResponse
+			err = c.call(context.Background(), "GET", wire.RouteMe, s.Lease, nil, &me)
+			if err == nil {
+				return sid, followHandle(io, dir, sid, s, as, me)
+			}
+			if _, code := statusCode(err); code != wire.CodeSessionEnded {
 				return sid, err
 			}
 		}
@@ -85,7 +91,37 @@ func sessionForAgent(dir string, c *client, creds Credentials, as, clientID stri
 	if clientID == "" {
 		clientID = "convoz-" + randomHex(8)
 	}
-	return startSession(IO{}, dir, c, creds, as, clientID, "convoz cli", nil) // no identity to make, so nothing to print
+	return startSession(io, dir, c, creds, as, clientID, "convoz cli", nil) // no identity to make: only a rename warning prints
+}
+
+// followHandle keeps a session file true to the agent's handle now (it is rewritten on a change) and checks the handle the caller
+// used: an old one works, with a warning, until the server says it no longer does.
+func followHandle(io IO, dir, sid string, s sessionFile, as string, me wire.MeResponse) error {
+	now := me.Identity.Handle
+	if now != "" && (s.Identity != now || s.IdentityID != me.Identity.ID) {
+		s.Identity, s.IdentityID = now, me.Identity.ID
+		if s.As == "" {
+			s.As = as
+		}
+		if path, ok := sessionPath(dir, sid); ok {
+			if raw, err := json.Marshal(s); err == nil {
+				_ = writePrivate(path, raw) // the lease still works: a file left as it was only costs a lookup
+			}
+		}
+	}
+	if as == now {
+		return nil
+	}
+	for _, p := range me.Identity.PreviousHandles {
+		if p.Handle != as {
+			continue
+		}
+		if !p.Works {
+			return renamedError(as, now)
+		}
+		warnRenamed(io, wire.Renamed{From: as, To: now, Until: p.Until})
+	}
+	return nil
 }
 
 // findSession returns the local id of the session file for (identity, clientID), or "".
@@ -95,7 +131,7 @@ func findSession(dir, identity, clientID string) string {
 		return ""
 	}
 	for _, e := range entries {
-		if s, err := loadSession(dir, e.Name()); err == nil && s.Identity == identity && s.ClientID == clientID {
+		if s, err := loadSession(dir, e.Name()); err == nil && s.names(identity) && s.ClientID == clientID {
 			return e.Name()
 		}
 	}

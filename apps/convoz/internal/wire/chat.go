@@ -90,6 +90,15 @@ type Message struct {
 	// Uploads are the files the message carries; Text is then the plain-text form of the whole message (a voice note reads
 	// "Voice note 0:20: <words>"), which `convoz read` prints.
 	Uploads []Upload `json:"uploads,omitempty"`
+	// Mentions are the identities the body @mentions, by id: a handle an agent had before still names it (I-51).
+	Mentions []MentionSpan `json:"mentions,omitempty"`
+}
+
+// MentionSpan is one @mention: the handle as written, and the identity it names with its handle now.
+type MentionSpan struct {
+	AsWritten  string `json:"as_written"`
+	IdentityID int64  `json:"identity_id"`
+	Handle     string `json:"handle"`
 }
 
 // Upload is a file of a message. It is fetched from /api/files/<ID>.

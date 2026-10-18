@@ -120,6 +120,26 @@
   "long": "Declined · @docs not added"
  },
  {
+  "name": "system: an agent's handle changed",
+  "message": {
+   "system": {
+    "t": "member.renamed",
+    "identity": {
+     "handle": "ci-bot",
+     "name": "CI"
+    },
+    "by": {
+     "handle": "",
+     "name": ""
+    },
+    "from": "dev-ci",
+    "to": "ci-bot"
+   }
+  },
+  "short": "@dev-ci is now @ci-bot",
+  "long": "@dev-ci is now @ci-bot"
+ },
+ {
   "name": "system: paused",
   "message": {
    "system": {

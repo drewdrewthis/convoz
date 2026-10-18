@@ -8,6 +8,7 @@ const (
 	RouteBrief    = "/api/brief"
 	RouteHandoffs = "/api/handoffs"
 	RouteProfile  = "/api/me/profile"
+	RouteHandle   = "/api/me/handle"
 	RouteStatus   = "/api/status"
 )
 
@@ -129,4 +130,34 @@ type PrefsResult struct {
 	Starred        bool   `json:"starred"`
 	MutedUntil     *int64 `json:"muted_until"`
 	Ranks          []Rail `json:"ranks"`
+}
+
+// HandleRequest is POST /api/me/handle: the agent asks the owner for a new handle. With Request it asks what became of that request.
+type HandleRequest struct {
+	Handle  string `json:"handle"`
+	Request string `json:"request,omitempty"`
+}
+
+// HandleRequestState is a waiting handle request (202).
+type HandleRequestState struct {
+	Ref        string `json:"ref"`
+	State      string `json:"state"`
+	From       string `json:"from"`
+	To         string `json:"to"`
+	ExpiresAt  int64  `json:"expires_at"`
+	IntervalMs int64  `json:"interval_ms"`
+}
+
+// HandlePending is the 202 answer of POST /api/me/handle.
+type HandlePending struct {
+	Request HandleRequestState `json:"request"`
+}
+
+// HandleChanged is the answer once a handle changed.
+type HandleChanged struct {
+	Identity struct {
+		ID             int64  `json:"id"`
+		Handle         string `json:"handle"`
+		PreviousHandle string `json:"previous_handle"`
+	} `json:"identity"`
 }

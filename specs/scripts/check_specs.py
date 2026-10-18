@@ -27,7 +27,7 @@ BANNED_TAGS = {"@unit", "@integration", "@e2e"}
 TAG_RE = re.compile(r"^@[A-Za-z0-9_-]+$")
 # (prefix in tag, count, label) -- the order is the order of the coverage sections
 TRACKS = [
-    ("I-", 50, "Invariants I-1…I-50 (design draft 9 §8)"),
+    ("I-", 51, "Invariants I-1…I-51 (design draft 9 §8)"),
     ("AC-", 29, "ACs AC-1…AC-29 (design draft 9 §19)"),
     ("AC-M", 15, "Message and app ACs AC-M1…AC-M15 (docs/messages-apps-spec.md §10)"),
     ("M", 8, "DA must-fixes M1…M8 on draft 8 (applied in draft 9)"),

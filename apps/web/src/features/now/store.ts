@@ -66,9 +66,9 @@ export const useNow = create<NowState>()((set, get) => {
   };
 });
 
-/** openCount is how many things wait: asks that are not snoozed, adds to decide and machines to approve. null before the first load. */
+/** openCount is how many things wait: asks that are not snoozed, adds to decide, machines to approve and handle changes. null before the first load. */
 export function openCount(now: Now | null): number | null {
-  return now ? now.asks.length + now.pending_adds.length + now.machine_requests.length + now.identity_requests.length : null;
+  return now ? now.asks.length + now.pending_adds.length + now.machine_requests.length + now.identity_requests.length + (now.handle_requests ?? []).length : null;
 }
 
 /** The newest state of an ask after an action, or the ask that won when the action lost the race (409). */

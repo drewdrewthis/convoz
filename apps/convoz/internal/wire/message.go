@@ -9,6 +9,9 @@ type System struct {
 	Via      string  `json:"via,omitempty"`
 	History  string  `json:"history,omitempty"`
 	Streak   int     `json:"streak,omitempty"`
+	// From and To are the handles of a member.renamed line (I-51).
+	From string `json:"from,omitempty"`
+	To   string `json:"to,omitempty"`
 }
 
 // EditRequest is PATCH /api/messages/:id. Only the text changes; any other field is refused (I-8).

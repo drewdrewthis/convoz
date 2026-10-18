@@ -1,5 +1,7 @@
 package cli
 
+import "strings"
+
 // What the MCP server (internal/mcp) needs from the CLI: the same session rules, so a Bash call and an MCP call of one Claude
 // session share one lease.
 
@@ -14,7 +16,7 @@ func OpenAgentSession(io IO, as string) error {
 	if err != nil {
 		return err
 	}
-	_, err = sessionForAgent(dir, newClient(creds.Server), creds, as, io.Getenv("CLAUDE_CODE_SESSION_ID"))
+	_, err = sessionForAgent(io, dir, newClient(creds.Server), creds, as, io.Getenv("CLAUDE_CODE_SESSION_ID"))
 	return err
 }
 
@@ -25,7 +27,7 @@ func CloseAgentSession(io IO, as string) int {
 	if err != nil {
 		return fail(io, err)
 	}
-	sid := findSession(dir, as, io.Getenv("CLAUDE_CODE_SESSION_ID"))
+	sid := findSession(dir, strings.ToLower(as), io.Getenv("CLAUDE_CODE_SESSION_ID"))
 	if sid == "" {
 		return ExitOK
 	}

@@ -239,5 +239,6 @@
   { "name": "system-requested", "schema": "system.json", "data": { "v": 1, "t": "member.requested", "identity": 14, "by": 12 } },
   { "name": "system-paused", "schema": "system.json", "data": { "v": 1, "t": "conversation.paused", "streak": 20 } },
   { "name": "system-left", "schema": "system.json", "data": { "v": 1, "t": "member.left", "identity": 12 } },
-  { "name": "system-renamed", "schema": "system.json", "data": { "v": 1, "t": "conversation.renamed", "by": 1 } }
+  { "name": "system-renamed", "schema": "system.json", "data": { "v": 1, "t": "conversation.renamed", "by": 1 } },
+  { "name": "system-handle-changed", "schema": "system.json", "data": { "v": 1, "t": "member.renamed", "identity": 12, "from": "dev-ci", "to": "ci-bot" } }
 ]

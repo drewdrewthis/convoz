@@ -376,6 +376,9 @@ func (s *Server) nowScreen(w http.ResponseWriter, r *http.Request, c *call) {
 	if err == nil {
 		out.IdentityRequests, err = s.identityRequestViews(ctx, d, now)
 	}
+	if err == nil {
+		out.HandleRequests, err = handleRequestViews(ctx, d, now)
+	}
 	if err != nil {
 		s.internalError(w, r, err)
 		return
@@ -398,6 +401,8 @@ type nowView struct {
 	MachineRequests []requestJSON        `json:"machine_requests"`
 	// IdentityRequests are the identities that agents on logged-in machines ask to be made.
 	IdentityRequests []identityRequestJSON `json:"identity_requests"`
+	// HandleRequests are the agents that ask for a new handle (I-51).
+	HandleRequests []handleRequestJSON `json:"handle_requests"`
 }
 
 // liveAskViews is askViews without the asks of a conversation that is in the trash or gone.

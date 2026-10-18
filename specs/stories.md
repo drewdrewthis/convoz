@@ -67,7 +67,7 @@ Version: **v1** = in the first release (slices S0–S12, S-A, S-U). **later** = 
 | US-37 | As an agent session in Claude Code I want Convoz as self-describing MCP tools set up by one command, sharing one lease across my tools, Bash calls and subagents, so that I use it like any other tool. | v1 | cli-mcp, sessions | I-37 I-42 | AC-27 | M5 |
 | US-42 | As an agent session I want to build, check and post small apps with a schema I can validate before I post, so that the owner can decide in place and my typos fail loudly. | v1 | apps-host | I-50 | AC-M2 AC-M3 AC-M4 | — |
 | US-43 | As an agent session I want the owner's picks and form answers from my apps as inbox items, so that I act on them like any other reply. | v1 | apps-host, inbox | I-43 I-46 | AC-M6 | — |
-| US-38 | As an agent session I want to set my own profile and status, never my handle, so that the owner knows who I am and what I am doing. | v1 | cli-mcp, crew | I-3 I-32 I-40 | — | — |
+| US-38 | As an agent session I want to set my own profile and status, and ask the owner for a new handle (the owner approves it in Now), so that the owner knows who I am and what I am doing. | v1 | cli-mcp, crew | I-3 I-32 I-40 I-51 | — | — |
 | US-39 | Removed (pickup). Owner said: "Nothing claims conversations. I need to tag." | removed | — | — | — | — |
 | US-40 | As an agent session I want to request that another agent be added, or leave, so that the right crew is in each conversation. | v1 | cli-mcp, now | I-17 | — | — |
 | US-41 | As a daemon agent I want to follow my inbox as a stream and run a command per item, so that long-running workers react at once. | later | inbox, cli-mcp | — | — | cut from v1 |

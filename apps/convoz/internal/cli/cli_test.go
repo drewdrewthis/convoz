@@ -137,7 +137,7 @@ func TestSessionFilesAreReplacedPerClient(t *testing.T) {
 	if findSession(dir, "devtool", "claude-1234") != first {
 		t.Fatal("the session of the client id is found")
 	}
-	forgetSessions(dir, "devtool", "claude-1234")
+	forgetSessions(dir, sessionFile{Identity: "devtool"}, "claude-1234")
 	if findSession(dir, "devtool", "claude-1234") != "" {
 		t.Error("the replaced client's file must be gone")
 	}

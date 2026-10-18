@@ -62,3 +62,91 @@ Feature: Crew: identities, machines and sessions (contracts)
       Given member "mia" deleted her data, so her handle was retired
       When the owner creates an agent with the handle "mia"
       Then the server answers 409
+
+  Rule: An agent's handle changes in one transaction; every record keys on the id (I-51)
+
+    # Owner said (2026-10-18): "Handles I think can also change, that seems fine because there's an id, right?"
+    # Earlier: "the handle is never reused."
+    @v1 @api @I-51
+    Scenario: A handle change retires the old handle at once and tells every conversation
+      Given "devtool" is in conversations 41 and 52
+      When the owner sends POST /api/identities/:id/handle with {"handle": "builder"} and no step-up
+      Then the server answers 200 with the handle "builder" and the previous handle "devtool"
+      And GET /api/identities lists "builder" under the same id with previous_handles ["devtool"]
+      And retired_handles holds "devtool" for that id, retired at the time of the change
+      And conversations 41 and 52 each end with the system line "@devtool is now @builder"
+      And the audit row "identity.handle_changed" has the detail {"from": "devtool", "to": "builder"}
+
+    @v1 @api @I-51 @I-3
+    Scenario Outline: A new handle passes every rule of a new one
+      Given the agents "docs" and "release-bot" exist and "docs" changed its handle to "writer"
+      When the owner changes the handle of "devtool" to <handle>
+      Then the server answers <status> with the code <code>
+
+      Examples:
+        | handle                                   | status | code            |
+        | "admin" (reserved)                       | 400    | invalid_request |
+        | "Dev_Tool!" (not a handle)               | 400    | invalid_request |
+        | "writer" (taken)                         | 409    | handle_taken    |
+        | "docs" (used before)                     | 409    | handle_taken    |
+        | "re1ease-bot" (a look-alike)             | 400    | invalid_request |
+
+    @v1 @api @I-51 @I-26
+    Scenario: An agent asks with its lease and only the owner decides, with one tap
+      When the "devtool" session sends POST /api/me/handle with {"handle": "builder"}
+      Then the server answers 202 with a ref of "hdr_" and 32 hex characters
+      And GET /api/now lists the handle request from "devtool" to "builder"
+      When a machine key, a session lease and a caller with no credential each try to approve it
+      Then the server answers 401 every time
+      When the owner approves it with no step-up
+      Then the server answers 200
+      And asking again with the ref answers 200 with the handle "builder"
+      And the audit has "identity.handle_requested" with the session of "devtool" and "identity.handle_changed" with both handles
+
+    @v1 @api @I-51
+    Scenario: Two changes at once: one wins, and a post during them reaches the same agent
+      Given "devtool" filed a request for "maker"
+      When the owner approves that request, changes the handle to "builder", and posts "@devtool status?" all at once
+      Then exactly one change answers 200 and the other is refused
+      And the agent has the handle of the change that won, and "devtool" is retired once
+      And the post records a mention of the agent's id
+
+    @v1 @api @I-51 @I-18
+    Scenario: A post to the old handle records the mention and names the current handle
+      Given the owner changed the handle of "devtool" to "builder"
+      When the owner posts "@devtool look" in a conversation without "builder"
+      Then "builder" is an active participant of that conversation and its inbox holds the mention
+      And the message lists the mention {"as_written": "devtool", "identity_id": <the id>, "handle": "builder"}
+
+    @v1 @api @I-51 @I-37
+    Scenario: A handle change keeps the machines that may act as the agent
+      Given "box-2" allows "dev-*" and "laptop-1" allows "ops-*"
+      And "dev-search" has a live session on "box-2"
+      When the owner changes the handle of "dev-search" to "searcher"
+      Then the live session still answers 200 and "box-2" starts a new session as "searcher"
+      And changing the handle of "devtool" to "ops-tool" answers 400 naming "handle"
+
+    @v1 @api @I-51
+    Scenario: The 30-day rules run on the server clock
+      Given the owner changed the handle of "devtool" to "builder"
+      When the owner changes it again
+      Then the server answers 429 with a Retry-After of about 30 days
+      And "box-2" asking for a lease as "devtool" answers 201 with renamed from "devtool" to "builder"
+      When the test clock moves forward 30 days and 1 second
+      Then asking for a lease as "devtool" answers 403 with the code "handle_renamed" and a message that names "@builder"
+      And the owner can change the handle again
+
+    @v1 @api @I-51
+    Scenario: A push says who an agent was for 7 days
+      Given the owner's browser is subscribed to pushes and the owner changed the handle of "devtool" to "builder"
+      When "builder" asks a question
+      Then the push title names "Dev Tool @builder (was @devtool)"
+      When the test clock moves forward 7 days and "builder" asks again
+      Then the push title names "Dev Tool @builder" and not "was"
+
+    @v1 @api @I-51 @I-1
+    Scenario: The schema refuses a human's change, a reused handle and a second change within 30 days
+      Given the owner changed the handle of "devtool" to "builder"
+      When a second connection to the data file tries to change the owner's handle, to give "docs" the handle "devtool", and to change "builder" again
+      Then the schema refuses each write
+      And the owner's own handle cannot be changed through POST /api/identities/:id/handle

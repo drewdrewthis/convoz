@@ -71,6 +71,8 @@ type ProjectSystem struct {
 	By       Person
 	History  string
 	Streak   int
+	From     string // member.renamed: the handle before
+	To       string // member.renamed: the handle after
 }
 
 // ProjectAsk is an ask.
@@ -161,6 +163,8 @@ func systemText(s ProjectSystem) string {
 		return s.Identity.Ref() + " left"
 	case "member.disabled":
 		return s.Identity.Ref() + " was disabled"
+	case "member.renamed":
+		return "@" + s.From + " is now @" + s.To
 	case "conversation.renamed":
 		return s.By.Ref() + " renamed the conversation"
 	case "conversation.paused":

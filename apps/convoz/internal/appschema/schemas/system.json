@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.convoz.dev/v1/system.json",
   "title": "messages.system_json v1",
-  "description": "Ids and enums only (no text: names and titles are looked up at render time, so a rename or a scrub never leaves stale text). <= 2048 bytes (DB CHECK). Written only by the server.",
+  "description": "Ids and enums only (no text: names and titles are looked up at render time, so a rename or a scrub never leaves stale text), except the two handles of member.renamed: an agent's handles are never scrubbed and a retired one is never reused (I-51). <= 2048 bytes (DB CHECK). Written only by the server.",
   "type": "object",
   "oneOf": [
     {
@@ -19,6 +19,9 @@
     },
     {
       "$ref": "#/$defs/paused"
+    },
+    {
+      "$ref": "#/$defs/renamed"
     }
   ],
   "$defs": {
@@ -157,6 +160,38 @@
         },
         "streak": {
           "const": 20
+        }
+      }
+    },
+    "handle": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,39}$"
+    },
+    "renamed": {
+      "type": "object",
+      "required": [
+        "v",
+        "t",
+        "identity",
+        "from",
+        "to"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "t": {
+          "const": "member.renamed"
+        },
+        "identity": {
+          "$ref": "#/$defs/ref"
+        },
+        "from": {
+          "$ref": "#/$defs/handle"
+        },
+        "to": {
+          "$ref": "#/$defs/handle"
         }
       }
     }

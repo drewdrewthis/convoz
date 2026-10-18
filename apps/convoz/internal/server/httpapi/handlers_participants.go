@@ -343,7 +343,8 @@ func (s *Server) endSeat(w http.ResponseWriter, r *http.Request, c *call, convID
 
 // addMentioned brings in the agents a person's message @mentions, at once (I-18): each sees the message itself and
 // what follows, and its inbox gets a mention. It runs inside the post's transaction, after the message is stored.
-// An agent that cannot be added (unknown, disabled, a full conversation) is skipped; the message is still sent.
+// An agent that cannot be added (unknown, disabled, a full conversation) is skipped; the message is still sent. A handle the
+// agent had before names it as well (I-51).
 // skip is an identity that gets no mention from this message (0 for none): the asker of an ask that the message answers, which
 // gets its ask_resolved item instead (one message makes one item, I-43).
 func addMentioned(ctx context.Context, d pdb.DBTX, now time.Time, conv, author, messageID, skip int64, handles []string) error {
@@ -355,14 +356,17 @@ func addMentioned(ctx context.Context, d pdb.DBTX, now time.Time, conv, author, 
 		return err
 	}
 	seq++ // the event of this very message is the next one
+	done := map[int64]bool{}
 	for _, h := range handles {
-		target, found, err := identity.Lookup(ctx, d, h)
+		// "@old" reaches the agent too: a retired handle resolves to its identity, never silently to no one (I-51).
+		target, _, found, err := identity.Resolve(ctx, d, h)
 		if err != nil {
 			return err
 		}
-		if !found || target.Kind != "agent" || target.Disabled || target.ID == skip {
+		if !found || target.Kind != "agent" || target.Disabled || target.ID == skip || done[target.ID] {
 			continue
 		}
+		done[target.ID] = true
 		changed, err := conversation.Add(ctx, d, now, conversation.Join{
 			Conversation: conv, Identity: target.ID, By: author, Status: conversation.StatusActive, FloorID: messageID - 1, Seq: seq,
 		})

@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
@@ -37,7 +38,7 @@ func cascadesOf(ports ...any) []message.Cascade {
 }
 
 // mentionsPort records the mentions of a new message: the handles the body mentions (code, quotes and links excluded) that
-// name an identity. Nobody is added to a conversation by it (I-18).
+// name an identity, now or before a handle change. Nobody is added to a conversation by it (I-18).
 type mentionsPort struct{}
 
 func (mentionsPort) RecordMentions(ctx context.Context, d pdb.DBTX, now time.Time, m message.Message) ([]int64, error) {
@@ -49,14 +50,11 @@ func (mentionsPort) RecordMentions(ctx context.Context, d pdb.DBTX, now time.Tim
 	if err != nil {
 		return nil, err
 	}
-	byHandle := make(map[string]int64, len(dir))
-	for id, e := range dir {
-		byHandle[e.Handle] = id
-	}
 	var ids []int64
 	for _, h := range handles {
-		if id, ok := byHandle[h]; ok {
-			ids = append(ids, id)
+		// A handle the identity had before still names it (I-51); two handles of one identity make one mention.
+		if e, ok := dir.resolve(h); ok && !slices.Contains(ids, e.ID) {
+			ids = append(ids, e.ID)
 		}
 	}
 	if err := message.StoreMentions(ctx, d, m.ID, ids); err != nil {

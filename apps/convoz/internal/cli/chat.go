@@ -27,6 +27,8 @@ type chatCmd struct {
 	lease   string
 	asJSON  bool
 	timeout time.Duration
+	dir     string // the config directory and the local session id the lease came from
+	sid     string
 }
 
 // chatFlags are the global flags of the chat commands (design §13.2). --server is not one: the server is the one
@@ -87,7 +89,7 @@ func (f *chatFlags) open(io IO) (*chatCmd, int) {
 		if *f.as == "" {
 			return nil, usageError(io, "name a session with --sid (or CONVOZ_SID), or an agent with --as")
 		}
-		if sid, err = sessionForAgent(dir, c, creds, *f.as, io.Getenv("CLAUDE_CODE_SESSION_ID")); err != nil {
+		if sid, err = sessionForAgent(io, dir, c, creds, *f.as, io.Getenv("CLAUDE_CODE_SESSION_ID")); err != nil {
 			return nil, sessionEnded(io, err)
 		}
 	}
@@ -95,7 +97,7 @@ func (f *chatFlags) open(io IO) (*chatCmd, int) {
 	if err != nil {
 		return nil, sessionEnded(io, err)
 	}
-	return &chatCmd{io: io, c: c, lease: s.Lease, asJSON: *f.asJSON, timeout: *f.timeout}, 0
+	return &chatCmd{io: io, c: c, lease: s.Lease, asJSON: *f.asJSON, timeout: *f.timeout, dir: dir, sid: sid}, 0
 }
 
 // call sends one authenticated request within the command's timeout. Only a lost connection is retried by the callers that may.

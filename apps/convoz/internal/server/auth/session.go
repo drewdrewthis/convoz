@@ -51,6 +51,8 @@ type leaseInput struct {
 // MintedSession is a new lease with its token (shown once; only the SHA-256 is stored).
 type MintedSession struct {
 	Handle string // the identity the lease is for
+	// Renamed is set when `as` named a handle the agent had before (I-51).
+	Renamed *Renamed
 	// Waiting is set instead of a lease while the owner has not decided the identity request the machine filed.
 	Waiting *IdentityFiled
 	Lease   string
