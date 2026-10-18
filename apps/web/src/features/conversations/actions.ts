@@ -4,7 +4,7 @@ import { data } from "../../shared/data.ts";
 
 const reload = (id: number) => data.loadConversation(id).then(() => undefined);
 
-/** addAgent brings an agent in at once; `history` says what it sees: only what comes after (the default), or the whole conversation. */
+/** addAgent brings an agent in at once; the agent sees the whole conversation (owner, msg 143); `history` is kept for older clients and changes nothing. */
 export async function addAgent(id: number, identityId: number, history: "since_now" | "full" = "since_now"): Promise<void> {
   await call(client.POST("/api/conversations/{id}/participants", { params: { path: { id } }, body: { identity_id: identityId, history } }));
   await reload(id);

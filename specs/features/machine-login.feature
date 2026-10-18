@@ -143,13 +143,14 @@ Feature: Machine login with a device flow
       Then the CLI exits 4 and says the handle is taken
       And no card appears in Now
 
+    # Owner (Drew, msg 143): "History should be accessible yes"
     @v1 @cli
     Scenario: An agent login may name a conversation, and the card shows its title
       Given conversation 41 "Ship search filters" has the owner in it
       When "convoz login --name box-2 --as code-review --conversation 41" runs on the machine
       Then the owner sees on the card that "code-review" joins "Ship search filters"
       When the owner taps Approve on that card
-      Then "code-review" is an active participant of conversation 41 and sees only what comes after
+      Then "code-review" is an active participant of conversation 41 and sees the whole history
 
   Rule: Device-flow limits stop floods and name clashes
 

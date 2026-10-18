@@ -145,7 +145,7 @@ scenario("Inviting an agent from a conversation puts it in that conversation", {
   await expect(sheet.getByText("Connected: code-review is online and in “Ship search filters”.")).toBeVisible();
   expect((await login.done).code).toBe(0);
 
-  // And "code-review" is a participant of "Ship search filters" and sees only what comes after
+  // And "code-review" is a participant of "Ship search filters" and sees the whole history
   const members = (await c.w.owner.client.get(`/api/conversations/${conv}`)).json().conversation.participants as { handle: string }[];
   expect(members.map((m) => m.handle)).toContain("code-review");
 });

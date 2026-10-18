@@ -172,13 +172,14 @@ Feature: Agent sessions as one identity (contracts)
       Then the server answers 401 every time
       And the owner approves it with no step-up and the agent exists
 
+    # Owner (Drew, msg 143): "History should be accessible yes"
     @v1 @api @I-32 @I-17
     Scenario: The card data is plain text, the avatar is cleaned and the join goes through the participants path
       Given "box-2" filed a request for "dev-new" with the description "<b>**hi**</b>", a script in its SVG avatar and conversation 41
       Then Now lists the description as the same plain text
       And the avatar is served from /api/identity-requests/ with a sandboxing CSP and holds no script
       When the owner approves it
-      Then "dev-new" is an active participant of conversation 41 from the add on
+      Then "dev-new" is an active participant of conversation 41 and can read the messages before the add
       And an agent that asks for a conversation the owner is not in is refused when it files
 
     @v1 @api @I-17

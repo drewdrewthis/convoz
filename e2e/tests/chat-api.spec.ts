@@ -22,7 +22,7 @@
  *   GET  /api/conversations/:id/messages?before=&after=&limit=  H, L
  *        -> 200 {messages:[{id, author:{handle,display_name,kind}, body, format, created_at, session_label?, machine?}], as_of_seq}
  *        Always oldest first. No query: the newest `limit` (default 50, max 100). after=N: the oldest `limit` with id > N.
- *        before=N: the newest `limit` with id < N. A lease sees only messages with id > its participant joined_message_id.
+ *        before=N: the newest `limit` with id < N. A member sees the whole history (owner, msg 143); joined_message_id stays 0.
  *        Not visible -> 404.
  *   POST /api/conversations/:id/messages  H, L (+ post scope)  {client_id, body, format?:"markdown"|"markdownv2"|"plain"}
  *        -> 201 {id, conversation_id, created_at}. Same client_id and same body and format again -> 200 with the first id and no

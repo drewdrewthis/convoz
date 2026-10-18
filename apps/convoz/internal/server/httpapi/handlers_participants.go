@@ -17,7 +17,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/readstate"
 )
 
-// History choices when an agent is added (I-15): everything said so far, or only what comes after the add.
+// History choices of the request body, kept so older clients still work: both give the whole history (owner, msg 143).
 const (
 	historySinceNow = "since_now"
 	historyFull     = "full"
@@ -101,7 +101,7 @@ func (s *Server) addParticipant(w http.ResponseWriter, r *http.Request, c *call)
 			status = cur.Status
 			return nil
 		}
-		status, changed, full, err = seatAgent(ctx, d, now, c.p.Identity(), asAgent, convID, cv.LastMessageID, target.ID, in.History)
+		status, changed, full, err = seatAgent(ctx, d, now, c.p.Identity(), asAgent, convID, cv.LastMessageID, target.ID)
 		return err
 	})
 	switch {
@@ -128,9 +128,9 @@ func (s *Server) addParticipant(w http.ResponseWriter, r *http.Request, c *call)
 // seatAgent adds an agent to a conversation. A person adds it at once and says what history it sees; an agent can only ask, and
 // the add then waits for a human (I-17, I-18). It writes the system line, the seat and the read cursor, and
 // reports the seat's status, whether anything changed and whether the conversation is full.
-func seatAgent(ctx context.Context, d pdb.DBTX, now time.Time, by int64, asAgent bool, convID, lastMessageID, target int64, history string) (status string, changed, full bool, err error) {
+func seatAgent(ctx context.Context, d pdb.DBTX, now time.Time, by int64, asAgent bool, convID, lastMessageID, target int64) (status string, changed, full bool, err error) {
 	status = conversation.StatusActive
-	line := message.SystemLine{T: "member.added", Identity: target, By: by, Via: "add", History: history}
+	line := message.SystemLine{T: "member.added", Identity: target, By: by, Via: "add"}
 	if asAgent {
 		status = conversation.StatusPending
 		line = message.SystemLine{T: "member.requested", Identity: target, By: by}
@@ -140,11 +140,8 @@ func seatAgent(ctx context.Context, d pdb.DBTX, now time.Time, by int64, asAgent
 		return "", false, false, err
 	}
 	join := conversation.Join{Conversation: convID, Identity: target, By: by, Status: status, Seq: seq}
-	switch {
-	case asAgent:
-		join.FloorID, join.RequestedBy = lineID, by
-	case history == historySinceNow:
-		join.FloorID = lineID // the line that says the add is not for the newcomer
+	if asAgent {
+		join.RequestedBy = by
 	}
 	if changed, err = conversation.Add(ctx, d, now, join); err != nil {
 		if err == conversation.ErrFull {
@@ -216,7 +213,7 @@ func decideParticipant(approve bool) handler {
 			if err != nil {
 				return err
 			}
-			if done, err = conversation.Decide(ctx, d, now, convID, iid, c.p.HumanID, approve, seat.JoinedMessageID, seat.JoinedSeq); err != nil || !done {
+			if done, err = conversation.Decide(ctx, d, now, convID, iid, c.p.HumanID, approve); err != nil || !done {
 				return err
 			}
 			// The agent that asked for the add hears how it ended; on an approval the one added hears it too.
@@ -368,7 +365,7 @@ func addMentioned(ctx context.Context, d pdb.DBTX, now time.Time, conv, author, 
 		}
 		done[target.ID] = true
 		changed, err := conversation.Add(ctx, d, now, conversation.Join{
-			Conversation: conv, Identity: target.ID, By: author, Status: conversation.StatusActive, FloorID: messageID - 1, Seq: seq,
+			Conversation: conv, Identity: target.ID, By: author, Status: conversation.StatusActive, Seq: seq,
 		})
 		if err == conversation.ErrFull {
 			continue

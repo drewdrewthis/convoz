@@ -165,3 +165,29 @@ func TestCleanTitleStripsControlAndBidiCharacters(t *testing.T) {
 		}
 	}
 }
+
+// Owner (Drew, msg 143): "History should be accessible yes". However a member comes in, nothing before the add is hidden.
+func TestAddAndReAddGiveFullHistory(t *testing.T) {
+	s := seeded(t)
+	c := create(t, s, t0, conversation.New{By: owner, Members: []int64{devtool}})
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error {
+		if _, err := conversation.Add(ctx, d, t0, conversation.Join{Conversation: c.ID, Identity: docs, By: owner, Status: conversation.StatusActive, Seq: 50}); err != nil {
+			return err
+		}
+		// A row left over from the old rule (a floor) is cleared when the person comes back.
+		if _, err := d.ExecContext(ctx, `UPDATE participants SET joined_message_id = 99 WHERE conversation_id = ? AND identity_id = ?`, c.ID, docs); err != nil {
+			return err
+		}
+		if _, err := conversation.End(ctx, d, t0, c.ID, docs, conversation.StatusRemoved); err != nil {
+			return err
+		}
+		if _, err := conversation.Add(ctx, d, t0, conversation.Join{Conversation: c.ID, Identity: docs, By: owner, Status: conversation.StatusActive, Seq: 60}); err != nil {
+			return err
+		}
+		m, found, err := conversation.Membership(ctx, d, c.ID, docs)
+		if err != nil || !found || !m.Active || m.JoinedMessageID != 0 {
+			t.Errorf("a re-added agent has the full history: %+v found=%v err=%v", m, found, err)
+		}
+		return nil
+	})
+}
