@@ -77,6 +77,8 @@ scenario("A pill counts new messages while the owner reads above and jumps to th
   for (let n = 1; n <= 40; n++) await ownerSays(u.w.owner, conv, `msg-${String(n).padStart(3, "0")} ${"words ".repeat(12)}`);
   await page.goto(`${u.w.srv.origin}/chats/${conv}`);
   const log = messageLog(page);
+  // The log snaps to the newest end once more when the chat finishes opening: scroll up only after that
+  await expect(log).toHaveAttribute("data-opened", "true");
   await expect.poll(() => fromBottom(log)).toBeLessThanOrEqual(2);
   await log.evaluate((e) => (e.scrollTop = 0));
   const before = await log.evaluate((e) => e.scrollTop);
