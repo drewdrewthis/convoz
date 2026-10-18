@@ -34,7 +34,14 @@ func builtCSS(t *testing.T) string {
 // block may lighten it. A browser with no preference, or one that cannot evaluate the query, therefore gets dark.
 func TestCSSDefaultIsDarkAndLightIsTheOverride(t *testing.T) {
 	css := builtCSS(t)
-	light := regexp.MustCompile(`@media\s*\(prefers-color-scheme:\s*light\)`).FindStringIndex(css)
+	// Other light blocks (the canvas grain) may come first; the override is the one that sets the theme colours.
+	var light []int
+	for _, at := range regexp.MustCompile(`@media\s*\(prefers-color-scheme:\s*light\)`).FindAllStringIndex(css, -1) {
+		if regexp.MustCompile(`^[^@]*--color-surface:`).MatchString(css[at[1]:]) {
+			light = at
+			break
+		}
+	}
 	if light == nil {
 		t.Fatal("no light override block")
 	}
