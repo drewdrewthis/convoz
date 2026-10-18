@@ -63,6 +63,25 @@ func (f *fakeAgents) CheckNew(_ context.Context, _ pdb.DBTX, handle, _ string) e
 	}
 	return nil
 }
+func (f *fakeAgents) ActiveAgents(context.Context, pdb.DBTX) (map[int64]string, error) {
+	out := map[int64]string{}
+	for h, a := range f.byHandle {
+		if !a.Disabled {
+			out[a.ID] = h
+		}
+	}
+	return out, nil
+}
+func (f *fakeAgents) Reenable(_ context.Context, d pdb.DBTX, id int64, _, _, _ string) (bool, error) {
+	for h, a := range f.byHandle {
+		if a.ID == id && a.Disabled {
+			a.Disabled = false
+			f.byHandle[h] = a
+			return true, nil
+		}
+	}
+	return false, nil
+}
 func (f *fakeAgents) SetIntro(context.Context, pdb.DBTX, int64, string, string) error { return nil }
 
 // Renamed knows no handle change: the fake agents never change their handles.

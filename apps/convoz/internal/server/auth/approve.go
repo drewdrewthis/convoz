@@ -95,7 +95,7 @@ func ApproveRequest(ctx context.Context, d pdb.DBTX, box *KeyBox, p Ports, in Ap
 		name = req.Name
 	}
 	// The name and the cap come before the allow-list: a refusal for either needs no handle to exist.
-	if err := CheckMachineSlot(ctx, d, name); err != nil {
+	if err := freeMachineSlot(ctx, d, p, in, name, now); err != nil {
 		return Machine{}, nameTaken(err, name)
 	}
 	idReq, carries, err := loginIdentityOf(ctx, d, in.RequestID)
@@ -132,6 +132,61 @@ func ApproveRequest(ctx context.Context, d pdb.DBTX, box *KeyBox, p Ports, in Ap
 		return Machine{}, err
 	}
 	return MachineByID(ctx, d, machineID, now)
+}
+
+// freeMachineSlot is CheckMachineSlot that first retires an active machine of the same name when nothing active depends on it: it
+// serves no enabled agent (a revoked agent's old box asking again under its own name). The old machine is revoked in this
+// transaction, so a failed approval leaves it as it was. A machine that still serves an enabled agent keeps the name.
+func freeMachineSlot(ctx context.Context, d pdb.DBTX, p Ports, in ApproveInput, name string, now time.Time) error {
+	err := CheckMachineSlot(ctx, d, name)
+	if !errors.Is(err, ErrNameTaken) {
+		return err
+	}
+	old, id, found, err := idleMachineNamed(ctx, d, p, name, now)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return ErrNameTaken
+	}
+	if _, _, err := RevokeMachine(ctx, d, id, now); err != nil {
+		return err
+	}
+	if err := p.Journal.Audit(ctx, d, now, AuditEntry{Actor: in.Human.ID, Device: in.DeviceID, Machine: old.ID, Action: "machine.replaced", TargetKind: "machine", TargetID: old.ID, Detail: map[string]any{"request_id": in.RequestID}}); err != nil {
+		return err
+	}
+	if err := p.Journal.Event(ctx, d, now, "machine.revoked.v1", map[string]any{"machine_id": old.ID}); err != nil {
+		return err
+	}
+	return CheckMachineSlot(ctx, d, name)
+}
+
+// idleMachineNamed finds the active machine called name when it can be retired: its allow-list names only agents that are all
+// disabled, or none. A machine that allows any agent, or a glob, may serve an agent nobody named yet, so it keeps its name.
+func idleMachineNamed(ctx context.Context, d pdb.DBTX, p Ports, name string, now time.Time) (Machine, int64, bool, error) {
+	list, err := ListMachines(ctx, d, now)
+	if err != nil {
+		return Machine{}, 0, false, err
+	}
+	active, err := p.Agents.ActiveAgents(ctx, d)
+	if err != nil {
+		return Machine{}, 0, false, err
+	}
+	for _, m := range list {
+		if m.Name != name {
+			continue
+		}
+		if m.Allow.Mode == AllowAny || len(m.Allow.Globs) > 0 {
+			return Machine{}, 0, false, nil
+		}
+		for _, id := range m.Allow.IdentityIDs {
+			if _, enabled := active[id]; enabled {
+				return Machine{}, 0, false, nil
+			}
+		}
+		return m, m.ID, true, nil
+	}
+	return Machine{}, 0, false, nil
 }
 
 func nameTaken(err error, name string) error {

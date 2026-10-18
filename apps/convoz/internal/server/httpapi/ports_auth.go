@@ -90,6 +90,15 @@ func (agentPort) CheckNew(ctx context.Context, d pdb.DBTX, handle, displayName s
 	return agentError(identity.CheckNewAgent(ctx, d, handle, displayName))
 }
 
+func (agentPort) ActiveAgents(ctx context.Context, d pdb.DBTX) (map[int64]string, error) {
+	return identity.ActiveAgents(ctx, d)
+}
+
+func (agentPort) Reenable(ctx context.Context, d pdb.DBTX, id int64, displayName, description, avatarSVG string) (bool, error) {
+	ok, err := identity.ReenableAgent(ctx, d, id, identity.Reintro{DisplayName: displayName, Description: description, AvatarSVG: avatarSVG})
+	return ok, agentError(err)
+}
+
 func (agentPort) SetIntro(ctx context.Context, d pdb.DBTX, id int64, description, avatarSVG string) error {
 	return identity.SetIntro(ctx, d, id, description, avatarSVG)
 }

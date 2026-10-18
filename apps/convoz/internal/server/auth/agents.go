@@ -39,6 +39,11 @@ type AgentPort interface {
 	// CheckNew runs every rule a new agent must meet (valid, reserved, taken, retired, UTS-39 look-alike of a handle or display name)
 	// without creating it. A refusal is a *FieldError or ErrHandleTaken.
 	CheckNew(ctx context.Context, d pdb.DBTX, handle, displayName string) error
+	// ActiveAgents maps the id of every enabled agent to its handle.
+	ActiveAgents(ctx context.Context, d pdb.DBTX) (map[int64]string, error)
+	// Reenable brings a disabled agent back as the same identity; an empty field of the intro leaves the stored value. It reports
+	// false when there is no such disabled agent. A refusal is a *FieldError.
+	Reenable(ctx context.Context, d pdb.DBTX, id int64, displayName, description, avatarSVG string) (bool, error)
 	// SetIntro stores the description and the cleaned SVG avatar an agent sent with its request.
 	SetIntro(ctx context.Context, d pdb.DBTX, id int64, description, avatarSVG string) error
 	// Renamed finds the identity that had handle before (I-51) and until when `as` with it still works (epoch ms).
