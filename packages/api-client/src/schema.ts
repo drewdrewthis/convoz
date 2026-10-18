@@ -2282,6 +2282,11 @@ export interface components {
             seen?: components["schemas"]["Seen"][];
             /**
              * Format: int64
+             * @description The caller's read cursor in the main list when the row was built; absent when it has none. The single-conversation route only. The page keeps the value from when it opened
+             */
+            last_read?: number;
+            /**
+             * Format: int64
              * @description In the trash since.
              */
             deleted_at?: number;

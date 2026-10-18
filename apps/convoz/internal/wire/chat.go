@@ -57,6 +57,7 @@ type Conversation struct {
 	Paused     bool         `json:"paused,omitempty"`
 	Pending    []PendingAdd `json:"pending,omitempty"`
 	Seen       []Seen       `json:"seen,omitempty"` // agents that saw the newest message a person wrote in the main list
+	LastRead   *int64       `json:"last_read,omitempty"` // the caller's read cursor in the main list, as it stands now
 	DeletedAt  *int64       `json:"deleted_at,omitempty"`
 	PurgesAt   *int64       `json:"purges_at,omitempty"`
 }
