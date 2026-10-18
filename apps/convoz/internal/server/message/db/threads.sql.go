@@ -108,6 +108,47 @@ func (q *Queries) NewestOfAuthors(ctx context.Context, arg NewestOfAuthorsParams
 	return column_1, err
 }
 
+const newestReply = `-- name: NewestReply :one
+SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine, last_reply_at, app_json, via_app_agent_id, app_result_json FROM message_rows
+WHERE thread_root_id = ?1 AND kind <> 'system' AND deleted_at IS NULL
+ORDER BY id DESC LIMIT 1
+`
+
+// The newest reply of a thread that still reads: the "last reply" under a root.
+func (q *Queries) NewestReply(ctx context.Context, rootID sql.NullInt64) (MessageRow, error) {
+	row := q.db.QueryRowContext(ctx, newestReply, rootID)
+	var i MessageRow
+	err := row.Scan(
+		&i.ID,
+		&i.ConversationID,
+		&i.AuthorID,
+		&i.Kind,
+		&i.Format,
+		&i.Body,
+		&i.ThreadRootID,
+		&i.Broadcast,
+		&i.InMain,
+		&i.ReplyCount,
+		&i.LastReplyID,
+		&i.CreatedAt,
+		&i.EditedAt,
+		&i.DeletedAt,
+		&i.PurgedAt,
+		&i.SystemJson,
+		&i.SessionID,
+		&i.AnswersAskID,
+		&i.ViaAppMessageID,
+		&i.HasApp,
+		&i.OriginLabel,
+		&i.OriginMachine,
+		&i.LastReplyAt,
+		&i.AppJson,
+		&i.ViaAppAgentID,
+		&i.AppResultJson,
+	)
+	return i, err
+}
+
 const newestReplyID = `-- name: NewestReplyID :one
 SELECT CAST(COALESCE(MAX(id), 0) AS INTEGER) FROM messages WHERE thread_root_id = ?1
 `

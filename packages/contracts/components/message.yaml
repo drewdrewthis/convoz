@@ -20,6 +20,16 @@ Message:
     broadcast: { type: boolean }
     reply_count: { type: integer, format: int64 }
     last_reply_at: { type: integer, format: int64, description: When the newest reply came, for a thread root. }
+    last_reply:
+      type: object
+      description: "The newest reply of a thread root, for the reply chip under it. Unread is per reader: set when the reply is someone else's, in a thread the reader is in, and past the reader's read point there."
+      required: [id, author, preview, created_at]
+      properties:
+        id: { type: integer, format: int64 }
+        author: { $ref: "../openapi.yaml#/components/schemas/Person" }
+        preview: { type: string, maxLength: 120, description: "The plain-text projection of the reply, up to 120 characters." }
+        created_at: { type: integer, format: int64 }
+        unread: { type: boolean }
     edited_at: { type: integer, format: int64 }
     deleted: { type: boolean }
     purged: { type: boolean }

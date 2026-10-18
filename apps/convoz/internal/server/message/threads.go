@@ -3,6 +3,7 @@ package message
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message/db"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
@@ -52,4 +53,25 @@ func NewestOfAuthors(ctx context.Context, d pdb.DBTX, conv, root int64, authors 
 		who[i] = nullInt(a)
 	}
 	return db.New(d).NewestOfAuthors(ctx, db.NewestOfAuthorsParams{ConversationID: conv, Root: root, Authors: who})
+}
+
+// LastReplyRunes is how much of the newest reply shows under a reply chip.
+const LastReplyRunes = 120
+
+// NewestReply is the newest reply of root that still reads (not deleted, not a system line); ok is false for none.
+func NewestReply(ctx context.Context, d pdb.DBTX, root int64) (Message, bool, error) {
+	r, err := db.New(d).NewestReply(ctx, nullInt(root))
+	if errors.Is(err, sql.ErrNoRows) {
+		return Message{}, false, nil
+	}
+	return fromRow(r), err == nil, err
+}
+
+// ReplyPreview is the plain text of a reply cut to LastReplyRunes runes.
+func ReplyPreview(body string) string {
+	if r := []rune(Preview(body)); len(r) > LastReplyRunes {
+		return string(r[:LastReplyRunes])
+	} else {
+		return string(r)
+	}
 }

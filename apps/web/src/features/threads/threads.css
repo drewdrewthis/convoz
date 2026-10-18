@@ -1,12 +1,21 @@
 /* Threads: the reply line under a root, the thread pane (a panel at the right edge on a wide screen, the whole screen on a phone),
    and the tag over a reply that is in the main list too. Prototype v41. */
 @layer components {
+  .replybox { align-self: flex-start; max-width: 100%; display: flex; flex-direction: column; align-items: flex-start; margin: 4px 0 0; }
+  /* design B (owner, 2026-10-18): a bold accent chip with a faded peek of the last reply under it; one tap on either opens the thread */
   .replyline {
-    align-self: flex-start; min-height: 44px; max-width: 100%; display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px 8px;
-    margin: 4px 0 0; padding: 2px 14px; border: 1px solid var(--color-edge); border-radius: 999px; background: var(--color-raised); color: var(--color-accent-text);
-    font-size: 13px; font-weight: 600; line-height: normal; text-align: left;
+    position: relative; min-height: 44px; max-width: 100%; display: inline-flex; align-items: center; gap: 8px; padding: 2px 6px 2px 0; border: 0; background: transparent;
+    color: var(--color-accent-text); font-size: 14px; font-weight: 700; line-height: normal; text-align: left;
   }
-  @media (hover: hover) { .replyline:hover { background: color-mix(in srgb, var(--color-text) 10%, var(--color-raised)); } }
+  .replyline::before { content: "\21B3"; font-weight: 700; }
+  .replyline > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .replydot { flex: none; width: 9px; height: 9px; border-radius: 999px; background: var(--color-accent); }
+  .replypeek {
+    min-height: 44px; max-width: 100%; display: block; margin-top: -10px; padding: 0 0 0 18px; border: 0; background: transparent; color: var(--color-muted); opacity: .8;
+    font-size: 13px; font-weight: 400; line-height: 44px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .replypeek .who { font-weight: 600; }
+  @media (hover: hover) { .replyline:hover > span, .replypeek:hover { text-decoration: underline; } }
   .msg .tag { font-size: 12px; color: var(--color-muted); }
 
   .thread {
@@ -34,6 +43,4 @@
     flex: 1 1 auto; min-width: 0; width: auto; height: auto; min-height: 44px; padding: 0 12px; border: 0; border-radius: 0; outline: none; background: transparent;
     color: var(--color-text); font-size: 14px;
   }
-  .alsorow { display: flex; align-items: center; gap: 8px; min-height: 44px; font-size: 13px; font-weight: 400; color: var(--color-muted); cursor: pointer; }
-  .alsorow input { width: 16px; height: 16px; margin: 0; accent-color: var(--color-accent); }
 }

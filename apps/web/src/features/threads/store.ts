@@ -13,7 +13,6 @@ export interface PendingReply {
   body: string;
   state: "sending" | "failed";
   base: number;
-  broadcast: boolean;
   /** The finished uploads the reply carries. */
   uploadIds?: string[];
 }
@@ -29,16 +28,15 @@ export interface OpenThread {
   loaded: boolean;
   /** The newest reply the server took as read. */
   readOk: number;
-  /** "Also send to conversation" is ticked. */
-  also: boolean;
 }
 
 export interface ThreadsState {
   open: OpenThread | null;
+  /** The newest reply the viewer read here, by root: a reply chip shows its unread dot only for a reply past it. */
+  readThrough: Record<number, number>;
   /** Open the thread of a root and load its replies. `known` is the root as the page holds it, shown at once. */
   openThread(conversation: number, rootId: number, known?: Message): Promise<void>;
   close(): void;
-  setAlso(on: boolean): void;
   /** Send a reply (the body may be empty when it carries files); it shows at once as "sending". */
   reply(body: string, uploadIds?: string[]): void;
   retry(cid: string): void;
@@ -82,7 +80,7 @@ export const useThreads = create<ThreadsState>()((set, get) => {
       const sent = await call(
         client.POST("/api/conversations/{id}/messages", {
           params: { path: { id: t.conversation } },
-          body: { client_id: cid, body: p.body, thread_root_id: t.rootId, ...(p.broadcast ? { broadcast: true } : {}), ...(p.uploadIds?.length ? { upload_ids: p.uploadIds } : {}) },
+          body: { client_id: cid, body: p.body, thread_root_id: t.rootId, ...(p.uploadIds?.length ? { upload_ids: p.uploadIds } : {}) },
         }),
       );
       const me = data.store.getState().me!.identity;
@@ -93,12 +91,10 @@ export const useThreads = create<ThreadsState>()((set, get) => {
         format: "plain",
         created_at: sent.created_at,
         thread_root_id: t.rootId,
-        ...(p.broadcast ? { broadcast: true } : {}),
       };
       if (!isOpen(t.rootId)) return;
       // The stream may have brought the server's copy first, with its files: keep that one.
       patch((now) => ({ replies: now.replies.some((r) => r.id === made.id) ? now.replies : merge(now.replies, [made]), pending: now.pending.filter((x) => x.cid !== cid) }));
-      if (p.broadcast) data.putMessages(t.conversation, [made]); // it is in the main list too
       void get().markRead();
     } catch (err) {
       if (err instanceof ApiError && err.handled) return;
@@ -108,17 +104,17 @@ export const useThreads = create<ThreadsState>()((set, get) => {
 
   return {
     open: null,
+    readThrough: {},
     openThread: async (conversation, rootId, known) => {
-      if (get().open?.rootId !== rootId) set({ open: { conversation, root: known ?? null, rootId, replies: [], pending: [], loaded: false, readOk: 0, also: false } });
+      if (get().open?.rootId !== rootId) set({ open: { conversation, root: known ?? null, rootId, replies: [], pending: [], loaded: false, readOk: 0 } });
       await load(rootId);
     },
     close: () => set({ open: null }),
-    setAlso: (also) => patch(() => ({ also })),
     reply: (body, uploadIds) => {
       const t = get().open;
       if (!t) return;
       const cid = newId();
-      patch((now) => ({ pending: [...now.pending, { cid, body, uploadIds, state: "sending", base: newest(now), broadcast: now.also }] }));
+      patch((now) => ({ pending: [...now.pending, { cid, body, uploadIds, state: "sending", base: newest(now) }] }));
       void deliver(cid);
     },
     retry: (cid) => void deliver(cid),
@@ -146,6 +142,7 @@ export const useThreads = create<ThreadsState>()((set, get) => {
         const { response } = await client.POST("/api/conversations/{id}/read", { params: { path: { id: t.conversation } }, body: { root_id: t.rootId, reply_id: top } });
         if (!response.ok) return;
         patch((now) => ({ readOk: Math.max(now.readOk, top) }));
+        set((s) => ({ readThrough: { ...s.readThrough, [t.rootId]: Math.max(s.readThrough[t.rootId] ?? 0, top) } }));
         void data.loadConversations(); // the rail and the bold title follow
       } catch {
         // a lost position is sent again with the next reply
