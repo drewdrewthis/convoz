@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -46,6 +47,9 @@ type IdentityPackage struct {
 	Description    string // plain text, one line
 	AvatarSVG      string // already cleaned by the caller (I-32)
 	ConversationID int64  // 0: none
+	// MayReturn lets the handle of a revoked agent pass the checks: the agent comes back when the owner approves. Only a caller that
+	// holds a spent invite or a request the owner already sees sets it; a plain login as a revoked handle stays refused.
+	MayReturn bool
 }
 
 // IdentityRequest is a stored request as the owner sees it.
@@ -94,8 +98,17 @@ func CheckIdentityPackage(ctx context.Context, d pdb.DBTX, p Ports, in IdentityP
 	if name == "" {
 		name = in.Handle
 	}
-	if err := p.Agents.CheckNew(ctx, d, in.Handle, name); err != nil {
-		return in, err
+	back := false
+	if in.MayReturn {
+		var err error
+		if _, back, err = returningAgent(ctx, d, p, in.Handle); err != nil {
+			return in, err
+		}
+	}
+	if !back { // a revoked agent coming back is checked when the owner approves, by the rules of its return
+		if err := p.Agents.CheckNew(ctx, d, in.Handle, name); err != nil {
+			return in, err
+		}
 	}
 	if in.ConversationID != 0 {
 		if _, ok, err := p.Conversations.OwnerConversation(ctx, d, in.ConversationID); err != nil {
@@ -105,6 +118,12 @@ func CheckIdentityPackage(ctx context.Context, d pdb.DBTX, p Ports, in IdentityP
 		}
 	}
 	return in, nil
+}
+
+// returningAgent finds the disabled agent that owns handle: a request for its handle brings it back instead of making a new one.
+func returningAgent(ctx context.Context, d pdb.DBTX, p Ports, handle string) (Agent, bool, error) {
+	a, found, err := p.Agents.Lookup(ctx, d, handle)
+	return a, found && a.Kind == "agent" && a.Disabled, err
 }
 
 func nullInt(n int64) sql.NullInt64 { return sql.NullInt64{Int64: n, Valid: n != 0} }
@@ -160,6 +179,7 @@ func FileSessionIdentity(ctx context.Context, d pdb.DBTX, p Ports, m Machine, in
 			return IdentityFiled{Ref: FakeIdentityRef(), ExpiresAt: now.Add(IdentityRequestTTL).UnixMilli(), fake: true}, nil
 		}
 		in = withInviteConversation(ctx, d, p, in, inv)
+		in.MayReturn = true // the owner made the invite
 	}
 	in, err := CheckIdentityPackage(ctx, d, p, in)
 	if err != nil {
@@ -310,21 +330,23 @@ func makeRequestedIdentity(ctx context.Context, d pdb.DBTX, p Ports, human Human
 		return Agent{}, err
 	}
 	handle, desc, display, conv, ref = rows.Handle, rows.Description, rows.DisplayName, rows.ConversationID.Int64, rows.Ref
-	if _, err := CheckIdentityPackage(ctx, d, p, IdentityPackage{Handle: handle, DisplayName: display.String, Description: desc, ConversationID: conv}); err != nil {
-		return Agent{}, err
-	}
-	name := display.String
-	if name == "" {
-		name = handle
-	}
-	made, err := p.Agents.Create(ctx, d, NewAgent{Handle: handle, DisplayName: name, ByMachine: machineID}, now)
-	if err != nil {
+	if _, err := CheckIdentityPackage(ctx, d, p, IdentityPackage{Handle: handle, DisplayName: display.String, Description: desc, ConversationID: conv, MayReturn: true}); err != nil {
 		return Agent{}, err
 	}
 	if avatar, err = q.GetIdentityRequestAvatar(ctx, ref); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return Agent{}, err
 	}
-	if err := p.Agents.SetIntro(ctx, d, made.ID, desc, avatar.String); err != nil {
+	back, returning, err := returningAgent(ctx, d, p, strings.ToLower(handle))
+	if err != nil {
+		return Agent{}, err
+	}
+	var made Agent
+	if returning {
+		made, err = reenable(ctx, d, p, back, display.String, desc, avatar.String)
+	} else {
+		made, err = createRequested(ctx, d, p, machineID, handle, display.String, desc, avatar.String, now)
+	}
+	if err != nil {
 		return Agent{}, err
 	}
 	if n, err := q.ApproveIdentityRequest(ctx, db.ApproveIdentityRequestParams{
@@ -335,14 +357,50 @@ func makeRequestedIdentity(ctx context.Context, d pdb.DBTX, p Ports, human Human
 		return Agent{}, ErrIdentityGone
 	}
 	if conv != 0 {
-		if err := p.Conversations.Join(ctx, d, now, conv, made.ID, human.ID); err != nil {
+		// A returning agent may still sit in the conversation: its seat is kept, so it is not joined twice.
+		if in, err := p.Conversations.IdentityIn(ctx, d, conv, made.ID); err != nil {
 			return Agent{}, err
+		} else if !in {
+			if err := p.Conversations.Join(ctx, d, now, conv, made.ID, human.ID); err != nil {
+				return Agent{}, err
+			}
 		}
 	}
-	if err := p.Journal.Audit(ctx, d, now, AuditEntry{Actor: human.ID, Machine: machineID, Action: "identity.created", TargetKind: "identity", TargetID: made.ID}); err != nil {
+	action := "identity.created"
+	if returning {
+		action = "identity.reenabled"
+	}
+	if err := p.Journal.Audit(ctx, d, now, AuditEntry{Actor: human.ID, Machine: machineID, Action: action, TargetKind: "identity", TargetID: made.ID}); err != nil {
 		return Agent{}, err
 	}
-	return made, p.Journal.Event(ctx, d, now, "identity.created.v1", map[string]any{"identity_id": made.ID, "machine_id": machineID})
+	return made, p.Journal.Event(ctx, d, now, action+".v1", map[string]any{"identity_id": made.ID, "machine_id": machineID})
+}
+
+func createRequested(ctx context.Context, d pdb.DBTX, p Ports, machineID int64, handle, display, desc, avatar string, now time.Time) (Agent, error) {
+	name := display
+	if name == "" {
+		name = handle
+	}
+	made, err := p.Agents.Create(ctx, d, NewAgent{Handle: handle, DisplayName: name, ByMachine: machineID}, now)
+	if err != nil {
+		return Agent{}, err
+	}
+	return made, p.Agents.SetIntro(ctx, d, made.ID, desc, avatar)
+}
+
+// reenable brings the revoked agent back: same identity, no old credential (its leases ended when it was revoked). What the new
+// request says about the agent replaces the stored profile only where it says something.
+func reenable(ctx context.Context, d pdb.DBTX, p Ports, a Agent, display, desc, avatar string) (Agent, error) {
+	if ok, err := p.Agents.Reenable(ctx, d, a.ID, display, desc, avatar); err != nil {
+		return Agent{}, err
+	} else if !ok {
+		return Agent{}, ErrHandleTaken
+	}
+	if display != "" {
+		a.DisplayName = display
+	}
+	a.Disabled = false
+	return a, nil
 }
 
 // addToAllow lets the machine act as the new agent. A machine that allows every agent needs no entry.
@@ -351,7 +409,7 @@ func addToAllow(ctx context.Context, d pdb.DBTX, machineID, agentID int64, now t
 	if err != nil {
 		return err
 	}
-	if m.Allow.Mode == AllowAny {
+	if m.Allow.Mode == AllowAny || slices.Contains(m.Allow.IdentityIDs, agentID) {
 		return nil
 	}
 	m.Allow.IdentityIDs = append(m.Allow.IdentityIDs, agentID)

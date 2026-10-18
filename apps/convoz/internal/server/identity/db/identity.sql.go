@@ -114,6 +114,19 @@ func (q *Queries) DisableAgent(ctx context.Context, arg DisableAgentParams) (int
 	return result.RowsAffected()
 }
 
+const enableAgent = `-- name: EnableAgent :execrows
+UPDATE identities SET disabled_at = NULL WHERE id = ?1 AND kind = 'agent' AND disabled_at IS NOT NULL
+`
+
+// Bring a revoked agent back: the same row, so its id, history and conversation seats stay (re-invite).
+func (q *Queries) EnableAgent(ctx context.Context, id int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, enableAgent, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const getAvatarSVG = `-- name: GetAvatarSVG :one
 SELECT avatar_svg FROM identities WHERE id = ?1 AND avatar_svg IS NOT NULL
 `
