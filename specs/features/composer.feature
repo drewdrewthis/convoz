@@ -29,14 +29,14 @@ Feature: Composer
       And it grew to about 6 lines and then scrolls inside itself
 
     @v1 @browser @phone
-    Scenario: The header shrinks while typing on a phone
+    Scenario: The name and buttons at the top shrink while typing on a phone
       Given the owner has conversation 41 open on a phone
       When the keyboard opens on the message box
-      Then the header is one 36 px line with Back and the title
+      Then the top of the conversation is one 36 px line with Back and the title
       And the message box grows from one line to at most four
       And the message box asks for a new line on Return, capitals at sentence starts, spelling and autocorrect
       When the keyboard closes
-      Then the full header is back
+      Then the full top of the conversation is back
 
     @v1 @browser @phone
     Scenario: On a phone Enter adds a line and Send sends
@@ -204,10 +204,10 @@ Feature: Composer
 
     # Owner ruling 2026-10-18: "You didn't do the ui update for the chat yet? It should have the floating circle buttons instead of the full header"
     @v1 @browser @phone
-    Scenario: The conversation header is floating circle buttons
+    Scenario: The conversation's name and buttons at the top are floating circle buttons
       Given conversation 41 has more messages than fit on a phone screen
       When the owner opens conversation 41 on a phone
-      Then the header has no bar background
+      Then the top of the conversation has no bar background
       And the back button and the action buttons are circles of at least 44 px
       And the title is visible
       And the message list scrolls under the top area

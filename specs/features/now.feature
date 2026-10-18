@@ -141,12 +141,13 @@ Feature: Now
 
   Rule: Agent adds wait for a human (pending adds)
 
+    # Owner (Drew, msg 143): "History should be accessible yes"
     @v1 @browser @I-17
     Scenario: Approving a pending add lets the agent in from the request
       Given "devtool" requested to add "@docs" to conversation 52 at message 300
       When the owner approves the add
       Then conversation 52 shows "Approved · @docs added"
-      And "docs" reads conversation 52 from message 300 onward and nothing earlier
+      And "docs" reads conversation 52 with the earlier messages and the ones after the request
 
     @v1 @browser @I-17
     Scenario: Declining a pending add keeps the agent out
