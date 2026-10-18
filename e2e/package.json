@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "test": "playwright test",
+    "test": "CONVOZ_PERF=1 playwright test",
     "list": "playwright test --list"
   },
   "devDependencies": {

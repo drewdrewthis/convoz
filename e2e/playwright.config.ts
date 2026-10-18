@@ -27,9 +27,10 @@ export default defineConfig({
   // that starts two WebAuthn ceremonies or waits on the network before one (lib/ceremony-guard.ts, lib/fixtures.ts).
   // "perf" measures the client's time budget (design §12.2), and a budget measured while other browsers load the box measures the box. It is
   // the teardown of "alone", which every other project depends on, so it starts when they have all finished (a teardown runs even when a
-  // scenario failed; a plain dependency would skip the budget and hide a red row) and nothing runs beside it.
+  // scenario failed; a plain dependency would skip the budget and hide a red row) and nothing runs beside it. The full run (`pnpm e2e`)
+  // sets CONVOZ_PERF=1; a targeted `playwright test -g …` does not wait on the budget, and `--project=perf` still runs it alone.
   projects: [
-    { name: "alone", testMatch: /^$/, teardown: "perf" },
+    { name: "alone", testMatch: /^$/, ...(process.env.CONVOZ_PERF === "1" ? { teardown: "perf" } : {}) },
     { name: "headless", grepInvert: /@browser/, dependencies: ["alone"] },
     // screenshot "on": the final screenshot of each browser scenario goes into the use-proof page (pnpm proof).
     { name: "chromium", grep: /@browser/, grepInvert: /@phone/, use: { ...devices["Desktop Chrome"], screenshot: "on" }, dependencies: ["alone"] },
