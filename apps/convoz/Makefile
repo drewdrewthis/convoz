@@ -28,12 +28,16 @@ release: web cli-dist
 testhooks: web cli-dist
 	$(GO) build -trimpath -tags testhooks -o bin/convoz-test ./cmd/convoz
 
-# sqlc is pinned by the tool directive in go.mod; generated code is committed.
+# sqlc is pinned by the tool directive in tools/sqlc/go.mod, a module of its own: sqlc's dependency graph is large, and `go mod verify`
+# re-hashes every module of the graph it runs in, so it would otherwise dominate the build's pin check. Generated code is committed.
+# GOWORK=off: the tool module is not part of the workspace.
+SQLC = GOWORK=off $(GO) -C tools/sqlc tool sqlc
+
 sqlc:
-	$(GO) tool sqlc generate
+	$(SQLC) generate -f ../../sqlc.yaml
 
 sqlc-check:
-	$(GO) tool sqlc diff
+	$(SQLC) diff -f ../../sqlc.yaml
 
 # Module boundaries (AC-16, Go side). CI runs the two checks as their own steps.
 GO_IMPORTS = GO_BIN=$(GO) python3 -I ../../scripts/check_go_imports.py

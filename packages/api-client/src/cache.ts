@@ -87,6 +87,9 @@ export function createDataCache(source: DataSource): DataCache {
   const store = createStore<DataState>()(() => ({ me: null, identities: null, conversations: null, rows: {}, messages: {} }));
   const { getState: get, setState: set } = store;
   let listTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Messages that arrived by frame while a conversation's newest page was on its way: the server read that page before they
+   *  existed, so without this they would be lost (the frame finds no list to join, and the page does not hold them). */
+  const arrivedDuringLoad = new Map<number, Message[]>();
   const reloadList = coalesce(async () => set({ conversations: await source.conversations() }));
   const setList = (id: number, change: (m: MessageList) => MessageList) =>
     set((s) => ({ messages: { ...s.messages, [id]: change(s.messages[id] ?? { list: [], hasEarlier: false }) } }));
@@ -120,8 +123,14 @@ export function createDataCache(source: DataSource): DataCache {
     },
     putConversation: (c) => set((s) => ({ rows: { ...s.rows, [c.id]: c } })),
     loadNewest: async (id) => {
-      const { messages } = await source.messages(id, { limit: LIMIT });
-      setList(id, (m) => ({ list: merge(m.list, messages), hasEarlier: messages.length >= LIMIT }));
+      const arrived: Message[] = [];
+      arrivedDuringLoad.set(id, arrived);
+      try {
+        const { messages } = await source.messages(id, { limit: LIMIT });
+        setList(id, (m) => ({ list: merge(m.list, [...messages, ...arrived]), hasEarlier: messages.length >= LIMIT }));
+      } finally {
+        if (arrivedDuringLoad.get(id) === arrived) arrivedDuringLoad.delete(id);
+      }
     },
     loadEarlier: async (id) => {
       const held = get().messages[id];
@@ -146,6 +155,7 @@ export function createDataCache(source: DataSource): DataCache {
           const held = get().messages[frame.data.conversation_id];
           if (held?.list.some((m) => m.id === frame.data.id)) return false;
           if (held) cache.putMessages(frame.data.conversation_id, [frame.data]);
+          else arrivedDuringLoad.get(frame.data.conversation_id)?.push(frame.data);
           break;
         }
         case "message.edited":
