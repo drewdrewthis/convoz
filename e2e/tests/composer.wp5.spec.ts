@@ -149,6 +149,7 @@ scenario("Picking an agent from the mention list adds it", { tag: ["@browser", "
   await expect(box(page)).toHaveValue("@docs please write the release note");
   await sendButton(page).click();
   await expect(message(page, "@docs please write the release note")).toBeVisible();
+  await expect.poll(async () => (await messagesOf(w.owner, conv)).length).toBe(2); // the bubble shows before the server holds the message
 
   // Then "docs" is a participant of conversation 41 from that message
   const sent = (await messagesOf(w.owner, conv)).at(-1)!;
@@ -197,6 +198,7 @@ scenario("A disabled agent is not offered and not added", { tag: ["@browser", "@
   await composer(page).fill("@release-bot ship it");
   await sendButton(page).click();
   await expect(message(page, "@release-bot ship it")).toBeVisible();
+  await expect.poll(async () => (await messagesOf(w.owner, conv)).length).toBe(1); // the bubble shows before the server holds the message
 
   // And "release-bot" is not a participant
   expect(handlesOf(await viewOf(w.owner, conv))).not.toContain("release-bot");
@@ -218,6 +220,7 @@ scenario("A mention inside code does not add an agent", { tag: ["@browser", "@I-
   await expect(page.getByRole("list", { name: "Agents" }).getByRole("button")).toHaveCount(0); // no list opens inside code
   await sendButton(page).click();
   await expect(message(page, "run")).toBeVisible();
+  await expect.poll(async () => (await messagesOf(w.owner, conv)).length).toBe(1); // the bubble shows before the server holds the message
 
   // Then "docs" is not a participant
   expect((await messagesOf(w.owner, conv)).map((m) => m.body)).toEqual(["run `@docs build`"]);
@@ -257,4 +260,134 @@ scenario("The phone composer is compact and the page does not zoom", { tag: ["@b
 
   // Then its reply box is 16 px too
   expect(await smallText()).toEqual([]);
+});
+
+// ---- Rule: The @ mention and the paperclip work on a phone with the keyboard up ------------------------------------
+
+/** A visualViewport the test can shrink, as iOS Safari reports a keyboard, and a 34 px home-bar inset like an iPhone's. */
+async function phoneKeyboard(page: Page): Promise<(open: boolean) => Promise<void>> {
+  await page.addInitScript(() => {
+    const real = window.visualViewport!;
+    const fake = new EventTarget();
+    const override: Record<string, number> = {};
+    (window as unknown as { __vv: Record<string, number> }).__vv = override;
+    for (const k of ["width", "height", "offsetTop", "offsetLeft", "pageTop", "pageLeft", "scale"]) Object.defineProperty(fake, k, { get: () => (k in override ? override[k] : (real as never)[k]) });
+    real.addEventListener("resize", () => fake.dispatchEvent(new Event("resize")));
+    real.addEventListener("scroll", () => fake.dispatchEvent(new Event("scroll")));
+    Object.defineProperty(window, "visualViewport", { value: fake, configurable: true });
+  });
+  return (open) =>
+    page.evaluate((o) => {
+      const vv = (window as unknown as { __vv: Record<string, number> }).__vv;
+      if (o) vv.height = 500;
+      else for (const k of Object.keys(vv)) delete vv[k];
+      window.visualViewport!.dispatchEvent(new Event("resize"));
+    }, open);
+}
+
+/** Open conversation 41 on the phone, tap the message box, and raise the keyboard. */
+async function phoneChat(fx: Parameters<typeof browserWorld>[0]) {
+  const keyboard = await phoneKeyboard(fx.page);
+  const w = await browserWorld(fx, { agents: ["devtool", "claude-convoz"] });
+  const conv = await createConversation(w.owner, { participants: ["devtool"], title: TITLE });
+  await fx.page.goto(`${w.srv.origin}/chats/${conv}`);
+  await expect(box(fx.page)).toBeVisible();
+  await fx.page.evaluate(() => document.documentElement.style.setProperty("--bottom", "34px"));
+  await box(fx.page).tap();
+  await keyboard(true);
+  return { w, conv, keyboard };
+}
+
+const caret = (page: Page) => box(page).evaluate((e: HTMLTextAreaElement) => [e.selectionStart, e.selectionEnd]);
+
+// Owner report 2026-10-18 (iPhone, Chrome): "Also the @ mention is weird. I doesn't stay in the input - some weird behavior there"
+scenario("The @ text stays as typed while the list is open on a phone", { tag: ["@browser", "@phone", "@I-18"] }, async ({ server, page, context }) => {
+  // Given conversation 41 is open on a phone with the keyboard up
+  const { w, conv } = await phoneChat({ server, page, context });
+
+  // When the owner types "@cl" key by key
+  await page.keyboard.type("@cl", { delay: 60 });
+
+  // Then the message box shows "@cl" and the list offers "claude-convoz"
+  await expect(box(page)).toHaveValue("@cl");
+  await expect(agentChoice(page, "claude-convoz")).toBeVisible();
+  await page.waitForTimeout(400); // a late reset would show now
+  await expect(box(page)).toHaveValue("@cl");
+  await expect(box(page)).toBeFocused();
+
+  // And the same holds when the keyboard sends the letters as one insert or as a composition
+  await box(page).fill("");
+  await page.keyboard.insertText("@c");
+  const ime = await page.context().newCDPSession(page);
+  await ime.send("Input.imeSetComposition", { text: "l", selectionStart: 1, selectionEnd: 1 });
+  await expect(box(page)).toHaveValue("@cl");
+  await expect(agentChoice(page, "claude-convoz")).toBeVisible();
+  await ime.send("Input.insertText", { text: "l" });
+  await expect(box(page)).toHaveValue("@cl");
+  expect(await messagesOf(w.owner, conv)).toEqual([]);
+});
+
+scenario("Tapping a name leaves the handle in the box on a phone", { tag: ["@browser", "@phone", "@I-18"] }, async ({ server, page, context }) => {
+  // Given conversation 41 is open on a phone with the keyboard up and "@cl" typed
+  const { keyboard } = await phoneChat({ server, page, context });
+  await page.keyboard.type("@cl", { delay: 60 });
+  const row = agentChoice(page, "claude-convoz");
+  await expect(row).toBeVisible();
+
+  // When the owner taps "claude-convoz" in the list
+  const at = (await row.boundingBox())!;
+  await page.touchscreen.tap(at.x + at.width / 2, at.y + at.height / 2);
+
+  // Then the message box holds "@claude-convoz " with the caret after it
+  await expect(box(page)).toHaveValue("@claude-convoz ");
+  expect(await caret(page)).toEqual([15, 15]);
+  await expect(box(page)).toBeFocused();
+  await expect(agentChoice(page, "claude-convoz")).toHaveCount(0);
+
+  // And it survives the keyboard closing and opening
+  await keyboard(false);
+  await keyboard(true);
+  await page.waitForTimeout(400);
+  await expect(box(page)).toHaveValue("@claude-convoz ");
+  expect(await caret(page)).toEqual([15, 15]);
+});
+
+scenario("A mention sent from a phone is in the message", { tag: ["@browser", "@phone", "@I-18"] }, async ({ server, page, context }) => {
+  // Given conversation 41 is open on a phone with the keyboard up and "@claude-convoz " picked by a tap
+  const { w, conv } = await phoneChat({ server, page, context });
+  await page.keyboard.type("@cl", { delay: 60 });
+  const at = (await agentChoice(page, "claude-convoz").boundingBox())!;
+  await page.touchscreen.tap(at.x + at.width / 2, at.y + at.height / 2);
+  await expect(box(page)).toHaveValue("@claude-convoz ");
+
+  // When the owner types "hi" and taps Send
+  await page.keyboard.type("hi", { delay: 60 });
+  const send = (await sendButton(page).boundingBox())!;
+  await page.touchscreen.tap(send.x + send.width / 2, send.y + send.height / 2);
+
+  // Then the message is "@claude-convoz hi" and "claude-convoz" is in the conversation
+  await expect.poll(async () => (await messagesOf(w.owner, conv)).map((m) => m.body)).toEqual(["@claude-convoz hi"]);
+  await expect(message(page, "@claude-convoz hi")).toBeVisible();
+  expect(handlesOf(await viewOf(w.owner, conv))).toContain("claude-convoz");
+});
+
+// Owner report 2026-10-18 (iPhone, Chrome): "once you start typing in the input the paperclip stops working"
+scenario("The paperclip works after the owner types on a phone", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
+  // Given conversation 41 is open on a phone with the keyboard up
+  await phoneChat({ server, page, context });
+  // Listening starts before the typing: the browser needs a moment to start handing file choosers to the test, and a tap that lands first
+  // opens a chooser nobody sees (the test's race, not the page's).
+  const chooser = page.waitForEvent("filechooser", { timeout: 20_000 });
+
+  // When the owner types "hello" and taps the paperclip once
+  await page.keyboard.type("hello", { delay: 60 });
+  const clip = page.getByRole("button", { name: "Attach a file" });
+  const at = (await clip.boundingBox())!;
+  await page.touchscreen.tap(at.x + at.width / 2, at.y + at.height / 2);
+
+  // Then the file chooser opens
+  expect((await chooser).isMultiple()).toBe(true);
+
+  // And the message box still holds "hello"
+  await expect(box(page)).toHaveValue("hello");
 });

@@ -169,6 +169,37 @@ Feature: Composer
       When the owner opens the thread
       Then its reply box is 16 px too
 
+  Rule: The @ mention and the paperclip work on a phone with the keyboard up
+
+    # Owner report 2026-10-18 (iPhone, Chrome): "Also the @ mention is weird. I doesn't stay in the input - some weird behavior there"
+    @v1 @browser @phone
+    Scenario: The @ text stays as typed while the list is open on a phone
+      Given conversation 41 is open on a phone with the keyboard up
+      When the owner types "@cl" key by key
+      Then the message box shows "@cl" and the list offers "claude-convoz"
+      And the same holds when the keyboard sends the letters as one insert or as a composition
+
+    @v1 @browser @phone
+    Scenario: Tapping a name leaves the handle in the box on a phone
+      Given conversation 41 is open on a phone with the keyboard up and "@cl" typed
+      When the owner taps "claude-convoz" in the list
+      Then the message box holds "@claude-convoz " with the caret after it
+      And it survives the keyboard closing and opening
+
+    @v1 @browser @phone
+    Scenario: A mention sent from a phone is in the message
+      Given conversation 41 is open on a phone with the keyboard up and "@claude-convoz " picked by a tap
+      When the owner types "hi" and taps Send
+      Then the message is "@claude-convoz hi" and "claude-convoz" is in the conversation
+
+    # Owner report 2026-10-18 (iPhone, Chrome): "once you start typing in the input the paperclip stops working"
+    @v1 @browser @phone
+    Scenario: The paperclip works after the owner types on a phone
+      Given conversation 41 is open on a phone with the keyboard up
+      When the owner types "hello" and taps the paperclip once
+      Then the file chooser opens
+      And the message box still holds "hello"
+
   Rule: The conversation header floats over the messages
 
     # Owner ruling 2026-10-18: "You didn't do the ui update for the chat yet? It should have the floating circle buttons instead of the full header"

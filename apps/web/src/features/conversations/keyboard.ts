@@ -25,7 +25,8 @@ export interface Screen {
  * `screen` (updated while nothing is being typed, and renewed when the width changes with a turn of the phone).
  */
 export function keyboardOpen(vv: VisualViewport, screen: Screen): boolean {
-  const typing = Boolean(document.activeElement?.closest(EDITABLE));
+  // A tap on a control of the message box (Attach, Send) moves focus to it for a moment while the keyboard is still up.
+  const typing = Boolean(document.activeElement?.closest(`${EDITABLE}, .compose`));
   if (innerWidth !== screen.width) {
     screen.width = innerWidth;
     screen.height = 0;
