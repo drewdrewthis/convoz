@@ -64,7 +64,12 @@ func (f *fakeAgents) CheckNew(_ context.Context, _ pdb.DBTX, handle, _ string) e
 	return nil
 }
 func (f *fakeAgents) SetIntro(context.Context, pdb.DBTX, int64, string, string) error { return nil }
-func (f *fakeAgents) Handles(context.Context, pdb.DBTX) (map[int64]string, error)     { return nil, nil }
+
+// Renamed knows no handle change: the fake agents never change their handles.
+func (f *fakeAgents) Renamed(context.Context, pdb.DBTX, string) (Agent, int64, bool, error) {
+	return Agent{}, 0, false, nil
+}
+func (f *fakeAgents) Handles(context.Context, pdb.DBTX) (map[int64]string, error) { return nil, nil }
 
 // Create writes the agent rows the session foreign keys need (the test owns the SQL, auth never imports identity).
 func (f *fakeAgents) Create(ctx context.Context, d pdb.DBTX, in NewAgent, now time.Time) (Agent, error) {

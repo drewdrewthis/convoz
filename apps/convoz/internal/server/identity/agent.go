@@ -111,6 +111,11 @@ func CreateAgent(ctx context.Context, d pdb.DBTX, in NewAgent, now time.Time) (P
 // and not a look-alike (UTS #39 skeleton) of any handle, retired handle or display name, disabled identities included (I-3). A
 // request runs it when it is filed and again when the owner approves it, so a request reserves nothing.
 func CheckNewHandle(ctx context.Context, d pdb.DBTX, handle string) error {
+	return checkHandle(ctx, d, handle, "")
+}
+
+// checkHandle is CheckNewHandle for the identity whose handle is now own ("" for a new one): its own display name does not count.
+func checkHandle(ctx context.Context, d pdb.DBTX, handle, own string) error {
 	q := db.New(d)
 	if !ValidHandle(handle) || Reserved[handle] {
 		return ErrInvalidHandle
@@ -131,7 +136,7 @@ func CheckNewHandle(ctx context.Context, d pdb.DBTX, handle string) error {
 		return err
 	}
 	for _, a := range all {
-		if a.DisplaySkeleton == skeleton || Skeleton(a.Handle) == skeleton {
+		if (a.DisplaySkeleton == skeleton && (own == "" || a.Handle != own)) || Skeleton(a.Handle) == skeleton {
 			return ErrConfusableHandle
 		}
 	}

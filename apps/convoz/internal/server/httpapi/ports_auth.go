@@ -58,6 +58,14 @@ func (agentPort) Lookup(ctx context.Context, d pdb.DBTX, handle string) (auth.Ag
 	return agentOf(p), found, err
 }
 
+func (agentPort) Renamed(ctx context.Context, d pdb.DBTX, handle string) (auth.Agent, int64, bool, error) {
+	p, retired, found, err := identity.Resolve(ctx, d, handle)
+	if err != nil || !found || retired == nil {
+		return auth.Agent{}, 0, false, err
+	}
+	return agentOf(p), time.UnixMilli(retired.RetiredAt).Add(identity.HandleGrace).UnixMilli(), true, nil
+}
+
 func (agentPort) Handles(ctx context.Context, d pdb.DBTX) (map[int64]string, error) {
 	return identity.Handles(ctx, d)
 }

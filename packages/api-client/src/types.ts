@@ -13,6 +13,7 @@ export type Passkey = S["Passkey"];
 export type Machine = S["Machine"];
 export type MachineRequest = S["MachineRequest"];
 export type IdentityRequest = S["IdentityRequest"];
+export type HandleRequest = S["HandleRequest"];
 export type AgentIntro = S["AgentIntro"];
 export type HostInfo = S["HostInfo"];
 export type Allow = S["Allow"];

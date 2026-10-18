@@ -503,8 +503,10 @@
       scope and allows the handle; otherwise the answer is 202 with `request.ref`, and the machine asks again with
       `create.request` = that ref until the owner decides (201 with the lease; 403 request_denied; 410 request_expired).
       A machine files at most 5 requests in 24 hours; a request lives 24 hours. Only the machine that filed a request can ask about it.
+      `as` may name a handle the agent had before (I-51): for 30 days after the change the lease is minted for that agent and the answer
+      carries `renamed` {from, to, until}; after that it is 403 `handle_renamed`, whose message names the new handle.
     responses:
-      "201": { description: The lease and its session. }
+      "201": { description: "The lease and its session; `renamed` when `as` named a handle the agent had before." }
       "202": { description: The owner has not decided; ask again with the ref. }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
   get:

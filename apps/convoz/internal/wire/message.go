@@ -10,6 +10,9 @@ type System struct {
 	History  string  `json:"history,omitempty"`
 	Streak   int     `json:"streak,omitempty"`
 	Title    string  `json:"title,omitempty"` // conversation.renamed: the title the line quotes
+	// From and To are the handles of a member.renamed line (I-51).
+	From string `json:"from,omitempty"`
+	To   string `json:"to,omitempty"`
 }
 
 // EditRequest is PATCH /api/messages/:id. Only the text changes; any other field is refused (I-8).

@@ -240,5 +240,6 @@
   { "name": "system-paused", "schema": "system.json", "data": { "v": 1, "t": "conversation.paused", "streak": 20 } },
   { "name": "system-left", "schema": "system.json", "data": { "v": 1, "t": "member.left", "identity": 12 } },
   { "name": "system-renamed", "schema": "system.json", "data": { "v": 1, "t": "conversation.renamed", "by": 1 } },
-  { "name": "system-renamed-titled", "schema": "system.json", "data": { "v": 1, "t": "conversation.renamed", "by": 12, "title": "Ship search filters" } }
+  { "name": "system-renamed-titled", "schema": "system.json", "data": { "v": 1, "t": "conversation.renamed", "by": 12, "title": "Ship search filters" } },
+  { "name": "system-handle-changed", "schema": "system.json", "data": { "v": 1, "t": "member.renamed", "identity": 12, "from": "dev-ci", "to": "ci-bot" } }
 ]

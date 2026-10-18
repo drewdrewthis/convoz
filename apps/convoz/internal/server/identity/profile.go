@@ -41,7 +41,8 @@ type Profile struct {
 	Capabilities []string
 }
 
-// ProfileChange is a request to change some fields; a nil field stays as it is. The handle never changes (I-40).
+// ProfileChange is a request to change some fields; a nil field stays as it is. The handle is not one of them: it changes only
+// through ChangeHandle (I-40, I-51).
 type ProfileChange struct {
 	DisplayName  *string
 	Description  *string

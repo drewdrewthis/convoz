@@ -3,6 +3,8 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"slices"
+	"strings"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
@@ -46,6 +48,36 @@ func (dir directory) person(id int64) wire.Person {
 	return wire.Person{ID: e.ID, Handle: e.Handle, DisplayName: e.DisplayName, Kind: e.Kind}
 }
 
+// resolve finds the identity a handle names: the one that has it now, else the one that had it before. A retired handle is never
+// reused, so the answer is the same before and after a change (I-51).
+func (dir directory) resolve(handle string) (identity.Entry, bool) {
+	var was identity.Entry
+	found := false
+	for _, e := range dir {
+		if e.Handle == handle {
+			return e, true
+		}
+		if !found && slices.Contains(e.PreviousHandles, handle) {
+			was, found = e, true
+		}
+	}
+	return was, found
+}
+
+// mentions resolves the @handles of a body by id, so a reader sees who each names now, also for a handle given up since (I-51).
+func (dir directory) mentions(body, format string) []wire.MentionSpan {
+	if !strings.Contains(body, "@") {
+		return nil
+	}
+	var out []wire.MentionSpan
+	for _, h := range message.ParseMentions(body, format) {
+		if e, ok := dir.resolve(h); ok {
+			out = append(out, wire.MentionSpan{AsWritten: h, IdentityID: e.ID, Handle: e.Handle})
+		}
+	}
+	return out
+}
+
 // systemAuthor is the author of a line the conversation says about itself: no handle, the kind "system".
 var systemAuthor = wire.Person{Kind: "system"}
 
@@ -56,7 +88,7 @@ func (dir directory) message(m message.Message) wire.Message {
 		sys, words := systemView(dir, m)
 		return wire.Message{ID: m.ID, Author: systemAuthor, Body: words, Format: "plain", CreatedAt: m.CreatedAt, System: sys, Text: words}
 	}
-	v := wire.Message{ID: m.ID, Author: dir.person(m.AuthorID), Body: m.Body, Format: m.Format, CreatedAt: m.CreatedAt, App: appView(m.App)}
+	v := wire.Message{ID: m.ID, Author: dir.person(m.AuthorID), Body: m.Body, Format: m.Format, CreatedAt: m.CreatedAt, App: appView(m.App), Mentions: dir.mentions(m.Body, m.Format)}
 	if m.ViaAppID != 0 {
 		v.ViaApp = &wire.ViaApp{MessageID: m.ViaAppID, Agent: dir.person(m.ViaAgentID), Result: m.AppResult}
 	}

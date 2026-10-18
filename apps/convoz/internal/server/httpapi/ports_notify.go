@@ -225,13 +225,19 @@ func (p pushSource) DeviceLive(ctx context.Context, d pdb.DBTX, device int64) (b
 	return slices.ContainsFunc(list, func(i auth.DeviceInfo) bool { return i.ID == device }), err
 }
 
-// refOf prints an identity the way a title shows it: "Dev Tool @devtool", the handle always present (I-3).
-func refOf(ctx context.Context, d pdb.DBTX, id int64) (string, error) {
+// refOf prints an identity the way a title shows it: "Dev Tool @devtool", the handle always present (I-3). For 7 days after a
+// handle change it adds "(was @old)", so the owner knows who wrote (I-51).
+func refOf(ctx context.Context, d pdb.DBTX, id int64, now time.Time) (string, error) {
 	who, found, err := identity.ByID(ctx, d, id)
 	if err != nil || !found {
 		return "", err
 	}
-	return message.Person{Handle: who.Handle, Name: who.DisplayName}.Ref(), nil
+	ref := message.Person{Handle: who.Handle, Name: who.DisplayName}.Ref()
+	was, recent, err := identity.WasHandle(ctx, d, id, now)
+	if err != nil || !recent {
+		return ref, err
+	}
+	return ref + " (was @" + was + ")", nil
 }
 
 // leadingMention matches the "@handle" a message starts with.
@@ -283,7 +289,7 @@ func (p pushSource) Facts(ctx context.Context, d pdb.DBTX, n notify.Notification
 		}
 		f.URL = "/now"
 		f.Text = message.Project(message.Projectable{Ask: &message.ProjectAsk{Question: a.Question}}, message.Short)
-		f.Sender, err = refOf(ctx, d, a.AskerID)
+		f.Sender, err = refOf(ctx, d, a.AskerID, p.s.Clock.Now())
 		return f, err
 	case notify.ReasonMention, notify.ReasonThreadReply:
 		m, found, err := message.Get(ctx, d, n.Message)
@@ -293,7 +299,7 @@ func (p pushSource) Facts(ctx context.Context, d pdb.DBTX, n notify.Notification
 		}
 		text := message.Project(message.Projectable{Format: m.Format, Body: m.Body, Reply: m.ThreadRootID != 0}, message.Short)
 		f.Text = leadingMention(owner.Handle).ReplaceAllString(text, "") // the push is addressed to the owner already
-		f.Sender, err = refOf(ctx, d, m.AuthorID)
+		f.Sender, err = refOf(ctx, d, m.AuthorID, p.s.Clock.Now())
 		return f, err
 	case notify.ReasonAgentAdd:
 		ev, found, err := eventAt(ctx, d, n.SourceSeq)
@@ -302,11 +308,11 @@ func (p pushSource) Facts(ctx context.Context, d pdb.DBTX, n notify.Notification
 			return f, err
 		}
 		f.URL = "/now"
-		f.Sender, err = refOf(ctx, d, ev.Actor)
+		f.Sender, err = refOf(ctx, d, ev.Actor, p.s.Clock.Now())
 		if err != nil {
 			return f, err
 		}
-		added, err := refOf(ctx, d, bodyOf(ev).IdentityID)
+		added, err := refOf(ctx, d, bodyOf(ev).IdentityID, p.s.Clock.Now())
 		f.Text = "wants to add " + added + " to " + titleOr(title)
 		return f, err
 	case notify.ReasonPaused:

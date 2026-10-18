@@ -4,6 +4,7 @@ package identity
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -39,6 +40,10 @@ type Entry struct {
 	Capabilities []string `json:"capabilities,omitempty"`
 	// AvatarURL is where the identity's own SVG avatar is served (I-32); empty for the letter on a tint.
 	AvatarURL string `json:"avatar_url,omitempty"`
+	// PreviousHandles are the handles an agent had before, newest first (I-51); a mention of one still names it.
+	PreviousHandles []string `json:"previous_handles,omitempty"`
+	// HandleChangedAt is when an agent's handle last changed (epoch ms); 0 when it never did.
+	HandleChangedAt int64 `json:"handle_changed_at,omitempty"`
 	// CreatedByHuman and CreatedByMachine are the ids that made an agent; the composition root turns
 	// them into names (the machine is auth's).
 	CreatedByHuman   int64 `json:"-"`
@@ -139,6 +144,13 @@ func List(ctx context.Context, d pdb.DBTX) ([]Entry, error) {
 	for _, r := range rows {
 		e := Entry{ID: r.ID, Kind: r.Kind, Handle: r.Handle, DisplayName: r.DisplayName, Role: r.Role, CreatedAt: r.CreatedAt, Disabled: r.DisabledAt.Valid,
 			CreatedByHuman: r.CreatedByHuman.Int64, CreatedByMachine: r.CreatedByMachine.Int64, Description: r.Description, Capabilities: capabilitiesOf(r.CapabilitiesJson)}
+		e.HandleChangedAt = r.HandleChangedAt
+		if err := json.Unmarshal([]byte(r.PreviousHandlesJson), &e.PreviousHandles); err != nil {
+			return nil, err
+		}
+		if len(e.PreviousHandles) == 0 {
+			e.PreviousHandles = nil
+		}
 		if r.HasAvatar == 1 {
 			e.AvatarURL = fmt.Sprintf("/api/identities/%d/avatar.svg", r.ID)
 		}

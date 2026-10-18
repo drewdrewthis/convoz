@@ -350,7 +350,11 @@ func (q *Queries) InsertIdentity(ctx context.Context, arg InsertIdentityParams) 
 
 const listIdentities = `-- name: ListIdentities :many
 SELECT i.id, i.kind, i.handle, i.display_name, CAST(COALESCE(h.role, 'agent') AS TEXT) AS role, i.created_at, i.disabled_at,
-  a.created_by_human, a.created_by_machine, CAST(COALESCE(a.description, '') AS TEXT) AS description, CAST(COALESCE(a.capabilities_json, '[]') AS TEXT) AS capabilities_json, CAST(i.avatar_svg IS NOT NULL AS INTEGER) AS has_avatar
+  a.created_by_human, a.created_by_machine, CAST(COALESCE(a.description, '') AS TEXT) AS description, CAST(COALESCE(a.capabilities_json, '[]') AS TEXT) AS capabilities_json, CAST(i.avatar_svg IS NOT NULL AS INTEGER) AS has_avatar,
+  -- An agent's handles retire only by a change (I-51), so its newest retired_at is when the handle last changed. Both read only
+  -- retired_handles (migration 3), so the list works on every schema. A deleted member's old handle stays out (delete my data).
+  CAST(CASE WHEN i.kind = 'agent' THEN (SELECT COALESCE(MAX(r.retired_at), 0) FROM retired_handles r WHERE r.identity_id = i.id) ELSE 0 END AS INTEGER) AS handle_changed_at,
+  CAST(CASE WHEN i.kind = 'agent' THEN (SELECT COALESCE(json_group_array(handle), '[]') FROM (SELECT r.handle FROM retired_handles r WHERE r.identity_id = i.id ORDER BY r.retired_at DESC, r.handle)) ELSE '[]' END AS TEXT) AS previous_handles_json
 FROM identities i
 LEFT JOIN humans h ON h.identity_id = i.id
 LEFT JOIN agents a ON a.identity_id = i.id
@@ -358,18 +362,20 @@ ORDER BY i.id
 `
 
 type ListIdentitiesRow struct {
-	ID               int64
-	Kind             string
-	Handle           string
-	DisplayName      string
-	Role             string
-	CreatedAt        int64
-	DisabledAt       sql.NullInt64
-	CreatedByHuman   sql.NullInt64
-	CreatedByMachine sql.NullInt64
-	Description      string
-	CapabilitiesJson string
-	HasAvatar        int64
+	ID                  int64
+	Kind                string
+	Handle              string
+	DisplayName         string
+	Role                string
+	CreatedAt           int64
+	DisabledAt          sql.NullInt64
+	CreatedByHuman      sql.NullInt64
+	CreatedByMachine    sql.NullInt64
+	Description         string
+	CapabilitiesJson    string
+	HasAvatar           int64
+	HandleChangedAt     int64
+	PreviousHandlesJson string
 }
 
 func (q *Queries) ListIdentities(ctx context.Context) ([]ListIdentitiesRow, error) {
@@ -394,6 +400,8 @@ func (q *Queries) ListIdentities(ctx context.Context) ([]ListIdentitiesRow, erro
 			&i.Description,
 			&i.CapabilitiesJson,
 			&i.HasAvatar,
+			&i.HandleChangedAt,
+			&i.PreviousHandlesJson,
 		); err != nil {
 			return nil, err
 		}

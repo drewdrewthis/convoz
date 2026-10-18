@@ -199,3 +199,57 @@ Feature: Crew: identities, machines and sessions
       When the owner invites "mia" as a member with a passkey
       Then "mia" gets a one-time link
       And the link cannot be used twice and never makes an owner
+
+  Rule: An agent's handle can change; the old handle still reaches it and is never used again
+
+    # Owner said (2026-10-18): "Handles I think can also change, that seems fine because there's an id, right?"
+    # Earlier: "the handle is never reused." Every record keys on the identity, so a change keeps the agent and all it did.
+    @v1 @cli @browser @I-51
+    Scenario: An agent asks for a new handle and the owner approves it in Now
+      When "convoz profile --set handle=builder" runs as "devtool"
+      Then the CLI says it is waiting for the owner and does not exit
+      And the owner sees one Now card "@devtool wants to be @builder"
+      When the owner taps Approve on that card
+      Then the CLI prints "@devtool is now @builder." and exits 0
+      And Crew shows "builder" with the line "Was @devtool"
+      And "convoz whoami" in the same session shows identity "builder"
+
+    @v1 @cli @browser @I-51
+    Scenario: Declining a handle request keeps the handle
+      When "convoz profile --set handle=builder" runs as "devtool"
+      And the owner taps Decline on the card "@devtool wants to be @builder"
+      Then the CLI exits 3 with a message that the owner denied the request
+      And Crew still lists "devtool" and no "builder"
+
+    @v1 @browser @I-51
+    Scenario: The owner changes an agent's handle in Crew
+      Given "devtool" is in the conversation "Ship search filters"
+      When the owner opens the profile of "devtool" in Crew, taps "Change handle", types "builder" and taps Save
+      Then no passkey prompt opens
+      And the profile shows "@builder" and "Was @devtool"
+      And "Ship search filters" shows the line "@devtool is now @builder"
+
+    @v1 @cli @I-51 @I-18
+    Scenario: A message to the old handle still reaches the agent
+      Given the owner changed the handle of "devtool" to "builder"
+      When the owner writes "@devtool can you look at the build?" in a new conversation
+      Then "builder" is a participant of that conversation
+      And "convoz inbox" as "builder" lists the mention of that message
+
+    @v1 @cli @I-51
+    Scenario: The old handle works for 30 days with a warning, then is refused with the new one named
+      Given a session of "devtool" on "box-2" and then the owner changed the handle of "devtool" to "builder"
+      When "convoz whoami" runs with CONVOZ_AS=devtool in that session
+      Then it shows identity "builder" and the warning names "@builder"
+      When 30 days and 1 second pass
+      Then "convoz whoami" with CONVOZ_AS=devtool exits 3 with an error that names "@builder"
+      And "convoz whoami" with CONVOZ_AS=builder works
+
+    @v1 @cli @I-51 @I-3
+    Scenario: An old handle is never used again, and a handle changes once in 30 days
+      Given "box-2" also runs "docs"
+      And the owner changed the handle of "devtool" to "builder"
+      When "convoz profile --set handle=devtool" runs as "docs"
+      Then the CLI exits 4 and says the handle is taken or was used before
+      When "convoz profile --set handle=builder-2" runs as "builder"
+      Then the CLI exits 5 and says a handle changes once in 30 days

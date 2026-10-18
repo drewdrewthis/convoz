@@ -43,7 +43,10 @@ func (s *Server) mintSession(w http.ResponseWriter, r *http.Request, c *call) {
 	var limited *auth.RateLimitedError
 	var forbidden auth.ForbiddenError
 	var invalid *auth.FieldError
+	var renamed *auth.HandleRenamedError
 	switch {
+	case errors.As(err, &renamed):
+		writeErr(w, http.StatusForbidden, wire.CodeHandleRenamed, renamed.Error())
 	case errors.Is(err, auth.ErrMachineGone):
 		unauthorized(w)
 	case errors.Is(err, auth.ErrNoIdentityRequest):
@@ -71,9 +74,13 @@ func (s *Server) mintSession(w http.ResponseWriter, r *http.Request, c *call) {
 		s.Bus.Notify()
 		writeJSON(w, http.StatusAccepted, wire.MintPending{Request: wire.IdentityRequestState{Ref: minted.Waiting.Ref, State: auth.StatePending, ExpiresAt: minted.Waiting.ExpiresAt, IntervalMs: s.interval().Milliseconds()}})
 	default:
-		writeJSON(w, http.StatusCreated, wire.MintResponse{Lease: minted.Lease, Session: wire.SessionInfo{
-			ID: minted.ID, Identity: minted.Handle, Machine: minted.Machine, ClientID: minted.ClientID, Label: minted.Label, ExpiresAt: minted.ExpiresAt,
-		}})
+		out := wire.MintResponse{Lease: minted.Lease, Session: wire.SessionInfo{
+			ID: minted.ID, Identity: minted.Handle, IdentityID: minted.IdentityID, Machine: minted.Machine, ClientID: minted.ClientID, Label: minted.Label, ExpiresAt: minted.ExpiresAt,
+		}}
+		if rn := minted.Renamed; rn != nil {
+			out.Renamed = &wire.Renamed{From: rn.From, To: rn.To, Until: rn.Until}
+		}
+		writeJSON(w, http.StatusCreated, out)
 	}
 }
 
@@ -97,6 +104,16 @@ func (s *Server) leaseMe(w http.ResponseWriter, r *http.Request, c *call) {
 		return
 	} else if found {
 		out.Identity.Description, out.Identity.Capabilities = p.Description, p.Capabilities
+	}
+	retired, err := identity.RetiredOf(ctx, s.reader(), who.ID)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	now := s.Clock.Now()
+	for _, h := range retired {
+		until := time.UnixMilli(h.RetiredAt).Add(identity.HandleGrace)
+		out.Identity.PreviousHandles = append(out.Identity.PreviousHandles, wire.PreviousHandle{Handle: h.Handle, Until: until.UnixMilli(), Works: now.Before(until)})
 	}
 	out.Machine.ID, out.Machine.Name = c.lease.MachineID, c.lease.Machine
 	out.Session.ID, out.Session.ClientID, out.Session.Label, out.Session.ExpiresAt = c.lease.SessionID, c.lease.ClientID, c.lease.Label, c.lease.ExpiresAt

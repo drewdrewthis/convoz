@@ -17,7 +17,7 @@ export interface Upload {
 /** Everything the projection reads. The variant is derived in the fixed order of the spec: deleted, system, ask, answer, via_app, app, voice, image, file, text. */
 export interface Projectable {
   deleted?: boolean;
-  system?: { t: string; identity: Person; by: Person; history?: string; streak?: number; title?: string } | null;
+  system?: { t: string; identity: Person; by: Person; history?: string; streak?: number; title?: string; from?: string; to?: string } | null;
   ask?: { question: string; options: { label: string; why: string }[] } | null;
   answer?: { custom: boolean; text: string } | null;
   via_app?: Person | null;
@@ -53,6 +53,8 @@ function systemText(s: NonNullable<Projectable["system"]>): string {
       return `${ref(s.identity)} left`;
     case "member.disabled":
       return `${ref(s.identity)} was disabled`;
+    case "member.renamed":
+      return `@${s.from ?? ""} is now @${s.to ?? ""}`;
     case "conversation.renamed":
       return s.title ? `${ref(s.by)} renamed this to "${s.title}"` : `${ref(s.by)} renamed the conversation`;
     case "conversation.paused":

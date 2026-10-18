@@ -84,7 +84,7 @@ func TestAnEndedSessionKeepsNoLeaseAndIsForgottenOnReplace(t *testing.T) {
 	if findSession(dir, "devtool", "claude-1234") != "" {
 		t.Error("an ended session is not a live one to reuse")
 	}
-	forgetSessions(dir, "devtool", "claude-1234")
+	forgetSessions(dir, sessionFile{Identity: "devtool"}, "claude-1234")
 	if _, err := loadSession(dir, sid); err == nil || !strings.Contains(err.Error(), "there is no session") {
 		t.Errorf("the replaced client's ended file must be gone: %v", err)
 	}

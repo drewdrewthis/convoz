@@ -13,13 +13,18 @@ const TABS = ["Sessions", "Handoffs"] as const;
 
 /** AgentProfile is /crew/<handle>: who the agent is, what waits on the owner, the shared conversations, its sessions and notes. */
 export function AgentProfile() {
-  const { fail } = useNotice();
-  const handle = decodeURIComponent(location.pathname.split("/")[2] ?? "");
+  const { say, fail } = useNotice();
+  const asked = decodeURIComponent(location.pathname.split("/")[2] ?? "");
   const everyone = useData((s) => s.identities);
   const conversations = useData((s) => s.conversations);
   const statuses = useCrew((s) => s.statuses);
   const [tab, setTab] = useState<(typeof TABS)[number]>("Sessions");
   const [confirming, setConfirming] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [newHandle, setNewHandle] = useState("");
+  // A link may name a handle the agent had before (I-51): it still finds the agent, shown under its handle now.
+  const who = everyone?.find((p) => p.kind === "agent" && (p.handle === asked || (p.previous_handles ?? []).includes(asked)));
+  const handle = who?.handle ?? asked;
   const everySession = useLoaded<Session[]>(useCallback(async () => (await call(client.GET("/api/sessions"))).sessions.filter((s) => s.identity === handle), [handle]));
 
   const reload = useCallback(async () => {
@@ -32,7 +37,6 @@ export function AgentProfile() {
 
   if (!everyone || !statuses) return <div className="crew" aria-busy="true" />;
   setRegistry(everyone);
-  const who = everyone.find((p) => p.kind === "agent" && p.handle === handle);
   if (!who) return <p className="empty">That agent is not on Crew.</p>;
   const status = statuses[handle];
   const shown = who.disabled ? "offline" : shownState(who.online, status?.state);
@@ -46,6 +50,7 @@ export function AgentProfile() {
         <div className="ptxt">
           <h2>{nameOf(who)}</h2>
           <p className="pstate">{who.disabled ? "Disabled" : LOOK[shown].label}</p>
+          {who.previous_handles?.length ? <p className="muted">{`Was @${who.previous_handles.join(", @")}`}</p> : null}
           {who.description ? <p className="muted">{who.description}</p> : null}
           {!who.disabled && status?.doing ? <p>{`Doing: ${status.doing}`}</p> : null}
           {!who.disabled && status?.next ? <p>{`Next: ${status.next}`}</p> : null}
@@ -102,12 +107,48 @@ export function AgentProfile() {
         <h3>Details</h3>
         <div className="keyrow">
           <span>{who.disabled ? "Key revoked" : `Created ${fmtDate(who.created_at)} · last used ${lastUsed(everySession)}`}</span>
-          {who.disabled || confirming ? null : (
-            <button type="button" className="btn small danger" onClick={() => setConfirming(true)}>
-              Revoke key
-            </button>
+          {who.disabled || confirming || renaming ? null : (
+            <>
+              <button type="button" className="btn small" onClick={() => setRenaming(true)}>
+                Change handle
+              </button>
+              <button type="button" className="btn small danger" onClick={() => setConfirming(true)}>
+                Revoke key
+              </button>
+            </>
           )}
         </div>
+        {renaming && !who.disabled ? (
+          <form
+            role="group"
+            aria-label="Change handle"
+            className="revoke"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const next = newHandle.trim().toLowerCase().replace(/^@/, "");
+              void call(client.POST("/api/identities/{id}/handle", { params: { path: { id: who.id } }, body: { handle: next } }))
+                .then(async (r) => {
+                  say(`@${r.identity.previous_handle} is now @${r.identity.handle}`);
+                  history.replaceState(null, "", `/crew/${encodeURIComponent(r.identity.handle)}`);
+                  setRenaming(false);
+                  setNewHandle("");
+                  await reload();
+                })
+                .catch((err) => fail(humanError(err)));
+            }}
+          >
+            <input aria-label="New handle" value={newHandle} autoCapitalize="off" autoCorrect="off" spellCheck={false} onChange={(e) => setNewHandle(e.target.value)} />
+            <span>{`The old handle is never used again. Mentions of it still reach @${handle}. A handle changes once in 30 days.`}</span>
+            <div className="btns">
+              <button type="submit" className="btn primary">
+                Save
+              </button>
+              <button type="button" className="btn quiet" onClick={() => setRenaming(false)}>
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : null}
         {confirming && !who.disabled ? (
           <div role="group" aria-label="Revoke key" className="revoke">
             <span>{`Revoke the key for @${handle}? It disconnects right away and cannot be undone. Its handle is never used again, and its messages stay.`}</span>

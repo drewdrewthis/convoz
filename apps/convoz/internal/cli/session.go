@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
@@ -28,12 +29,28 @@ var sidRE = regexp.MustCompile(`^[0-9a-f]{6,32}$`)
 // `convoz session end` does not remove the file: it drops the lease and keeps Ended, the reason in words. A command
 // that got the sid before the end but opens the file after it (a watch started a moment earlier) then says the
 // session ended, as it would had it reached the server first, instead of claiming there never was a session.
+//
+// An agent's handle can change (I-51), so the file keys on IdentityID and keeps As, the handle the caller started it with: `--as old`
+// still finds it, and Identity is rewritten to the handle the server says the agent has now.
 type sessionFile struct {
-	Lease    string `json:"lease,omitempty"`
-	Identity string `json:"identity"`
-	Machine  string `json:"machine"`
-	ClientID string `json:"client_id"`
-	Ended    string `json:"ended,omitempty"`
+	Lease      string `json:"lease,omitempty"`
+	Identity   string `json:"identity"`
+	IdentityID int64  `json:"identity_id,omitempty"`
+	As         string `json:"as,omitempty"`
+	Machine    string `json:"machine"`
+	ClientID   string `json:"client_id"`
+	Ended      string `json:"ended,omitempty"`
+}
+
+// names reports whether the session is the one a caller means by --as: the handle it has, or the one it was started with.
+func (s sessionFile) names(as string) bool { return s.Identity == as || s.As != "" && s.As == as }
+
+// sameAgent reports whether two session files are of one agent: by id when both know it, else by handle.
+func (s sessionFile) sameAgent(o sessionFile) bool {
+	if s.IdentityID != 0 && o.IdentityID != 0 {
+		return s.IdentityID == o.IdentityID
+	}
+	return s.Identity == o.Identity
 }
 
 // endedHere is the reason kept when `convoz session end` itself ended the lease (the server's words for a logout).
@@ -98,7 +115,7 @@ func markSessionEnded(dir, sid, reason string) error {
 	if err != nil {
 		return err
 	}
-	raw, err := json.Marshal(sessionFile{Identity: s.Identity, Machine: s.Machine, ClientID: s.ClientID, Ended: reason})
+	raw, err := json.Marshal(sessionFile{Identity: s.Identity, IdentityID: s.IdentityID, As: s.As, Machine: s.Machine, ClientID: s.ClientID, Ended: reason})
 	if err != nil {
 		return err
 	}
@@ -130,14 +147,14 @@ func saveSession(dir string, s sessionFile) (string, error) {
 	}
 }
 
-// forgetSessions removes the session files of one client id and identity: a re-mint replaced their leases.
-func forgetSessions(dir, identity, clientID string) {
+// forgetSessions removes the session files of one client id and agent: a re-mint replaced their leases.
+func forgetSessions(dir string, agent sessionFile, clientID string) {
 	entries, err := os.ReadDir(filepath.Join(dir, sessionsDir))
 	if err != nil {
 		return
 	}
 	for _, e := range entries {
-		if s, err := loadSession(dir, e.Name()); (err == nil || isEnded(err)) && s.Identity == identity && s.ClientID == clientID {
+		if s, err := loadSession(dir, e.Name()); (err == nil || isEnded(err)) && s.sameAgent(agent) && s.ClientID == clientID {
 			path, _ := sessionPath(dir, e.Name())
 			_ = os.Remove(path)
 		}
@@ -193,7 +210,7 @@ func SessionStart(args []string, io IO) int {
 	if err != nil {
 		return fail(io, err)
 	}
-	sid, err := startSession(io, dir, newClient(creds.Server), creds, *as, *clientID, *label, intro)
+	sid, err := startSession(io, dir, newClient(creds.Server), creds, strings.ToLower(*as), *clientID, *label, intro)
 	if err != nil {
 		return fail(io, err)
 	}
@@ -222,8 +239,12 @@ func startSession(io IO, dir string, c *client, creds Credentials, as, clientID,
 			return "", describeIdentityRefusal(err, as)
 		}
 		if out.Request == nil {
-			forgetSessions(dir, out.Session.Identity, clientID)
-			return saveSession(dir, sessionFile{Lease: out.Lease, Identity: out.Session.Identity, Machine: out.Session.Machine, ClientID: clientID})
+			if out.Renamed != nil {
+				warnRenamed(io, *out.Renamed)
+			}
+			file := sessionFile{Lease: out.Lease, Identity: out.Session.Identity, IdentityID: out.Session.IdentityID, As: as, Machine: out.Session.Machine, ClientID: clientID}
+			forgetSessions(dir, file, clientID)
+			return saveSession(dir, file)
 		}
 		req.Create.Request = out.Request.Ref
 		if !announced {
@@ -238,6 +259,19 @@ func startSession(io IO, dir string, c *client, creds Credentials, as, clientID,
 		}
 		time.Sleep(wait)
 	}
+}
+
+// warnRenamed tells a caller that used an old handle what the agent is called now, and until when the old one works (I-51).
+func warnRenamed(io IO, r wire.Renamed) {
+	if io.Stderr == nil {
+		return
+	}
+	fmt.Fprintf(io.Stderr, "convoz: @%s is now @%s. Use --as %s: @%s stops working on %s.\n", r.From, r.To, r.To, r.From, time.UnixMilli(r.Until).UTC().Format("2006-01-02"))
+}
+
+// renamedError refuses an old handle after its grace, the way the server does (403 handle_renamed): the words name the new one.
+func renamedError(from, to string) error {
+	return &statusError{status: http.StatusForbidden, code: wire.CodeHandleRenamed, msg: fmt.Sprintf("@%s is now @%s. Use --as %s.", from, to, to)}
 }
 
 // errAwaitingOwner marks the wait that ran out; it exits like an auth failure (3): nothing is wrong, but nothing may go on.

@@ -65,7 +65,16 @@ func MintSession(ctx context.Context, d pdb.DBTX, p Ports, in MintRequest, now t
 			return MintedSession{}, ErrIdentityExpired
 		}
 	}
-	who, filed, err := sessionIdentity(ctx, d, p, machine, in, now)
+	who, renamed, err := renamedIdentity(ctx, d, p, in.As, now)
+	if err != nil {
+		return MintedSession{}, err
+	}
+	var filed *IdentityFiled
+	if renamed == nil {
+		who, filed, err = sessionIdentity(ctx, d, p, machine, in, now)
+	} else if !machine.Allow.Covers(who.ID, who.Handle) {
+		err = ForbiddenError("This machine may not act as that identity.")
+	}
 	if err != nil {
 		return MintedSession{}, err
 	}
@@ -76,12 +85,29 @@ func MintSession(ctx context.Context, d pdb.DBTX, p Ports, in MintRequest, now t
 	if err != nil {
 		return MintedSession{}, err
 	}
-	minted.Handle = who.Handle
+	minted.Handle, minted.Renamed = who.Handle, renamed
 	if err := p.Journal.Audit(ctx, d, now, AuditEntry{Actor: who.ID, Machine: machine.ID, Session: minted.ID, Action: "session.started", TargetKind: "session", TargetID: minted.ID}); err != nil {
 		return MintedSession{}, err
 	}
 	err = p.Journal.Event(ctx, d, now, "session.started.v1", map[string]any{"session_id": minted.ID, "machine_id": machine.ID, "identity_id": who.ID})
 	return minted, err
+}
+
+// renamedIdentity finds the agent when `as` is a handle it had before (I-51): within the grace it is that agent, with a warning for
+// the caller; after it, a refusal that names the new handle. renamed is nil when `as` is not a retired handle of an enabled agent.
+func renamedIdentity(ctx context.Context, d pdb.DBTX, p Ports, as string, now time.Time) (Agent, *Renamed, error) {
+	handle := strings.ToLower(as)
+	if _, found, err := p.Agents.Lookup(ctx, d, handle); err != nil || found {
+		return Agent{}, nil, err
+	}
+	who, until, found, err := p.Agents.Renamed(ctx, d, handle)
+	if err != nil || !found || who.Kind != "agent" || who.Disabled {
+		return Agent{}, nil, err
+	}
+	if now.UnixMilli() >= until {
+		return Agent{}, nil, &HandleRenamedError{From: handle, To: who.Handle}
+	}
+	return who, &Renamed{From: handle, To: who.Handle, Until: until}, nil
 }
 
 // sessionIdentity finds the agent a mint is for. A human, a disabled identity and a handle the machine may not use are forbidden.

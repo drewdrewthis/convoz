@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -26,7 +27,13 @@ type SystemLine struct {
 	History  string // member.added: since_now or full
 	Streak   int    // conversation.paused: LoopLimit
 	Title    string // conversation.renamed: the new title, quoted by the line (optional; at most MaxTitleRunes, no control characters)
+	// member.renamed: the handles before and after (I-51). Handles, not words: an agent's handles are never scrubbed, and a
+	// retired one is never reused, so the line stays true.
+	From, To string
 }
+
+// handleRE is a handle as the identities table allows it.
+var handleRE = regexp.MustCompile(`^[a-z][a-z0-9-]{1,39}$`)
 
 // ErrSystemLine means a system line that does not match system.v1.
 var ErrSystemLine = errors.New("not a system.v1 line")
@@ -62,6 +69,10 @@ func (l SystemLine) Valid() error {
 		if l.Streak != LoopLimit {
 			return bad()
 		}
+	case l.T == "member.renamed":
+		if l.Identity <= 0 || !handleRE.MatchString(l.From) || !handleRE.MatchString(l.To) || l.From == l.To {
+			return bad()
+		}
 	default:
 		return bad()
 	}
@@ -89,7 +100,9 @@ func (l SystemLine) JSON() (string, error) {
 		History  string `json:"history,omitempty"`
 		Streak   int    `json:"streak,omitempty"`
 		Title    string `json:"title,omitempty"`
-	}{1, l.T, l.Identity, l.By, l.Via, l.History, l.Streak, l.Title}
+		From     string `json:"from,omitempty"`
+		To       string `json:"to,omitempty"`
+	}{1, l.T, l.Identity, l.By, l.Via, l.History, l.Streak, l.Title, l.From, l.To}
 	raw, err := json.Marshal(doc)
 	return string(raw), err
 }
@@ -104,11 +117,13 @@ func ParseSystem(raw string) (SystemLine, bool) {
 		History  string `json:"history"`
 		Streak   int    `json:"streak"`
 		Title    string `json:"title"`
+		From     string `json:"from"`
+		To       string `json:"to"`
 	}
 	if json.Unmarshal([]byte(raw), &doc) != nil || doc.T == "" {
 		return SystemLine{}, false
 	}
-	return SystemLine{T: doc.T, Identity: doc.Identity, By: doc.By, Via: doc.Via, History: doc.History, Streak: doc.Streak, Title: doc.Title}, true
+	return SystemLine{T: doc.T, Identity: doc.Identity, By: doc.By, Via: doc.Via, History: doc.History, Streak: doc.Streak, Title: doc.Title, From: doc.From, To: doc.To}, true
 }
 
 // WriteSystem writes a system line in the transaction of the action that caused it (M-4). It is not a post: it moves no

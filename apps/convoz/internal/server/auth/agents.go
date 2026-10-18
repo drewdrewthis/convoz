@@ -41,6 +41,8 @@ type AgentPort interface {
 	CheckNew(ctx context.Context, d pdb.DBTX, handle, displayName string) error
 	// SetIntro stores the description and the cleaned SVG avatar an agent sent with its request.
 	SetIntro(ctx context.Context, d pdb.DBTX, id int64, description, avatarSVG string) error
+	// Renamed finds the identity that had handle before (I-51) and until when `as` with it still works (epoch ms).
+	Renamed(ctx context.Context, d pdb.DBTX, handle string) (a Agent, until int64, found bool, err error)
 }
 
 // ConversationPort is what an identity request needs from the conversation modules. The composition root implements it.
