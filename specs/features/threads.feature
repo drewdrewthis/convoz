@@ -187,3 +187,10 @@ Feature: Threads
       Then conversation 41 lists thread 900 and the toggle "Older · 1" under it
       And expanding "Older · 1" shows thread 901
 
+    @v1 @browser @I-14
+    Scenario: A long thread preview stays inside the row and keeps its unread count in view
+      Given a thread with a very long root text has 3 unread replies
+      When the owner opens the Conversations list at 320, 390 and 1280 px wide
+      Then every thread row ends inside its list and its unread count is in view
+      And the long preview ends with an ellipsis and the page does not scroll sideways
+
