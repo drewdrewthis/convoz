@@ -1,9 +1,44 @@
 package wire
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"slices"
+	"strings"
+	"unicode/utf8"
+)
 
 // Route of the ask API, as the CLI calls it.
 const RouteAsks = "/api/asks"
+
+// OwnersCallKinds are the reasons an ask may give for being the owner's call: a one-way door, a choice of taste or of values,
+// or scope the owner must own.
+var OwnersCallKinds = []string{"one-way", "taste", "values", "scope"}
+
+// MaxOwnersCallReason is the longest reason, in characters.
+const MaxOwnersCallReason = 280
+
+// DecideYourself is what the CLI, the MCP tool and the API tell an agent that sends an ask without saying why only the owner can
+// decide it. One text, so the three cannot disagree.
+const DecideYourself = "Decide this yourself: weigh the options and pick one, then tell the owner in a post. " +
+	"Send an ask only when it is the owner's call: a one-way door, a taste or values choice, or scope the owner must own. " +
+	"Then pass --owners-call <one-way|taste|values|scope> --owners-call-why '...'"
+
+// OwnersCall is why only the owner can decide an ask.
+type OwnersCall struct {
+	Kind   string `json:"kind"`
+	Reason string `json:"reason"`
+}
+
+// Problem says in words what is wrong with the owner's call, or "" when it is good.
+func (o OwnersCall) Problem() string {
+	switch {
+	case !slices.Contains(OwnersCallKinds, o.Kind) || strings.TrimSpace(o.Reason) == "":
+		return DecideYourself
+	case utf8.RuneCountInString(o.Reason) > MaxOwnersCallReason:
+		return "The reason it is the owner's call has at most 280 characters."
+	}
+	return ""
+}
 
 // AskOption is one answer an ask offers. The first of an ask is the recommended one.
 type AskOption struct {
@@ -43,6 +78,7 @@ type AskView struct {
 	Asker          Person           `json:"asker"`
 	Question       string           `json:"question"`
 	Urgent         bool             `json:"urgent"`
+	OwnersCall     *OwnersCall      `json:"owners_call,omitempty"` // absent on an ask from before the field
 	State          string           `json:"state"`
 	CloseReason    string           `json:"close_reason,omitempty"`
 	Options        []AskOption      `json:"options"`
@@ -73,6 +109,7 @@ type AskRequest struct {
 	Question       string             `json:"question"`
 	Recommended    AskOptionRequest   `json:"recommended"`
 	Alternatives   []AskOptionRequest `json:"alternatives"`
+	OwnersCall     OwnersCall         `json:"owners_call"`
 	Urgent         bool               `json:"urgent,omitempty"`
 	App            json.RawMessage    `json:"app,omitempty"` // the app.v1 an agent shows with the question
 }

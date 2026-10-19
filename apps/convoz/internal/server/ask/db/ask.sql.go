@@ -97,30 +97,32 @@ func (q *Queries) AnsweredSince(ctx context.Context, since sql.NullInt64) ([]int
 }
 
 const askByID = `-- name: AskByID :one
-SELECT message_id, conversation_id, asker_id, question, urgent, scrubbed_at, state, close_reason, chosen_kind, chosen_index, chosen_text,
+SELECT message_id, conversation_id, asker_id, question, urgent, owners_call_kind, owners_call_reason, scrubbed_at, state, close_reason, chosen_kind, chosen_index, chosen_text,
        answer_via, resolved_by, resolved_at, acked_at, version, created_at, updated_at
 FROM asks WHERE message_id = ?1
 `
 
 type AskByIDRow struct {
-	MessageID      int64
-	ConversationID int64
-	AskerID        int64
-	Question       string
-	Urgent         int64
-	ScrubbedAt     sql.NullInt64
-	State          string
-	CloseReason    sql.NullString
-	ChosenKind     sql.NullString
-	ChosenIndex    sql.NullInt64
-	ChosenText     sql.NullString
-	AnswerVia      sql.NullString
-	ResolvedBy     sql.NullInt64
-	ResolvedAt     sql.NullInt64
-	AckedAt        sql.NullInt64
-	Version        int64
-	CreatedAt      int64
-	UpdatedAt      int64
+	MessageID        int64
+	ConversationID   int64
+	AskerID          int64
+	Question         string
+	Urgent           int64
+	OwnersCallKind   sql.NullString
+	OwnersCallReason sql.NullString
+	ScrubbedAt       sql.NullInt64
+	State            string
+	CloseReason      sql.NullString
+	ChosenKind       sql.NullString
+	ChosenIndex      sql.NullInt64
+	ChosenText       sql.NullString
+	AnswerVia        sql.NullString
+	ResolvedBy       sql.NullInt64
+	ResolvedAt       sql.NullInt64
+	AckedAt          sql.NullInt64
+	Version          int64
+	CreatedAt        int64
+	UpdatedAt        int64
 }
 
 func (q *Queries) AskByID(ctx context.Context, messageID int64) (AskByIDRow, error) {
@@ -132,6 +134,8 @@ func (q *Queries) AskByID(ctx context.Context, messageID int64) (AskByIDRow, err
 		&i.AskerID,
 		&i.Question,
 		&i.Urgent,
+		&i.OwnersCallKind,
+		&i.OwnersCallReason,
 		&i.ScrubbedAt,
 		&i.State,
 		&i.CloseReason,
@@ -150,30 +154,32 @@ func (q *Queries) AskByID(ctx context.Context, messageID int64) (AskByIDRow, err
 }
 
 const asksByIDs = `-- name: AsksByIDs :many
-SELECT message_id, conversation_id, asker_id, question, urgent, scrubbed_at, state, close_reason, chosen_kind, chosen_index, chosen_text,
+SELECT message_id, conversation_id, asker_id, question, urgent, owners_call_kind, owners_call_reason, scrubbed_at, state, close_reason, chosen_kind, chosen_index, chosen_text,
        answer_via, resolved_by, resolved_at, acked_at, version, created_at, updated_at
 FROM asks WHERE message_id IN (/*SLICE:ids*/?)
 `
 
 type AsksByIDsRow struct {
-	MessageID      int64
-	ConversationID int64
-	AskerID        int64
-	Question       string
-	Urgent         int64
-	ScrubbedAt     sql.NullInt64
-	State          string
-	CloseReason    sql.NullString
-	ChosenKind     sql.NullString
-	ChosenIndex    sql.NullInt64
-	ChosenText     sql.NullString
-	AnswerVia      sql.NullString
-	ResolvedBy     sql.NullInt64
-	ResolvedAt     sql.NullInt64
-	AckedAt        sql.NullInt64
-	Version        int64
-	CreatedAt      int64
-	UpdatedAt      int64
+	MessageID        int64
+	ConversationID   int64
+	AskerID          int64
+	Question         string
+	Urgent           int64
+	OwnersCallKind   sql.NullString
+	OwnersCallReason sql.NullString
+	ScrubbedAt       sql.NullInt64
+	State            string
+	CloseReason      sql.NullString
+	ChosenKind       sql.NullString
+	ChosenIndex      sql.NullInt64
+	ChosenText       sql.NullString
+	AnswerVia        sql.NullString
+	ResolvedBy       sql.NullInt64
+	ResolvedAt       sql.NullInt64
+	AckedAt          sql.NullInt64
+	Version          int64
+	CreatedAt        int64
+	UpdatedAt        int64
 }
 
 func (q *Queries) AsksByIDs(ctx context.Context, ids []int64) ([]AsksByIDsRow, error) {
@@ -201,6 +207,8 @@ func (q *Queries) AsksByIDs(ctx context.Context, ids []int64) ([]AsksByIDsRow, e
 			&i.AskerID,
 			&i.Question,
 			&i.Urgent,
+			&i.OwnersCallKind,
+			&i.OwnersCallReason,
 			&i.ScrubbedAt,
 			&i.State,
 			&i.CloseReason,
@@ -407,18 +415,20 @@ func (q *Queries) HistoryOf(ctx context.Context, ids []int64) ([]AskTransition, 
 }
 
 const insertAsk = `-- name: InsertAsk :exec
-INSERT INTO asks (message_id, conversation_id, asker_id, asked_by_session, question, urgent, state, version, created_at, updated_at)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'open', 1, ?7, ?7)
+INSERT INTO asks (message_id, conversation_id, asker_id, asked_by_session, question, urgent, owners_call_kind, owners_call_reason, state, version, created_at, updated_at)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'open', 1, ?9, ?9)
 `
 
 type InsertAskParams struct {
-	MessageID      int64
-	ConversationID int64
-	AskerID        int64
-	AskedBySession sql.NullInt64
-	Question       string
-	Urgent         int64
-	Now            int64
+	MessageID        int64
+	ConversationID   int64
+	AskerID          int64
+	AskedBySession   sql.NullInt64
+	Question         string
+	Urgent           int64
+	OwnersCallKind   sql.NullString
+	OwnersCallReason sql.NullString
+	Now              int64
 }
 
 func (q *Queries) InsertAsk(ctx context.Context, arg InsertAskParams) error {
@@ -429,6 +439,8 @@ func (q *Queries) InsertAsk(ctx context.Context, arg InsertAskParams) error {
 		arg.AskedBySession,
 		arg.Question,
 		arg.Urgent,
+		arg.OwnersCallKind,
+		arg.OwnersCallReason,
 		arg.Now,
 	)
 	return err
@@ -680,7 +692,7 @@ func (q *Queries) OptionsOf(ctx context.Context, ids []int64) ([]AskOption, erro
 }
 
 const scrubAsk = `-- name: ScrubAsk :exec
-UPDATE asks SET scrubbed_at = CAST(?1 AS INTEGER), question = '', chosen_text = CASE WHEN chosen_text IS NULL THEN NULL ELSE '' END
+UPDATE asks SET scrubbed_at = CAST(?1 AS INTEGER), question = '', owners_call_reason = CASE WHEN owners_call_reason IS NULL THEN NULL ELSE '' END, chosen_text = CASE WHEN chosen_text IS NULL THEN NULL ELSE '' END
 WHERE message_id = ?2 AND scrubbed_at IS NULL
 `
 

@@ -1336,7 +1336,8 @@ export interface paths {
         /**
          * An agent asks a question with a recommendation and alternatives. The same client_id again answers 200 with the same ask.
          * @description Needs a lease with the `ask` scope; a person gets 403. 400 names the field (`question`, `recommended`, `alternatives`,
-         *     `why`, `label`). 429 `ask_cap` at 20 open asks of one identity, 429 `conversation_paused` while the loop breaker holds.
+         *     `why`, `label`, `owners_call`). An ask without `owners_call` is 400 with the words "Decide this yourself": an ask is for a one-way door, a
+         *     taste or values choice, or scope the owner must own. 429 `ask_cap` at 20 open asks of one identity, 429 `conversation_paused` while the loop breaker holds.
          */
         post: operations["postAsk"];
         delete?: never;
@@ -2982,6 +2983,15 @@ export interface components {
             index?: number;
             text?: string;
         };
+        /** @description Why only the owner can decide an ask. The card shows it under the question. */
+        OwnersCall: {
+            /**
+             * @description A one-way door, a choice of taste or values, or scope the owner must own.
+             * @enum {string}
+             */
+            kind: "one-way" | "taste" | "values" | "scope";
+            reason: string;
+        };
         /** @description One row of the ask's history (C-6). Append-only; ids and enums only. A row without `by` was made by the system. */
         AskHistoryRow: {
             version: number;
@@ -3012,6 +3022,8 @@ export interface components {
             /** @description Empty after a purge. */
             question: string;
             urgent: boolean;
+            /** @description Absent on an ask from before the field */
+            owners_call?: components["schemas"]["OwnersCall"];
             /** @enum {string} */
             state: "open" | "answered" | "dismissed" | "closed";
             /** @enum {string} */
@@ -3054,6 +3066,7 @@ export interface components {
             question: string;
             recommended: components["schemas"]["AskOption"];
             alternatives: components["schemas"]["AskOption"][];
+            owners_call: components["schemas"]["OwnersCall"];
             urgent?: boolean;
             /** @description An app shown with the question (a chart, a table, a diff). It helps the owner decide and never answers: no picker, form or select checklist (400 app_type_not_allowed_on_ask). */
             app?: components["schemas"]["App"];

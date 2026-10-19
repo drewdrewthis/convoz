@@ -103,3 +103,42 @@ func TestAckRefs(t *testing.T) {
 		}
 	}
 }
+
+func TestAskWithoutAnOwnersCallIsRefusedOnBothStreamsWithExit2(t *testing.T) {
+	base := []string{"--question", "Ship it?", "--recommend", "Yes", "--why", "Green", "--alt", "No", "--alt-why", "Wait", "41"}
+	for name, extra := range map[string][]string{
+		"neither":        nil,
+		"a kind alone":   {"--owners-call", "taste"},
+		"a reason alone": {"--owners-call-why", "Your voice"},
+		"unknown kind":   {"--owners-call", "whim", "--owners-call-why", "Your voice"},
+	} {
+		var stdout, stderr bytes.Buffer
+		io := IO{Stdin: strings.NewReader(""), Stdout: &stdout, Stderr: &stderr, Getenv: func(string) string { return "" }}
+		if code := Ask(append(extra, base...), io); code != ExitUsage {
+			t.Errorf("%s: exit %d, want %d", name, code, ExitUsage)
+		}
+		for stream, got := range map[string]string{"stdout": stdout.String(), "stderr": stderr.String()} {
+			if !strings.Contains(got, wire.DecideYourself) {
+				t.Errorf("%s: %s = %q, want the decide-yourself text", name, stream, got)
+			}
+		}
+	}
+}
+
+func TestAskHelpNamesTheOwnersCallFlagsAndTheOverviewStaysUnder80Columns(t *testing.T) {
+	ask, _ := Lookup("ask")
+	help := helpBody(ask)
+	for _, want := range []string{"-owners-call ", "-owners-call-why "} {
+		if !strings.Contains(help, want) {
+			t.Errorf("convoz ask --help lacks %s:\n%s", want, help)
+		}
+	}
+	if !strings.Contains(overviewText, "--owners-call KIND --owners-call-why TEXT") {
+		t.Error("the overview does not tell an agent how to say why it is the owner's call")
+	}
+	for _, line := range strings.Split(overviewText, "\n") {
+		if len(line) >= 80 {
+			t.Errorf("overview line of %d columns: %q", len(line), line)
+		}
+	}
+}

@@ -19,6 +19,8 @@
   .askcard.dismissed, .askcard.closed { background: var(--color-surface); }
   .askq { margin: 0; padding: 12px 0 3px; font-size: 17px; font-weight: 600; line-height: 22px; overflow-wrap: anywhere; }
   .askmeta { display: flex; align-items: center; gap: 0 8px; font-size: 13px; line-height: 20px; color: var(--color-muted); }
+  .askcall { margin: 0 0 2px; font-size: 13px; line-height: 18px; color: var(--color-muted); overflow-wrap: anywhere; }
+  .askcard.now .askcall { padding-right: 26px; }
   .askmeta-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .askurgent { flex: none; font-weight: 600; color: var(--color-danger); }
   /* In Now the text keeps clear of the right edge, where the prototype draws its expand arrow, so the lines break where the prototype's do. */

@@ -18,6 +18,8 @@ export interface AskHistoryItem {
 export interface AskData {
   question: string;
   urgent: boolean;
+  /** Why only the owner can decide. Absent on an ask from before the field. */
+  owners_call?: { kind: string; reason: string };
   state: string;
   close_reason?: string;
   options: { label: string; why: string }[];
@@ -185,6 +187,7 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
       <h3 id={labelId} className="askq">
         {ask.question}
       </h3>
+      {ask.owners_call ? <p className="askcall">{`Your call · ${ask.owners_call.kind}: ${ask.owners_call.reason}`}</p> : null}
       {where === "now" ? (
         <div className="askmeta">
           {urgent ? <span className="askurgent">Urgent</span> : null}

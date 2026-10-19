@@ -19,7 +19,8 @@ type New struct {
 	Recommended                              Option
 	Alternatives                             []Option
 	Urgent                                   bool
-	App                                      []byte // the checked app shown with the question (compact JSON); nil for none
+	OwnersCall                               OwnersCall // checked by the caller (wire.OwnersCall.Problem); the table refuses an unknown kind
+	App                                      []byte     // the checked app shown with the question (compact JSON); nil for none
 }
 
 // Check refuses an ask that is not complete or is too long, naming the field (I-11, AC-13).
@@ -83,6 +84,7 @@ func Create(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, n New) (a A
 	if err := q.InsertAsk(ctx, db.InsertAskParams{
 		MessageID: id, ConversationID: n.Conversation, AskerID: n.Asker, AskedBySession: sql.NullInt64{Int64: n.Session, Valid: n.Session != 0},
 		Question: n.Question, Urgent: boolInt(n.Urgent), Now: at,
+		OwnersCallKind: sql.NullString{String: n.OwnersCall.Kind, Valid: true}, OwnersCallReason: sql.NullString{String: n.OwnersCall.Reason, Valid: true},
 	}); err != nil {
 		return Ask{}, false, err
 	}

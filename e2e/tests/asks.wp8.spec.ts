@@ -1,5 +1,6 @@
 import { convoz, createConversation, inboxItems, messagesOf, ownerSays, unreadOf } from "../lib/chat.ts";
 import {
+  DECIDE_YOURSELF,
   QUESTION,
   agentAsks,
   answerAsk,
@@ -8,6 +9,7 @@ import {
   askCard,
   askOf,
   askWorld,
+  callLine,
   expectState,
   markAsk,
   nowOf,
@@ -22,12 +24,12 @@ import { bearer, revokeAgentKey, lease as mintLease, plainDb } from "../lib/mach
 import { must } from "../lib/owner.ts";
 import { expect, scenario } from "../lib/scenario.ts";
 import { agentDeletes, agentEdits, ownerDeletes, pageOf } from "../lib/messages-wp4.ts";
-import { browserWorld, idsOf, machineWith, ownerRemoves } from "../lib/wp3.ts";
+import { browserWorld, idsOf, machineWith, ownerRemoves, seedDb } from "../lib/wp3.ts";
 
 /*
  * ASKS (WP8): the bindings of specs/features/asks.feature and specs/contracts/asks.feature. The routes, bodies and answers are the
  * contract block at the top of lib/asks.ts (packages/contracts/paths/ask.yaml). The first option of an ask is the recommended one.
- * An agent asks with `convoz ask <conv> --question Q --recommend L --why W --alt L --alt-why W [--urgent] [--thread ROOT]`.
+ * An agent asks with `convoz ask <conv> --question Q --recommend L --why W --alt L --alt-why W --owners-call KIND --owners-call-why W [--urgent] [--thread ROOT]`.
  * The ask card of Now is an article named by the question; the card of a conversation is the same component.
  */
 
@@ -39,9 +41,10 @@ scenario("A complete ask opens", { tag: ["@cli"] }, async ({ server }) => {
   // Given "devtool" and "docs" are active participants of conversation 41 "Ship search filters"
   const { w, conv, devtool } = await askWorld(server);
 
-  // When "devtool" runs "convoz ask 41 --question 'Merge #415 on its own?' --recommend 'Merge it' --why 'All 11 checks pass' --alt 'Hold it' --alt-why 'Wait for #412'"
+  // When "devtool" runs "convoz ask 41 --question 'Merge #415 on its own?' --recommend 'Merge it' --why 'All 11 checks pass' --alt 'Hold it' --alt-why 'Wait for #412' --owners-call taste --owners-call-why 'Both names read fine; it is your voice'"
   const ran = await convoz(w.box, devtool.sid, [
     "ask", String(conv), "--question", QUESTION, "--recommend", "Merge it", "--why", "All 11 checks pass", "--alt", "Hold it", "--alt-why", "Wait for #412",
+    "--owners-call", "taste", "--owners-call-why", "Both names read fine; it is your voice",
   ]);
   expect({ code: ran.code, stderr: ran.stderr }).toEqual({ code: 0, stderr: "" });
 
@@ -57,6 +60,84 @@ scenario("A complete ask opens", { tag: ["@cli"] }, async ({ server }) => {
     ["Merge it", "All 11 checks pass"],
     ["Hold it", "Wait for #412"],
   ]);
+});
+
+scenario("An ask without a reason it is the owner's call is refused and tells the agent to decide", { tag: ["@cli"] }, async ({ server }) => {
+  // Given "devtool" and "docs" are active participants of conversation 41 "Ship search filters"
+  const { w, conv, devtool } = await askWorld(server);
+  const base = ["ask", String(conv), "--question", QUESTION, "--recommend", "Merge it", "--why", "All 11 checks pass", "--alt", "Hold it", "--alt-why", "Wait for #412"];
+  const tries: [string, string[]][] = [
+    ["no owner's call at all", []],
+    ["a kind and no reason", ["--owners-call", "taste"]],
+    ["a reason and no kind", ["--owners-call-why", "Both names read fine"]],
+    ["a kind that is not one of the four", ["--owners-call", "whim", "--owners-call-why", "Both names read fine"]],
+  ];
+  for (const [what, extra] of tries) {
+    // When "devtool" runs "convoz ask 41 --question 'Merge #415 on its own?' --recommend 'Merge it' --why 'All 11 checks pass' --alt 'Hold it' --alt-why 'Wait for #412'" with <what>
+    const ran = await convoz(w.box, devtool.sid, [...base, ...extra]);
+
+    // Then the command exits 2 and tells "devtool" to decide this itself, on stdout and on stderr
+    expect({ what, code: ran.code }).toEqual({ what, code: 2 });
+    expect(ran.stdout, what).toContain(DECIDE_YOURSELF);
+    expect(ran.stderr, what).toContain(DECIDE_YOURSELF);
+  }
+
+  // And the owner sees no ask in Now
+  expect((await nowOf(w.owner)).asks).toEqual([]);
+});
+
+scenario("The ask card shows why it is the owner's call", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  // Given "devtool" asked in conversation 41 as a "taste" call because "Both names read fine; it is your voice"
+  const w = await browserWorld({ server, page, context }, { agents: ["devtool", "docs"], live: ["devtool"] });
+  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  const lease = w.sessions.devtool!.lease;
+  const taste = { kind: "taste", reason: "Both names read fine; it is your voice" } as const;
+  await agentAsks(w.srv, lease, conv, { ownersCall: taste });
+
+  // And "devtool" asked inside thread 900 as a "one-way" call because "A published name cannot be taken back"
+  const oneWay = { kind: "one-way", reason: "A published name cannot be taken back" } as const;
+  const root = await ownerSays(w.owner, conv, "Which name do we publish?");
+  await agentAsks(w.srv, lease, conv, { question: "Publish as convoz-cli?", thread: root, ownersCall: oneWay });
+
+  // When the owner opens Now
+  await openNow(page, w.srv);
+
+  // Then the card shows "Your call · taste: Both names read fine; it is your voice" under its question
+  const inNow = askCard(page);
+  await expect(inNow.getByText(callLine(taste), { exact: true })).toBeVisible();
+  const [q, line] = await Promise.all([inNow.getByRole("heading").boundingBox(), inNow.getByText(callLine(taste), { exact: true }).boundingBox()]);
+  expect(line!.y, "the line sits under the question").toBeGreaterThan(q!.y);
+  await expect(askCard(page, "Publish as convoz-cli?").getByText(callLine(oneWay), { exact: true })).toBeVisible();
+
+  // And conversation 41 shows the same line on its card
+  await page.goto(`${w.srv.origin}/chats/${conv}`);
+  await expect(askCard(page).getByText(callLine(taste), { exact: true })).toBeVisible();
+
+  // And thread 900 shows its line on the card
+  await page.goto(`${w.srv.origin}/chats/${conv}#reply=${root}`);
+  await expect(page.getByText(callLine(oneWay), { exact: true }).last()).toBeVisible();
+
+  // And the line fits the screen without a sideways scroll
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: `/tmp/askgate-card-${info.project.name}.png` });
+});
+
+scenario("An ask from before this rule shows no owner's call line", { tag: ["@browser"] }, async ({ server, page, context, dataDir }, info) => {
+  info.setTimeout(90_000);
+  // Given an open ask of "devtool" that has no reason it is the owner's call
+  const w = await browserWorld({ server, page, context }, { agents: ["devtool", "docs"], live: ["devtool"], plaintext: true });
+  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  const id = await agentAsks(w.srv, w.sessions.devtool!.lease, conv);
+  seedDb(dataDir, (db) => db.prepare("UPDATE asks SET owners_call_kind = NULL, owners_call_reason = NULL WHERE message_id = ?").run(id));
+
+  // When the owner opens Now
+  await openNow(page, w.srv);
+
+  // Then the card shows no "Your call" line
+  await expect(askCard(page).getByRole("heading", { name: QUESTION })).toBeVisible();
+  await expect(askCard(page).getByText(/Your call/)).toHaveCount(0);
+  expect((await askOf(w.owner, id)).owners_call).toBeUndefined();
 });
 
 scenario("The answer is posted where the ask was asked", { tag: ["@browser"] }, async ({ server, page, context, dataDir, testApi }, info) => {
@@ -377,6 +458,8 @@ scenario("Only an open ask can be snoozed", { tag: ["@browser"] }, async ({ serv
   await expect(page.getByRole("menuitem", { name: "Snooze" })).toHaveCount(0);
 });
 
+const withoutOwnersCall = ({ owners_call: _gone, ...rest }: Record<string, unknown>): Record<string, unknown> => rest;
+
 // ---- contracts/asks.feature -----------------------------------------------------------------------------------
 
 scenario("An incomplete or oversized ask is refused", { tag: ["@api"] }, async ({ server }) => {
@@ -390,6 +473,10 @@ scenario("An incomplete or oversized ask is refused", { tag: ["@api"] }, async (
     ["a reason of 281 characters", { ...valid, recommended: { label: "Merge it", why: long(281) } }, "why"],
     ["5 alternatives", { ...valid, alternatives: [1, 2, 3, 4, 5].map((i) => ({ label: `Option ${i}`, why: "because" })) }, "alternatives"],
     ["a question of 501 characters", { ...valid, question: long(501) }, "question"],
+    ["no owners_call", withoutOwnersCall(valid), "owners_call"],
+    ['an owners_call kind of "whim"', { ...valid, owners_call: { kind: "whim", reason: "Both names read fine" } }, "owners_call"],
+    ["an owners_call reason of 0 characters", { ...valid, owners_call: { kind: "taste", reason: "" } }, "owners_call"],
+    ["an owners_call reason of 281 characters", { ...valid, owners_call: { kind: "taste", reason: long(281) } }, "owners_call"],
   ];
   for (const [problem, body, field] of rows) {
     // When "devtool" posts an ask with <problem>
@@ -401,6 +488,25 @@ scenario("An incomplete or oversized ask is refused", { tag: ["@api"] }, async (
     // And Now shows no new ask
     expect((await nowOf(w.owner)).asks, problem).toEqual([]);
   }
+});
+
+scenario("A refused ask tells the agent to decide and the stored ask keeps why it is the owner's call", { tag: ["@api"] }, async ({ server }) => {
+  // Given "devtool" and "docs" are active participants of conversation 41 "Ship search filters"
+  const { w, conv, devtool } = await askWorld(server);
+
+  // When "devtool" posts an ask without owners_call
+  const refused = await postAsk(w.srv, devtool.lease, askBody(conv, { ownersCall: null }));
+
+  // Then the server answers 400 naming "owners_call" with the words "Decide this yourself"
+  expect([refused.status, refused.json().error.field, refused.json().error.message]).toEqual([400, "owners_call", DECIDE_YOURSELF]);
+
+  // When "devtool" posts an ask with owners_call kind "scope" and reason "Which teams get the beta is yours to set"
+  const scope = { kind: "scope", reason: "Which teams get the beta is yours to set" } as const;
+  const id = await agentAsks(w.srv, devtool.lease, conv, { ownersCall: scope });
+
+  // Then the server answers 201 and the ask in Now and in GET shows owners_call kind "scope" and that reason
+  expect((await askOf(w.owner, id)).owners_call).toEqual(scope);
+  expect((await nowOf(w.owner)).asks.map((a) => a.owners_call)).toEqual([scope]);
 });
 
 scenario("Only an agent with the ask scope asks", { tag: ["@api"] }, async ({ server }) => {

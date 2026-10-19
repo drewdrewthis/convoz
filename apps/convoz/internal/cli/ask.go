@@ -14,12 +14,13 @@ type repeated []string
 func (r *repeated) String() string     { return strings.Join(*r, ", ") }
 func (r *repeated) Set(v string) error { *r = append(*r, v); return nil }
 
-// Ask runs `convoz ask --question Q --recommend L --why W --alt L --alt-why W [--alt ... --alt-why ...] [--urgent] [--thread ROOT]
-// [--client-id C] <conv>`: the agent asks the owner a question with a recommendation and up to 4 alternatives, each with its reason.
-// It prints the ask id. A lost answer is retried with the same client id, so the server opens the ask once. There is no command to
+// Ask runs `convoz ask --question Q --recommend L --why W --alt L --alt-why W [--alt ... --alt-why ...] --owners-call KIND
+// --owners-call-why W [--urgent] [--thread ROOT] [--client-id C] <conv>`: the agent asks the owner a question with a recommendation and
+// up to 4 alternatives, each with its reason, and says why only the owner can decide it. Without that the ask is refused with exit 2 and
+// the agent is told to decide it itself. It prints the ask id. A lost answer is retried with the same client id, so the server opens the ask once. There is no command to
 // answer an ask: a person answers it (design §8.1, C-3).
 func Ask(args []string, io IO) int {
-	usage := "usage: convoz ask --question Q --recommend L --why W --alt L --alt-why W [--alt L --alt-why W]... [--urgent] [--thread ROOT] [--app FILE] [--client-id C] <conv>"
+	usage := "usage: convoz ask --question Q --recommend L --why W --alt L --alt-why W [--alt L --alt-why W]... --owners-call KIND --owners-call-why W [--urgent] [--thread ROOT] [--app FILE] [--client-id C] <conv>"
 	f := newChatFlags("ask", io)
 	question := f.fs.String("question", "", "the question (at most 500 characters)")
 	recommend := f.fs.String("recommend", "", "the option you recommend")
@@ -27,6 +28,8 @@ func Ask(args []string, io IO) int {
 	var alts, altWhys repeated
 	f.fs.Var(&alts, "alt", "an alternative option (1 to 4 times)")
 	f.fs.Var(&altWhys, "alt-why", "why that alternative is on the table (once for each --alt, in order)")
+	callKind := f.fs.String("owners-call", "", "why only the owner can decide: one-way, taste, values or scope")
+	callWhy := f.fs.String("owners-call-why", "", "the reason it is the owner's call (1 to 280 characters)")
 	urgent := f.fs.Bool("urgent", false, "the owner is waiting on it")
 	thread := f.fs.Int64("thread", 0, "ask in the thread of this root message")
 	appOpt := newAppOpts(f, "a file holding an app (app.v1 JSON) to show with the question")
@@ -45,6 +48,10 @@ func Ask(args []string, io IO) int {
 	if !ok {
 		return ExitUsage
 	}
+	call := wire.OwnersCall{Kind: *callKind, Reason: *callWhy}
+	if problem := call.Problem(); problem != "" {
+		return refuse(io, problem)
+	}
 	switch {
 	case strings.TrimSpace(*question) == "" || strings.TrimSpace(*recommend) == "" || strings.TrimSpace(*why) == "":
 		return usageError(io, "an ask needs --question, --recommend and --why")
@@ -55,7 +62,7 @@ func Ask(args []string, io IO) int {
 		*clientID = "convoz-" + randomHex(8)
 	}
 	req := wire.AskRequest{
-		ConversationID: conv, ThreadRootID: *thread, ClientID: *clientID, Question: *question, Urgent: *urgent,
+		ConversationID: conv, ThreadRootID: *thread, ClientID: *clientID, Question: *question, Urgent: *urgent, OwnersCall: call,
 		Recommended: wire.AskOptionRequest{Label: *recommend, Why: *why},
 	}
 	for i, label := range alts {
@@ -89,6 +96,12 @@ func Ask(args []string, io IO) int {
 		fmt.Fprintln(k.io.Stdout, out.Ask.ID)
 	}
 	return ExitOK
+}
+
+// refuse tells the agent on stdout and on stderr, so a script that reads either one sees it, and exits with the usage code.
+func refuse(io IO, msg string) int {
+	fmt.Fprintln(io.Stdout, msg)
+	return usageError(io, msg)
 }
 
 // askWithdraw runs `convoz ask withdraw <id>`: the asker takes back its open ask.

@@ -44,6 +44,9 @@ const (
 // Option is one answer an ask offers. The first of an ask is the recommended one.
 type Option struct{ Label, Why string }
 
+// OwnersCall is why only the owner can decide an ask: a Kind (one-way, taste, values or scope) and a Reason.
+type OwnersCall struct{ Kind, Reason string }
+
 // Choice is what an answer was.
 type Choice struct {
 	Kind  string
@@ -65,6 +68,7 @@ type Ask struct {
 	ID, ConversationID, AskerID int64
 	Question                    string
 	Urgent                      bool
+	OwnersCall                  *OwnersCall // nil on an ask from before the field, and after a purge
 	Scrubbed                    bool
 	State, CloseReason          string
 	Options                     []Option
