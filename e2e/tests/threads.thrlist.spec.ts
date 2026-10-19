@@ -97,6 +97,47 @@ scenario("Threads with no reply since yesterday fold into Older under their conv
   await page.screenshot({ path: test_shot(page) });
 });
 
+scenario("A long thread preview stays inside the row and keeps its unread count in view", { tag: ["@browser", "@I-14"] }, async ({ server, page, context }) => {
+  const t = await threadWorld({ server, page, context }, { browser: true });
+
+  // Given a thread with a very long root text has 3 unread replies
+  const long = "Filters are done and behind a flag. Three things are left: the empty state, the saved views and the keyboard shortcuts for every chip in the bar";
+  const root = await agentSays(t.w.srv, t.dev, t.conv, long);
+  await ownerReplies({ ...t, root }, "Looking at it");
+  for (const body of ["First", "Second", "Third"]) await agentReplies({ ...t, root }, t.docs, body);
+
+  // When the owner opens the Conversations list at 320, 390 and 1280 px wide
+  for (const width of [320, 390, 1280]) {
+    await page.setViewportSize({ width, height: 800 });
+    await openRail(page, t.w.srv.origin);
+
+    // Then every thread row ends inside its list and its unread count is in view
+    const lists = width >= 1280 ? ["#chats", "nav.rail"] : ["#chats"];
+    for (const list of lists) {
+      const m = await page.locator(list).evaluate((el, w) => {
+        const edge = el.getBoundingClientRect().right;
+        const rows = [...el.querySelectorAll<HTMLElement>("li.thrrow, .thrrow")].filter((r) => r.textContent?.includes("Filters are done"));
+        const text = rows.map((r) => r.querySelector<HTMLElement>(".thrtext")!);
+        return {
+          rows: rows.length,
+          overshoot: Math.max(...rows.map((r) => r.getBoundingClientRect().right - edge)),
+          badgeOut: Math.max(...rows.map((r) => r.querySelector(".thrcount")!.getBoundingClientRect().right - w)),
+          clipped: text.every((e) => e.scrollWidth > e.clientWidth),
+          overflowX: document.documentElement.scrollWidth - w,
+        };
+      }, width);
+      expect(m.rows, `${list} rows at ${width}`).toBeGreaterThan(0);
+      expect(m.overshoot, `${list} row right edge at ${width}`).toBeLessThanOrEqual(0.5);
+      expect(m.badgeOut, `${list} badge at ${width}`).toBeLessThanOrEqual(0);
+
+      // And the long preview ends with an ellipsis and the page does not scroll sideways
+      expect(m.clipped, `${list} preview clipped at ${width}`).toBe(true);
+      expect(m.overflowX, `page sideways scroll at ${width}`).toBeLessThanOrEqual(0);
+    }
+    if (width === 390) await page.screenshot({ path: "/tmp/thrwrap-mobile.png" });
+  }
+});
+
 function test_shot(page: Page): string {
   return (page.viewportSize()?.width ?? 0) < 600 ? "/tmp/thrlist-mobile.png" : "/tmp/thrlist-chromium.png";
 }
