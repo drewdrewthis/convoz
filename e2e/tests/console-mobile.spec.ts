@@ -683,7 +683,7 @@ scenario("No page scrolls sideways on a phone", { tag: ["@browser", "@phone"] },
         // When the owner opens "<page>"
         await page.setViewportSize({ width, height: 844 });
         await page.goto(`${srv.origin}${path}`);
-        await page.waitForLoadState("networkidle");
+        await expect(page.getByRole("heading").first()).toBeVisible(); // signed-in pages hold a live stream open, so "networkidle" is a race
         if ((await overflowX(page)) > 0) wide.push(`${name} at ${width}px`);
       }
     }
