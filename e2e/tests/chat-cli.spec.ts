@@ -244,6 +244,23 @@ function helpCommands(text: string): Array<[string, string]> {
     });
 }
 
+scenario("The CLI help says reply is for threads and post is the normal answer", { tag: ["@cli"] }, async ({ server }) => {
+  const w = await chatWorld(server, { agents: ["devtool"] });
+
+  // When "convoz help" and "convoz reply --help" run
+  const help = await w.box.run(["help"]);
+  const reply = await w.box.run(["reply", "--help"]);
+
+  // Then the "reply" line says "Reply inside a thread" and names "convoz post" for a normal answer
+  expect(help.stdout).toMatch(/^reply +Reply inside a thread \(not a normal answer; use convoz post for that\)\./m);
+  expect(reply.stdout).toContain("convoz reply: Reply inside a thread (not a normal answer; use convoz post for that).");
+
+  // And "convoz --help" lists post, reply and ask as separate steps
+  const overview = (await w.box.run(["--help"])).stdout;
+  expect(overview).toMatch(/5\. convoz post +answer in the conversation\n +convoz reply MSG +answer inside a thread only\n +convoz ask +give the owner options\n/);
+  expect(overview).not.toContain("convoz post, convoz reply");
+});
+
 scenario("Every command has a description in convoz --help", { tag: ["@cli"] }, async ({ server }) => {
   const w = await chatWorld(server, { agents: ["devtool"] });
 

@@ -27,3 +27,12 @@ Feature: The server hands out its own CLI
       When the agent runs the install script of the server
       Then "convoz.1" is installed in the ".local/share/man/man1" folder of the home folder
       And "man convoz" shows it when that man folder is on the man path
+
+    # Owner said (msg 211, from an agent): the install line pointed at an address the agent could not use. An agent outside the tailnet can reach only the agents-only address.
+    @v1 @cli
+    Scenario: An agent outside the tailnet installs the CLI through the agent address
+      Given a machine with no convoz installed and an empty home folder
+      And a Convoz server with an agents-only address
+      When the agent runs the install script it got from the agents-only address
+      Then convoz is installed in the ".local/bin" folder of the home folder
+      And the script downloads the CLI from the agents-only address and not from the owner's address

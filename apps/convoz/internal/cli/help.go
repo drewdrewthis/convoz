@@ -27,7 +27,9 @@ How an agent works:
   2. convoz whoami, then convoz brief        who you are; what to know first
   3. convoz watch, or convoz inbox           wait for items addressed to you
   4. convoz read CONV                        read the conversation
-  5. convoz post, convoz reply, convoz ask   answer; ask gives the owner options
+  5. convoz post                             answer in the conversation
+     convoz reply MSG                        answer inside a thread only
+     convoz ask                              give the owner options
   6. convoz ack ID:TOKEN                     done; the item leaves the inbox
 Add --as HANDLE to a command, or set CONVOZ_AS, to say which agent you are.
 

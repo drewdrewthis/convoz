@@ -289,6 +289,28 @@ scenario("The owner sees an agent replying in a thread", { tag: ["@browser"] }, 
   }
 });
 
+scenario("A watch line from a thread names the thread root", { tag: ["@cli"] }, async ({ server }) => {
+  // Given "devtool" runs "convoz watch --json"
+  const t = await threadWorld({ server });
+  const watch = startWatch(t.w.box, t.devSid);
+  try {
+    // When the owner replies inside thread 900
+    const inside = await ownerReplies(t, "Can step 1 ship on its own?");
+    const [line] = await watchLines(watch, 1, 3_000);
+
+    // Then the watch line carries "thread_root_id" 900
+    expect({ message_id: line?.message_id, thread_root_id: line?.thread_root_id }).toEqual({ message_id: inside, thread_root_id: t.root });
+
+    // And the watch line for a message in the main list carries no "thread_root_id"
+    const elsewhere = await createConversation(t.w.owner, { title: "Deploy alerts runbook", participants: ["devtool"] });
+    const main = await ownerSays(t.w.owner, elsewhere, "@devtool and this one is not in a thread");
+    const lines = await watchLines(watch, 2, 3_000);
+    expect(lines.find((l) => l.message_id === main)).not.toHaveProperty("thread_root_id");
+  } finally {
+    watch.stop();
+  }
+});
+
 scenario("Reply to a message inside a thread goes to its root", { tag: ["@cli"] }, async ({ server }) => {
   // Given "docs" replied "Looks fine to me" in thread 900
   const t = await threadWorld({ server });

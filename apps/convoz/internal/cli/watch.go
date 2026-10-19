@@ -94,7 +94,7 @@ func (k *chatCmd) writeWatchLine(it wire.InboxItem) error {
 	enc.SetEscapeHTML(false)
 	err := enc.Encode(wire.WatchLine{
 		ItemID: it.ID, ClaimToken: it.ClaimToken, Ack: ackArg(it), Reason: it.Reason, ConversationID: it.Conversation.ID, ConversationTitle: it.Conversation.Title,
-		Count: it.Count, MessageID: it.Message.ID, Author: it.Message.Author.Handle, Body: it.Message.Body,
+		Count: it.Count, MessageID: it.Message.ID, ThreadRootID: it.Message.ThreadRootID, Author: it.Message.Author.Handle, Body: it.Message.Body,
 		CreatedAt: time.UnixMilli(it.Message.CreatedAt).UTC().Format(time.RFC3339),
 	})
 	if err != nil {

@@ -14,6 +14,21 @@ export interface InviteTarget {
 /** Where a machine without convoz gets it: from the server it connects to, so the CLI is the version of that server. */
 export const installLine = (server: string): string => `command -v convoz >/dev/null || curl -fsSL ${server}/install | sh`;
 
+/** A code fence keeps `||`, `*` and `_` as typed when the prompt is pasted into Discord, Slack or any markdown field. */
+const fenced = (command: string): string[] => ["```", command, "```"];
+
+/** The lesson every agent gets once. Each line is true of the CLI: the thread_root_id field is in `convoz watch --json`. */
+const HOW_CONVOZ_WORKS = [
+  "How Convoz works:",
+  "- Post is a normal answer in the conversation. Use it by default.",
+  "- Reply is a thread under one message. Use it only when the watch item has a thread_root_id (the owner wrote inside a thread): convoz reply <thread_root_id> \"...\". Otherwise post.",
+  "- An ask is a question that shows as a card in the owner's feed. It needs a recommended option and a reason, so the owner can answer in one tap.",
+  "- An app is a small card that carries context, such as a plan or a design. Attach it with --app.",
+  "- Attach files with --file.",
+  "- Ack every watch item once you have answered it: convoz ack <ack>.",
+  "- Status goes to the owner, not to the chat.",
+];
+
 /** invitePrompt is the one prompt the owner pastes into an agent. The agent picks its own handle and sends its own identity. */
 export function invitePrompt({ server, invite, conversation }: InviteTarget): string {
   const joins = conversation ? ` --conversation ${conversation.id}` : "";
@@ -30,19 +45,21 @@ export function invitePrompt({ server, invite, conversation }: InviteTarget): st
     "Pick your own handle: 2 to 40 characters from a-z, 0-9 and -, starting with a letter (for example code-review). Use it for <your-handle> below.",
     "The description is one line of plain text, up to 80 characters. The avatar is a simple SVG file, up to 4 KB, with no scripts or links. Both are optional.",
     "",
-    "Install:  " + install,
+    "Install (copy the whole block):",
+    ...fenced(install),
     "New machine (convoz login has not been run here):",
-    `  convoz login --server ${server}${invited} --as <your-handle> ${flags}`,
-    "  The owner approves you and this machine on one card in Convoz. Wait for it; the command ends when the owner decides.",
+    ...fenced(`convoz login --server ${server}${invited} --as <your-handle> ${flags}`),
+    "The owner approves you and this machine on one card in Convoz. Wait for it; the command ends when the owner decides.",
     "Already logged in on this machine:",
-    `  convoz session start --as <your-handle> --create${invited} ${flags}`,
-    "  If this machine may not make identities, the owner approves on a card in Convoz. The command waits for it.",
+    ...fenced(`convoz session start --as <your-handle> --create${invited} ${flags}`),
+    "If this machine may not make identities, the owner approves on a card in Convoz. The command waits for it.",
     "",
     "Right after you connect, start `convoz watch --json` and keep it running in the background: it prints one line per message or ask for you. Answer, then `convoz ack <ack>`.",
     "",
     "Then:  export CONVOZ_AS=<your-handle>",
     "Brief:   convoz brief",
-    "Post:    convoz post <conversation> \"...\"",
+    "Post:    convoz post <conversation> \"...\"  (your normal answer)",
+    "Reply:   convoz reply <message> \"...\"  (inside a thread only)",
     "Rename:  convoz rename <conversation> \"New title\"  (a title the owner chose stays theirs; 3 renames an hour)",
     "Listen:  convoz watch   (ack each item after you answer: convoz ack <id>:<token>)",
     "Ask:     convoz ask --question \"...\" --recommend \"Recommended\" --why \"Why\" --alt \"Alternative\" --alt-why \"Why\" <conversation>",
@@ -52,6 +69,8 @@ export function invitePrompt({ server, invite, conversation }: InviteTarget): st
     "",
     "Status goes to the owner, not into a conversation:",
     "Status:  convoz status --state working --doing \"...\"",
+    "",
+    ...HOW_CONVOZ_WORKS,
   ].join("\n");
 }
 

@@ -1,3 +1,4 @@
+import os from "node:os";
 import { CliMachine, installedMachine } from "../lib/cli.ts";
 import { agentPort, agentServer, auditActions, INVITE_RE, makeInvite, openInvites, ownerInvite, startLoginViaAgent, viaAgent } from "../lib/agent-port.ts";
 import { convoz, createConversation, startSession } from "../lib/chat.ts";
@@ -231,6 +232,37 @@ scenario("One agent flag without the other is a usage error", { tag: ["@cli"] },
   // And a non-loopback --agent-listen is refused with the wall's code 13
   const open = await serveCli({ host: "localhost", extraArgs: ["--agent-listen", "0.0.0.0:0", "--agent-host", "dot.testonly.ts.net"] });
   expect(open.code, open.stderr).toBe(13);
+});
+
+scenario("The agents-only port serves the public CLI files and opens no other route", { tag: ["@api"] }, async ({ server }) => {
+  // Given a Convoz server with an agents-only address
+  const srv = await server(agentServer());
+  const agent = agentPort(srv);
+  const binary = `convoz-${os.platform()}-${os.arch() === "x64" ? "amd64" : os.arch()}`;
+  const from = "203.0.113.9";
+
+  // When a stranger on the internet address 203.0.113.9 sends GET /install, GET /cli/SHA256SUMS and GET /cli/<binary> to the agents-only port with no credential
+  const script = await viaAgent(srv, "GET", "/install", { from });
+  const sums = await viaAgent(srv, "GET", "/cli/SHA256SUMS", { from });
+  const bin = await viaAgent(srv, "GET", `/cli/${binary}`, { from });
+
+  // Then all three answer 200 with the same bytes as the owner's port
+  expect([script.status, sums.status, bin.status]).toEqual([200, 200, 200]);
+  expect(sums.text).toBe((await send(srv.target, "GET", "/cli/SHA256SUMS")).text);
+  expect(bin.text.length).toBeGreaterThan(1000);
+  expect(bin.text).toBe((await send(srv.target, "GET", `/cli/${binary}`)).text);
+
+  // And the installer names the agents-only address for both of its downloads
+  expect(script.text).toContain(`SERVER='${agent.origin}'`);
+  expect(script.text).toContain('"$SERVER/cli/$name?v=$VERSION"');
+  expect(script.text).toContain('"$SERVER/cli/SHA256SUMS?v=$VERSION"');
+
+  // And GET /cli/nothing-here answers 404 and POST /install is not served
+  expect((await viaAgent(srv, "GET", "/cli/nothing-here", { from })).status).toBe(404);
+  expect((await viaAgent(srv, "POST", "/install", { from, json: {} })).status).toBe(404);
+
+  // And GET /api/me on the agents-only port with no credential still answers 401
+  expect((await viaAgent(srv, "GET", "/api/me", { from })).status).toBe(401);
 });
 
 scenario("A request that is not from the Funnel proxy is refused with 400", { tag: ["@api"] }, async ({ server }) => {

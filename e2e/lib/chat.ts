@@ -177,6 +177,7 @@ interface WatchLine {
   conversation_title: string | null;
   count: number;
   message_id: number;
+  thread_root_id?: number;
   author: string;
   body: string;
   created_at: string | number;

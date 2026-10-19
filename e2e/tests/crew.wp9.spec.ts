@@ -204,6 +204,51 @@ scenario("The add-agent prompt tells the agent to start watching its inbox at on
   expect(lines[at + 2]).toContain("Then:  export CONVOZ_AS=<your-handle>");
 });
 
+scenario("The invite prompt explains post, reply, asks, apps and ack", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  const c = await crewWorld({ server, page, context }, { agents: ["devtool"] });
+
+  // When the owner opens Crew and taps "Invite agent"
+  await page.goto(`${c.w.srv.origin}/crew?invite`);
+
+  // Then the prompt has a "How Convoz works" block
+  const text = (await sheetNamed(page, "Invite agent").getByLabel("Connect prompt").innerText()).replace(/\u00a0/g, " ");
+  const lesson = text.slice(text.indexOf("How Convoz works:"));
+  expect(lesson).toContain("How Convoz works:");
+
+  // And it says post is a normal answer and reply is a thread under one message
+  expect(lesson).toContain("- Post is a normal answer in the conversation. Use it by default.");
+  expect(lesson).toContain("- Reply is a thread under one message.");
+
+  // And it says a watch item with a "thread_root_id" is answered with "convoz reply"
+  expect(lesson).toContain("watch item has a thread_root_id");
+  expect(lesson).toContain('convoz reply <thread_root_id> "..."');
+
+  // And it says asks show as cards in the owner's feed and apps carry context
+  expect(lesson).toContain("shows as a card in the owner's feed");
+  expect(lesson).toContain("An app is a small card that carries context");
+
+  // And it says to ack after answering and that status goes to the owner
+  expect(lesson).toContain("convoz ack <ack>");
+  expect(lesson).toContain("- Status goes to the owner, not to the chat.");
+});
+
+scenario("The install line survives a paste into Discord", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  const c = await crewWorld({ server, page, context }, { agents: ["devtool"] });
+
+  // When the owner opens Crew and taps "Invite agent"
+  await page.goto(`${c.w.srv.origin}/crew?invite`);
+  const text = (await sheetNamed(page, "Invite agent").getByLabel("Connect prompt").innerText()).replace(/\u00a0/g, " ");
+
+  // Then the install line and the connect commands sit inside code fences
+  const fenced = [...text.matchAll(/^```\n([^\n]*)\n```$/gm)].map((m) => m[1]!);
+  expect(fenced.some((l) => l.startsWith("command -v convoz >/dev/null || curl -fsSL "))).toBe(true);
+  expect(fenced.some((l) => l.startsWith("convoz login --server "))).toBe(true);
+  expect(fenced.some((l) => l.startsWith("convoz session start --as <your-handle> --create"))).toBe(true);
+
+  // And no text outside a code fence holds "||"
+  expect(text.replace(/^```\n[^\n]*\n```$/gm, "")).not.toContain("||");
+});
+
 scenario("What an agent says about itself shows as data", { tag: ["@browser", "@cli"] }, async ({ server, page, context }) => {
   // Given an agent sent the description "<b>bold</b> **stars** https://evil.example" and an SVG avatar with a script in it
   const c = await crewWorld({ server, page, context }, { agents: ["devtool"] });
