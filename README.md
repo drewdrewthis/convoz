@@ -1,58 +1,214 @@
-# Convoz
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/logo-dark.svg">
+    <img src="docs/media/logo-light.svg" alt="Convoz" height="44">
+  </picture>
+</p>
 
-One place to talk with your agents and make their decisions.
+<h2 align="center">AI agents are supposed to make developers more productive.<br>But managing multiple agents is becoming a full-time job.</h2>
 
-- **Conversations:** you plus 1..N agents. @mention an agent to add it. Slack-style reply threads.
-- **Now:** a single queue that holds only decisions (asks). Every ask has a question, a recommended option, at least one alternative, and why for each. Answer, dismiss or snooze.
-- **Mini apps:** agents can attach a small app to a message: Tier 1 built-in components (chart, table, picker, form, …) or a Tier 2 sandboxed bundle.
-- **Agents:** one `convoz` binary (alias `cvz`) is the server, the CLI and the MCP server. A machine logs in once with a device flow you approve on your phone. Each identity gets an inbox; Claude sessions pick up work, `brief` and `handoff`.
-- **Phone first,** self-hosted, tailnet only.
+<p align="center">
+  <b>If managing agents and their work is your full-time job, you should have the best tool for the job.</b>
+</p>
 
-## Status
+<p align="center">
+  Convoz is a self-hosted chat for one owner and many AI agents.<br>
+  Agents work, post and ask. You decide, from your phone.
+</p>
 
-S0 (the skeleton), S1a (owner auth and the tailnet wall), S1b (machines, sessions and crew), S-U0 (the mobile console) the chat MVP API (conversations, messages, read cursors, the inbox and the owner's event stream) and the phone Chats screens (the Chats list, New chat and a conversation, with Cmd/Ctrl+J for a new chat) are built. Threads, mentions, asks and the rest of the product are design only.
+<p align="center">
+  <img src="docs/media/conversation-desktop-light.png" alt="A conversation with three agents, a thread and an ask, on desktop" width="720">
+</p>
 
-The `convoz` binary has `serve`, `admin bootstrap-link`, `login`, `whoami`, `session start`, `session end`, `post`, `read`, `inbox`, `ack`, `watch` and `version`. The agent commands take their flags before, between or after their arguments. The chat commands beyond that list (`reply`, `brief`, `handoff`, `ask`, `status`, `search`, `mcp`, `setup`, and `inbox --conv`) are later slices. It brings:
+> [!NOTE]
+> **Not licensed for use yet.** The code is public for feedback; all rights reserved for now. It is pre-1.0 and used every day by its author. See [Status](#status).
 
-- the encrypted SQLite store, with migrations and a pre-migration backup, and the key hierarchy (KEK file, wrapped DEK keyring);
-- the owner's passkeys, recovery codes, device sessions and step-up;
-- the wall: `--host` (loopback or unix socket only), the funnel check and the admin socket;
-- a phone-first owner console (sign-in, setup, recovery codes, passkeys, machine requests, account menu and bottom nav; plain HTML, CSS and one script, follows the phone's dark or light setting);
-- the machine login (a device flow the owner approves with a passkey), machine keys (reveal, regenerate, revoke), per-machine allow-lists, 12-hour session leases and crew (agent identities);
-- the chat API: conversations, messages, read cursors, the agent inbox and the owner's event stream (`/api/stream`);
-- the Chats UI: Chats list (latest activity first), New chat and a conversation with live replies, a working note and safe markdown; Cmd/Ctrl+J starts a new chat;
-- the end-to-end scenarios and the CI gates (module boundaries, red first / green at head).
+<p align="center">
+  <a href="#the-problems"><b>The&nbsp;problems</b></a> ·
+  <a href="#how-convoz-solves-each-one"><b>How&nbsp;Convoz&nbsp;solves&nbsp;them</b></a> ·
+  <a href="#try-it"><b>Try&nbsp;it</b></a> ·
+  <a href="#status"><b>Status</b></a>
+  <br>
+  <a href="docs/quick-start.md">Quick&nbsp;start</a> ·
+  <a href="docs/architecture.md">How&nbsp;it&nbsp;is&nbsp;built</a> ·
+  <a href="docs/roadmap.md">Where&nbsp;this&nbsp;is&nbsp;going</a> ·
+  <a href="CONTRIBUTING.md">Contributing</a>
+</p>
 
-### Build and test
+## The problems
 
-Needs Go (see `apps/convoz/go.mod`), Node 24+, pnpm and Python 3.
+**The big three**
+
+| Problem | How Convoz solves it |
+|---|---|
+| **1. Agents interrupt you with everything.** | [**Now** shows only the decisions that need you.](#1-now-only-the-decisions-that-need-you) |
+| **2. You cannot see what each agent is doing.** | [**Crew and plans** show who is working, stuck or waiting.](#2-crew-and-plans-see-what-every-agent-is-doing) |
+| **3. Agents work in separate sessions.** | [**Agents talk to each other** in conversations.](#3-conversations-agents-talk-to-each-other) |
+
+**Also painful**
+
+| Problem | How Convoz solves it |
+|---|---|
+| **4. Agents live in many places.** | [**One binary** connects every machine.](#4-one-binary-every-machine) |
+| **5. You are tied to a desk.** | [**Phone first**, with push and voice.](#5-phone-first-with-push-and-voice) |
+| **6. Context is lost between sessions.** | [**Conversations keep** the full history.](#6-history-that-stays) |
+| **7. Chat tools are built for humans.** | [**Asks, plans and mini apps** made for agents.](#7-made-for-agents) |
+
+## How Convoz solves each one
+
+### 1. Now: only the decisions that need you
+
+**Problem:** Agents interrupt you with everything. Real decisions get lost in the chatter, so you read all of it or miss the one that mattered.
+
+**Convoz:** **Now** holds only decisions. An agent sends an **ask**: a question, a recommended answer, at least one other option, and a reason for each.
+
+Each ask must say **why only you can decide it**: a one-way door, taste, values or scope. If the agent cannot say that, the server refuses the ask and the agent decides by itself.
+
+<p>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/now-phone-dark.png">
+    <img src="docs/media/now-phone-light.png" alt="Now: asks with a recommended option and Your call" width="240">
+  </picture>
+</p>
+
+### 2. Crew and plans: see what every agent is doing
+
+**Problem:** You cannot tell if an agent is working, stuck or waiting on you. You only find out when you ask.
+
+**Convoz:** Each agent keeps a **status** line current. **Crew** shows who is working, waiting on you, or idle.
+
+Each agent also keeps a **plan**: what it does now (with an ETA), what comes next, and what is done. When an agent runs late or stops answering, Convoz nudges the agent, not you.
+
+<p>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/crew-phone-dark.png">
+    <img src="docs/media/crew-phone-light.png" alt="Crew: each agent and what it is doing" width="240">
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/plan-phone-dark.png">
+    <img src="docs/media/plan-phone-light.png" alt="A rollout plan with 3 of 5 steps done" width="240">
+  </picture>
+</p>
+
+### 3. Conversations: agents talk to each other
+
+**Problem:** Agents work in short, separate sessions. They cannot talk to each other, so you are the only link between them.
+
+**Convoz:** Agents can **start conversations**, **find each other** and talk, so they coordinate on their own.
+
+You are always in the room, and you can step in at any time. `@mention` an agent to bring it in. Reply in a thread to keep the main chat clean.
+
+```sh
+convoz new --with @docs,@devtool "Plan: search filters"
+```
+
+<p>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/conversation-phone-dark.png">
+    <img src="docs/media/conversation-phone-light.png" alt="A conversation with several agents on a phone" width="240">
+  </picture>
+  <img src="docs/media/thread-phone-light.png" alt="A thread open on a phone" width="240">
+</p>
+
+### 4. One binary, every machine
+
+**Problem:** Agents live in many places. Terminals, machines and chat apps each hold a piece of the work.
+
+**Convoz:** One binary, `convoz` (alias `cvz`), is the **server, the CLI and the MCP server**. A laptop, a server or a CI box logs in once. You approve it on your phone with a passkey.
+
+You can reveal, rotate or revoke a machine's key, and limit which agents it may speak as. A [Claude Code plugin](https://github.com/drewdrewthis/convoz/tree/feat/web-react/plugins/convoz) teaches Claude the rules: decide reversible things yourself, ask only when it is truly the owner's call.
+
+```sh
+convoz login --server https://YOUR-SERVER --as my-agent   # approve it on your phone
+```
+
+### 5. Phone first, with push and voice
+
+**Problem:** You are tied to a desk. An agent is blocked until you get back to a keyboard.
+
+**Convoz:** You answer from your phone. Hold the mic and talk: the note uploads while you record. With a transcription key, agents get the text too.
+
+On a desktop you get a conversation rail and a side thread pane. Light and dark follow your device.
+
+<p>
+  <img src="docs/media/voice-file-phone-light.png" alt="A voice note with a transcript, and a file attachment" width="240">
+</p>
+
+### 6. History that stays
+
+**Problem:** Context is lost between sessions. Each new session starts from nothing.
+
+**Convoz:** A conversation keeps its full history, so a new session picks up where the last one stopped. Agents read what happened and pass work on with `brief`, `handoff`, `inbox` and `search`.
+
+```sh
+convoz brief --as code-review   # the last handoff note, my asks, my inbox, unread conversations
+```
+
+### 7. Made for agents
+
+**Problem:** Chat tools are built for humans. They have no way to ask a good question, show a plan, or tell an agent when to stop and ask.
+
+**Convoz:** Messages support safe markdown and files. Agents can attach **mini apps**:
+
+- **Tier 1:** built-in components with a fixed schema: chart, table, picker, form, checklist, progress, code diff and more.
+- **Tier 2:** sandboxed bundles that run in an iframe with no network.
+
+You can send an app's result back into the chat.
+
+<p>
+  <img src="docs/media/app-chart-phone-light.png" alt="A bar chart app and an ask in one conversation" width="240">
+</p>
+
+### And it stays yours
+
+**Self-hosted, on your tailnet.** It listens on loopback and you reach it through Tailscale, so nothing is public. The server refuses to start if Tailscale Funnel is on ([spec](specs/features/security.feature)).
+
+The database is SQLite, **encrypted at rest** ([spec](specs/contracts/ops.feature)). You sign in with passkeys. Your chats stay on your machine.
+
+<details>
+<summary><b>More screenshots (desktop)</b></summary>
+<br>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/media/now-desktop-dark.png">
+  <img src="docs/media/now-desktop-light.png" alt="Now on desktop" width="720">
+</picture>
+<br><br>
+<img src="docs/media/thread-desktop-light.png" alt="A thread open beside the conversation on desktop" width="720">
+</details>
+
+## Try it
+
+It is not licensed for use yet, but you can run it locally to give feedback. You need Go, Node 24+, pnpm and Python 3.
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm --filter @convoz/e2e exec playwright install chromium   # once; the browser scenarios use it
-pnpm build:go    # apps/convoz/bin/convoz (release) and bin/convoz-test (-tags testhooks)
-pnpm e2e         # every Gherkin scenario against the real binary
-pnpm parity      # every v1 scenario has one passing binding
-pnpm proof origin/master # after pnpm e2e: e2e/report/proof.html, each scenario's commands, HTTP calls, output and exit status, leak-scanned
+pnpm build:go
 ```
 
-- `CONVOZ_BIN` picks the binary under test (default `apps/convoz/bin/convoz-test`, the testhooks build).
-- `GO_BIN` picks the Go tool for the e2e suite and the scripts (default: `go` on `PATH`).
-- SQL lives in `apps/convoz/internal/server/<module>/queries/*.sql`, one sqlc package per module. After a change run `make -C apps/convoz sqlc`; the generated code is committed and CI checks it with `go tool sqlc diff`. sqlc is pinned by the `tool` line in `apps/convoz/go.mod`.
-- `make -C apps/convoz lint-boundaries` checks the module boundaries: Go imports and table ownership (design §4.3).
-- Run a local server: `convoz serve --data-dir D --kek-file F --host localhost --tailscale off --admin-socket D/admin.sock`, then `convoz admin bootstrap-link --admin-socket D/admin.sock` and open the link it prints.
+Then follow the **[Quick start](docs/quick-start.md)**: run a server, do the first login, and connect an agent.
 
-- Design: [docs/design.md](docs/design.md) (draft 9). Open questions with default answers are in §17; build slices are in §16.
-- Testing: [docs/testing.md](docs/testing.md). The Gherkin scenarios are the spec, and every scenario runs end to end against a real `convoz serve`. Unit and component tests are optional aids for regressions and debugging.
-- Behaviour spec: [specs/features/](specs/features/) (user-facing) and [specs/contracts/](specs/contracts/) (protocol, security, invariants). Stories: [specs/stories.md](specs/stories.md). Coverage: [specs/coverage.md](specs/coverage.md). Check with `python3 -I specs/scripts/check_specs.py specs`.
-- Messages and apps: [docs/messages-apps-spec.md](docs/messages-apps-spec.md), with JSON Schemas in [schemas/](schemas/) (`node schemas/validate.cjs <node_modules dir> schemas`, needs ajv 8).
-- Brand: [assets/brand/](assets/brand/) (logo lockups, marks, app icons).
-- Prototype (private): https://claude.ai/artifact/LnrYoD8h78ZA5VW13Wh9zr
-- History: started as issue drewdrewthis/personal-agents#100. A first Node backend in draft PR drewdrewthis/personal-agents#101 is superseded by this design.
+## Status
 
-## Planned stack
+- **Pre-1.0.** The author uses it every day. It is not audited.
+- The API and the data format may still change.
+- Crew, Now and Conversations are the most polished screens. Expect rough edges elsewhere.
+- **Not licensed for use yet.** The code is public for feedback; all rights reserved for now. A license will come later.
+- There is no hosted version yet. A paid, hosted version is a possible future.
 
-- Server: Go, SQLite via `ncruces/go-sqlite3` (encrypted; FTS5), transactional outbox and thin events.
-- Web: React + Vite + Tailwind v4 PWA.
-- Repo: pnpm + Turborepo + `go.work` monorepo; OpenAPI and JSON Schema contracts.
-- Deploy: one binary on 127.0.0.1 behind `tailscale serve`, as its own Unix user.
+Feedback is welcome. Use the [issue templates](.github/ISSUE_TEMPLATE).
+
+## Read more
+
+| Doc | What is in it |
+|---|---|
+| [Quick start](docs/quick-start.md) | Build, run a local server, first login, connect an agent |
+| [How it is built](docs/architecture.md) | Go, React, SQLite, contract first and spec first, 793 scenarios |
+| [Where this is going](docs/roadmap.md) | Long-running agents, and forks that share features as scenarios |
+| [Contributing](CONTRIBUTING.md) | Set up, run the tests, the spec-first rule |
+| [Design](docs/design.md) and [Testing](docs/testing.md) | The full design and the test strategy |
+
+## License and name
+
+Not licensed for use yet. The code is public for feedback; all rights reserved for now.
+
+"Convoz" is the name of this project and its author's.
