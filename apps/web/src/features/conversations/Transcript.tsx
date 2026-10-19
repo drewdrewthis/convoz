@@ -114,6 +114,8 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, hint, co
   const anchor = useRef<{ height: number; top: number } | null>(null);
   /** Messages from others that came in while the log was scrolled up; the first of them is where the pill takes the owner. */
   const [pill, setPill] = useState(0);
+  /** The log is more than a screen above its newest end: the round "Jump to latest" button shows (the same control as the pill). */
+  const [away, setAway] = useState(false);
   const firstNew = useRef<number | null>(null);
   const [hl, setHl] = useState<number | null>(null);
   /** The opening snap is over: after the frame that follows the first one at the newest end, nothing moves the log by itself any more. */
@@ -150,23 +152,34 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, hint, co
     },
   };
 
+  const virtual = rows.length > VIRTUAL_ABOVE;
   useEffect(() => {
     const el = log.current!;
+    let top = el.scrollTop;
     const onScroll = () => {
       const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
-      stuck.current = gap <= NEAR_BOTTOM;
+      // Only the person moving up lets go of the end. Content that grows below a still log (late-measured rows, an image or a font
+      // that loads) also widens the gap, and must not read as "scrolled away".
+      if (gap <= NEAR_BOTTOM) stuck.current = true;
+      else if (el.scrollTop < top) stuck.current = false;
+      top = el.scrollTop;
+      setAway(gap > el.clientHeight);
       if (gap <= 8) clearPill();
     };
     el.addEventListener("scroll", onScroll, { passive: true });
+    // The log itself (a keyboard, a rotation) and its content (rows that are measured, images, fonts) change the height: follow the end.
     const resized = new ResizeObserver(() => {
       if (stuck.current) el.scrollTop = el.scrollHeight;
+      top = el.scrollTop;
+      setAway(el.scrollHeight - el.scrollTop - el.clientHeight > el.clientHeight);
     });
     resized.observe(el);
+    if (items.current) resized.observe(items.current);
     return () => {
       el.removeEventListener("scroll", onScroll);
       resized.disconnect();
     };
-  }, []);
+  }, [virtual]); // the list swaps its container when it becomes virtual
 
   useLayoutEffect(() => {
     if (!opened) return setSettled(false);
@@ -236,8 +249,8 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, hint, co
   };
 
   const body =
-    rows.length > VIRTUAL_ABOVE ? (
-      <VirtualItems rows={rows} me={me} paused={paused} conversation={conversation} log={log} items={items} onRetry={onRetry} onDetails={onDetails} stuck={stuck} hl={hl} focusAt={opened ? focusAt : -1} />
+    virtual ? (
+      <VirtualItems rows={rows} me={me} paused={paused} conversation={conversation} log={log} items={items} onRetry={onRetry} onDetails={onDetails} hl={hl} focusAt={opened ? focusAt : -1} />
     ) : (
       <div ref={items} id="items" className="items">
         {rows.map((r) => (
@@ -263,14 +276,14 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, hint, co
           {working ?? ""}
         </div>
       </div>
-      <button id="pill" className="pill" type="button" hidden={!pill} aria-label={pill > 1 ? `${pill} new messages ↓` : "New message ↓"} onClick={jump}>
-        ↓ {pill} new
+      <button id="pill" className={pill ? "pill" : "pill round"} type="button" hidden={!pill && !away} aria-label={pill > 1 ? `${pill} new messages ↓` : pill ? "New message ↓" : "Jump to latest"} onClick={jump}>
+        {pill ? `↓ ${pill} new` : "↓"}
       </button>
     </div>
   );
 }
 
-function VirtualItems({ rows, me, paused, conversation, log, items, onRetry, onDetails, stuck, hl, focusAt }: { rows: Row[]; me: string; paused: number; conversation: number; log: RefObject<HTMLDivElement | null>; items: RefObject<HTMLDivElement | null>; onRetry(cid: string): void; onDetails?(m: Message): void; stuck: RefObject<boolean>; hl: number | null; focusAt: number }) {
+function VirtualItems({ rows, me, paused, conversation, log, items, onRetry, onDetails, hl, focusAt }: { rows: Row[]; me: string; paused: number; conversation: number; log: RefObject<HTMLDivElement | null>; items: RefObject<HTMLDivElement | null>; onRetry(cid: string): void; onDetails?(m: Message): void; hl: number | null; focusAt: number }) {
   const [margin, setMargin] = useState(0);
   useLayoutEffect(() => {
     const el = log.current;
@@ -283,11 +296,6 @@ function VirtualItems({ rows, me, paused, conversation, log, items, onRetry, onD
     overscan: 10,
     scrollMargin: margin,
     getItemKey: (i) => rows[i]!.key,
-    // measured rows change the height: stay at the newest end when the log is there
-    onChange: () => {
-      const el = log.current;
-      if (el && stuck.current) el.scrollTop = el.scrollHeight;
-    },
   });
   // A message to open at is far from the rows that are drawn: the list moves to it, and the log then centres it once drawn.
   useEffect(() => {
