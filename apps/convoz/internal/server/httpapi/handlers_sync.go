@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 
@@ -26,10 +27,18 @@ type syncEvent struct {
 	Payload      json.RawMessage `json:"payload"`
 }
 
-// eventVisible reports whether the caller may see the event: a conversation event by canSee and the visibility floor, a read
+// eventVisible reports whether the caller may see the event: a conversation event by canSee and the visibility floor, an ask event by canSee and the floor (a snooze by its person alone), a read
 // cursor move by its reader alone. An event of a type the chat does not show a person is not visible. The stream and the
 // delta both ask this, so they cannot disagree.
 func eventVisible(ctx context.Context, d pdb.DBTX, c *call, ev event.Event) (bool, error) {
+	if slices.Contains(askEvents, ev.Type) {
+		// The delta tells a client that an ask changed while its stream was down; the client reads the ask itself.
+		if ev.Audience != 0 && ev.Audience != c.p.Identity() {
+			return false, nil
+		}
+		floor, ok, err := canSee(ctx, d, c.p, ev.Conversation)
+		return ok && ev.Message > floor, err
+	}
 	switch ev.Type {
 	case event.MessageCreated:
 		floor, ok, err := canSee(ctx, d, c.p, ev.Conversation)

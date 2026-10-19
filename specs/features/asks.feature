@@ -170,6 +170,22 @@ Feature: Asks and their state machine
       Then the card of the ask shows the chart "Tokens per day"
       And conversation 41 shows the same chart on the card of the ask
 
+  # Drew, conv 37 msg 928: "a withdrawn ask still shows open in Drew's UI" (the server restarted in the same minute).
+  Rule: A withdrawn ask closes on every open page, even when the stream was cut meanwhile
+
+    @v1 @browser
+    Scenario: A withdrawn ask leaves Now and its card shows closed at once
+      Given an open ask of "devtool", and the owner has the conversation and Now open in two pages
+      When "devtool" withdraws the ask
+      Then Now no longer lists it and the card in the conversation shows closed, with no reload
+
+    @v1 @browser
+    Scenario: After the stream was cut, an ask withdrawn meanwhile shows closed with no reload
+      Given an open ask of "devtool" on the page of its conversation
+      And the stream is cut
+      When "devtool" withdraws the ask and the page reconnects
+      Then the card shows closed with no reload
+
   # Drew, conv 32 msg 650: "ship a standard 'review a draft' mini app with Convoz, so agents don't hand-build one for every message
   # they draft for him. It shows the original message being answered (who, where, text) and the agent's draft in an editable box, with
   # Send and Don't send buttons. It returns {send, text} with the edited text, so the agent posts exactly what Drew approved."

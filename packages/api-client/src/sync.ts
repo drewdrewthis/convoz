@@ -75,9 +75,18 @@ export function createSync(cache: DataCache, source: DataSource, options: SyncOp
     }
     return job();
   };
+  /** An ask changes in its message, not as a new message, so a gap in the stream leaves a held card stale: read its conversation's asks again. */
+  const refreshAsks = async (id: number) => {
+    if (!cache.store.getState().messages[id]?.list.some((m) => m.kind === "ask")) return;
+    const { messages } = await source.messages(id, { limit: LIMIT });
+    for (const m of messages) if (m.kind === "ask" && m.ask) ingest({ name: "ask.changed", data: m.ask });
+  };
   const resync = () => {
     cache.resync();
-    for (const id of Object.keys(cache.store.getState().messages)) void catchUp(Number(id));
+    for (const id of Object.keys(cache.store.getState().messages)) {
+      void catchUp(Number(id));
+      void refreshAsks(Number(id)).catch(() => {});
+    }
     dispatchResync();
   };
 
@@ -99,12 +108,15 @@ export function createSync(cache: DataCache, source: DataSource, options: SyncOp
       return false;
     }
     const talked = new Set<number>();
+    const asked = new Set<number>();
     let listChanged = false;
     for (const ev of answer.events) {
       if (ev.type === "message.created.v1" && ev.conversation_id) talked.add(ev.conversation_id);
+      if (ev.type.startsWith("ask.") && ev.conversation_id) asked.add(ev.conversation_id);
       listChanged = true; // a new message (a reply is not in the main list, but it moves the unread count), a new conversation or a read changes the rail
     }
     await Promise.all([...talked].map(catchUp));
+    await Promise.all([...asked].map((id) => refreshAsks(id).catch(() => {})));
     if (listChanged) cache.resync();
     const to = parseCursor(answer.cursor);
     if (to) advance(to);
