@@ -13,7 +13,7 @@ import (
 // The tools that say something about the agent itself: its asks, its status, its handoff notes, its profile.
 
 func init() {
-	Register(Tool{Name: "ask", Order: 10, Description: "Ask the owner to decide: a question, your recommendation and 1 to 4 alternatives, each with a reason, and owners_call (why only the owner can decide). Without owners_call the ask is refused: decide it yourself. Anything sent in the owner's name is a draft ask instead: give draft (no options, no owners_call); the owner edits it and taps Send or Don't send, and the answer is {send, text}.",
+	Register(Tool{Name: "ask", Order: 10, Description: "Ask the owner a decision only they can make: a question, your pick and 1-4 alternatives with reasons, and owners_call (else refused: decide it yourself). For text sent in the owner's name, give draft instead; the answer is {send, text}.",
 		InputSchema: object([]string{"conversation", "question"}, props{
 			"conversation": conv(),
 			"question":     props{"type": "string", "minLength": 1, "maxLength": 500, "description": "What you ask."},
