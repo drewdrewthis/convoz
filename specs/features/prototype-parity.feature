@@ -25,6 +25,8 @@ Feature: The phone screens match the prototype
       When the owner opens Now on a phone
       Then it matches the prototype in light and in dark
 
+    # The owner ruled (msg 39) "the app is the UI spec", and asked that an ask say whether the call is one-way (msg 252: the "Your call · ..." line on
+    # each ask card). So this screen is compared with a reviewed frame of the app, e2e/visual/app/now-asks-<scheme>.png, not the prototype's.
     @v1 @browser @phone
     Scenario: On a phone Now with asks matches the prototype
       Given "night-watch" asked an urgent "Close the incident?" and "devtool" asked "Push the 8642 fix to staging?"
@@ -52,6 +54,8 @@ Feature: The phone screens match the prototype
       When the owner opens New conversation on a phone
       Then it matches the prototype in light and in dark
 
+    # The owner ruled (msg 39) "the app is the UI spec", and moved Machines to a row at the top of Crew (msg 351: "you need to scroll to see machines --
+    # that's a bit weird"). So this screen is compared with a reviewed frame of the app, e2e/visual/app/crew-<scheme>.png, not the prototype's.
     @v1 @browser @phone
     Scenario: On a phone Crew matches the prototype
       Given every agent is idle
@@ -66,6 +70,8 @@ Feature: The phone screens match the prototype
       When the owner opens the rail on a phone
       Then it matches the prototype in light and in dark
 
+    # The owner ruled (msg 39) "the app is the UI spec", and moved Machines to a row at the top of Crew (msg 351: "you need to scroll to see machines --
+    # that's a bit weird"). So this screen is compared with a reviewed frame of the app, e2e/visual/app/crew-status-<scheme>.png, not the prototype's.
     @v1 @browser @phone
     Scenario: On a phone Crew with agent status matches the prototype
       Given the agents report the status the prototype shows

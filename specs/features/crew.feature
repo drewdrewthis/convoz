@@ -252,6 +252,33 @@ Feature: Crew: identities, machines and sessions
       Then "Waiting on you · 2" and "Conversations together" list them
       And "New conversation with @devtool" starts a conversation with "devtool" in it
 
+  Rule: On a computer Crew is a page in the right pane, like a conversation
+
+    # Owner said (conv 15 msg 315): "this is weird UI". Crew was a floating card in a blank page, with a back arrow in an empty bar and a x on the card,
+    # and the list slid under "Find an agent". Now: "Crew 8" in the page's bar, one way back, no card, the summary and the search stay put.
+    @v1 @browser
+    Scenario: On a computer, Crew opens as a page with one way back, and nothing hides under its search
+      Given eight agents, and a window 1280 wide and 560 high, in light and in dark
+      When the owner opens Crew and scrolls its list
+      Then the bar of the page reads "Crew" and the count 8
+      And the page has one back control and no element with the frame of a card
+      And the first agent row that shows starts at or below the bottom of the search
+      And the search and the summary above the list have an opaque background
+
+    # Owner said (conv 15 msg 351): "also, you need to scroll to see machines -- that's a bit weird. a better UI/UX can be added here".
+    # Machines is a row under the title, "Machines · n", and the dashed button at the foot of the list is gone.
+    @v1 @browser
+    Scenario Outline: Machines is in view when Crew opens, with no scrolling
+      Given eight agents and a window <width> wide and <height> high
+      When the owner opens Crew
+      Then the link "Machines · 1" is inside the window
+      And the link opens the machines page
+
+      Examples:
+        | width | height |
+        | 390   | 844    |
+        | 1280  | 720    |
+
   Rule: Later, more humans join the crew
 
     @later @browser

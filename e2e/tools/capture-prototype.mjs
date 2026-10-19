@@ -6,9 +6,9 @@
 // painted over the frame; the parity spec paints the same rectangles over the app, so the controls the app does not have yet
 // (and the times) never count. Run it from e2e/ so @playwright/test resolves.
 //
-// Besides the phone frame (390x800) it shoots two desktop elements at a 1280x800 window: the rail (the sidebar, 240x742, "rail-desktop")
-// and the Crew dock (380x726, "crew-desktop"). The prototype has a desktop layout; the app draws only these two parts of it so far, so
-// only these are compared. Masks of a desktop screen are relative to its element, like the phone's are to the frame.
+// Besides the phone frame (390x800) it shoots one desktop element at a 1280x800 window: the rail (the sidebar, 240x742, "rail-desktop").
+// Masks of a desktop screen are relative to its element, like the phone's are to the frame. Now with asks, Crew and Crew with agent
+// status are not captured: the owner changed them on purpose, so they are compared with reviewed frames of the app in visual/app/.
 import fs from "node:fs";
 import path from "node:path";
 import { chromium } from "@playwright/test";
@@ -18,7 +18,6 @@ const html = process.env.PROTOTYPE_HTML ?? "/tmp/tmp.Trpsi82Qzz/index.html";
 const out = process.argv[2] ?? path.join(here, "..", "visual", "prototype");
 const masks = JSON.parse(fs.readFileSync(path.join(here, "..", "visual", "masks.json"), "utf8"));
 const SCALE = 2;
-const ONLY = process.env.ONLY; // ONLY=now-asks writes just that screen (the others are already in visual/prototype)
 const FRAME = "div[style*='border-radius: 40px'][style*='width: 390px']";
 
 const browser = await chromium.launch();
@@ -73,7 +72,7 @@ for (const mode of ["Light", "Dark"]) {
   };
 
   // Now: answer every ask so the feed is empty.
-  if (!ONLY) {
+  {
     const { page, frame, shot } = await open();
     for (let i = 0; i < 30 && !(await frame.getByText("All clear. Nothing needs you.").count()); i++) {
       await frame.locator("ul[aria-label='Open asks'] li").first().locator("button").nth(1).click();
@@ -84,34 +83,8 @@ for (const mode of ["Light", "Dark"]) {
     await page.close();
   }
 
-  // Now with asks: the first two asks stay (the app is seeded with the same two and one snoozed ask), the rest are answered. Both cards are open,
-  // without the app message and the text above its buttons, which the app does not have.
-  if (!ONLY || ONLY === "now-asks") {
-    const { page, frame, shot } = await open();
-    const asks = frame.locator("ul[aria-label='Open asks'] li");
-    for (let i = 0; i < 30 && (await asks.count()) > 2; i++) {
-      await asks.last().locator("button").nth(1).click();
-      await page.waitForTimeout(450);
-    }
-    for (let i = 0; i < 2; i++) await asks.nth(i).locator("button").first().click();
-    await page.waitForTimeout(300);
-    await frame.evaluate((el) => {
-      for (const li of el.querySelectorAll("ul[aria-label='Open asks'] li")) {
-        const holder = li.querySelector("button[aria-label='Quick reply']")?.parentElement?.parentElement;
-        if (holder) [...holder.children].forEach((c) => !c.contains(li.querySelector("button[aria-label='Quick reply']")) && c.remove());
-      }
-    });
-    // Answering the other asks made an "Answered today" chip; the app has it only when it answered some, and its seed answers none.
-    await frame.evaluate((el) => [...el.querySelectorAll("button")].filter((b) => b.textContent.trim().startsWith("Answered today")).forEach((b) => b.remove()));
-    await frame.evaluate((el) => [el, ...el.querySelectorAll("*")].forEach((n) => (n.scrollTop = 0))); // the taller cards (Reply in thread) made the clicks scroll the list
-    await page.waitForTimeout(10500); // the toast stays 10 s
-    await shot("now-asks");
-    await page.close();
-    if (ONLY) continue;
-  }
-
   // The rail on a phone: the Conversations tab as the prototype has it, with its Starred group and its muted "Team updates".
-  if (!ONLY) {
+  {
     const { page, frame, tabs, shot } = await open();
     await tabs.getByRole("button", { name: "Conversations" }).click();
     await page.waitForTimeout(500);
@@ -153,12 +126,6 @@ for (const mode of ["Light", "Dark"]) {
   await shot("new-conversation");
   await frame.getByRole("button", { name: "Back" }).first().click();
 
-  await tabs.getByRole("button", { name: "Crew" }).click();
-  await page.waitForTimeout(10500);
-  await shot("crew-status"); // Waiting on you, Working and Idle groups as the prototype's agents report them
-  // Agents have no published status in the app yet, so every agent is idle: drop the Waiting and Working groups.
-  await frame.evaluate((el) => ["Waiting on you", "Working"].forEach((l) => el.querySelector(`section[aria-label="${l}"]`)?.remove()));
-  await shot("crew");
   await page.close();
 }
 
@@ -190,9 +157,6 @@ for (const mode of ["Light", "Dark"]) {
     await el.evaluate((node) => node.querySelectorAll("[data-mask]").forEach((d) => d.remove()));
   };
   await desktopShot("rail-desktop", page.getByRole("navigation", { name: "Conversations" }), 240, 742);
-  await page.getByRole("button", { name: "Crew" }).first().click();
-  await page.waitForTimeout(10500);
-  await desktopShot("crew-desktop", page.locator("aside[aria-label='Crew']"), 380, 726);
   await page.close();
 }
 await browser.close();

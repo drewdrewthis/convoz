@@ -12,7 +12,7 @@ export default defineConfig({
   testMatch: "**/*.spec.ts",
   outputDir: path.join(os.tmpdir(), "convoz-e2e-results"),
   // Reference frames of the prototype (tools/capture-prototype.mjs). A missing one fails the scenario; nothing rewrites them by itself.
-  snapshotPathTemplate: path.join(here, "visual", "prototype", "{arg}{ext}"),
+  snapshotPathTemplate: path.join(here, "visual", "{arg}{ext}"),
   updateSnapshots: "none",
   fullyParallel: true,
   forbidOnly: true,
