@@ -12,8 +12,25 @@ OwnersCall:
   additionalProperties: false
   description: Why only the owner can decide an ask. The card shows it under the question.
   properties:
-    kind: { type: string, enum: [one-way, taste, values, scope], description: "A one-way door, a choice of taste or values, or scope the owner must own." }
+    kind: { type: string, enum: [one-way, taste, values, scope, in-your-name], description: "A one-way door, a choice of taste or values, or scope the owner must own. in-your-name is the call of a draft ask only: the server sets it, with the reason \"It goes out in your name.\"" }
     reason: { type: string, minLength: 1, maxLength: 280 }
+AskDraft:
+  type: object
+  required: [text]
+  additionalProperties: false
+  description: A message the agent wants to send in the owner's name, and the message it answers when there is one.
+  properties:
+    text: { type: string, minLength: 1, maxLength: 4000, description: The draft. }
+    original: { type: string, maxLength: 2000, description: The message the draft answers. The CLI and the MCP tool cut a longer one and end it with "…". }
+    original_from: { type: string, maxLength: 200, description: "Who sent the original and where, like \"Alex · Slack DM\"." }
+AskReply:
+  type: object
+  required: [send]
+  additionalProperties: false
+  description: The answer of a draft ask as its agent reads it. `text` is the final text, as the owner left it, and is present only when `send` is true.
+  properties:
+    send: { type: boolean }
+    text: { type: string, maxLength: 4000 }
 AskChoice:
   type: object
   required: [kind]
@@ -49,9 +66,11 @@ Ask:
     owners_call: { $ref: "../openapi.yaml#/components/schemas/OwnersCall", description: Absent on an ask from before the field, and after a purge. }
     state: { type: string, enum: [open, answered, dismissed, closed] }
     close_reason: { type: string, enum: [removed, withdrawn, deleted, agent_revoked] }
-    options: { type: array, minItems: 2, maxItems: 5, items: { $ref: "../openapi.yaml#/components/schemas/AskOption" } }
+    options: { type: array, minItems: 2, maxItems: 5, items: { $ref: "../openapi.yaml#/components/schemas/AskOption" }, description: "On a draft ask: Send (the recommended one) and Don't send." }
+    draft: { $ref: "../openapi.yaml#/components/schemas/AskDraft", description: Present on a draft ask. Absent after a purge. }
+    reply: { $ref: "../openapi.yaml#/components/schemas/AskReply", description: Present on an answered draft ask. }
     chosen: { $ref: "../openapi.yaml#/components/schemas/AskChoice" }
-    answer: { type: string, description: "The answer in words: the chosen option's label, or the custom text." }
+    answer: { type: string, description: "The answer in words: the chosen option's label, or the custom text; \"Send: <text>\" or \"Don't send\" on a draft ask." }
     answer_via: { type: string, enum: [inline, now] }
     resolved_by: { $ref: "../openapi.yaml#/components/schemas/Person" }
     resolved_at: { type: integer, format: int64 }
@@ -73,8 +92,11 @@ AskConversation:
     title: { type: ["string", "null"] }
 AskRequest:
   type: object
-  required: [conversation_id, client_id, question, recommended, alternatives, owners_call]
+  required: [conversation_id, client_id, question]
   additionalProperties: false
+  description: |
+    An ask with options (recommended, alternatives and owners_call; without owners_call it is refused) or a draft ask (draft alone: it has
+    no options and no owner's call, the server sets both).
   properties:
     conversation_id: { type: integer, format: int64 }
     thread_root_id: { type: integer, format: int64 }
@@ -84,6 +106,7 @@ AskRequest:
     alternatives: { type: array, minItems: 1, maxItems: 4, items: { $ref: "../openapi.yaml#/components/schemas/AskOption" } }
     owners_call: { $ref: "../openapi.yaml#/components/schemas/OwnersCall" }
     urgent: { type: boolean }
+    draft: { $ref: "../openapi.yaml#/components/schemas/AskDraft" }
     app: { $ref: "../openapi.yaml#/components/schemas/App", description: "An app shown with the question (a chart, a table, a diff). It helps the owner decide and never answers: no picker, form or select checklist (400 app_type_not_allowed_on_ask)." }
 AskAnswerRequest:
   type: object
@@ -92,7 +115,7 @@ AskAnswerRequest:
   properties:
     choice: { type: string, enum: [recommended, alternative, custom] }
     index: { type: integer, minimum: 1, maximum: 4, description: "With choice alternative: which one." }
-    text: { type: string, maxLength: 4000, description: "With choice custom: the person's words." }
+    text: { type: string, maxLength: 4000, description: "With choice custom: the person's words. With choice recommended on a draft ask: the final text to send (the draft when left out). A draft ask is answered with recommended (send) or alternative 1 (do not send)." }
     if_version: { type: integer, description: The version the person saw; another version is a 409. }
     client_id: { $ref: "../openapi.yaml#/components/schemas/ClientId" }
     via: { type: string, enum: [inline, now], description: "Where the person answered (default inline)." }

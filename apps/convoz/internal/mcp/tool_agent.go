@@ -12,12 +12,14 @@ import (
 // The tools that say something about the agent itself: its asks, its status, its handoff notes, its profile.
 
 func init() {
-	Register(Tool{Name: "ask", Order: 10, Description: "Ask the owner to decide: a question, your recommendation and 1 to 4 alternatives, each with a reason, and owners_call (why only the owner can decide). Without owners_call the ask is refused: decide it yourself.",
-		InputSchema: object([]string{"conversation", "question", "recommended", "alternatives"}, props{
+	Register(Tool{Name: "ask", Order: 10, Description: "Ask the owner to decide: a question, your recommendation and 1 to 4 alternatives, each with a reason, and owners_call (why only the owner can decide). Without owners_call the ask is refused: decide it yourself. Anything sent in the owner's name is a draft ask instead: give draft (no options, no owners_call); the owner edits it and taps Send or Don't send, and the answer is {send, text}.",
+		InputSchema: object([]string{"conversation", "question"}, props{
 			"conversation": conv(),
 			"question":     props{"type": "string", "minLength": 1, "maxLength": 500, "description": "What you ask."},
+			// Not in "required": a draft ask has neither (draft is given instead), and a choice ask without them is refused by the tool.
 			"recommended":  option("The answer you recommend and why."),
 			"alternatives": list("The other answers worth choosing, each with its reason.", option("An alternative and why."), 1, 4),
+			"draft":        draftSchema(),
 			// Not in "required" on purpose: a missing one must reach the tool, which answers with the decide-yourself text.
 			"owners_call": ownersCall(),
 			"urgent":      boolean("The owner sees the ask first."),
@@ -28,6 +30,7 @@ func init() {
 			var a struct {
 				Conversation int64               `json:"conversation"`
 				Question     string              `json:"question"`
+				Draft        *wire.AskDraft      `json:"draft"`
 				Recommended  map[string]string   `json:"recommended"`
 				Alternatives []map[string]string `json:"alternatives"`
 				OwnersCall   wire.OwnersCall     `json:"owners_call"`
@@ -38,14 +41,21 @@ func init() {
 			if err := decodeArgs(args, &a); err != nil {
 				return nil, err
 			}
-			if problem := a.OwnersCall.Problem(); problem != "" {
-				return nil, Failed{problem}
+			if a.Draft == nil {
+				if problem := a.OwnersCall.Problem(); problem != "" {
+					return nil, Failed{problem}
+				}
 			}
 			return withApp(a.App, func(file string) (Output, error) {
-				argv := []string{"--question", a.Question, "--recommend", a.Recommended["label"], "--why", a.Recommended["why"]}
-				argv = append(argv, "--owners-call", a.OwnersCall.Kind, "--owners-call-why", a.OwnersCall.Reason)
-				for _, alt := range a.Alternatives {
-					argv = append(argv, "--alt", alt["label"], "--alt-why", alt["why"])
+				argv := []string{"--question", a.Question}
+				if d := a.Draft; d != nil {
+					argv = append(argv, "--draft", d.Text)
+					argv = withFlag(withFlag(argv, "original", d.Original), "original-from", d.OriginalFrom)
+				} else {
+					argv = append(argv, "--recommend", a.Recommended["label"], "--why", a.Recommended["why"], "--owners-call", a.OwnersCall.Kind, "--owners-call-why", a.OwnersCall.Reason)
+					for _, alt := range a.Alternatives {
+						argv = append(argv, "--alt", alt["label"], "--alt-why", alt["why"])
+					}
 				}
 				argv = withFlag(withFlag(withFlag(argv, "urgent", a.Urgent), "thread", a.Thread), "app", file)
 				return runnerOf(ctx).run("ask", "", append(argv, strconv.FormatInt(a.Conversation, 10))...)
@@ -152,6 +162,18 @@ func init() {
 			}
 			return runnerOf(ctx).run("profile", "", append([]string{"--set"}, set...)...)
 		}})
+}
+
+// draftSchema is the draft of a draft ask: a message the agent wants to send in the owner's name.
+func draftSchema() props {
+	return props{
+		"type": "object", "description": "A message you want to send in the owner's name. The owner reads it, edits it and taps Send or Don't send. Give this instead of recommended, alternatives and owners_call.", "required": []string{"text"}, "additionalProperties": false,
+		"properties": props{
+			"text":          props{"type": "string", "minLength": 1, "maxLength": wire.MaxDraft, "description": "The draft, as you would send it."},
+			"original":      props{"type": "string", "maxLength": wire.MaxOriginal, "description": "The message you answer; cut with … when longer than 2000 characters."},
+			"original_from": props{"type": "string", "maxLength": wire.MaxOriginalFrom, "description": "Who sent the original and where, like \"Alex · Slack DM\"."},
+		},
+	}
 }
 
 // ownersCall is why only the owner can decide the ask.

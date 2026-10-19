@@ -23,6 +23,19 @@ const DecideYourself = "Decide this yourself: weigh the options and pick one, th
 	"Send an ask only when it is the owner's call: a one-way door, a taste or values choice, or scope the owner must own. " +
 	"Then pass --owners-call <one-way|taste|values|scope> --owners-call-why '...'"
 
+// OwnersCallInYourName is the owner's call of a draft ask. It is never given by an agent: the server sets it, with InYourNameReason.
+const (
+	OwnersCallInYourName = "in-your-name"
+	InYourNameReason     = "It goes out in your name."
+)
+
+// Limits of a draft ask, in characters.
+const (
+	MaxDraft        = 4000
+	MaxOriginal     = 2000
+	MaxOriginalFrom = 200
+)
+
 // OwnersCall is why only the owner can decide an ask.
 type OwnersCall struct {
 	Kind   string `json:"kind"`
@@ -32,12 +45,50 @@ type OwnersCall struct {
 // Problem says in words what is wrong with the owner's call, or "" when it is good.
 func (o OwnersCall) Problem() string {
 	switch {
+	case o.Kind == OwnersCallInYourName:
+		return "The call in-your-name is for a draft ask only: use --draft."
 	case !slices.Contains(OwnersCallKinds, o.Kind) || strings.TrimSpace(o.Reason) == "":
 		return DecideYourself
 	case utf8.RuneCountInString(o.Reason) > MaxOwnersCallReason:
 		return "The reason it is the owner's call has at most 280 characters."
 	}
 	return ""
+}
+
+// AskDraft is a message the agent wants to send in the owner's name: the draft, and the message it answers when there is one.
+type AskDraft struct {
+	Text         string `json:"text"`
+	Original     string `json:"original,omitempty"`
+	OriginalFrom string `json:"original_from,omitempty"`
+}
+
+// Problem says in words what is wrong with the draft, or "" when it is good.
+func (d AskDraft) Problem() string {
+	switch {
+	case strings.TrimSpace(d.Text) == "":
+		return "A draft ask needs the draft text."
+	case utf8.RuneCountInString(d.Text) > MaxDraft:
+		return "A draft has at most 4000 characters."
+	case utf8.RuneCountInString(d.Original) > MaxOriginal:
+		return "The original has at most 2000 characters."
+	case utf8.RuneCountInString(d.OriginalFrom) > MaxOriginalFrom:
+		return "The from-line of the original has at most 200 characters."
+	}
+	return ""
+}
+
+// TruncateOriginal cuts an original to MaxOriginal characters and ends it with "…" when it was longer.
+func TruncateOriginal(s string) string {
+	if utf8.RuneCountInString(s) <= MaxOriginal {
+		return s
+	}
+	return string([]rune(s)[:MaxOriginal-1]) + "…"
+}
+
+// AskReply is the answer of a draft ask as the agent reads it: Text is the final text, present only when Send is true.
+type AskReply struct {
+	Send bool   `json:"send"`
+	Text string `json:"text,omitempty"`
 }
 
 // AskOption is one answer an ask offers. The first of an ask is the recommended one.
@@ -93,6 +144,8 @@ type AskView struct {
 	SnoozedUntil   int64            `json:"snoozed_until,omitempty"`
 	History        []AskHistoryRow  `json:"history,omitempty"`
 	App            json.RawMessage  `json:"app,omitempty"` // the app shown with the question, or its stub
+	Draft          *AskDraft        `json:"draft,omitempty"` // a draft ask: the message to send in the owner's name
+	Reply          *AskReply        `json:"reply,omitempty"` // a draft ask once answered
 }
 
 // AskOptionRequest is one option of a new ask.
@@ -112,6 +165,15 @@ type AskRequest struct {
 	OwnersCall     OwnersCall         `json:"owners_call"`
 	Urgent         bool               `json:"urgent,omitempty"`
 	App            json.RawMessage    `json:"app,omitempty"` // the app.v1 an agent shows with the question
+	Draft          *AskDraft          `json:"draft,omitempty"` // a draft ask: no options and no owner's call are given, the server sets them
+}
+
+// OwnersCallProblem judges the owner's call of the request: a draft ask needs none (the server sets it), any other ask needs a good one.
+func (r AskRequest) OwnersCallProblem() string {
+	if r.Draft != nil {
+		return ""
+	}
+	return r.OwnersCall.Problem()
 }
 
 // OneAsk is the answer of the ask routes.
@@ -123,7 +185,7 @@ type OneAsk struct {
 type AskAnswerRequest struct {
 	Choice    string `json:"choice"`
 	Index     int    `json:"index,omitempty"`
-	Text      string `json:"text,omitempty"`
+	Text      string `json:"text,omitempty"` // custom: the person's words; recommended on a draft ask: the final text
 	IfVersion int64  `json:"if_version,omitempty"`
 	ClientID  string `json:"client_id,omitempty"`
 	Via       string `json:"via,omitempty"`

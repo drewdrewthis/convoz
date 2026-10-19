@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { DraftReview, type DraftData } from "./DraftReview.tsx";
 
 /* The ask card: one question an agent put to the owner, with the answers it offers. Now and a conversation draw the same card.
  * The types are local on purpose: this package knows no API client, so the app maps its data to these shapes. */
@@ -23,6 +24,8 @@ export interface AskData {
   state: string;
   close_reason?: string;
   options: { label: string; why: string }[];
+  /** A draft ask: a message to send in the owner's name. It is answered with Send (the final text) or Don't send. */
+  draft?: DraftData;
   chosen?: { kind: string };
   answer?: string;
   created_at: number;
@@ -114,8 +117,9 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
   const [optionsOnSnooze, setOptionsOnSnooze] = useState(false);
   const root = useRef<HTMLElement | null>(null);
   const open = ask.state === "open";
+  const draft = open ? ask.draft : undefined;
   // The composer of a thread is the reply there (no onReply), so a thread card has no quick reply of its own.
-  const quickReply = where === "now" || Boolean(onReply);
+  const quickReply = (where === "now" || Boolean(onReply)) && !draft; // a draft is answered by Send or Don't send only
   const shut = () => {
     setPanel("");
     setOptionsOnSnooze(false);
@@ -133,6 +137,8 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
   const keys = (e: KeyboardEvent<HTMLElement>) => {
     if (e.key === "Escape" && panel) return shut();
     const t = e.target as HTMLElement;
+    // Nothing goes out in the owner's name from a key: a draft is sent only by its Send button.
+    if (draft) return;
     if (e.metaKey || e.ctrlKey || e.altKey || t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.getAttribute("role") === "menuitem" || !open || busy) return;
     const k = e.key.toLowerCase();
     if (e.key === "Enter" && t === e.currentTarget) onAnswer({ choice: "recommended" });
@@ -196,7 +202,7 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
           </span>
         </div>
       ) : null}
-      {open ? (
+      {draft ? null : open ? (
         <div className="askwhys">
           {ask.options.map((o, i) => (
             <p key={i}>
@@ -239,8 +245,9 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
           </button>
         </div>
       ) : null}
+      {draft ? <DraftReview draft={draft} busy={busy} onSend={(text) => onAnswer({ choice: "recommended", text })} onDecline={() => onAnswer({ choice: "alternative", index: 1 })} /> : null}
       <div className="askopts">
-        {open
+        {open && !draft
           ? ask.options.map((o, i) => (
               <button key={i} className={`askopt${i === 0 ? " rec" : ""}`} type="button" disabled={busy} onClick={() => onAnswer(i === 0 ? { choice: "recommended" } : { choice: "alternative", index: i })}>
                 {o.label}

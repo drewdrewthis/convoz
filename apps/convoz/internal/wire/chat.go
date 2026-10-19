@@ -289,6 +289,8 @@ type WatchLine struct {
 	// Text is what the message says in words: the body, or for a message with files the plain form ("Voice note 0:21: <words>"). A voice note has an empty Body.
 	Text      string `json:"text"`
 	CreatedAt string `json:"created_at"`
+	// Reply is the answer of a draft ask (an ask_resolved item): send true with the final text, or send false. Absent on any other item.
+	Reply *AskReply `json:"reply,omitempty"`
 }
 
 // ValidClientID reports whether s is a well-formed client id: 8 to 64 characters, no space or control character.

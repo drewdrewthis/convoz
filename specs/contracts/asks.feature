@@ -150,3 +150,22 @@ Feature: Asks and their state machine (contracts)
       When the owner snoozes it until tomorrow 09:00
       Then GET /api/now shows the ask under snoozed with version 1
       And an answer sent with if_version 1 answers 200
+
+  Rule: A draft ask is checked and answered by its own rules
+
+    @v1 @api
+    Scenario: A draft ask is checked, stored with a fixed owner's call and answered with Send or Don't send
+      When "devtool" posts a draft ask with a draft of 4001 characters
+      Then the server answers 400 naming "draft"
+      When "devtool" posts a draft ask with an original of 2001 characters
+      Then the server answers 400 naming "original"
+      When "devtool" posts an ask with owners_call kind "in-your-name" and options but no draft
+      Then the server answers 400 naming "owners_call" with the words "draft ask only"
+      When "devtool" posts a draft ask with no owners_call and no options
+      Then the server answers 201 and GET shows owners_call kind "in-your-name" with the reason "It goes out in your name.", the draft and the options "Send" and "Don't send"
+      When the owner answers "recommended" with a text of 4001 characters
+      Then the server answers 400 naming "text"
+      When the owner answers "custom" with a text
+      Then the server answers 400 naming "choice"
+      When the owner answers "recommended" with the text "Final words"
+      Then GET shows the reply send true with the text "Final words" and the answer "Send: Final words"

@@ -12,6 +12,7 @@ import { answerAsk, dismissAsk, snoozeAsk, undismissAsk, unsnoozeAsk, useNow, ty
 import { parseAllow } from "../crew/index.ts";
 import { agentRequests, RequestCard } from "./requests.tsx";
 import { presetsAt } from "./presets.ts";
+import { AskApp } from "./AskApp.tsx";
 import { Attention } from "./Attention.tsx";
 import { Unread, unreadRows } from "./Unread.tsx";
 
@@ -116,7 +117,7 @@ export function Now() {
   };
 
   const answer = (ask: Ask, a: Answer) =>
-    act(ask, true, () => answerAsk(ask.id, { ...a, if_version: ask.version, via: "now" }), a.choice === "custom" ? (a.text ?? "") : (ask.options[a.choice === "alternative" ? (a.index ?? 1) : 0]?.label ?? ""));
+    act(ask, true, () => answerAsk(ask.id, { ...a, if_version: ask.version, via: "now" }), a.choice === "custom" || (ask.draft && a.choice === "recommended") ? (a.text ?? "") : (ask.options[a.choice === "alternative" ? (a.index ?? 1) : 0]?.label ?? ""));
 
   const moveFocus = (e: KeyboardEvent<HTMLElement>) => {
     const step = e.key === "j" ? 1 : e.key === "k" ? -1 : 0;
@@ -271,6 +272,7 @@ function NowAsk({ ask, busy, presets, answer, dismiss, snooze }: { ask: Ask; bus
       onSnooze={(preset) => snooze(ask, preset)}
       onReply={() => location.assign(`/chats/${ask.conversation_id}#reply=${ask.thread_root_id ?? ask.id}`)}
     />
+    <AskApp ask={ask} />
     <Attention conversation={ask.conversation_id} />
     </>
   );

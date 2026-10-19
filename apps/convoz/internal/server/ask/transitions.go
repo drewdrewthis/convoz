@@ -52,7 +52,7 @@ func Answer(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, in Answerin
 		via = "inline"
 	}
 	won, err := q.MarkAnswered(ctx, db.MarkAnsweredParams{
-		ChosenKind: chosen.Kind, ChosenIndex: nullInt(int64(chosen.Index)), ChosenText: sql.NullString{String: chosen.Text, Valid: chosen.Kind == Custom},
+		ChosenKind: chosen.Kind, ChosenIndex: nullInt(int64(chosen.Index)), ChosenText: sql.NullString{String: chosen.Text, Valid: chosen.Text != ""},
 		AnswerVia: via, By: in.By, Now: now.UnixMilli(), MessageID: a.ID, Version: a.Version,
 	})
 	if err != nil {
@@ -232,6 +232,9 @@ func lost(ctx context.Context, d pdb.DBTX, id int64) error {
 
 // resolve checks a choice against the ask's options and says what it is and in which words it is posted.
 func resolve(a Ask, c Choice) (Choice, string, error) {
+	if a.Draft != nil {
+		return resolveDraft(a, c)
+	}
 	switch c.Kind {
 	case Recommended:
 		return Choice{Kind: Recommended}, a.Options[0].Label, nil
@@ -253,6 +256,32 @@ func resolve(a Ask, c Choice) (Choice, string, error) {
 	return Choice{}, "", &FieldError{"choice", "Choose recommended, alternative or custom."}
 }
 
+// resolveDraft is resolve for a draft ask: Send keeps the final text (the draft itself when the person gave none), Don't send keeps none.
+func resolveDraft(a Ask, c Choice) (Choice, string, error) {
+	switch c.Kind {
+	case Recommended:
+		text := draftTextOf(a, c)
+		if utf8.RuneCountInString(text) > MaxCustomText {
+			return Choice{}, "", &FieldError{"text", "A draft has at most 4000 characters."}
+		}
+		return Choice{Kind: Recommended, Text: text}, "Send: " + text, nil
+	case Alternative:
+		if c.Index != 1 {
+			return Choice{}, "", &FieldError{"index", "The ask did not offer that alternative."}
+		}
+		return Choice{Kind: Alternative, Index: 1}, "Don't send", nil
+	}
+	return Choice{}, "", &FieldError{"choice", "Answer a draft with recommended (send) or alternative 1 (do not send)."}
+}
+
+// draftTextOf is the text a Send answer carries: the one the person gave, else the draft.
+func draftTextOf(a Ask, c Choice) string {
+	if text := strings.TrimSpace(c.Text); text != "" {
+		return text
+	}
+	return a.Draft.Text
+}
+
 // sameChoice reports whether an answered ask holds exactly this answer.
 func sameChoice(a Ask, c Choice) bool {
 	if a.Chosen == nil || a.Chosen.Kind != c.Kind {
@@ -263,6 +292,8 @@ func sameChoice(a Ask, c Choice) bool {
 		return a.Chosen.Index == c.Index
 	case Custom:
 		return a.Chosen.Text == strings.TrimSpace(c.Text)
+	case Recommended:
+		return a.Draft == nil || a.Chosen.Text == draftTextOf(a, c)
 	}
 	return true
 }

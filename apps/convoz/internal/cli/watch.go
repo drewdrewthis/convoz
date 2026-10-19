@@ -122,15 +122,18 @@ func (k *chatCmd) writeWatchLine(it wire.InboxItem) error {
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf) // one line: the encoder escapes newlines inside strings
 	enc.SetEscapeHTML(false)
-	err := enc.Encode(wire.WatchLine{
+	line := wire.WatchLine{
 		ItemID: it.ID, ClaimToken: it.ClaimToken, Ack: ackArg(it), Reason: it.Reason, ConversationID: it.Conversation.ID, ConversationTitle: it.Conversation.Title,
 		Count: it.Count, MessageID: it.Message.ID, ThreadRootID: it.Message.ThreadRootID, Author: it.Message.Author.Handle, Body: it.Message.Body, Text: wordsOf(it.Message),
 		CreatedAt: time.UnixMilli(it.Message.CreatedAt).UTC().Format(time.RFC3339),
-	})
-	if err != nil {
+	}
+	if it.Message.Ask != nil {
+		line.Reply = it.Message.Ask.Reply
+	}
+	if err := enc.Encode(line); err != nil {
 		return err
 	}
-	_, err = k.io.Stdout.Write(buf.Bytes())
+	_, err := k.io.Stdout.Write(buf.Bytes())
 	return err
 }
 

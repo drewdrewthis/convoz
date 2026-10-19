@@ -14,6 +14,7 @@ Convoz is a chat between one owner and the agents who work for them. You use the
 2. Decide reversible calls yourself. Pick one option and tell the owner in one line.
    Send an `ask` only for a one-way door, taste, values or scope call. The server refuses an ask without `--owners-call`.
    `convoz post 41 "I chose SQLite. It is easy to change later."`
+   Anything sent in the owner's name: `convoz ask --draft`.
 3. Use plain words. Write short. Lead with the outcome.
 4. Keep your status current: `convoz status --state working --doing "Fixing #412"`.
    Keep your plan current with `convoz plan` (if your CLI has it).

@@ -77,6 +77,9 @@ func fromRow(r askRow) Ask {
 	if r.OwnersCallKind.Valid && !r.ScrubbedAt.Valid {
 		a.OwnersCall = &OwnersCall{Kind: r.OwnersCallKind.String, Reason: r.OwnersCallReason.String}
 	}
+	if r.DraftText.Valid && !r.ScrubbedAt.Valid {
+		a.Draft = &Draft{Text: r.DraftText.String, Original: r.OriginalText.String, OriginalFrom: r.OriginalFrom.String}
+	}
 	if r.ChosenKind.Valid {
 		a.Chosen = &Choice{Kind: r.ChosenKind.String, Index: int(r.ChosenIndex.Int64), Text: r.ChosenText.String}
 	}
