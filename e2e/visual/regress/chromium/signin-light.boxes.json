@@ -1,0 +1,32 @@
+{
+ "viewport": [
+  1280,
+  720
+ ],
+ "boxes": {
+  "a \"Convoz\"#0": [
+   18,
+   8,
+   66.61,
+   44
+  ],
+  "h1 \"Sign in\"#0": [
+   336,
+   85,
+   608,
+   32.19
+  ],
+  "button \"Sign in with a passkey\"#0": [
+   336,
+   590,
+   608,
+   50
+  ],
+  "a \"Lost your passkey? Use a recovery code\"#0": [
+   336,
+   648,
+   608,
+   48
+  ]
+ }
+}
