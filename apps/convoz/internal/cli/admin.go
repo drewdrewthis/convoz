@@ -49,6 +49,8 @@ func exitCode(err error) int {
 	switch {
 	case errors.Is(err, errUnreachable):
 		return ExitNetwork
+	case errors.Is(err, errNeedsInvite):
+		return ExitUsage
 	case errors.Is(err, errAwaitingOwner):
 		return ExitAuth
 	case !errors.As(err, &se):
