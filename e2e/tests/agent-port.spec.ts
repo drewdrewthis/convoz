@@ -73,13 +73,88 @@ scenario("The invite prompt shows the agents-only address", { tag: ["@browser"] 
   await page.goto(`${srv.origin}/crew`);
   await page.getByRole("button", { name: /^(Add|Invite) agent$/ }).first().click();
 
-  // Then the prompt names the agents-only address as the server
+  // Then the prompt names the agents-only address for the open internet
   const prompt = page.getByRole("dialog", { name: "Invite agent" }).getByLabel("Connect prompt");
-  await expect(prompt).toContainText(`Server:  ${agent.origin}`);
+  await expect(prompt).toContainText(`From the open internet: use ${agent.origin}`);
   await expect(prompt).toContainText(`curl -fsSL ${agent.origin}/install | sh`);
+});
 
-  // And the prompt does not name the tailnet address
-  await expect(prompt).not.toContainText(new RegExp(`${srv.origin.replace(/[.]/g, "\\.")}(?!\\d)`));
+// Owner ruling (Drew, conv 1 msg 245): "I thought the ideas was that there were two entry points. One for people already on the Tail net, and one for the open Internet."
+scenario("The invite prompt gives the tailnet and the internet entry points", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given a Convoz server with an agents-only address
+  const srv = await server(agentServer());
+  const agent = agentPort(srv);
+  const owner = await bootstrapOwner(srv);
+  await signInBrowser(srv, owner, page, context);
+
+  // When the owner opens the invite sheet in Crew
+  await page.goto(`${srv.origin}/crew`);
+  await inviteButton(page).click();
+
+  // Then the prompt names the tailnet address first and the agents-only address second
+  const prompt = promptOf(page);
+  await expect(prompt).toContainText("cvz_i_");
+  const text = (await prompt.innerText()).replace(/\u00a0/g, " ");
+  const tailnet = text.indexOf(`On the tailnet: use ${srv.origin}\n`);
+  const internet = text.indexOf(`From the open internet: use ${agent.origin}\n`);
+  expect(tailnet).toBeGreaterThan(-1);
+  expect(internet).toBeGreaterThan(tailnet);
+  expect(text).toContain("The invite works on both.");
+
+  // And the install and "convoz login" commands each have a code block for each address, and "convoz session start" has one
+  const fenced = [...text.matchAll(/^```\n([^\n]*)\n```$/gm)].map((m) => m[1]!);
+  for (const origin of [srv.origin, agent.origin]) {
+    expect(fenced.some((l) => l.includes(`curl -fsSL ${origin}/install | sh`) && l.includes("export CONVOZ_INVITE=cvz_i_")), `install ${origin}`).toBe(true);
+    expect(fenced.some((l) => l.startsWith(`convoz login --server ${origin} --invite cvz_i_`)), `login ${origin}`).toBe(true);
+  }
+  // (session start has one block: a logged-in machine already holds the address it logged in at)
+  expect(fenced.filter((l) => l.startsWith("convoz session start --as <your-handle> --create --invite cvz_i_"))).toHaveLength(1);
+});
+
+scenario("One invite works through the main address", { tag: ["@cli", "@browser"] }, async ({ server, page, context }) => {
+  // Given a Convoz server with an agents-only address, two invites, and a machine "box-2" logged in without the create_identity scope
+  const srv = await server(agentServer());
+  const owner = await bootstrapOwner(srv);
+  const invite = await ownerInvite(owner);
+  const second = await ownerInvite(owner);
+  const box2 = await loginMachine(srv, owner, "box-2", allow("new*"));
+
+  // When a new machine runs "convoz login --invite" against the main address
+  const box = new CliMachine();
+  const login = box.startLogin(srv.origin, "dot-box", ["--as", "dot", "--invite", invite]);
+  await login.waitForStdout(AGENT_LINE);
+
+  // Then the owner approves one card and the CLI logs in
+  await signInBrowser(srv, owner, page, context);
+  await page.getByRole("article", { name: "dot-box wants to connect as @dot", exact: true }).getByRole("button", { name: "Approve", exact: true }).click();
+  const done = await login.done;
+  expect(done.code, done.stderr).toBe(0);
+
+  // And a session start with that invite on the main address files a request for the owner
+  const asked = await mintSession(srv, box2.key, { as: "newbie", create: { display_name: "Newbie", invite: second } });
+  expect(asked.status).toBe(202);
+  expect((await identityRequests(owner)).some((r) => r.handle === "newbie")).toBe(true);
+
+  // And a second use of the same invite is refused on either address
+  const before = (await pendingRequests(owner)).length;
+  const hostInfo = { hostname: "x.TESTONLY.local", os: "linux", arch: "amd64", cli_version: "0.0.0-TESTONLY" };
+  const mainLogin = await send(srv.target, "POST", "/api/device/code", { json: { name: "box-3", host_info: hostInfo, invite } });
+  const agentLogin = await startLoginViaAgent(srv, "box-4", "203.0.113.9", undefined, second);
+  const mainSession = await mintSession(srv, box2.key, { as: "other", create: { display_name: "Other", invite: second } });
+  const agentSession = await viaAgent(srv, "POST", "/api/sessions", { from: "203.0.113.5", bearer: box2.key, json: { as: "third", client_id: clientId(), create: { display_name: "Third", invite } } });
+  expect(agentLogin.status).toBe(200); // the internet is told nothing
+  expect(agentSession.status).toBe(202);
+  expect((await pendingRequests(owner)).length).toBe(before);
+  expect((await identityRequests(owner)).some((r) => r.handle === "other" || r.handle === "third")).toBe(false);
+
+  // And on the main address a used invite gets a clear error, and the CLI prints it and exits non-zero
+  for (const res of [mainLogin, mainSession]) {
+    expect(res.status).toBe(400);
+    expect(res.json().error.code).toBe("invite_spent");
+  }
+  const stale = await new CliMachine().startLogin(srv.origin, "dot-box-2", ["--as", "dot2", "--invite", invite]).done;
+  expect(stale.code).not.toBe(0);
+  expect(stale.stderr).toContain("This invite was used or has expired. Ask the owner for a new one.");
 });
 
 scenario("An owner route gives 404 on the agents-only port even with the owner's cookie", { tag: ["@api"] }, async ({ server }) => {

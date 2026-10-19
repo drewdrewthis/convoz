@@ -57,6 +57,8 @@ func (s *Server) mintSession(w http.ResponseWriter, r *http.Request, c *call) {
 		writeErr(w, http.StatusGone, wire.CodeRequestExpired, "The request expired. Ask again.")
 	case errors.As(err, &forbidden):
 		writeErr(w, http.StatusForbidden, "forbidden", forbidden.Error())
+	case errors.Is(err, auth.ErrInviteSpent):
+		writeErr(w, http.StatusBadRequest, wire.CodeInviteSpent, inviteSpentMessage)
 	case errors.Is(err, auth.ErrNotAllowed):
 		writeErr(w, http.StatusForbidden, "forbidden", "This machine may not act as that identity.")
 	case errors.Is(err, auth.ErrSessionCap):

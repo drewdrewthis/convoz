@@ -38,6 +38,7 @@ const (
 	CodeExpiredToken         = "expired_token"
 	CodeSessionEnded         = "session_ended"
 	CodeTooManyPending       = "too_many_pending"
+	CodeInviteSpent          = "invite_spent"
 	CodeHandleTaken          = "handle_taken"
 	CodeRequestDenied        = "request_denied"
 	CodeRequestExpired       = "request_expired"
