@@ -29,8 +29,10 @@ const searchBox = (page: Page) => searchDialog(page).getByRole("combobox", { nam
 const messageOptions = (page: Page) => searchDialog(page).getByRole("group", { name: "Messages" }).getByRole("option");
 
 /** Open the search overlay from the Conversations page and type the text. */
-async function typeSearch(page: Page, text: string): Promise<void> {
-  await page.getByRole("button", { name: "Search", exact: true }).click();
+async function typeSearch(page: Page, text: string, how: "button" | "keys" = "button"): Promise<void> {
+  // A conversation has no top bar with the button: there the shortcut opens it.
+  if (how === "keys") await page.keyboard.press("Control+K");
+  else await page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(searchDialog(page)).toBeVisible();
   await searchBox(page).fill(text);
 }
@@ -113,6 +115,66 @@ scenario("A result opens in its conversation", { tag: ["@browser"] }, async ({ s
   await expect(shown).toHaveAttribute("data-hl", "true");
   await expect(shown).toBeInViewport({ ratio: 1 });
   await expect(page.getByRole("log", { name: "Messages" }).getByRole("article").filter({ hasText: "later note 119" })).not.toBeInViewport();
+});
+
+scenario("Choosing a thread result opens that thread", { tag: ["@browser"] }, async ({ server, dataDir, page, context }) => {
+  // Background
+  const w = await browserSearchWorld({ server, dataDir, page, context });
+
+  // Given "devtool" replied "spikereply is the answer" in a thread of conversation 41
+  const root = must(await agentPostWith(w.srv, w.devtool, w.conv, { body: "which step ships first" }), "root", 201).json().id as number;
+  must(await agentPostWith(w.srv, w.devtool, w.conv, { body: "spikereply is the answer", thread_root_id: root }), "reply", 201);
+  const thread = page.getByRole("dialog", { name: /^Thread / }).or(page.getByRole("complementary", { name: /^Thread / }));
+  const opened = async () => {
+    await expect(searchDialog(page)).toBeHidden();
+    await expect(thread.getByRole("log", { name: "Thread messages" }).getByRole("article").filter({ hasText: "spikereply is the answer" })).toBeVisible();
+  };
+
+  // When the owner searches "spikereply" and chooses the thread result
+  await page.goto(`${w.srv.origin}/chats`);
+  await expect(page.getByRole("heading", { name: "Conversations", exact: true })).toBeVisible();
+  await typeSearch(page, "spikereply");
+  await messageOptions(page).first().click();
+
+  // Then the thread opens with that reply and Find anything is closed
+  await opened();
+
+  // When the owner searches "spikereply" again and presses Enter on the thread result
+  await page.goto(`${w.srv.origin}/chats`);
+  await expect(page.getByRole("heading", { name: "Conversations", exact: true })).toBeVisible();
+  await typeSearch(page, "spikereply");
+  await expect(messageOptions(page).first()).toContainText("spikereply");
+  await searchBox(page).press("Enter");
+
+  // Then the thread opens with that reply and Find anything is closed
+  await opened();
+});
+
+scenario("Choosing a result for the conversation you are already in closes Find anything", { tag: ["@browser"] }, async ({ server, dataDir, page, context }) => {
+  // Background
+  const w = await browserSearchWorld({ server, dataDir, page, context });
+
+  // Given the owner is in conversation 41
+  await page.goto(`${w.srv.origin}/chats/${w.conv}`);
+  const log = page.getByRole("log", { name: "Messages" });
+  await expect(log.getByRole("article").filter({ hasText: "rollback if the filters slow the page" })).toBeVisible();
+
+  // When the owner searches "Ship search filters" and chooses the conversation result
+  await typeSearch(page, "Ship search filters", "keys");
+  await searchDialog(page).getByRole("group", { name: "Conversations" }).getByRole("option").first().click();
+
+  // Then Find anything is closed and conversation 41 is still open
+  await expect(searchDialog(page)).toBeHidden();
+  await expect(page).toHaveURL(new RegExp(`/chats/${w.conv}$`));
+  await expect(log).toBeVisible();
+
+  // When the owner searches "rollback" and chooses the message result
+  await typeSearch(page, "rollback", "keys");
+  await messageOptions(page).filter({ hasText: "rollback if the filters slow the page" }).first().click();
+
+  // Then Find anything is closed and that message is highlighted
+  await expect(searchDialog(page)).toBeHidden();
+  await expect(log.getByRole("article").filter({ hasText: "rollback if the filters slow the page" })).toHaveAttribute("data-hl", "true");
 });
 
 scenario("Each filter narrows the results", { tag: ["@api"] }, async ({ server, dataDir }) => {

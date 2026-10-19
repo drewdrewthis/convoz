@@ -67,8 +67,15 @@ export default function Overlay() {
     data.loadConversations().catch(() => {});
   }, []);
 
+  // Every choice closes the overlay itself: going to the page already on screen is no navigation, so nothing else would close it.
   const open = (href: string) => {
-    location.assign(href);
+    hide();
+    const [path = "", hash = ""] = href.split("#");
+    if (location.pathname !== path) return location.assign(href);
+    const same = location.hash === (hash && `#${hash}`);
+    location.hash = hash;
+    // The same hash again fires no hashchange, and the page listens to that event to open a thread or scroll to a message.
+    if (same && hash) dispatchEvent(new HashChangeEvent("hashchange"));
   };
   const browse = q.trim() === "";
   const chips = found.answer?.filters ?? [];
@@ -138,7 +145,8 @@ export default function Overlay() {
       })),
     );
     const place = (r: SearchResponse["results"][number]) => `${r.author.handle === me ? "You" : r.author.handle} · ${stripCf(r.conversation_title) || "New conversation"} · ${whenLabel(r.created_at)}`;
-    const toMessage = (r: SearchResponse["results"][number]) => open(`/chats/${r.conversation_id}#m${r.message_id}`);
+    // A reply is not in the main list: its result opens the thread it hangs from.
+    const toMessage = (r: SearchResponse["results"][number]) => open(r.thread_root_id ? `/chats/${r.conversation_id}#reply=${r.thread_root_id}` : `/chats/${r.conversation_id}#m${r.message_id}`);
     group(
       "msgs",
       "Messages",

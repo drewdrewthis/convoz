@@ -68,6 +68,8 @@ export function Conversation() {
   const control = useRef<TranscriptControl>(null);
   // A search result opens the conversation at its message: /chats/<id>#m<message id>.
   const [target] = useState(() => Number(/^#m(\d+)$/.exec(location.hash)?.[1] ?? 0));
+  // The message the log is scrolled to now: the one the link named, then each later search result for this same conversation.
+  const [focus, setFocus] = useState(target);
 
   const crew = useMemo(() => (people ?? []).filter((p) => p.kind === "agent" && !p.disabled), [people]);
   const agents = (conversation?.participants ?? []).filter((p) => p.kind === "agent");
@@ -113,10 +115,16 @@ export function Conversation() {
   // The same link followed while this conversation is already open changes only the hash: no reload, so the load effect does not run.
   useEffect(() => {
     if (!convId) return;
-    const follow = () => openReplyLink(convId);
+    const follow = () => {
+      openReplyLink(convId);
+      const wanted = Number(/^#m(\d+)$/.exec(location.hash)?.[1] ?? 0);
+      if (!wanted) return;
+      setFocus(0); // the same message chosen twice must scroll and mark again
+      void loadUntil(actions(), key, convId, wanted).then(() => setFocus(wanted));
+    };
     addEventListener("hashchange", follow);
     return () => removeEventListener("hashchange", follow);
-  }, [convId]);
+  }, [convId, key, actions]);
 
   const openWith = useCallback(
     (handle: string) => {
@@ -337,7 +345,7 @@ export function Conversation() {
             onEarlier={() => actions().loadEarlier(key)}
             onRetry={retry}
             onDetails={setInspected}
-            focus={target || undefined}
+            focus={focus || undefined}
             newFrom={newFrom}
           />
           <Composer
