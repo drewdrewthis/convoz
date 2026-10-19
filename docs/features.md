@@ -18,7 +18,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Crew: identities, machines and sessions](#crew-identities-machines-and-sessions) (33)
 - [Data at rest, backups and deletion](#data-at-rest-backups-and-deletion) (10)
 - [Errors in the web app reach the server log](#errors-in-the-web-app-reach-the-server-log) (3)
-- [Machine login with a device flow](#machine-login-with-a-device-flow) (21)
+- [Machine login with a device flow](#machine-login-with-a-device-flow) (23)
 - [Messages and their types](#messages-and-their-types) (17)
 - [Notifications](#notifications) (21)
 - [Now](#now) (31)
@@ -465,7 +465,7 @@ I can find and fix it with journalctl, with no third party watching.
 ## Machine login with a device flow
 
 One machine key serves every agent on that machine and no secret passes through a prompt.
-21 scenarios.
+23 scenarios.
 
 - **A machine asks for access with a short code, and the owner approves it**
   - [Login prints a code and Now shows the same code](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/machine-login.feature#L24)
@@ -485,14 +485,16 @@ One machine key serves every agent on that machine and no secret passes through 
   - [A login as an agent shows one card and one tap connects the machine and the agent](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/machine-login.feature#L128)
   - [Declining a login as an agent makes neither the machine nor the agent](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/machine-login.feature#L140)
   - [A login as a handle that exists is refused](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/machine-login.feature#L148)
-  - [An agent login may name a conversation, and the card shows its title](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/machine-login.feature#L155)
+  - [Logging in again as a new agent on a logged-in machine asks only to add the agent](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/machine-login.feature#L154)
+  - [Logging in as an agent the machine already has needs no request](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/machine-login.feature#L165)
+  - [An agent login may name a conversation, and the card shows its title](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/machine-login.feature#L173)
 - **Device-flow limits stop floods and name clashes**
-  - [Machine names are unique while active](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/machine-login.feature#L165)
-  - [The owner denies every pending request at once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/machine-login.feature#L172)
+  - [Machine names are unique while active](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/machine-login.feature#L183)
+  - [The owner denies every pending request at once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/machine-login.feature#L190)
 - **A lost credential costs nothing but a reveal or a new login (AC-15)**
-  - [Reveal and login with stdin restore the same agent state](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/machine-login.feature#L181)
-  - [Regenerating a lost key keeps the agent state](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/machine-login.feature#L190)
-  - [The owner approves a real machine from the phone](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/machine-login.feature#L199)
+  - [Reveal and login with stdin restore the same agent state](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/machine-login.feature#L199)
+  - [Regenerating a lost key keeps the agent state](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/machine-login.feature#L208)
+  - [The owner approves a real machine from the phone](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/machine-login.feature#L217)
 
 ## Messages and their types
 

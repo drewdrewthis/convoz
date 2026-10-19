@@ -211,7 +211,7 @@ func SessionStart(args []string, io IO) int {
 	if err != nil {
 		return fail(io, err)
 	}
-	sid, err := startSession(io, dir, newClient(creds.Server), creds, strings.ToLower(*as), *clientID, *label, intro, strings.TrimSpace(*invite))
+	sid, err := startSession(io, dir, newClient(creds.Server), creds, strings.ToLower(*as), *clientID, *label, intro, strings.TrimSpace(*invite), nil)
 	if err != nil {
 		return fail(io, err)
 	}
@@ -229,7 +229,8 @@ const waitForOwner = 10 * time.Minute
 
 // startSession mints a lease for (as, clientID) and returns the local session id of its file. With an intro the identity is
 // created when missing; when the owner has to approve it first, startSession files the request and asks again until the owner decides.
-func startSession(io IO, dir string, c *client, creds Credentials, as, clientID, label string, intro *wire.IdentityIntro, invite string) (string, error) {
+// onAsk (may be nil) runs once, when the owner turns out to be needed.
+func startSession(io IO, dir string, c *client, creds Credentials, as, clientID, label string, intro *wire.IdentityIntro, invite string, onAsk func()) (string, error) {
 	req := wire.MintRequest{As: as, ClientID: clientID, Label: label}
 	if intro != nil {
 		req.Create = &wire.CreateIdentity{DisplayName: intro.DisplayName, Description: intro.Description, AvatarSVG: intro.AvatarSVG, ConversationID: intro.ConversationID, Invite: invite}
@@ -262,6 +263,9 @@ func startSession(io IO, dir string, c *client, creds Credentials, as, clientID,
 		}
 		req.Create.Request = out.Request.Ref
 		if !announced {
+			if onAsk != nil {
+				onAsk()
+			}
 			fmt.Fprintf(io.Stderr, "convoz: Waiting for the owner to approve @%s on this machine. Open Convoz, Now.\n", as)
 		}
 		if !time.Now().Before(deadline) {
@@ -326,23 +330,27 @@ func SessionEnd(args []string, io IO) int {
 	if err != nil {
 		return fail(io, err)
 	}
-	s, err := loadSession(dir, *sid)
-	if isEnded(err) {
-		return ExitOK
-	}
-	if err != nil {
-		return fail(io, err)
-	}
-	reason := endedHere
-	err = newClient(creds.Server).call(context.Background(), "DELETE", wire.RouteSessionsMe, s.Lease, nil, nil)
-	if err != nil {
-		if !isEnded(err) {
-			return fail(io, err)
-		}
-		reason = err.Error()
-	}
-	if err := markSessionEnded(dir, *sid, reason); err != nil {
+	if err := endSession(dir, newClient(creds.Server), *sid); err != nil {
 		return fail(io, err)
 	}
 	return ExitOK
+}
+
+// endSession ends the lease of a local session on the server and marks its file ended. A lease that already ended counts as ended.
+func endSession(dir string, c *client, sid string) error {
+	s, err := loadSession(dir, sid)
+	if isEnded(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	reason := endedHere
+	if err := c.call(context.Background(), "DELETE", wire.RouteSessionsMe, s.Lease, nil, nil); err != nil {
+		if !isEnded(err) {
+			return err
+		}
+		reason = err.Error()
+	}
+	return markSessionEnded(dir, sid, reason)
 }
