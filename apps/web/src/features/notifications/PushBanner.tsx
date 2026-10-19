@@ -1,3 +1,4 @@
+import { IconButton } from "@convoz/ui/IconButton";
 import { CloseIcon } from "@convoz/ui/icons";
 import { useEffect, useState } from "react";
 import { humanError } from "../../shared/api.ts";
@@ -72,10 +73,8 @@ export function PushBanner() {
             Turn on
           </Button>
         )}
-        <button
-          className="iconbtn"
-          type="button"
-          aria-label="Dismiss"
+        <IconButton
+          label="Dismiss"
           disabled={busy}
           onClick={() => {
             rememberDismissed();
@@ -83,7 +82,7 @@ export function PushBanner() {
           }}
         >
           <CloseIcon />
-        </button>
+        </IconButton>
       </div>
       {error ? <p role="alert">{error}</p> : null}
     </section>

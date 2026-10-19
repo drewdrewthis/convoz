@@ -1,3 +1,4 @@
+import { IconButton } from "@convoz/ui/IconButton";
 import type { Upload } from "@convoz/api-client";
 import { ChevronIcon, PauseIcon, PlayIcon } from "@convoz/ui/icons";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -69,9 +70,9 @@ export function VoiceNote({ upload }: { upload: Upload }) {
   return (
     <div className="voice">
       <div className="vbubble">
-        <button type="button" className="vplay" aria-label={on ? "Pause voice message" : "Play voice message"} onClick={toggle}>
+        <IconButton variant="primary" size={36} glyph="self" className="[&_svg]:size-16 [&_svg]:fill-current [&_svg]:stroke-none" label={on ? "Pause voice message" : "Play voice message"} onClick={toggle}>
           {on ? <PauseIcon /> : <PlayIcon />}
-        </button>
+        </IconButton>
         <span className="vbars" role="progressbar" aria-label="Playback progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
           {heights.map((h, i) => (
             <i key={i} className={(i + 0.5) / BARS <= pct / 100 ? "on" : undefined} style={{ height: `${Math.round(4 + h * 22)}px` }} />

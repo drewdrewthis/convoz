@@ -1,3 +1,4 @@
+import { IconButton } from "@convoz/ui/IconButton";
 import { PhoneIcon } from "@convoz/ui/icons";
 import { useEffect } from "react";
 import { useCall } from "./store.ts";
@@ -15,8 +16,8 @@ export function CallButton({ conversationId }: { conversationId: number }) {
   );
   if (!on) return null;
   return (
-    <button type="button" className="iconbtn" aria-label="Call" title="Call" disabled={busy} onClick={() => useCall.getState().start(conversationId)}>
+    <IconButton variant="float" label="Call" disabled={busy} onClick={() => useCall.getState().start(conversationId)}>
       <PhoneIcon />
-    </button>
+    </IconButton>
   );
 }

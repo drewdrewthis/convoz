@@ -52,8 +52,3 @@
     .srmeta { padding: 8px 16px max(8px, var(--bottom)); }
   }
 }
-
-@layer components {
-  /* the button takes no more height than the account button beside it, so no top bar grows */
-  .searchbtn { margin: -6px 0; }
-}

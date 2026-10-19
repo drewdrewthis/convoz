@@ -1,3 +1,4 @@
+import { IconButton } from "@convoz/ui/IconButton";
 import { AttachIcon, BackIcon, MicIcon, SendIcon } from "@convoz/ui/icons";
 import type { Message } from "@convoz/api-client";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
@@ -88,18 +89,18 @@ export function ThreadPane({ title, bubbles }: ThreadPaneProps) {
     <>
       <header className="threadbar">
         {wide ? null : (
-          <button type="button" className="iconbtn" aria-label="Back" onClick={close}>
+          <IconButton variant="float" label="Back" onClick={close}>
             <BackIcon />
-          </button>
+          </IconButton>
         )}
         <div className="titles">
           <h2>Thread</h2>
           <span className="sub">{heading}</span>
         </div>
         {wide ? (
-          <button type="button" className="iconbtn thrclose" aria-label="Close thread" onClick={close}>
+          <IconButton variant="float" className="ml-auto" label="Close thread" onClick={close}>
             <CloseIcon />
-          </button>
+          </IconButton>
         ) : null}
       </header>
       <div ref={log} className="threadlog" role="log" aria-label="Thread messages">
@@ -117,9 +118,9 @@ export function ThreadPane({ title, bubbles }: ThreadPaneProps) {
         <AttachmentList attachments={attachments} />
         {voice.bar}
         <div className="composer glass thrcomposer" hidden={voice.recording}>
-          <button type="button" className="attachbtn" aria-label="Attach a file to the reply" title="Attach a file" onClick={() => picker.current?.click()}>
+          <IconButton variant="muted" glyph={18} stroke={2} label="Attach a file to the reply" title="Attach a file" onClick={() => picker.current?.click()}>
             <AttachIcon />
-          </button>
+          </IconButton>
           <input
             ref={picker}
             type="file"
@@ -137,12 +138,12 @@ export function ThreadPane({ title, bubbles }: ThreadPaneProps) {
           <input ref={input} id="thr-composer" value={text} onChange={(e) => { setText(e.target.value); voice.clearNote(); }} onPaste={(e) => pasteFiles(e, attachments)} placeholder="Reply…" autoComplete="off" enterKeyHint="send" />
           <span className="sendslot">
             {/* Send stays in the page (and disabled) under the microphone while there is nothing to send. */}
-            <button type="submit" className={`sendbtn${empty ? " under" : ""}`} aria-label="Send reply" disabled={!canSend} onMouseDown={keepFocus}>
+            <IconButton type="submit" variant="send" glyph={18} stroke={2} className={empty ? "opacity-0 pointer-events-none" : undefined} label="Send reply" disabled={!canSend} onMouseDown={keepFocus}>
               <SendIcon />
-            </button>
-            <button ref={voice.mic} type="button" className="sendbtn mic" aria-label="Record a voice message" title="Record a voice message" hidden={!empty} onMouseDown={keepFocus} onClick={voice.start}>
+            </IconButton>
+            <IconButton ref={voice.mic} variant="soft" glyph={18} stroke={2} className="absolute inset-0" label="Record a voice message" hidden={!empty} onMouseDown={keepFocus} onClick={voice.start}>
               <MicIcon />
-            </button>
+            </IconButton>
           </span>
         </div>
         {voice.note}

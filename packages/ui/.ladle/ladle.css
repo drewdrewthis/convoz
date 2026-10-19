@@ -5,3 +5,10 @@
 @import "../src/theme.css";
 @import "tailwindcss/utilities.css" layer(utilities);
 @source "../src";
+/* The provider is the one place outside src that writes classes. */
+@source "./components.tsx";
+
+/* The accent gradient of apps/web/src/styles/app.css, which the primary button paints. */
+:root {
+  --grad: linear-gradient(135deg, var(--color-grad-1) 0%, var(--color-grad-2) 55%, var(--color-grad-3) 100%);
+}

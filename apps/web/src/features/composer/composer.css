@@ -1,12 +1,8 @@
 /* Composer: Attach, the files to send, the microphone in Send's place, and the drop overlay (prototype v41, phone). */
 @layer components {
-  .attachbtn { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--color-muted); }
-  .attachbtn:disabled, .sendbtn.mic:disabled { cursor: default; }
-  .attachbtn svg, .fin svg, .dropov svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .fin svg, .dropov svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   @media (min-width: 601px) { .compose .composer textarea { max-height: 164px; } }
   .sendslot { position: relative; flex: 0 0 auto; width: 44px; height: 44px; }
-  .sendbtn.under { opacity: 0; pointer-events: none; }
-  .sendbtn.mic { position: absolute; inset: 0; background: var(--color-selection); color: var(--color-accent-text); }
 
   /* the files to send: a row of chips that scrolls sideways (prototype v42); an image is a 56 px thumbnail, any other file a chip */
   .tosend { display: flex; flex-wrap: nowrap; gap: 8px; padding: 2px 4px 4px; overflow-x: auto; }
@@ -28,9 +24,6 @@
   .fbar i { display: block; height: 100%; background: var(--color-accent); }
   .fretry { flex: none; min-height: 44px; padding: 0 12px; border: 1px solid var(--color-edge); border-radius: 999px; background: var(--color-raised); color: var(--color-text); font: inherit; font-weight: 600; }
   /* the tap area is 44 px; the dot is 20 px and sits on the corner */
-  .fin .fx { position: absolute; top: -10px; right: -10px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; background: transparent; }
-  .fin .fxdot { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--color-text); color: var(--color-bg); }
-  .fin .fxdot svg { width: 10px; height: 10px; stroke-width: 3; }
   .fnote { margin: 0 4px 8px; font-size: 13px; color: var(--color-muted); }
   .micnote { margin: 8px 4px 0; font-size: 13px; color: var(--color-danger); }
   @keyframes finIn { from { transform: translateY(-4px); opacity: 0; } to { transform: none; opacity: 1; } }

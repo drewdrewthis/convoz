@@ -1,4 +1,4 @@
-import type { ComponentPropsWithRef } from "react";
+import { forwardRef, type ComponentPropsWithoutRef, type Ref } from "react";
 import { cx } from "./cx.ts";
 
 export type ButtonVariant = "primary" | "quiet" | "danger";
@@ -11,7 +11,7 @@ interface Own {
 }
 
 /** A link looking like a button is an `<a>` (give it `href`); anything else is a `<button>` that does not submit unless `type="submit"`. */
-export type ButtonProps = Own & ({ href?: undefined } & ComponentPropsWithRef<"button"> | { href: string } & ComponentPropsWithRef<"a">);
+export type ButtonProps = Own & ({ href?: undefined } & ComponentPropsWithoutRef<"button"> | { href: string } & ComponentPropsWithoutRef<"a">);
 
 // The button resets what the browser styles itself (font, margin, border, background), so it looks the same in the app and in the story book.
 const base =
@@ -24,14 +24,17 @@ const variants: Record<ButtonVariant | "plain", string> = {
   plain: "border-border bg-raised text-text",
   primary: "bg-transparent bg-(image:--grad) border-transparent text-on-accent",
   quiet: "bg-transparent border-transparent text-accent-text",
-  danger: "text-danger",
+  danger: "border-border bg-raised text-danger",
 };
 
-/** Button is the app's one pill button. It forwards its ref and every other prop to the `<button>` or `<a>` it draws. */
-export function Button({ variant, size, className, ...props }: ButtonProps) {
+/**
+ * Button is the app's one pill button. It forwards its ref and every other prop to the `<button>` or `<a>` it draws.
+ * The ref goes through `forwardRef`, not as a prop: the app runs on Preact (aliased to react), which hands a plain function component its instance instead.
+ */
+export const Button = forwardRef<HTMLElement, ButtonProps>(function Button({ variant, size, className, ...props }, ref) {
   const sized = size === "small" ? "w-auto min-h-44 px-16 text-14" : cx("w-full px-22 text-15", variant === "quiet" ? "min-h-48" : "min-h-50");
   const classes = cx(base, variants[variant ?? "plain"], sized, className);
   // oxlint-disable-next-line jsx-a11y/anchor-has-content -- the children arrive in props
-  if (props.href !== undefined) return <a {...props} className={classes} />;
-  return <button type="button" {...props} className={classes} />;
-}
+  if (props.href !== undefined) return <a {...props} ref={ref as Ref<HTMLAnchorElement>} className={classes} />;
+  return <button type="button" {...props} ref={ref as Ref<HTMLButtonElement>} className={classes} />;
+});
