@@ -24,6 +24,8 @@
 
 AI agents are supposed to make developers more productive. But managing multiple agents is becoming a full-time job.
 
+If managing agents and their work is your full-time job, you should have the best tool for the job.
+
 ### Primary problems
 
 1. **Agents interrupt you with everything.** Real decisions get lost in the chatter, so you read all of it or miss the one that mattered.
