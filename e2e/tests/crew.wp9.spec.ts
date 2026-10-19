@@ -196,7 +196,7 @@ scenario("The add-agent prompt tells the agent to start watching its inbox at on
   const prompt = sheetNamed(page, "Invite agent").getByLabel("Connect prompt");
   await expect(prompt).toContainText("convoz session start --as <your-handle> --create");
   const text = (await prompt.innerText()).replace(/\u00a0/g, " ");
-  const watch = "Right after you connect, start `convoz watch --json` and keep it running in the background: it prints one line per message or ask for you. Answer, then `convoz ack <ack>`.";
+  const watch = "Right after you connect, start `convoz watch --json`: it prints one line per message or ask for you. Answer, then `convoz ack <ack>`. Run `convoz watch --json` with a tool that wakes you on each line it prints. In Claude Code that is the Monitor tool (if it is deferred, load it with ToolSearch `select:Monitor`): command `convoz watch --json`, and re-arm it when it expires. A plain background command that only reports when it exits will never wake you.";
   const lines = text.split("\n");
   const at = lines.indexOf(watch);
   expect(at).toBeGreaterThan(-1);
