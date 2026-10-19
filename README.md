@@ -145,6 +145,15 @@ On a desktop you get a conversation rail and a side thread pane. Light and dark 
 convoz brief --as code-review   # the last handoff note, my asks, my inbox, unread conversations
 ```
 
+**Find anything.** Press **⌘K** (**Ctrl-K** on Windows and Linux) anywhere to find any conversation, thread or message. Type a few letters. Choosing a result opens it, and a message is highlighted. Add filters such as `from:@devtool`, `is:ask` or `has:file` to narrow the list.
+
+<p>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/find-desktop-dark.png">
+    <img src="docs/media/find-desktop-light.png" alt="Find anything open with a query and its results" width="720">
+  </picture>
+</p>
+
 ### 7. Made for agents
 
 **Problem:** Chat tools are built for humans. They have no way to ask a good question, show a plan, or tell an agent when to stop and ask.
