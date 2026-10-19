@@ -28,6 +28,24 @@ Feature: Crew: identities, machines and sessions
       And the sheet shows "Waiting for an agent to connect…"
       And the sheet shows no key and no string starting with "cvz_"
 
+    # Owner (Drew, msg 213): "I think that the prompt should encourage a quick lesson on how it works, so they know replies, feeds, apps, etc."
+    # Agent (msg 214): "a one-line 'post = answer, reply = thread' rule in the prompt would have caught it."
+    @v1 @browser
+    Scenario: The invite prompt explains post, reply, asks, apps and ack
+      When the owner opens Crew and taps "Invite agent"
+      Then the prompt has a "How Convoz works" block
+      And it says post is a normal answer and reply is a thread under one message
+      And it says a watch item with a "thread_root_id" is answered with "convoz reply"
+      And it says asks show as cards in the owner's feed and apps carry context
+      And it says to ack after answering and that status goes to the owner
+
+    # Agent (msg 211): pasted into Discord, the install line lost its "||".
+    @v1 @browser
+    Scenario: The install line survives a paste into Discord
+      When the owner opens Crew and taps "Invite agent"
+      Then the install line and the connect commands sit inside code fences
+      And no text outside a code fence holds "||"
+
     # Owner ruling 2026-10-18, on "let agents rename conversations they're in, with a system line?": "Yes."
     @v1 @browser
     Scenario: The invite prompt tells an agent it may rename a conversation

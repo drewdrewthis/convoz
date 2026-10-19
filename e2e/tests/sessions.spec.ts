@@ -275,6 +275,30 @@ scenario("A machine without create_identity files a request that the owner appro
   expect(machines[0]!.allow.identities).toContain("dev-ci");
 });
 
+scenario("The CLI says the owner approved before it prints the session", { tag: ["@cli", "@browser"] }, async ({ server, page, context }) => {
+  // Given "box-2" is logged in without the create_identity scope, and "convoz session start --as dev-ci --create" waits for the owner
+  const { srv, owner, box2 } = await background(server, { cli: true });
+  const box = await installedMachine(srv.origin, "box-2", box2.key);
+  const run = await startAsking(box, "dev-ci");
+
+  // When the owner taps Approve on the card "box-2 wants to connect as @dev-ci"
+  await signInBrowser(srv, owner, page, context);
+  await page.getByRole("article", { name: "box-2 wants to connect as @dev-ci", exact: true }).getByRole("button", { name: "Approve", exact: true }).click();
+  const done = await run.done;
+  expect(done.code, done.stderr).toBe(0);
+
+  // Then the CLI says "Approved by the owner." on stderr
+  expect(done.stderr).toContain("Approved by the owner.");
+
+  // And the session id is the only thing on stdout
+  expect(done.stdout.trim()).toBe(`CONVOZ_SID=${sidOf(done)}`);
+
+  // And a "convoz session start" that needed no approval prints no such line
+  const direct = await box.sessionStart("dev-ci", []);
+  expect(direct.code, direct.stderr).toBe(0);
+  expect(direct.stderr).not.toContain("Approved by the owner.");
+});
+
 scenario("Declining an agent request ends the waiting command", { tag: ["@cli", "@browser"] }, async ({ server, page, context }) => {
   // Given "box-2" is logged in without the create_identity scope
   const { srv, owner, box2 } = await background(server, { cli: true });

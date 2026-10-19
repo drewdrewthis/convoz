@@ -151,6 +151,13 @@ Feature: The convoz CLI and MCP server for agents
       And it explains asks, apps, files and invites for agents outside the tailnet
       And it says where the config lives and that "convoz <command> --help" gives detail
 
+    # Owner (Drew, msg 213): "It also responded directly in a thread instead of a normal reply. They should be different things."
+    @v1 @cli
+    Scenario: The CLI help says reply is for threads and post is the normal answer
+      When "convoz help" and "convoz reply --help" run
+      Then the "reply" line says "Reply inside a thread" and names "convoz post" for a normal answer
+      And "convoz --help" lists post, reply and ask as separate steps
+
     @v1 @cli
     Scenario: convoz man prints a man page that matches the help
       When "convoz man" runs

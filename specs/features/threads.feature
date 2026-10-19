@@ -27,6 +27,13 @@ Feature: Threads
       And the main list does not show the reply itself
 
     @v1 @cli
+    Scenario: A watch line from a thread names the thread root
+      Given "devtool" runs "convoz watch --json"
+      When the owner replies inside thread 900
+      Then the watch line carries "thread_root_id" 900
+      And the watch line for a message in the main list carries no "thread_root_id"
+
+    @v1 @cli
     Scenario: Reply to a message inside a thread goes to its root
       Given "docs" replied "Looks fine to me" in thread 900
       When "devtool" runs "convoz reply" on that reply with "Thanks, shipping it"

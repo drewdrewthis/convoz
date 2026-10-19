@@ -41,6 +41,17 @@ Feature: Agents-only address (contracts)
       And /api/version carries agent_url on both ports
       And a server with no agents-only address carries no agent_url
 
+  Rule: An agent outside the tailnet can install the CLI through the agents-only port
+
+    @v1 @api
+    Scenario: The agents-only port serves the public CLI files and opens no other route
+      Given a Convoz server with an agents-only address
+      When a stranger on the internet address 203.0.113.9 sends GET /install, GET /cli/SHA256SUMS and GET /cli/<binary> to the agents-only port with no credential
+      Then all three answer 200 with the same bytes as the owner's port
+      And the installer names the agents-only address for both of its downloads
+      And GET /cli/nothing-here answers 404 and POST /install is not served
+      And GET /api/me on the agents-only port with no credential still answers 401
+
   Rule: The listener knows a client only by the Funnel proxy
 
     @v1 @api

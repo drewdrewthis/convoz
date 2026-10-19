@@ -3,6 +3,7 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
+import { agentPort, agentServer } from "../lib/agent-port.ts";
 import { send } from "../lib/http.ts";
 import { baseEnv, expect, run, scenario } from "../lib/scenario.ts";
 
@@ -48,6 +49,28 @@ scenario("An agent installs the CLI from the server", { tag: ["@cli"] }, async (
   // And the installer says how to put it on the PATH, and never asks for root
   expect(install.stdout).toContain(`export PATH="${path.join(home, ".local", "bin")}:$PATH"`);
   expect(script.text).not.toMatch(/\bsudo\b/);
+});
+
+scenario("An agent outside the tailnet installs the CLI through the agent address", { tag: ["@cli"] }, async ({ server }) => {
+  // Given a machine with no convoz installed and an empty home folder, and a Convoz server with an agents-only address
+  const srv = await server(agentServer());
+  const agent = agentPort(srv);
+  const home = scratch("convoz-home-");
+
+  // When the agent runs the install script it got from the agents-only address
+  const script = await send(agent.target, "GET", "/install");
+  expect(script.status).toBe(200);
+  const file = path.join(scratch("convoz-install-"), "install.sh");
+  fs.writeFileSync(file, script.text);
+  const install = await run("sh", [file], { env: baseEnv({ HOME: home }), timeoutMs: 60_000 });
+
+  // Then convoz is installed in the ".local/bin" folder of the home folder
+  expect(install.code, install.stderr).toBe(0);
+  expect(fs.statSync(path.join(home, ".local", "bin", "convoz")).mode & 0o111).not.toBe(0);
+
+  // And the script downloads the CLI from the agents-only address and not from the owner's address
+  expect(script.text).toContain(`SERVER='${agent.origin}'`);
+  expect(script.text).not.toContain(`SERVER='${srv.origin}'`);
 });
 
 scenario("The installer also installs the man page", { tag: ["@cli"] }, async ({ server }) => {

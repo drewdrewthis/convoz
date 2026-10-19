@@ -355,7 +355,7 @@ func (s *Server) deliver(ctx context.Context, d pdb.DBTX, now time.Time, p authz
 			}
 			continue
 		}
-		wi := wire.InboxItem{ID: it.ID, State: it.State, Reason: it.Reason, Count: it.Count, MentionCount: it.MentionCount, Deliveries: it.Deliveries, Conversation: wire.InboxConversation{ID: cv.ID}, Message: dir.message(m)}
+		wi := wire.InboxItem{ID: it.ID, State: it.State, Reason: it.Reason, Count: it.Count, MentionCount: it.MentionCount, Deliveries: it.Deliveries, Conversation: wire.InboxConversation{ID: cv.ID}, Message: inboxMessage(dir, m)}
 		if err := attachUploads(ctx, d, []*wire.Message{&wi.Message}); err != nil {
 			return nil, err
 		}
@@ -495,7 +495,7 @@ func (s *Server) membershipNotice(ctx context.Context, d pdb.DBTX, dir directory
 	if err != nil || !have {
 		return wire.InboxItem{}, false, err
 	}
-	wi := wire.InboxItem{ID: it.ID, State: it.State, Reason: it.Reason, Count: it.Count, Conversation: wire.InboxConversation{ID: it.ConversationID}, Message: dir.message(m)}
+	wi := wire.InboxItem{ID: it.ID, State: it.State, Reason: it.Reason, Count: it.Count, Conversation: wire.InboxConversation{ID: it.ConversationID}, Message: inboxMessage(dir, m)}
 	if cv, found, err := conversation.GetAny(ctx, d, it.ConversationID); err != nil {
 		return wire.InboxItem{}, false, err
 	} else if found && cv.Title != "" {
@@ -506,4 +506,11 @@ func (s *Server) membershipNotice(ctx context.Context, d pdb.DBTX, dir directory
 		wi.ClaimToken = hex.EncodeToString(it.ClaimToken)
 	}
 	return wi, true, nil
+}
+
+// inboxMessage is the newest message of an inbox item. It names its thread (when it has one) so an agent answers it with a reply.
+func inboxMessage(dir directory, m message.Message) wire.Message {
+	v := dir.message(m)
+	v.ThreadRootID = m.ThreadRootID
+	return v
 }

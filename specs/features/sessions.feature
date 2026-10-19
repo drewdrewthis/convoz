@@ -98,6 +98,16 @@ Feature: Agent sessions as one identity
       And Crew shows "dev-ci" marked "created by box-2"
       And "box-2" allows "dev-ci" now
 
+    # Agent (msg 211): "Waiting for the owner to approve" and then the SID in the same second; it was unclear whether it had waited at all.
+    @v1 @cli @browser
+    Scenario: The CLI says the owner approved before it prints the session
+      Given "box-2" is logged in without the create_identity scope
+      And "convoz session start --as dev-ci --create" waits for the owner
+      When the owner taps Approve on the card "box-2 wants to connect as @dev-ci"
+      Then the CLI says "Approved by the owner." on stderr
+      And the session id is the only thing on stdout
+      And a "convoz session start" that needed no approval prints no such line
+
     @v1 @cli @browser
     Scenario: Declining an agent request ends the waiting command
       Given "box-2" is logged in without the create_identity scope

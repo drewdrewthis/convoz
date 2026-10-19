@@ -252,6 +252,9 @@ func startSession(io IO, dir string, c *client, creds Credentials, as, clientID,
 			}
 			file := sessionFile{Lease: out.Lease, Identity: out.Session.Identity, IdentityID: out.Session.IdentityID, As: as, Machine: out.Session.Machine, ClientID: clientID}
 			forgetSessions(dir, file, clientID)
+			if announced { // stdout carries the SID; the proof that we waited goes to stderr
+				fmt.Fprintf(io.Stderr, "convoz: Approved by the owner.\n")
+			}
 			return saveSession(dir, file)
 		}
 		req.Create.Request = out.Request.Ref
