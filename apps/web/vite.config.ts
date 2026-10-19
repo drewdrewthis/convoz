@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { brotliCompressSync, brotliDecompressSync, constants, createBrotliCompress } from "node:zlib";
@@ -358,7 +359,7 @@ function coldHead(html: string, main: { fileName: string; code: string }, css: {
  * head-start script's. Every other module the page loads at start goes into the main bundle, so a module the worker shares with the
  * page would make the worker import the page's bundle; coldBuild fails such a build.
  */
-const OUTSIDE_MAIN = /[\\/]src[\\/](sw[\\/](worker|cache|push|update|module)\.ts|shared[\\/]pagePath\.ts|early\.ts|first-reads\.json)$|node_modules[\\/].*workbox-/;
+const OUTSIDE_MAIN = /[\\/]src[\\/](sw[\\/](worker|cache|push|update|errors|module)\.ts|shared[\\/]pagePath\.ts|early\.ts|first-reads\.json)$|node_modules[\\/].*workbox-/;
 
 /**
  * coldBuild finishes the build once Vite has written its files, in one ordered pass over the chunks as the bundler rendered them
@@ -436,10 +437,20 @@ const preact = REACT
       { find: /^react$/, replacement: "preact/compat" },
     ];
 
+/** The build id the app puts in its error reports: the commit it was built from ("dev" outside a checkout). */
+function buildId(): string {
+  try {
+    return execFileSync("git", ["rev-parse", "--short=12", "HEAD"], { cwd: import.meta.dirname, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() || "dev";
+  } catch {
+    return "dev";
+  }
+}
+
 // The build lands inside the Go console package, which embeds it (go:embed cannot reach outside its module).
 // public/placeholder.txt is copied back after the folder is emptied, so the committed placeholder never shows as deleted.
 export default defineConfig({
   plugins: [react(), tailwindcss(), earlyScript(), precacheManifest(), coldBuild()],
+  define: { __BUILD__: JSON.stringify(buildId()) },
   // dedupe: the packages (ui, app-kit) resolve preact from this app, so the page holds one copy of it.
   resolve: { alias: preact, dedupe: REACT ? [] : ["preact"] },
   build: {
