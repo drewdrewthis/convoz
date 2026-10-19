@@ -27,6 +27,7 @@ const (
 	ExitRateLimited = 5 // HTTP 429, also too_many_pending
 	ExitNetwork     = 6 // the socket cannot be reached
 	ExitNothing     = 3 // `watch --once --timeout` ended with no item; stderr tells it from a session that ended
+	ExitOutOfDate   = 7 // this convoz is not the version the server runs: `convoz upgrade`. Not 3: an agent that reads 3 as "log in" would be misled.
 )
 
 // errUnreachable marks a failure to talk to the server at all (no socket, refused, timed out).

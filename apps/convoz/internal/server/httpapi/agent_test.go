@@ -87,7 +87,7 @@ func TestEveryRouteIsServedOnTheAgentListenerWithAReasonOrRefused(t *testing.T) 
 		}
 	}
 	// The no-credential routes are pinned by name: widening this list is a decision, made here, with a reviewer.
-	pub := []string{"GET /healthz", "GET /api/version", "GET /install", "GET /cli/:file", "POST /api/device/code", "POST /api/device/token"}
+	pub := []string{"GET /healthz", "GET /api/version", "GET /install", "GET /cli/:file", "GET /api/rules", "POST /api/device/code", "POST /api/device/token"}
 	for id, reason := range served {
 		if reason != "session lease" && reason != "machine key" && !contains(pub, id) {
 			t.Errorf("%s (%s): a route with no credential is not in the pinned list", id, reason)

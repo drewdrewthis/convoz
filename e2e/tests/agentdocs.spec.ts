@@ -20,10 +20,10 @@ scenario("convoz skill install writes a skill that teaches the Convoz rules", { 
   expect({ code: first.code, stderr: first.stderr }).toEqual({ code: 0, stderr: "" });
   expect(first.stdout.split("\n")[0]).toBe(`installed ${path.join(dir, "SKILL.md")}`);
 
-  // And SKILL.md has the name "convoz" and the rule to ask only the owner's call
+  // And SKILL.md has the name "convoz" and points to "convoz rules"
   const text = fs.readFileSync(path.join(dir, "SKILL.md"), "utf8");
   expect(text).toMatch(/^---\nname: convoz\n/);
-  expect(text).toContain("Send an `ask` only for a one-way door");
+  expect(text).toContain("Run `convoz rules` first");
   expect(text).toBe((await w.box.run(["skill"])).stdout);
 
   // And no hooks are added unless asked: settings.json appears with --hooks, once, even after a second run

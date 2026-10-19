@@ -72,3 +72,9 @@ func TestAsk_WithoutAnOwnersCallIsRefusedWithTheDecideYourselfText(t *testing.T)
 		t.Fatalf("the schema must let a missing owners_call reach the tool: %v", err)
 	}
 }
+
+func TestInstructions_CarryTheRules(t *testing.T) {
+	if !strings.Contains(instructions, wire.RulesText) {
+		t.Fatal("the MCP instructions must carry wire.RulesText")
+	}
+}

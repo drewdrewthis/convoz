@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
 
 // The embedded SKILL.md has the Agent Skills frontmatter, stays short, and names only commands this CLI has.
@@ -75,5 +77,32 @@ func TestPluginMatchesTheBinary(t *testing.T) {
 		if len(got) != 1 || len(got[0].Hooks) != 1 || got[0].Hooks[0].Command != command || got[0].Hooks[0].Timeout != hookTimeoutSeconds {
 			t.Errorf("hooks.json %s: %+v, want %q with a %d s timeout", event, got, command, hookTimeoutSeconds)
 		}
+	}
+}
+
+// The skill is a stable pointer: it never carries a rule, so it never changes when the rules do. The rules live in wire.RulesText.
+func TestSkillIsAPointerToConvozRules(t *testing.T) {
+	_, body, _ := strings.Cut(strings.TrimPrefix(SkillText(), "---\n"), "\n---\n")
+	if !strings.Contains(body, "`convoz rules`") {
+		t.Errorf("the skill must tell the agent to run `convoz rules`:\n%s", body)
+	}
+	if n := strings.Count(body, "\n"); n > 12 {
+		t.Errorf("a pointer is short: %d lines", n)
+	}
+	if strings.Contains(body, "one-way door") {
+		t.Error("a rule is in the skill: it belongs in wire.RulesText")
+	}
+}
+
+// The rules name only commands this CLI has.
+func TestRulesNameRealCommands(t *testing.T) {
+	named := regexp.MustCompile("`convoz ([a-z]+)")
+	for _, m := range named.FindAllStringSubmatch(wire.RulesText, -1) {
+		if _, ok := Lookup(m[1]); !ok && m[1] != "help" {
+			t.Errorf("the rules name convoz %s, which is not registered", m[1])
+		}
+	}
+	if strings.HasSuffix(wire.RulesText, "\n") {
+		t.Error("the rules text has no trailing newline: the CLI adds one")
 	}
 }

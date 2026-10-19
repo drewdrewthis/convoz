@@ -36,6 +36,9 @@ func Register(c Command) {
 	run := c.Run
 	c.Run = func(args []string, io IO) int {
 		if !wantsHelp(args) {
+			if code := versionGate(c.Name, io); code != ExitOK {
+				return code
+			}
 			return run(args, io)
 		}
 		return printHelp(c, run, io)

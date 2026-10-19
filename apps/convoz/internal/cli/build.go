@@ -40,6 +40,9 @@ func SetBuild(linked string) {
 	if (linked == "" || linked == "dev") && rev != "" {
 		Version = Commit
 	}
+	if v := testVersion("CONVOZ_TEST_VERSION"); v != "" {
+		Version = v
+	}
 }
 
 // VersionLine is the first line of `convoz version`: the version and the commit.

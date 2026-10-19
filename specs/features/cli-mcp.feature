@@ -359,8 +359,23 @@ Feature: The convoz CLI and MCP server for agents
     Scenario: convoz skill install writes a skill that teaches the Convoz rules
       When "devtool" runs "convoz skill install --dir <folder>"
       Then the CLI exits 0 and prints the path of SKILL.md, and adds no hooks unless --hooks is given
-      And SKILL.md has the name "convoz" and the rule to ask only the owner's call
+      # Owner said (msg 791): "we also almost certainly want to be able to keep skills up to date"
+      And SKILL.md has the name "convoz" and points to "convoz rules"
       And running it again prints "updated"
+
+    # Owner said (msgs 557, 791): the skill went stale. It is now a stable pointer; the rules live on the server and `convoz rules` prints them.
+    @v1 @cli
+    Scenario: convoz rules prints the server's rules
+      When "devtool" runs "convoz rules"
+      Then the CLI exits 0 and prints the rules text of the server
+      And the installed skill is a short pointer that tells the agent to run "convoz rules" first
+      And the two skill files have the same body
+
+    @v1 @cli @mcp
+    Scenario: The brief and the MCP instructions carry the same rules
+      When "devtool" runs "convoz brief" and a client starts "convoz mcp --as devtool"
+      Then the brief carries the rules text of the server
+      And the MCP instructions carry the same rules text
 
     @v1 @cli
     Scenario: An agent watching gets a voice note's transcript as text

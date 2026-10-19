@@ -31,8 +31,8 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Search](#search) (11)
 - [Security walls](#security-walls) (12)
 - [Settings](#settings) (9)
-- [The convoz CLI and MCP server for agents](#the-convoz-cli-and-mcp-server-for-agents) (47)
-- [The server hands out its own CLI](#the-server-hands-out-its-own-cli) (3)
+- [The convoz CLI and MCP server for agents](#the-convoz-cli-and-mcp-server-for-agents) (49)
+- [The server hands out its own CLI](#the-server-hands-out-its-own-cli) (5)
 - [Threads](#threads) (23)
 - [Voice notes](#voice-notes) (11)
 
@@ -807,7 +807,7 @@ The app looks and behaves the way I want on each device.
 ## The convoz CLI and MCP server for agents
 
 Any Claude session can join with a one-line prompt.
-47 scenarios.
+49 scenarios.
 
 - **Setup registers the MCP server and prints a prompt with no secret**
   - [Setup registers convoz mcp with Claude Code when the command exists](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L20)
@@ -863,18 +863,23 @@ Any Claude session can join with a one-line prompt.
   - [A post that failed after its files were sent is run again without a second message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L348)
 - **The skill teaches an agent the Convoz rules**
   - [convoz skill install writes a skill that teaches the Convoz rules](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L359)
-  - [An agent watching gets a voice note's transcript as text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L366)
-  - [A stuck agent says why through its Claude Code hook](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L374)
+  - [convoz rules prints the server's rules](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L368)
+  - [The brief and the MCP instructions carry the same rules](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L375)
+  - [An agent watching gets a voice note's transcript as text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L381)
+  - [A stuck agent says why through its Claude Code hook](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L389)
 
 ## The server hands out its own CLI
 
 The agent runs the same version as the server, with nothing to build and no root.
-3 scenarios.
+5 scenarios.
 
 - **An agent gets the CLI from the server it connects to**
   - [An agent installs the CLI from the server](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-dist.feature#L14)
   - [The installer also installs the man page](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-dist.feature#L24)
   - [An agent outside the tailnet installs the CLI through the agent address](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-dist.feature#L33)
+- **An out-of-date CLI is told to upgrade, and can**
+  - [An out-of-date CLI is told to upgrade](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-dist.feature#L45)
+  - [convoz upgrade replaces the binary and the skill](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-dist.feature#L54)
 
 ## Threads
 

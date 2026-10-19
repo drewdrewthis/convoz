@@ -12,6 +12,7 @@ import { convozBin } from "./fixtures.ts";
 import type { ServerHandle, ServerOptions } from "./fixtures.ts";
 import type { Target } from "./http.ts";
 import { idsByHandle, msgWorld, type MsgWorld } from "./messages-wp4.ts";
+import { run } from "./run.ts";
 import { record, track } from "./transcript.ts";
 
 /**
@@ -147,6 +148,8 @@ export class McpClient {
   private nextId = 1;
   private readonly pending = new Map<number, Pending>();
   readonly stderr: string[] = [];
+  /** The `instructions` the server sent in its answer to `initialize`. */
+  instructions = "";
   /** Resolves with the exit code when the server process ends. */
   readonly exited: Promise<number | null>;
   private readonly child: ChildProcess;
@@ -172,7 +175,8 @@ export class McpClient {
   /** Start `convoz mcp --as H` for a Claude session (its client id is `claude`) and finish the handshake. */
   static async start(box: CliMachine, as: string, claude: string): Promise<McpClient> {
     const c = new McpClient(box, ["mcp", "--as", as], claude);
-    await c.call("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "convoz-e2e", version: "0.0.0" } });
+    const init = await c.call("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "convoz-e2e", version: "0.0.0" } });
+    c.instructions = init?.instructions ?? "";
     c.write({ jsonrpc: "2.0", method: "notifications/initialized" });
     return c;
   }
@@ -337,11 +341,22 @@ export async function stallServer(mode: "hold" | "drop" = "hold"): Promise<Count
 }
 
 /**
+ * The machine asked its server for its version a moment ago (the CLI asks once in 10 minutes). The machines behind a counting proxy
+ * start with that answer kept, so the proxy counts the requests of the command under test and not the version question.
+ */
+async function keepVersionAnswer(m: CliMachine): Promise<void> {
+  const version = (await run(convozBin, ["version"], { env: m.env() })).stdout.match(/^convoz (\S+) commit /)?.[1] ?? "";
+  const server = JSON.parse(fs.readFileSync(m.credentialsPath, "utf8")).server as string;
+  fs.writeFileSync(path.join(m.configDir, "version-check"), JSON.stringify({ server, version, at: Math.floor(Date.now() / 1000) }), { mode: 0o600 });
+}
+
+/**
  * A machine that talks to `serverUrl` (a proxy) with the key of "box-2", and the session of `from` copied to it: the same lease
  * under the same sid, so a command through the proxy needs no session start of its own.
  */
 export async function machineVia(serverUrl: string, key: string, from: CliMachine, sid: string): Promise<CliMachine> {
   const m = await installedMachine(serverUrl, "box-2", key);
+  await keepVersionAnswer(m);
   fs.mkdirSync(path.join(m.configDir, "sessions"), { recursive: true, mode: 0o700 });
   fs.writeFileSync(m.sessionPath(sid), fs.readFileSync(from.sessionPath(sid)), { mode: 0o600 });
   return m;

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/inbox"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
 
 func manyConversations(n int) []inbox.BriefConversation {
@@ -74,5 +75,17 @@ func TestRender_WhoYouAreTellsTheAgentToStartWatching(t *testing.T) {
 	b := inbox.Render(inbox.BriefInput{Handle: "devtool", MaxBytes: inbox.DefaultBriefBytes, Page: 1})
 	if !strings.Contains(b.Sections[0].Text, "Start `convoz watch --json` now") {
 		t.Fatalf("the first section lacks the watch line:\n%s", b.Sections[0].Text)
+	}
+}
+
+func TestRender_RulesComeFirstAndCountInTheTotal(t *testing.T) {
+	for _, size := range []int{inbox.DefaultBriefBytes, 20000} {
+		b := inbox.Render(inbox.BriefInput{Handle: "devtool", Conversations: manyConversations(60), MaxBytes: size, Page: 1})
+		if !strings.HasPrefix(b.Text, wire.RulesText) {
+			t.Fatalf("size %d: the brief must start with the rules", size)
+		}
+		if len(b.Text)+1 > size {
+			t.Fatalf("size %d: the brief is %d bytes with the rules", size, len(b.Text)+1)
+		}
 	}
 }

@@ -13,13 +13,15 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/cli"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
 
 func init() {
 	cli.Register(cli.Command{Name: "mcp", Order: 91, Summary: "Run the MCP server, so a Claude session can use Convoz as tools.", Example: "convoz mcp --as code-review", Run: Run, Usage: "convoz mcp --as HANDLE"})
 }
 
-const instructions = "You speak on Convoz as one agent. Call brief first: it says who you are, what the last session handed off, and what waits for you. Then start waiting on your inbox at once: call inbox to wait for items (or claim to take ready ones), answer each, and ack it. Keep doing this for as long as the session lasts."
+// instructions end with the rules every agent follows, from the one source the brief and `convoz rules` use.
+const instructions = "You speak on Convoz as one agent. Call brief first: it says who you are, what the last session handed off, and what waits for you. Then start waiting on your inbox at once: call inbox to wait for items (or claim to take ready ones), answer each, and ack it. Keep doing this for as long as the session lasts.\n\n" + wire.RulesText
 
 // Run is `convoz mcp --as HANDLE`: the MCP server of one Claude session on standard input and output (design §13.2). It holds
 // the session lease of that Claude session, the same one the CLI uses from Bash (they share the client id in
