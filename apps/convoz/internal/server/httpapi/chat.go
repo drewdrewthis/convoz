@@ -88,7 +88,7 @@ func (dir directory) message(m message.Message) wire.Message {
 		sys, words := systemView(dir, m)
 		return wire.Message{ID: m.ID, Author: systemAuthor, Body: words, Format: "plain", CreatedAt: m.CreatedAt, System: sys, Text: words}
 	}
-	v := wire.Message{ID: m.ID, Author: dir.person(m.AuthorID), Body: m.Body, Format: m.Format, CreatedAt: m.CreatedAt, App: appView(m.App), Mentions: dir.mentions(m.Body, m.Format)}
+	v := wire.Message{ID: m.ID, Author: dir.person(m.AuthorID), Body: m.Body, Format: m.Format, CreatedAt: m.CreatedAt, App: appView(m.App), Mentions: dir.mentions(m.Body, m.Format), ViaVoice: m.ViaVoice}
 	if m.ViaAppID != 0 {
 		v.ViaApp = &wire.ViaApp{MessageID: m.ViaAppID, Agent: dir.person(m.ViaAgentID), Result: m.AppResult}
 	}

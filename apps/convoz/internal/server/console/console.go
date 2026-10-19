@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"path"
 	"strings"
+	"sync/atomic"
 )
 
 //go:embed all:web
@@ -22,6 +23,31 @@ var dist embed.FS
 // by the hash of its bytes, never by 'unsafe-inline'.
 const CSP = "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; " +
 	"object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+
+// googleLive is what a voice call adds to connect-src: the token-free live socket of Gemini, nothing else (the page talks to Google
+// directly with a one-use token, so the key never reaches it). It is in the policy only while the server has a voice key.
+const googleLive = " https://generativelanguage.googleapis.com wss://generativelanguage.googleapis.com"
+
+var voiceOn atomic.Bool
+
+// SetVoice says whether the server has a voice key: the pages then may connect to Google's live address.
+func SetVoice(on bool) { voiceOn.Store(on) }
+
+// connectSrc is the connect-src of every page: our own origin, and Google's live address while voice is on.
+func connectSrc() string {
+	if voiceOn.Load() {
+		return "connect-src 'self'" + googleLive
+	}
+	return "connect-src 'self'"
+}
+
+// policy is CSP for the lean shell at this moment.
+func policy() string {
+	if !voiceOn.Load() {
+		return CSP
+	}
+	return strings.Replace(CSP, "connect-src 'self'", connectSrc(), 1)
+}
 
 // notFoundMark is how a 404 page tells the app it is one: the root element carries data-status="404".
 const notFoundMark = `<html lang="en" data-status="404">`
@@ -55,7 +81,7 @@ func writePage(w http.ResponseWriter, status int, body []byte) {
 	}
 	h := w.Header()
 	h.Set("Content-Type", "text/html; charset=utf-8")
-	h.Set("Content-Security-Policy", CSP)
+	h.Set("Content-Security-Policy", policy())
 	h.Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
 	_, _ = w.Write(body)

@@ -13,6 +13,7 @@
     "@convoz/app-kit": "workspace:*",
     "@convoz/markdown": "workspace:*",
     "@convoz/ui": "workspace:*",
+    "@google/genai": "1.52.0",
     "@tanstack/react-virtual": "3.14.13",
     "preact": "10.27.2",
     "react": "19.3.0",

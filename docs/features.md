@@ -35,6 +35,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [The convoz CLI and MCP server for agents](#the-convoz-cli-and-mcp-server-for-agents) (49)
 - [The server hands out its own CLI](#the-server-hands-out-its-own-cli) (5)
 - [Threads](#threads) (23)
+- [Voice call](#voice-call) (7)
 - [Voice notes](#voice-notes) (11)
 
 ## Agent inbox
@@ -929,6 +930,23 @@ Busy conversations stay readable.
   - [A long thread preview stays inside the row and keeps its unread count in view](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L191)
   - [A long link in a thread stays inside its bubble](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L200)
   - [The message actions button does not cover the time](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L207)
+
+## Voice call
+
+I can ask and hear answers while my hands are busy.
+7 scenarios.
+
+- **The Call button shows only when a call can work**
+  - [The Call button is hidden when voice is off](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L23)
+  - [The Call button opens the call sheet](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L34)
+- **The owner talks and the agent answers**
+  - [What the owner asks is posted to the agent, marked as a voice call](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L42)
+  - [An agent's answer reaches the call](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L49)
+- **Only the owner can make the call post**
+  - [An instruction inside an agent's reply is refused](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L57)
+  - [Asking an agent that is not in the conversation is refused](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L65)
+- **Hanging up ends everything**
+  - [Hanging up closes the microphone and the connection](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L74)
 
 ## Voice notes
 

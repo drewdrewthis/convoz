@@ -109,7 +109,7 @@ func (q *Queries) NewestOfAuthors(ctx context.Context, arg NewestOfAuthorsParams
 }
 
 const newestReply = `-- name: NewestReply :one
-SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine, last_reply_at, app_json, via_app_agent_id, app_result_json FROM message_rows
+SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine, last_reply_at, app_json, via_app_agent_id, app_result_json, via_voice FROM message_rows
 WHERE thread_root_id = ?1 AND kind <> 'system' AND deleted_at IS NULL
 ORDER BY id DESC LIMIT 1
 `
@@ -145,6 +145,7 @@ func (q *Queries) NewestReply(ctx context.Context, rootID sql.NullInt64) (Messag
 		&i.AppJson,
 		&i.ViaAppAgentID,
 		&i.AppResultJson,
+		&i.ViaVoice,
 	)
 	return i, err
 }
@@ -177,7 +178,7 @@ func (q *Queries) PrevReplyID(ctx context.Context, arg PrevReplyIDParams) (int64
 }
 
 const threadRoots = `-- name: ThreadRoots :many
-SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine, last_reply_at, app_json, via_app_agent_id, app_result_json FROM message_rows
+SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine, last_reply_at, app_json, via_app_agent_id, app_result_json, via_voice FROM message_rows
 WHERE conversation_id = ?1 AND thread_root_id IS NULL AND reply_count > 0 AND deleted_at IS NULL AND id > ?2
 ORDER BY last_reply_id DESC LIMIT ?3
 `
@@ -225,6 +226,7 @@ func (q *Queries) ThreadRoots(ctx context.Context, arg ThreadRootsParams) ([]Mes
 			&i.AppJson,
 			&i.ViaAppAgentID,
 			&i.AppResultJson,
+			&i.ViaVoice,
 		); err != nil {
 			return nil, err
 		}

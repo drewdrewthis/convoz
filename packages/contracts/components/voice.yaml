@@ -1,0 +1,21 @@
+# Schemas of the voice call.
+VoiceState:
+  type: object
+  required: [on]
+  properties:
+    on: { type: boolean }
+    why: { type: string, description: "Why it is off: \"no voice key\" or \"transcription is off\"." }
+VoiceTokenRequest:
+  type: object
+  required: [conversation_id]
+  properties:
+    conversation_id: { type: integer, format: int64 }
+VoiceToken:
+  type: object
+  required: [token, model, ws_url, expires_at, config]
+  properties:
+    token: { type: string, description: "Google's name for the one-use token; the browser gives it to the SDK as its key." }
+    model: { type: string }
+    ws_url: { type: string }
+    expires_at: { type: integer, format: int64, description: "When the token dies, epoch ms." }
+    config: { type: object, additionalProperties: true, description: "The live config the token locks, in the SDK's own shape." }

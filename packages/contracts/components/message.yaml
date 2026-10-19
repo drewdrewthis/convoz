@@ -16,6 +16,7 @@ Message:
         - { $ref: "../openapi.yaml#/components/schemas/App" }
         - { $ref: "../openapi.yaml#/components/schemas/AppStub" }
     via_app: { $ref: "../openapi.yaml#/components/schemas/ViaApp", description: "Set on a message the owner sent through an app of an agent (I-46)." }
+    via_voice: { type: boolean, description: "Set on a message the owner's voice call posted; readers see \"via voice call\"." }
     thread_root_id: { type: integer, format: int64 }
     broadcast: { type: boolean }
     reply_count: { type: integer, format: int64 }

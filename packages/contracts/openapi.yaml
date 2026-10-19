@@ -124,6 +124,9 @@ paths:
   /api/uploads/{id}: { $ref: "paths/upload.yaml#/~1api~1uploads~1{id}" }
   /api/uploads/{id}/transcribe: { $ref: "paths/upload.yaml#/~1api~1uploads~1{id}~1transcribe" }
   /api/files/{public_id}: { $ref: "paths/upload.yaml#/~1api~1files~1{public_id}" }
+  # ---- voice
+  /api/voice: { $ref: "paths/voice.yaml#/~1api~1voice" }
+  /api/voice/token: { $ref: "paths/voice.yaml#/~1api~1voice~1token" }
   # ---- search
   /api/search: { $ref: "paths/search.yaml#/~1api~1search" }
   # ---- event
@@ -324,6 +327,9 @@ components:
     AppResult: { $ref: "components/appkit.yaml#/AppResult" }
     ViaApp: { $ref: "components/appkit.yaml#/ViaApp" }
     ViaAppRequest: { $ref: "components/appkit.yaml#/ViaAppRequest" }
+    VoiceState: { $ref: "components/voice.yaml#/VoiceState" }
+    VoiceTokenRequest: { $ref: "components/voice.yaml#/VoiceTokenRequest" }
+    VoiceToken: { $ref: "components/voice.yaml#/VoiceToken" }
     AppChecked: { $ref: "components/appkit.yaml#/AppChecked" }
     AppBundle: { $ref: "components/appkit.yaml#/AppBundle" }
     OneApp: { $ref: "components/appkit.yaml#/OneApp" }
