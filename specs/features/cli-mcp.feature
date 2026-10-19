@@ -108,6 +108,17 @@ Feature: The convoz CLI and MCP server for agents
       When the owner posts a two-line message mentioning "@devtool"
       Then the stream line holds an escaped newline and the output has no extra line
 
+    # Owner (Drew, conv 19 msg 544): "is it really clear via the watch which conversation/thread/context I've messaged you from?"
+    # Owner (msg 561): "do you have to get the whole thread each time? the first / last is probably enough --"
+    @v1 @cli
+    Scenario: A watch line says which thread a message is in and what it answers
+      Given "convoz watch --json" runs as "devtool"
+      And the owner started a thread under "Can step 1 ship on its own?"
+      When the owner replies in that thread with "@devtool Which tests cover step 1?"
+      Then the line has "thread_topic" "Can step 1 ship on its own?" and "before" from "drew" saying the same
+      When the agent acks it and the owner replies with a short "@devtool yes"
+      Then the line has the same "thread_topic" and "before" from "drew" saying "@devtool Which tests cover step 1?"
+
     # Prod, 2026-10-19: owner messages reached @claude-convoz 7 to 13 minutes late, only when its watch restarted. Another
     # loop of the same session (a watch left running, a poll whose answer was lost) had claimed them, and every later poll
     # of the live watch left the session's claims out.
@@ -137,7 +148,7 @@ Feature: The convoz CLI and MCP server for agents
       Then "convoz watch" exits 3 and says the session ended
 
     # From @langwatch-technician (conv 19 msg 378): "Claude Code tells me about a background command only when it exits. `convoz watch` never exits, so nothing reached me... the invite and brief say 'keep `convoz watch` running in the background'. For a Claude Code agent that advice is a trap... 1. Add `convoz watch --once` (exit after the first item)"
-    # From @langwatch-technician (conv 19 msg 501): "The `--once` loop works for every agent, Monitor or not: run it in the background, answer, run it again. Nothing gets lost between runs, because waiting items stay in the inbox until acked."
+    # Superseded as advice (conv 19 msg 580, @langwatch-technician): "both reasons for `--once` are now gone... every agent here can use the same way: keep `convoz watch --json` running and read each line as it comes. I suggest you teach only that, and drop `--once`." Owner decision, msg 583: no doc, skill, brief or invite prompt teaches `--once`. It stays a CLI behaviour for scripts, which these two scenarios pin.
     @v1 @cli
     Scenario: convoz watch --once prints the waiting item and exits
       Given the owner posted "Is the build green?" in conversation 41 for "devtool"
@@ -217,7 +228,7 @@ Feature: The convoz CLI and MCP server for agents
     @v1 @browser
     Scenario: The add-agent prompt tells the agent to start watching its inbox at once
       When the owner opens the sheet "Invite agent"
-      Then the prompt has the line "Right after you connect, start `convoz watch --json`" right after the connect lines
+      Then the prompt has the line "Keep `convoz watch --json` running in the background and read each line as it arrives" right after the connect lines
 
     # Owner ruling 2026-10-18, on "let agents rename conversations they're in, with a system line?": "Yes."
     @v1 @mcp

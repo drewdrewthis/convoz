@@ -13,6 +13,7 @@ import {
   watchLines,
 } from "../lib/chat.ts";
 import { machineVia } from "../lib/agent-wp7.ts";
+import { clientId } from "../lib/machines.ts";
 import type { Running } from "../lib/cli.ts";
 import { pollCut } from "../lib/poll-cut.ts";
 import { expect, scenario } from "../lib/scenario.ts";
@@ -103,6 +104,47 @@ scenario("A double submit gives one watch line", { tag: ["@cli"] }, async ({ ser
       ["@devtool yes", 1],
       ["after", 1],
     ]);
+  } finally {
+    watch.stop();
+  }
+});
+
+scenario("A watch line says which thread a message is in and what it answers", { tag: ["@cli"] }, async ({ server }) => {
+  // Given "convoz watch --json" runs as "devtool"
+  const w = await chatWorld(server, { agents: ["devtool"] });
+  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool"] });
+  const s = await startSession(w.box, "devtool", "watch");
+  const watch = startWatch(w.box, s.sid);
+  try {
+    // And the owner started a thread under "Can step 1 ship on its own?"
+    const root = await ownerSays(w.owner, conv, "Can step 1 ship on its own?");
+    const reply = (body: string) => w.owner.client.post(`/api/conversations/${conv}/messages`, { client_id: clientId(), body, thread_root_id: root });
+
+    // When the owner replies in that thread with "@devtool Which tests cover step 1?"
+    expect((await reply("@devtool Which tests cover step 1?")).status).toBe(201);
+
+    // Then the line names the thread by its topic and shows the message it follows
+    // Owner (Drew, conv 19 msg 544): "is it really clear via the watch which conversation/thread/context I've messaged you from?"
+    const [first] = await watchLines(watch, 1, 3_000);
+    expect({ thread_root_id: first?.thread_root_id, thread_topic: first?.thread_topic, before: first?.before }).toEqual({
+      thread_root_id: root,
+      thread_topic: "Can step 1 ship on its own?",
+      before: { author: "drew", text: "Can step 1 ship on its own?" },
+    });
+
+    // When the agent acks it and the owner replies with a short "@devtool yes"
+    const acked = await convoz(w.box, s.sid, ["ack", first!.ack]);
+    expect(acked.code, acked.stderr).toBe(0);
+    expect((await reply("@devtool yes")).status).toBe(201);
+
+    // Then the line carries the topic and the question the "yes" answers, so the agent need not read the whole thread
+    // Owner (Drew, conv 19 msg 561): "do you have to get the whole thread each time? the first / last is probably enough --"
+    const [, second] = await watchLines(watch, 2, 5_000);
+    expect({ body: second?.body, thread_topic: second?.thread_topic, before: second?.before }).toEqual({
+      body: "@devtool yes",
+      thread_topic: "Can step 1 ship on its own?",
+      before: { author: "drew", text: "@devtool Which tests cover step 1?" },
+    });
   } finally {
     watch.stop();
   }

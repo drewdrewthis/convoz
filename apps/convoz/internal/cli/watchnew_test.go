@@ -220,3 +220,30 @@ func TestPostReplyAndNewKeepTextThatStartsWithDashesAsText(t *testing.T) {
 		t.Errorf("new: exit %d body %q stderr %q", code, c.post.Body, stderr)
 	}
 }
+
+// Owner (conv 19 msgs 544, 561): a plain watch line shows the thread and what the message follows, under the line.
+func TestPlainWatchShowsTheThreadTopicAndTheMessageBefore(t *testing.T) {
+	it := inboxItem(7, "yes")
+	it.ThreadTopic = "Can step 1 ship on its own?"
+	it.Before = &wire.Before{Author: "drew", Text: "Which tests cover it?"}
+	h, _ := inboxServer(t, []wire.InboxItem{it})
+	code, stdout, stderr := agentRun(t, h)(Watch, "--once")
+	if code != ExitOK {
+		t.Fatalf("exit %d: %s", code, stderr)
+	}
+	lines := strings.Split(strings.TrimRight(stdout, "\n"), "\n")
+	if len(lines) != 3 || lines[1] != "  in thread: Can step 1 ship on its own?" || lines[2] != "  after @drew: Which tests cover it?" {
+		t.Errorf("got %q", stdout)
+	}
+}
+
+func TestJSONWatchLineCarriesTheContext(t *testing.T) {
+	it := inboxItem(7, "yes")
+	it.ThreadTopic = "topic"
+	it.Before = &wire.Before{Author: "drew", Text: "q"}
+	h, _ := inboxServer(t, []wire.InboxItem{it})
+	_, stdout, _ := agentRun(t, h)(Watch, "--once", "--json")
+	if !strings.Contains(stdout, `"thread_topic":"topic"`) || !strings.Contains(stdout, `"before":{"author":"drew","text":"q"}`) {
+		t.Errorf("got %q", stdout)
+	}
+}

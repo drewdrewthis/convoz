@@ -2640,6 +2640,15 @@ export interface components {
              * @enum {string}
              */
             transcript_state?: "pending" | "done" | "failed";
+            /** @description The text of the thread root, on one line, at most 120 characters ending in an ellipsis when cut. Absent unless the message is in a thread. */
+            thread_topic?: string;
+            /** @description The message just before this one in the same place (the main list or the thread). Absent when there is none or the agent may not see it. */
+            before?: {
+                /** @description The author's handle. */
+                author: string;
+                /** @description The text, on one line, at most 120 characters ending in an ellipsis when cut. */
+                text: string;
+            };
         };
         InboxResponse: {
             items: components["schemas"]["InboxItem"][];

@@ -38,3 +38,21 @@ ORDER BY id DESC LIMIT 1;
 SELECT * FROM message_rows
 WHERE conversation_id = sqlc.arg(conversation_id) AND thread_root_id IS NULL AND reply_count > 0 AND deleted_at IS NULL AND id > sqlc.arg(floor)
 ORDER BY last_reply_id DESC LIMIT sqlc.arg(max_rows);
+
+-- name: WatchContext :many
+-- For each message: its thread root (with the root's words) and the message just before it in the same place, the main list or
+-- the thread (the root counts as the first message of its thread). One query for a whole batch, so an inbox poll costs no more
+-- round trips for 20 items than for one.
+SELECT m.id AS message_id,
+  CAST(COALESCE(m.thread_root_id, 0) AS INTEGER) AS root_id,
+  COALESCE(r.body, '') AS root_body,
+  CAST(COALESCE(b.id, 0) AS INTEGER) AS before_id,
+  CAST(COALESCE(b.author_id, 0) AS INTEGER) AS before_author_id,
+  COALESCE(b.body, '') AS before_body
+FROM messages m
+LEFT JOIN messages r ON r.id = m.thread_root_id AND r.deleted_at IS NULL
+LEFT JOIN messages b ON b.id = (
+  SELECT MAX(p.id) FROM messages p
+  WHERE p.conversation_id = m.conversation_id AND p.id < m.id AND p.kind <> 'system' AND p.deleted_at IS NULL
+    AND ((m.thread_root_id IS NULL AND p.in_main = 1) OR (m.thread_root_id IS NOT NULL AND (p.thread_root_id = m.thread_root_id OR p.id = m.thread_root_id))))
+WHERE m.id IN (sqlc.slice(ids));

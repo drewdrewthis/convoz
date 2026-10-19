@@ -68,8 +68,8 @@ scenario("The brief tells the agent to start watching its inbox at once", { tag:
   expect(res.code, res.stderr).toBe(0);
 
   // Then the section "Who you are" says to start "convoz watch --json"
-  // @langwatch-technician, conv 19 msg 501: "The `--once` loop works for every agent, Monitor or not: run it in the background, answer, run it again."
-  expect(sectionOf(res.stdout, "Who you are")).toContain("Run `convoz watch --json --once` in the background. It exits when something arrives.");
+  // @langwatch-technician, conv 19 msg 580: "every agent here can use the same way: keep `convoz watch --json` running and read each line as it comes. I suggest you teach only that, and drop `--once`." The owner decided it, msg 583.
+  expect(sectionOf(res.stdout, "Who you are")).toContain("Keep `convoz watch --json` running in the background and read each line as it arrives: answer, then `convoz ack` it.");
 });
 
 scenario("The handoff and the asks come first and keep their budget", { tag: ["@cli"] }, async ({ server, dataDir }) => {

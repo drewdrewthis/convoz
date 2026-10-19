@@ -238,3 +238,71 @@ func (q *Queries) ThreadRoots(ctx context.Context, arg ThreadRootsParams) ([]Mes
 	}
 	return items, nil
 }
+
+const watchContext = `-- name: WatchContext :many
+SELECT m.id AS message_id,
+  CAST(COALESCE(m.thread_root_id, 0) AS INTEGER) AS root_id,
+  COALESCE(r.body, '') AS root_body,
+  CAST(COALESCE(b.id, 0) AS INTEGER) AS before_id,
+  CAST(COALESCE(b.author_id, 0) AS INTEGER) AS before_author_id,
+  COALESCE(b.body, '') AS before_body
+FROM messages m
+LEFT JOIN messages r ON r.id = m.thread_root_id AND r.deleted_at IS NULL
+LEFT JOIN messages b ON b.id = (
+  SELECT MAX(p.id) FROM messages p
+  WHERE p.conversation_id = m.conversation_id AND p.id < m.id AND p.kind <> 'system' AND p.deleted_at IS NULL
+    AND ((m.thread_root_id IS NULL AND p.in_main = 1) OR (m.thread_root_id IS NOT NULL AND (p.thread_root_id = m.thread_root_id OR p.id = m.thread_root_id))))
+WHERE m.id IN (/*SLICE:ids*/?)
+`
+
+type WatchContextRow struct {
+	MessageID      int64
+	RootID         int64
+	RootBody       string
+	BeforeID       int64
+	BeforeAuthorID int64
+	BeforeBody     string
+}
+
+// For each message: its thread root (with the root's words) and the message just before it in the same place, the main list or
+// the thread (the root counts as the first message of its thread). One query for a whole batch, so an inbox poll costs no more
+// round trips for 20 items than for one.
+func (q *Queries) WatchContext(ctx context.Context, ids []int64) ([]WatchContextRow, error) {
+	query := watchContext
+	var queryParams []interface{}
+	if len(ids) > 0 {
+		for _, v := range ids {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:ids*/?", strings.Repeat(",?", len(ids))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WatchContextRow
+	for rows.Next() {
+		var i WatchContextRow
+		if err := rows.Scan(
+			&i.MessageID,
+			&i.RootID,
+			&i.RootBody,
+			&i.BeforeID,
+			&i.BeforeAuthorID,
+			&i.BeforeBody,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

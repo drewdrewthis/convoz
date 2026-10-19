@@ -10,6 +10,7 @@ import (
 	"math"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
@@ -116,7 +117,7 @@ func retryable(err error) bool {
 
 func (k *chatCmd) writeWatchLine(it wire.InboxItem) error {
 	if !k.asJSON {
-		_, err := fmt.Fprintf(k.io.Stdout, "%s (ack: convoz ack %s)\n", itemLine(it), ackArg(it))
+		_, err := fmt.Fprintf(k.io.Stdout, "%s (ack: convoz ack %s)\n%s", itemLine(it), ackArg(it), contextLines(it))
 		return err
 	}
 	var buf bytes.Buffer
@@ -125,7 +126,7 @@ func (k *chatCmd) writeWatchLine(it wire.InboxItem) error {
 	err := enc.Encode(wire.WatchLine{
 		ItemID: it.ID, ClaimToken: it.ClaimToken, Ack: ackArg(it), Reason: it.Reason, ConversationID: it.Conversation.ID, ConversationTitle: it.Conversation.Title,
 		Count: it.Count, MessageID: it.Message.ID, ThreadRootID: it.Message.ThreadRootID, Author: it.Message.Author.Handle, Body: it.Message.Body, Text: wordsOf(it.Message),
-		CreatedAt: time.UnixMilli(it.Message.CreatedAt).UTC().Format(time.RFC3339),
+		CreatedAt: time.UnixMilli(it.Message.CreatedAt).UTC().Format(time.RFC3339), ThreadTopic: it.ThreadTopic, Before: it.Before,
 	})
 	if err != nil {
 		return err
@@ -136,3 +137,15 @@ func (k *chatCmd) writeWatchLine(it wire.InboxItem) error {
 
 // ackArg is the word that acks an item: "<id>:<token>".
 func ackArg(it wire.InboxItem) string { return strconv.FormatInt(it.ID, 10) + ":" + it.ClaimToken }
+
+// contextLines is the short indented lines under a plain watch line that say which thread the message is in and what it follows.
+func contextLines(it wire.InboxItem) string {
+	var b strings.Builder
+	if it.ThreadTopic != "" {
+		b.WriteString("  in thread: " + plain(it.ThreadTopic) + "\n")
+	}
+	if it.Before != nil {
+		b.WriteString("  after @" + plain(it.Before.Author) + ": " + plain(it.Before.Text) + "\n")
+	}
+	return b.String()
+}
