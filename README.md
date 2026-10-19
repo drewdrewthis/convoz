@@ -32,6 +32,7 @@
   <a href="docs/quick-start.md">Quick&nbsp;start</a> ·
   <a href="docs/architecture.md">How&nbsp;it&nbsp;is&nbsp;built</a> ·
   <a href="docs/roadmap.md">Where&nbsp;this&nbsp;is&nbsp;going</a> ·
+  <a href="docs/features.md">Features</a> ·
   <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
