@@ -86,3 +86,20 @@
   .attn { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin: -2px 4px 0; }
   .attn .seen, .attn .working { margin: 0; color: var(--color-muted); font-size: 12px; }
 }
+@layer components {
+  /* The Unread digest: one card per conversation, its newest lines clipped to one line each. */
+  .ucards { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .ucard { display: flex; flex-direction: column; padding: 4px 14px 2px; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-raised); }
+  .ucard .uhead { display: flex; flex-direction: column; gap: 2px; padding: 8px 0 4px; color: inherit; text-decoration: none; }
+  .ucard .utop { display: flex; align-items: center; gap: 8px; }
+  .ucard .utop .rowtitle { font-weight: 600; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ucard .uline { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; line-height: 20px; color: var(--color-muted); }
+  .ucard .uline b { font-weight: 600; color: var(--color-text); }
+  .ucard .thrlist { padding-left: 0; }
+  .ucard > .askbtn { align-self: flex-start; margin-left: -8px; }
+}
+@layer components {
+  .nodecisions { display: flex; align-items: center; gap: 10px; margin: 0; padding: 12px 4px 4px; font-size: 14px; font-weight: 600; }
+  .nodecisions .tick { width: 28px; height: 28px; flex: none; border-radius: 999px; display: flex; align-items: center; justify-content: center; background: var(--color-soft); color: var(--color-accent-text); }
+  .nodecisions .tick svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+}

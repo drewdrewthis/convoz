@@ -13,6 +13,7 @@ import {
   setServerTime,
   snoozeAsk,
 } from "../lib/asks.ts";
+import { setPrefs } from "../lib/rail-wp9.ts";
 import { mintSession, nowCard, plainDb, requestMachine, seedUserCodes } from "../lib/machines.ts";
 import { must } from "../lib/owner.ts";
 import type { Locator, Page } from "@playwright/test";
@@ -245,6 +246,8 @@ scenario("With nothing waiting, the feed centres the wordmark, the all-clear lin
   const lease = w.sessions.devtool!.lease;
   must(await answerAsk(w.owner, await agentAsks(w.srv, lease, conv, { question: "Answered question?" })), "answer");
   must(await markAsk(w.owner, await agentAsks(w.srv, lease, conv, { question: "Dismissed question?" }), "dismiss"), "dismiss");
+  // Owner, conv 1, msg 535: unread messages now show on Now instead of "All clear", so for all clear the asks' messages are read
+  must(await w.owner.client.post(`/api/conversations/${conv}/read`, { main_id: 0, all: true }), "read it all");
 
   // When the owner opens Now
   await openNow(page, w.srv);
@@ -275,6 +278,97 @@ scenario("With nothing waiting, the feed centres the wordmark, the all-clear lin
   await page.setViewportSize({ width: 320, height: 700 });
   expect(await fits(), "no sideways scroll at 320 px").toBe(true);
   await page.setViewportSize(vp);
+});
+
+// Owner, conv 1, msg 535: "hmm, it says nothing needs me, but there are a lot of unseen responses.. i'm wondering if there's a better way for that to be handled"
+// Msg 562: "hmm, probably you can come up with a good ui/ux for that that really makes the absorbtion of info quick an easy"
+async function unreadWorld(
+  { server, page, context }: Pick<Parameters<Parameters<typeof scenario>[2]>[0], "server" | "page" | "context">,
+  say: string[],
+  muted = false,
+) {
+  const w = await browserWorld({ server, page, context }, WORLD);
+  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  for (const text of say) await agentSays(w.srv, w.sessions.devtool!.lease, conv, text);
+  if (muted) await setPrefs(w.owner, conv, { muted_until: 253402300799000 });
+  return { w, conv };
+}
+
+scenario("With no decisions but unread conversations, Now lists them instead of saying all clear", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  // Given no decision waits and "devtool" posted 5 messages in conversation 41 that the owner has not read
+  const { w } = await unreadWorld({ server, page, context }, ["News 1", "News 2", "News 3", "News 4", "News 5"]);
+
+  // When the owner opens Now
+  await openNow(page, w.srv);
+
+  // Then Now says "No decisions waiting" and not "All clear. Nothing needs you."
+  await expect(page.getByText("No decisions waiting")).toBeVisible();
+  await expect(page.getByText("All clear. Nothing needs you.")).toBeHidden();
+
+  // And the wordmark is not shown, so the cards sit near the top
+  await expect(page.locator(".wordmark")).toBeHidden();
+  await expect(page.getByRole("list", { name: "Unread conversations" })).toBeInViewport();
+
+  // And a summary line says "5 unread in 1 conversation"
+  await expect(page.getByText("5 unread in 1 conversation", { exact: true })).toBeVisible();
+
+  // And conversation 41 has one card with its title, an unread count of 5 and a short age
+  const card = page.getByRole("list", { name: "Unread conversations" }).getByRole("listitem");
+  await expect(card).toHaveCount(1);
+  await expect(card.getByRole("heading")).toHaveText("Ship search filters");
+  await expect(card.locator(".count")).toHaveText("Unread: 5");
+  await expect(card.locator("time")).toHaveText(/^(now|\d+m)$/);
+
+  // And the card shows only the 3 newest unread lines, newest first, each with its author
+  const lines = card.locator(".uline");
+  await expect(lines).toHaveText(["devtool News 5", "devtool News 4", "devtool News 3"]);
+});
+
+scenario("Marking all read from Now clears the list and shows all clear", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  // Given no decision waits and "devtool" posted 2 messages in conversation 41 that the owner has not read
+  const { w, conv } = await unreadWorld({ server, page, context }, ["First news", "Latest news"]);
+
+  // When the owner opens Now and taps "Mark all read"
+  await openNow(page, w.srv);
+  await page.getByRole("button", { name: "Mark all read" }).click();
+
+  // Then the Unread list is gone and Now says "All clear. Nothing needs you."
+  await expect(page.getByRole("list", { name: "Unread conversations" })).toHaveCount(0);
+  await expect(page.getByText("All clear. Nothing needs you.")).toBeVisible();
+  expect(await unreadOf(w.owner, conv)).toBe(0);
+});
+
+scenario("A muted conversation is not listed under Unread", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  // Given no decision waits and "devtool" posted 2 messages in a muted conversation 41 that the owner has not read
+  const { w } = await unreadWorld({ server, page, context }, ["First news", "Latest news"], true);
+
+  // When the owner opens Now
+  await openNow(page, w.srv);
+
+  // Then Now says "All clear. Nothing needs you." and has no Unread list
+  await expect(page.getByText("All clear. Nothing needs you.")).toBeVisible();
+  await expect(page.getByRole("list", { name: "Unread conversations" })).toHaveCount(0);
+});
+
+scenario("Opening an unread row lands at the first unread message", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  // Given no decision waits and "devtool" posted "First news", "Second news" and "Third news" in conversation 41 that the owner has not read
+  const { w, conv } = await unreadWorld({ server, page, context }, ["First news", "Second news", "Third news"]);
+
+  // When the owner opens Now and taps the conversation 41 row under Unread
+  await openNow(page, w.srv);
+  await page.getByRole("list", { name: "Unread conversations" }).getByRole("link", { name: /Ship search filters/ }).click();
+  await expect(page).toHaveURL(`${w.srv.origin}/chats/${conv}`);
+
+  // Then conversation 41 opens with the "New messages" line above "First news"
+  const line = page.getByRole("separator", { name: "New messages" });
+  await expect(line).toBeVisible();
+  const first = page.getByText("First news", { exact: true });
+  await expect(first).toBeVisible();
+  expect((await line.boundingBox())!.y).toBeLessThan((await first.boundingBox())!.y);
 });
 
 scenario("The Now item shows how many items wait in the feed and updates live", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
