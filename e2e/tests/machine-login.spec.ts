@@ -123,6 +123,7 @@ import { createConversation, ownerSays } from "../lib/chat.ts";
 import { Client, send } from "../lib/http.ts";
 import { fakeTailscale, whoisNode } from "../lib/fake-tailscale.ts";
 import { CliMachine, modeOf } from "../lib/cli.ts";
+import { agentServer, startLoginViaAgent } from "../lib/agent-port.ts";
 import { faultProxy } from "../lib/fault-proxy.ts";
 import {
   ANY,
@@ -499,12 +500,13 @@ scenario("Headless Linux falls back to the file store", { tag: ["@cli"] }, async
 
 scenario("Machine names are unique while active", { tag: ["@browser"] }, async ({ server, page, context }) => {
   // Given an active machine "box-2"
-  const srv = await server({ host: "localhost", adminSocket: true });
+  const srv = await server(agentServer());
   const owner = await bootstrapOwner(srv);
   await loginMachine(srv, owner, "box-2");
 
   // When the owner tries to approve a new request named "box-2" as a new machine
-  await requestMachine(srv, owner, "box-2");
+  // (from another node: a request from the node of "box-2" joins that machine instead)
+  must(await startLoginViaAgent(srv, "box-2", "203.0.113.9"), "request from another node");
   await signInBrowser(srv, owner, page, context);
   await approveCard(page, "box-2");
 
@@ -702,13 +704,14 @@ scenario("At most 10 machines are active", { tag: ["@api"] }, async ({ server })
 
 scenario("A request cannot take an active machine's name", { tag: ["@api"] }, async ({ server }) => {
   // Given an active machine "box-2"
-  const srv = await server(apiServer());
+  const srv = await server(apiServer({ listen: "unix" }));
   const owner = await bootstrapOwner(srv);
   await createAgents(owner, "devtool");
   const active = await loginMachine(srv, owner, "box-2", allow("devtool"));
 
   // When the owner approves a new request named "box-2"
-  const req = await requestMachine(srv, owner, "box-2");
+  // (from another node: a request from the node of "box-2" joins that machine instead)
+  const req = await requestMachine(srv, owner, "box-2", freshSource());
   const res = await approve(owner, req.requestId, { allow: ANY });
 
   // Then the server answers 409 with the code "machine_name_taken"
@@ -894,8 +897,8 @@ function requestDeviceWith(srv: Parameters<typeof requestDeviceCode>[0], identit
   });
 }
 
-scenario("A login request with a bad identity is refused and makes no request", { tag: ["@api"] }, async ({ server }) => {
-  const srv = await server(apiServer());
+scenario("A login request with a bad identity is refused and makes no request", { tag: ["@api"] }, async ({ server, dataDir }) => {
+  const srv = await server(apiServer({ env: PLAIN }));
   const owner = await bootstrapOwner(srv);
   const agents = await createAgents(owner, "devtool", "docs");
   // An agent makes a conversation without the owner in it: the owner sees it but is not a participant.
@@ -903,6 +906,13 @@ scenario("A login request with a bad identity is refused and makes no request", 
   const token = await lease(srv, box.key, { as: "devtool" });
   const made = must(await send(srv.target, "POST", "/api/conversations", { json: { client_id: "agent-made-0001", title: "Agents only", participants: [] }, ...bearer(token) }), "agent conversation", 201).json().conversation.id as number;
   expect(agents.docs).toBeDefined();
+  // An agent's conversation always holds the owner and no route removes the owner, so the test data file takes the owner's seat away.
+  const db = plainDb(dataDir);
+  try {
+    db.prepare("UPDATE participants SET status = 'removed' WHERE conversation_id = ? AND identity_id = (SELECT identity_id FROM humans LIMIT 1)").run(made);
+  } finally {
+    db.close();
+  }
   const cases: [string, Record<string, unknown>, string][] = [
     ["the handle admin", { handle: "admin" }, "handle"],
     ["the handle 9lives", { handle: "9lives" }, "handle"],
@@ -1024,4 +1034,54 @@ scenario("Deny all also denies the agent requests of logged-in machines", { tag:
 
   // And the answer counts both
   expect(res.json().denied).toBe(2);
+});
+
+// Owner, msg 772: "@claude-convoz this is a blocking bug" (Approve on "drew-sweatshop wants to connect as @lw-pr8765" said the name
+// is taken). Msg 774: "Seems wrong". Msg 775: "Why wouldn't the machine key be shared".
+scenario("A second agent on a machine that is already connected joins it with the same key", { tag: ["@api"] }, async ({ server }) => {
+  // Given the machine "box-2" is connected from one node and serves "dot"
+  const srv = await server(agentServer());
+  const owner = await bootstrapOwner(srv);
+  const node = "203.0.113.7";
+  const first = must(await startLoginViaAgent(srv, "box-2", node, { handle: "dot" }), "first request").json();
+  const firstId = (await pendingRequests(owner)).find((r) => r.user_code === first.user_code)!.id;
+  must(await approve(owner, firstId, { allow: allow() }), "approve dot", 201);
+  const firstKey = must(await pollToken(srv, first.device_code), "key of dot").json();
+
+  // When a second agent "ink" on the same node asks to connect as "box-2" and the owner approves
+  const second = must(await startLoginViaAgent(srv, "box-2", node, { handle: "ink" }), "second request").json();
+  const secondId = (await pendingRequests(owner)).find((r) => r.user_code === second.user_code)!.id;
+  must(await approve(owner, secondId, { allow: allow() }), "approve ink", 201);
+
+  // Then "ink" receives the key of the existing machine "box-2"
+  const secondKey = must(await pollToken(srv, second.device_code), "key of ink").json();
+  expect(secondKey.machine_key).toBe(firstKey.machine_key);
+  expect(secondKey.machine_id).toBe(firstKey.machine_id);
+
+  // And "box-2" is still one machine, and it may act as both "dot" and "ink"
+  const machines = must(await owner.client.get("/api/machines"), "machines").json().machines as { id: number; name: string; allow: { identities: string[] } }[];
+  const boxes = machines.filter((m) => m.name === "box-2");
+  expect(boxes.map((m) => m.id)).toEqual([firstKey.machine_id]);
+  expect([...boxes[0]!.allow.identities].sort()).toEqual(["dot", "ink"]);
+});
+
+scenario("A request from another node with the same name is still refused", { tag: ["@api"] }, async ({ server }) => {
+  // Given the machine "box-2" is connected from one node
+  const srv = await server(agentServer());
+  const owner = await bootstrapOwner(srv);
+  const first = must(await startLoginViaAgent(srv, "box-2", "203.0.113.7", { handle: "dot" }), "first request").json();
+  const firstId = (await pendingRequests(owner)).find((r) => r.user_code === first.user_code)!.id;
+  must(await approve(owner, firstId, { allow: allow() }), "approve dot", 201);
+  must(await pollToken(srv, first.device_code), "key of dot");
+
+  // When another node asks to connect as "box-2" and the owner approves
+  const other = must(await startLoginViaAgent(srv, "box-2", "203.0.113.8", { handle: "ink" }), "request from another node").json();
+  const otherId = (await pendingRequests(owner)).find((r) => r.user_code === other.user_code)!.id;
+  const res = await approve(owner, otherId, { allow: allow() });
+
+  // Then the server answers 409 with the code "machine_name_taken" and the key is not given out
+  expect(res.status).toBe(409);
+  expect(res.json().error.code).toBe("machine_name_taken");
+  const polled = await pollToken(srv, other.device_code);
+  expect(polled.json().machine_key).toBeUndefined();
 });

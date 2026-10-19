@@ -85,6 +85,10 @@ type ApproveInput struct {
 // machine, marks the request approved, and writes the audit line and the event. The owner's signed-in session is the authority
 // (owner said: "Approvals just go into the feed, right?"): no passkey check and no typed code. A request that carries an identity
 // also makes that agent and lets the new machine act as it.
+//
+// One box is one machine with one shared key (owner msg 775: "Why wouldn't the machine key be shared"). When an active machine of
+// the requested name serves agents and the request comes from the same node, the request joins that machine instead of making a
+// new one: see attachableMachine.
 func ApproveRequest(ctx context.Context, d pdb.DBTX, box *KeyBox, p Ports, in ApproveInput, now time.Time) (Machine, error) {
 	req, err := PendingRequest(ctx, d, in.RequestID, now)
 	if err != nil {
@@ -95,23 +99,26 @@ func ApproveRequest(ctx context.Context, d pdb.DBTX, box *KeyBox, p Ports, in Ap
 		name = req.Name
 	}
 	// The name and the cap come before the allow-list: a refusal for either needs no handle to exist.
-	if err := freeMachineSlot(ctx, d, p, in, name, now); err != nil {
+	machineID, attached, err := slotFor(ctx, d, p, in, req, name, now)
+	if err != nil {
 		return Machine{}, nameTaken(err, name)
 	}
 	idReq, carries, err := loginIdentityOf(ctx, d, in.RequestID)
 	if err != nil {
 		return Machine{}, err
 	}
-	if in.Allow.Mode == "" {
-		in.Allow.Mode = AllowList // one tap names no allow-list: an empty list (or just the new identity), widened later in Crew
-	}
-	allow, err := ResolveAllow(ctx, d, p.Agents, in.Allow)
-	if err != nil {
-		return Machine{}, err
-	}
-	machineID, err := CreateMachine(ctx, d, box, NewMachine{Name: name, Scopes: in.Scopes, Allow: allow, ApprovedBy: in.Human.ID}, now)
-	if err != nil {
-		return Machine{}, nameTaken(err, name)
+	if !attached {
+		if in.Allow.Mode == "" {
+			in.Allow.Mode = AllowList // one tap names no allow-list: an empty list (or just the new identity), widened later in Crew
+		}
+		allow, err := ResolveAllow(ctx, d, p.Agents, in.Allow)
+		if err != nil {
+			return Machine{}, err
+		}
+		machineID, err = CreateMachine(ctx, d, box, NewMachine{Name: name, Scopes: in.Scopes, Allow: allow, ApprovedBy: in.Human.ID, SourceNode: requestSource(req)}, now)
+		if err != nil {
+			return Machine{}, nameTaken(err, name)
+		}
 	}
 	if err := MarkApproved(ctx, d, in.RequestID, machineID, in.Human.ID, now); err != nil {
 		return Machine{}, err
@@ -125,13 +132,60 @@ func ApproveRequest(ctx context.Context, d pdb.DBTX, box *KeyBox, p Ports, in Ap
 			return Machine{}, err
 		}
 	}
-	if err := p.Journal.Audit(ctx, d, now, AuditEntry{Actor: in.Human.ID, Device: in.DeviceID, Machine: machineID, Action: "machine.approved", TargetKind: "machine", TargetID: machineID, Detail: map[string]any{"request_id": in.RequestID}}); err != nil {
+	action := "machine.approved"
+	if attached {
+		action = "machine.attached"
+	}
+	if err := p.Journal.Audit(ctx, d, now, AuditEntry{Actor: in.Human.ID, Device: in.DeviceID, Machine: machineID, Action: action, TargetKind: "machine", TargetID: machineID, Detail: map[string]any{"request_id": in.RequestID}}); err != nil {
 		return Machine{}, err
 	}
 	if err := p.Journal.Event(ctx, d, now, "machine.approved.v1", map[string]any{"machine_id": machineID, "request_id": in.RequestID}); err != nil {
 		return Machine{}, err
 	}
 	return MachineByID(ctx, d, machineID, now)
+}
+
+// slotFor says which machine the request gets: a free slot for a new one (attached false, id 0), or the id of an existing machine
+// it joins (attached true). A taken name that cannot be joined stays ErrNameTaken.
+func slotFor(ctx context.Context, d pdb.DBTX, p Ports, in ApproveInput, req Request, name string, now time.Time) (int64, bool, error) {
+	err := freeMachineSlot(ctx, d, p, in, name, now)
+	if !errors.Is(err, ErrNameTaken) {
+		return 0, false, err
+	}
+	id, found, err := attachableMachine(ctx, d, req, name)
+	if err != nil {
+		return 0, false, err
+	}
+	if !found {
+		return 0, false, ErrNameTaken
+	}
+	return id, true, nil
+}
+
+// requestSource is the node a request came from: the tailnet node name, or the address when Tailscale could not name it.
+func requestSource(req Request) string {
+	if req.SourceNode != "" {
+		return req.SourceNode
+	}
+	return req.Source
+}
+
+// attachableMachine finds the active machine called name when the request comes from the node that machine was approved from.
+// Another node that claims the same hostname never gets the shared key. A machine with no stored source (made before the column
+// existed) matches a node named like the machine.
+func attachableMachine(ctx context.Context, d pdb.DBTX, req Request, name string) (int64, bool, error) {
+	id, err := activeMachineIDNamed(ctx, d, name)
+	if err != nil || id == 0 {
+		return 0, false, err
+	}
+	stored, err := machineSource(ctx, d, id)
+	if err != nil {
+		return 0, false, err
+	}
+	if stored == "" {
+		stored = name
+	}
+	return id, requestSource(req) == stored, nil
 }
 
 // freeMachineSlot is CheckMachineSlot that first retires an active machine of the same name when nothing active depends on it: it

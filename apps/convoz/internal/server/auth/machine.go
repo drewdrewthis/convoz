@@ -43,6 +43,7 @@ type NewMachine struct {
 	Scopes     int64
 	Allow      Allow
 	ApprovedBy int64
+	SourceNode string // the node the approved request came from; empty when unknown
 }
 
 // ValidMachineName reports whether name can be a machine name (1 to 60 of a-z 0-9 . -).
@@ -101,6 +102,9 @@ func CreateMachine(ctx context.Context, d pdb.DBTX, box *KeyBox, in NewMachine, 
 		if pdb.IsUniqueViolation(err) {
 			return 0, ErrNameTaken
 		}
+		return 0, err
+	}
+	if err := setMachineSource(ctx, d, id, in.SourceNode); err != nil {
 		return 0, err
 	}
 	// The AAD names the machine, which has no id until the insert, so the sealed copy is stored second.
