@@ -37,6 +37,24 @@ Feature: Search
       When the owner searches "runbook" and opens the first result
       Then conversation 52 opens scrolled to that message with it highlighted
 
+  Rule: Choosing a result always closes Find anything (owner msg 548: "for the command K find anything -- clicking a thread in the list should open it, and if you're already on the conversation, you should still be able to click and have it close the modal")
+
+    @v1 @browser
+    Scenario: Choosing a thread result opens that thread
+      Given "devtool" replied "spikereply is the answer" in a thread of conversation 41
+      When the owner searches "spikereply" and chooses the thread result
+      Then the thread opens with that reply and Find anything is closed
+      When the owner searches "spikereply" again and presses Enter on the thread result
+      Then the thread opens with that reply and Find anything is closed
+
+    @v1 @browser
+    Scenario: Choosing a result for the conversation you are already in closes Find anything
+      Given the owner is in conversation 41
+      When the owner searches "Ship search filters" and chooses the conversation result
+      Then Find anything is closed and conversation 41 is still open
+      When the owner searches "rollback" and chooses the message result
+      Then Find anything is closed and that message is highlighted
+
   Rule: Filters narrow the results (AC-13)
 
     @v1 @api @AC-13
