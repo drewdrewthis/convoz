@@ -25,7 +25,7 @@ test.use({ deviceScaleFactor: 2 });
 
 /** No screen may hide more than its share of the frame behind grey boxes, so the masks cannot grow without this number changing. */
 /** now: 25, because the owner (msg 275) centred the wordmark and moved the All clear line under it, which the prototype frame does not show. */
-const MASK_CAP: Record<string, number> = { now: 25, "now-asks": 10, conversations: 10, "conversation-thread": 10, thread: 10, "new-conversation": 10, crew: 20, rail: 10, "crew-status": 20 };
+const MASK_CAP: Record<string, number> = { now: 25, "now-unread": 10, "now-asks": 10, conversations: 10, "conversation-thread": 10, thread: 10, "new-conversation": 10, crew: 20, rail: 10, "crew-status": 20 };
 
 const SHOT = { maxDiffPixelRatio: 0.02, threshold: 0.2, animations: "disabled", caret: "hide", scale: "device" } as const;
 
@@ -47,10 +47,12 @@ scenario("On a phone Now matches the prototype", { tag: ["@browser", "@phone"] }
 
   // When the owner opens Now on a phone
   await page.goto(`${u.w.srv.origin}/`);
-  await expect(page.getByText("All clear. Nothing needs you.")).toBeVisible();
+  // Owner, conv 1, msg 535: "it says nothing needs me, but there are a lot of unseen responses". The prototype's conversations are unread, so Now
+  // says "No decisions waiting" without the wordmark (msg 562: the digest must be in view) and lists them; the frame is a reviewed one of the app, not the prototype's.
+  await expect(page.getByText("No decisions waiting")).toBeVisible();
 
-  // Then it matches the prototype in light and in dark
-  await matchesBoth(page, "now");
+  // Then it matches the app frame in light and in dark
+  await matchesBoth(page, "now-unread", "app");
 });
 
 scenario("On a phone Now with asks matches the prototype", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {

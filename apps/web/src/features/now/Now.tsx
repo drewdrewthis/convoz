@@ -6,13 +6,14 @@ import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } f
 import { call, client, humanError } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { markUseful } from "../../shared/perf.ts";
-import { data } from "../../shared/data.ts";
+import { data, useData, useLive } from "../../shared/data.ts";
 import { toast } from "../pins-stars/index.ts";
 import { answerAsk, dismissAsk, snoozeAsk, undismissAsk, unsnoozeAsk, useNow, type Settled } from "./store.ts";
 import { parseAllow } from "../crew/index.ts";
 import { agentRequests, RequestCard } from "./requests.tsx";
 import { presetsAt } from "./presets.ts";
 import { Attention } from "./Attention.tsx";
+import { Unread, unreadRows } from "./Unread.tsx";
 
 /** Now is /: what needs the owner. Open asks first (urgent, then the newest), then the adds agents wait on and the machines waiting
  *  to connect; Snoozed, Answered today and Dismissed today fold away below. With nothing waiting, the wordmark, "All clear" and the folds are centred, in that order. */
@@ -39,6 +40,14 @@ export function Now() {
       await load();
     })().catch((err) => fail(humanError(err)));
   }, [load, fail]);
+
+  const conversations = useData((s) => s.conversations);
+  const mine = useData((s) => s.me?.identity.handle);
+  useLive(() => void data.loadConversations().catch(() => {}));
+  useEffect(() => {
+    data.loadConversations().catch(() => {});
+  }, []);
+  const unread = unreadRows(conversations);
 
   useEffect(() => {
     if (now) markUseful();
@@ -152,7 +161,7 @@ export function Now() {
           </div>
         ) : null}
       </div>
-      <div id="allclear" hidden={!now || some}>
+      <div id="allclear" hidden={!now || some || conversations === null || unread.length > 0}>
         <div className="wordmark">
           <Wordmark />
         </div>
@@ -163,6 +172,15 @@ export function Now() {
           <span>All clear. Nothing needs you.</span>
         </div>
       </div>
+      {now && !some && unread.length ? (
+        // With something unread the wordmark would push the digest below the fold on a phone (owner, conv 1, msg 562), so the line is plain and left-aligned.
+        <p id="nodecisions" className="nodecisions">
+          <span className="tick" aria-hidden="true">
+            <TickIcon />
+          </span>
+          <span>No decisions waiting</span>
+        </p>
+      ) : null}
       <Folds
         snoozed={snoozed}
         answered={answered}
@@ -214,6 +232,7 @@ export function Now() {
           ))}
         </div>
       </section>
+      {unread.length ? <Unread rows={unread} me={mine ?? ""} /> : null}
     </>
   );
 }

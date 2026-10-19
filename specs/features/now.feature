@@ -45,6 +45,39 @@ Feature: Now
       Then the wordmark, "All clear. Nothing needs you." and the fold chips are centred in the page column, in that order from the top
       And the page does not scroll sideways
 
+    # Owner, conv 1, msg 535: "hmm, it says nothing needs me, but there are a lot of unseen responses.. i'm wondering if there's a better way for that to be handled"
+    # Msg 562: "hmm, probably you can come up with a good ui/ux for that that really makes the absorbtion of info quick an easy"
+    @v1 @browser
+    Scenario: With no decisions but unread conversations, Now lists them instead of saying all clear
+      Given no decision waits and "devtool" posted 5 messages in conversation 41 that the owner has not read
+      When the owner opens Now
+      Then Now says "No decisions waiting" and not "All clear. Nothing needs you."
+      And the wordmark is not shown, so the cards sit near the top
+      And a summary line says "5 unread in 1 conversation"
+      And conversation 41 has one card with its title, an unread count of 5 and a short age
+      And the card shows only the 3 newest unread lines, newest first, each with its author
+
+    # Owner, conv 1, msg 535 (see above)
+    @v1 @browser
+    Scenario: Marking all read from Now clears the list and shows all clear
+      Given no decision waits and "devtool" posted 2 messages in conversation 41 that the owner has not read
+      When the owner opens Now and taps "Mark all read"
+      Then the Unread list is gone and Now says "All clear. Nothing needs you."
+
+    # Owner, conv 1, msg 535 (see above): muted conversations are not listed
+    @v1 @browser
+    Scenario: A muted conversation is not listed under Unread
+      Given no decision waits and "devtool" posted 2 messages in a muted conversation 41 that the owner has not read
+      When the owner opens Now
+      Then Now says "All clear. Nothing needs you." and has no Unread list
+
+    # Owner, conv 1, msg 535 (see above)
+    @v1 @browser
+    Scenario: Opening an unread row lands at the first unread message
+      Given no decision waits and "devtool" posted "First news", "Second news" and "Third news" in conversation 41 that the owner has not read
+      When the owner opens Now and taps the conversation 41 row under Unread
+      Then conversation 41 opens with the "New messages" line above "First news"
+
     # Conv 16, msg 321: "the \"Now\" should always reflect if there's something in the feed if anything is there"
     @v1 @browser
     Scenario: The Now item shows how many items wait in the feed and updates live
