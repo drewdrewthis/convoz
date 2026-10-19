@@ -6,6 +6,14 @@ AskOption:
     label: { type: string, minLength: 1, maxLength: 120 }
     why: { type: string, minLength: 1, maxLength: 280 }
     recommended: { type: boolean, description: "True on the first option, the one the agent recommends." }
+OwnersCall:
+  type: object
+  required: [kind, reason]
+  additionalProperties: false
+  description: Why only the owner can decide an ask. The card shows it under the question.
+  properties:
+    kind: { type: string, enum: [one-way, taste, values, scope], description: "A one-way door, a choice of taste or values, or scope the owner must own." }
+    reason: { type: string, minLength: 1, maxLength: 280 }
 AskChoice:
   type: object
   required: [kind]
@@ -38,6 +46,7 @@ Ask:
     asker: { $ref: "../openapi.yaml#/components/schemas/Person" }
     question: { type: string, maxLength: 500, description: Empty after a purge. }
     urgent: { type: boolean }
+    owners_call: { $ref: "../openapi.yaml#/components/schemas/OwnersCall", description: Absent on an ask from before the field, and after a purge. }
     state: { type: string, enum: [open, answered, dismissed, closed] }
     close_reason: { type: string, enum: [removed, withdrawn, deleted, agent_revoked] }
     options: { type: array, minItems: 2, maxItems: 5, items: { $ref: "../openapi.yaml#/components/schemas/AskOption" } }
@@ -64,7 +73,7 @@ AskConversation:
     title: { type: ["string", "null"] }
 AskRequest:
   type: object
-  required: [conversation_id, client_id, question, recommended, alternatives]
+  required: [conversation_id, client_id, question, recommended, alternatives, owners_call]
   additionalProperties: false
   properties:
     conversation_id: { type: integer, format: int64 }
@@ -73,6 +82,7 @@ AskRequest:
     question: { type: string, minLength: 1, maxLength: 500 }
     recommended: { $ref: "../openapi.yaml#/components/schemas/AskOption" }
     alternatives: { type: array, minItems: 1, maxItems: 4, items: { $ref: "../openapi.yaml#/components/schemas/AskOption" } }
+    owners_call: { $ref: "../openapi.yaml#/components/schemas/OwnersCall" }
     urgent: { type: boolean }
     app: { $ref: "../openapi.yaml#/components/schemas/App", description: "An app shown with the question (a chart, a table, a diff). It helps the owner decide and never answers: no picker, form or select checklist (400 app_type_not_allowed_on_ask)." }
 AskAnswerRequest:

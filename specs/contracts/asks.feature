@@ -21,12 +21,23 @@ Feature: Asks and their state machine (contracts)
       And Now shows no new ask
 
       Examples:
-        | problem                               | field        |
-        | no alternative                        | alternatives |
-        | an empty reason for the recommendation | why          |
-        | a reason of 281 characters            | why          |
-        | 5 alternatives                        | alternatives |
-        | a question of 501 characters          | question     |
+        | problem                                 | field        |
+        | no alternative                          | alternatives |
+        | an empty reason for the recommendation  | why          |
+        | a reason of 281 characters              | why          |
+        | 5 alternatives                          | alternatives |
+        | a question of 501 characters            | question     |
+        | no owners_call                          | owners_call  |
+        | an owners_call kind of "whim"           | owners_call  |
+        | an owners_call reason of 0 characters   | owners_call  |
+        | an owners_call reason of 281 characters | owners_call  |
+
+    @v1 @api
+    Scenario: A refused ask tells the agent to decide and the stored ask keeps why it is the owner's call
+      When "devtool" posts an ask without owners_call
+      Then the server answers 400 naming "owners_call" with the words "Decide this yourself"
+      When "devtool" posts an ask with owners_call kind "scope" and reason "Which teams get the beta is yours to set"
+      Then the server answers 201 and the ask in Now and in GET shows owners_call kind "scope" and that reason
 
     @v1 @api
     Scenario: Only an agent with the ask scope asks

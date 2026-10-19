@@ -8,17 +8,26 @@ import { world, type World } from "./wp3.ts";
 
 /**
  * Helpers of the ask and Now scenarios (asks.wp8.spec.ts, now.wp8.spec.ts). The routes are in packages/contracts/paths/ask.yaml:
- *   POST /api/asks (lease, `ask` scope)  {conversation_id, thread_root_id?, client_id, question, recommended:{label,why}, alternatives:[{label,why}], urgent?}
+ *   POST /api/asks (lease, `ask` scope)  {conversation_id, thread_root_id?, client_id, question, recommended:{label,why}, alternatives:[{label,why}], owners_call:{kind,reason}, urgent?}
  *   GET  /api/asks/:id                   {ask}           the ask with its options, answer and history
  *   POST /api/asks/:id/{answer,dismiss,undismiss}  (owner)   answer {choice: recommended | alternative(+index 1..4) | custom(+text), if_version?, client_id?}
  *   POST /api/asks/:id/withdraw          (asker's lease)
  *   PUT|DELETE /api/asks/:id/snooze      (owner)   {preset: "1h" | "tonight" | "tomorrow", tz?} or {until}
  *   GET  /api/now                        {now, poll_ms, badge, asks, snoozed, answered_today, pending_adds, machine_requests}
  * A 409 carries `{error:{code,message}, ask}`. An ask is `{id, conversation_id, asker, question, urgent, state, close_reason?, options[{label,why}],
- * chosen?{kind,index?,text?}, answer?, resolved_by?, acked_at?, version, history[], snoozed_until?}`; the first option is the recommended one.
+ * chosen?{kind,index?,text?}, answer?, owners_call?{kind: one-way|taste|values|scope, reason},  resolved_by?, acked_at?, version, history[], snoozed_until?}`; the first option is the recommended one.
  */
 
 export const QUESTION = "Merge #415 on its own?";
+
+/** What the CLI, the MCP tool and the API say to an agent that sends an ask without saying why it is the owner's call. */
+export const DECIDE_YOURSELF =
+  "Decide this yourself: weigh the options and pick one, then tell the owner in a post. Send an ask only when it is the owner's call: a one-way door, a taste or values choice, or scope the owner must own. Then pass --owners-call <one-way|taste|values|scope> --owners-call-why '...'";
+
+export type OwnersCall = { kind: "one-way" | "taste" | "values" | "scope"; reason: string };
+
+/** The line the ask card shows under the question for an ask that carries an owner's call. */
+export const callLine = (c: OwnersCall): string => `Your call · ${c.kind}: ${c.reason}`;
 
 export interface Person {
   id?: number;
@@ -42,6 +51,7 @@ export interface AskView {
   resolved_by?: Person;
   acked_at?: number;
   version: number;
+  owners_call?: OwnersCall;
   snoozed_until?: number;
   history?: { version: number; event: string; to_state: string; by?: Person; at: number }[];
 }
@@ -64,6 +74,8 @@ export interface AskSpec {
   urgent?: boolean;
   thread?: number;
   clientId?: string;
+  /** Why only the owner can decide; the default is a taste call. null leaves it out, to test the refusal. */
+  ownersCall?: OwnersCall | null;
 }
 
 /** The body of `POST /api/asks`: "Merge it" recommended, "Hold it" the alternative, unless the spec says otherwise. */
@@ -75,6 +87,7 @@ export function askBody(conv: number, o: AskSpec = {}): Record<string, unknown> 
     question: o.question ?? QUESTION,
     recommended: { label, why },
     alternatives: (o.alts ?? [["Hold it", "Wait for #412"]]).map(([l, w]) => ({ label: l, why: w })),
+    ...(o.ownersCall === null ? {} : { owners_call: o.ownersCall ?? { kind: "taste", reason: "Both names read fine; it is your voice" } }),
     ...(o.urgent ? { urgent: true } : {}),
     ...(o.thread ? { thread_root_id: o.thread } : {}),
   };

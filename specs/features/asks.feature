@@ -21,9 +21,30 @@ Feature: Asks and their state machine
 
     @v1 @cli @I-11 @I-16
     Scenario: A complete ask opens
-      When "devtool" runs "convoz ask 41 --question 'Merge #415 on its own?' --recommend 'Merge it' --why 'All 11 checks pass' --alt 'Hold it' --alt-why 'Wait for #412'"
+      When "devtool" runs "convoz ask 41 --question 'Merge #415 on its own?' --recommend 'Merge it' --why 'All 11 checks pass' --alt 'Hold it' --alt-why 'Wait for #412' --owners-call taste --owners-call-why 'Both names read fine; it is your voice'"
       Then the owner sees the ask in Now with "Merge it" marked recommended
       And conversation 41 shows the ask card with both options and their reasons
+
+  Rule: An ask must say why it is the owner's call, or the agent decides it itself
+
+    @v1 @cli
+    Scenario: An ask without a reason it is the owner's call is refused and tells the agent to decide
+      When "devtool" runs "convoz ask 41 --question 'Merge #415 on its own?' --recommend 'Merge it' --why 'All 11 checks pass' --alt 'Hold it' --alt-why 'Wait for #412'"
+      Then the command exits 2 and tells "devtool" to decide this itself and to ask only for a one-way door, a taste or values choice, or scope
+      And the owner sees no ask in Now
+
+    @v1 @browser
+    Scenario: The ask card shows why it is the owner's call
+      Given "devtool" asked in conversation 41 as a "taste" call because "Both names read fine; it is your voice"
+      And "devtool" asked inside thread 900 as a "one-way" call because "A published name cannot be taken back"
+      When the owner opens Now, conversation 41 and thread 900
+      Then each card shows "Your call · taste: Both names read fine; it is your voice" or "Your call · one-way: A published name cannot be taken back" under its question
+
+    @v1 @browser
+    Scenario: An ask from before this rule shows no owner's call line
+      Given an open ask of "devtool" that has no reason it is the owner's call
+      When the owner opens Now
+      Then the card shows no "Your call" line
 
   Rule: Every transition follows the state table; anything else is a conflict
 

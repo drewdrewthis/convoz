@@ -19,6 +19,9 @@ func (dir directory) askBase(a ask.Ask) wire.AskView {
 		CloseReason: a.CloseReason, Options: make([]wire.AskOption, 0, len(a.Options)), Answer: a.Answer(), AnswerVia: a.AnswerVia,
 		ResolvedAt: a.ResolvedAt, AckedAt: a.AckedAt, Version: a.Version, CreatedAt: a.CreatedAt,
 	}
+	if a.OwnersCall != nil {
+		v.OwnersCall = &wire.OwnersCall{Kind: a.OwnersCall.Kind, Reason: a.OwnersCall.Reason}
+	}
 	for i, o := range a.Options {
 		v.Options = append(v.Options, wire.AskOption{Label: o.Label, Why: o.Why, Recommended: i == 0})
 	}

@@ -1,9 +1,13 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
+
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
 
 var wantTools = []string{"whoami", "brief", "inbox", "claim", "ack", "read", "search", "post", "reply", "ask", "status", "handoff", "profile", "app_validate", "app_build", "rename", "typing", "invite", "file"}
@@ -52,5 +56,19 @@ func TestPost_SchemaTakesAnAppInTheV1Shape(t *testing.T) {
 		if err := v.check(json.RawMessage(bad)); err == nil {
 			t.Errorf("%s: must be refused", name)
 		}
+	}
+}
+
+func TestAsk_WithoutAnOwnersCallIsRefusedWithTheDecideYourselfText(t *testing.T) {
+	ask, _ := Lookup("ask")
+	args := `{"conversation":41,"question":"Ship it?","recommended":{"label":"Ship","why":"Green"},"alternatives":[{"label":"Wait","why":"One more check"}]}`
+	_, err := ask.Call(context.Background(), json.RawMessage(args))
+	var failed Failed
+	if !errors.As(err, &failed) || failed.Text != wire.DecideYourself {
+		t.Fatalf("err = %v, want the decide-yourself text", err)
+	}
+	v, _ := newValidator(ask.InputSchema)
+	if err := v.check(json.RawMessage(args)); err != nil {
+		t.Fatalf("the schema must let a missing owners_call reach the tool: %v", err)
 	}
 }

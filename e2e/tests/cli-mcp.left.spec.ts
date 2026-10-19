@@ -6,6 +6,7 @@ import { chatWorld, convoz, createConversation, messagesOf, ownerSays, startSess
 import { send } from "../lib/http.ts";
 import { CliMachine } from "../lib/cli.ts";
 import { forwarder, inboxWorld } from "../lib/left.ts";
+import { nowOf } from "../lib/asks.ts";
 import { bearer } from "../lib/machines.ts";
 import { bootstrapOwner, must } from "../lib/owner.ts";
 import { postWith, uploadWhole } from "../lib/uploads-wp10.ts";
@@ -39,7 +40,13 @@ scenario("No MCP tool result contains a secret", { tag: ["@mcp"] }, async ({ ser
       search: { query: "please" },
       post: { conversation: conv, text: "Posted through MCP" },
       reply: { conversation: conv, message: root, text: "Replied through MCP" },
-      ask: { conversation: conv, question: "Ship it?", recommended: { label: "Ship", why: "Green" }, alternatives: [{ label: "Wait", why: "One more check" }] },
+      ask: {
+        conversation: conv,
+        question: "Ship it?",
+        recommended: { label: "Ship", why: "Green" },
+        alternatives: [{ label: "Wait", why: "One more check" }],
+        owners_call: { kind: "one-way", reason: "A release cannot be taken back" },
+      },
       status: { state: "working", doing: "Reading", next: "Posting" },
       handoff: { note: "A note for the next session" },
       profile: { display_name: "Devtool bot" },
@@ -266,6 +273,25 @@ scenario("An agent saves an attachment with the MCP file tool", { tag: ["@mcp"] 
     expect(result.isError ?? false).toBe(false);
     expect(result.structuredContent).toMatchObject({ id, path: out, name: "notes.txt", size: NOTES.length });
     expect(fs.readFileSync(out)).toEqual(NOTES);
+  } finally {
+    mcp.end();
+  }
+});
+
+scenario("The ask tool refuses an ask without a reason it is the owner's call", { tag: ["@mcp"] }, async ({ server }) => {
+  // Given "convoz mcp --as devtool" is running with a live session
+  const { w, conv } = await inboxWorld(server);
+  const mcp = await McpClient.start(w.box, "devtool", "claude-TESTONLY-mcp-askgate");
+  try {
+    // When the "ask" tool is called with a question, a recommendation and an alternative but no owners_call
+    const result = await mcp.tool("ask", { conversation: conv, question: "Ship it?", recommended: { label: "Ship", why: "Green" }, alternatives: [{ label: "Wait", why: "One more check" }] });
+
+    // Then the tool fails and tells the agent to decide this itself
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.content)).toContain("Decide this yourself");
+
+    // And the owner sees no ask in Now
+    expect((await nowOf(w.owner)).asks).toEqual([]);
   } finally {
     mcp.end();
   }

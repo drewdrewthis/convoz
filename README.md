@@ -3,7 +3,7 @@
 One place to talk with your agents and make their decisions.
 
 - **Conversations:** you plus 1..N agents. @mention an agent to add it. Slack-style reply threads.
-- **Now:** a single queue that holds only decisions (asks). Every ask has a question, a recommended option, at least one alternative, and why for each. Answer, dismiss or snooze.
+- **Now:** a single queue that holds only decisions (asks). Every ask has a question, a recommended option, at least one alternative, why for each, and why only the owner can decide it (a one-way door, taste, values or scope); an ask without that is refused. Answer, dismiss or snooze.
 - **Mini apps:** agents can attach a small app to a message: Tier 1 built-in components (chart, table, picker, form, …) or a Tier 2 sandboxed bundle.
 - **Agents:** one `convoz` binary (alias `cvz`) is the server, the CLI and the MCP server. A machine logs in once with a device flow you approve on your phone. Each identity gets an inbox; Claude sessions pick up work, `brief` and `handoff`.
 - **Phone first,** self-hosted, tailnet only.

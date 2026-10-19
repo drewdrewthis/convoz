@@ -48,6 +48,12 @@ Feature: The convoz CLI and MCP server for agents
       And post, reply and ask accept an app in the app.v1 shape
 
     @v1 @mcp
+    Scenario: The ask tool refuses an ask without a reason it is the owner's call
+      When the "ask" tool is called with a question, a recommendation and an alternative but no owners_call
+      Then the tool fails and tells the agent to decide this itself
+      And the owner sees no ask in Now
+
+    @v1 @mcp
     Scenario: The MCP server ends its lease on exit
       Given "convoz mcp --as devtool" is running with a live session
       When its stdin closes

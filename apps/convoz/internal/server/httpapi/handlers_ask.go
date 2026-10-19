@@ -45,10 +45,15 @@ func (s *Server) postAsk(w http.ResponseWriter, r *http.Request, c *call) {
 		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "conversation_id", "Name the conversation.")
 		return
 	}
+	if problem := in.OwnersCall.Problem(); problem != "" {
+		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "owners_call", problem)
+		return
+	}
 	n := ask.New{
 		Conversation: in.ConversationID, ThreadRoot: in.ThreadRootID, Asker: c.p.IdentityID, Session: c.p.SessionID,
 		OriginLabel: c.lease.Label, OriginMachine: c.lease.Machine, ClientID: in.ClientID, Question: in.Question,
 		Recommended: ask.Option{Label: in.Recommended.Label, Why: in.Recommended.Why}, Urgent: in.Urgent,
+		OwnersCall: ask.OwnersCall{Kind: in.OwnersCall.Kind, Reason: in.OwnersCall.Reason},
 	}
 	for _, o := range in.Alternatives {
 		n.Alternatives = append(n.Alternatives, ask.Option{Label: o.Label, Why: o.Why})

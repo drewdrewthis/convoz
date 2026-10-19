@@ -174,6 +174,7 @@ export async function ask(w: PushWorld, o: { urgent?: boolean; question?: string
     question: o.question ?? "Merge #415 on its own?",
     recommended: { label: "Merge it", why: "All 11 checks pass" },
     alternatives: [{ label: "Hold it", why: "Wait for #412" }],
+    owners_call: { kind: "taste", reason: "Both names read fine; it is your voice" },
     ...(o.urgent ? { urgent: true } : {}),
   };
   const res = await send(w.srv.target, "POST", "/api/asks", { json: body, ...bearer(o.lease ?? w.dev) });

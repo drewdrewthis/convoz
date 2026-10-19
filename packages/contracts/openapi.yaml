@@ -364,6 +364,7 @@ components:
     SearchResponse: { $ref: "components/search.yaml#/SearchResponse" }
     AskOption: { $ref: "components/ask.yaml#/AskOption" }
     AskChoice: { $ref: "components/ask.yaml#/AskChoice" }
+    OwnersCall: { $ref: "components/ask.yaml#/OwnersCall" }
     AskHistoryRow: { $ref: "components/ask.yaml#/AskHistoryRow" }
     Ask: { $ref: "components/ask.yaml#/Ask" }
     AskConversation: { $ref: "components/ask.yaml#/AskConversation" }

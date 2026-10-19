@@ -74,6 +74,9 @@ func fromRow(r askRow) Ask {
 		ResolvedBy: r.ResolvedBy.Int64, ResolvedAt: r.ResolvedAt.Int64, AckedAt: r.AckedAt.Int64, Version: r.Version,
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
+	if r.OwnersCallKind.Valid && !r.ScrubbedAt.Valid {
+		a.OwnersCall = &OwnersCall{Kind: r.OwnersCallKind.String, Reason: r.OwnersCallReason.String}
+	}
 	if r.ChosenKind.Valid {
 		a.Chosen = &Choice{Kind: r.ChosenKind.String, Index: int(r.ChosenIndex.Int64), Text: r.ChosenText.String}
 	}
