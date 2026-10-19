@@ -304,3 +304,26 @@ Feature: The convoz CLI and MCP server for agents
       Then the CLI exits 0
       And the file is not uploaded a second time
       And conversation 41 shows "Report" once with "report.pdf"
+
+  Rule: The skill teaches an agent the Convoz rules
+    # Owner (msg 257): "I think we also need to have a think about how to teach agents about convoz. Maybe the cli isn't enough? Maybe we should ship a skill? mcp?"
+
+    @v1 @cli
+    Scenario: convoz skill install writes a skill that teaches the Convoz rules
+      When "devtool" runs "convoz skill install --dir <folder>"
+      Then the CLI exits 0 and prints the path of SKILL.md, and adds no hooks unless --hooks is given
+      And SKILL.md has the name "convoz" and the rule to ask only the owner's call
+      And running it again prints "updated"
+
+    @v1 @cli
+    Scenario: An agent watching gets a voice note's transcript as text
+      Given "convoz watch --json" runs as "devtool"
+      And the transcription engine answers "ship the filters on Thursday"
+      When the owner sends a voice note in conversation 41
+      Then the stream line has the text "Voice note 0:03: ship the filters on Thursday"
+
+    # Owner, conv 12 msg 281: "something happens on the agent's actually running thing on their server -- something grabs it and it presents a decision, or it needs an approval, or it gets logged out, or runs out of credits."
+    @v1 @cli
+    Scenario: A stuck agent says why through its Claude Code hook
+      When Claude Code calls the Notification hook for "devtool" with "Claude needs your permission to use Bash"
+      Then the hook exits 0 and Crew shows "devtool" as blocked with "Needs approval on its host: Claude needs your permission to use Bash"

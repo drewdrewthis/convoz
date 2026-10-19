@@ -29,7 +29,7 @@ func TestEveryCommandHasHelp(t *testing.T) {
 		if c.Summary == "" || c.Example == "" || c.Usage == "" {
 			t.Errorf("%s: Summary, Example and Usage must all be set", name)
 		}
-		if !strings.Contains(overview, name+" ") {
+		if !c.Hidden && !strings.Contains(overview, name+" ") {
 			t.Errorf("%s is missing from the overview", name)
 		}
 		for _, flag := range []string{"--help", "-h"} {
@@ -58,6 +58,9 @@ func TestEveryCommandHasHelp(t *testing.T) {
 func TestManPageHoldsEveryCommand(t *testing.T) {
 	page := ManPage()
 	for name, c := range commands {
+		if c.Hidden {
+			continue
+		}
 		if !strings.Contains(page, "\n.SS "+name+"\n") || !strings.Contains(page, roff(c.Summary)) {
 			t.Errorf("%s is missing from the man page", name)
 		}

@@ -1,0 +1,13 @@
+{
+  "name": "convoz",
+  "description": "Convoz: the chat between an owner and the agents who work for them.",
+  "owner": { "name": "drewdrewthis" },
+  "plugins": [
+    {
+      "name": "convoz",
+      "description": "Teaches Claude Code the Convoz rules and reports to the owner when Claude Code is stuck on its host.",
+      "source": "./plugins/convoz",
+      "category": "productivity"
+    }
+  ]
+}

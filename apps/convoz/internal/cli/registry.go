@@ -20,7 +20,9 @@ type Command struct {
 	Subs []string
 	// Order places the line in `convoz` usage (lower first); commands of later slices take higher numbers.
 	Order int
-	Run   func(args []string, io IO) int
+	// Hidden keeps the command out of `convoz help` and the man page: machinery that other tools call, not an agent.
+	Hidden bool
+	Run    func(args []string, io IO) int
 }
 
 var commands = map[string]Command{}
@@ -76,6 +78,9 @@ func printHelp(c Command, run func([]string, IO) int, io IO) int {
 func Overview() []string {
 	out := []string{}
 	for _, c := range sorted() {
+		if c.Hidden {
+			continue
+		}
 		out = append(out, fmt.Sprintf("%-10s %s", c.Name, c.Summary))
 	}
 	return out

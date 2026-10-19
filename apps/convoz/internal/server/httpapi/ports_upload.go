@@ -131,6 +131,16 @@ func projection(list []attachment) (uploads []message.Upload, words string) {
 	return uploads, words
 }
 
+// transcribing is true while an engine still works on a voice note of the list.
+func transcribing(list []attachment) bool {
+	for _, a := range list {
+		if a.Transcript != nil && a.Transcript.State == transcript.Pending {
+			return true
+		}
+	}
+	return false
+}
+
 // attachUploads puts the files of each message on the page, and the plain-text form of a message that carries any. A tombstone has none.
 func attachUploads(ctx context.Context, d pdb.DBTX, msgs []*wire.Message) error {
 	var ids []int64
@@ -153,6 +163,9 @@ func attachUploads(ctx context.Context, d pdb.DBTX, msgs []*wire.Message) error 
 		}
 		ups, words := projection(list)
 		m.Text = message.Project(message.Projectable{Format: m.Format, Body: m.Body, Uploads: ups, Transcript: words}, message.Long)
+		if words == "" && transcribing(list) {
+			m.Text += " (transcribing…)"
+		}
 	}
 	return nil
 }

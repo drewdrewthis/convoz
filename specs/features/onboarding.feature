@@ -103,3 +103,11 @@ Feature: Onboarding and sign in
       Given a bootstrap link made on the server box
       When the owner opens it on the phone over Tailscale and registers the phone's passkey
       Then the phone shows Now and the owner can add the laptop as a second passkey
+
+  Rule: The invite prompt teaches the agent
+
+    @v1 @browser
+    Scenario: The invite prompt tells a new agent to install the skill
+      When the owner opens the invite sheet
+      Then the prompt tells Claude Code to add the "drewdrewthis/convoz" plugin
+      And the prompt tells any other agent to run "convoz skill install"
