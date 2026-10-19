@@ -14,11 +14,13 @@ DO UPDATE SET message_id = excluded.message_id,
     source_seq = excluded.source_seq, prefer_session_id = excluded.prefer_session_id, updated_at = excluded.updated_at;
 
 -- name: HeldItems :many
--- (1) M1: items this session already holds come back first, same tokens, no delivery counted.
+-- (1) M1: items this session already holds come back first, same tokens, no delivery counted. after -1 takes them all; else only
+-- those claimed after that claim number. max_rows -1 is no limit.
 SELECT id, conversation_id, first_message_id, message_id, count, mention_count, reason, state, claim_token, claim_until, deliveries
 FROM inbox_items
 WHERE identity_id = sqlc.arg(identity_id) AND state = 'claimed' AND claim_session_id = sqlc.arg(session_id) AND claim_until >= sqlc.arg(now)
   AND (sqlc.arg(conv) = 0 OR conversation_id = sqlc.arg(conv))
+  AND (sqlc.arg(after) < 0 OR claim_seq > sqlc.arg(after))
 ORDER BY id LIMIT sqlc.arg(max_rows);
 
 -- name: ExpirePoisonItems :exec
@@ -62,7 +64,7 @@ WHERE id = sqlc.arg(id);
 -- (4) Claim; one random 128-bit token per item. conv 0 means every conversation. Not yet in the SQL of section 3.8: the
 -- session-preference clause (prefer_session_id stays NULL until the post path records the posting session).
 UPDATE inbox_items
-SET state = 'claimed', claim_session_id = sqlc.arg(session_id), claim_token = randomblob(16),
+SET state = 'claimed', claim_session_id = sqlc.arg(session_id), claim_token = randomblob(16), claim_seq = sqlc.arg(claim_seq),
     claim_until = sqlc.arg(now) + sqlc.arg(visibility_ms), visibility_ms = sqlc.arg(visibility_ms), deliveries = deliveries + 1, updated_at = sqlc.arg(now)
 WHERE id IN (
   SELECT i.id FROM inbox_items i
@@ -75,6 +77,14 @@ WHERE id IN (
                       AND c.state = 'claimed' AND c.claim_until >= sqlc.arg(now) AND c.claim_session_id <> sqlc.arg(session_id))
   ORDER BY i.id LIMIT sqlc.arg(n_left))
 RETURNING id, conversation_id, first_message_id, message_id, count, mention_count, reason, state, claim_token, claim_until, deliveries;
+
+-- name: ClaimSeq :one
+-- The newest claim number of the identity (no row before its first claim).
+SELECT seq FROM inbox_claim_seqs WHERE identity_id = sqlc.arg(identity_id);
+
+-- name: SetClaimSeq :exec
+INSERT INTO inbox_claim_seqs (identity_id, seq) VALUES (sqlc.arg(identity_id), sqlc.arg(seq))
+ON CONFLICT (identity_id) DO UPDATE SET seq = excluded.seq;
 
 -- name: AckItem :execrows
 -- Ack: the claim columns are cleared, or the claimed-state CHECK fails.

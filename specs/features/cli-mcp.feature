@@ -108,6 +108,19 @@ Feature: The convoz CLI and MCP server for agents
       When the owner posts a two-line message mentioning "@devtool"
       Then the stream line holds an escaped newline and the output has no extra line
 
+    # Prod, 2026-10-19: owner messages reached @claude-convoz 7 to 13 minutes late, only when its watch restarted. Another
+    # loop of the same session (a watch left running, a poll whose answer was lost) had claimed them, and every later poll
+    # of the live watch left the session's claims out.
+    @v1 @cli @lossy
+    Scenario: A watch gets every item, even when two arrive together or a poll is cut
+      Given "convoz watch --json" runs as "devtool"
+      And its link loses the answer of one poll without an error
+      And another watch of the same session runs, and nobody reads what it prints
+      And the stream printed one line for the owner's first message
+      When the owner's second message comes in the poll whose answer is lost
+      And the owner posts in conversations 41 and 42 at the same moment
+      Then the stream prints one line for each of the owner's messages within 3 seconds
+
     @v1 @cli
     Scenario: Watch leaves the item in the inbox until the agent acks it
       Given "convoz watch --json" runs as "devtool"

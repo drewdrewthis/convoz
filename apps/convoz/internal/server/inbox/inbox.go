@@ -71,6 +71,11 @@ type Request struct {
 	Visibility  time.Duration
 	IncludeHeld bool
 	Conv        int64 // 0 claims the items of every conversation
+	// ByCursor narrows the held items to those claimed after the claim number After (all of them when After is 0), and returns
+	// every one of them, past N: `convoz watch` passes the Cursor of the last answer it got, so a claim whose answer was lost, or
+	// that another loop of the same session made, comes back on its next poll.
+	ByCursor bool
+	After    int64
 }
 
 // Claim returns the items this session holds (when IncludeHeld) and then claims ready ones up to N in total.
@@ -82,7 +87,14 @@ func Claim(ctx context.Context, d pdb.DBTX, now time.Time, r Request) ([]Item, e
 	n := min(max(r.N, 1), MaxClaim)
 	var out []Item
 	if r.IncludeHeld {
-		held, err := q.HeldItems(ctx, db.HeldItemsParams{IdentityID: r.Identity, SessionID: nullInt(r.Session), Now: sql.NullInt64{Int64: nowMs, Valid: true}, Conv: r.Conv, MaxRows: int64(n)})
+		p := db.HeldItemsParams{IdentityID: r.Identity, SessionID: nullInt(r.Session), Now: sql.NullInt64{Int64: nowMs, Valid: true}, Conv: r.Conv, After: int64(-1), MaxRows: int64(n)}
+		if r.ByCursor {
+			p.MaxRows = -1
+			if r.After > 0 {
+				p.After = r.After
+			}
+		}
+		held, err := q.HeldItems(ctx, p)
 		if err != nil {
 			return nil, err
 		}
@@ -104,17 +116,36 @@ func Claim(ctx context.Context, d pdb.DBTX, now time.Time, r Request) ([]Item, e
 	if r.Visibility == 0 {
 		vis = DefaultVisibility
 	}
+	seq, err := Cursor(ctx, d, r.Identity)
+	if err != nil {
+		return nil, err
+	}
 	claimed, err := q.ClaimItems(ctx, db.ClaimItemsParams{
-		SessionID: nullInt(r.Session), Now: nowMs, VisibilityMs: sql.NullInt64{Int64: vis.Milliseconds(), Valid: true}, IdentityID: r.Identity, Conv: r.Conv, NLeft: int64(n - len(out)),
+		SessionID: nullInt(r.Session), ClaimSeq: nullInt(seq + 1), Now: nowMs, VisibilityMs: sql.NullInt64{Int64: vis.Milliseconds(), Valid: true}, IdentityID: r.Identity, Conv: r.Conv, NLeft: int64(n - len(out)),
 	})
 	if err != nil {
 		return nil, err
+	}
+	if len(claimed) > 0 {
+		if err := q.SetClaimSeq(ctx, db.SetClaimSeqParams{IdentityID: r.Identity, Seq: seq + 1}); err != nil {
+			return nil, err
+		}
 	}
 	for _, c := range claimed {
 		out = append(out, Item{ID: c.ID, ConversationID: c.ConversationID.Int64, FirstMessageID: c.FirstMessageID.Int64, MessageID: c.MessageID.Int64,
 			Count: c.Count, MentionCount: c.MentionCount, Deliveries: c.Deliveries, Reason: c.Reason, State: c.State, ClaimToken: c.ClaimToken, ClaimSession: r.Session, ClaimUntil: c.ClaimUntil.Int64})
 	}
 	return out, nil
+}
+
+// Cursor is the newest claim number of the identity, 0 before its first claim. Read in the transaction of a claim, it is what that
+// claim's caller has seen: every claim made later takes a higher number.
+func Cursor(ctx context.Context, d pdb.DBTX, identityID int64) (int64, error) {
+	seq, err := db.New(d).ClaimSeq(ctx, identityID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	return seq, err
 }
 
 // mergeExpiredClaims is §3.8 (3): each expired claim, in id order, merges into the ready item of its conversation

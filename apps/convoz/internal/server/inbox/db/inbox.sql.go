@@ -79,23 +79,24 @@ func (q *Queries) AskOfItem(ctx context.Context, arg AskOfItemParams) (sql.NullI
 
 const claimItems = `-- name: ClaimItems :many
 UPDATE inbox_items
-SET state = 'claimed', claim_session_id = ?1, claim_token = randomblob(16),
-    claim_until = ?2 + ?3, visibility_ms = ?3, deliveries = deliveries + 1, updated_at = ?2
+SET state = 'claimed', claim_session_id = ?1, claim_token = randomblob(16), claim_seq = ?2,
+    claim_until = ?3 + ?4, visibility_ms = ?4, deliveries = deliveries + 1, updated_at = ?3
 WHERE id IN (
   SELECT i.id FROM inbox_items i
-  WHERE i.identity_id = ?4 AND i.state = 'ready' AND i.deliveries < 5
-    AND (i.not_before IS NULL OR i.not_before <= ?2)
-    AND (?5 = 0 OR i.conversation_id = ?5)
-    AND (i.prefer_session_id IS NULL OR i.prefer_session_id = ?1 OR i.updated_at + 30000 <= ?2)
+  WHERE i.identity_id = ?5 AND i.state = 'ready' AND i.deliveries < 5
+    AND (i.not_before IS NULL OR i.not_before <= ?3)
+    AND (?6 = 0 OR i.conversation_id = ?6)
+    AND (i.prefer_session_id IS NULL OR i.prefer_session_id = ?1 OR i.updated_at + 30000 <= ?3)
     AND NOT EXISTS (SELECT 1 FROM inbox_items c
                     WHERE c.identity_id = i.identity_id AND c.conversation_id = i.conversation_id
-                      AND c.state = 'claimed' AND c.claim_until >= ?2 AND c.claim_session_id <> ?1)
-  ORDER BY i.id LIMIT ?6)
+                      AND c.state = 'claimed' AND c.claim_until >= ?3 AND c.claim_session_id <> ?1)
+  ORDER BY i.id LIMIT ?7)
 RETURNING id, conversation_id, first_message_id, message_id, count, mention_count, reason, state, claim_token, claim_until, deliveries
 `
 
 type ClaimItemsParams struct {
 	SessionID    sql.NullInt64
+	ClaimSeq     sql.NullInt64
 	Now          int64
 	VisibilityMs sql.NullInt64
 	IdentityID   int64
@@ -122,6 +123,7 @@ type ClaimItemsRow struct {
 func (q *Queries) ClaimItems(ctx context.Context, arg ClaimItemsParams) ([]ClaimItemsRow, error) {
 	rows, err := q.db.QueryContext(ctx, claimItems,
 		arg.SessionID,
+		arg.ClaimSeq,
 		arg.Now,
 		arg.VisibilityMs,
 		arg.IdentityID,
@@ -159,6 +161,18 @@ func (q *Queries) ClaimItems(ctx context.Context, arg ClaimItemsParams) ([]Claim
 		return nil, err
 	}
 	return items, nil
+}
+
+const claimSeq = `-- name: ClaimSeq :one
+SELECT seq FROM inbox_claim_seqs WHERE identity_id = ?1
+`
+
+// The newest claim number of the identity (no row before its first claim).
+func (q *Queries) ClaimSeq(ctx context.Context, identityID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, claimSeq, identityID)
+	var seq int64
+	err := row.Scan(&seq)
+	return seq, err
 }
 
 const clearPreference = `-- name: ClearPreference :exec
@@ -381,7 +395,8 @@ SELECT id, conversation_id, first_message_id, message_id, count, mention_count, 
 FROM inbox_items
 WHERE identity_id = ?1 AND state = 'claimed' AND claim_session_id = ?2 AND claim_until >= ?3
   AND (?4 = 0 OR conversation_id = ?4)
-ORDER BY id LIMIT ?5
+  AND (?5 < 0 OR claim_seq > ?5)
+ORDER BY id LIMIT ?6
 `
 
 type HeldItemsParams struct {
@@ -389,6 +404,7 @@ type HeldItemsParams struct {
 	SessionID  sql.NullInt64
 	Now        sql.NullInt64
 	Conv       interface{}
+	After      interface{}
 	MaxRows    int64
 }
 
@@ -406,13 +422,15 @@ type HeldItemsRow struct {
 	Deliveries     int64
 }
 
-// (1) M1: items this session already holds come back first, same tokens, no delivery counted.
+// (1) M1: items this session already holds come back first, same tokens, no delivery counted. after -1 takes them all; else only
+// those claimed after that claim number. max_rows -1 is no limit.
 func (q *Queries) HeldItems(ctx context.Context, arg HeldItemsParams) ([]HeldItemsRow, error) {
 	rows, err := q.db.QueryContext(ctx, heldItems,
 		arg.IdentityID,
 		arg.SessionID,
 		arg.Now,
 		arg.Conv,
+		arg.After,
 		arg.MaxRows,
 	)
 	if err != nil {
@@ -745,6 +763,21 @@ type ReleaseItemsForParams struct {
 
 func (q *Queries) ReleaseItemsFor(ctx context.Context, arg ReleaseItemsForParams) error {
 	_, err := q.db.ExecContext(ctx, releaseItemsFor, arg.Now, arg.ConversationID, arg.MessageID)
+	return err
+}
+
+const setClaimSeq = `-- name: SetClaimSeq :exec
+INSERT INTO inbox_claim_seqs (identity_id, seq) VALUES (?1, ?2)
+ON CONFLICT (identity_id) DO UPDATE SET seq = excluded.seq
+`
+
+type SetClaimSeqParams struct {
+	IdentityID int64
+	Seq        int64
+}
+
+func (q *Queries) SetClaimSeq(ctx context.Context, arg SetClaimSeqParams) error {
+	_, err := q.db.ExecContext(ctx, setClaimSeq, arg.IdentityID, arg.Seq)
 	return err
 }
 

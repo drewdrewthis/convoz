@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -24,12 +25,14 @@ import (
 // preferenceRecheck is how often a waiting poll looks again for an item whose preferred session did not take it.
 const preferenceRecheck = 5 * time.Second
 
-// inboxPoll is GET /api/inbox?wait=&claim=&visibility=&peek=&held=&conv=.
+// inboxPoll is GET /api/inbox?wait=&claim=&visibility=&peek=&held=&after=&conv=.
 //
 // Without peek it answers the items this session holds, then claims ready ones, and when there are none and wait
 // is above 0 it holds the request until an item for the identity arrives or wait runs out. held=0 leaves the
-// already-held items out: `convoz watch` prints each claim once, so it asks only for new ones and the poll does not
-// return at once for an item the agent has not acked yet. conv=C claims only the items of conversation C.
+// already-held items out. after=K (`convoz watch`) answers only the held items claimed after the cursor K, and the answer
+// carries the new cursor: the watch prints each claim once and the poll does not return at once for an item the agent has
+// not acked yet, but a claim whose answer was lost, or that another loop of the session made, comes back at once. after
+// overrides held. conv=C claims only the items of conversation C.
 func (s *Server) inboxPoll(w http.ResponseWriter, r *http.Request, c *call) {
 	q := r.URL.Query()
 	wait, ok := waitParam(w, q.Get("wait"))
@@ -44,11 +47,16 @@ func (s *Server) inboxPoll(w http.ResponseWriter, r *http.Request, c *call) {
 	if !ok {
 		return
 	}
+	after, byCursor, ok := afterParam(w, q)
+	if !ok {
+		return
+	}
 	if q.Get("peek") == "1" {
 		s.inboxPeek(w, r, c)
 		return
 	}
-	req := inbox.Request{Identity: c.lease.IdentityID, Session: c.lease.SessionID, N: n, Visibility: vis, IncludeHeld: q.Get("held") != "0", Conv: conv}
+	req := inbox.Request{Identity: c.lease.IdentityID, Session: c.lease.SessionID, N: n, Visibility: vis, IncludeHeld: byCursor || q.Get("held") != "0", Conv: conv,
+		ByCursor: byCursor, After: after}
 	if wait > 0 { // a watch: the agent counts as connected while it holds the poll (plan liveness, msg 281)
 		s.agentCalled(r.Context(), req.Identity, 1)
 		defer s.agentCalled(context.WithoutCancel(r.Context()), req.Identity, -1)
@@ -56,28 +64,37 @@ func (s *Server) inboxPoll(w http.ResponseWriter, r *http.Request, c *call) {
 		s.agentCalled(r.Context(), req.Identity, 0)
 	}
 	s.sweepNow(r.Context())
+	answer := func(items []wire.InboxItem, cursor int64) {
+		res := wire.InboxResponse{Items: append([]wire.InboxItem{}, items...)}
+		if byCursor {
+			res.Cursor = cursor
+		}
+		writeJSON(w, http.StatusOK, res)
+	}
 
 	hold := time.NewTimer(wait)
 	defer hold.Stop()
 	// An item kept for another session (AC-28) opens to this one after 30 s, with no event to say so: look again now and then.
 	recheck := time.NewTicker(preferenceRecheck)
 	defer recheck.Stop()
+	cursor := after
 	for {
 		changed := s.Bus.ChangedFor(req.Identity) // before the claim, so an item that lands meanwhile wakes the next wait
 		anyChange := s.Bus.Changed()
 		if s.answerIfEnded(w, r, c) {
 			return
 		}
-		items, fresh, err := s.claimOnce(r.Context(), c, req)
+		items, fresh, newest, err := s.claimOnce(r.Context(), c, req)
 		if err != nil {
 			if r.Context().Err() == nil {
 				s.internalError(w, r, err)
 			}
 			return
 		}
+		cursor = newest // no claim of this session lies between after and newest, so an empty answer may carry it too
 		if len(items) > 0 || wait == 0 {
 			s.publishFresh(r.Context(), req.Identity, fresh)
-			writeJSON(w, http.StatusOK, wire.InboxResponse{Items: append([]wire.InboxItem{}, items...)})
+			answer(items, cursor)
 			return
 		}
 		for waiting := true; waiting; {
@@ -92,7 +109,7 @@ func (s *Server) inboxPoll(w http.ResponseWriter, r *http.Request, c *call) {
 			case <-recheck.C:
 				waiting = false
 			case <-hold.C:
-				writeJSON(w, http.StatusOK, wire.InboxResponse{Items: []wire.InboxItem{}})
+				answer(nil, cursor)
 				return
 			case <-r.Context().Done():
 				return
@@ -122,7 +139,7 @@ func (s *Server) claimInbox(w http.ResponseWriter, r *http.Request, c *call) {
 	req := inbox.Request{Identity: c.lease.IdentityID, Session: c.lease.SessionID, N: n, Visibility: vis, IncludeHeld: true, Conv: in.Conv}
 	s.agentCalled(r.Context(), req.Identity, 0)
 	s.sweepNow(r.Context())
-	items, fresh, err := s.claimOnce(r.Context(), c, req)
+	items, fresh, _, err := s.claimOnce(r.Context(), c, req)
 	if err != nil {
 		s.internalError(w, r, err)
 		return
@@ -184,6 +201,19 @@ func (s *Server) visibilityDefault(ctx context.Context) (time.Duration, error) {
 	return inbox.DefaultVisibility, nil
 }
 
+// afterParam reads after=: the cursor of the last answer a watch got, 0 or more. byCursor is false when it is absent.
+func afterParam(w http.ResponseWriter, q url.Values) (after int64, byCursor bool, ok bool) {
+	if !q.Has("after") {
+		return 0, false, true
+	}
+	v, err := strconv.ParseInt(q.Get("after"), 10, 64)
+	if err != nil || v < 0 {
+		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "after", "after is the cursor of the last answer, 0 or more.")
+		return 0, false, false
+	}
+	return v, true, true
+}
+
 // convParam reads conv=: a conversation id, or 0 for every conversation.
 func convParam(w http.ResponseWriter, raw string) (int64, bool) {
 	if raw == "" {
@@ -239,8 +269,10 @@ func (s *Server) leaseEnded(ctx context.Context, token string) (msg string, ende
 	return "", false, nil
 }
 
-// claimOnce is one claim call in one transaction. fresh lists the claims made just now (not held before).
-func (s *Server) claimOnce(ctx context.Context, c *call, req inbox.Request) (items []wire.InboxItem, fresh []inbox.Hold, err error) {
+// claimOnce is one claim call in one transaction. fresh lists the claims made just now (not held before); cursor is the
+// identity's newest claim number as this transaction saw it (inbox.Cursor). Fresh claims wake the other waiting polls of the
+// identity, so another loop of the same session (a second watch, a poll whose answer was lost) gets them at once.
+func (s *Server) claimOnce(ctx context.Context, c *call, req inbox.Request) (items []wire.InboxItem, fresh []inbox.Hold, cursor int64, err error) {
 	now := s.Clock.Now()
 	err = s.Store.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) error {
 		d := tx.DBTX()
@@ -266,9 +298,13 @@ func (s *Server) claimOnce(ctx context.Context, c *call, req inbox.Request) (ite
 				}
 			}
 		}
-		return nil
+		cursor, err = inbox.Cursor(ctx, d, req.Identity)
+		return err
 	})
-	return items, fresh, err
+	if err == nil && len(fresh) > 0 {
+		s.Bus.Notify(req.Identity)
+	}
+	return items, fresh, cursor, err
 }
 
 // inboxPeek lists the identity's ready and claimed items and claims none. Claims that ran out are merged back first,
