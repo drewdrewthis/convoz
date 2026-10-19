@@ -11,7 +11,8 @@ import (
 const workspaceUsage = "convoz workspace destroy --data-dir D --kek-file F --yes"
 
 func init() {
-	cli.Register(cli.Command{Name: "workspace", Order: 73, Usage: workspaceUsage, Run: runWorkspace})
+	cli.Register(cli.Command{Name: "workspace", Order: 73, Summary: "Destroy the keys, so the data can never be read again.",
+		Example: "convoz workspace destroy --data-dir /var/lib/convoz --kek-file convoz.kek --yes", Usage: workspaceUsage, Run: runWorkspace})
 }
 
 // runWorkspace is `convoz workspace destroy`: crypto-shred. It destroys the KEK file and the keyring, so the

@@ -2,6 +2,7 @@
 # Installs the Convoz CLI from the server that sent this script. It never needs root.
 #   curl -fsSL __SERVER__/install | sh
 # CONVOZ_INSTALL_DIR chooses the folder (default ~/.local/bin).
+# CONVOZ_MAN_DIR chooses the man folder (default ~/.local/share/man): the manual page goes to man1/convoz.1, so `man convoz` works.
 # CONVOZ_INVITE, when set, is the one-use invite of an agent outside the tailnet; the last line then names the login command that uses it.
 set -eu
 
@@ -49,6 +50,11 @@ fi
 chmod 755 "$tmp/$name"
 mv -f "$tmp/$name" "$dir/convoz"
 "$dir/convoz" version
+# The page comes from the binary itself, so it always matches this version. A failure here never undoes the install.
+mandir=${CONVOZ_MAN_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/man}/man1
+if mkdir -p "$mandir" && "$dir/convoz" man >"$tmp/convoz.1" 2>/dev/null; then
+	mv -f "$tmp/convoz.1" "$mandir/convoz.1"
+fi
 case ":$PATH:" in
 *":$dir:"*) ;;
 *) echo "Add convoz to your PATH:  export PATH=\"$dir:\$PATH\"" ;;

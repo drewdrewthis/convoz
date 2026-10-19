@@ -11,7 +11,8 @@ import (
 const restoreUsage = "convoz restore --backup FILE --into DIR --identity F --verify-key F [--kek-file F]"
 
 func init() {
-	cli.Register(cli.Command{Name: "restore", Order: 71, Usage: restoreUsage, Run: runRestore})
+	cli.Register(cli.Command{Name: "restore", Order: 71, Summary: "Check a backup and restore it into a new data folder.",
+		Example: "convoz restore --backup convoz.backup --into /var/lib/convoz-new --identity keys/identity.key --verify-key keys/verify.key", Usage: restoreUsage, Run: runRestore})
 }
 
 // runRestore is `convoz restore`: it checks the signature first and writes the data dir only when everything opens.

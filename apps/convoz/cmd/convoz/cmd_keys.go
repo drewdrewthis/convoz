@@ -14,7 +14,8 @@ import (
 const keysUsage = "convoz keys rotate-kek --data-dir D --kek-file OLD --new-kek-file NEW"
 
 func init() {
-	cli.Register(cli.Command{Name: "keys", Order: 72, Usage: keysUsage, Run: runKeys})
+	cli.Register(cli.Command{Name: "keys", Order: 72, Summary: "Change the master key (KEK) that locks the other keys.",
+		Example: "convoz keys rotate-kek --data-dir /var/lib/convoz --kek-file old.kek --new-kek-file new.kek", Usage: keysUsage, Run: runKeys})
 }
 
 // runKeys is `convoz keys rotate-kek` (design §6.2). rotate-db is a later slice.

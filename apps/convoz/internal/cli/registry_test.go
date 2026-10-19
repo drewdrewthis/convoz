@@ -52,3 +52,17 @@ func TestEveryCommandHasHelp(t *testing.T) {
 		}
 	}
 }
+
+// The man page has one section for every registered command, built from the same summaries as `convoz --help`, and a line
+// that starts with a dot or a quote cannot be taken for a roff request.
+func TestManPageHoldsEveryCommand(t *testing.T) {
+	page := ManPage()
+	for name, c := range commands {
+		if !strings.Contains(page, "\n.SS "+name+"\n") || !strings.Contains(page, roff(c.Summary)) {
+			t.Errorf("%s is missing from the man page", name)
+		}
+	}
+	if got := roff(`.x 'y' a\b-c`); got != `\&.x 'y' a\eb\-c` {
+		t.Errorf("roff: %q", got)
+	}
+}

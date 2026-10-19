@@ -50,6 +50,28 @@ scenario("An agent installs the CLI from the server", { tag: ["@cli"] }, async (
   expect(script.text).not.toMatch(/\bsudo\b/);
 });
 
+scenario("The installer also installs the man page", { tag: ["@cli"] }, async ({ server }) => {
+  // Given a machine with no convoz installed and an empty home folder, and a server
+  const srv = await server({ host: "localhost" });
+  const home = scratch("convoz-home-");
+
+  // When the agent runs the install script of the server
+  const file = path.join(scratch("convoz-install-"), "install.sh");
+  fs.writeFileSync(file, (await send(srv.target, "GET", "/install")).text);
+  const install = await run("sh", [file], { env: baseEnv({ HOME: home }), timeoutMs: 60_000 });
+  expect(install.code, install.stderr).toBe(0);
+
+  // Then "convoz.1" is installed in the ".local/share/man/man1" folder of the home folder
+  const manDir = path.join(home, ".local", "share", "man");
+  const page = fs.readFileSync(path.join(manDir, "man1", "convoz.1"), "utf8");
+  expect(page).toMatch(/^\.TH CONVOZ 1/m);
+
+  // And "man convoz" shows it when that man folder is on the man path
+  const shown = await run("man", ["convoz"], { env: baseEnv({ HOME: home, MANPATH: manDir, MANPAGER: "cat", MANWIDTH: "200" }), timeoutMs: 20_000 });
+  expect(shown.code, shown.stderr).toBe(0);
+  expect(shown.stdout).toContain("NAME");
+});
+
 scenario("The installer refuses a binary whose checksum does not match", { tag: ["@cli"] }, async ({ server }) => {
   // Given a server whose SHA256SUMS does not match the binary it serves
   const srv = await server({ host: "localhost" });

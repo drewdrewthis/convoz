@@ -76,7 +76,7 @@ func printHelp(c Command, run func([]string, IO) int, io IO) int {
 func Overview() []string {
 	out := []string{}
 	for _, c := range sorted() {
-		out = append(out, fmt.Sprintf("%-8s %s", c.Name, c.Summary))
+		out = append(out, fmt.Sprintf("%-10s %s", c.Name, c.Summary))
 	}
 	return out
 }
