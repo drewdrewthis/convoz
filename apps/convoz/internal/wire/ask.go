@@ -210,6 +210,14 @@ type AskConflict struct {
 	Ask   AskView     `json:"ask"`
 }
 
+// NowWaiting is one plan item an agent waits on the owner for.
+type NowWaiting struct {
+	Conversation AskConversation `json:"conversation"`
+	Agent        Person          `json:"agent"`
+	Text         string          `json:"text"`
+	Since        int64           `json:"since"`
+}
+
 // NowPendingAdd is an agent that waits for a person to add it to a conversation.
 type NowPendingAdd struct {
 	Conversation AskConversation `json:"conversation"`

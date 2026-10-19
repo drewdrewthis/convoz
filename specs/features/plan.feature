@@ -249,3 +249,28 @@ Feature: Plans: what each agent is doing, what is next and what waits on the own
       Given the owner sent "Is the build green?" in conversation 41
       When the owner revokes the key of machine "box-2" and 10 minutes pass
       Then the line under the title of conversation 41 reads "Logged out" in amber
+
+  Rule: What an agent waits on the owner for shows in Now
+
+    # Drew, @dot conv 39 msg 852: an agent's "waiting on the owner" item showed in the plan panel, as an amber row icon and as one push, but
+    # never in Now. "Drew lives in Now, so items waiting on Drew are missed."
+    @v1 @browser
+    Scenario: A plan item waiting on the owner shows in Now
+      Given "devtool" waits on the owner for "Approve the dot card" in conversation 41
+      When the owner opens Now
+      Then Now lists "Approve the dot card" under "Waiting on you" with "devtool" and the title "Ship search filters"
+      And the top bar says "1 open"
+      When the owner taps the row
+      Then conversation 41 opens with its details panel showing "Waiting on you · 1"
+
+    @v1 @browser
+    Scenario: A waiting item leaves Now when the agent finishes it
+      Given "devtool" waits on the owner for "Approve the dot card" in conversation 41 and the owner has Now open
+      When "devtool" runs "convoz plan 41 --done 'Approve the dot card'"
+      Then Now no longer lists "Approve the dot card" and says "0 open", without a reload
+
+    @v1 @browser
+    Scenario: A waiting item missed while offline shows after reconnect
+      Given the owner has Now open and the live stream is cut
+      When "devtool" runs "convoz plan 41 --doing 'Building invites' --waiting 'Approve the dot card'" and the app reconnects
+      Then Now lists "Approve the dot card" under "Waiting on you" without a reload

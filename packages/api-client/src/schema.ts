@@ -3378,6 +3378,14 @@ export interface components {
             /** Format: int64 */
             at: number;
         };
+        /** @description A plan item an agent waits on the owner for. */
+        NowWaiting: {
+            conversation: components["schemas"]["AskConversation"];
+            agent: components["schemas"]["Person"];
+            text: string;
+            /** Format: int64 */
+            since: number;
+        };
         Now: {
             /**
              * Format: int64
@@ -3397,6 +3405,8 @@ export interface components {
             /** @description Dismissed in the last 24 hours and still dismissed */
             dismissed_today: components["schemas"]["Ask"][];
             pending_adds: components["schemas"]["NowPendingAdd"][];
+            /** @description Plan items agents wait on the owner for */
+            waiting_plans: components["schemas"]["NowWaiting"][];
             machine_requests: components["schemas"]["MachineRequest"][];
             /** @description Agents on logged-in machines that ask to be made. */
             identity_requests: components["schemas"]["IdentityRequest"][];

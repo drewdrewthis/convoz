@@ -1,5 +1,7 @@
+import type { Locator, Page } from "@playwright/test";
 import { convoz, createConversation, inboxItems, messagesOf, ownerSays, startWatch } from "../lib/chat.ts";
-import { chatList, chatRow } from "../lib/chat-ui.ts";
+import { appReturns, chatList, chatRow, dropStreams, streamOpen } from "../lib/chat-ui.ts";
+import { openNow } from "../lib/asks.ts";
 import { McpClient } from "../lib/agent-wp7.ts";
 import { stepped } from "../lib/machines.ts";
 import { overflowX } from "../lib/mobile.ts";
@@ -645,4 +647,65 @@ scenario("An agent whose machine key was revoked shows as logged out", { tag: ["
   await page.goto(`${p.w.srv.origin}/chats/${p.conv}`);
   await expect(planLine(page)).toContainText("Logged out");
   await expect(planLine(page).locator("[data-tone]")).toHaveAttribute("data-tone", "amber");
+});
+
+// ---- Rule: What an agent waits on the owner for shows in Now ------------------------------------------------------------
+
+const waitingRows = (page: Page): Locator => page.getByRole("region", { name: "Waiting on you" }).getByRole("link");
+
+scenario("A plan item waiting on the owner shows in Now", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  const p = await planUi({ server, page, context });
+  // Given "devtool" waits on the owner for "Approve the dot card" in conversation 41
+  await mustPlan(p, p.dev, ["--doing", "Building invites", "--waiting", "Approve the dot card"]);
+
+  // When the owner opens Now
+  await openNow(page, p.w.srv);
+
+  // Then Now lists the item under "Waiting on you" with the agent and the conversation title
+  await expect(waitingRows(page)).toHaveCount(1);
+  await expect(waitingRows(page).first()).toContainText("Approve the dot card");
+  await expect(waitingRows(page).first()).toContainText("@devtool");
+  await expect(waitingRows(page).first()).toContainText("Ship search filters");
+
+  // And the top bar says "1 open"
+  await expect(page.locator("#open-count")).toContainText("1 open");
+
+  // When the owner taps the row, then conversation 41 opens with its details panel showing "Waiting on you · 1"
+  await waitingRows(page).first().click();
+  await expect(page).toHaveURL(new RegExp(`/chats/${p.conv}`));
+  await expect(detailsPanel(page).getByRole("heading", { name: "Waiting on you · 1" })).toBeVisible();
+});
+
+scenario("A waiting item leaves Now when the agent finishes it", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  const p = await planUi({ server, page, context });
+  // Given "devtool" waits on the owner for "Approve the dot card" and the owner has Now open
+  await mustPlan(p, p.dev, ["--doing", "Building invites", "--waiting", "Approve the dot card"]);
+  await openNow(page, p.w.srv);
+  await expect(waitingRows(page)).toHaveCount(1);
+  await streamOpen(page);
+
+  // When "devtool" runs "convoz plan 41 --done 'Approve the dot card'"
+  await mustPlan(p, p.dev, ["--done", "Approve the dot card"]);
+
+  // Then Now no longer lists it and says "0 open", without a reload
+  await expect(waitingRows(page)).toHaveCount(0, { timeout: 4_000 });
+  await expect(page.locator("#open-count")).toContainText("0 open");
+});
+
+scenario("A waiting item missed while offline shows after reconnect", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  const p = await planUi({ server, page, context });
+  // Given the owner has Now open and the live stream is cut
+  await openNow(page, p.w.srv);
+  await streamOpen(page);
+  expect(await dropStreams(page)).toBeGreaterThan(0);
+
+  // When "devtool" adds a waiting item and the app reconnects
+  await mustPlan(p, p.dev, ["--doing", "Building invites", "--waiting", "Approve the dot card"]);
+  await appReturns(page);
+
+  // Then Now lists it under "Waiting on you" without a reload
+  await expect(waitingRows(page)).toHaveCount(1, { timeout: 5_000 });
+  await expect(waitingRows(page).first()).toContainText("Approve the dot card");
 });

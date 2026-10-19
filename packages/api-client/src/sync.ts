@@ -109,14 +109,18 @@ export function createSync(cache: DataCache, source: DataSource, options: SyncOp
     }
     const talked = new Set<number>();
     const asked = new Set<number>();
+    const planned = new Set<number>();
     let listChanged = false;
     for (const ev of answer.events) {
       if (ev.type === "message.created.v1" && ev.conversation_id) talked.add(ev.conversation_id);
       if (ev.type.startsWith("ask.") && ev.conversation_id) asked.add(ev.conversation_id);
+      if (ev.type.startsWith("plan.") && ev.conversation_id) planned.add(ev.conversation_id);
       listChanged = true; // a new message (a reply is not in the main list, but it moves the unread count), a new conversation or a read changes the rail
     }
     await Promise.all([...talked].map(catchUp));
     await Promise.all([...asked].map((id) => refreshAsks(id).catch(() => {})));
+    // A plan has no message to read again: its readers (the panel, Now) listen for the frame the stream would have sent.
+    for (const id of planned) dispatch({ name: "plan.changed", data: { conversation_id: id } });
     if (listChanged) cache.resync();
     const to = parseCursor(answer.cursor);
     if (to) advance(to);

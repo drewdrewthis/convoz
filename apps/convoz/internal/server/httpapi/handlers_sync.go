@@ -40,6 +40,10 @@ func eventVisible(ctx context.Context, d pdb.DBTX, c *call, ev event.Event) (boo
 		return ok && ev.Message > floor, err
 	}
 	switch ev.Type {
+	case eventPlanChanged:
+		// A plan item may have started or stopped waiting on the owner while the stream was down; the client reads the plans itself.
+		_, ok, err := canSee(ctx, d, c.p, ev.Conversation)
+		return ok, err
 	case event.MessageCreated:
 		floor, ok, err := canSee(ctx, d, c.p, ev.Conversation)
 		return ok && ev.Message > floor, err
