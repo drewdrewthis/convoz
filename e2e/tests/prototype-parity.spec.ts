@@ -28,13 +28,13 @@ const MASK_CAP: Record<string, number> = { now: 10, "now-asks": 10, conversation
 
 const SHOT = { maxDiffPixelRatio: 0.02, threshold: 0.2, animations: "disabled", caret: "hide", scale: "device" } as const;
 
-/** Light then dark, each against its own reference. */
-async function matchesBoth(page: import("@playwright/test").Page, screen: string): Promise<void> {
+/** Light then dark, each against its own reference: the prototype's frame, or, for a screen the owner changed on purpose, a reviewed frame of the app. */
+async function matchesBoth(page: import("@playwright/test").Page, screen: string, from: "prototype" | "app" = "prototype"): Promise<void> {
   expect(maskPercent(screen), `the masks of ${screen} cover too much of the frame`).toBeLessThanOrEqual(MASK_CAP[screen]!);
   for (const scheme of ["light", "dark"] as const) {
     await readyForShot(page, screen, scheme);
     await keepActual(page, `${screen}-${scheme}`);
-    await expect(page).toHaveScreenshot(`${screen}-${scheme}.png`, SHOT);
+    await expect(page).toHaveScreenshot([from, `${screen}-${scheme}.png`], SHOT);
   }
 }
 
@@ -78,7 +78,7 @@ scenario("On a phone Now with asks matches the prototype", { tag: ["@browser", "
   await expect(page.getByRole("article", { name: "Close the incident?" })).toBeVisible();
 
   // Then it matches the prototype in light and in dark
-  await matchesBoth(page, "now-asks");
+  await matchesBoth(page, "now-asks", "app");
 });
 
 scenario("On a phone the Conversations list matches the prototype", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {
@@ -157,7 +157,7 @@ scenario("On a phone Crew matches the prototype", { tag: ["@browser", "@phone"] 
   await expect(page.getByRole("heading", { name: "Crew", exact: true })).toBeVisible();
 
   // Then it matches the prototype in light and in dark
-  await matchesBoth(page, "crew");
+  await matchesBoth(page, "crew", "app");
 });
 
 scenario("On a phone the rail matches the prototype", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {
@@ -192,12 +192,12 @@ scenario("On a phone Crew with agent status matches the prototype", { tag: ["@br
   await expect(page.getByText("Waiting on you · OK on the Slack draft")).toBeVisible();
 
   // Then it matches the prototype in light and in dark
-  await matchesBoth(page, "crew-status");
+  await matchesBoth(page, "crew-status", "app");
 });
 
 // ---- desktop: one element of the 1280x800 window, as the prototype's rail and Crew dock are shot ----------------------------------
 
-const DESKTOP_CAP: Record<string, number> = { "rail-desktop": 10, "crew-desktop": 20 };
+const DESKTOP_CAP: Record<string, number> = { "rail-desktop": 10 };
 
 /** The share of a w x h element that the grey boxes of a screen cover (overlaps counted once), in percent. */
 function elementMaskPercent(screen: string, w: number, h: number): number {
@@ -229,7 +229,7 @@ async function matchesElement(page: import("@playwright/test").Page, screen: str
     );
     const dir = process.env.PARITY_ACTUAL_DIR;
     if (dir) await el.screenshot({ path: `${dir}/${screen}-${scheme}.png`, animations: "disabled", caret: "hide", scale: "device" });
-    await expect(el).toHaveScreenshot(`${screen}-${scheme}.png`, SHOT);
+    await expect(el).toHaveScreenshot(["prototype", `${screen}-${scheme}.png`], SHOT);
   }
 }
 
@@ -251,22 +251,4 @@ scenario("On a desktop the rail matches the prototype", { tag: ["@browser"] }, a
 
   // Then it matches the prototype in light and in dark
   await matchesElement(page, "rail-desktop", rail, 240, 742, 743);
-});
-
-scenario("On a desktop Crew matches the prototype", { tag: ["@browser"] }, async ({ server, page, context, dataDir }, info) => {
-  info.setTimeout(180_000);
-  // Background: the prototype's agents and conversations (docs is live too: the prototype shows it working)
-  const u = await protoWorld({ server, page, context }, { agents: AGENTS, live: [...LIVE, "docs", "orchardist"], dataDir });
-
-  // Given the agents report the status the prototype shows
-  await reportStatuses(u);
-  await seedOpenAsks(u, dataDir);
-
-  // When the owner opens Crew on a desktop
-  await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto(`${u.w.srv.origin}/crew`);
-  await expect(page.getByText("Waiting on you · OK on the Slack draft")).toBeVisible();
-
-  // Then it matches the prototype in light and in dark
-  await matchesElement(page, "crew-desktop", page.locator("#crew"), 380, 726, 800);
 });

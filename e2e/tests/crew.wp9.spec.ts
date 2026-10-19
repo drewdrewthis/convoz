@@ -616,3 +616,86 @@ scenario("An agent profile shows what waits on the owner and shared conversation
   await page.getByRole("link", { name: "New conversation with @devtool" }).click();
   await expect(page.getByRole("textbox", { name: "Message @devtool" })).toBeVisible();
 });
+
+// ---- Rule: On a computer Crew is a page in the right pane, like a conversation --------------------------------------------------
+
+scenario("On a computer, Crew opens as a page with one way back, and nothing hides under its search", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given eight agents, and a window 1280 wide and 560 high, in light and in dark
+  const agents = ["devtool", "docs", "scout", "ops", "build", "review", "triage", "deploy"];
+  const c = await crewWorld({ server, page, context }, { agents });
+  await page.setViewportSize({ width: 1280, height: 560 });
+
+  // When the owner opens Crew and scrolls its list
+  await page.goto(`${c.w.srv.origin}/crew`);
+  await expect(page.locator("#crew .crow")).toHaveCount(agents.length);
+  for (const scheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.locator("#crew .docklist").evaluate((el) => void (el.scrollTop = 90));
+
+    // Then the bar of the page reads "Crew" and the count 8
+    await expect(page.locator(".appbar #heading")).toHaveText("Crew");
+    await expect(page.locator(".appbar")).toContainText(String(agents.length));
+
+    // And the page has one back control and no element with the frame of a card
+    await expect(page.locator(".appbar, #crew").getByRole("link", { name: /^(back|close)/i })).toHaveCount(1);
+    const cards = await page.locator("main").evaluate((main) =>
+      [main, ...main.querySelectorAll("*")].filter((el) => {
+        const cs = getComputedStyle(el);
+        return parseFloat(cs.borderTopWidth) > 0 && parseFloat(cs.borderTopLeftRadius) > 0 && cs.boxShadow !== "none" && el.getBoundingClientRect().height > 300;
+      }).length,
+    );
+    expect(cards, "an element still has a card's border, radius and shadow").toBe(0);
+
+    // And the first agent row that shows starts at or below the bottom of the search
+    const geo = await page.evaluate(() => {
+      const bottom = document.querySelector("#crew .fld")!.getBoundingClientRect().bottom;
+      const shows = (el: Element) => {
+        const r = el.getBoundingClientRect();
+        return el.contains(document.elementFromPoint(r.left + r.width / 2, r.top + 2));
+      };
+      const first = [...document.querySelectorAll("#crew .crow")].find(shows);
+      return { bottom, top: first ? first.getBoundingClientRect().top : null };
+    });
+    expect(geo.top, "no agent row shows").not.toBeNull();
+    expect(geo.top!).toBeGreaterThanOrEqual(geo.bottom);
+
+    // And the search and the summary above the list have an opaque background
+    const alphas = await page.evaluate(() => {
+      const alpha = (el: Element) => {
+        const bg = getComputedStyle(el).backgroundColor;
+        const m = /\/\s*([\d.]+%?)\s*\)|rgba\([^)]*,\s*([\d.]+)\)/.exec(bg);
+        if (!m) return 1;
+        const v = m[1] ?? m[2]!;
+        return v.endsWith("%") ? parseFloat(v) / 100 : parseFloat(v);
+      };
+      const fld = document.querySelector("#crew .fld")!;
+      return [alpha(fld), alpha(fld.parentElement!), alpha(document.querySelector("#crew .crew-top")!)];
+    });
+    expect(alphas).toEqual([1, 1, 1]);
+  }
+});
+
+for (const [width, height] of [[390, 844], [1280, 720]] as const) {
+  scenario(`Machines is in view when Crew opens, with no scrolling (${width} by ${height})`, { tag: ["@browser"] }, async ({ server, page, context }) => {
+    // Given eight agents and a window <width> wide and <height> high
+    const agents = ["devtool", "docs", "scout", "ops", "build", "review", "triage", "deploy"];
+    const c = await crewWorld({ server, page, context }, { agents });
+    await page.setViewportSize({ width, height });
+
+    // When the owner opens Crew
+    await page.goto(`${c.w.srv.origin}/crew`);
+    await expect(page.locator("#crew .crow")).toHaveCount(agents.length);
+
+    // Then the link "Machines · 1" is inside the window
+    const link = page.getByRole("link", { name: "Machines · 1" });
+    await expect(link).toBeVisible();
+    const box = (await link.boundingBox())!;
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.y + box.height).toBeLessThanOrEqual(height);
+    expect(box.x + box.width).toBeLessThanOrEqual(width);
+
+    // And the link opens the machines page
+    await link.click();
+    await expect(page.getByRole("heading", { name: "Machines", exact: true })).toBeVisible();
+  });
+}

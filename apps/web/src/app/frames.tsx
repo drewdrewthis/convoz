@@ -72,6 +72,7 @@ export function ShellFrame({ def, children }: { def: PageDef; children: ReactNod
             </a>
           ) : null}
           <h1 id="heading">{def.heading}</h1>
+          <span id="appbar-note" />
         </div>
         <div className="appbar-end">
           {def.open ? (

@@ -13,6 +13,9 @@
     content: ""; position: absolute; right: -1px; bottom: -1px; box-sizing: border-box; width: 30%; height: 30%; border-radius: 999px;
     border: 2px solid var(--color-idle); background: var(--color-surface);
   }
+  .crew-mach { display: flex; align-items: center; gap: 10px; min-height: 48px; margin: 0 4px 8px; padding: 0 14px; border: 1px solid var(--color-edge); border-radius: 999px; background: var(--color-raised); color: var(--color-accent-text); font-size: 14px; font-weight: 600; text-decoration: none; }
+  .crew-mach span { flex: 1 1 auto; min-width: 0; }
+  .crew-mach svg { flex: none; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .cgrp[data-group="waiting"] h3 i { background: var(--color-amber); }
   .cgrp[data-group="working"] h3 i { background: var(--gradring); }
 
@@ -42,37 +45,29 @@
   .ptabs [role="tab"] { min-height: 40px; padding: 0 16px; border: 1px solid var(--color-edge); border-radius: 999px; background: transparent; color: var(--color-text); font: inherit; font-weight: 600; cursor: pointer; }
   .ptabs [role="tab"][aria-selected="true"] { background: var(--color-selection); color: var(--color-accent-text); }
 
-  /* The dock: on a wide window Crew is the prototype's 380 px card (header, faces, search, a scrolling list, Invite agent at the foot). */
-  .dockhead, .dockfoot { display: none; }
+  /* On a wide window Crew is a page in the right pane, like a conversation: the bar names it ("Crew" and the count), the summary and the
+     search stay put above a list that scrolls under them, Invite agent stays at the foot. No frame, no second way out. */
+  .dockfoot, .crewn { display: none; }
   .docklist { display: contents; }
   @media (min-width: 900px) {
-    #crew {
-      width: 380px; height: min(727px, calc(100dvh - 24px)); box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden;
-      background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 14px; box-shadow: var(--float);
-    }
-    #crew .dockhead { flex: none; display: flex; align-items: center; gap: 10px; padding: 14px 8px 8px 20px; }
-    .dockhead h2 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
-    .dockhead .count { min-width: 24px; height: 22px; padding: 0 8px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--color-selection); font-family: var(--font-mono); color: var(--color-text); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
-    .dockhead .sp { flex: 1 1 auto; }
-    .dockhead .iconbtn { width: 32px; height: 32px; min-width: 0; min-height: 0; color: var(--color-muted); }
-    .dockhead .iconbtn svg { width: 14px; height: 14px; stroke-width: 2; }
-    #crew .crew-top { flex: none; padding: 4px 20px 12px; }
+    .appbar .crewn { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 22px; margin-left: 8px; padding: 0 8px; box-sizing: border-box; border-radius: 999px; background: var(--color-selection); font-family: var(--font-mono); color: var(--color-text); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    body[data-desk] main:has(.crew) { overflow: hidden; max-width: 760px; padding: 0 8px 8px; }
+    body[data-desk] main:has(.crew) #view { min-height: 0; }
+    #crew { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: var(--color-surface); }
+    #crew .crew-top, #crew .crew-head { flex: none; background: var(--color-surface); }
+    #crew .crew-top { padding: 8px 12px 12px; }
     #crew .crew-top .addagent { display: none; }
-    #crew > div:not(.crew-top):not(.docklist) { flex: none; padding: 0 16px 8px; }
+    #crew .crew-mach { flex: none; margin: 0 8px 8px; min-height: 40px; }
+    #crew .crew-head { padding: 0 8px 8px; border-bottom: 1px solid var(--color-border); }
     #crew .fld { min-height: 40px; margin: 0; box-sizing: border-box; }
     #crew .fld input { min-height: 36px; }
     #crew .fld:focus-within { outline-color: var(--color-ring); }
     #crew .cgrp h3 { line-height: normal; padding-bottom: 7px; }
-    .dockhead h2 { line-height: normal; }
-    #crew .docklist { flex: 1 1 auto; min-height: 0; display: block; overflow: auto; overscroll-behavior: contain; padding: 0 8px 8px; }
+    #crew .docklist { flex: 1 1 auto; min-height: 0; display: block; overflow: auto; overscroll-behavior: contain; padding: 8px 0; }
     #crew .crow { min-height: 60px; }
     #crew .crow .ring { width: 44px; height: 44px; --rw: 2px; }
     #crew .crow .ring .in { inset: 5px; }
-    /* The dock's header names the page (the prototype's only "Crew" heading), so the bar does not say "Crew" a second time: at every
-       width the page has one "Crew" heading, the bar's on a phone, the dock's here. Keyed on the page, not on the dock, so the bar
-       never shows the title and then drops it when the dock's chunk lands. */
-    body[data-page="crew"] .appbar #heading { display: none; }
-    #crew .dockfoot { flex: none; display: block; padding: 4px; border-top: 1px solid var(--color-border); }
+    #crew .dockfoot { flex: none; display: block; padding: 4px; border-top: 1px solid var(--color-border); background: var(--color-surface); }
     .dockfoot button { width: 100%; min-height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 0; border-radius: 14px; background: transparent; color: var(--color-accent-text); font: inherit; font-size: 14px; font-weight: 600; text-align: left; cursor: pointer; }
     .dockfoot button:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
   }

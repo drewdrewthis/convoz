@@ -2,8 +2,9 @@ import type { Identity } from "@convoz/api-client";
 import type { CrewStatus } from "./types.ts";
 import { MachineIcon, PlusIcon, SearchIcon } from "@convoz/ui/icons";
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { humanError } from "../../shared/api.ts";
+import { call, client, humanError } from "../../shared/api.ts";
 import { setRegistry } from "../../shared/chat.ts";
 import { data, useData, useLive } from "../../shared/data.ts";
 import { useNotice } from "../../shared/notice.tsx";
@@ -42,13 +43,22 @@ export function Crew() {
   const [showDisabled, setShowDisabled] = useState(false);
   const { sheet, open } = useSheets();
   const search = useRef<HTMLInputElement>(null);
+  // The count sits in the page's bar, next to "Crew", as a conversation puts its own title there.
+  const [bar, setBar] = useState<Element | null>(null);
+  useEffect(() => setBar(document.getElementById("appbar-note")), []);
   // The dock opens with the search field ready, as the prototype's does; a phone would raise its keyboard, so only a wide window.
   useEffect(() => {
     if (matchMedia("(min-width: 900px)").matches) search.current?.focus();
   }, []);
 
+  // Machines sits at the top of the page with its count, so the owner never scrolls for it; a failed read only leaves the count out.
+  const [machineCount, setMachineCount] = useState<number | null>(null);
   const reload = useCallback(async () => {
-    await Promise.all([data.loadIdentities(), useCrew.getState().load()]);
+    await Promise.all([
+      data.loadIdentities(),
+      useCrew.getState().load(),
+      call(client.GET("/api/machines")).then((r) => setMachineCount(r.machines.length), () => {}),
+    ]);
   }, []);
   useLive(() => void reload().catch(() => {}));
   useEffect(() => {
@@ -86,14 +96,7 @@ export function Crew() {
 
   return (
     <div id="crew" className="crew" aria-busy={rows ? undefined : true}>
-      <header className="dockhead">
-        <h2>Crew</h2>
-        <span className="count" aria-label={`${enabled.length} agents`}>{enabled.length}</span>
-        <span className="sp" />
-        <a className="iconbtn" href="/" aria-label="Close agents panel">
-          <CloseIcon />
-        </a>
-      </header>
+      {bar ? createPortal(<span className="crewn" aria-label={`${enabled.length} agents`}>{enabled.length}</span>, bar) : null}
       <div className="crew-top">
         <div id="crew-faces" className="stack-av">
           {faces.slice(0, 5).map((r) => (
@@ -108,7 +111,12 @@ export function Crew() {
           Add agent
         </button>
       </div>
-      <div>
+      <a className="crew-mach" href="/crew/machines">
+        <MachineIcon />
+        <span>{machineCount === null ? "Machines" : `Machines · ${machineCount}`}</span>
+        <ChevronRight />
+      </a>
+      <div className="crew-head">
         <label className="fld">
           <span className="sr">Find an agent</span>
           <SearchIcon />
@@ -135,10 +143,6 @@ export function Crew() {
       <p id="crew-empty" className="empty" hidden={!agents || enabled.length !== 0 || disabled.length !== 0}>
         No agents yet. Connect a machine and add an agent first.
       </p>
-      <a className="dashed" href="/crew/machines">
-        <MachineIcon />
-        Machines
-      </a>
       {disabled.length ? (
         <section className="cgrp" aria-label="Disabled">
           <h3>
@@ -170,7 +174,7 @@ const svg = (paths: ReactNode) => () => (
     {paths}
   </svg>
 );
-const CloseIcon = svg(<path d="M6 6l12 12M18 6L6 18" />);
+const ChevronRight = svg(<path d="M9 6l6 6-6 6" />);
 const InviteIcon = svg(<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM19 8v6M22 11h-6" />);
 
 function AgentRow({ r }: { r: Row }) {
