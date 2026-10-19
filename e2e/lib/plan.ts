@@ -116,6 +116,13 @@ export const quietLine = (page: Page, text: string | RegExp): Locator => message
 /** The details panel. */
 export const detailsPanel = (page: Page): Locator => page.getByRole("complementary", { name: /^Details for / });
 
-/** The clock time the page shows for an instant, in the browser's own time zone ("11:30"). */
-export const clockIn = (page: Page, ms: number): Promise<string> =>
-  page.evaluate((t) => new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }), ms);
+/** The clock time the page shows for an instant, in the browser's own time zone ("11:30"), with the weekday when it falls on another day than the server's today ("Tue 00:12"), as the app's `when(ms, now)` does with the server's now (the board's `now`). */
+export const clockIn = (page: Page, ms: number, now: number): Promise<string> =>
+  page.evaluate(
+    ([t, n]) => {
+      const at = new Date(t);
+      const time = at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+      return at.toDateString() === new Date(n).toDateString() ? time : `${at.toLocaleDateString([], { weekday: "short" })} ${time}`;
+    },
+    [ms, now] as const,
+  );

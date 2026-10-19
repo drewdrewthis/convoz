@@ -165,7 +165,7 @@ scenario("The line under the title shows the most urgent state", { tag: ["@brows
         await mustPlan(p, p.dev, ["--doing", "Building invites", "--eta", "30m"]);
         await mustPlan(p, p.docs, ["--done", "Write the README"]);
       },
-      line: async (p) => `Working · Building invites · ready ~${await clockIn(page, (await planOf(p, "devtool"))!.eta!)}`,
+      line: async (p) => `Working · Building invites · ready ~${await clockIn(page, (await planOf(p, "devtool"))!.eta!, (await board(p)).now)}`,
       tone: "green",
     },
     {
@@ -181,7 +181,7 @@ scenario("The line under the title shows the most urgent state", { tag: ["@brows
         await testApi(p.w.srv).advanceClock(60 * MIN);
         await mustPlan(p, p.docs, ["--doing", "Docs", "--eta", "1h"]);
       },
-      line: async (p) => `Late · was due ${await clockIn(page, (await planOf(p, "devtool"))!.eta!)}`,
+      line: async (p) => `Late · was due ${await clockIn(page, (await planOf(p, "devtool"))!.eta!, (await board(p)).now)}`,
       tone: "amber",
     },
     {
@@ -444,7 +444,7 @@ scenario("The line and the panel update live, and a quiet line marks a finished 
 
   // Then the line reads "Working · Switch on the internet door" without a reload
   const first = (await planOf(p, "devtool"))!.eta!;
-  await expect(planLine(page)).toHaveText(`Working · Switch on the internet door · ready ~${await clockIn(page, first)}`);
+  await expect(planLine(page)).toHaveText(`Working · Switch on the internet door · ready ~${await clockIn(page, first, (await board(p)).now)}`);
 
   // And the chat shows the quiet line
   // msg 632: the quiet line is now one row, "@devtool updated its plan", with Now beside it; Done shows when the row opens
@@ -457,7 +457,7 @@ scenario("The line and the panel update live, and a quiet line marks a finished 
 
   // Then the line shows the new time and no new quiet line appears
   const moved = (await planOf(p, "devtool"))!.eta!;
-  await expect(planLine(page)).toHaveText(`Working · Switch on the internet door · ready ~${await clockIn(page, moved)}`);
+  await expect(planLine(page)).toHaveText(`Working · Switch on the internet door · ready ~${await clockIn(page, moved, (await board(p)).now)}`);
   await sleep(500);
   await expect(quietLine(page, "@devtool updated its plan")).toHaveCount(1); // msg 632: the row's new words
 });
