@@ -45,7 +45,7 @@ let drag: Drag | null = null;
 /** startDrag is the pointerdown of a row. `onDrop` runs once, on a release that moved the row. */
 export function startDrag(e: ReactPointerEvent<HTMLElement>, onDrop: (d: Drop) => void): void {
   if (e.button || drag) return;
-  if ((e.target as HTMLElement).closest(".rstar")) return;
+  if ((e.target as HTMLElement).closest("[data-nodrag]")) return;
   const row = e.currentTarget.closest<HTMLElement>("[data-rid]");
   if (!row) return;
   drag = { id: Number(row.dataset.rid), row, x: e.clientX, y: e.clientY, on: false, items: [], i: -1, step: 0, k: 0, grp: "", before: null, hdrMid: null, line: null, scroll: null, srTop: 0, top0: 0, background: "" };

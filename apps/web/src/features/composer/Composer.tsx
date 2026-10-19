@@ -1,3 +1,4 @@
+import { IconButton } from "@convoz/ui/IconButton";
 import type { Identity, Upload } from "@convoz/api-client";
 import { mentionsOf } from "@convoz/markdown";
 import { AttachIcon, MicIcon, SendIcon } from "@convoz/ui/icons";
@@ -162,9 +163,9 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
           onSend(body, sent, held);
         }}
       >
-        <button type="button" className="attachbtn" aria-label="Attach a file" title="Attach a file" onMouseDown={keepFocus} onClick={() => picker.current?.click()}>
+        <IconButton variant="muted" glyph={18} stroke={2} label="Attach a file" onMouseDown={keepFocus} onClick={() => picker.current?.click()}>
           <AttachIcon />
-        </button>
+        </IconButton>
         <input
           ref={picker}
           type="file"
@@ -193,12 +194,12 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
         />
         <span className="sendslot">
           {/* Send stays in the page (and disabled) under the microphone while there is nothing to send. */}
-          <button id="send" className={`sendbtn${empty ? " under" : ""}`} type="submit" aria-label="Send" disabled={!canSend} onMouseDown={keepFocus}>
+          <IconButton id="send" type="submit" variant="send" glyph={18} stroke={2} className={empty ? "opacity-0 pointer-events-none" : undefined} label="Send" disabled={!canSend} onMouseDown={keepFocus}>
             <SendIcon />
-          </button>
-          <button ref={voice.mic} type="button" className="sendbtn mic" aria-label="Record a voice message" title="Record a voice message" hidden={!empty} disabled={!conversationId} onMouseDown={keepFocus} onClick={voice.start}>
+          </IconButton>
+          <IconButton ref={voice.mic} variant="soft" glyph={18} stroke={2} className="absolute inset-0" label="Record a voice message" hidden={!empty} disabled={!conversationId} onMouseDown={keepFocus} onClick={voice.start}>
             <MicIcon />
-          </button>
+          </IconButton>
         </span>
       </form>
       {voice.note}

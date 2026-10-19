@@ -1,3 +1,4 @@
+import { IconButton } from "@convoz/ui/IconButton";
 import { mentionsOf } from "@convoz/markdown";
 import type { Identity, Message, Upload } from "@convoz/api-client";
 import { AttachIcon, BackIcon, DetailsIcon } from "@convoz/ui/icons";
@@ -270,14 +271,14 @@ export function Conversation() {
   return (
     <div className="chatframe" id="frame" ref={frame}>
       <header className="appbar chatbar">
-        <a id="back" className="iconbtn" href="/chats" aria-label={backLabel(waiting)} onClick={back}>
+        <IconButton id="back" variant="float" href="/chats" label={backLabel(waiting)} onClick={back}>
           <BackIcon />
           {waiting > 0 ? (
             <span className="backbadge" aria-hidden="true">
               {waiting > 99 ? "99+" : waiting}
             </span>
           ) : null}
-        </a>
+        </IconButton>
         <div className="titles">
           <h1 id="heading">{title}</h1>
           {conversation?.muted_until ? <span className="mutedtag">Muted</span> : null}
@@ -294,9 +295,9 @@ export function Conversation() {
         {conversation && !isNew ? <CallButton conversationId={convId} /> : null}
         {conversation && !isNew ? <StarButton id={convId} starred={conversation.starred} /> : null}
         {conversation && !isNew ? (
-          <button type="button" className="iconbtn" aria-label="Show details" aria-pressed={info} aria-keyshortcuts="I" title="Show details · I" onClick={() => setInfo((on) => !on)}>
+          <IconButton variant="float" label="Show details" aria-pressed={info} aria-keyshortcuts="I" title="Show details · I" onClick={() => setInfo((on) => !on)}>
             <DetailsIcon />
-          </button>
+          </IconButton>
         ) : (
           <span className="slot" aria-hidden="true" />
         )}

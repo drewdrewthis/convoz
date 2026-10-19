@@ -1,3 +1,4 @@
+import { IconButton } from "@convoz/ui/IconButton";
 import type { Conversation, Person, PlanBoard } from "@convoz/api-client";
 import { Field } from "@convoz/ui/Field";
 import { Sheet } from "@convoz/ui/Sheet";
@@ -69,9 +70,9 @@ export function Details({ row, onClose, onInvite, board, act }: DetailsProps) {
           <h2>Details</h2>
           <span className="sub">{title}</span>
         </div>
-        <button ref={close} type="button" className="iconbtn" aria-label="Close details" onClick={onClose}>
-          <span aria-hidden="true">×</span>
-        </button>
+        <IconButton ref={close} label="Close details" onClick={onClose}>
+          <span aria-hidden="true" className="text-[26px] leading-none text-muted">×</span>
+        </IconButton>
       </header>
       <div className="detailsbody">
         {error ? <p role="alert">{error}</p> : null}

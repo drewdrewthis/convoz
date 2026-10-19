@@ -1,6 +1,7 @@
 // The two page frames around the features: a focused flow (the wordmark and one task) and the signed-in shell (app bar,
 // account menu, floating tab bar). A conversation draws its own full-screen frame (features/conversations).
 import { AccountIcon, BackIcon, ChatIcon, CrewIcon, NowIcon, PlusIcon } from "@convoz/ui/icons";
+import { IconButton } from "@convoz/ui/IconButton";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { signOut } from "../shared/api.ts";
 import { keepForOffline } from "../shared/data.ts";
@@ -67,9 +68,9 @@ export function ShellFrame({ def, children }: { def: PageDef; children: ReactNod
       <header className="appbar">
         <div className="appbar-lead">
           {def.back ? (
-            <a className="iconbtn" href={def.back} aria-label="Back">
+            <IconButton href={def.back} label="Back">
               <BackIcon />
-            </a>
+            </IconButton>
           ) : null}
           <h1 id="heading">{def.heading}</h1>
           <span id="appbar-note" />
@@ -158,12 +159,13 @@ function useAccountMenu(fail: (message: string) => void) {
 
   return {
     button: (
-      <button
+      <IconButton
         ref={button}
         id="account-button"
-        className="avatar"
-        type="button"
-        aria-label="Account menu"
+        className="-my-6 -mr-8"
+        glyph={20}
+        stroke={2}
+        label="Account menu"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls="account-menu"
@@ -173,7 +175,7 @@ function useAccountMenu(fail: (message: string) => void) {
         }}
       >
         <AccountIcon />
-      </button>
+      </IconButton>
     ),
     menu: (
       <div ref={menu} id="account-menu" className="menu" role="menu" aria-label="Account" hidden={!open}>

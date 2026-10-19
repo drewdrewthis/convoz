@@ -32,16 +32,12 @@
     }
     body[data-desk] .chatframe { left: 240px; right: 8px; top: 8px; bottom: 8px; height: auto; border: 1px solid var(--color-border); border-radius: 14px; overflow: hidden; }
     /* The sidebar has the search, the new conversation button and the tabs, so the phone's copies go. */
-    body[data-desk] .tabbar, body[data-desk] .fab, body[data-desk] .searchbtn { display: none; }
+    body[data-desk] .tabbar, body[data-desk] .fab { display: none; }
   }
 
   .rail-top { flex: none; display: flex; align-items: center; gap: 8px; padding: 2px 8px 0; }
   .rail-top .brand { min-height: 32px; margin-right: auto; display: flex; align-items: center; }
-  .rbtn.dim { color: var(--color-muted); opacity: .5; }
   .rail-tools { flex: none; display: flex; align-items: center; gap: 4px; }
-  .rbtn { width: 32px; height: 32px; flex: none; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--color-text); text-decoration: none; }
-  .rbtn:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
-  .rbtn.bordered { border: 1px solid var(--color-border); background: var(--color-raised); }
   .rsearch { flex: 1 1 auto; min-width: 0; min-height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-raised); color: var(--color-text); font-size: 14px; font-weight: 500; text-align: left; }
   .rsearch span { flex: 1 1 auto; }
   .rail-scroll { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 12px; margin: 0 -10px; padding: 0 10px; }
@@ -67,12 +63,6 @@
   .rtitle { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rcnt { flex: none; min-width: 20px; padding: 1px 6px; border-radius: 999px; background: color-mix(in srgb, var(--color-text) 8%, transparent); font-size: 12px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; transition: opacity 140ms ease; }
   /* The star takes the place of the count on hover or focus, so no box moves; the grip is for the keyboard and shows on focus only. */
-  .rstar, .rgrab { position: absolute; top: 50%; margin-top: -14px; height: 28px; padding: 0; border: 0; border-radius: 999px; display: flex; align-items: center; justify-content: center; background: transparent; color: var(--color-muted); opacity: 0; pointer-events: none; transition: opacity 140ms ease; }
-  .rstar { right: 0; width: 28px; }
-  .rstar[data-on] { color: var(--color-warning); }
-  .rgrab { right: 28px; width: 22px; cursor: grab; touch-action: none; }
-  .rrow:hover .rstar, .rrow:focus-within .rstar { opacity: 1; pointer-events: auto; }
-  .rgrab:focus-visible { opacity: 1; }
   .rrow:hover .rcnt, .rrow:focus-within .rcnt { opacity: 0; }
   .rrow > .rgo:not(:has(.rcnt, .planicon)) { padding-right: 36px; }
   /* the status icon sits by the count (or alone in its place) and gives way to the star on hover, as the count does */

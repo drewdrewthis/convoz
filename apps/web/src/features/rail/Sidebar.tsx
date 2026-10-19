@@ -1,3 +1,4 @@
+import { IconButton } from "@convoz/ui/IconButton";
 import { PlanIcon } from "../plan/index.ts";
 import type { Conversation } from "@convoz/api-client";
 import { Fragment, useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
@@ -73,7 +74,7 @@ export default function Sidebar() {
 
   const row = (c: Conversation, grp: "starred" | "mid" | "older") => (
     <Fragment key={c.id}>
-    <div className="rrow" data-rid={grp === "older" ? undefined : c.id} data-grp={grp} data-current={c.id === current ? "true" : undefined} onPointerDown={grp === "older" ? undefined : (e) => startDrag(e, drop)} onKeyDown={(e) => key(e, c)}>
+    <div className="rrow group/rrow" data-rid={grp === "older" ? undefined : c.id} data-grp={grp} data-current={c.id === current ? "true" : undefined} onPointerDown={grp === "older" ? undefined : (e) => startDrag(e, drop)} onKeyDown={(e) => key(e, c)}>
       <a className={`rgo${(c.main_unread ?? c.unread) > 0 ? " unread" : ""}${c.muted_until ? " muted" : ""}`} id={`rr-${c.id}`} href={`/chats/${c.id}`} aria-current={c.id === current ? "page" : undefined} aria-label={rowLabel(c)} draggable={false}>
         <span className="rtitle">{titleOf(c)}</span>
         <PlanIcon id={c.id} />
@@ -84,13 +85,31 @@ export default function Sidebar() {
           </span>
         ) : null}
       </a>
-      <button className="rstar" type="button" aria-label={`${c.starred ? "Unstar" : "Star"} conversation ${titleOf(c)}`} title={`${c.starred ? "Unstar" : "Star"} conversation ${titleOf(c)}`} data-on={c.starred ? "true" : undefined} onClick={() => void star(c)}>
+      {/* The star takes the place of the count on hover or focus, so no box moves. */}
+      <IconButton
+        variant="muted"
+        size={28}
+        glyph="self"
+        className="absolute top-1/2 right-0 -mt-14 pointer-events-none opacity-0 [transition:opacity_140ms_ease] data-on:text-warning group-hover/rrow:pointer-events-auto group-hover/rrow:opacity-100 group-focus-within/rrow:pointer-events-auto group-focus-within/rrow:opacity-100"
+        label={`${c.starred ? "Unstar" : "Star"} conversation ${titleOf(c)}`}
+        data-nodrag=""
+        data-on={c.starred ? "true" : undefined}
+        onClick={() => void star(c)}
+      >
         <StarIcon filled={c.starred} />
-      </button>
+      </IconButton>
       {grp === "older" ? null : (
-        <button className="rgrab" id={`rg-${c.id}`} type="button" aria-label={`Reorder ${titleOf(c)}. Alt plus arrow keys move it.`}>
+        // The grip is for the keyboard and shows on focus only; w-22! because the size prop is square.
+        <IconButton
+          variant="muted"
+          size={28}
+          glyph="self"
+          className="absolute top-1/2 right-28 -mt-14 w-22! cursor-grab touch-none pointer-events-none opacity-0 [transition:opacity_140ms_ease] focus-visible:opacity-100"
+          id={`rg-${c.id}`}
+          label={`Reorder ${titleOf(c)}. Alt plus arrow keys move it.`}
+        >
           <GripIcon />
-        </button>
+        </IconButton>
       )}
     </div>
     <ThreadRows c={c} compact />
@@ -103,24 +122,24 @@ export default function Sidebar() {
         <a className="brand" href="/">
           <Logo />
         </a>
-        <button type="button" className="rbtn dim" aria-label="Back" aria-keyshortcuts="Meta+[" title="Back · ⌘[" onClick={() => history.back()}>
+        <IconButton variant="dim" size={32} glyph="self" label="Back" aria-keyshortcuts="Meta+[" title="Back · ⌘[" onClick={() => history.back()}>
           <BackArrow />
-        </button>
-        <button type="button" className="rbtn dim" aria-label="Forward" aria-keyshortcuts="Meta+]" title="Forward · ⌘]" onClick={() => history.forward()}>
+        </IconButton>
+        <IconButton variant="dim" size={32} glyph="self" label="Forward" aria-keyshortcuts="Meta+]" title="Forward · ⌘]" onClick={() => history.forward()}>
           <ForwardArrow />
-        </button>
+        </IconButton>
       </div>
       <div className="rail-tools">
         <button type="button" className="rsearch" aria-haspopup="dialog" aria-keyshortcuts="Control+K Meta+K" title="Search · ⌘K" onClick={(e) => useSearchUi.getState().show(e.currentTarget)}>
           <SearchGlyph />
           <span>Search</span>
         </button>
-        <a className="rbtn bordered" href="/chats/new" aria-label="New conversation" aria-keyshortcuts="Control+J Meta+J" title="New conversation · ⌘J">
+        <IconButton variant="bordered" size={32} glyph="self" href="/chats/new" label="New conversation" aria-keyshortcuts="Control+J Meta+J" title="New conversation · ⌘J">
           <ComposeGlyph />
-        </a>
-        <a className="rbtn bordered" href="/crew?invite" aria-label="Invite agent" title="Invite agent">
+        </IconButton>
+        <IconButton variant="bordered" size={32} glyph="self" href="/crew?invite" label="Invite agent">
           <InviteGlyph />
-        </a>
+        </IconButton>
       </div>
       <div className="rail-scroll" data-rscroll="1">
         <a className="rnav now" href="/" aria-current={location.pathname === "/" ? "page" : undefined}>

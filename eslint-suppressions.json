@@ -11,7 +11,7 @@
   },
   "apps/web/src/app/frames.tsx": {
     "convoz/no-raw-button": {
-      "count": 2
+      "count": 1
     }
   },
   "apps/web/src/features/apps-host/ConfirmSheet.tsx": {
@@ -37,11 +37,6 @@
       "count": 1
     }
   },
-  "apps/web/src/features/call/CallButton.tsx": {
-    "convoz/no-raw-button": {
-      "count": 1
-    }
-  },
   "apps/web/src/features/call/index.ts": {
     "no-restricted-imports": {
       "count": 1
@@ -49,7 +44,7 @@
   },
   "apps/web/src/features/composer/AttachmentList.tsx": {
     "convoz/no-raw-button": {
-      "count": 2
+      "count": 1
     },
     "convoz/no-style-prop": {
       "count": 1
@@ -57,7 +52,7 @@
   },
   "apps/web/src/features/composer/Composer.tsx": {
     "convoz/no-raw-button": {
-      "count": 5
+      "count": 2
     },
     "convoz/no-raw-input": {
       "count": 1
@@ -72,9 +67,6 @@
     }
   },
   "apps/web/src/features/conversations/Conversation.tsx": {
-    "convoz/no-raw-button": {
-      "count": 1
-    },
     "max-lines": {
       "count": 1
     }
@@ -84,11 +76,6 @@
       "count": 8
     },
     "convoz/no-style-prop": {
-      "count": 1
-    }
-  },
-  "apps/web/src/features/conversations/Details.tsx": {
-    "convoz/no-raw-button": {
       "count": 1
     }
   },
@@ -139,7 +126,7 @@
   },
   "apps/web/src/features/conversations/messages/LinkPreview.tsx": {
     "convoz/no-raw-button": {
-      "count": 3
+      "count": 2
     }
   },
   "apps/web/src/features/conversations/messages/MessageMenu.tsx": {
@@ -181,11 +168,6 @@
       "count": 7
     }
   },
-  "apps/web/src/features/notifications/PushBanner.tsx": {
-    "convoz/no-raw-button": {
-      "count": 1
-    }
-  },
   "apps/web/src/features/now/Now.tsx": {
     "convoz/no-raw-button": {
       "count": 3
@@ -207,11 +189,6 @@
       "count": 1
     }
   },
-  "apps/web/src/features/pins-stars/StarButton.tsx": {
-    "convoz/no-raw-button": {
-      "count": 1
-    }
-  },
   "apps/web/src/features/pins-stars/Toast.tsx": {
     "convoz/no-raw-button": {
       "count": 1
@@ -224,7 +201,7 @@
   },
   "apps/web/src/features/rail/Sidebar.tsx": {
     "convoz/no-raw-button": {
-      "count": 6
+      "count": 2
     },
     "convoz/no-style-prop": {
       "count": 1
@@ -232,11 +209,6 @@
   },
   "apps/web/src/features/rail/icons.tsx": {
     "convoz/no-style-prop": {
-      "count": 1
-    }
-  },
-  "apps/web/src/features/search/Host.tsx": {
-    "convoz/no-raw-button": {
       "count": 1
     }
   },
@@ -286,9 +258,6 @@
     }
   },
   "apps/web/src/features/threads/ThreadPane.tsx": {
-    "convoz/no-raw-button": {
-      "count": 5
-    },
     "convoz/no-raw-input": {
       "count": 2
     },
@@ -303,15 +272,10 @@
   },
   "apps/web/src/features/voice/VoiceNote.tsx": {
     "convoz/no-raw-button": {
-      "count": 2
+      "count": 1
     },
     "convoz/no-style-prop": {
       "count": 1
-    }
-  },
-  "apps/web/src/features/voice/recorder.tsx": {
-    "convoz/no-raw-button": {
-      "count": 2
     }
   },
   "apps/web/vite.config.ts": {

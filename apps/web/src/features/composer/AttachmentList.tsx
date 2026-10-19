@@ -1,3 +1,4 @@
+import { IconButton } from "@convoz/ui/IconButton";
 import { CloseIcon } from "@convoz/ui/icons";
 import { FileGlyph } from "../../shared/FileGlyph.tsx";
 import { fileSize, fileUrl } from "../../shared/uploads.ts";
@@ -20,11 +21,12 @@ export function AttachmentList({ attachments }: { attachments: Attachments }) {
                   Retry
                 </button>
               ) : null}
-              <button type="button" className="fx" aria-label={`Remove ${f.file.name}`} title="Remove" onClick={() => attachments.remove(f.key)}>
-                <span className="fxdot" aria-hidden="true">
+              {/* The tap area is 44 px; the dot is 20 px and sits on the corner. */}
+              <IconButton variant="muted" glyph="self" className="absolute -top-10 -right-10" label={`Remove ${f.file.name}`} title="Remove" onClick={() => attachments.remove(f.key)}>
+                <span aria-hidden="true" className="flex size-20 items-center justify-center rounded-full bg-text text-bg [&_svg]:size-10 [&_svg]:[stroke-width:3]">
                   <CloseIcon />
                 </span>
-              </button>
+              </IconButton>
             </span>
           ))}
         </div>

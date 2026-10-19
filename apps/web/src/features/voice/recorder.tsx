@@ -1,3 +1,4 @@
+import { IconButton } from "@convoz/ui/IconButton";
 import type { Upload } from "@convoz/api-client";
 import { ArrowIcon, CloseIcon } from "@convoz/ui/icons";
 import { useEffect, useRef, useState } from "react";
@@ -172,9 +173,9 @@ export function RecordingBar({ recording, onDone }: { recording: VoiceRecording;
           cancel();
         }}
       >
-        <button type="button" className="recbtn" aria-label="Cancel recording" title="Cancel recording" onClick={cancel}>
+        <IconButton variant="muted" glyph={16} label="Cancel recording" onClick={cancel}>
           <CloseIcon />
-        </button>
+        </IconButton>
         <span aria-hidden="true" className="rdot" />
         <span className="rtime">
           <span className="sr">Recording </span>
@@ -191,9 +192,9 @@ export function RecordingBar({ recording, onDone }: { recording: VoiceRecording;
           <i />
           <i />
         </span>
-        <button ref={send} type="button" className="recbtn recsend" aria-label="Send voice message" title="Send voice message" disabled={busy} onClick={() => void finish()}>
+        <IconButton ref={send} variant="primary" glyph={16} stroke={2} label="Send voice message" disabled={busy} onClick={() => void finish()}>
           <ArrowIcon />
-        </button>
+        </IconButton>
       </div>
       {failed ? (
         <p role="alert" className="micnote">

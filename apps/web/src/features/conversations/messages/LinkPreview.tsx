@@ -1,3 +1,5 @@
+import { CloseIcon } from "@convoz/ui/icons";
+import { IconButton } from "@convoz/ui/IconButton";
 import type { UnfurlCard } from "@convoz/api-client";
 import { useEffect, useState } from "react";
 import { useMediaAutoLoads } from "../../../shared/media.ts";
@@ -97,11 +99,9 @@ function Card({ card, onHide }: { card: UnfurlCard; onHide(): void }) {
         ) : null}
         {card.description ? <span className="unfurl-desc">{card.description}</span> : null}
       </div>
-      <button type="button" className="unfurl-x" aria-label="Hide preview" title="Hide preview" onClick={onHide}>
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M18 6L6 18M6 6l12 12" />
-        </svg>
-      </button>
+      <IconButton variant="muted" size={32} glyph={12} className="absolute top-0 right-0 max-[600px]:size-44" label="Hide preview" onClick={onHide}>
+        <CloseIcon />
+      </IconButton>
     </div>
   );
 }

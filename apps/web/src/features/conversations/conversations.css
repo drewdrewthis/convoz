@@ -9,7 +9,6 @@
   .detailsbar { flex: none; display: flex; align-items: center; gap: 8px; padding: calc(var(--top) + 8px) 8px 8px 16px; border-bottom: 1px solid var(--color-border); }
   .detailsbar .titles { padding: 0; }
   .detailsbar h2 { margin: 0; }
-  .detailsbar .iconbtn span { font-size: 26px; line-height: 1; color: var(--color-muted); }
   .detailsbody { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding: 8px 16px calc(24px + var(--bottom)); }
   .detsec { display: flex; flex-direction: column; padding: 0 14px 6px; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-raised); }
   .detsec.actions-sec { gap: 8px; padding: 14px; }
@@ -61,8 +60,7 @@
   .unfurl-state[data-state="merged"] { background: var(--color-soft); color: var(--color-accent-text); }
   .unfurl-state[data-state="closed"] { background: var(--color-selection); color: var(--color-muted); }
   .unfurl-desc { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; font-size: 13px; line-height: 1.4; color: var(--color-muted); }
-  .unfurl-x { position: absolute; top: 0; right: 0; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--color-muted); cursor: pointer; }
-  @media (max-width: 600px) { .previewbtn { min-height: 44px; } .unfurl-x { width: 44px; height: 44px; } }
+  @media (max-width: 600px) { .previewbtn { min-height: 44px; } }
 
   /* ---- files of a message: images in the page, other files as cards, names while it sends ---- */
   .mimgs { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; }
@@ -87,7 +85,6 @@
   .pinrow { flex-direction: row; }
   .pintext { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; color: var(--color-text); text-decoration: none; overflow-wrap: anywhere; }
   .mutedtag { font-size: 12px; color: var(--color-muted); }
-  .starbtn[aria-pressed="true"] { color: var(--color-warning); }
 
   /* ---- plans: the line under a title, the row dot, and the plan parts of the details panel (plan.feature) ---- */
   /* Amber text is --color-warning: 7:1 on the light surface, where --color-amber is too close to 4.5:1 for small text. */

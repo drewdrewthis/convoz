@@ -1,3 +1,4 @@
+import { IconButton } from "@convoz/ui/IconButton";
 import { SearchIcon } from "@convoz/ui/icons";
 import { lazy, Suspense, useEffect } from "react";
 import { useSearchUi } from "./store.ts";
@@ -10,9 +11,10 @@ export function SearchButton() {
   const open = useSearchUi((s) => s.open);
   const show = useSearchUi((s) => s.show);
   return (
-    <button type="button" className="iconbtn searchbtn" aria-label="Search" aria-haspopup="dialog" aria-expanded={open} aria-keyshortcuts="Control+K Meta+K" title="Search · ⌘K" onClick={(e) => show(e.currentTarget)}>
+    // The button takes no more height than the account button beside it, so no top bar grows; the sidebar has its own search.
+    <IconButton className="-my-6 [body[data-desk]_&]:hidden" label="Search" aria-haspopup="dialog" aria-expanded={open} aria-keyshortcuts="Control+K Meta+K" title="Search · ⌘K" onClick={(e) => show(e.currentTarget)}>
       <SearchIcon />
-    </button>
+    </IconButton>
   );
 }
 
