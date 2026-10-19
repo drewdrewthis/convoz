@@ -79,6 +79,7 @@ export function NotificationSettings() {
   };
 
   const quiet = (values["notify.quiet_hours"] ?? null) as { start: string; end: string; tz: string } | null;
+  // oxlint-disable-next-line react/capitalized-calls -- Intl.DateTimeFormat() is a plain factory call, not a component
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const flag = (key: string) => values[key] === true;
 

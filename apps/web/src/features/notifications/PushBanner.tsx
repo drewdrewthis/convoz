@@ -2,6 +2,7 @@ import { CloseIcon } from "@convoz/ui/icons";
 import { useEffect, useState } from "react";
 import { humanError } from "../../shared/api.ts";
 import { CHROME_IOS_HINT, currentSubscription, isChromeOnIOS, pushSupported, PushStepError, turnOn } from "./push.ts";
+import { Button } from "@convoz/ui/Button";
 
 const DISMISSED = "convoz.push-banner-dismissed";
 
@@ -67,9 +68,9 @@ export function PushBanner() {
       <div className="pushbanner-row">
         <span className="grow">{chrome ? `Chrome on iPhone has no notifications for web apps. ${CHROME_IOS_HINT}` : step || "Turn on notifications"}</span>
         {chrome ? null : (
-          <button className="btn small" type="button" disabled={busy} onClick={() => void tap()}>
+          <Button size="small" disabled={busy} onClick={() => void tap()}>
             Turn on
-          </button>
+          </Button>
         )}
         <button
           className="iconbtn"

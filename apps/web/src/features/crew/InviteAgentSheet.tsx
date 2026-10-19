@@ -5,6 +5,7 @@ import { data, useData } from "../../shared/data.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { agentRequests, RequestCard, useNow, type AgentRequest } from "../now/index.ts";
 import { fetchAgentUrl, invitePrompt } from "./invitePrompt.ts";
+import { Button } from "@convoz/ui/Button";
 
 interface Props {
   close: () => void;
@@ -129,24 +130,24 @@ export default function InviteAgentSheet({ close, conversation }: Props) {
       actions={
         doneHandle ? (
           <>
-            <a className="btn primary" href={`/chats/new?with=${encodeURIComponent(doneHandle)}`}>{`New thread with ${name}`}</a>
-            <button className="btn" type="button" onClick={close}>
+            <Button variant="primary" href={`/chats/new?with=${encodeURIComponent(doneHandle)}`}>{`New thread with ${name}`}</Button>
+            <Button onClick={close}>
               Done
-            </button>
+            </Button>
           </>
         ) : (
           <>
-            <button className="btn primary" type="button" onClick={() => void copy()}>
+            <Button variant="primary" onClick={() => void copy()}>
               {copied ? "Copied" : "Copy"}
-            </button>
+            </Button>
             {invite ? (
-              <button className="btn" type="button" onClick={() => void revokeInvite()}>
+              <Button onClick={() => void revokeInvite()}>
                 Revoke invite
-              </button>
+              </Button>
             ) : null}
-            <button className="btn quiet" type="button" onClick={finish}>
+            <Button variant="quiet" onClick={finish}>
               Close
-            </button>
+            </Button>
           </>
         )
       }

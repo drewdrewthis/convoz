@@ -28,6 +28,7 @@ export function registerResync(fn: () => void): () => void {
 
 /** dispatch hands one frame to every matching handler, in registration order; one failing handler does not stop the rest. */
 export function dispatch(frame: Frame): void {
+  // oxlint-disable-next-line unicorn/no-useless-spread -- a snapshot: a handler may unregister itself while the frame is dispatched
   for (const { prefix, fn } of [...handlers]) {
     if (!frame.name.startsWith(prefix)) continue;
     try {
@@ -40,5 +41,6 @@ export function dispatch(frame: Frame): void {
 
 /** dispatchResync runs every resync listener. */
 export function dispatchResync(): void {
+  // oxlint-disable-next-line unicorn/no-useless-spread -- a snapshot: a listener may unregister itself while it runs
   for (const fn of [...resyncs]) fn();
 }

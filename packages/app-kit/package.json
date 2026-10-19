@@ -11,6 +11,9 @@
   "peerDependencies": {
     "react": "19.3.0"
   },
+  "dependencies": {
+    "@convoz/ui": "workspace:*"
+  },
   "devDependencies": {
     "@types/react": "19.3.0",
     "react": "19.3.0",

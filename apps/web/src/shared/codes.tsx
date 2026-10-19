@@ -1,5 +1,6 @@
 // Recovery codes: shown once, with copy and download. They live in memory only.
 import { useNotice } from "./notice.tsx";
+import { Button } from "@convoz/ui/Button";
 
 export function CodesBlock({ codes }: { codes: string[] }) {
   const { say, fail } = useNotice();
@@ -29,12 +30,12 @@ export function CodesBlock({ codes }: { codes: string[] }) {
         ))}
       </ol>
       <div className="pair">
-        <button className="btn" type="button" onClick={copy}>
+        <Button className="flex-1" onClick={copy}>
           Copy codes
-        </button>
-        <button className="btn" type="button" onClick={download}>
+        </Button>
+        <Button className="flex-1" onClick={download}>
           Download codes
-        </button>
+        </Button>
       </div>
     </>
   );

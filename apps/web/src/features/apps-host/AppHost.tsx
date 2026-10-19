@@ -7,6 +7,7 @@ import { useMediaAutoLoads } from "../../shared/media.ts";
 import { jsonBytes, saveData, size } from "./env.ts";
 import { FrameHost } from "./FrameHost.tsx";
 import { sendViaApp, type AppResult, type Target } from "./send.ts";
+import { Button } from "@convoz/ui/Button";
 
 const AppView = lazy(() => import("@convoz/app-kit/view").then((m) => ({ default: m.AppView })));
 
@@ -79,16 +80,15 @@ export function AppHost({ app: raw, messageId, agent, conversation, threadRoot, 
           <strong>{title ?? "App"}</strong>
         </div>
         <div className="appmeta">{`App from @${agent.handle} · ${size(bytes)}`}</div>
-        <button
-          type="button"
-          className="btn small"
+        <Button
+          size="small"
           onClick={() => {
             setTapped(true);
             expand();
           }}
         >
           {`Tap to load · ${size(bytes)}`}
-        </button>
+        </Button>
       </section>
     );
   }
@@ -100,9 +100,9 @@ export function AppHost({ app: raw, messageId, agent, conversation, threadRoot, 
           <strong>{title ?? "App"}</strong> <span className="appmeta">{`App from @${agent.handle}`}</span>
         </div>
         <p className="appfallback">{fallback}</p>
-        <button type="button" className="btn small quiet" onClick={expand}>
+        <Button variant="quiet" size="small" onClick={expand}>
           Expand app
-        </button>
+        </Button>
       </section>
     );
   }
@@ -140,9 +140,9 @@ export function AppHost({ app: raw, messageId, agent, conversation, threadRoot, 
         </p>
       )}
       {sentError ? <p role="alert">{sentError}</p> : null}
-      <button type="button" className="btn small quiet" onClick={() => setOpen(false)}>
+      <Button variant="quiet" size="small" onClick={() => setOpen(false)}>
         Collapse app
-      </button>
+      </Button>
       {sheet ? <ConfirmSheet agent={agent.handle} summary={sheet.summary} rows={sheet.rows ?? []} send={() => send(sheet)} onDone={() => setSheet(null)} /> : null}
     </section>
   );
@@ -164,9 +164,9 @@ function FrameStub({ root, stub, agent, load }: { root: Record<string, unknown>;
       <strong>{stub.title ?? "App"}</strong>
       <div className="appmeta">{`App from @${agent.handle}`}</div>
       <p className="appfallback">{stub.fallback}</p>
-      <button type="button" className="btn small" onClick={load}>
+      <Button size="small" onClick={load}>
         Open app
-      </button>
+      </Button>
     </section>
   );
 }

@@ -5,6 +5,7 @@ import { ConfirmSheet, rowsOf } from "./ConfirmSheet.tsx";
 import { useMediaAutoLoads } from "../../shared/media.ts";
 import { frameEnv, size } from "./env.ts";
 import { sendViaApp, type Target } from "./send.ts";
+import { Button } from "@convoz/ui/Button";
 
 const MAX_IN_BYTES = 8192;
 const MAX_PER_SECOND = 20;
@@ -181,9 +182,9 @@ export function FrameHost({ app, messageId, agent, target, onAsk }: Props) {
       <section {...root} data-app-state="closed" aria-label={title} className="appcard">
         <p role="status">{note}</p>
         <p>{app.fallback}</p>
-        <button type="button" className="btn small quiet" onClick={open}>
+        <Button variant="quiet" size="small" onClick={open}>
           Open app again
-        </button>
+        </Button>
       </section>
     );
   }
@@ -198,9 +199,9 @@ export function FrameHost({ app, messageId, agent, target, onAsk }: Props) {
         <div className="appmeta">{slow ? `${bytes} · tap to load` : bytes}</div>
         {m.results ? <div className="appmeta">This app can send a reply for you</div> : null}
         <div className="appmeta">Do not type secrets into apps.</div>
-        <button type="button" className="btn small" onClick={open}>
+        <Button size="small" onClick={open}>
           {slow ? `Open app · ${bytes}` : "Open app"}
-        </button>
+        </Button>
       </section>
     );
   }
@@ -222,9 +223,9 @@ export function FrameHost({ app, messageId, agent, target, onAsk }: Props) {
           <p>{app.fallback}</p>
         </div>
       ) : null}
-      <button type="button" className="btn small quiet" onClick={() => close("preview")}>
+      <Button variant="quiet" size="small" onClick={() => close("preview")}>
         Close app
-      </button>
+      </Button>
       {sheet ? <ConfirmSheet agent={agent.handle} summary={sheet.summary} rows={sheet.rows} send={sheet.send} onDone={(sent) => sheet.resolve(sent ? "sent" : "cancelled")} /> : null}
     </section>
   );

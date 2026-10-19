@@ -36,7 +36,6 @@
   .ptxt h2 { margin: 0; font-size: 18px; overflow-wrap: anywhere; }
   .ptxt p { margin: 2px 0 0; font-size: 14px; }
   .ptxt .pstate { font-weight: 600; }
-  .profile .btn { align-self: flex-start; text-decoration: none; }
   .profile .crow.plain { min-height: 44px; padding: 8px 12px; }
   .keyrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 12px; min-height: 32px; font-size: 13px; color: var(--color-muted); }
   .revoke { display: flex; flex-direction: column; gap: 6px; margin: 6px 12px 0; padding: 10px; border-radius: 14px; border: 1px solid var(--color-danger); background: color-mix(in srgb, var(--color-danger) 8%, transparent); font-size: 13px; }

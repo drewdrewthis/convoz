@@ -1,6 +1,7 @@
 import type { Message } from "@convoz/api-client";
 import { stripCf } from "../../../shared/chat.ts";
 import { PlanNote } from "./PlanNote.tsx";
+import { Button } from "@convoz/ui/Button";
 
 /** NoticeRow is a system line: an icon and muted words, no author and no way to reply (I-8). */
 export function NoticeRow({ message, conversation, canResume, onResume }: { message: Message; conversation: number; canResume: boolean; onResume(): void }) {
@@ -9,9 +10,9 @@ export function NoticeRow({ message, conversation, canResume, onResume }: { mess
     <div className="notice-line" role="note" data-t={message.system?.t}>
       <span className="notice-text">{stripCf(message.text ?? message.body)}</span>
       {canResume ? (
-        <button className="btn small" type="button" onClick={onResume}>
+        <Button size="small" onClick={onResume}>
           Resume
-        </button>
+        </Button>
       ) : null}
     </div>
   );

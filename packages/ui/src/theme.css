@@ -1,0 +1,18 @@
+/* Sizes in px, as the prototype draws them: the spacing step is 1px (p-16 is 16px) and the font sizes are named by their px size.
+   A rem here would drift with the user's browser font size and move every box of the parity frames.
+   The line height is inherited, as a native button's `font: inherit` did, so a text-15 button keeps the line height of its parent. */
+@theme {
+  --spacing: 1px;
+  --text-12: 12px;
+  --text-12--line-height: inherit;
+  --text-13: 13px;
+  --text-13--line-height: inherit;
+  --text-14: 14px;
+  --text-14--line-height: inherit;
+  --text-15: 15px;
+  --text-15--line-height: inherit;
+  --text-16: 16px;
+  --text-16--line-height: inherit;
+  --text-17: 17px;
+  --text-17--line-height: inherit;
+}

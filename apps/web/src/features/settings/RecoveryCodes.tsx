@@ -4,6 +4,7 @@ import { useCeremony } from "../../shared/ceremony.ts";
 import { CodesBlock } from "../../shared/codes.tsx";
 import { useNotice } from "../../shared/notice.tsx";
 import { finishStepUp, stepUpTicket } from "../../shared/tickets.ts";
+import { Button } from "@convoz/ui/Button";
 
 /** RecoveryCodes is /settings/recovery: how many codes are left, and new codes after one passkey check (shown once). */
 export function RecoveryCodes() {
@@ -49,9 +50,9 @@ export function RecoveryCodes() {
         ) : null}
       </div>
       <div className="actions">
-        <button id="make" className="btn primary" type="button" {...ceremony}>
+        <Button id="make" variant="primary" {...ceremony}>
           Make new codes
-        </button>
+        </Button>
       </div>
     </>
   );

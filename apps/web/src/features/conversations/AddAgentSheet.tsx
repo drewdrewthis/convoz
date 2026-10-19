@@ -4,6 +4,7 @@ import { humanError } from "../../shared/api.ts";
 import { initials, paletteOf } from "../../shared/chat.ts";
 import { data, useData } from "../../shared/data.ts";
 import { CancelButton } from "../../shared/sheets.tsx";
+import { Button } from "@convoz/ui/Button";
 
 export interface AddAgentProps {
   /** The conversation; the sheet reads its row from the cache, so it follows the agents that come and go meanwhile. */
@@ -42,9 +43,9 @@ export function AddAgentSheet({ id, done, onAdd, onInvite }: AddAgentProps) {
         ))}
       </ul>
       {people && choices.length === 0 ? <p className="muted">No other agent to add.</p> : null}
-      <button type="button" className="btn small quiet" onClick={() => { done(); onInvite(); }}>
+      <Button variant="quiet" size="small" onClick={() => { done(); onInvite(); }}>
         Invite a new agent…
-      </button>
+      </Button>
     </Sheet>
   );
 }

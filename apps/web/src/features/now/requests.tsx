@@ -5,6 +5,7 @@ import { useId, useState } from "react";
 import { call, client, humanError } from "../../shared/api.ts";
 import { initials, paletteOf } from "../../shared/chat.ts";
 import { useNotice } from "../../shared/notice.tsx";
+import { Button } from "@convoz/ui/Button";
 
 /** A connect request that carries an identity: the agent said who it is, and one tap makes the agent (and the machine, for a new one). */
 export type AgentRequest =
@@ -112,12 +113,12 @@ export function RequestCard({ item, changed, approved }: CardProps) {
       )}
       {invite?.note ? <p className="sub">{`Note: ${invite.note}`}</p> : null}
       <div className="btns">
-        <button className="btn primary" type="button" disabled={busy} onClick={() => void decide(true)}>
+        <Button variant="primary" disabled={busy} onClick={() => void decide(true)}>
           Approve
-        </button>
-        <button className="btn" type="button" disabled={busy} onClick={() => void decide(false)}>
+        </Button>
+        <Button disabled={busy} onClick={() => void decide(false)}>
           Decline
-        </button>
+        </Button>
       </div>
     </article>
   );

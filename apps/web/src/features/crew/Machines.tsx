@@ -6,6 +6,7 @@ import { useNotice } from "../../shared/notice.tsx";
 import { StepUpSheet, useSheets } from "../../shared/sheets.tsx";
 import { allowText, parseAllow } from "./allow.ts";
 import { ago } from "./status.ts";
+import { Button } from "@convoz/ui/Button";
 
 type Open = ReturnType<typeof useSheets>["open"];
 
@@ -42,9 +43,9 @@ type KeyPath = "reveal" | "regenerate" | "revoke";
 
 function MachineItem({ m, reload, open }: { m: Machine; reload: () => Promise<void>; open: Open }) {
   const act = (label: string, action: "machine.reveal" | "machine.regenerate" | "machine.revoke", path: KeyPath, intro: string, tone?: "danger") => (
-    <button
-      className="btn small"
-      type="button"
+    <Button
+      className="flex-none"
+      size="small"
       onClick={() =>
         open((close) => (
           <StepUpSheet
@@ -68,7 +69,7 @@ function MachineItem({ m, reload, open }: { m: Machine; reload: () => Promise<vo
       }
     >
       {label}
-    </button>
+    </Button>
   );
   const edit = () =>
     open((close) => (
@@ -105,9 +106,9 @@ function MachineItem({ m, reload, open }: { m: Machine; reload: () => Promise<vo
         {act("Reveal", "machine.reveal", "reveal", "Show this machine's key once. This needs a passkey check.")}
         {act("Regenerate", "machine.regenerate", "regenerate", "Make a new key. The old key and its sessions stop working at once.", "danger")}
         {act("Revoke", "machine.revoke", "revoke", "Its key and sessions stop working at once.", "danger")}
-        <button className="btn small" type="button" onClick={edit}>
+        <Button className="flex-none" size="small" onClick={edit}>
           Edit allow-list
-        </button>
+        </Button>
       </div>
     </li>
   );
@@ -132,12 +133,12 @@ function KeySheet({ title, machineKey, close }: { title: string; machineKey: str
       onClose={close}
       actions={
         <>
-          <button className="btn" type="button" onClick={copy}>
+          <Button onClick={copy}>
             Copy key
-          </button>
-          <button className="btn primary" type="button" onClick={close}>
+          </Button>
+          <Button variant="primary" onClick={close}>
             Done
-          </button>
+          </Button>
         </>
       }
     >

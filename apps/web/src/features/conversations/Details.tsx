@@ -4,7 +4,7 @@ import { Sheet } from "@convoz/ui/Sheet";
 import { useEffect, useRef, useState } from "react";
 import { humanError } from "../../shared/api.ts";
 import { fmtDate } from "../../shared/api.ts";
-import { initials, paletteOf, stripCf } from "../../shared/chat.ts";
+import { stripCf } from "../../shared/chat.ts";
 import { data } from "../../shared/data.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { useSheets, CancelButton } from "../../shared/sheets.tsx";
@@ -13,6 +13,7 @@ import { setMute } from "../rail/index.ts";
 import { AddAgentSheet } from "./AddAgentSheet.tsx";
 import { addAgent, decideAdd, deleteConversation, markAllRead, removeAgent, rename } from "./actions.ts";
 import { AgentsSection, WaitingSection, type PlanActions } from "./PlanSections.tsx";
+import { Button } from "@convoz/ui/Button";
 
 export interface DetailsProps {
   row: Conversation;
@@ -99,18 +100,18 @@ export function Details({ row, onClose, onInvite, board, act }: DetailsProps) {
         </section>
 
         <section aria-label="Actions" className="detsec actions-sec">
-          <button type="button" className="btn" onClick={() => void markAllRead(row.id).catch((err) => fail(humanError(err)))}>
+          <Button onClick={() => void markAllRead(row.id).catch((err) => fail(humanError(err)))}>
             Mark all read
-          </button>
-          <button type="button" className="btn" onClick={() => void run(() => setMute(row.id, !row.muted_until))}>
+          </Button>
+          <Button onClick={() => void run(() => setMute(row.id, !row.muted_until))}>
             {row.muted_until ? "Unmute" : "Mute"}
-          </button>
-          <button type="button" className="btn" onClick={() => open((done) => <RenameSheet current={row.title ?? ""} done={done} onSave={(t) => rename(row.id, t)} />)}>
+          </Button>
+          <Button onClick={() => open((done) => <RenameSheet current={row.title ?? ""} done={done} onSave={(t) => rename(row.id, t)} />)}>
             Rename
-          </button>
-          <button type="button" className="btn danger" onClick={() => open((done) => <DeleteSheet id={row.id} done={done} />)}>
+          </Button>
+          <Button variant="danger" onClick={() => open((done) => <DeleteSheet id={row.id} done={done} />)}>
             Delete conversation
-          </button>
+          </Button>
         </section>
       </div>
       {sheet}
@@ -128,9 +129,8 @@ function DeleteSheet({ id, done }: { id: number; done(): void }) {
       onClose={done}
       actions={
         <>
-          <button
-            type="button"
-            className="btn danger"
+          <Button
+            variant="danger"
             onClick={() =>
               deleteConversation(id).then(
                 () => location.assign("/chats"),
@@ -139,7 +139,7 @@ function DeleteSheet({ id, done }: { id: number; done(): void }) {
             }
           >
             Delete conversation
-          </button>
+          </Button>
           <CancelButton onClick={done} />
         </>
       }
@@ -173,9 +173,9 @@ function RenameSheet({ current, done, onSave }: { current: string; done(): void;
       onClose={done}
       actions={
         <>
-          <button type="button" className="btn primary" disabled={!text.trim()} onClick={() => void save()}>
+          <Button variant="primary" disabled={!text.trim()} onClick={() => void save()}>
             Save
-          </button>
+          </Button>
           <CancelButton onClick={done} />
         </>
       }

@@ -8,6 +8,7 @@ import { Ring } from "./Avatar.tsx";
 import { nameOf } from "./Crew.tsx";
 import { ago, LOOK, shownState } from "./status.ts";
 import { useCrew } from "./store.ts";
+import { Button } from "@convoz/ui/Button";
 
 const TABS = ["Sessions", "Handoffs"] as const;
 
@@ -57,9 +58,9 @@ export function AgentProfile() {
         </div>
       </header>
       {who.disabled ? null : (
-        <a className="btn primary" href={`/chats/new?with=${encodeURIComponent(handle)}`} aria-label={`New conversation with @${handle}`}>
+        <Button className="self-start" variant="primary" href={`/chats/new?with=${encodeURIComponent(handle)}`} aria-label={`New conversation with @${handle}`}>
           New conversation
-        </a>
+        </Button>
       )}
 
       <section className="cgrp" aria-label="Waiting on you">
@@ -109,12 +110,12 @@ export function AgentProfile() {
           <span>{who.disabled ? "Key revoked" : `Created ${fmtDate(who.created_at)} · last used ${lastUsed(everySession)}`}</span>
           {who.disabled || confirming || renaming ? null : (
             <>
-              <button type="button" className="btn small" onClick={() => setRenaming(true)}>
+              <Button className="self-start" size="small" onClick={() => setRenaming(true)}>
                 Change handle
-              </button>
-              <button type="button" className="btn small danger" onClick={() => setConfirming(true)}>
+              </Button>
+              <Button className="self-start" variant="danger" size="small" onClick={() => setConfirming(true)}>
                 Revoke key
-              </button>
+              </Button>
             </>
           )}
         </div>
@@ -140,12 +141,12 @@ export function AgentProfile() {
             <input aria-label="New handle" value={newHandle} autoCapitalize="off" autoCorrect="off" spellCheck={false} onChange={(e) => setNewHandle(e.target.value)} />
             <span>{`The old handle is never used again. Mentions of it still reach @${handle}. A handle changes once in 30 days.`}</span>
             <div className="btns">
-              <button type="submit" className="btn primary">
+              <Button className="self-start" type="submit" variant="primary">
                 Save
-              </button>
-              <button type="button" className="btn quiet" onClick={() => setRenaming(false)}>
+              </Button>
+              <Button className="self-start" variant="quiet" onClick={() => setRenaming(false)}>
                 Cancel
-              </button>
+              </Button>
             </div>
           </form>
         ) : null}
@@ -153,9 +154,9 @@ export function AgentProfile() {
           <div role="group" aria-label="Revoke key" className="revoke">
             <span>{`Revoke the key for @${handle}? It disconnects right away and cannot be undone. Its handle is never used again, and its messages stay.`}</span>
             <div className="btns">
-              <button
-                type="button"
-                className="btn danger"
+              <Button
+                className="self-start"
+                variant="danger"
                 aria-label="Confirm revoke key"
                 onClick={() =>
                   void call(client.POST("/api/identities/{id}/disable", { params: { path: { id: who.id } }, body: {} }))
@@ -165,10 +166,10 @@ export function AgentProfile() {
                 }
               >
                 Confirm
-              </button>
-              <button type="button" className="btn quiet" onClick={() => setConfirming(false)}>
+              </Button>
+              <Button className="self-start" variant="quiet" onClick={() => setConfirming(false)}>
                 Cancel
-              </button>
+              </Button>
             </div>
           </div>
         ) : null}

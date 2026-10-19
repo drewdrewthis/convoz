@@ -1,4 +1,4 @@
-import type { Ask, Message } from "@convoz/api-client";
+import type { Ask } from "@convoz/api-client";
 import { AskCard, type Answer } from "@convoz/app-kit";
 import { useState, type ReactNode } from "react";
 import { data, useData } from "../../shared/data.ts";

@@ -6,6 +6,7 @@ import { useThreads } from "../../threads/index.ts";
 import { useData } from "../../../shared/data.ts";
 import { pinMessage, toast, unpinMessage } from "../../pins-stars/index.ts";
 import { deleteMessage, editHistory, editMessage, transcribeAgain } from "./actions.ts";
+import { Button } from "@convoz/ui/Button";
 
 /**
  * MessageMenu is the "Message actions" button of one message and what it opens. The button is invisible until the row is
@@ -111,12 +112,12 @@ function EditSheet({ message, close }: { message: Message; close(): void }) {
       onClose={close}
       actions={
         <>
-          <button className="btn" type="button" disabled={!text.trim()} onClick={save}>
+          <Button disabled={!text.trim()} onClick={save}>
             Save
-          </button>
-          <button className="btn quiet" type="button" onClick={close}>
+          </Button>
+          <Button variant="quiet" onClick={close}>
             Cancel
-          </button>
+          </Button>
         </>
       }
     >
@@ -142,12 +143,12 @@ export function DeleteSheet({ message, close }: { message: Message; close(): voi
       onClose={close}
       actions={
         <>
-          <button className="btn danger" type="button" onClick={remove}>
+          <Button variant="danger" onClick={remove}>
             Delete
-          </button>
-          <button className="btn quiet" type="button" onClick={close}>
+          </Button>
+          <Button variant="quiet" onClick={close}>
             Cancel
-          </button>
+          </Button>
         </>
       }
     >
@@ -179,9 +180,9 @@ export function EditedMark({ id }: { id: number }) {
           alert={alert}
           onClose={() => setList(null)}
           actions={
-            <button className="btn quiet" type="button" onClick={() => setList(null)}>
+            <Button variant="quiet" onClick={() => setList(null)}>
               Close
-            </button>
+            </Button>
           }
         >
           <ol className="edit-history">

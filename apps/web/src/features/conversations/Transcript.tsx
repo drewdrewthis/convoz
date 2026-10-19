@@ -16,6 +16,7 @@ import { NoticeRow, pausedNow } from "./messages/Notice.tsx";
 import { PendingFiles, Uploads } from "./messages/Uploads.tsx";
 import { SeenLine } from "./messages/SeenLine.tsx";
 import { ReplyLine } from "../threads/index.ts";
+import { Button } from "@convoz/ui/Button";
 
 /** A message that arrives while the log is within this many px of its bottom keeps the log at the bottom. */
 const NEAR_BOTTOM = 80;
@@ -265,9 +266,9 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, hint, co
       {/* data-opened: the chat has finished opening, including the last snap to the newest end; scrolling is safe from then on */}
       <div ref={log} id="log" className="log" role="log" aria-label="Messages" aria-relevant="additions" data-opened={opened && settled}>
         <div id="earlier" className="earlier" hidden={!hasEarlier}>
-          <button id="earlier-button" className="btn small quiet" type="button" onClick={earlier}>
+          <Button id="earlier-button" variant="quiet" size="small" onClick={earlier}>
             Earlier messages
-          </button>
+          </Button>
         </div>
         {body}
         <div id="hint" className="hintbox" hidden={!hint}>

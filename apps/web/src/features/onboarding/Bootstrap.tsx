@@ -7,6 +7,7 @@ import { CodesBlock } from "../../shared/codes.tsx";
 import { useNotice } from "../../shared/notice.tsx";
 import { data } from "../../shared/data.ts";
 import { bootstrapTicket, supported } from "../../shared/tickets.ts";
+import { Button } from "@convoz/ui/Button";
 
 /**
  * Bootstrap is /bootstrap#cvz_b_…: step 1 of 3 registers the first passkey from a setup link, step 2 shows the recovery codes
@@ -55,9 +56,9 @@ function SetupLink() {
           <p className="lead">Setup links work once and only for ten minutes.</p>
           {signedIn ? (
             <div className="actions">
-              <a className="btn primary" href="/">
+              <Button variant="primary" href="/">
                 Go to Convoz
-              </a>
+              </Button>
             </div>
           ) : (
             <div>
@@ -171,9 +172,9 @@ function FirstPasskey({ token, onCodes }: { token: string; onCodes: (codes: stri
         }}
       />
       <div className="actions">
-        <button className="btn primary" type="submit" {...ceremony}>
+        <Button variant="primary" type="submit" {...ceremony}>
           Register passkey
-        </button>
+        </Button>
       </div>
     </form>
   );
@@ -197,9 +198,9 @@ function SaveCodes({ codes }: { codes: string[] }) {
           <input type="checkbox" id="saved" checked={saved} onChange={(e) => setSaved(e.target.checked)} />
           <span>I saved them</span>
         </label>
-        <button className="btn primary" type="button" disabled={!saved} onClick={() => location.assign("/onboarding")}>
+        <Button variant="primary" disabled={!saved} onClick={() => location.assign("/onboarding")}>
           Continue
-        </button>
+        </Button>
       </div>
     </>
   );

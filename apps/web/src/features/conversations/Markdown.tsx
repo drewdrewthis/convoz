@@ -1,4 +1,4 @@
-import { createRenderer, type MdChild, type MdNode } from "@convoz/markdown";
+import { createRenderer, type MdChild } from "@convoz/markdown";
 import { createElement, useMemo, useState, type ReactNode } from "react";
 import { useMediaAutoLoads } from "../../shared/media.ts";
 

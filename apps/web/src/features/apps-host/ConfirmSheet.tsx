@@ -1,5 +1,6 @@
 import { Sheet } from "@convoz/ui/Sheet";
 import { useEffect, useState } from "react";
+import { Button } from "@convoz/ui/Button";
 
 /** How long the sheet is shown before Send works, so a tap meant for something under it cannot confirm (click-jacking, §5.7). */
 const ARM_MS = 500;
@@ -37,12 +38,11 @@ export function ConfirmSheet({ agent, summary, rows, onDone, send }: ConfirmProp
       onClose={() => onDone(false)}
       actions={
         <>
-          <button className="btn quiet" type="button" onClick={() => onDone(false)}>
+          <Button variant="quiet" onClick={() => onDone(false)}>
             Cancel
-          </button>
-          <button
-            className="btn primary"
-            type="button"
+          </Button>
+          <Button
+            variant="primary"
             disabled={!armed}
             onClick={async (e) => {
               if (!e.nativeEvent.isTrusted) return;
@@ -54,7 +54,7 @@ export function ConfirmSheet({ agent, summary, rows, onDone, send }: ConfirmProp
             }}
           >
             Send
-          </button>
+          </Button>
         </>
       }
     >

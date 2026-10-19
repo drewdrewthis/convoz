@@ -1,0 +1,7 @@
+/* The story book's Tailwind entry: the same layers, tokens and px theme as apps/web/src/styles/app.css, with the atoms as the only source. */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "@convoz/tokens/theme.css";
+@import "../src/theme.css";
+@import "tailwindcss/utilities.css" layer(utilities);
+@source "../src";
