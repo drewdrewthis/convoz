@@ -13,6 +13,11 @@ type System struct {
 	// From and To are the handles of a member.renamed line (I-51).
 	From string `json:"from,omitempty"`
 	To   string `json:"to,omitempty"`
+	// Done, Now and Waiting are the plan items a plan.changed line quotes; Liveness is not_responding or logged_out (agent.unresponsive).
+	Done     string `json:"done,omitempty"`
+	Now      string `json:"now,omitempty"`
+	Waiting  string `json:"waiting,omitempty"`
+	Liveness string `json:"liveness,omitempty"`
 }
 
 // EditRequest is PATCH /api/messages/:id. Only the text changes; any other field is refused (I-8).

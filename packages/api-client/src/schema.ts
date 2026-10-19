@@ -1324,6 +1324,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/conversations/{id}/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * An agent replaces its whole plan for one conversation.
+         * @description The identity comes from the lease, which needs the `status` scope (a plan also moves the agent's status: a plan with a Doing sets it
+         *     to working). Everything is replaced at once except Done, whose items go in front of the kept history (20 at most). A Waiting item
+         *     that was not there before pushes the owner (plan_waiting); a finished item, or something new waiting, writes one quiet system line
+         *     (plan.changed). A conversation the caller is not in is 404. More than 5 next, waiting or done items, a text over 200 characters,
+         *     an eta that is no duration up to 7 days nor HH:MM, or a step that is not N/M is 400 `invalid_request` with the field. A retry
+         *     with the client_id of the request that wrote the plan changes nothing.
+         */
+        put: operations["putPlan"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The plans, the agents' liveness and the line of each conversation the caller may see.
+         * @description With `conversation`, only that conversation (404 when the caller cannot see it). The lines are ranked by the server: waiting, blocked,
+         *     not_responding or logged_out, late, stale, working, next, done. `next_change_at` says when time alone changes a line next; read again then.
+         */
+        get: operations["getPlans"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/asks": {
         parameters: {
             query?: never;
@@ -2558,8 +2604,11 @@ export interface components {
             claim_token?: string;
             /** @enum {string} */
             state: "ready" | "claimed";
-            /** @enum {string} */
-            reason: "mention" | "thread" | "activity" | "ask_resolved" | "membership" | "app_result";
+            /**
+             * @description status_due: Convoz asks the agent to update its late plan; the message is a line from the server.
+             * @enum {string}
+             */
+            reason: "mention" | "thread" | "activity" | "ask_resolved" | "membership" | "app_result" | "status_due";
             /**
              * Format: int64
              * @description How many messages the item covers.
@@ -2895,6 +2944,128 @@ export interface components {
             since: number;
             /** Format: int64 */
             updated_at: number;
+            /** Format: int64 */
+            prev_seq_for_you?: number;
+        };
+        PlanRequest: {
+            /** @description What the agent does now (one item). */
+            doing?: string;
+            /** @description N/M: the Doing item is at step N of M. */
+            step?: string;
+            /** @description What blocks the agent in this conversation (not the owner; that is waiting). */
+            blocked?: string;
+            /** @description When the Doing item should be done: a duration (30m, 1h30m) or HH:MM in the zone of utc_offset. */
+            eta?: string;
+            /** @description The agent's zone in seconds east of UTC */
+            utc_offset?: number;
+            next?: string[];
+            /** @description What waits on the owner. */
+            waiting?: string[];
+            /** @description Items finished since the last plan. */
+            done?: string[];
+            /** @description A retry with the same id after a lost answer changes nothing. */
+            client_id?: string;
+        };
+        PlanStep: {
+            at: number;
+            of: number;
+        };
+        PlanWaiting: {
+            text: string;
+            /**
+             * Format: int64
+             * @description When the item first showed.
+             */
+            since: number;
+        };
+        PlanDone: {
+            text: string;
+            /** Format: int64 */
+            at: number;
+        };
+        Plan: {
+            /** Format: int64 */
+            conversation_id: number;
+            /** Format: int64 */
+            identity_id: number;
+            handle: string;
+            doing: string;
+            /** Format: int64 */
+            doing_since?: number;
+            step?: components["schemas"]["PlanStep"];
+            blocked?: string;
+            /**
+             * Format: int64
+             * @description Epoch ms on the server clock.
+             */
+            eta?: number;
+            next: string[];
+            waiting: components["schemas"]["PlanWaiting"][];
+            /** @description Newest first */
+            done: components["schemas"]["PlanDone"][];
+            /** Format: int64 */
+            updated_at: number;
+            /**
+             * Format: int64
+             * @description When the plan turns overdue: its eta, or 2 h after the update for a Doing with no eta.
+             */
+            due_at?: number;
+            /**
+             * Format: int64
+             * @description When Convoz last asked the agent to update this plan.
+             */
+            nudged_at?: number;
+        };
+        PlanAgent: {
+            /** Format: int64 */
+            identity_id: number;
+            handle: string;
+            state: components["schemas"]["AgentState"];
+            doing: string;
+            online: boolean;
+            /** Format: int64 */
+            last_seen_at?: number;
+            /**
+             * @description not_responding: a message waited 10 min and the agent holds no watch; logged_out: and it has no live session.
+             * @enum {string}
+             */
+            liveness: "ok" | "not_responding" | "logged_out";
+            /**
+             * Format: int64
+             * @description Since when the oldest message that waits for it has waited.
+             */
+            unanswered_since?: number;
+        };
+        PlanAttention: {
+            /** Format: int64 */
+            conversation_id: number;
+            /** @enum {string} */
+            state: "waiting" | "blocked" | "not_responding" | "logged_out" | "late" | "stale" | "working" | "next" | "done";
+            handle: string;
+            text: string;
+            /** Format: int64 */
+            eta?: number;
+            /** Format: int64 */
+            last_seen_at?: number;
+        };
+        PlanBoard: {
+            /**
+             * Format: int64
+             * @description The server's clock.
+             */
+            now: number;
+            plans: components["schemas"]["Plan"][];
+            agents: components["schemas"]["PlanAgent"][];
+            asks: components["schemas"]["OpenAsk"][];
+            /** @description One line per conversation with something to show. */
+            attention: components["schemas"]["PlanAttention"][];
+            /** Format: int64 */
+            next_change_at?: number;
+        };
+        /** @description SSE plan.changed (people who can see the conversation); read the plans of the conversation again. */
+        PlanChangedFrame: {
+            /** Format: int64 */
+            conversation_id: number;
             /** Format: int64 */
             prev_seq_for_you?: number;
         };
@@ -5317,6 +5488,56 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AgentStatus"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    putPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanRequest"];
+            };
+        };
+        responses: {
+            /** @description The plan as stored. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Plan"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getPlans: {
+        parameters: {
+            query?: {
+                conversation?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The board. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanBoard"];
                 };
             };
             default: components["responses"]["Error"];

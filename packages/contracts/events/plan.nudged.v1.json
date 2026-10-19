@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://convoz.dev/events/plan.nudged.v1.json",
+  "title": "plan.nudged.v1",
+  "description": "Convoz asked an agent (the audience) to update its late plan in a conversation: a status_due inbox item. Never a push.",
+  "type": "object",
+  "required": [
+    "conversation_id"
+  ],
+  "properties": {
+    "conversation_id": {
+      "type": "integer"
+    }
+  },
+  "additionalProperties": false
+}

@@ -53,4 +53,10 @@ export const TickIcon = () => (
     <path d="M20 6L9 17l-5-5" />
   </svg>
 );
+/** Waiting on you: a raised hand (plan status, Conversations rows). */
+export const HandIcon = icon(<path d="M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0-4 0v6M10 10.5V6a2 2 0 0 0-4 0v8a8 8 0 0 0 8 8h1a7 7 0 0 0 7-7v-3a2 2 0 0 0-4 0" />);
+/** Blocked: an alert. */
+export const AlertIcon = icon(<path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01" />);
+/** Late or not responding: a clock. */
+export const ClockIcon = icon(<path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2" />);
 export const DownloadIcon = icon(<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />);

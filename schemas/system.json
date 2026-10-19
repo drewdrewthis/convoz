@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.convoz.dev/v1/system.json",
   "title": "messages.system_json v1",
-  "description": "Ids and enums only (no text: names and titles are looked up at render time, so a rename or a scrub never leaves stale text), except the title of conversation.renamed and the two handles of member.renamed: an agent's handles are never scrubbed and a retired one is never reused (I-51). <= 2048 bytes (DB CHECK). Written only by the server.",
+  "description": "Ids and enums only (no text: names and titles are looked up at render time, so a rename or a scrub never leaves stale text), except the title of conversation.renamed, the two handles of member.renamed (an agent's handles are never scrubbed and a retired one is never reused, I-51) and the plan items a plan.changed line quotes (what the line said must not change when the plan does). <= 2048 bytes (DB CHECK). Written only by the server.",
   "type": "object",
   "oneOf": [
     {
@@ -25,6 +25,12 @@
     },
     {
       "$ref": "#/$defs/handleChanged"
+    },
+    {
+      "$ref": "#/$defs/planChanged"
+    },
+    {
+      "$ref": "#/$defs/unresponsive"
     }
   ],
   "$defs": {
@@ -220,6 +226,83 @@
         },
         "to": {
           "$ref": "#/$defs/handle"
+        }
+      }
+    },
+    "planChanged": {
+      "type": "object",
+      "required": [
+        "v",
+        "t",
+        "identity"
+      ],
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "required": [
+            "done"
+          ]
+        },
+        {
+          "required": [
+            "waiting"
+          ]
+        }
+      ],
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "t": {
+          "const": "plan.changed"
+        },
+        "identity": {
+          "$ref": "#/$defs/ref"
+        },
+        "done": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "The items the agent finished, as it wrote them."
+        },
+        "now": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "What the agent does now."
+        },
+        "waiting": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "What newly waits on the owner."
+        }
+      }
+    },
+    "unresponsive": {
+      "type": "object",
+      "required": [
+        "v",
+        "t",
+        "identity",
+        "liveness"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "t": {
+          "const": "agent.unresponsive"
+        },
+        "identity": {
+          "$ref": "#/$defs/ref"
+        },
+        "liveness": {
+          "enum": [
+            "not_responding",
+            "logged_out"
+          ]
         }
       }
     }

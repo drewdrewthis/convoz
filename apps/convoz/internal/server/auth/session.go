@@ -230,3 +230,8 @@ func ListSessions(ctx context.Context, d pdb.DBTX, max int, now time.Time) ([]Se
 	}
 	return out, nil
 }
+
+// LastSeen is when the identity last made a call through any of its sessions (epoch ms), 0 for one that never had a session.
+func LastSeen(ctx context.Context, d pdb.DBTX, identityID int64) (int64, error) {
+	return db.New(d).LastSeenOfIdentity(ctx, identityID)
+}

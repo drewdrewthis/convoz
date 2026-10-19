@@ -66,6 +66,38 @@ func init() {
 			return runnerOf(ctx).run("status", "", withFlag(withFlag(withFlag(nil, "state", a.State), "doing", a.Doing), "next", a.Next)...)
 		}})
 
+	Register(Tool{Name: "plan", Order: 11, Description: "Replace your plan in one conversation: what you do now, next, what waits on the owner, what you finished.",
+		InputSchema: object([]string{"conversation"}, props{
+			"conversation": conv(),
+			"doing":        props{"type": "string", "maxLength": 200, "description": "What you do now (one item)."},
+			"step":         props{"type": "string", "pattern": "^[1-9][0-9]?/[1-9][0-9]?$", "description": "The step of the doing item, as N/M."},
+			"eta":          props{"type": "string", "maxLength": 20, "description": "When the doing item should be done: a duration (30m, 1h30m) or HH:MM on this machine's clock."},
+			"blocked":      props{"type": "string", "maxLength": 200, "description": "What blocks you here (not the owner: use waiting)."},
+			"next":         list("What you do next, in order.", props{"type": "string", "minLength": 1, "maxLength": 200}, 0, 5),
+			"waiting":      list("What waits on the owner; something new pushes the owner.", props{"type": "string", "minLength": 1, "maxLength": 200}, 0, 5),
+			"done":         list("Items you finished since your last plan.", props{"type": "string", "minLength": 1, "maxLength": 200}, 0, 5),
+		}),
+		Call: func(ctx context.Context, args json.RawMessage) (any, error) {
+			var a struct {
+				Conversation              int64
+				Doing, Step, ETA, Blocked string
+				Next, Waiting, Done       []string
+			}
+			if err := decodeArgs(args, &a); err != nil {
+				return nil, err
+			}
+			argv := withFlag(withFlag(withFlag(withFlag(nil, "doing", a.Doing), "step", a.Step), "eta", a.ETA), "blocked", a.Blocked)
+			for _, kind := range []struct {
+				name  string
+				items []string
+			}{{"next", a.Next}, {"waiting", a.Waiting}, {"done", a.Done}} {
+				for _, it := range kind.items {
+					argv = append(argv, "--"+kind.name, it)
+				}
+			}
+			return runnerOf(ctx).run("plan", "", append(argv, strconv.FormatInt(a.Conversation, 10))...)
+		}})
+
 	Register(Tool{Name: "handoff", Order: 12, Description: "Leave a note for your next session (at most 4096 bytes), or list the notes kept.",
 		InputSchema: object(nil, props{
 			"note": props{"type": "string", "minLength": 1, "description": "The note, at most 4096 bytes. Leave it out to list the notes."},

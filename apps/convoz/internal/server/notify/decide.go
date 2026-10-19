@@ -13,6 +13,8 @@ const (
 	ReasonPaused         = "paused"
 	ReasonMachineRequest = "machine_request"
 	ReasonSecurity       = "security"
+	// ReasonPlanWaiting: something new waits on the owner in an agent's plan (plan.feature). Finished items and moved estimates never push.
+	ReasonPlanWaiting = "plan_waiting"
 )
 
 // Why a notification was suppressed (the log shows it, AC-7).

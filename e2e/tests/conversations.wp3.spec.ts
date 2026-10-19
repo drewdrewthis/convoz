@@ -282,8 +282,9 @@ scenario("The details sidebar shows who is here and how the conversation is set"
   const panel = await showDetails(page);
 
   // Then the details show the participants, "Started by", "Created", "Muted" and the linked pull request
-  await expect(panel.getByRole("list", { name: "Participants" }).getByRole("listitem")).toHaveText([/Drew/, /@devtool/, /@docs/]);
+  await expect(panel.getByRole("list", { name: "Agents" }).getByRole("listitem")).toHaveText([/@devtool/, /@docs/]);
   const row = (label: string) => panel.locator("dt", { hasText: label }).locator("xpath=following-sibling::dd[1]");
+  await expect(row("You")).toHaveText("Drew");
   await expect(row("Started by")).toHaveText("Drew");
   await expect(row("Created")).not.toBeEmpty();
   await expect(row("Muted")).toHaveText("No");
@@ -366,7 +367,7 @@ scenario("Mentioning an agent adds it at once", { tag: ["@browser"] }, async ({ 
 
   // Then the participants show "devtool"
   const panel = await showDetails(page);
-  await expect(panel.getByRole("list", { name: "Participants" }).getByRole("listitem")).toHaveText([/Drew/, /@devtool/]);
+  await expect(panel.getByRole("list", { name: "Agents" }).getByRole("listitem")).toHaveText([/@devtool/]);
 
   // And "devtool" gets a mention item
   const items = await peekFor(w.box, w.sessions.devtool!.sid, conv);
@@ -388,7 +389,7 @@ scenario("Adding an agent with + Add joins it at once and it sees the whole hist
   await sheet.getByRole("list", { name: "Agents to add" }).getByRole("button", { name: /@docs/ }).click();
 
   // Then the participants show "docs" at once and no history question was asked
-  await expect(panel.getByRole("list", { name: "Participants" }).getByRole("listitem")).toHaveText([/Drew/, /@devtool/, /@docs/]);
+  await expect(panel.getByRole("list", { name: "Agents" }).getByRole("listitem")).toHaveText([/@devtool/, /@docs/]);
   await expect(page.getByRole("radio")).toHaveCount(0);
   await ownerSays(w.owner, conv, "after the add");
 
@@ -460,7 +461,7 @@ scenario("Adding an agent back joins it at once with no history question", { tag
   await sheet.getByRole("list", { name: "Agents to add" }).getByRole("button", { name: /@devtool/ }).click();
 
   // Then the participants show "devtool" at once and no history question was asked
-  await expect(panel.getByRole("list", { name: "Participants" }).getByRole("listitem")).toHaveText([/Drew/, /@devtool/]);
+  await expect(panel.getByRole("list", { name: "Agents" }).getByRole("listitem")).toHaveText([/@devtool/]);
   await expect(page.getByRole("radio")).toHaveCount(0);
 });
 
@@ -473,7 +474,7 @@ scenario("Remove agent shows a 10 second Undo toast and Undo puts the agent back
   // When the owner removes "devtool" from conversation 41
   const panel = await showDetails(page);
   await panel.getByRole("button", { name: "Remove @devtool" }).click();
-  await expect(panel.getByRole("list", { name: "Participants" }).getByRole("listitem")).toHaveText([/Drew/]);
+  await expect(panel.getByRole("list", { name: "Agents" }).getByRole("listitem")).toHaveCount(0);
 
   // Then a toast says "Removed @devtool" with an Undo button for 10 seconds
   const toast = page.getByRole("status").filter({ hasText: "Removed @devtool" });
@@ -484,7 +485,7 @@ scenario("Remove agent shows a 10 second Undo toast and Undo puts the agent back
   await toast.getByRole("button", { name: "Undo" }).click();
 
   // Then the participants show "devtool" again
-  await expect(panel.getByRole("list", { name: "Participants" }).getByRole("listitem")).toHaveText([/Drew/, /@devtool/]);
+  await expect(panel.getByRole("list", { name: "Agents" }).getByRole("listitem")).toHaveText([/@devtool/]);
 });
 
 // ---- Rule: Read position is honest (DA-2, DA-4) ---------------------------------------------------------------------

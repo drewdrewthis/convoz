@@ -377,8 +377,9 @@
     .msg-menu button:hover { background: var(--color-border); }
   }
   .notice-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 12px 3px 60px; color: var(--color-muted); font-size: 13.5px; line-height: 1.4; }
-  .notice-line::before { content: "\2022"; margin-left: -24px; width: 16px; text-align: center; }
-  .notice-line[data-t="conversation.paused"]::before { content: "\23F8"; }
+  /* the bullet hangs off the text itself: as its own flex item, a text too long for the row wrapped below it and left the bullet alone */
+  .notice-text::before { content: "\2022"; display: inline-block; width: 16px; margin-left: -24px; margin-right: 8px; text-align: center; }
+  .notice-line[data-t="conversation.paused"] .notice-text::before { content: "\23F8"; }
   .msg .sendstate { margin-top: 2px; text-align: right; color: var(--color-muted); font-size: 12px; }
   .msg .seen { margin-top: 2px; text-align: right; color: var(--color-muted); font-size: 12px; }
   .msg .sendstate.bad { color: var(--color-danger); font-weight: 600; }

@@ -100,6 +100,8 @@ func genericBody(reason string) string {
 		return "Wants to add someone"
 	case ReasonPaused:
 		return "Conversation paused"
+	case ReasonPlanWaiting:
+		return "Waiting on you"
 	}
 	return "New message"
 }

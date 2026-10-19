@@ -73,7 +73,11 @@
   .rrow:hover .rstar, .rrow:focus-within .rstar { opacity: 1; pointer-events: auto; }
   .rgrab:focus-visible { opacity: 1; }
   .rrow:hover .rcnt, .rrow:focus-within .rcnt { opacity: 0; }
-  .rrow > .rgo:not(:has(.rcnt)) { padding-right: 36px; }
+  .rrow > .rgo:not(:has(.rcnt, .planicon)) { padding-right: 36px; }
+  /* the status icon sits by the count (or alone in its place) and gives way to the star on hover, as the count does */
+  .rgo .planicon { width: 18px; height: 18px; transition: opacity 140ms ease; }
+  .rgo .planicon + .rcnt { margin-left: -4px; }
+  .rrow:hover .rgo .planicon, .rrow:focus-within .rgo .planicon { opacity: 0; }
   .rrow.dragging { position: relative; z-index: 5; box-shadow: var(--float); background: var(--color-raised); transition: none; will-change: transform; }
   .dropline { position: absolute; display: none; height: 2px; border-radius: 2px; background: var(--color-accent); pointer-events: none; z-index: 6; }
   .rolder { min-height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border: 0; border-radius: 999px; background: transparent; color: var(--color-muted); font-size: 12px; font-weight: 500; text-align: left; }

@@ -189,6 +189,7 @@ export function createDataCache(source: DataSource): DataCache {
         }
         case "pin.changed":
         case "agent.status_changed":
+        case "plan.changed":
           return true; // presence, pins and status: the features that show them read the server themselves
         case "prefs.changed":
           cache.applyPrefs(frame.data);

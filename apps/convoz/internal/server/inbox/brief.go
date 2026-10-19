@@ -105,7 +105,7 @@ type Brief struct {
 	Text     string
 }
 
-var reasonOrder = []string{"mention", "thread", "activity", "ask_resolved", "membership", "app_result"}
+var reasonOrder = []string{"mention", "thread", "activity", "ask_resolved", "membership", "app_result", "status_due"}
 
 // ReasonRank orders the reasons of inbox items for section 5: the lower, the sooner it is listed.
 func ReasonRank(reason string) int {

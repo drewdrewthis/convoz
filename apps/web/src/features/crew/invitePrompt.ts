@@ -76,6 +76,7 @@ export function invitePrompt({ server, agentServer, invite, conversation }: Invi
     "",
     "Status goes to the owner, not into a conversation:",
     "Status:  convoz status --state working --doing \"...\"",
+    "Plan:    convoz plan <conversation> --doing \"...\" --eta 30m --next \"...\" --waiting \"...\"  (per conversation; send it again when it changes, or the owner sees you as late)",
     "",
     ...HOW_CONVOZ_WORKS,
   ].join("\n");

@@ -49,6 +49,8 @@ const (
 	ReasonAskResolved = "ask_resolved"
 	// ReasonAppResult tells an agent the owner sent a result through its app. One item per result; it never merges.
 	ReasonAppResult = "app_result"
+	// ReasonStatusDue asks an agent whose plan is late to update it (plan.feature). It names a conversation and no message; it never merges.
+	ReasonStatusDue = "status_due"
 )
 
 // FanOut records one new main message for one agent participant: the ready item of that conversation takes the
@@ -331,4 +333,31 @@ func Sweep(ctx context.Context, d pdb.DBTX, now time.Time) error {
 		return err
 	}
 	return q.DeleteExpiredBefore(ctx, now.Add(-ExpiredKeep).UnixMilli())
+}
+
+// HasStatusDue reports whether the agent still holds an unacked ask to update its plan in the conversation.
+func HasStatusDue(ctx context.Context, d pdb.DBTX, identityID, conversationID int64) (bool, error) {
+	return db.New(d).HasOpenStatusDue(ctx, db.HasOpenStatusDueParams{IdentityID: identityID, ConversationID: nullInt(conversationID)})
+}
+
+// StatusDue asks the agent to update its plan in the conversation. sourceSeq is the seq of the nudge's event.
+func StatusDue(ctx context.Context, d pdb.DBTX, now time.Time, identityID, conversationID, sourceSeq int64) error {
+	return db.New(d).InsertStatusDueItem(ctx, db.InsertStatusDueItemParams{IdentityID: identityID, ConversationID: nullInt(conversationID), SourceSeq: sourceSeq, Now: now.UnixMilli()})
+}
+
+// Waiting is the oldest message that waits for an agent in one conversation: a conversation item nobody acked yet.
+type Waiting struct {
+	Identity     int64
+	Conversation int64
+	Since        int64
+}
+
+// Unanswered lists, per agent and conversation, since when a message has waited for the agent.
+func Unanswered(ctx context.Context, d pdb.DBTX) ([]Waiting, error) {
+	rows, err := db.New(d).Unanswered(ctx)
+	out := make([]Waiting, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, Waiting{Identity: r.IdentityID, Conversation: r.ConversationID, Since: r.Since})
+	}
+	return out, err
 }

@@ -17,7 +17,20 @@ export interface Upload {
 /** Everything the projection reads. The variant is derived in the fixed order of the spec: deleted, system, ask, answer, via_app, app, voice, image, file, text. */
 export interface Projectable {
   deleted?: boolean;
-  system?: { t: string; identity: Person; by: Person; history?: string; streak?: number; title?: string; from?: string; to?: string } | null;
+  system?: {
+    t: string;
+    identity: Person;
+    by: Person;
+    history?: string;
+    streak?: number;
+    title?: string;
+    from?: string;
+    to?: string;
+    done?: string;
+    now?: string;
+    waiting?: string;
+    liveness?: string;
+  } | null;
   ask?: { question: string; options: { label: string; why: string }[] } | null;
   answer?: { custom: boolean; text: string } | null;
   via_app?: Person | null;
@@ -63,6 +76,12 @@ function systemText(s: NonNullable<Projectable["system"]>): string {
       return `${ref(s.by)} resumed the conversation`;
     case "conversation.restored":
       return `${ref(s.by)} restored this conversation from Trash`;
+    case "plan.changed": {
+      const parts: [string, string | undefined][] = [["Done: ", s.done], ["Now: ", s.now], ["Waiting on you: ", s.waiting]];
+      return parts.reduce((text, [label, item]) => (item ? `${text} · ${label}${item}` : text), ref(s.identity));
+    }
+    case "agent.unresponsive":
+      return s.liveness === "logged_out" ? `${ref(s.identity)} is logged out` : `${ref(s.identity)} is not responding`;
   }
   return "";
 }

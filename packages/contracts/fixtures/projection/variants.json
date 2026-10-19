@@ -363,5 +363,44 @@
   },
   "short": "Plain words",
   "long": "Plain words"
+ },
+ {
+  "name": "system: plan changed",
+  "message": {
+   "system": {
+    "t": "plan.changed",
+    "identity": {
+     "handle": "claude",
+     "name": "Claude"
+    },
+    "by": {
+     "handle": "",
+     "name": ""
+    },
+    "done": "One-time invites",
+    "now": "Switch on dot's door"
+   }
+  },
+  "short": "@claude · Done: One-time invites · Now: Switch on dot's door",
+  "long": "@claude · Done: One-time invites · Now: Switch on dot's door"
+ },
+ {
+  "name": "system: agent not responding",
+  "message": {
+   "system": {
+    "t": "agent.unresponsive",
+    "identity": {
+     "handle": "claude",
+     "name": "Claude"
+    },
+    "by": {
+     "handle": "",
+     "name": ""
+    },
+    "liveness": "not_responding"
+   }
+  },
+  "short": "@claude is not responding",
+  "long": "@claude is not responding"
  }
 ]

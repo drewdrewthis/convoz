@@ -148,3 +148,11 @@ sql:
         package: db
         omit_unused_structs: true
         out: internal/server/ops/db
+  - engine: sqlite
+    schema: internal/server/platform/migrations
+    queries: internal/server/plan/queries
+    gen:
+      go:
+        package: db
+        omit_unused_structs: true
+        out: internal/server/plan/db
