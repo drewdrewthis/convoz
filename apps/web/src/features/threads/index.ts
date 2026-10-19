@@ -14,3 +14,8 @@ registerHandler("message.", (frame) => {
   }
 });
 registerResync(() => void useThreads.getState().refresh());
+
+// A voice reply gets its words later: the frame carries the message as it is now, so the open thread takes it in like an edit.
+registerHandler("upload.transcribed", (frame) => {
+  if (frame.name === "upload.transcribed") useThreads.getState().received(frame.data, frame.data.conversation_id);
+});

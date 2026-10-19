@@ -78,6 +78,17 @@ Feature: Voice notes
       Then the owner's search for "ZQX-thursday-filters" finds the voice message
       And "convoz search ZQX-thursday-filters" as "devtool" finds it too
 
+  Rule: Voice notes work in a thread
+
+    # Owner, 2026-10-19: "Also, the vocal is not an option in threads but should be"
+    @v1 @browser
+    Scenario: The owner can record a voice note in a thread
+      Given "devtool" posted message 900 in conversation 41 and the owner opened its thread
+      And the workspace transcription engine is set
+      When the owner records a voice note in the thread's reply box and sends it
+      Then the thread shows one voice reply with the transcript
+      And the main list of conversation 41 shows no new message
+
   Rule: Audio is stored and served safely
 
     @v1 @api @I-49

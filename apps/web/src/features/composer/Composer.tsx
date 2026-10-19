@@ -1,12 +1,13 @@
 import type { Identity, Upload } from "@convoz/api-client";
 import { mentionsOf } from "@convoz/markdown";
 import { AttachIcon, MicIcon, SendIcon } from "@convoz/ui/icons";
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { initials, paletteOf, stripCf } from "../../shared/chat.ts";
-import { loadRecorder, micNote, RecorderLoadError, type VoiceRecording } from "../voice/index.ts";
+import { useVoiceNote } from "../voice/index.ts";
 import { AttachmentList } from "./AttachmentList.tsx";
 import { pasteFiles, type Attachments } from "./attachments.ts";
 import { enterSends } from "./enterToSend.ts";
+import { keepFocus } from "./keepFocus.ts";
 
 export interface ComposerProps {
   /** The agent the message goes to; with none (and none typed as an @mention), Send stays disabled. */
@@ -29,50 +30,19 @@ export interface ComposerProps {
 }
 
 /**
- * keepFocus is the mousedown of every control on the composer: a tap on it must not move focus off the message box. Focus leaving the
- * box reads as "keyboard closed" (keyboard.ts), which re-lays the page out between the press and the release of the tap, and the
- * release then lands on something else (iPhone, owner 2026-10-18: "once you start typing in the input the paperclip stops working").
- */
-const keepFocus = (event: MouseEvent) => event.preventDefault();
-
-type Recorder = Awaited<ReturnType<typeof loadRecorder>>;
-
-/**
  * Composer is the pinned message box: it grows to four lines on a phone (six on a wide screen), then scrolls inside itself. Attach adds files above it; the
  * microphone (in Send's place while there is nothing to send) swaps the box for the recording bar.
  */
 export function Composer({ agent, label, conversationId, attachments, onSend, textRef, mentions }: ComposerProps) {
   const [text, setText] = useState("");
   const [menu, setMenu] = useState<{ shown: Identity[]; active: number } | null>(null);
-  const [voice, setVoice] = useState<{ Bar: Recorder["RecordingBar"]; recording: VoiceRecording } | null>(null);
-  const [micError, setMicError] = useState("");
   const picker = useRef<HTMLInputElement>(null);
-  const mic = useRef<HTMLButtonElement>(null);
+  const voice = useVoiceNote(conversationId, (sent) => onSend("", [sent]));
   const files = attachments.items;
   const empty = text.trim() === "" && files.length === 0;
   // A crew agent typed by hand (outside code and quotes) counts like a pick: the server brings it in when the message arrives (I-18).
   const named = Boolean(mentions) && mentionsOf(text).some((h) => mentions!.crew.some((p) => p.handle === h));
   const canSend = (Boolean(agent) || named) && !empty && files.every((f) => f.state === "done");
-
-  const starting = useRef(false);
-  const startVoice = async () => {
-    if (starting.current) return; // a second tap while the microphone prompt is open
-    starting.current = true;
-    setMicError("");
-    try {
-      const recorder = await loadRecorder().catch(() => Promise.reject(new RecorderLoadError())); // the recorder's code loads on the first tap
-      setVoice({ Bar: recorder.RecordingBar, recording: await recorder.startRecording(conversationId) });
-    } catch (err) {
-      setMicError(micNote(err));
-    } finally {
-      starting.current = false;
-    }
-  };
-  const endVoice = (sent?: Upload) => {
-    setVoice(null);
-    if (sent) onSend("", [sent]);
-    requestAnimationFrame(() => mic.current?.focus());
-  };
 
   useLayoutEffect(() => {
     const box = textRef.current;
@@ -91,7 +61,7 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
   };
   const change = (value: string) => {
     setText(value);
-    setMicError("");
+    voice.clearNote();
     if (mentions) setMenu(menuFor(value, mentions.crew));
   };
 
@@ -173,9 +143,9 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
         </div>
       ) : null}
       <AttachmentList attachments={attachments} />
-      {voice ? <voice.Bar recording={voice.recording} onDone={endVoice} /> : null}
+      {voice.bar}
       <form
-        hidden={Boolean(voice)}
+        hidden={voice.recording}
         id="composer"
         className="composer glass"
         aria-label="Composer"
@@ -225,16 +195,12 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
           <button id="send" className={`sendbtn${empty ? " under" : ""}`} type="submit" aria-label="Send" disabled={!canSend} onMouseDown={keepFocus}>
             <SendIcon />
           </button>
-          <button ref={mic} type="button" className="sendbtn mic" aria-label="Record a voice message" title="Record a voice message" hidden={!empty} disabled={!conversationId} onMouseDown={keepFocus} onClick={() => void startVoice()}>
+          <button ref={voice.mic} type="button" className="sendbtn mic" aria-label="Record a voice message" title="Record a voice message" hidden={!empty} disabled={!conversationId} onMouseDown={keepFocus} onClick={voice.start}>
             <MicIcon />
           </button>
         </span>
       </form>
-      {micError ? (
-        <p role="alert" className="micnote">
-          {micError}
-        </p>
-      ) : null}
+      {voice.note}
     </div>
   );
 }

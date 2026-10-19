@@ -3,3 +3,4 @@ export { Composer, type ComposerProps } from "./Composer.tsx";
 export { AttachmentList } from "./AttachmentList.tsx";
 export { pasteFiles, useAttachments, type Attachments } from "./attachments.ts";
 export { ENTER_TO_SEND_KEY, enterSends, enterToSend, type EnterToSend } from "./enterToSend.ts";
+export { keepFocus } from "./keepFocus.ts";
