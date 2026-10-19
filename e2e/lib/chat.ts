@@ -181,6 +181,8 @@ interface WatchLine {
   author: string;
   body: string;
   created_at: string | number;
+  thread_topic?: string;
+  before?: { author: string; text: string };
 }
 
 /** Start `convoz watch --json` as a child. Stop it with `.stop()` in a finally block. */

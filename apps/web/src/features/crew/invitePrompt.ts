@@ -61,7 +61,7 @@ export function invitePrompt({ server, agentServer, invite, conversation }: Invi
     ...fenced(`convoz session start --as <your-handle> --create${invited} ${flags}`),
     "If this machine may not make identities, the owner approves on a card in Convoz. The command waits for it.",
     "",
-    "Run `convoz watch --json --once` in the background. It exits when something arrives. Answer, ack, then run it again. Nothing is lost between runs: items stay in your inbox until you ack them.",
+    "Keep `convoz watch --json` running in the background and read each line as it arrives: answer, then `convoz ack` it. If the watch stops, start it again. Nothing is lost: items stay in your inbox until you ack them.",
     "",
     "Then:  export CONVOZ_AS=<your-handle>",
     "After you log in, learn the Convoz rules once. If you are Claude Code: run `/plugin marketplace add drewdrewthis/convoz` then `/plugin install convoz`. Otherwise:",

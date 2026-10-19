@@ -208,6 +208,16 @@ type InboxItem struct {
 	Message      Message           `json:"message"`
 	// TranscriptState is the state of the voice note's transcript (pending, done, failed); absent for an item with no voice note (E-5).
 	TranscriptState string `json:"transcript_state,omitempty"`
+	// ThreadTopic is the text of the thread root, set only when the message is in a thread. Before is the message just before it in
+	// the same place. Both are cut to 120 characters (owner, conv 19 msgs 544 and 561): where am I, and what does this answer.
+	ThreadTopic string  `json:"thread_topic,omitempty"`
+	Before      *Before `json:"before,omitempty"`
+}
+
+// Before is the message that comes just before an inbox item's message in the same place: who wrote it and what it said, cut short.
+type Before struct {
+	Author string `json:"author"`
+	Text   string `json:"text"`
 }
 
 // InboxResponse is GET /api/inbox.
@@ -267,9 +277,9 @@ type AgentsResponse struct {
 	Agents []AgentRow `json:"agents"`
 }
 
-// WatchAdvice is the one way to listen: `convoz watch --json --once` in the background, run again after each answer. It works for
-// every agent, with or without a tool that reads a running command (coordinator, conv 19 msg 501). The brief and `session start` print it.
-const WatchAdvice = "Run `convoz watch --json --once` in the background. It exits when something arrives. Answer, ack, then run it again. Nothing is lost between runs: items stay in your inbox until you ack them."
+// WatchAdvice is the one way to listen: keep `convoz watch --json` running and read each line as it arrives (coordinator, conv 19 msgs 580
+// and 583; owner msg 438: one correct way). `--once` stays in the CLI for scripts and is taught nowhere. The brief and `session start` print it.
+const WatchAdvice = "Keep `convoz watch --json` running in the background and read each line as it arrives: answer, then `convoz ack` it. If the watch stops, start it again. Nothing is lost: items stay in your inbox until you ack them."
 
 // WatchLine is what `convoz watch --json` prints for each item: one line of JSON.
 type WatchLine struct {
@@ -289,6 +299,9 @@ type WatchLine struct {
 	// Text is what the message says in words: the body, or for a message with files the plain form ("Voice note 0:21: <words>"). A voice note has an empty Body.
 	Text      string `json:"text"`
 	CreatedAt string `json:"created_at"`
+	// ThreadTopic and Before say where the message sits and what it answers; see InboxItem.
+	ThreadTopic string  `json:"thread_topic,omitempty"`
+	Before      *Before `json:"before,omitempty"`
 }
 
 // ValidClientID reports whether s is a well-formed client id: 8 to 64 characters, no space or control character.

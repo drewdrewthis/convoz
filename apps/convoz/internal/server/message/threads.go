@@ -81,3 +81,39 @@ func ThreadRoots(ctx context.Context, d pdb.DBTX, conv, floor, max int64) ([]Mes
 	rows, err := db.New(d).ThreadRoots(ctx, db.ThreadRootsParams{ConversationID: conv, Floor: floor, MaxRows: max})
 	return fromRows(rows, false), err
 }
+
+// Around is where a message sits: its thread root and the message just before it in the same place. A zero field is none.
+// BeforeID and RootID let the caller drop what the reader may not see (an id at or under their floor).
+type Around struct {
+	RootID, BeforeID, BeforeAuthorID int64
+	RootBody, BeforeBody             string
+}
+
+// AroundMessages reads Around for a batch of messages in one query, keyed by message id.
+func AroundMessages(ctx context.Context, d pdb.DBTX, ids []int64) (map[int64]Around, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	rows, err := db.New(d).WatchContext(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[int64]Around, len(rows))
+	for _, r := range rows {
+		out[r.MessageID] = Around{RootID: r.RootID, RootBody: r.RootBody, BeforeID: r.BeforeID, BeforeAuthorID: r.BeforeAuthorID, BeforeBody: r.BeforeBody}
+	}
+	return out, nil
+}
+
+// ContextRunes is the longest a thread topic or a "before" text goes in an inbox item: the "…" counts in it.
+const ContextRunes = 120
+
+// Excerpt is the plain one-line text of a body cut to ContextRunes runes. A cut text ends in "…"; the cut falls on a rune
+// boundary, never inside a multibyte character.
+func Excerpt(body string) string {
+	r := []rune(Preview(body))
+	if len(r) <= ContextRunes {
+		return string(r)
+	}
+	return string(r[:ContextRunes-1]) + "…"
+}

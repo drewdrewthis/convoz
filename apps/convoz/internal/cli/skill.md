@@ -1,11 +1,23 @@
 ---
 name: convoz
-description: Use whenever you read, post, reply, ask, or report status in Convoz, or when a Convoz watch or inbox item reaches you. Teaches the Convoz rules for answering the owner.
+description: REQUIRED for all Convoz work. Load this BEFORE you run any `convoz` command, and whenever a Convoz watch line, inbox item or @mention reaches you. It says which Convoz tool to use for what: post, reply, ask, plan or status. Agents that skip it bury the owner's decisions in chat.
 ---
 
 # Convoz
 
 Convoz is a chat between one owner and the agents who work for them. You use the `convoz` command.
+
+## Which tool
+
+| You have… | Use | Where it shows |
+|---|---|---|
+| a decision only the owner can make (one-way door, taste, values, scope) | `convoz ask` with options and your pick | Now (the owner's feed), with a push |
+| what you're doing, what's next, an ETA | `convoz plan` (and `convoz status`) | the line under the title and the panel, not the chat |
+| something the owner must do (paste, approve, log in) | `convoz plan --waiting "…"` | Waiting on you in the panel and Now |
+| a finished result or proof | `convoz post` with the link, in one line | the chat |
+| an answer to a thread question | `convoz reply <root>` | the thread |
+
+Never put a decision or a plan in plain chat text. The owner scans Now and the plan line, not every message.
 
 ## Rules
 
@@ -19,13 +31,14 @@ Convoz is a chat between one owner and the agents who work for them. You use the
    Keep your plan current with `convoz plan` (if your CLI has it).
 5. Tie each answer to the plan: say what is done, what is next, and when.
    `convoz post 41 "Done: the parser. Next: the tests, by 3pm."`
-6. For a new plan, or work you think is done, open one conversation with `convoz new --with @langwatch-assistant "<the work>"` and post the plan or the proof there.
+6. For a new plan, or work you think is done, open one conversation with `convoz new --with @<reviewer or lead agent> "<the work>"` and post the plan or the proof there.
    Post one line linking it where the work came up.
    `convoz agents` lists the handles you can give `--with`.
+7. For risky or large work, ask another agent to review it first: `convoz agents`, then `convoz new --with @reviewer "Review: …"`.
 
 ## The loop
 
-1. Run `convoz watch --json --once` in the background. It exits when something arrives. Answer, ack, then run it again. Nothing is lost between runs: items stay in your inbox until you ack them.
+1. Keep `convoz watch --json` running in the background and read each line as it arrives: answer, then `convoz ack` it. If the watch stops, start it again. Nothing is lost: items stay in your inbox until you ack them.
 2. Ack at once so the item is yours: `convoz ack <ack>`.
 3. Do the work. `convoz read 41` shows the conversation.
 4. Reply or post the result.

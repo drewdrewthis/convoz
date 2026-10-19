@@ -32,9 +32,9 @@ How an agent works:
      convoz ask                              give the owner options
   6. convoz ack ID:TOKEN                     done; the item leaves the inbox
 Add --as HANDLE to a command, or set CONVOZ_AS, to say which agent you are.
-Run convoz watch --json --once in the background. It exits when something
-arrives. Answer, ack, then run it again. Nothing is lost between runs: items
-stay in your inbox until you ack them.
+Keep convoz watch --json running in the background and read each line as it
+arrives: answer, then convoz ack it. If the watch stops, start it again.
+Nothing is lost: items stay in your inbox until you ack them.
 For a new plan, or work you think is done, start a conversation with
 convoz new --with @agent "title" and post the plan or the proof there.
 convoz agents lists the agents you can name in --with.

@@ -367,6 +367,7 @@ func (s *Server) deliver(ctx context.Context, d pdb.DBTX, now time.Time, p authz
 		return nil, err
 	}
 	out := make([]wire.InboxItem, 0, len(items))
+	var placed []placedItem // the items that name a message of a place, for withContext
 	for _, it := range items {
 		if it.Reason == "membership" {
 			// The removal notice is exempt from the can-see check: the agent can no longer see the conversation (C-1).
@@ -435,9 +436,40 @@ func (s *Server) deliver(ctx context.Context, d pdb.DBTX, now time.Time, p authz
 		if it.ClaimToken != nil {
 			wi.ClaimToken = hex.EncodeToString(it.ClaimToken)
 		}
+		placed = append(placed, placedItem{at: len(out), messageID: m.ID, floor: floor})
 		out = append(out, wi)
 	}
-	return out, nil
+	return out, withContext(ctx, d, dir, out, placed)
+}
+
+// placedItem is an item in the deliver result and what withContext needs to say where its message sits.
+type placedItem struct {
+	at        int
+	messageID int64
+	floor     int64
+}
+
+// withContext sets ThreadTopic and Before on the items in placed, from one query for the whole batch. What the reader may not see
+// (a message at or under their floor) is left out, so the context never shows more than `convoz read` would.
+func withContext(ctx context.Context, d pdb.DBTX, dir directory, out []wire.InboxItem, placed []placedItem) error {
+	ids := make([]int64, len(placed))
+	for i, p := range placed {
+		ids[i] = p.messageID
+	}
+	around, err := message.AroundMessages(ctx, d, ids)
+	if err != nil {
+		return err
+	}
+	for _, p := range placed {
+		a := around[p.messageID]
+		if a.RootID > p.floor {
+			out[p.at].ThreadTopic = message.Excerpt(a.RootBody)
+		}
+		if text := message.Excerpt(a.BeforeBody); a.BeforeID > p.floor && text != "" {
+			out[p.at].Before = &wire.Before{Author: dir.person(a.BeforeAuthorID).Handle, Text: text}
+		}
+	}
+	return nil
 }
 
 // transcriptStateOf is the transcript state an item carries, a snapshot taken when it is delivered; "" for a message with no voice

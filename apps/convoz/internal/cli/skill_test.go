@@ -19,8 +19,8 @@ func TestSkillIsValidAndNamesRealCommands(t *testing.T) {
 	if !strings.Contains(front, "name: convoz\n") || !regexp.MustCompile(`(?m)^description: .{40,}`).MatchString(front) {
 		t.Errorf("frontmatter needs name: convoz and a description:\n%s", front)
 	}
-	if n := strings.Count(body, "\n"); n > 60 {
-		t.Errorf("body is %d lines, at most 60", n)
+	if n := strings.Count(body, "\n"); n > 70 {
+		t.Errorf("body is %d lines, at most 70", n)
 	}
 	named := regexp.MustCompile("`convoz ([a-z]+)")
 	for _, line := range strings.Split(body, "\n") {
