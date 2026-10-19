@@ -2594,6 +2594,11 @@ export interface components {
         };
         InboxResponse: {
             items: components["schemas"]["InboxItem"][];
+            /**
+             * Format: int64
+             * @description With `after`: the cursor the next poll of the same watch sends as `after`. Absent when 0.
+             */
+            cursor?: number;
         };
         ClaimRequest: {
             /** @description Default 20. */
@@ -4448,8 +4453,14 @@ export interface operations {
                 visibility?: string;
                 /** @description 1 lists the ready and claimed items and claims none; claims that ran out are merged back first. */
                 peek?: "1";
-                /** @description 0 leaves out the items this session already holds (`convoz watch`). */
+                /** @description 0 leaves out the items this session already holds. */
                 held?: "0";
+                /**
+                 * @description `convoz watch`: the `cursor` of the last answer this watch got, 0 on its first poll. Only the held items claimed after it come
+                 *     back, all of them, so a claim whose answer was lost, or that another loop of the same session made, comes back at once. The
+                 *     answer carries the next cursor. Overrides `held`.
+                 */
+                after?: number;
                 /** @description Claim only the items of this conversation. */
                 conv?: number;
             };

@@ -27,6 +27,7 @@ InboxResponse:
   required: [items]
   properties:
     items: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/InboxItem" } }
+    cursor: { type: integer, format: int64, description: "With `after`: the cursor the next poll of the same watch sends as `after`. Absent when 0." }
 ClaimRequest:
   type: object
   additionalProperties: false

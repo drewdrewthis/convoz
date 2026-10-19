@@ -22,7 +22,7 @@ const (
 )
 
 // Watch runs `convoz watch [--json]`: it long-polls the inbox and prints one line per item as soon as it is claimed,
-// then leaves the item in the inbox. The agent acks it with `convoz ack` after it has answered; if it never does,
+// then leaves the item in the inbox. Every claim of the session reaches it, even one made by a poll whose answer was lost. The agent acks it with `convoz ack` after it has answered; if it never does,
 // the claim runs out and the item comes back with a new token, and prints again.
 //
 // It exits 3 when the session ends and otherwise runs until it is stopped, riding out network errors.
@@ -39,10 +39,13 @@ func Watch(args []string, io IO) int {
 	}
 	poll := k.c.withTimeout((wire.MaxHoldSeconds + 15) * time.Second)
 	printed := map[string]bool{}
-	held := true // the first poll, and the first after an error, also returns claims whose answer was lost
+	// after is the cursor of the last answer: the server sends every claim of this session made since, also one whose answer
+	// was lost on the way (a silent retry of the transport hides that loss) and one another loop of the session made.
+	var after int64
+	held := true // for a server without after=: the first poll, and the first after an error, also return the held claims
 	backoff := watchBackoffFirst
 	for {
-		q := url.Values{"wait": {strconv.Itoa(wire.MaxHoldSeconds)}}
+		q := url.Values{"wait": {strconv.Itoa(wire.MaxHoldSeconds)}, "after": {strconv.FormatInt(after, 10)}}
 		if !held {
 			q.Set("held", "0")
 		}
@@ -59,6 +62,7 @@ func Watch(args []string, io IO) int {
 			continue
 		}
 		backoff, held = watchBackoffFirst, false
+		after = max(after, out.Cursor)
 		if len(printed) > printedMemory {
 			printed = map[string]bool{}
 		}

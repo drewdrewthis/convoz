@@ -15,7 +15,14 @@
       - { name: claim, in: query, description: At most this many items, 1 to 20 (default 20)., schema: { type: integer, minimum: 1, maximum: 20 } }
       - { name: visibility, in: query, description: "How long a claim holds, 30s to 30m (default 5m).", schema: { type: string } }
       - { name: peek, in: query, description: "1 lists the ready and claimed items and claims none; claims that ran out are merged back first.", schema: { type: string, enum: ["1"] } }
-      - { name: held, in: query, description: "0 leaves out the items this session already holds (`convoz watch`).", schema: { type: string, enum: ["0"] } }
+      - { name: held, in: query, description: "0 leaves out the items this session already holds.", schema: { type: string, enum: ["0"] } }
+      - name: after
+        in: query
+        description: |
+          `convoz watch`: the `cursor` of the last answer this watch got, 0 on its first poll. Only the held items claimed after it come
+          back, all of them, so a claim whose answer was lost, or that another loop of the same session made, comes back at once. The
+          answer carries the next cursor. Overrides `held`.
+        schema: { type: integer, format: int64, minimum: 0 }
       - { name: conv, in: query, description: Claim only the items of this conversation., schema: { type: integer, format: int64 } }
     responses:
       "200":

@@ -12,6 +12,9 @@ import {
   startWatch,
   watchLines,
 } from "../lib/chat.ts";
+import { machineVia } from "../lib/agent-wp7.ts";
+import type { Running } from "../lib/cli.ts";
+import { pollCut } from "../lib/poll-cut.ts";
 import { expect, scenario } from "../lib/scenario.ts";
 
 // The contract these bindings rely on is the comment block at the top of chat-api.spec.ts.
@@ -127,7 +130,50 @@ scenario("A two-line message stays on one watch line", { tag: ["@cli"] }, async 
   }
 });
 
-scenario("Watch leaves the item in the inbox until the agent acks it", { tag: ["@cli"] }, async ({ server }) => {
+scenario("A watch gets every item, even when two arrive together or a poll is cut", { tag: ["@cli", "@lossy"] }, async ({ server }, info) => {
+  info.setTimeout(90_000);
+  const w = await chatWorld(server, { agents: ["devtool"] });
+  const conv41 = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool"] });
+  const conv42 = await createConversation(w.owner, { title: "Release notes", participants: ["devtool"] });
+  const s = await startSession(w.box, "devtool", "watch");
+
+  // Given "convoz watch --json" runs as "devtool", and its link loses the answer of one poll without an error
+  const link = await pollCut(w.srv.target);
+  const via = await machineVia(link.url, w.box2.key, w.box, s.sid);
+  const watch = via.start(["watch", "--json", "--sid", s.sid], { timeoutMs: 60_000 });
+  let other: Running | undefined;
+  try {
+    // And the stream printed one line for the owner's first message (the next poll reuses the connection)
+    await ownerSays(w.owner, conv41, "first");
+    await watchLines(watch, 1, 3_000);
+
+    // When the owner's second message comes in the poll whose answer is lost
+    link.arm();
+    await ownerSays(w.owner, conv41, "second");
+    await link.cut;
+
+    // And another watch of the same session runs, and nobody reads what it prints
+    other = startWatch(w.box, s.sid);
+
+    // And the owner posts in conversations 41 and 42 at the same moment
+    await Promise.all([ownerSays(w.owner, conv41, "third"), ownerSays(w.owner, conv42, "fourth")]);
+
+    // Then the stream prints one line for each of the owner's messages within 3 seconds
+    await watchLines(watch, 4, 3_000).catch(() => []);
+    const bodies = watch
+      .stdout()
+      .split("\n")
+      .filter((l) => l !== "")
+      .map((l) => (JSON.parse(l) as { body: string }).body);
+    expect(bodies.sort()).toEqual(["first", "fourth", "second", "third"]);
+  } finally {
+    other?.stop();
+    watch.stop();
+    await link.close();
+  }
+});
+
+scenario("Watch leaves the item in the inbox until the agent acks it",{ tag: ["@cli"] }, async ({ server }) => {
   // Given "convoz watch --json" runs as "devtool"
   const w = await chatWorld(server, { agents: ["devtool"] });
   const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool"] });

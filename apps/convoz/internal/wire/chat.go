@@ -212,6 +212,8 @@ type InboxItem struct {
 // InboxResponse is GET /api/inbox.
 type InboxResponse struct {
 	Items []InboxItem `json:"items"`
+	// Cursor answers a poll with after=: the next poll of the same watch sends it back as after (0 is absent).
+	Cursor int64 `json:"cursor,omitempty"`
 }
 
 // ClaimRequest is POST /api/inbox/claim: N ready items (1 to 20, default 20) of one conversation (Conv) or of all.

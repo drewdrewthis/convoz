@@ -366,3 +366,63 @@ func TestAVoiceItemIsClaimedWhenTheWaitEnds(t *testing.T) {
 		t.Fatalf("after the wait the item is claimable: got %d", len(got))
 	}
 }
+
+// watchPoll is one poll of `convoz watch`: the held claims after the cursor `after`, then new ones, and the cursor to send next.
+func watchPoll(t *testing.T, s *pdb.Store, at time.Time, session, after int64) (items []inbox.Item, cursor int64) {
+	t.Helper()
+	run(t, s, func(ctx context.Context, d pdb.DBTX) {
+		var err error
+		items, err = inbox.Claim(ctx, d, at, inbox.Request{Identity: devtool, Session: session, N: inbox.MaxClaim, IncludeHeld: true, ByCursor: true, After: after})
+		if err == nil {
+			cursor, err = inbox.Cursor(ctx, d, devtool)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+	return items, cursor
+}
+
+func TestAClaimWhoseAnswerWasLostComesBackOnTheNextPollOfTheWatch(t *testing.T) {
+	s := seeded(t)
+	fan(t, s, t0, conv1, 1)
+	first, cursor := watchPoll(t, s, t0, sessA, 0)
+	fan(t, s, t0.Add(time.Second), conv2, 2)
+	lost, _ := watchPoll(t, s, t0.Add(time.Second), sessA, cursor) // its answer never reaches the watch
+	again, next := watchPoll(t, s, t0.Add(2*time.Second), sessA, cursor)
+	if len(first) != 1 || len(lost) != 1 || len(again) != 1 || again[0].ID != lost[0].ID || !bytes.Equal(again[0].ClaimToken, lost[0].ClaimToken) {
+		t.Fatalf("the lost claim comes back with its token: first %+v lost %+v again %+v", first, lost, again)
+	}
+	if got, _ := watchPoll(t, s, t0.Add(3*time.Second), sessA, next); len(got) != 0 {
+		t.Errorf("a claim the watch got is not sent again: %+v", got)
+	}
+}
+
+func TestAWatchGetsTheClaimsAnotherLoopOfItsSessionMade(t *testing.T) {
+	s := seeded(t)
+	_, cursor := watchPoll(t, s, t0, sessA, 0)
+	fan(t, s, t0.Add(time.Second), conv1, 1)
+	taken, _ := watchPoll(t, s, t0.Add(time.Second), sessA, cursor) // a second watch of the session, whose output nobody reads
+	got, _ := watchPoll(t, s, t0.Add(2*time.Second), sessA, cursor)
+	if len(taken) != 1 || len(got) != 1 || got[0].ID != taken[0].ID {
+		t.Errorf("the live watch gets the other loop's claim: taken %+v got %+v", taken, got)
+	}
+	if other, _ := watchPoll(t, s, t0.Add(2*time.Second), sessB, cursor); len(other) != 0 {
+		t.Errorf("another session never gets it: %+v", other)
+	}
+}
+
+func TestAClaimNumberIsNeverHandedOutTwiceEvenAfterItsItemIsGone(t *testing.T) {
+	s := seeded(t)
+	fan(t, s, t0, conv1, 1)
+	_, cursor := watchPoll(t, s, t0, sessA, 0)
+	fan(t, s, t0.Add(time.Second), conv1, 2) // a newer ready item that the released claim merges into, and is deleted
+	run(t, s, func(ctx context.Context, d pdb.DBTX) {
+		if _, err := inbox.Release(ctx, d, t0.Add(2*time.Second), sessA); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if got, next := watchPoll(t, s, t0.Add(3*time.Second), sessB, cursor); len(got) != 1 || next <= cursor {
+		t.Errorf("the merged item is claimed under a new number: %+v cursor %d after %d", got, next, cursor)
+	}
+}
