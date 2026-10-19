@@ -61,10 +61,11 @@ async function agentDrafts(box: CliMachine, sid: string, conv: number, extra: st
 
 /** What the agent reads once the owner answered: the inbox item and the line of its watch, each with the reply of the ask. */
 async function agentReads(w: World, sid: string, ask: number): Promise<{ inbox: unknown; watch: unknown }> {
+  // Peek first: a watch finishes what it prints (owner msg 821, "Probably don't need an ack"), so the inbox is empty after it.
+  const item = (await inboxItems(w.box, sid, ["--peek"])).find((i) => i.message.id === ask) as unknown as { reason: string; message: { ask?: Draftable } };
   const watch = startWatch(w.box, sid);
   try {
     const lines = await watchLines(watch, 1, 10_000);
-    const item = (await inboxItems(w.box, sid, ["--peek"])).find((i) => i.message.id === ask) as unknown as { reason: string; message: { ask?: Draftable } };
     expect(item.reason).toBe("ask_resolved");
     return { inbox: item.message.ask?.reply, watch: (lines[0] as unknown as { reply?: unknown }).reply };
   } finally {

@@ -101,9 +101,10 @@ func manEntry(b *strings.Builder, name, summary, body string) {
 	fmt.Fprintf(b, ".SS %s\n%s\n.nf\n%s\n.fi\n", name, roff(summary), roffLines(body))
 }
 
-// roff makes text safe for a roff line: a backslash and a hyphen are escaped, and a line may not start with a control character.
+// roff makes text safe for a roff line: a backslash and a hyphen are escaped, "…" becomes "..." (groff has no glyph for it on a
+// terminal), and a line may not start with a control character.
 func roff(s string) string {
-	s = strings.NewReplacer(`\`, `\e`, "-", `\-`).Replace(s)
+	s = strings.NewReplacer(`\`, `\e`, "-", `\-`, "…", "...").Replace(s)
 	if strings.HasPrefix(s, ".") || strings.HasPrefix(s, "'") {
 		s = `\&` + s
 	}
