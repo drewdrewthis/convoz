@@ -13,7 +13,6 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/inbox"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/plan"
-	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
 
@@ -69,23 +68,34 @@ func (s *Server) endStretch(ctx context.Context, agent int64) {
 	if err != nil || !open {
 		return
 	}
+	now := s.Clock.Now()
 	var convs []int64
 	err = s.Store.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) (err error) {
-		convs, err = plan.EndStretch(ctx, tx.DBTX(), agent)
-		return err
+		if convs, err = plan.EndStretch(ctx, tx.DBTX(), agent); err != nil {
+			return err
+		}
+		for _, c := range convs {
+			if err := planChanged(ctx, tx.DBTX(), now, c); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		s.Log.Printf("plan: end stretch: %v", err)
 		return
 	}
-	for _, c := range convs {
-		s.publishPlan(c)
+	if len(convs) > 0 {
+		s.Bus.Notify()
 	}
 }
 
-// publishPlan tells the readers of a conversation to read its plans again.
-func (s *Server) publishPlan(conv int64) {
-	s.Bus.Publish(platform.Frame{Event: "plan.changed", Data: planFrame(conv), Conversation: conv})
+// planChanged stores a plan.changed event: the readers of the conversation read its plans again. It is stored, not a live frame,
+// because a line that changes with time or liveness has no other trace: a reader whose stream opened a moment later would keep the
+// old line, and the delta it reads on open brings only stored events.
+func planChanged(ctx context.Context, d pdb.DBTX, now time.Time, conv int64) error {
+	_, err := event.Write(ctx, d, now, event.Entry{Type: eventPlanChanged, Conversation: conv, Payload: map[string]any{"conversation_id": conv}})
+	return err
 }
 
 // sweepPlans runs the plan jobs that follow the clock: it nudges the agents whose plan is overdue (one status_due item per nudge, at
@@ -207,6 +217,9 @@ func (s *Server) nudgeLate(ctx context.Context) error {
 			if err := inbox.StatusDue(ctx, d, now, p.Agent, p.Conversation, seq); err != nil {
 				return err
 			}
+			if err := planChanged(ctx, d, now, p.Conversation); err != nil { // the line turns Late now, not at the owner's next read
+				return err
+			}
 			nudged = true
 			return plan.RecordNudge(ctx, d, p, anchor, nowMs)
 		})
@@ -215,7 +228,6 @@ func (s *Server) nudgeLate(ctx context.Context) error {
 		}
 		if nudged {
 			s.Bus.Notify(p.Agent)
-			s.publishPlan(p.Conversation) // the line turns Late now, not at the owner's next read
 		}
 	}
 	return nil
@@ -253,6 +265,9 @@ func (s *Server) noteUnresponsive(ctx context.Context) error {
 			if _, _, err := sayLine(ctx, d, now, 0, u.Conversation, line); err != nil {
 				return err
 			}
+			if err := planChanged(ctx, d, now, u.Conversation); err != nil {
+				return err
+			}
 			wrote = true
 			return plan.Noted(ctx, d, now, u.Identity, u.Conversation)
 		})
@@ -261,7 +276,6 @@ func (s *Server) noteUnresponsive(ctx context.Context) error {
 		}
 		if wrote {
 			s.Bus.Notify()
-			s.publishPlan(u.Conversation)
 		}
 	}
 	return nil

@@ -342,7 +342,7 @@ func (s *Server) board(ctx context.Context, c *call, conv int64) (wire.PlanBoard
 	return out, nil
 }
 
-// planFrame is the live data of a "plan.changed" frame: which conversation to read again.
+// planFrame is the data of a "plan.changed" frame: which conversation to read again.
 func planFrame(conv int64) []byte {
 	data, _ := json.Marshal(map[string]any{"conversation_id": conv})
 	return data
