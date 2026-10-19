@@ -246,9 +246,11 @@ async function matchesElement(page: import("@playwright/test").Page, screen: str
       },
       MASKS[screen] ?? [],
     );
-    const cdp = await page.context().newCDPSession(page); await cdp.send("Performance.enable"); const mt = async () => Object.fromEntries((await cdp.send("Performance.getMetrics")).metrics.filter((m) => /Duration$/.test(m.name)).map((m) => [m.name.replace("Duration", ""), +m.value.toFixed(2)])); const m0 = await mt();
+    // Headless Chromium draws a frame only when a shot asks for one, and the first frame after the colour scheme changes repaints the
+    // whole desktop canvas (its window-sized gradients): seconds of software raster on a loaded machine. This shot pays for that draw
+    // (and keeps the app shot when PARITY_ACTUAL_DIR is set), so the compared shot starts on a page that has drawn the scheme.
     const dir = process.env.PARITY_ACTUAL_DIR;
-    if (dir) await el.screenshot({ path: `${dir}/${screen}-${scheme}.png`, animations: "disabled", caret: "hide", scale: "device" });
+    await el.screenshot({ path: dir ? `${dir}/${screen}-${scheme}.png` : undefined, animations: "disabled", caret: "hide", scale: "device" });
     await expect(el).toHaveScreenshot(["prototype", `${screen}-${scheme}.png`], SHOT);
   }
 }
