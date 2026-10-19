@@ -257,7 +257,7 @@ scenario("CI fails a boundary break", { tag: ["@cli"] }, async ({}, info) => {
 function copyWeb(): string {
   const root = scratch("convoz-web-lint-");
   const skip = (src: string) => !/(^|\/)(node_modules|ladle-build|report)(\/|$)/.test(path.relative(repoRoot, src));
-  for (const rel of ["eslint.config.js", "package.json", "apps/web", "packages"]) {
+  for (const rel of ["eslint.config.js", "eslint-suppressions.json", "package.json", "apps/web", "packages"]) {
     fs.cpSync(path.join(repoRoot, rel), path.join(root, rel), { recursive: true, filter: skip });
   }
   for (const rel of [".", "apps/web", ...fs.readdirSync(path.join(repoRoot, "packages")).map((p) => `packages/${p}`)]) {

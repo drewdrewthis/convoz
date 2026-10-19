@@ -4,6 +4,7 @@ import { call, client, fmtDate, humanError, stepUp } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { StepUpSheet, useSheets } from "../../shared/sheets.tsx";
 import { AddPasskeySheet } from "./AddPasskeySheet.tsx";
+import { Button } from "@convoz/ui/Button";
 
 const VIA: Record<string, string> = { bootstrap: "Added with the setup link", session: "Added in settings", recovery: "Added with a recovery code" };
 
@@ -60,16 +61,16 @@ export function Passkeys() {
               <div className="sub">{`${VIA[p.registered_via] || "Added"}${fresh.has(p.id) ? " · Added just now" : ""}`}</div>
               <div className="sub">{p.last_used_at ? `Last used ${fmtDate(p.last_used_at)}` : "Never used"}</div>
             </div>
-            <button className="btn small" type="button" onClick={() => remove(p)}>
+            <Button className="flex-none" size="small" onClick={() => remove(p)}>
               Remove passkey
-            </button>
+            </Button>
           </li>
         ))}
       </ul>
       <div className="actions">
-        <button id="add" className="btn primary" type="button" onClick={() => open((close) => <AddPasskeySheet close={close} onAdded={() => void load()} />)}>
+        <Button id="add" variant="primary" onClick={() => open((close) => <AddPasskeySheet close={close} onAdded={() => void load()} />)}>
           Add a passkey
-        </button>
+        </Button>
       </div>
       {sheet}
     </>

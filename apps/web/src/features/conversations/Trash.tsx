@@ -4,6 +4,7 @@ import { call, client, humanError } from "../../shared/api.ts";
 import { stripCf } from "../../shared/chat.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { restore } from "./actions.ts";
+import { Button } from "@convoz/ui/Button";
 
 const DAY = 86_400_000;
 
@@ -44,9 +45,9 @@ export function Trash() {
               <span className="trashtitle">{stripCf(c.title ?? "") || "New conversation"}</span>
               <span className="sub trashwhen">{c.purges_at ? forever(c.purges_at) : ""}</span>
             </span>
-            <button type="button" className="btn small" aria-label={`Restore ${stripCf(c.title ?? "") || "New conversation"}`} onClick={() => void back(c)}>
+            <Button className="flex-none" size="small" aria-label={`Restore ${stripCf(c.title ?? "") || "New conversation"}`} onClick={() => void back(c)}>
               Restore
-            </button>
+            </Button>
           </li>
         ))}
       </ul>

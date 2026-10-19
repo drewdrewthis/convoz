@@ -4,6 +4,7 @@ import { useCeremony } from "../../shared/ceremony.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { data } from "../../shared/data.ts";
 import { loginTicket, supported } from "../../shared/tickets.ts";
+import { Button } from "@convoz/ui/Button";
 
 /** SignIn is /signin: one passkey prompt, then back to ?next= (Now by default). A browser already signed in goes on at once. */
 export function SignIn() {
@@ -44,12 +45,12 @@ export function SignIn() {
     <>
       <p className="lead">Use the passkey on this device.</p>
       <div className="actions">
-        <button id="signin" className="btn primary" type="button" {...ceremony} disabled={!canUse || ceremony.disabled}>
+        <Button id="signin" variant="primary" {...ceremony} disabled={!canUse || ceremony.disabled}>
           Sign in with a passkey
-        </button>
-        <a className="btn quiet" href="/recover">
+        </Button>
+        <Button variant="quiet" href="/recover">
           Lost your passkey? Use a recovery code
-        </a>
+        </Button>
       </div>
     </>
   );

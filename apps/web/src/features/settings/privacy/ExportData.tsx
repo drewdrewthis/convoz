@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { call, client, humanError, stepUp } from "../../../shared/api.ts";
 import { useNotice } from "../../../shared/notice.tsx";
 import { StepUpSheet, useSheets } from "../../../shared/sheets.tsx";
+import { Button } from "@convoz/ui/Button";
 
 type Job = { id: string; status: "running" | "done" | "failed" };
 
@@ -43,17 +44,17 @@ export function ExportData() {
       <p className="lead">Export your data</p>
       <p className="muted">The file stays ready for one hour. Nothing is kept on the server after that.</p>
       <div className="actions">
-        <button className="btn primary" type="button" onClick={start} disabled={job?.status === "running"}>
+        <Button variant="primary" onClick={start} disabled={job?.status === "running"}>
           Export my data
-        </button>
+        </Button>
       </div>
       {job?.status === "running" ? <p role="status">Preparing your export.</p> : null}
       {job?.status === "failed" ? <p role="alert">The export failed. Try again.</p> : null}
       {job?.status === "done" ? (
         <div className="actions">
-          <a className="btn primary" href={`/api/me/export/${job.id}?download=1`} download>
+          <Button variant="primary" href={`/api/me/export/${job.id}?download=1`} download>
             Download export
-          </a>
+          </Button>
         </div>
       ) : null}
       {sheet}

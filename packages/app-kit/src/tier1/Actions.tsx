@@ -1,6 +1,7 @@
 import { useState, type CSSProperties } from "react";
 import type { AppContext, FormField, FormProps, PickerProps } from "../types.ts";
 import { box, muted } from "./tone.ts";
+import { Button } from "@convoz/ui/Button";
 
 const chip = (on: boolean): CSSProperties => ({ minHeight: 36, padding: "0 14px", border: `1px solid ${on ? "var(--color-accent)" : "var(--color-border)"}`, borderRadius: 999, background: on ? "var(--color-soft)" : "transparent", color: "var(--color-text)", font: "inherit", fontWeight: 500 });
 
@@ -39,9 +40,9 @@ export function Picker({ props, title, ctx }: { props: PickerProps; title?: stri
         })}
       </div>
       {live ? (
-        <button type="button" className="btn small" style={{ alignSelf: "flex-start" }} disabled={sel.length < min} onClick={() => ctx.onResult({ source: "picker", summary: `Picked ${sel.map(label).join(", ")}`, value: { selected: sel }, rows: [["Picked", sel.map(label).join(", ")]] })}>
+        <Button size="small" className="self-start" disabled={sel.length < min} onClick={() => ctx.onResult({ source: "picker", summary: `Picked ${sel.map(label).join(", ")}`, value: { selected: sel }, rows: [["Picked", sel.map(label).join(", ")]] })}>
           {props.submitLabel ?? "Send"}
-        </button>
+        </Button>
       ) : null}
     </div>
   );
@@ -112,9 +113,9 @@ export function Form({ props, title, ctx }: { props: FormProps; title?: string; 
       ))}
       {err ? <p role="alert" style={{ margin: 0, color: "var(--color-danger)" }}>{err}</p> : null}
       {!ctx.onAsk ? (
-        <button type="submit" className="btn small" style={{ alignSelf: "flex-start" }}>
+        <Button type="submit" size="small" className="self-start">
           {props.submitLabel}
-        </button>
+        </Button>
       ) : null}
     </form>
   );

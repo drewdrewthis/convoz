@@ -3,6 +3,7 @@ import { stripCf } from "../../shared/chat.ts";
 import { humanError } from "../../shared/api.ts";
 import { toast } from "./toast.ts";
 import { unpinMessage } from "./actions.ts";
+import { Button } from "@convoz/ui/Button";
 
 /** PinnedList is "Pinned in this conversation": the messages the owner pinned, newest pin first, each a link back to the message. */
 export function PinnedList({ row }: { row: Conversation }) {
@@ -20,9 +21,9 @@ export function PinnedList({ row }: { row: Conversation }) {
                 <span className="sub">{m.author.kind === "agent" ? `@${m.author.handle}` : m.author.display_name || m.author.handle}</span>
                 <span>{stripCf(m.body)}</span>
               </a>
-              <button type="button" className="btn small quiet" aria-label="Unpin message" onClick={() => unpinMessage(row.id, m.id).catch((err) => toast(humanError(err)))}>
+              <Button variant="quiet" size="small" aria-label="Unpin message" onClick={() => unpinMessage(row.id, m.id).catch((err) => toast(humanError(err)))}>
                 Unpin
-              </button>
+              </Button>
             </li>
           ))}
         </ul>

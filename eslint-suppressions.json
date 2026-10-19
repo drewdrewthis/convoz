@@ -1,0 +1,396 @@
+{
+  "apps/web/src/app/ErrorBoundary.tsx": {
+    "convoz/no-raw-button": {
+      "count": 1
+    }
+  },
+  "apps/web/src/app/Status.tsx": {
+    "convoz/no-raw-button": {
+      "count": 1
+    }
+  },
+  "apps/web/src/app/frames.tsx": {
+    "convoz/no-raw-button": {
+      "count": 2
+    }
+  },
+  "apps/web/src/features/apps-host/ConfirmSheet.tsx": {
+    "convoz/no-style-prop": {
+      "count": 5
+    }
+  },
+  "apps/web/src/features/apps-host/FrameHost.tsx": {
+    "convoz/no-style-prop": {
+      "count": 1
+    },
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/apps-host/index.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/auth/Recover.tsx": {
+    "convoz/no-raw-input": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/call/CallButton.tsx": {
+    "convoz/no-raw-button": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/call/index.ts": {
+    "no-restricted-imports": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/composer/AttachmentList.tsx": {
+    "convoz/no-raw-button": {
+      "count": 2
+    },
+    "convoz/no-style-prop": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/composer/Composer.tsx": {
+    "convoz/no-raw-button": {
+      "count": 5
+    },
+    "convoz/no-raw-input": {
+      "count": 1
+    },
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/conversations/AddAgentSheet.tsx": {
+    "convoz/no-raw-button": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/conversations/Conversation.tsx": {
+    "convoz/no-raw-button": {
+      "count": 1
+    },
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/conversations/Conversations.tsx": {
+    "convoz/no-raw-button": {
+      "count": 8
+    },
+    "convoz/no-style-prop": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/conversations/Details.tsx": {
+    "convoz/no-raw-button": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/conversations/Markdown.tsx": {
+    "convoz/no-raw-button": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/conversations/PlanLine.tsx": {
+    "convoz/no-raw-button": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/conversations/PlanSections.tsx": {
+    "convoz/no-raw-button": {
+      "count": 11
+    },
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/conversations/Row.tsx": {
+    "convoz/no-raw-button": {
+      "count": 1
+    },
+    "convoz/no-style-prop": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/conversations/Transcript.tsx": {
+    "convoz/no-raw-button": {
+      "count": 3
+    },
+    "convoz/no-style-prop": {
+      "count": 2
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "react-hooks/exhaustive-deps": {
+      "count": 6
+    }
+  },
+  "apps/web/src/features/conversations/VirtualList.tsx": {
+    "convoz/no-style-prop": {
+      "count": 2
+    }
+  },
+  "apps/web/src/features/conversations/messages/LinkPreview.tsx": {
+    "convoz/no-raw-button": {
+      "count": 3
+    }
+  },
+  "apps/web/src/features/conversations/messages/MessageMenu.tsx": {
+    "convoz/no-raw-button": {
+      "count": 7
+    }
+  },
+  "apps/web/src/features/conversations/messages/PlanNote.tsx": {
+    "convoz/no-raw-button": {
+      "count": 2
+    }
+  },
+  "apps/web/src/features/conversations/messages/Uploads.tsx": {
+    "convoz/no-raw-button": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/crew/AgentProfile.tsx": {
+    "convoz/no-raw-button": {
+      "count": 1
+    },
+    "convoz/no-raw-input": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/crew/Crew.tsx": {
+    "convoz/no-raw-button": {
+      "count": 3
+    },
+    "convoz/no-raw-input": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/notifications/NotificationSettings.tsx": {
+    "convoz/no-raw-button": {
+      "count": 1
+    },
+    "convoz/no-raw-input": {
+      "count": 7
+    }
+  },
+  "apps/web/src/features/notifications/PushBanner.tsx": {
+    "convoz/no-raw-button": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/now/Now.tsx": {
+    "convoz/no-raw-button": {
+      "count": 3
+    },
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/now/Unread.tsx": {
+    "convoz/no-raw-button": {
+      "count": 1
+    },
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/onboarding/Bootstrap.tsx": {
+    "convoz/no-raw-input": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/pins-stars/StarButton.tsx": {
+    "convoz/no-raw-button": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/pins-stars/Toast.tsx": {
+    "convoz/no-raw-button": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/rail/Logo.tsx": {
+    "convoz/no-style-prop": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/rail/Sidebar.tsx": {
+    "convoz/no-raw-button": {
+      "count": 6
+    },
+    "convoz/no-style-prop": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/rail/icons.tsx": {
+    "convoz/no-style-prop": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/search/Host.tsx": {
+    "convoz/no-raw-button": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/search/Overlay.tsx": {
+    "convoz/no-raw-button": {
+      "count": 4
+    },
+    "convoz/no-raw-input": {
+      "count": 1
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "react-hooks/exhaustive-deps": {
+      "count": 2
+    }
+  },
+  "apps/web/src/features/settings/Account.tsx": {
+    "convoz/no-raw-button": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/settings/Advanced.tsx": {
+    "convoz/no-raw-button": {
+      "count": 1
+    },
+    "convoz/no-raw-input": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/settings/Privacy.tsx": {
+    "convoz/no-raw-button": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/settings/Settings.tsx": {
+    "convoz/no-raw-button": {
+      "count": 1
+    },
+    "convoz/no-raw-input": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/threads/ReplyLine.tsx": {
+    "convoz/no-raw-button": {
+      "count": 2
+    }
+  },
+  "apps/web/src/features/threads/ThreadPane.tsx": {
+    "convoz/no-raw-button": {
+      "count": 5
+    },
+    "convoz/no-raw-input": {
+      "count": 2
+    },
+    "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/threads/ThreadRows.tsx": {
+    "convoz/no-raw-button": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/voice/VoiceNote.tsx": {
+    "convoz/no-raw-button": {
+      "count": 2
+    },
+    "convoz/no-style-prop": {
+      "count": 1
+    }
+  },
+  "apps/web/src/features/voice/recorder.tsx": {
+    "convoz/no-raw-button": {
+      "count": 2
+    }
+  },
+  "apps/web/vite.config.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "packages/app-kit/src/AskCard.tsx": {
+    "convoz/no-raw-button": {
+      "count": 16
+    },
+    "convoz/no-raw-input": {
+      "count": 1
+    },
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "packages/app-kit/src/DraftReview.tsx": {
+    "convoz/no-raw-button": {
+      "count": 2
+    }
+  },
+  "packages/app-kit/src/tier1/Actions.tsx": {
+    "convoz/no-raw-button": {
+      "count": 2
+    },
+    "convoz/no-raw-input": {
+      "count": 4
+    },
+    "convoz/no-style-prop": {
+      "count": 14
+    }
+  },
+  "packages/app-kit/src/tier1/Chart.tsx": {
+    "convoz/no-style-prop": {
+      "count": 12
+    }
+  },
+  "packages/app-kit/src/tier1/Code.tsx": {
+    "convoz/no-raw-button": {
+      "count": 1
+    },
+    "convoz/no-style-prop": {
+      "count": 11
+    }
+  },
+  "packages/app-kit/src/tier1/Gallery.tsx": {
+    "convoz/no-raw-input": {
+      "count": 1
+    },
+    "convoz/no-style-prop": {
+      "count": 13
+    }
+  },
+  "packages/app-kit/src/tier1/Simple.tsx": {
+    "convoz/no-raw-input": {
+      "count": 1
+    },
+    "convoz/no-style-prop": {
+      "count": 15
+    }
+  },
+  "packages/app-kit/src/tier1/Table.tsx": {
+    "convoz/no-raw-button": {
+      "count": 1
+    },
+    "convoz/no-style-prop": {
+      "count": 7
+    }
+  },
+  "packages/app-kit/src/validate.ts": {
+    "max-lines": {
+      "count": 1
+    }
+  },
+  "packages/ui/src/icons.stories.tsx": {
+    "convoz/no-style-prop": {
+      "count": 1
+    }
+  }
+}

@@ -10,6 +10,7 @@ import { ChevronIcon, groups, moveRow, setMute, setStar, stepRow, titleOf, type 
 import { toast } from "../pins-stars/index.ts";
 import { markAllRead } from "./actions.ts";
 import { Row, type ReorderMode } from "./Row.tsx";
+import { Button } from "@convoz/ui/Button";
 
 const VirtualList = lazy(() => import("./VirtualList.tsx"));
 
@@ -138,9 +139,9 @@ export function Conversations() {
       <div id="chats-empty" className="emptystate" hidden={!ready || rows.length !== 0}>
         <ChatIcon />
         <p className="lead">No conversations yet. Start one and type @ to bring in an agent.</p>
-        <a className="btn primary" href="/chats/new">
+        <Button variant="primary" className="mt-8 min-w-[12rem] w-auto!" href="/chats/new">
           New conversation
-        </a>
+        </Button>
       </div>
     </div>
   );

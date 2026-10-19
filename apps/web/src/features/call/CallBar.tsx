@@ -1,4 +1,5 @@
 import { useCall } from "./store.ts";
+import { Button } from "@convoz/ui/Button";
 
 /** CallBar is the call sheet: under the title bar, so the messages and the box stay in reach. A status line, Mute and Hang up. */
 export function CallBar({ conversationId }: { conversationId: number }) {
@@ -10,17 +11,17 @@ export function CallBar({ conversationId }: { conversationId: number }) {
         {status}
       </p>
       {ended ? (
-        <button type="button" className="btn small" onClick={hangUp}>
+        <Button className="flex-none" size="small" onClick={hangUp}>
           Close
-        </button>
+        </Button>
       ) : (
         <>
-          <button type="button" className="btn small" aria-pressed={muted} onClick={toggleMute}>
+          <Button className="flex-none" size="small" aria-pressed={muted} onClick={toggleMute}>
             {muted ? "Unmute" : "Mute"}
-          </button>
-          <button type="button" className="btn small danger" onClick={hangUp}>
+          </Button>
+          <Button className="flex-none" variant="danger" size="small" onClick={hangUp}>
             Hang up
-          </button>
+          </Button>
         </>
       )}
     </section>

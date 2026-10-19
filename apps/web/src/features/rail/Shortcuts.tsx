@@ -1,6 +1,7 @@
 import { Sheet } from "@convoz/ui/Sheet";
 import { useEffect } from "react";
 import { create } from "zustand";
+import { Button } from "@convoz/ui/Button";
 
 /** Every key the app answers to, for the "Keyboard shortcuts" dialog. Keep it equal to what the handlers below and the pages do. */
 export const SHORTCUTS: readonly { keys: string; does: string }[] = [
@@ -51,9 +52,9 @@ export function ShortcutsHost() {
       title="Keyboard shortcuts"
       onClose={() => set(false)}
       actions={
-        <button type="button" className="btn quiet" onClick={() => set(false)}>
+        <Button variant="quiet" onClick={() => set(false)}>
           Close
-        </button>
+        </Button>
       }
     >
       <p className="muted">Cmd is Ctrl on Windows and Linux.</p>

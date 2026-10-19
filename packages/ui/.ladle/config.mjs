@@ -2,4 +2,5 @@
 export default {
   stories: "src/**/*.stories.tsx",
   outDir: "ladle-build",
+  viteConfig: ".ladle/vite.config.ts",
 };

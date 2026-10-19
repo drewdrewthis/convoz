@@ -1,0 +1,64 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "jsx-a11y", "typescript", "import", "oxc", "unicorn"],
+  "categories": { "correctness": "error", "suspicious": "error" },
+  "ignorePatterns": ["**/node_modules/**", "**/dist/**", "**/ladle-build/**", "apps/convoz/**", "e2e/**", "specs/**", "packages/api-client/src/schema.ts"],
+  "rules": {
+    // The JSX runtime is automatic (tsconfig jsx: react-jsx), so React is never in scope.
+    "react/react-in-jsx-scope": "off",
+    // React Compiler checks. The app does not use the compiler; these patterns (a ref read in a handler, Date.now() in an effect-fed memo, a store read after render) are deliberate and the e2e specs drive them.
+    "react/refs": "off",
+    "react/purity": "off",
+    "react/set-state-in-effect": "off",
+    "react/immutability": "off",
+    "react/preserve-manual-memoization": "off",
+    "react/incompatible-library": "off",
+    "react/memo-dependencies": "off",
+    "react/hooks": "off",
+    // Hook dependencies are checked by ESLint (react-hooks/exhaustive-deps, an error, with today's findings in eslint-suppressions.json); the Oxlint copies would report the same findings twice.
+    "react/exhaustive-effect-dependencies": "off",
+    "react-hooks/exhaustive-deps": "off",
+    // Render-prop callbacks (bubbles, deleteSheet) are not components.
+    "react/no-unstable-nested-components": "off",
+    // The markup follows the prototype; a native details or fieldset would change the drawn boxes.
+    "jsx-a11y/prefer-tag-over-role": "off",
+    // role="list" on a list with list-style none keeps its list semantics in Safari with VoiceOver.
+    "jsx-a11y/no-redundant-roles": "off",
+    // Containers take the bubbled key and click events (menus, sheets, rail rows); the focus and the roles live on the controls inside them.
+    "jsx-a11y/no-noninteractive-element-interactions": "off",
+    "jsx-a11y/no-static-element-interactions": "off",
+    "jsx-a11y/click-events-have-key-events": "off",
+    // The label of these controls is in a child span or a child component, which the rule cannot see.
+    "jsx-a11y/control-has-associated-label": "off",
+    // A native checkbox with role="switch" carries its state in `checked`.
+    "jsx-a11y/role-has-required-aria-props": "off",
+    // A sheet or a field moves focus on open on purpose: the owner just asked for it.
+    "jsx-a11y/no-autofocus": "off",
+    // The mention list marks its active option with aria-selected on a button inside a presentation row (listbox pattern of the prototype).
+    "jsx-a11y/role-supports-aria-props": "off",
+    // A scroll region takes focus so the keyboard can scroll it.
+    "jsx-a11y/no-noninteractive-tabindex": "off",
+    // A voice note is audio the owner recorded; there is no transcript track to point at.
+    "jsx-a11y/media-has-caption": "off",
+    // Sorting and reversing a list the function owns; the result is the same as toSorted and no other holder sees the array.
+    "unicorn/no-array-sort": "off",
+    "unicorn/no-array-reverse": "off",
+    // Style: a helper sits next to its only caller.
+    "unicorn/consistent-function-scoping": "off",
+    // Style: shadowed names are short handler parameters (e, err, check); TypeScript catches the harmful cases.
+    "eslint/no-shadow": "off",
+    // Stylesheets and side-effect modules are imported on purpose.
+    "import/no-unassigned-import": "off",
+    // XMLHttpRequest, FileReader and similar objects have one owner, so the on-handler cannot be overwritten by another.
+    "unicorn/prefer-add-event-listener": "off",
+    // These patterns strip control characters from input on purpose.
+    "eslint/no-control-regex": "off",
+    "eslint/no-misleading-character-class": "off",
+    // Client.postMessage of a service worker takes no targetOrigin.
+    "unicorn/require-post-message-target-origin": "off",
+    // Build-time globals (__BUILD__, __WB_MANIFEST) are named by their tools.
+    "eslint/no-underscore-dangle": "off",
+    // The loop flags are set from callbacks, which the rule does not follow.
+    "eslint/no-unmodified-loop-condition": "off"
+  }
+}

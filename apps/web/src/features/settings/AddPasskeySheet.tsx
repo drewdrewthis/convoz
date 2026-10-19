@@ -4,6 +4,7 @@ import { ApiError, call, client, humanError } from "../../shared/api.ts";
 import { useCeremony } from "../../shared/ceremony.ts";
 import { CancelButton } from "../../shared/sheets.tsx";
 import { finishStepUp, registerTicket, stepUpTicket, type TicketLike } from "../../shared/tickets.ts";
+import { Button } from "@convoz/ui/Button";
 
 /**
  * AddPasskeySheet adds a passkey in two taps, one ceremony each (iOS allows one per tap): tap 1 "Confirm it's you" (a get),
@@ -85,9 +86,9 @@ export function AddPasskeySheet({ close, onAdded }: { close: () => void; onAdded
       onClose={close}
       actions={
         <>
-          <button className="btn primary" type="button" {...ceremony}>
+          <Button variant="primary" {...ceremony}>
             {phase === "check" ? "Confirm it's you" : "Create the new passkey"}
-          </button>
+          </Button>
           <CancelButton onClick={close} />
         </>
       }

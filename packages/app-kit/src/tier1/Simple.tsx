@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ChecklistProps, AppContext, KvProps, ProgressProps } from "../types.ts";
 import { box, muted, toneColor } from "./tone.ts";
+import { Button } from "@convoz/ui/Button";
 
 /** Kv shows key and value pairs. */
 export function Kv({ props }: { props: KvProps }) {
@@ -78,18 +79,17 @@ export function Checklist({ props, ctx }: { props: ChecklistProps; ctx: AppConte
         ))}
       </ul>
       {select && !ctx.onAsk ? (
-        <button
-          type="button"
-          className="btn small"
+        <Button
+          size="small"
           disabled={count < min}
-          style={{ marginTop: 8 }}
+          className="mt-8"
           onClick={() => {
             const checked = props.items.filter((i) => ticked.has(i.id)).map((i) => i.id);
             ctx.onResult({ source: "checklist", summary: `Ticked ${checked.length} of ${props.items.length}: ${props.items.filter((i) => ticked.has(i.id)).map((i) => i.label).join(", ") || "none"}`.slice(0, 280), value: { checked } });
           }}
         >
           {props.submitLabel ?? "Send"}
-        </button>
+        </Button>
       ) : null}
     </div>
   );

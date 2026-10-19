@@ -7,6 +7,7 @@ import { humanError } from "./api.ts";
 import { useCeremony } from "./ceremony.ts";
 import { useNotice } from "./notice.tsx";
 import { finishStepUp, stepUpTicket } from "./tickets.ts";
+import { Button } from "@convoz/ui/Button";
 
 /**
  * useSheets holds the sheets a page shows (one, or a second over it: a machine key over the check that revealed it). Each
@@ -31,9 +32,9 @@ export function useSheets() {
 
 /** cancelButton closes the sheet it is in. */
 export const CancelButton = ({ onClick }: { onClick: () => void }) => (
-  <button className="btn quiet" type="button" onClick={onClick}>
+  <Button variant="quiet" onClick={onClick}>
     Cancel
-  </button>
+  </Button>
 );
 
 export interface StepUpField {
@@ -89,9 +90,9 @@ export function StepUpSheet({ title, intro, fields = [], confirm, action, target
       onClose={close}
       actions={
         <>
-          <button className={`btn ${tone === "danger" ? "danger" : "primary"}`} type="submit" {...ceremony}>
+          <Button variant={tone === "danger" ? "danger" : "primary"} type="submit" {...ceremony}>
             {confirm}
-          </button>
+          </Button>
           <CancelButton onClick={close} />
         </>
       }

@@ -8,7 +8,7 @@ import { Banners, useNoticeState } from "../shared/notice.tsx";
 import { PageHeadContext, type PageHead } from "../shared/page-head.tsx";
 import { PushBanner } from "../features/notifications/index.ts";
 import { openCount, useNow } from "../features/now/index.ts";
-import { SearchButton, SearchHost, useSearchShortcut } from "../features/search/index.ts";
+import { SearchButton } from "../features/search/index.ts";
 import type { PageDef } from "./routes.tsx";
 
 export function FocusFrame({ def, children }: { def: PageDef; children: ReactNode }) {

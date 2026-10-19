@@ -3,6 +3,7 @@ import { call, client, humanError, page } from "../../shared/api.ts";
 import { useCeremony } from "../../shared/ceremony.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { registerTicket } from "../../shared/tickets.ts";
+import { Button } from "@convoz/ui/Button";
 
 /** Recover is /recover: a recovery code gives a limited session, which may only add a passkey on this device. */
 export function Recover() {
@@ -32,9 +33,9 @@ export function Recover() {
           <input id="code" name="code" className="code-input" autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck={false} required value={code} onChange={(e) => setCode(e.target.value)} />
         </div>
         <div className="actions">
-          <button className="btn primary" type="submit">
+          <Button variant="primary" type="submit">
             Use code
-          </button>
+          </Button>
         </div>
       </form>
     </>
@@ -62,9 +63,9 @@ function AddThisDevice() {
     <>
       <p className="lead">Code accepted. Add a passkey on this device to finish.</p>
       <div className="actions">
-        <button className="btn primary" type="button" {...ceremony}>
+        <Button variant="primary" {...ceremony}>
           Add a passkey
-        </button>
+        </Button>
       </div>
     </>
   );

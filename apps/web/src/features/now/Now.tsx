@@ -9,12 +9,12 @@ import { markUseful } from "../../shared/perf.ts";
 import { data, useData, useLive } from "../../shared/data.ts";
 import { toast } from "../pins-stars/index.ts";
 import { answerAsk, dismissAsk, snoozeAsk, undismissAsk, unsnoozeAsk, useNow, type Settled } from "./store.ts";
-import { parseAllow } from "../crew/index.ts";
 import { agentRequests, RequestCard } from "./requests.tsx";
 import { presetsAt } from "./presets.ts";
 import { AskApp } from "./AskApp.tsx";
 import { Attention } from "./Attention.tsx";
 import { Unread, unreadRows } from "./Unread.tsx";
+import { Button } from "@convoz/ui/Button";
 
 /** Now is /: what needs the owner. Open asks first (urgent, then the newest), then the adds agents wait on and the machines waiting
  *  to connect; Snoozed, Answered today and Dismissed today fold away below. With nothing waiting, the wordmark, "All clear" and the folds are centred, in that order. */
@@ -230,7 +230,7 @@ export function Now() {
             <article key={handle} className="card" aria-label={`@${handle} joined`}>
               <h3>{`@${handle} joined`}</h3>
               <div className="btns">
-                <a className="btn primary" href={`/chats/new?with=${encodeURIComponent(handle)}`}>{`Message @${handle}`}</a>
+                <Button variant="primary" href={`/chats/new?with=${encodeURIComponent(handle)}`}>{`Message @${handle}`}</Button>
               </div>
             </article>
           ))}
@@ -239,9 +239,9 @@ export function Now() {
       <section id="requests-block" className="block" aria-labelledby="requests-heading" hidden={!waiting}>
         <div className="block-head">
           <h2 id="requests-heading">Machine requests</h2>
-          <button id="deny-all" className="btn small" type="button" hidden={!waiting} onClick={denyAll}>
+          <Button id="deny-all" size="small" hidden={!waiting} onClick={denyAll}>
             Deny all
-          </button>
+          </Button>
         </div>
         <div id="requests">
           {(pending ?? []).map((req) =>
@@ -388,12 +388,12 @@ function PendingAdd({ add, reload }: { add: NowPendingAdd; reload: () => Promise
       <h3 id={id}>{`${who} wants to add ${whoLine(add.person)}`}</h3>
       <p className="sub">{add.conversation.title || "Untitled conversation"}</p>
       <div className="btns">
-        <button className="btn primary" type="button" disabled={working} onClick={() => void decide(true)}>
+        <Button variant="primary" disabled={working} onClick={() => void decide(true)}>
           Approve
-        </button>
-        <button className="btn" type="button" disabled={working} onClick={() => void decide(false)}>
+        </Button>
+        <Button disabled={working} onClick={() => void decide(false)}>
           Decline
-        </button>
+        </Button>
       </div>
     </article>
   );

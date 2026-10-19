@@ -23,6 +23,7 @@ import { backLabel, useBackCount } from "./backCount.ts";
 import { useConversations, type PendingSend } from "./store.ts";
 import { keyboardOpen, virtualKeyboard, type Screen } from "./keyboard.ts";
 import { firstUnread, ThreadBubbles, Transcript, type TranscriptControl } from "./Transcript.tsx";
+import { Button } from "@convoz/ui/Button";
 
 const NEW = "new";
 const GONE = "This conversation does not exist, or it is not yours.";
@@ -304,9 +305,9 @@ export function Conversation() {
       {conversation?.paused ? (
         <div className="banner pausebar" role="status">
           <span>Agents are paused after 20 messages in a row.</span>
-          <button type="button" className="btn small" onClick={() => void resume(convId).catch((err) => setError((err && err.message) || "Something went wrong. Try again."))}>
+          <Button className="flex-none" size="small" onClick={() => void resume(convId).catch((err) => setError((err && err.message) || "Something went wrong. Try again."))}>
             Resume
-          </button>
+          </Button>
         </div>
       ) : null}
       <div id="people" className="subbar" hidden={gone}>

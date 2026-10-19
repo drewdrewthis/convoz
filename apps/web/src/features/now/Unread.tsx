@@ -8,6 +8,7 @@ import { markAllRead } from "../conversations/index.ts";
 import { toast } from "../pins-stars/index.ts";
 import { ThreadRows } from "../threads/index.ts";
 import { titleOf } from "../rail/index.ts";
+import { Button } from "@convoz/ui/Button";
 
 /** Lines shown per card, and how many of the newest messages are read to find them (the owner's own and system lines are skipped). */
 const LINES = 3;
@@ -100,9 +101,9 @@ export const Unread = memo(function Unread({ rows, me }: { rows: Conversation[];
         })}
       </ul>
       <div className="btns">
-        <button className="btn" type="button" disabled={busy} onClick={() => void run(rows.map((c) => c.id), "Marked all read")}>
+        <Button disabled={busy} onClick={() => void run(rows.map((c) => c.id), "Marked all read")}>
           Mark all read
-        </button>
+        </Button>
       </div>
     </section>
   );

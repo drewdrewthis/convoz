@@ -4,6 +4,7 @@ import { isPhone } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { useSheets } from "../../shared/sheets.tsx";
 import { AddPasskeySheet } from "../settings/index.ts";
+import { Button } from "@convoz/ui/Button";
 
 /** Onboarding is /onboarding, step 3 of 3: a second passkey on another device or a hardware key, or skip it for now. */
 export function Onboarding() {
@@ -30,13 +31,13 @@ export function Onboarding() {
       <p className="muted">A second passkey keeps you from being locked out if you lose this one.</p>
       <div className="actions">
         {added ? null : (
-          <button className="btn primary" type="button" onClick={add}>
+          <Button variant="primary" onClick={add}>
             Add a passkey
-          </button>
+          </Button>
         )}
-        <button className="btn quiet" type="button" onClick={() => location.assign("/")}>
+        <Button variant="quiet" onClick={() => location.assign("/")}>
           {added ? "Continue to Now" : "Skip for now"}
-        </button>
+        </Button>
       </div>
       {sheet}
     </>

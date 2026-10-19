@@ -1,6 +1,6 @@
 import { PlanIcon } from "../plan/index.ts";
 import type { Conversation } from "@convoz/api-client";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { humanError } from "../../shared/api.ts";
 import { data, useData, useLive } from "../../shared/data.ts";
 import { openCount, useNow } from "../now/index.ts";
@@ -21,7 +21,6 @@ const openedId = (): number => Number(/^\/chats\/(\d+)$/.exec(location.pathname)
  */
 export default function Sidebar() {
   const list = useData((s) => s.conversations);
-  const me = useData((s) => s.me?.identity.handle ?? "");
   const waiting = openCount(useNow((s) => s.now));
   const crew = useData((s) => s.identities?.filter((p) => p.kind === "agent" && !p.disabled).length ?? null);
   const [olderOpen, setOlderOpen] = useState(false);

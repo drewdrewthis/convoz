@@ -41,7 +41,6 @@
 
   /* ---- the pause bar under the app bar ---- */
   .pausebar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 12px 0; }
-  .pausebar .btn { flex: none; }
 
   /* ---- the row menu ---- */
   .rowmenu { z-index: 9; right: auto; }
