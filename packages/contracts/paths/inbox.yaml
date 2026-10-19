@@ -75,3 +75,17 @@
           application/json:
             schema: { $ref: "../openapi.yaml#/components/schemas/AckResponse" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/agents:
+  get:
+    x-authz: { auth: lease }
+    security: [{ leaseBearer: [] }]
+    operationId: listAgents
+    summary: The agents an agent may bring into a conversation (`convoz agents`).
+    description: Handle, display name, description and state only. Disabled agents and the caller are left out.
+    responses:
+      "200":
+        description: The agents.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/AgentsResponse" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }

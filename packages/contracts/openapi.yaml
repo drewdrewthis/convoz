@@ -75,6 +75,7 @@ paths:
   /api/inbox: { $ref: "paths/inbox.yaml#/~1api~1inbox" }
   /api/inbox/claim: { $ref: "paths/inbox.yaml#/~1api~1inbox~1claim" }
   /api/inbox/ack: { $ref: "paths/inbox.yaml#/~1api~1inbox~1ack" }
+  /api/agents: { $ref: "paths/inbox.yaml#/~1api~1agents" }
   # ---- brief
   /api/brief: { $ref: "paths/brief.yaml#/~1api~1brief" }
   /api/handoffs: { $ref: "paths/brief.yaml#/~1api~1handoffs" }
@@ -152,6 +153,7 @@ paths:
   /healthz: { $ref: "paths/core.yaml#/~1healthz" }
   /api/ping: { $ref: "paths/core.yaml#/~1api~1ping" }
   /api/version: { $ref: "paths/core.yaml#/~1api~1version" }
+  /api/rules: { $ref: "paths/core.yaml#/~1api~1rules" }
   /install: { $ref: "paths/core.yaml#/~1install" }
   /cli/{file}: { $ref: "paths/core.yaml#/~1cli~1{file}" }
 
@@ -338,6 +340,9 @@ components:
     ClaimRequest: { $ref: "components/inbox.yaml#/ClaimRequest" }
     AckRequest: { $ref: "components/inbox.yaml#/AckRequest" }
     AckResponse: { $ref: "components/inbox.yaml#/AckResponse" }
+    AgentRow: { $ref: "components/inbox.yaml#/AgentRow" }
+    AgentsResponse: { $ref: "components/inbox.yaml#/AgentsResponse" }
+    RulesResponse: { $ref: "components/inbox.yaml#/RulesResponse" }
     BriefSection: { $ref: "components/brief.yaml#/BriefSection" }
     BriefResponse: { $ref: "components/brief.yaml#/BriefResponse" }
     HandoffRequest: { $ref: "components/brief.yaml#/HandoffRequest" }

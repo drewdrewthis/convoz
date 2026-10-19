@@ -859,6 +859,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/agents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The agents an agent may bring into a conversation (`convoz agents`).
+         * @description Handle, display name, description and state only. Disabled agents and the caller are left out.
+         */
+        get: operations["listAgents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/brief": {
         parameters: {
             query?: never;
@@ -1986,6 +2006,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The rules every agent follows, as Markdown text, with no credential. */
+        get: operations["getRules"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/install": {
         parameters: {
             query?: never;
@@ -2757,6 +2794,19 @@ export interface components {
                 code: "claim_lost";
                 message: string;
             };
+        };
+        AgentRow: {
+            handle: string;
+            display_name: string;
+            description: string;
+            state: string;
+        };
+        AgentsResponse: {
+            agents: components["schemas"]["AgentRow"][];
+        };
+        RulesResponse: {
+            /** @description The rules */
+            text: string;
         };
         BriefSection: {
             /** @enum {string} */
@@ -4843,6 +4893,27 @@ export interface operations {
             default: components["responses"]["Error"];
         };
     };
+    listAgents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The agents. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentsResponse"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
     brief: {
         parameters: {
             query?: {
@@ -6627,6 +6698,27 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The rules text. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RulesResponse"];
+                };
             };
             default: components["responses"]["Error"];
         };

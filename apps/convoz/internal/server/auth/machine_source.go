@@ -10,7 +10,7 @@ import (
 
 // setMachineSource records the node a machine was approved from; an unknown node stores nothing.
 func setMachineSource(ctx context.Context, d pdb.DBTX, machineID int64, source string) error {
-	if source == "" {
+	if source == "" || beforeSourceNode() {
 		return nil
 	}
 	_, err := d.ExecContext(ctx, `UPDATE machines SET source_node = ? WHERE id = ?`, source, machineID)
@@ -19,6 +19,9 @@ func setMachineSource(ctx context.Context, d pdb.DBTX, machineID int64, source s
 
 // machineSource is the node a machine was approved from; empty when none was stored.
 func machineSource(ctx context.Context, d pdb.DBTX, machineID int64) (string, error) {
+	if beforeSourceNode() {
+		return "", nil
+	}
 	var s sql.NullString
 	if err := d.QueryRowContext(ctx, `SELECT source_node FROM machines WHERE id = ?`, machineID).Scan(&s); err != nil {
 		return "", err

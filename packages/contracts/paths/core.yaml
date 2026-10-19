@@ -66,3 +66,16 @@
           text/plain:
             schema: { type: string }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/rules:
+  get:
+    operationId: getRules
+    x-authz: { auth: pub }
+    security: []
+    summary: The rules every agent follows, as Markdown text, with no credential.
+    responses:
+      "200":
+        description: The rules text.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/RulesResponse" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
