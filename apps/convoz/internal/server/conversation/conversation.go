@@ -219,6 +219,15 @@ func RecordMainPost(ctx context.Context, d pdb.DBTX, now time.Time, id, messageI
 	return c.LastMainID, nil
 }
 
+// NameFromFile names a nameless conversation after the file its first message carries, when that message has no words.
+func NameFromFile(ctx context.Context, d pdb.DBTX, id int64, filename string) error {
+	title := AutoTitle(filename)
+	if title == "" {
+		return nil
+	}
+	return db.New(d).SetAutoTitle(ctx, db.SetAutoTitleParams{Title: sql.NullString{String: title, Valid: true}, ID: id})
+}
+
 // Touch moves the conversation up the list without counting a message (a system line).
 func Touch(ctx context.Context, d pdb.DBTX, now time.Time, id int64) error {
 	return db.New(d).TouchActivity(ctx, db.TouchActivityParams{At: now.UnixMilli(), ID: id})

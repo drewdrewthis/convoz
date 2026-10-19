@@ -206,7 +206,7 @@ export function Conversation() {
     }
   };
 
-  const send = (body: string, files: Upload[]) => {
+  const send = (body: string, files: Upload[], held: File[] = []) => {
     control.current?.stick();
     const t = actions().threads[key];
     if (isNew && t && !t.convId && t.pending.length === 0) {
@@ -214,11 +214,11 @@ export function Conversation() {
       const typed = mentionsOf(body).filter((h) => crew.some((p) => p.handle === h));
       actions().startThread(NEW, [...new Set([...picked, ...typed])]);
     }
-    actions().send(key, body, files);
+    actions().send(key, body, files, held);
   };
 
-  // Files dragged onto the conversation attach to the message being written (none before the conversation exists).
-  const carriesFiles = (event: DragEvent) => convId !== 0 && Boolean(event.dataTransfer?.types.includes("Files") || event.dataTransfer?.files.length);
+  // Files dragged onto the conversation attach to the message being written (a new conversation holds them until its first send).
+  const carriesFiles = (event: DragEvent) => Boolean(event.dataTransfer?.types.includes("Files") || event.dataTransfer?.files.length);
   const dragOver = (event: DragEvent) => {
     if (!carriesFiles(event)) return;
     event.preventDefault();

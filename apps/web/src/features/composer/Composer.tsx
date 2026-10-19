@@ -14,12 +14,12 @@ export interface ComposerProps {
   agent: string | null;
   /** The message box's accessible name: "Message @agent", or "Message" with several agents or none yet. */
   label: string;
-  /** The conversation files upload to; 0 for a new one, where Attach and the microphone are disabled. */
+  /** The conversation files upload to; 0 for a new one, where files are held until the first send makes it and the microphone is disabled. */
   conversationId: number;
   /** The files to send, owned by the page (a drop on the conversation adds to them). */
   attachments: Attachments;
-  /** The body (may be empty when there are files) and the finished uploads. */
-  onSend(body: string, files: Upload[]): void;
+  /** The body (may be empty when there are files), the finished uploads, and the files held for a new conversation (not uploaded yet). */
+  onSend(body: string, files: Upload[], held?: File[]): void;
   /** The text box, for the page to focus. */
   textRef: RefObject<HTMLTextAreaElement | null>;
   /**
@@ -42,7 +42,7 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
   const empty = text.trim() === "" && files.length === 0;
   // A crew agent typed by hand (outside code and quotes) counts like a pick: the server brings it in when the message arrives (I-18).
   const named = Boolean(mentions) && mentionsOf(text).some((h) => mentions!.crew.some((p) => p.handle === h));
-  const canSend = (Boolean(agent) || named) && !empty && files.every((f) => f.state === "done");
+  const canSend = (Boolean(agent) || named) && !empty && files.every((f) => f.state === "done" || f.state === "held");
 
   useLayoutEffect(() => {
     const box = textRef.current;
@@ -154,14 +154,15 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
           event.preventDefault();
           const body = text.trim();
           if (!canSend) return;
-          const sent = files.map((f) => f.upload!);
+          const sent = files.filter((f) => f.upload).map((f) => f.upload!);
+          const held = files.filter((f) => f.state === "held").map((f) => f.file);
           setText("");
           attachments.clear();
           textRef.current?.focus(); // the keyboard stays up
-          onSend(body, sent);
+          onSend(body, sent, held);
         }}
       >
-        <button type="button" className="attachbtn" aria-label="Attach a file" title="Attach a file" disabled={!conversationId} onMouseDown={keepFocus} onClick={() => picker.current?.click()}>
+        <button type="button" className="attachbtn" aria-label="Attach a file" title="Attach a file" onMouseDown={keepFocus} onClick={() => picker.current?.click()}>
           <AttachIcon />
         </button>
         <input

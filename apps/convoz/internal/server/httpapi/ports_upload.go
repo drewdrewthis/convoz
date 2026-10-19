@@ -2,11 +2,13 @@ package httpapi
 
 import (
 	"context"
+	"strings"
 	"sync/atomic"
 	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/appschema"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/appkit"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/settings"
@@ -26,6 +28,12 @@ func (uploadPort) BindUploads(ctx context.Context, d pdb.DBTX, now time.Time, m 
 	bound, err := upload.Bind(ctx, d, now, upload.BindArgs{MessageID: m.ID, ConversationID: m.ConversationID, Author: m.AuthorID, PublicIDs: ids, AppIDs: appUploadIDs(m.App)})
 	if err != nil {
 		return err
+	}
+	// A first message of files alone names the conversation after its first file; a voice note or a thread reply does not.
+	if strings.TrimSpace(m.Body) == "" && m.ThreadRootID == 0 && len(bound) > 0 && !bound[0].Audio {
+		if err := conversation.NameFromFile(ctx, d, m.ConversationID, bound[0].Name); err != nil {
+			return err
+		}
 	}
 	engine := transcriptionEngine(ctx, d)
 	for _, b := range bound {
