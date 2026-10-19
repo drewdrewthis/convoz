@@ -37,10 +37,10 @@ export function RecoveryCodes() {
 
   return (
     <>
-      <p id="left" className="lead">
+      <p id="left" className="text-15 text-muted">
         {left}
       </p>
-      <p className="muted">Making new codes stops the old ones from working.</p>
+      <p className="text-muted">Making new codes stops the old ones from working.</p>
       <div id="fresh">
         {codes ? (
           <>

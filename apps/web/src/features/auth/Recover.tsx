@@ -4,6 +4,7 @@ import { useCeremony } from "../../shared/ceremony.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { registerTicket } from "../../shared/tickets.ts";
 import { Button } from "@convoz/ui/Button";
+import { Field } from "@convoz/ui/Field";
 
 /** Recover is /recover: a recovery code gives a limited session, which may only add a passkey on this device. */
 export function Recover() {
@@ -26,12 +27,9 @@ export function Recover() {
   if (accepted) return <AddThisDevice />;
   return (
     <>
-      <p className="lead">Type one of the recovery codes you saved. It works once.</p>
+      <p className="text-15 text-muted">Type one of the recovery codes you saved. It works once.</p>
       <form id="recover-form" className="stack" noValidate onSubmit={submit}>
-        <div className="field">
-          <label htmlFor="code">Recovery code</label>
-          <input id="code" name="code" className="code-input" autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck={false} required value={code} onChange={(e) => setCode(e.target.value)} />
-        </div>
+        <Field id="code" name="code" label="Recovery code" mono required value={code} onChange={(e) => setCode(e.target.value)} />
         <div className="actions">
           <Button variant="primary" type="submit">
             Use code
@@ -61,7 +59,7 @@ function AddThisDevice() {
   );
   return (
     <>
-      <p className="lead">Code accepted. Add a passkey on this device to finish.</p>
+      <p className="text-15 text-muted">Code accepted. Add a passkey on this device to finish.</p>
       <div className="actions">
         <Button variant="primary" {...ceremony}>
           Add a passkey

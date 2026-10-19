@@ -95,7 +95,7 @@ export function ThreadPane({ title, bubbles }: ThreadPaneProps) {
         )}
         <div className="titles">
           <h2>Thread</h2>
-          <span className="sub">{heading}</span>
+          <span className="max-w-full overflow-hidden text-12 text-ellipsis whitespace-nowrap text-muted">{heading}</span>
         </div>
         {wide ? (
           <IconButton variant="float" className="ml-auto" label="Close thread" onClick={close}>

@@ -1,4 +1,5 @@
 import { IconButton } from "@convoz/ui/IconButton";
+import { EmptyState } from "@convoz/ui/EmptyState";
 import type { Identity, Upload } from "@convoz/api-client";
 import { mentionsOf } from "@convoz/markdown";
 import { AttachIcon, MicIcon, SendIcon } from "@convoz/ui/icons";
@@ -138,9 +139,9 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
               Invite a new agent…
             </button>
           ) : null}
-          <p id="picker-note" className="empty" hidden={mentions.crew.length > 0}>
+          <EmptyState id="picker-note" variant="compact" hidden={mentions.crew.length > 0}>
             No agents yet. Connect a machine and add an agent first.
-          </p>
+          </EmptyState>
         </div>
       ) : null}
       <AttachmentList attachments={attachments} />

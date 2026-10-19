@@ -95,9 +95,6 @@
   h2 { font-size: 17px; margin: 0; font-weight: 600; }
   h3 { font-size: 15px; margin: 0; font-weight: 600; }
   p { margin: 0 0 12px; }
-  .lead { color: var(--color-muted); font-size: 15px; }
-  .muted, .sub { color: var(--color-muted); }
-  .sub { font-size: 13px; }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   :focus-visible { outline: 2px solid var(--color-edge); outline-offset: 2px; }
   [hidden] { display: none !important; }
@@ -171,15 +168,12 @@
   .stack { display: flex; flex-direction: column; flex: 1; gap: 16px; }
   .field { display: flex; flex-direction: column; gap: 6px; }
   label { font-size: 13px; font-weight: 600; color: var(--color-muted); }
-  input[type="text"], input:not([type]), .code-input {
+  input[type="text"], input:not([type]) {
     width: 100%; height: 52px; padding: 0 16px; border: 1px solid var(--color-edge); border-radius: 999px;
     background: var(--color-raised); color: var(--color-text); font: inherit; font-size: 16px;
   }
-  .code-input { font-family: var(--font-mono); }
   input::placeholder, textarea::placeholder { color: var(--color-muted); opacity: 1; }
   .hint { margin: 0; font-size: 13px; color: var(--color-muted); }
-  .check { display: flex; align-items: center; gap: 12px; min-height: 48px; font-size: 15px; color: var(--color-text); font-weight: 500; }
-  .check input { width: 24px; height: 24px; accent-color: var(--color-accent); flex: none; }
 
   /* Primary actions sit at the bottom edge of the screen so one thumb reaches them. */
   .actions {
@@ -187,18 +181,8 @@
     background: linear-gradient(to bottom, transparent, var(--color-surface) 24%);
   }
 
-  /* ---- grouped lists ---- */
-  .group { list-style: none; margin: 0 0 16px; padding: 0; background: var(--color-raised); border: 1px solid var(--color-border); border-radius: 14px; overflow: hidden; }
-  .group > li, .group > .row { border-top: 1px solid var(--color-border); }
-  .group > :first-child { border-top: 0; }
-  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 56px; padding: 10px 16px; border: 0; background: none; color: var(--color-text); font: inherit; font-size: 15px; text-align: left; text-decoration: none; cursor: pointer; }
-  .row.danger { color: var(--color-danger); }
-  .row.stacked { flex-direction: column; align-items: stretch; gap: 4px; cursor: default; }
   .btns.wrap { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-  li.row .grow { flex: 1; min-width: 0; }
-  .chev::after { content: ""; display: block; width: 9px; height: 9px; border-top: 2px solid var(--color-muted); border-right: 2px solid var(--color-muted); transform: rotate(45deg); }
   .badge { display: inline-block; margin-left: 6px; padding: 1px 10px; border-radius: 999px; background: var(--color-soft); color: var(--color-accent-text); font-size: 12px; font-weight: 700; vertical-align: middle; }
-  .empty { color: var(--color-muted); padding: 16px; }
 
   /* ---- cards (Now: a machine waiting for approval is an ask) ---- */
   .block { margin: 8px 0 24px; }
@@ -256,8 +240,6 @@
   .preview { font-size: 13px; color: var(--color-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .unread .rowtitle { font-weight: 600; }
   .count { flex: 0 0 auto; min-width: 22px; padding: 1px 6px; border-radius: 999px; background: var(--color-soft); color: var(--color-accent-text); font-size: 13px; font-weight: 700; text-align: center; }
-  .emptystate { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 8px; flex: 1; padding: 48px 16px; }
-  .emptystate svg { width: 56px; height: 56px; fill: none; stroke: var(--color-muted); stroke-width: 1.4; stroke-linejoin: round; }
 
   /* ---- a conversation: the frame fills the visible screen, the log scrolls, the composer is pinned ---- */
   body[data-chat] { overscroll-behavior: none; }
@@ -300,8 +282,6 @@
   .newline::before, .newline::after { content: ""; flex: 1 1 0; height: 1px; background: currentColor; opacity: .6; }
   .newline::before { flex-grow: 0; width: 12px; }
   .earlier { display: flex; justify-content: center; }
-  .hintbox { max-width: 760px; margin-inline: auto; padding: 56px 16px; text-align: center; font-size: 14px; color: var(--color-muted); }
-  .hintbox p { margin: 0; }
   /* A message (prototype v42): no avatar column. An agent's message is the full width of a centred 760 px column, under one author line
      (avatar, name, handle, time); the owner's is a compact bubble on the right, with the time above it. */
   .msg { position: relative; display: block; box-sizing: border-box; width: 100%; max-width: 760px; margin-inline: auto; padding: 16px 12px 3px; border-radius: 12px; }
@@ -417,7 +397,6 @@
   .agentbtn .state { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--color-muted); }
   .agentbtn .state i { width: 8px; height: 8px; box-sizing: border-box; border-radius: 999px; background: var(--color-idle); border: 2px solid var(--color-idle); }
   .agentbtn .state.on i { background: var(--color-success); border-color: var(--color-success); }
-  .pop .empty { padding: 8px; margin: 0; }
 
   /* ---- Crew ---- */
   .crew-top { display: flex; align-items: center; gap: 12px; padding: 4px 12px 12px; }

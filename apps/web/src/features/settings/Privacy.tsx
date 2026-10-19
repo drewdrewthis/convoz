@@ -1,3 +1,4 @@
+import { List, ListRow } from "@convoz/ui/ListRow";
 import { call, client, humanError, stepUp } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { StepUpSheet, useSheets } from "../../shared/sheets.tsx";
@@ -45,31 +46,38 @@ export function Privacy() {
 
   return (
     <>
-      <ul className="group" aria-label="Privacy and security">
+      <List aria-label="Privacy and security">
         {ITEMS.map((i) => {
           const available = Boolean(i.href) || i.name === SIGN_OUT_ALL;
           const body = (
-            <>
-              <span className="grow">
-                {i.name}
-                <br />
-                <span className="sub">{available ? i.note : `${i.note}. Not available yet.`}</span>
-              </span>
-              {i.href ? <span className="chev" aria-hidden="true" /> : null}
-            </>
+            <span className="min-w-0 grow">
+              {i.name}
+              <br />
+              <span className="text-13 text-muted">{available ? i.note : `${i.note}. Not available yet.`}</span>
+            </span>
           );
           if (i.name === SIGN_OUT_ALL) {
             return (
               <li key={i.name}>
-                <button className="row" type="button" onClick={signOutAll}>
+                <ListRow as="button" onClick={signOutAll}>
                   {body}
-                </button>
+                </ListRow>
               </li>
             );
           }
-          return <li key={i.name}>{i.href ? <a className="row" href={i.href}>{body}</a> : <div className="row">{body}</div>}</li>;
+          return (
+            <li key={i.name}>
+              {i.href ? (
+                <ListRow as="a" href={i.href} chevron>
+                  {body}
+                </ListRow>
+              ) : (
+                <ListRow as="div">{body}</ListRow>
+              )}
+            </li>
+          );
         })}
-      </ul>
+      </List>
       {sheet}
     </>
   );

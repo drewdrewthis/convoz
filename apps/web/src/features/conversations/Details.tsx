@@ -68,7 +68,7 @@ export function Details({ row, onClose, onInvite, board, act }: DetailsProps) {
       <header className="detailsbar">
         <div className="titles">
           <h2>Details</h2>
-          <span className="sub">{title}</span>
+          <span className="text-13 text-muted">{title}</span>
         </div>
         <IconButton ref={close} label="Close details" onClick={onClose}>
           <span aria-hidden="true" className="text-[26px] leading-none text-muted">×</span>
@@ -145,7 +145,7 @@ function DeleteSheet({ id, done }: { id: number; done(): void }) {
         </>
       }
     >
-      <p className="muted">It moves to Trash and is deleted forever in 30 days. You can restore it until then.</p>
+      <p className="text-muted">It moves to Trash and is deleted forever in 30 days. You can restore it until then.</p>
     </Sheet>
   );
 }

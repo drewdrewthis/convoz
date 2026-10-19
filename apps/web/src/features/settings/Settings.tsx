@@ -1,3 +1,5 @@
+import { Field } from "@convoz/ui/Field";
+import { List, ListRow } from "@convoz/ui/ListRow";
 import { useState } from "react";
 import { humanError } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
@@ -16,15 +18,12 @@ function Choice<K extends keyof Look>({ name, field, options, hint }: { name: st
   return (
     <>
       <h2 id={`${field}-title`}>{name}</h2>
-      <p className="sub">{hint}</p>
-      <div className="group" role="radiogroup" aria-labelledby={`${field}-title`}>
+      <p className="text-13 text-muted">{hint}</p>
+      <List as="div" role="radiogroup" aria-labelledby={`${field}-title`}>
         {options.map((o) => (
-          <label className="row" key={o}>
-            <span>{label(o)}</span>
-            <input type="radio" name={field} value={o} checked={current === o} onChange={() => void choose(field, o).catch((err) => fail(humanError(err)))} />
-          </label>
+          <Field key={o} type="radio" label={label(o)} name={field} value={o} checked={current === o} onChange={() => void choose(field, o).catch((err) => fail(humanError(err)))} />
         ))}
-      </div>
+      </List>
     </>
   );
 }
@@ -33,10 +32,7 @@ type View = "settings" | "notifications" | "advanced" | "connection";
 
 function Row({ name, to, go }: { name: string; to: View; go: (view: View) => void }) {
   return (
-    <button className="row" type="button" onClick={() => go(to)}>
-      <span>{name}</span>
-      <span className="chev" aria-hidden="true" />
-    </button>
+    <ListRow as="button" title={name} chevron onClick={() => go(to)} />
   );
 }
 
@@ -52,14 +48,11 @@ export function Settings() {
       <Choice name="Palette" field="palette" options={PALETTES} hint="The same on every device you sign in on." />
       <Choice name="Text size" field="text_size" options={TEXT_SIZES} hint="This device only." />
       <NotificationSettings />
-      <div className="group">
+      <List as="div">
         <Row name="Notifications" to="notifications" go={setView} />
         <Row name="Advanced" to="advanced" go={setView} />
-        <a className="row" href="/settings/privacy">
-          <span>Privacy &amp; security</span>
-          <span className="chev" aria-hidden="true" />
-        </a>
-      </div>
+        <ListRow as="a" href="/settings/privacy" title="Privacy & security" chevron />
+      </List>
     </>
   );
 }

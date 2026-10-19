@@ -18,7 +18,7 @@ export function PinnedList({ row }: { row: Conversation }) {
           {pinned.map((m) => (
             <li key={m.id} className="prow pinrow">
               <a className="pintext" href={`/chats/${row.id}#m${m.id}`}>
-                <span className="sub">{m.author.kind === "agent" ? `@${m.author.handle}` : m.author.display_name || m.author.handle}</span>
+                <span className="text-13 text-muted">{m.author.kind === "agent" ? `@${m.author.handle}` : m.author.display_name || m.author.handle}</span>
                 <span>{stripCf(m.body)}</span>
               </a>
               <Button variant="quiet" size="small" aria-label="Unpin message" onClick={() => unpinMessage(row.id, m.id).catch((err) => toast(humanError(err)))}>
@@ -28,7 +28,7 @@ export function PinnedList({ row }: { row: Conversation }) {
           ))}
         </ul>
       ) : (
-        <p className="muted">Nothing pinned yet.</p>
+        <p className="text-muted">Nothing pinned yet.</p>
       )}
     </section>
   );

@@ -43,7 +43,7 @@ export function SignIn() {
 
   return (
     <>
-      <p className="lead">Use the passkey on this device.</p>
+      <p className="text-15 text-muted">Use the passkey on this device.</p>
       <div className="actions">
         <Button id="signin" variant="primary" {...ceremony} disabled={!canUse || ceremony.disabled}>
           Sign in with a passkey

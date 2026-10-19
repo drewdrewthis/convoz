@@ -42,7 +42,7 @@ export function AddAgentSheet({ id, done, onAdd, onInvite }: AddAgentProps) {
           </li>
         ))}
       </ul>
-      {people && choices.length === 0 ? <p className="muted">No other agent to add.</p> : null}
+      {people && choices.length === 0 ? <p className="text-muted">No other agent to add.</p> : null}
       <Button variant="quiet" size="small" onClick={() => { done(); onInvite(); }}>
         Invite a new agent…
       </Button>

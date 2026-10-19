@@ -26,9 +26,9 @@ export function Onboarding() {
     ));
   return (
     <>
-      <p className="lead">Add a passkey on another device or a hardware key</p>
-      {phone ? <p className="muted">On a phone, use your laptop or a security key for the second passkey.</p> : null}
-      <p className="muted">A second passkey keeps you from being locked out if you lose this one.</p>
+      <p className="text-15 text-muted">Add a passkey on another device or a hardware key</p>
+      {phone ? <p className="text-muted">On a phone, use your laptop or a security key for the second passkey.</p> : null}
+      <p className="text-muted">A second passkey keeps you from being locked out if you lose this one.</p>
       <div className="actions">
         {added ? null : (
           <Button variant="primary" onClick={add}>

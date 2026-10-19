@@ -1,3 +1,5 @@
+import { Field } from "@convoz/ui/Field";
+import { List, ListRow } from "@convoz/ui/ListRow";
 import { useEffect, useState } from "react";
 import { effectiveType, median, useConnection } from "../../shared/connection.ts";
 import { chooseMedia, mediaSetting, type MediaAutoload } from "../../shared/media.ts";
@@ -35,24 +37,16 @@ export function Connection() {
   return (
     <>
       <h2>Connection</h2>
-      <ul className="group" aria-label="Connection">
-        <li className="row">
-          <span>Median round trip</span>
-          <span>{samples.length ? `${median(samples)} ms` : "measuring"}</span>
-        </li>
-        <li className="row">
-          <span>Connection type</span>
-          <span>{effectiveType()}</span>
-        </li>
-      </ul>
+      <List aria-label="Connection">
+        <ListRow title="Median round trip" trailing={<span>{samples.length ? `${median(samples)} ms` : "measuring"}</span>} />
+        <ListRow title="Connection type" trailing={<span>{effectiveType()}</span>} />
+      </List>
       <h2>Last {samples.length === 1 ? "sample" : `${samples.length || 20} samples`}</h2>
-      <ol className="group" aria-label="Samples">
+      <List as="ol" aria-label="Samples">
         {[...samples].reverse().map((ms, i) => (
-          <li className="row" key={samples.length - i}>
-            {ms} ms
-          </li>
+          <ListRow key={samples.length - i}>{ms} ms</ListRow>
         ))}
-      </ol>
+      </List>
     </>
   );
 }
@@ -63,21 +57,15 @@ export function Advanced({ onConnection }: { onConnection: () => void }) {
   return (
     <>
       <h2 id="media-title">Load media automatically</h2>
-      <p className="sub">Images, voice notes, link cards and app previews. Automatic waits for a tap on a slow link or when Save-Data is on. This device only.</p>
-      <div className="group" role="radiogroup" aria-labelledby="media-title">
+      <p className="text-13 text-muted">Images, voice notes, link cards and app previews. Automatic waits for a tap on a slow link or when Save-Data is on. This device only.</p>
+      <List as="div" role="radiogroup" aria-labelledby="media-title">
         {MEDIA.map(([value, name]) => (
-          <label className="row" key={value}>
-            <span>{name}</span>
-            <input type="radio" name="media_autoload" value={value} checked={media === value} onChange={() => (chooseMedia(value), setMedia(value))} />
-          </label>
+          <Field key={value} type="radio" label={name} name="media_autoload" value={value} checked={media === value} onChange={() => (chooseMedia(value), setMedia(value))} />
         ))}
-      </div>
-      <div className="group">
-        <button className="row" type="button" onClick={onConnection}>
-          <span>Connection</span>
-          <span className="chev" aria-hidden="true" />
-        </button>
-      </div>
+      </List>
+      <List as="div">
+        <ListRow as="button" title="Connection" chevron onClick={onConnection} />
+      </List>
     </>
   );
 }

@@ -1,3 +1,4 @@
+import { List, ListRow } from "@convoz/ui/ListRow";
 import { useEffect } from "react";
 import { humanError, signOut } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
@@ -12,34 +13,19 @@ export function Account() {
   }, [fail]);
   return (
     <>
-      <p id="who" className="lead">
+      <p id="who" className="text-15 text-muted">
         {me ? `${me.identity.display_name} (@${me.identity.handle})` : ""}
       </p>
-      <div className="group">
-        <a className="row" href="/settings">
-          <span>Settings</span>
-          <span className="chev" aria-hidden="true" />
-        </a>
-        <a className="row" href="/settings/passkeys">
-          <span>Passkeys</span>
-          <span className="chev" aria-hidden="true" />
-        </a>
-        <a className="row" href="/settings/recovery">
-          <span>Recovery codes</span>
-          <span className="chev" aria-hidden="true" />
-        </a>
-        <a className="row" href="/crew/machines">
-          <span>Machines</span>
-          <span className="chev" aria-hidden="true" />
-        </a>
-        <a className="row" href="/trash">
-          <span>Trash</span>
-          <span className="chev" aria-hidden="true" />
-        </a>
-        <button className="row danger" type="button" id="signout-row" onClick={() => void signOut(fail)}>
+      <List as="div">
+        <ListRow as="a" href="/settings" title="Settings" chevron />
+        <ListRow as="a" href="/settings/passkeys" title="Passkeys" chevron />
+        <ListRow as="a" href="/settings/recovery" title="Recovery codes" chevron />
+        <ListRow as="a" href="/crew/machines" title="Machines" chevron />
+        <ListRow as="a" href="/trash" title="Trash" chevron />
+        <ListRow as="button" tone="danger" id="signout-row" onClick={() => void signOut(fail)}>
           Sign out
-        </button>
-      </div>
+        </ListRow>
+      </List>
     </>
   );
 }

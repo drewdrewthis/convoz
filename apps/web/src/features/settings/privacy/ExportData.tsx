@@ -41,8 +41,8 @@ export function ExportData() {
 
   return (
     <>
-      <p className="lead">Export your data</p>
-      <p className="muted">The file stays ready for one hour. Nothing is kept on the server after that.</p>
+      <p className="text-15 text-muted">Export your data</p>
+      <p className="text-muted">The file stays ready for one hour. Nothing is kept on the server after that.</p>
       <div className="actions">
         <Button variant="primary" onClick={start} disabled={job?.status === "running"}>
           Export my data

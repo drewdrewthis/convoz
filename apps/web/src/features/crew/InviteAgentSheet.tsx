@@ -153,10 +153,10 @@ export default function InviteAgentSheet({ close, conversation }: Props) {
       }
     >
       {doneHandle ? (
-        <p role="status" className="lead">{`Connected: ${name} is online${where}.`}</p>
+        <p role="status" className="text-15 text-muted">{`Connected: ${name} is online${where}.`}</p>
       ) : (
         <>
-          <p className="muted">
+          <p className="text-muted">
             Paste this into the agent. It works once. Messages and asks go to conversations. Status goes to the agent and shows on its profile.
             {conversation ? ` It joins “${conversation.title || "Untitled conversation"}”.` : ""}
           </p>

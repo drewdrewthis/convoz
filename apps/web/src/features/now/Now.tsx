@@ -386,7 +386,7 @@ function PendingAdd({ add, reload }: { add: NowPendingAdd; reload: () => Promise
   return (
     <article className="card" aria-labelledby={id}>
       <h3 id={id}>{`${who} wants to add ${whoLine(add.person)}`}</h3>
-      <p className="sub">{add.conversation.title || "Untitled conversation"}</p>
+      <p className="text-13 text-muted">{add.conversation.title || "Untitled conversation"}</p>
       <div className="btns">
         <Button variant="primary" disabled={working} onClick={() => void decide(true)}>
           Approve

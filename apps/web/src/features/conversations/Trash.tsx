@@ -5,6 +5,8 @@ import { stripCf } from "../../shared/chat.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { restore } from "./actions.ts";
 import { Button } from "@convoz/ui/Button";
+import { EmptyState } from "@convoz/ui/EmptyState";
+import { List, ListRow } from "@convoz/ui/ListRow";
 
 const DAY = 86_400_000;
 
@@ -37,20 +39,21 @@ export function Trash() {
   };
   return (
     <div id="trash" className="trash" aria-busy={rows === null ? true : undefined}>
-      {rows && rows.length === 0 ? <p className="empty">Trash is empty. A deleted conversation waits here for 30 days.</p> : null}
-      <ul className="group" role="list" aria-label="Trash" hidden={!rows?.length}>
+      {rows && rows.length === 0 ? <EmptyState>Trash is empty. A deleted conversation waits here for 30 days.</EmptyState> : null}
+      <List role="list" aria-label="Trash" hidden={!rows?.length}>
         {(rows ?? []).map((c) => (
-          <li key={c.id} className="row">
-            <span className="grow">
-              <span className="trashtitle">{stripCf(c.title ?? "") || "New conversation"}</span>
-              <span className="sub trashwhen">{c.purges_at ? forever(c.purges_at) : ""}</span>
-            </span>
-            <Button className="flex-none" size="small" aria-label={`Restore ${stripCf(c.title ?? "") || "New conversation"}`} onClick={() => void back(c)}>
-              Restore
-            </Button>
-          </li>
+          <ListRow
+            key={c.id}
+            title={stripCf(c.title ?? "") || "New conversation"}
+            sub={c.purges_at ? forever(c.purges_at) : ""}
+            trailing={
+              <Button className="flex-none" size="small" aria-label={`Restore ${stripCf(c.title ?? "") || "New conversation"}`} onClick={() => void back(c)}>
+                Restore
+              </Button>
+            }
+          />
         ))}
-      </ul>
+      </List>
     </div>
   );
 }

@@ -57,7 +57,7 @@ export function ShortcutsHost() {
         </Button>
       }
     >
-      <p className="muted">Cmd is Ctrl on Windows and Linux.</p>
+      <p className="text-muted">Cmd is Ctrl on Windows and Linux.</p>
       <dl className="keys">
         {SHORTCUTS.map((s) => (
           <div key={s.keys} className="keyrow">

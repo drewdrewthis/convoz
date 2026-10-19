@@ -97,7 +97,7 @@ export function StepUpSheet({ title, intro, fields = [], confirm, action, target
         </>
       }
     >
-      {intro ? <p className="muted">{intro}</p> : null}
+      {intro ? <p className="text-muted">{intro}</p> : null}
       {fields.map((f) => (
         <Field
           key={f.key}

@@ -11,6 +11,7 @@ import { toast } from "../pins-stars/index.ts";
 import { markAllRead } from "./actions.ts";
 import { Row, type ReorderMode } from "./Row.tsx";
 import { Button } from "@convoz/ui/Button";
+import { EmptyState } from "@convoz/ui/EmptyState";
 
 const VirtualList = lazy(() => import("./VirtualList.tsx"));
 
@@ -136,13 +137,19 @@ export function Conversations() {
           {olderOpen ? <PlainList rows={g.older} me={me ?? ""} label="Older conversations" id="older-list" mode={mode} /> : null}
         </>
       ) : null}
-      <div id="chats-empty" className="emptystate" hidden={!ready || rows.length !== 0}>
-        <ChatIcon />
-        <p className="lead">No conversations yet. Start one and type @ to bring in an agent.</p>
-        <Button variant="primary" className="mt-8 min-w-[12rem] w-auto!" href="/chats/new">
-          New conversation
-        </Button>
-      </div>
+      <EmptyState
+        id="chats-empty"
+        variant="page"
+        icon={<ChatIcon />}
+        hidden={!ready || rows.length !== 0}
+        action={
+          <Button variant="primary" className="mt-8 min-w-[12rem] w-auto!" href="/chats/new">
+            New conversation
+          </Button>
+        }
+      >
+        No conversations yet. Start one and type @ to bring in an agent.
+      </EmptyState>
     </div>
   );
 }

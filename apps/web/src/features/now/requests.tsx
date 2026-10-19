@@ -33,7 +33,7 @@ const sourceLine = (req: MachineRequest) => `Source: ${req.node_name || "unknown
 function Who({ handle, name, description, avatar, conversation, returningSince }: { handle: string; name: string; description: string; avatar: string | null; conversation: { title: string } | null; returningSince: number | null }) {
   return (
     <div className="agentintro">
-      <p className="sub">From the agent</p>
+      <p className="mb-4 text-13 text-muted">From the agent</p>
       <p className="who">
         <span className={`ava p${paletteOf(handle)}`} aria-hidden="true" data-l={avatar ? undefined : initials(handle)}>
           {avatar ? <img src={avatar} alt="" /> : null}
@@ -41,8 +41,8 @@ function Who({ handle, name, description, avatar, conversation, returningSince }
         <strong>{name}</strong> <code>{`@${handle}`}</code>
       </p>
       {description ? <p className="role">{description}</p> : null}
-      {returningSince ? <p className="sub">{`Brings back @${handle} (revoked ${new Date(returningSince).toISOString().slice(0, 10)})`}</p> : null}
-      {conversation ? <p className="sub">{`Joins “${conversation.title || "Untitled conversation"}” from now on`}</p> : null}
+      {returningSince ? <p className="mb-4 text-13 text-muted">{`Brings back @${handle} (revoked ${new Date(returningSince).toISOString().slice(0, 10)})`}</p> : null}
+      {conversation ? <p className="mb-4 text-13 text-muted">{`Joins “${conversation.title || "Untitled conversation"}” from now on`}</p> : null}
     </div>
   );
 }
@@ -105,13 +105,13 @@ export function RequestCard({ item, changed, approved }: CardProps) {
           <p>
             Code: <span className="code">{machine.user_code}</span>
           </p>
-          <p className="sub">{`Reported by the machine: ${hostInfoLine(machine.host_info)}`}</p>
-          <p className="sub">{sourceLine(machine)}</p>
+          <p className="text-13 text-muted">{`Reported by the machine: ${hostInfoLine(machine.host_info)}`}</p>
+          <p className="text-13 text-muted">{sourceLine(machine)}</p>
         </>
       ) : (
-        <p className="sub">{`This machine is already connected.${item.kind === "session" && item.request.via_internet ? " · via internet" : ""}${invitedBy(invite)}`}</p>
+        <p className="text-13 text-muted">{`This machine is already connected.${item.kind === "session" && item.request.via_internet ? " · via internet" : ""}${invitedBy(invite)}`}</p>
       )}
-      {invite?.note ? <p className="sub">{`Note: ${invite.note}`}</p> : null}
+      {invite?.note ? <p className="text-13 text-muted">{`Note: ${invite.note}`}</p> : null}
       <div className="btns">
         <Button variant="primary" disabled={busy} onClick={() => void decide(true)}>
           Approve

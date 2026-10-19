@@ -1,4 +1,3 @@
-import { Field } from "@convoz/ui/Field";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { usePageHead } from "../../shared/page-head.tsx";
 import { call, client, humanError, page } from "../../shared/api.ts";
@@ -8,6 +7,7 @@ import { useNotice } from "../../shared/notice.tsx";
 import { data } from "../../shared/data.ts";
 import { bootstrapTicket, supported } from "../../shared/tickets.ts";
 import { Button } from "@convoz/ui/Button";
+import { Field } from "@convoz/ui/Field";
 
 /**
  * Bootstrap is /bootstrap#cvz_b_…: step 1 of 3 registers the first passkey from a setup link, step 2 shows the recovery codes
@@ -36,7 +36,7 @@ const HEADINGS: Record<string, string> = { used: "This link was already used", e
 function SetupLink() {
   const head = usePageHead();
   const { fail } = useNotice();
-  const [view, setView] = useState<ReactNode>(<p className="muted">Checking your setup link.</p>);
+  const [view, setView] = useState<ReactNode>(<p className="text-muted">Checking your setup link.</p>);
   const [codes, setCodes] = useState<string[] | null>(null);
   const [token] = useState(() => location.hash.slice(1));
 
@@ -53,7 +53,7 @@ function SetupLink() {
       if (!live) return;
       setView(
         <>
-          <p className="lead">Setup links work once and only for ten minutes.</p>
+          <p className="text-15 text-muted">Setup links work once and only for ten minutes.</p>
           {signedIn ? (
             <div className="actions">
               <Button variant="primary" href="/">
@@ -146,7 +146,7 @@ function FirstPasskey({ token, onCodes }: { token: string; onCodes: (codes: stri
 
   return (
     <form className="stack" noValidate onSubmit={(event) => event.preventDefault()}>
-      <p className="lead">Convoz is your private workspace for people and agents. Create the first passkey to own it.</p>
+      <p className="text-15 text-muted">Convoz is your private workspace for people and agents. Create the first passkey to own it.</p>
       <Field
         label="Handle"
         hint="Lowercase letters, numbers and dashes. It starts with a letter and never changes."
@@ -191,13 +191,10 @@ function SaveCodes({ codes }: { codes: string[] }) {
   }, [head]);
   return (
     <>
-      <p className="lead">Each code works once. Use one if you ever lose your passkey. Convoz shows them only now.</p>
+      <p className="text-15 text-muted">Each code works once. Use one if you ever lose your passkey. Convoz shows them only now.</p>
       <CodesBlock codes={codes} />
       <div className="actions">
-        <label className="check">
-          <input type="checkbox" id="saved" checked={saved} onChange={(e) => setSaved(e.target.checked)} />
-          <span>I saved them</span>
-        </label>
+        <Field as="check" type="checkbox" id="saved" label="I saved them" checked={saved} onChange={(e) => setSaved(e.target.checked)} />
         <Button variant="primary" disabled={!saved} onClick={() => location.assign("/onboarding")}>
           Continue
         </Button>
