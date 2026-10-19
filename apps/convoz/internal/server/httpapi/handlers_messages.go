@@ -219,7 +219,7 @@ func systemView(dir directory, m message.Message) (*wire.System, string) {
 		return nil, ""
 	}
 	sys := &wire.System{T: line.T, Via: line.Via, History: line.History, Streak: line.Streak, Title: line.Title, From: line.From, To: line.To,
-		Done: line.Done, Now: line.Now, Waiting: line.Waiting, Liveness: line.Liveness}
+		Done: line.Done, Now: line.Now, Next: line.Next, Waiting: line.Waiting, Liveness: line.Liveness}
 	proj := message.ProjectSystem{T: line.T, History: line.History, Streak: line.Streak, Title: line.Title, From: line.From, To: line.To,
 		Done: line.Done, Now: line.Now, Waiting: line.Waiting, Liveness: line.Liveness}
 	if line.Identity != 0 {

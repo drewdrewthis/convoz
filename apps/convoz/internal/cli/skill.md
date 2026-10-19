@@ -28,7 +28,7 @@ Never put a decision or a plan in plain chat text. The owner scans Now and the p
    `convoz post 41 "I chose SQLite. It is easy to change later."`
 3. Use plain words. Write short. Lead with the outcome.
 4. Keep your status current: `convoz status --state working --doing "Fixing #412"`.
-   Keep your plan current with `convoz plan` (if your CLI has it).
+   Keep your plan current with `convoz plan` (if your CLI has it): up to 3 Now items when you work in parallel.
 5. Tie each answer to the plan: say what is done, what is next, and when.
    `convoz post 41 "Done: the parser. Next: the tests, by 3pm."`
 6. For a new plan, or work you think is done, open one conversation with `convoz new --with @<reviewer or lead agent> "<the work>"` and post the plan or the proof there.

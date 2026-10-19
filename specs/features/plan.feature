@@ -46,6 +46,32 @@ Feature: Plans: what each agent is doing, what is next and what waits on the own
       Then the tool answers with the plan
       And the plan of "devtool" in conversation 41 is Doing "Building invites" and Next "Reply chip"
 
+    # Owner (Drew), msg 659, quoting an agent: "Yes, in parallel. An agent is fixing #8675's 4 review findings right now, while another
+    # works on #8798. The plan tool allows only one 'Now' item, so #8675 shows as next." An agent that works in parallel lists up to 3.
+    @v1 @cli
+    Scenario: An agent working in parallel shows up to 3 Now items, each with its own estimate
+      When "devtool" runs "convoz plan 41 --doing 'Fix #8675 findings' --eta 30m --step 1/4 --doing 'Build #8798' --eta 2h"
+      Then the command prints both Now items, the first with "step 1 of 4"
+      And the plan of "devtool" in conversation 41 has 2 Now items, each with its own estimate
+      And the line under the title reads the first item
+      When 31 minutes pass with no update
+      Then the plan is late by the first item, and the line shows it with "+1"
+      And the nudge to "devtool" names "Fix #8675 findings"
+
+    @v1 @mcp
+    Scenario: The plan tool takes up to 3 Now items, each with its own estimate
+      When "devtool" calls the MCP tool "plan" with conversation 41 and doing a list of "Fix #8675 findings" ready in 30 minutes and "Build #8798" ready in 2 hours
+      Then the plan of "devtool" in conversation 41 has those 2 Now items, each with its own estimate
+      When "devtool" calls the MCP tool "plan" with doing as the single text "Build #8798"
+      Then the plan of "devtool" in conversation 41 has 1 Now item "Build #8798"
+
+    @v1 @cli
+    Scenario: A fourth --doing is refused with a clear message
+      When "devtool" runs "convoz plan 41" with 4 "--doing" items
+      Then it exits 2 and says "--doing is at most 3 items"
+      When "devtool" runs "convoz plan 41 --eta 30m"
+      Then it exits 2 and says "--eta needs a --doing before it"
+
   Rule: One line under the title shows the most urgent state across the agents
 
     @v1 @browser
@@ -80,7 +106,7 @@ Feature: Plans: what each agent is doing, what is next and what waits on the own
       When the owner opens conversation 41 and taps the line under the title
       Then the panel shows "Waiting on you · 1", then "Agents · 2", then "Conversation", in that order
       And "Paste the prompt to dot" shows "I did it" and "Reply" and no "Open", as it has no link
-      And the card of "@devtool" shows "Working", Now "Switch on the internet door" with "Step 2 of 3" and "ready ~", and Next "Reply chip" and "Faster first load" numbered
+      And the card of "@devtool" shows "Working", Now "Switch on the internet door" with a step bar at 2 of 3 and "ready ~", and Next "Reply chip" and "Faster first load" numbered
       And its Done items are folded as "Done · 5"
       When the owner taps "Done · 5"
       Then all 5 Done items show under "Today"
@@ -89,6 +115,36 @@ Feature: Plans: what each agent is doing, what is next and what waits on the own
       Then the chat shows the owner's message "@devtool I did it: Paste the prompt to dot"
       And the item shows "You said it is done" until "devtool" updates its plan
       And at 320 pixels wide the panel has no sideways scroll and every button is at least 44 pixels tall
+
+    # Owner (Drew), msg 594: "The asking for a plan button is nice -- however, it' just posts a message asing for a plan, but no
+    # instructions. It can probably do  abetter job for that?" An agent answered with its plan as a chat message, so the panel stayed empty.
+    @v1 @browser
+    Scenario: Ask for a plan tells the agent the command that sets it
+      Given "docs" has no plan in conversation 41
+      When the owner opens the details of conversation 41 and taps "Ask for a plan" on the card of "@docs"
+      Then the chat shows the owner's message to "@docs" with "convoz plan 41 --doing" and "not a chat message"
+      And it names the MCP "plan" tool and "convoz plan --help"
+
+    # Owner (Drew), msg 646: "improve the UI on this card". The header keeps the name, the state and the age; Remove is in a menu; Now is
+    # one tinted block, with the step as a small bar; Next is quieter; Done is a plain fold row.
+    @v1 @browser
+    Scenario: The plan card puts Remove in a menu and shows the step as a bar
+      Given "devtool" finished "One-time invites" and planned Doing "Switch on the internet door" at step 2 of 3 ready in 15 minutes and Next "Reply chip"
+      When the owner opens the details of conversation 41
+      Then the card of "@devtool" shows "Working", "updated" and a menu button, and no "Remove" button
+      And Now shows "Switch on the internet door" with a step bar at 2 of 3 and "ready ~"
+      When the owner opens the menu and taps "Remove"
+      Then "@devtool" is removed at once and a toast offers Undo, as before
+      And at 320 pixels wide the panel has no sideways scroll and every button is at least 44 pixels tall
+
+    # Owner (Drew), msg 659: each parallel Now item is its own block with its own step bar and estimate.
+    @v1 @browser
+    Scenario: The card and the line show each parallel Now item with its own estimate
+      Given "devtool" planned Doing "Fix #8675 findings" at step 1 of 4 ready in 30 minutes and Doing "Build #8798" ready in 2 hours
+      When the owner opens conversation 41
+      Then the line under the title reads "Working · Fix #8675 findings" with "+1"
+      When the owner taps the line
+      Then the card of "@devtool" shows two Now blocks, each with its own "ready ~", and the step bar only on the first
 
     @v1 @browser
     Scenario: The panel says when an agent is late or blocked
@@ -117,12 +173,26 @@ Feature: Plans: what each agent is doing, what is next and what waits on the own
 
   Rule: Updates come live; only something new that waits on the owner pushes
 
+    # Owner (Drew), msg 632: "not sure what this little text is? is that the plan? or status update? it can probably be clearer/better UI".
+    # The plan update is one muted row: a plan icon, "@handle updated its plan", "Now: ..." cut to one line and, when something waits, a
+    # "Waiting on you · n" pill. Tapping the row opens Done, Now, Next and Waiting as short labelled lines.
+    @v1 @browser
+    Scenario: A plan update in the chat is one quiet row that expands
+      Given "devtool" works on "One-time invites" and the owner has conversation 41 open
+      When "devtool" runs "convoz plan 41 --done 'One-time invites' --doing 'Switch on the internet door' --waiting 'Approve the dot card'"
+      Then the chat shows one row "@devtool updated its plan" with "Now: Switch on the internet door" and the pill "Waiting on you · 1"
+      And the row is collapsed and shows no "Done:" line
+      When the owner taps the row
+      Then it shows the labelled lines "Done" "One-time invites", "Now" "Switch on the internet door" and "Waiting" "Approve the dot card"
+      When the owner taps the pill "Waiting on you · 1"
+      Then the details panel opens
+
     @v1 @browser
     Scenario: The line and the panel update live, and a quiet line marks a finished item
       Given the owner has conversation 41 open and "devtool" works on "One-time invites"
       When "devtool" runs "convoz plan 41 --done 'One-time invites' --doing 'Switch on the internet door' --eta 20m"
       Then the line under the title reads "Working · Switch on the internet door" without a reload
-      And the chat shows the quiet line "@devtool · Done: One-time invites · Now: Switch on the internet door"
+      And the chat shows the quiet row "@devtool updated its plan" with "Now: Switch on the internet door"
       When "devtool" only moves its ready time to 40 minutes
       Then the line shows the new time and no new quiet line appears
 

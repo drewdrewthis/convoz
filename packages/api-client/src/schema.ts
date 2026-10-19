@@ -1337,7 +1337,7 @@ export interface paths {
          * @description The identity comes from the lease, which needs the `status` scope (a plan also moves the agent's status: a plan with a Doing sets it
          *     to working). Everything is replaced at once except Done, whose items go in front of the kept history (20 at most). A Waiting item
          *     that was not there before pushes the owner (plan_waiting); a finished item, or something new waiting, writes one quiet system line
-         *     (plan.changed). A conversation the caller is not in is 404. More than 5 next, waiting or done items, a text over 200 characters,
+         *     (plan.changed). Up to 3 Now items (`now`) tell of parallel work: each has its own step and eta, and each is late by its own eta. More than 3 is 400 with the field. A conversation the caller is not in is 404. More than 5 next, waiting or done items, a text over 200 characters,
          *     an eta that is no duration up to 7 days nor HH:MM, or a step that is not N/M is 400 `invalid_request` with the field. A retry
          *     with the client_id of the request that wrote the plan changes nothing.
          */
@@ -2989,7 +2989,9 @@ export interface components {
             prev_seq_for_you?: number;
         };
         PlanRequest: {
-            /** @description What the agent does now (one item). */
+            /** @description What the agent does now, up to 3 items when it works in parallel, each with its own step and eta. Give now, or doing with step and eta, not both. */
+            now?: components["schemas"]["PlanNowRequest"][];
+            /** @description What the agent does now (one item; see now for more). */
             doing?: string;
             /** @description N/M: the Doing item is at step N of M. */
             step?: string;
@@ -3011,6 +3013,23 @@ export interface components {
             at: number;
             of: number;
         };
+        PlanNowRequest: {
+            text: string;
+            step?: string;
+            /** @description A duration (30m, 1h30m) or HH:MM in the zone of utc_offset. */
+            eta?: string;
+        };
+        PlanNow: {
+            text: string;
+            /** Format: int64 */
+            since?: number;
+            step?: components["schemas"]["PlanStep"];
+            /**
+             * Format: int64
+             * @description Epoch ms on the server clock.
+             */
+            eta?: number;
+        };
         PlanWaiting: {
             text: string;
             /**
@@ -3030,6 +3049,9 @@ export interface components {
             /** Format: int64 */
             identity_id: number;
             handle: string;
+            /** @description The Now items, each with its own step and eta. */
+            now: components["schemas"]["PlanNow"][];
+            /** @description The first Now item, for older readers (with doing_since, step and eta). */
             doing: string;
             /** Format: int64 */
             doing_since?: number;
@@ -3086,6 +3108,8 @@ export interface components {
             text: string;
             /** Format: int64 */
             eta?: number;
+            /** @description How many more Now items the plan has than the line shows. */
+            more?: number;
             /** Format: int64 */
             last_seen_at?: number;
         };

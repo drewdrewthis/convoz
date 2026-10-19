@@ -24,8 +24,10 @@ import (
 
 // Limits of one plan (the approved design, tab 3 "Rules").
 const (
-	MaxText        = 200 // one item's text, in characters
-	MaxNext        = 5
+	MaxText = 200 // one item's text, in characters
+	MaxNext = 5
+	// MaxNow is how many Now items an agent that works in parallel lists (owner msg 659).
+	MaxNow         = 3
 	MaxWaiting     = 5
 	MaxDonePerCall = 5
 	// MaxDoneKept is how much Done history a plan keeps; the panel folds it under "Done · n".
@@ -46,10 +48,18 @@ const (
 	NotRespondingAfter = 10 * time.Minute
 )
 
-// Step is "step At of Of" of the Doing item.
+// Step is "step At of Of" of a Now item.
 type Step struct {
 	At int `json:"at"`
 	Of int `json:"of"`
+}
+
+// Item is one thing the agent does now, with its own step and estimate. ETA is epoch ms; 0 for none.
+type Item struct {
+	Text  string `json:"text"`
+	Since int64  `json:"since,omitempty"`
+	Step  *Step  `json:"step,omitempty"`
+	ETA   int64  `json:"eta,omitempty"`
 }
 
 // Waiting is one item that waits on the owner; Since is when it first showed (it keeps that across replacements).
@@ -66,13 +76,11 @@ type Done struct {
 
 // Body is the plan's items, stored as one JSON document.
 type Body struct {
-	Doing      string    `json:"doing,omitempty"`
-	DoingSince int64     `json:"doing_since,omitempty"`
-	Step       *Step     `json:"step,omitempty"`
-	Blocked    string    `json:"blocked,omitempty"`
-	Next       []string  `json:"next,omitempty"`
-	Waiting    []Waiting `json:"waiting,omitempty"`
-	Done       []Done    `json:"done,omitempty"` // newest first
+	Now     []Item    `json:"now,omitempty"`
+	Blocked string    `json:"blocked,omitempty"`
+	Next    []string  `json:"next,omitempty"`
+	Waiting []Waiting `json:"waiting,omitempty"`
+	Done    []Done    `json:"done,omitempty"` // newest first
 	// ClientID is the id of the request that wrote the plan: the retry of a request whose answer was lost changes nothing (I-24).
 	ClientID string `json:"client_id,omitempty"`
 }
@@ -82,19 +90,16 @@ type Plan struct {
 	Agent        int64
 	Conversation int64
 	Body
-	ETA         int64 // epoch ms; 0 for none
 	UpdatedAt   int64
 	Nudges      int
 	NudgedAt    int64
 	NudgeAnchor int64
 }
 
-// Input is a new plan as the agent sends it, already parsed (ETA is absolute; 0 for none).
+// Input is a new plan as the agent sends it, already parsed (each item's ETA is absolute; 0 for none).
 type Input struct {
-	Doing   string
-	Step    *Step
+	Now     []Item
 	Blocked string
-	ETA     int64
 	Next    []string
 	Waiting []string
 	Done    []string
@@ -123,10 +128,10 @@ func CheckText(t string) bool {
 }
 
 // Check validates the lists of an input. field names what is wrong, as the API reports it.
-func Check(doing, blocked string, next, waiting, done []string) (field, why string, ok bool) {
+func Check(doing []string, blocked string, next, waiting, done []string) (field, why string, ok bool) {
 	switch {
-	case doing != "" && !CheckText(doing):
-		return "doing", "doing is at most 200 characters, with no control characters", false
+	case len(doing) > MaxNow:
+		return "doing", "doing is at most 3 items", false
 	case blocked != "" && !CheckText(blocked):
 		return "blocked", "blocked is at most 200 characters, with no control characters", false
 	case len(next) > MaxNext:
@@ -135,6 +140,11 @@ func Check(doing, blocked string, next, waiting, done []string) (field, why stri
 		return "waiting", "waiting is at most 5 items", false
 	case len(done) > MaxDonePerCall:
 		return "done", "done is at most 5 items at a time", false
+	}
+	for _, t := range doing {
+		if !CheckText(t) {
+			return "doing", "doing items are 1 to 200 characters, with no control characters", false
+		}
 	}
 	for name, list := range map[string][]string{"next": next, "waiting": waiting, "done": done} {
 		for _, t := range list {
@@ -205,11 +215,16 @@ func Replace(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int64, 
 	if in.ClientID != "" && old.ClientID == in.ClientID {
 		return old, Change{Repeat: true}, nil
 	}
-	b := Body{Doing: in.Doing, Step: in.Step, Blocked: in.Blocked, Next: slices.Clone(in.Next), ClientID: in.ClientID}
-	if b.Doing != "" {
-		b.DoingSince = at
-		if old.Doing == b.Doing && old.DoingSince != 0 {
-			b.DoingSince = old.DoingSince
+	b := Body{Blocked: in.Blocked, Next: slices.Clone(in.Next), ClientID: in.ClientID}
+	var eta sql.NullInt64 // the column holds the earliest estimate
+	for _, it := range in.Now {
+		it.Since = at
+		if i := slices.IndexFunc(old.Now, func(o Item) bool { return o.Text == it.Text && o.Since != 0 }); i >= 0 {
+			it.Since = old.Now[i].Since
+		}
+		b.Now = append(b.Now, it)
+		if it.ETA != 0 && (!eta.Valid || it.ETA < eta.Int64) {
+			eta = sql.NullInt64{Int64: it.ETA, Valid: true}
 		}
 	}
 	var ch Change
@@ -234,12 +249,11 @@ func Replace(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int64, 
 	if err != nil {
 		return Plan{}, Change{}, err
 	}
-	eta := sql.NullInt64{Int64: in.ETA, Valid: in.ETA != 0 && b.Doing != ""}
 	err = db.New(d).UpsertPlan(ctx, db.UpsertPlanParams{AgentID: agent, ConversationID: conv, BodyJson: string(raw), Eta: eta, UpdatedAt: at})
 	if err != nil {
 		return Plan{}, Change{}, err
 	}
-	return Plan{Agent: agent, Conversation: conv, Body: b, ETA: eta.Int64, UpdatedAt: at}, ch, nil
+	return Plan{Agent: agent, Conversation: conv, Body: b, UpdatedAt: at}, ch, nil
 }
 
 // Get reads one plan; ErrNotFound when the agent has none in the conversation.
@@ -275,42 +289,79 @@ func fromRows(rows []db.Plan) []Plan {
 }
 
 func fromRow(r db.Plan) Plan {
-	p := Plan{Agent: r.AgentID, Conversation: r.ConversationID, ETA: r.Eta.Int64, UpdatedAt: r.UpdatedAt, Nudges: int(r.Nudges), NudgedAt: r.NudgedAt.Int64, NudgeAnchor: r.NudgeAnchor}
+	p := Plan{Agent: r.AgentID, Conversation: r.ConversationID, UpdatedAt: r.UpdatedAt, Nudges: int(r.Nudges), NudgedAt: r.NudgedAt.Int64, NudgeAnchor: r.NudgeAnchor}
 	_ = json.Unmarshal([]byte(r.BodyJson), &p.Body) // the CHECK keeps it valid JSON; a field it lacks reads as empty
+	if len(p.Now) == 0 {
+		// Plans written before parallel Now items hold one Doing, its step in the body and its estimate in the column.
+		var old struct {
+			Doing      string `json:"doing"`
+			DoingSince int64  `json:"doing_since"`
+			Step       *Step  `json:"step"`
+		}
+		if _ = json.Unmarshal([]byte(r.BodyJson), &old); old.Doing != "" {
+			p.Now = []Item{{Text: old.Doing, Since: old.DoingSince, Step: old.Step, ETA: r.Eta.Int64}}
+		}
+	}
 	return p
 }
 
-// DueAt is when the plan turns overdue by its own clock: its estimate, or StaleAfter after its update when it has a Doing and no
-// estimate. 0 for a plan with no Doing.
+// DueAt is when the plan turns overdue by its own clock: the earliest of its items, each by its estimate, or StaleAfter after its
+// update when it has none. 0 for a plan with no Now item.
 func (p Plan) DueAt() int64 { return p.dueFrom(p.UpdatedAt) }
 
 // dueFrom is DueAt with anchor as the last update (the plan's, or a later status update of the agent).
-func (p Plan) dueFrom(anchor int64) int64 {
-	switch {
-	case p.Doing == "":
-		return 0
-	case p.ETA != 0:
-		return p.ETA
+func (p Plan) dueFrom(anchor int64) (due int64) {
+	for _, it := range p.Now {
+		if d := it.dueFrom(anchor); due == 0 || d < due {
+			due = d
+		}
+	}
+	return due
+}
+
+func (it Item) dueFrom(anchor int64) int64 {
+	if it.ETA != 0 {
+		return it.ETA
 	}
 	return anchor + StaleAfter.Milliseconds()
 }
 
-// Overdue says how the plan is overdue at now, given the agent's last update (anchor): "late" past its estimate with no update since,
-// "stale" with no estimate and no update for StaleAfter, else "". A blocked plan waits on something else and is never overdue.
-func (p Plan) Overdue(anchor, now int64) string {
-	if p.Doing == "" || p.Blocked != "" {
-		return ""
-	}
-	if p.ETA != 0 {
-		if now >= p.ETA && anchor < p.ETA {
+// overdue says how one item is overdue at now: "late" past its estimate with no update since, "stale" with no estimate and no update
+// for StaleAfter, else "".
+func (it Item) overdue(anchor, now int64) string {
+	if it.ETA != 0 {
+		if now >= it.ETA && anchor < it.ETA {
 			return "late"
 		}
 		return ""
 	}
-	if now >= p.dueFrom(anchor) {
+	if now >= it.dueFrom(anchor) {
 		return "stale"
 	}
 	return ""
+}
+
+// MostOverdue is the item that is overdue at now, given the agent's last update (anchor), and how: a late item before a stale one,
+// the earliest due first. The state is "" when no item is overdue. A blocked plan waits on something else and is never overdue.
+func (p Plan) MostOverdue(anchor, now int64) (Item, string) {
+	var best Item
+	state := ""
+	if p.Blocked != "" {
+		return best, ""
+	}
+	for _, it := range p.Now {
+		s := it.overdue(anchor, now)
+		if s != "" && (state == "" || s == "late" && state == "stale" || s == state && it.dueFrom(anchor) < best.dueFrom(anchor)) {
+			best, state = it, s
+		}
+	}
+	return best, state
+}
+
+// Overdue says how the plan is overdue at now: the state of MostOverdue.
+func (p Plan) Overdue(anchor, now int64) string {
+	_, state := p.MostOverdue(anchor, now)
+	return state
 }
 
 // NudgeDue reports whether the agent should be nudged now: the plan is overdue, fewer than MaxNudges went out for this miss, and the

@@ -73,6 +73,8 @@ export interface Plan {
   doing_since?: number;
   step?: { at: number; of: number };
   eta?: number;
+  /** The Now items, up to 3, each with its own step and estimate (msg 659); doing, step and eta above are the first one. */
+  now?: { text: string; since: number; step?: { at: number; of: number }; eta?: number }[];
   next: string[];
   waiting: { text: string; since: number }[];
   done: { text: string; at: number }[];
@@ -84,7 +86,7 @@ export interface Board {
   now: number;
   plans: Plan[];
   agents: { identity_id: number; handle: string; state: string; liveness: string; last_seen_at?: number; online: boolean }[];
-  attention: { conversation_id: number; state: string; handle: string; text: string; eta?: number }[];
+  attention: { conversation_id: number; state: string; handle: string; text: string; eta?: number; more?: number }[];
   next_change_at?: number;
 }
 

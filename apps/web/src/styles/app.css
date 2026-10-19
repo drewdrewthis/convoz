@@ -382,6 +382,20 @@
   /* the bullet hangs off the text itself: as its own flex item, a text too long for the row wrapped below it and left the bullet alone */
   .notice-text::before { content: "\2022"; display: inline-block; width: 16px; margin-left: -24px; margin-right: 8px; text-align: center; }
   .notice-line[data-t="conversation.paused"] .notice-text::before { content: "\23F8"; }
+  /* a plan update (msg 632): one muted row; the pill and the opened lines sit under the same left edge as the other notices */
+  .plan-note { gap: 0 8px; padding: 0 12px 0 60px; }
+  .pn-main { display: flex; flex: 0 1 auto; align-items: center; gap: 8px; min-width: 0; min-height: 44px; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+  .pn-icon { flex: none; width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .pn-who { flex: none; }
+  .pn-now { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pn-chev svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s; }
+  .pn-main[aria-expanded="true"] .pn-chev svg { transform: rotate(90deg); }
+  .pn-pill { position: relative; flex: none; min-height: 28px; padding: 0 10px; border: 1px solid color-mix(in srgb, var(--color-warning) 45%, var(--color-border)); border-radius: 999px; background: none; color: var(--color-warning); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+  .pn-pill::after { content: ""; position: absolute; inset: -8px -2px; }
+  .pn-lines { flex-basis: 100%; display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 0 0 8px 23px; font-size: 13px; }
+  .pn-lines div { display: contents; }
+  .pn-lines dt { font-weight: 600; }
+  .pn-lines dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
   .msg .sendstate { margin-top: 2px; text-align: right; color: var(--color-muted); font-size: 12px; }
   .msg .seen { margin-top: 2px; text-align: right; color: var(--color-muted); font-size: 12px; }
   .msg .sendstate.bad { color: var(--color-danger); font-weight: 600; }

@@ -14,6 +14,7 @@ import { ThreadPane, useThreads } from "../threads/index.ts";
 import { resume } from "./actions.ts";
 import { Details } from "./Details.tsx";
 import { MessageDetails } from "./MessageDetails.tsx";
+import { OpenDetails } from "./messages/PlanNote.tsx";
 import { PlanLine } from "./PlanLine.tsx";
 import { useFocusReport } from "../notifications/index.ts";
 import { replyingNote, usePresence, useReplying } from "../../shared/presence.ts";
@@ -58,6 +59,7 @@ export function Conversation() {
   const [error, setError] = useState("");
   const [gone, setGone] = useState(false);
   const [info, setInfo] = useState(false);
+  const openInfo = useCallback(() => setInfo(true), []);
   const [inviting, setInviting] = useState(false);
   const [inspected, setInspected] = useState<Message | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -332,22 +334,24 @@ export function Conversation() {
               </span>
             </div>
           ) : null}
-          <Transcript
-            messages={held?.list ?? NONE}
-            pending={thread?.pending ?? NO_SENDS}
-            hasEarlier={Boolean(held?.hasEarlier)}
-            me={me}
-            opened={opened}
-            hint={isNew && !agent && !gone}
-            conversation={convId}
-            working={note}
-            control={control}
-            onEarlier={() => actions().loadEarlier(key)}
-            onRetry={retry}
-            onDetails={setInspected}
-            focus={focus || undefined}
-            newFrom={newFrom}
-          />
+          <OpenDetails.Provider value={openInfo}>
+            <Transcript
+              messages={held?.list ?? NONE}
+              pending={thread?.pending ?? NO_SENDS}
+              hasEarlier={Boolean(held?.hasEarlier)}
+              me={me}
+              opened={opened}
+              hint={isNew && !agent && !gone}
+              conversation={convId}
+              working={note}
+              control={control}
+              onEarlier={() => actions().loadEarlier(key)}
+              onRetry={retry}
+              onDetails={setInspected}
+              focus={focus || undefined}
+              newFrom={newFrom}
+            />
+          </OpenDetails.Provider>
           <Composer
             agent={agent?.handle ?? null}
             label={label}
