@@ -159,9 +159,18 @@ NowPendingAdd:
     person: { $ref: "../openapi.yaml#/components/schemas/Person" }
     requested_by: { $ref: "../openapi.yaml#/components/schemas/Person" }
     at: { type: integer, format: int64 }
+NowWaiting:
+  type: object
+  required: [conversation, agent, text, since]
+  description: A plan item an agent waits on the owner for.
+  properties:
+    conversation: { $ref: "../openapi.yaml#/components/schemas/AskConversation" }
+    agent: { $ref: "../openapi.yaml#/components/schemas/Person" }
+    text: { type: string }
+    since: { type: integer, format: int64 }
 Now:
   type: object
-  required: [now, poll_ms, badge, asks, snoozed, answered_today, dismissed_today, pending_adds, machine_requests, identity_requests]
+  required: [now, poll_ms, badge, asks, snoozed, answered_today, dismissed_today, pending_adds, waiting_plans, machine_requests, identity_requests]
   properties:
     now: { type: integer, format: int64, description: The server's clock, epoch ms. Snooze times and "tonight" are read against it. }
     poll_ms: { type: integer, description: How often an open Now asks again, for what only time changes (a snooze waking, a request expiring). }
@@ -171,5 +180,6 @@ Now:
     answered_today: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Ask" }, description: Answered in the last 24 hours, newest first. }
     dismissed_today: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Ask" }, description: Dismissed in the last 24 hours and still dismissed, newest first. }
     pending_adds: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/NowPendingAdd" } }
+    waiting_plans: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/NowWaiting" }, description: Plan items agents wait on the owner for, newest first. }
     machine_requests: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/MachineRequest" } }
     identity_requests: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/IdentityRequest" }, description: Agents on logged-in machines that ask to be made. }

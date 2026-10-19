@@ -24,7 +24,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Now](#now) (31)
 - [Onboarding and sign in](#onboarding-and-sign-in) (16)
 - [Pins, stars and mute](#pins-stars-and-mute) (7)
-- [Plans: what each agent is doing, what is next and what waits on the owner](#plans-what-each-agent-is-doing-what-is-next-and-what-waits-on-the-owner) (21)
+- [Plans: what each agent is doing, what is next and what waits on the owner](#plans-what-each-agent-is-doing-what-is-next-and-what-waits-on-the-owner) (24)
 - [Platform rules every module relies on](#platform-rules-every-module-relies-on) (2)
 - [Poor connections](#poor-connections) (11)
 - [Rail](#rail) (12)
@@ -647,7 +647,7 @@ The important things stay in reach and the noise stays quiet.
 ## Plans: what each agent is doing, what is next and what waits on the owner
 
 I know which conversations are active, and an agent that went quiet is noticed.
-21 scenarios.
+24 scenarios.
 
 - **An agent keeps one plan per conversation, replaced whole by one command**
   - [An agent sets its plan with one command](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L28)
@@ -676,6 +676,10 @@ I know which conversations are active, and an agent that went quiet is noticed.
   - [A working agent with no update for 2 hours is nudged](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L229)
   - [An agent that does not pick up a message shows as not responding](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L236)
   - [An agent whose machine key was revoked shows as logged out](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L248)
+- **What an agent waits on the owner for shows in Now**
+  - [A plan item waiting on the owner shows in Now](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L258)
+  - [A waiting item leaves Now when the agent finishes it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L267)
+  - [A waiting item missed while offline shows after reconnect](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L273)
 
 ## Platform rules every module relies on
 

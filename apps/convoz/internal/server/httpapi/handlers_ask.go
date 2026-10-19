@@ -1,9 +1,11 @@
 package httpapi
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"net/http"
+	"slices"
 	"time"
 	_ "time/tzdata" // Tonight and Tomorrow are read in the person's zone, and a bare container has no zone files
 
@@ -12,6 +14,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/plan"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
@@ -373,6 +376,9 @@ func (s *Server) nowScreen(w http.ResponseWriter, r *http.Request, c *call) {
 	if err == nil {
 		out.PendingAdds, err = pendingAdds(ctx, d, dir)
 	}
+	if err == nil {
+		out.WaitingPlans, err = s.waitingPlans(ctx, d, c, dir)
+	}
 	var machines []auth.Request
 	if err == nil {
 		machines, err = auth.PendingRequests(ctx, d, now)
@@ -399,15 +405,17 @@ func (s *Server) nowScreen(w http.ResponseWriter, r *http.Request, c *call) {
 
 // nowView is the answer of GET /api/now.
 type nowView struct {
-	Now             int64                `json:"now"`
-	PollMS          int64                `json:"poll_ms"`
-	Badge           int                  `json:"badge"`
-	Asks            []wire.AskView       `json:"asks"`
-	Snoozed         []wire.AskView       `json:"snoozed"`
-	AnsweredToday   []wire.AskView       `json:"answered_today"`
-	DismissedToday  []wire.AskView       `json:"dismissed_today"`
-	PendingAdds     []wire.NowPendingAdd `json:"pending_adds"`
-	MachineRequests []requestJSON        `json:"machine_requests"`
+	Now            int64                `json:"now"`
+	PollMS         int64                `json:"poll_ms"`
+	Badge          int                  `json:"badge"`
+	Asks           []wire.AskView       `json:"asks"`
+	Snoozed        []wire.AskView       `json:"snoozed"`
+	AnsweredToday  []wire.AskView       `json:"answered_today"`
+	DismissedToday []wire.AskView       `json:"dismissed_today"`
+	PendingAdds    []wire.NowPendingAdd `json:"pending_adds"`
+	// WaitingPlans are the plan items agents wait on the owner for, newest first.
+	WaitingPlans    []wire.NowWaiting `json:"waiting_plans"`
+	MachineRequests []requestJSON     `json:"machine_requests"`
 	// IdentityRequests are the identities that agents on logged-in machines ask to be made.
 	IdentityRequests []identityRequestJSON `json:"identity_requests"`
 }
@@ -446,6 +454,38 @@ func pendingAdds(ctx context.Context, d pdb.DBTX, dir directory) ([]wire.NowPend
 		}
 		out = append(out, add)
 	}
+	return out, err
+}
+
+// waitingPlans lists the plan items that wait on the owner, newest first, in the conversations the caller can see and that are not in the trash.
+func (s *Server) waitingPlans(ctx context.Context, d pdb.DBTX, c *call, dir directory) ([]wire.NowWaiting, error) {
+	plans, err := plan.All(ctx, d)
+	out := []wire.NowWaiting{}
+	for _, p := range plans {
+		if len(p.Waiting) == 0 {
+			continue
+		}
+		cv, found, err2 := conversation.Get(ctx, d, p.Conversation)
+		if err2 != nil {
+			return nil, err2
+		}
+		if !found {
+			continue
+		}
+		if _, ok, err2 := canSee(ctx, d, c.p, p.Conversation); err2 != nil {
+			return nil, err2
+		} else if !ok {
+			continue
+		}
+		conv := wire.AskConversation{ID: cv.ID}
+		if cv.Title != "" {
+			conv.Title = ptr(cv.Title)
+		}
+		for _, w := range p.Waiting {
+			out = append(out, wire.NowWaiting{Conversation: conv, Agent: dir.person(p.Agent), Text: w.Text, Since: w.Since})
+		}
+	}
+	slices.SortStableFunc(out, func(a, b wire.NowWaiting) int { return cmp.Compare(b.Since, a.Since) })
 	return out, err
 }
 

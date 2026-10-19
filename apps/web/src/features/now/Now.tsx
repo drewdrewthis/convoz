@@ -64,7 +64,8 @@ export function Now() {
   const snoozed = now?.snoozed ?? [];
   const answered = now?.answered_today ?? [];
   const dismissed = now?.dismissed_today ?? [];
-  const some = Boolean(pending && (waiting || asks.length || adds.length));
+  const items = now?.waiting_plans ?? [];
+  const some = Boolean(pending && (waiting || asks.length || adds.length || items.length));
 
   // After a card leaves the list the next one takes the focus, so the keys go on working.
   useEffect(() => {
@@ -197,6 +198,23 @@ export function Now() {
           {asks.map((ask) => (
             <NowAsk key={ask.id} ask={ask} busy={busy.has(ask.id)} presets={presets} answer={answer} dismiss={dismiss} snooze={snooze} />
           ))}
+        </section>
+      ) : null}
+      {items.length ? (
+        <section id="waiting-plans" className="block" aria-labelledby="waiting-plans-heading">
+          <div className="block-head">
+            <h2 id="waiting-plans-heading">Waiting on you</h2>
+          </div>
+          <ul className="foldrows">
+            {items.map((it) => (
+              <li key={`${it.conversation.id}|${it.agent.handle}|${it.text}`}>
+                <a className="waitrow" href={`/chats/${it.conversation.id}#plan`}>
+                  <span className="foldq">{it.text}</span>
+                  <span className="foldwho">{`${whoLine(it.agent)} · ${it.conversation.title || "Untitled conversation"}`}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
         </section>
       ) : null}
       {adds.length ? (

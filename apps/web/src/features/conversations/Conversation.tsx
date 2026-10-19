@@ -58,7 +58,8 @@ export function Conversation() {
   const [newFrom, setNewFrom] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [gone, setGone] = useState(false);
-  const [info, setInfo] = useState(false);
+  // /chats/<id>#plan (a row of Now) opens with the plan panel showing.
+  const [info, setInfo] = useState(() => location.hash === "#plan");
   const openInfo = useCallback(() => setInfo(true), []);
   const [inviting, setInviting] = useState(false);
   const [inspected, setInspected] = useState<Message | null>(null);
@@ -118,6 +119,7 @@ export function Conversation() {
   useEffect(() => {
     if (!convId) return;
     const follow = () => {
+      if (location.hash === "#plan") setInfo(true);
       openReplyLink(convId);
       const wanted = Number(/^#m(\d+)$/.exec(location.hash)?.[1] ?? 0);
       if (!wanted) return;
