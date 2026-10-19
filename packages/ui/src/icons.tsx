@@ -22,6 +22,7 @@ export const DetailsIcon = icon(<path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H
 export const SendIcon = icon(<path d="M12 19V6M6 11.5l6-6 6 6" />);
 export const AttachIcon = icon(<path d="M21.4 11.1l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5" />);
 export const MicIcon = icon(<path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM19 11a7 7 0 0 1-14 0M12 18v3" />);
+export const PhoneIcon = icon(<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" />);
 export const FileIcon = icon(<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6" />);
 export const CloseIcon = icon(<path d="M18 6L6 18M6 6l12 12" />);
 export const ArrowIcon = icon(<path d="M5 12h14M13 6l6 6-6 6" />);

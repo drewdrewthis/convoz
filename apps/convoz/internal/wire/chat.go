@@ -93,6 +93,8 @@ type Message struct {
 	App json.RawMessage `json:"app,omitempty"`
 	// ViaApp is set on a message the owner sent through an app of an agent (I-46).
 	ViaApp *ViaApp `json:"via_app,omitempty"`
+	// ViaVoice is set on a message the owner's voice call posted: readers see "via voice call".
+	ViaVoice bool `json:"via_voice,omitempty"`
 	// Uploads are the files the message carries; Text is then the plain-text form of the whole message (a voice note reads
 	// "Voice note 0:20: <words>"), which `convoz read` prints.
 	Uploads []Upload `json:"uploads,omitempty"`
@@ -162,8 +164,9 @@ type PostRequest struct {
 	ThreadRoot int64           `json:"thread_root_id,omitempty"`
 	Broadcast  bool            `json:"broadcast,omitempty"`
 	UploadIDs  []string        `json:"upload_ids,omitempty"`
-	App        json.RawMessage `json:"app,omitempty"`     // agents only
-	ViaApp     *ViaAppRequest  `json:"via_app,omitempty"` // the owner only
+	App        json.RawMessage `json:"app,omitempty"`       // agents only
+	ViaApp     *ViaAppRequest  `json:"via_app,omitempty"`   // the owner only
+	ViaVoice   bool            `json:"via_voice,omitempty"` // the owner's voice call posts this; the owner only
 }
 
 // PostResponse is the answer to a post: 201 for a new message, 200 with the same ids for a repeat.

@@ -65,6 +65,7 @@
               upload_ids: { type: array, items: { type: string } }
               app: { $ref: "../openapi.yaml#/components/schemas/App", description: "Agents only; at most 65536 bytes; checked against app.v1 (400 app_invalid with the path)." }
               via_app: { $ref: "../openapi.yaml#/components/schemas/ViaAppRequest", description: "The owner only (a lease answers 403): send the result of an app (I-46)." }
+              via_voice: { type: boolean, description: "The owner's voice call posts this (a lease answers 403 naming via_voice): readers see \"via voice call\"." }
     responses:
       "200": { $ref: "../openapi.yaml#/components/responses/Posted" }
       "201": { $ref: "../openapi.yaml#/components/responses/Posted" }

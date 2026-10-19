@@ -35,4 +35,5 @@ type MessageRow struct {
 	AppJson         string
 	ViaAppAgentID   sql.NullInt64
 	AppResultJson   string
+	ViaVoice        int64
 }

@@ -6,11 +6,13 @@ import { humanError } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { pinMessage, toast, unpinMessage } from "../pins-stars/index.ts";
 import { AskApp } from "./AskApp.tsx";
+import { useThreads } from "../threads/index.ts";
 import { presetsAt } from "./presets.ts";
 import { answerAsk, dismissAsk, snoozeAsk, undismissAsk, useNow } from "./store.ts";
 
-// The thread pane (and the composer it holds) is loaded the same way, by the Reply that opens it.
-const openThread = (conversation: number, root: number) => import("../threads/index.ts").then((f) => f.useThreads.getState().openThread(conversation, root));
+// The thread pane loads by the Reply that opens it (ThreadPane is lazy). The store is a static import: the feature is in the main bundle
+// anyway (Unread, Row), so a dynamic import of it moved nothing and made the bundle carry a namespace helper that a lazy chunk (the call's SDK) then owned.
+const openThread = (conversation: number, root: number) => useThreads.getState().openThread(conversation, root);
 
 /** AskInline is the ask card inside a conversation. Its changes go to the same routes as Now's, and the message that holds the ask
  *  takes the new state at once (the stream frame brings the same state a moment later). */

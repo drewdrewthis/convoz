@@ -86,6 +86,7 @@ type Server struct {
 	heartbeat                                                                          time.Duration // how often a quiet stream sends ": hb" and checks its device; heartbeatEvery unless a test shortens it
 	watching                                                                           watchSet      // the agents that hold a long poll of their inbox now (plan liveness, msg 281)
 	runners                                                                            runnerSet     // which session runs `convoz run` for an agent (handlers_runner.go)
+	voice                                                                              voiceState    // the voice call's key, token minter and hourly budget (voice.go)
 }
 
 // Daily message caps (design §13.1).
@@ -126,6 +127,7 @@ func NewServer(store *db.Store, clock platform.Clock, wa *webauthn.WebAuthn, key
 		heartbeat:          heartbeatEvery,
 		dayIdentityLimit:   auth.Limiter{Window: 24 * time.Hour, Max: dayMessagesIdentity},
 		dayMachineLimit:    auth.Limiter{Window: 24 * time.Hour, Max: dayMessagesMachine},
+		voice:              voiceState{limit: auth.Limiter{Window: time.Hour, Max: voiceTokensPerHour}},
 	}
 }
 

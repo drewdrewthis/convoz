@@ -1621,6 +1621,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/voice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether the web app shows Call, and when not, why (no key, or transcription is off). */
+        get: operations["voiceState"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/voice/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A one-use Gemini token for a call in a conversation the owner can see, 20 an hour.
+         * @description The token opens one live session within 2 minutes and lives 30 minutes; it locks the model, the instructions and the tools, which
+         *     the answer also carries as `config` (the SDK's own shape). With no key or with transcription off it is 404 `voice_off`; an agent is 403.
+         */
+        post: operations["voiceToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/search": {
         parameters: {
             query?: never;
@@ -2390,6 +2428,8 @@ export interface components {
             app?: components["schemas"]["App"] | components["schemas"]["AppStub"];
             /** @description Set on a message the owner sent through an app of an agent (I-46). */
             via_app?: components["schemas"]["ViaApp"];
+            /** @description Set on a message the owner's voice call posted; readers see "via voice call". */
+            via_voice?: boolean;
             /** Format: int64 */
             thread_root_id?: number;
             broadcast?: boolean;
@@ -2585,6 +2625,30 @@ export interface components {
              */
             message_id: number;
             result: components["schemas"]["AppResult"];
+        };
+        VoiceState: {
+            on: boolean;
+            /** @description Why it is off: "no voice key" or "transcription is off". */
+            why?: string;
+        };
+        VoiceTokenRequest: {
+            /** Format: int64 */
+            conversation_id: number;
+        };
+        VoiceToken: {
+            /** @description Google's name for the one-use token; the browser gives it to the SDK as its key. */
+            token: string;
+            model: string;
+            ws_url: string;
+            /**
+             * Format: int64
+             * @description When the token dies, epoch ms.
+             */
+            expires_at: number;
+            /** @description The live config the token locks, in the SDK's own shape. */
+            config: {
+                [key: string]: unknown;
+            };
         };
         AppChecked: {
             /** @enum {boolean} */
@@ -5228,6 +5292,8 @@ export interface operations {
                     app?: components["schemas"]["App"];
                     /** @description The owner only (a lease answers 403): send the result of an app (I-46). */
                     via_app?: components["schemas"]["ViaAppRequest"];
+                    /** @description The owner's voice call posts this (a lease answers 403 naming via_voice): readers see "via voice call". */
+                    via_voice?: boolean;
                 };
             };
         };
@@ -6058,6 +6124,52 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    voiceState: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The state. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoiceState"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    voiceToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VoiceTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description The token. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoiceToken"];
+                };
             };
             default: components["responses"]["Error"];
         };

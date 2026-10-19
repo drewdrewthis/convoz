@@ -1,0 +1,33 @@
+# Paths of the voice call (Gemini Live). The phone talks to Google directly with a one-use token this server mints; the key stays here.
+/api/voice:
+  get:
+    x-authz: { auth: owner, lease: refuse }
+    operationId: voiceState
+    summary: Whether the web app shows Call, and when not, why (no key, or transcription is off).
+    responses:
+      "200":
+        description: The state.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/VoiceState" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/voice/token:
+  post:
+    x-authz: { auth: owner, lease: refuse }
+    operationId: voiceToken
+    summary: A one-use Gemini token for a call in a conversation the owner can see, 20 an hour.
+    description: |
+      The token opens one live session within 2 minutes and lives 30 minutes; it locks the model, the instructions and the tools, which
+      the answer also carries as `config` (the SDK's own shape). With no key or with transcription off it is 404 `voice_off`; an agent is 403.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "../openapi.yaml#/components/schemas/VoiceTokenRequest" }
+    responses:
+      "200":
+        description: The token.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/VoiceToken" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }

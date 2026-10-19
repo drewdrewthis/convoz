@@ -67,6 +67,7 @@ type Message struct {
 	HasApp         bool
 	OriginLabel    string // the agent session that wrote it, and its machine (I-40)
 	OriginMachine  string
+	ViaVoice       bool // the owner's voice call posted it
 }
 
 // Origin says where an agent's message came from.
@@ -89,6 +90,7 @@ type Draft struct {
 	App          []byte   // an app message's app.v1 JSON (appkit); nil for none
 	UploadIDs    []string // public ids of the uploads the message carries; nil for none
 	ViaApp       *ViaApp  // set when the owner sends the result of an app (I-46)
+	ViaVoice     bool     // the owner's voice call posts it: readers see "via voice call"
 }
 
 // ViaApp says which app message a result came through, the agent that wrote it and the result (app-result.v1).
@@ -116,7 +118,7 @@ func fromRow(r db.MessageRow) Message {
 		Deleted: r.DeletedAt.Valid, Purged: r.PurgedAt.Valid, System: r.SystemJson.String, SessionID: r.SessionID.Int64,
 		AnswersAskID: r.AnswersAskID.Int64, ViaAppID: r.ViaAppMessageID.Int64, ViaAgentID: r.ViaAppAgentID.Int64, HasApp: r.HasApp == 1,
 		App: textBytes(r.AppJson), AppResult: textBytes(r.AppResultJson),
-		OriginLabel: r.OriginLabel.String, OriginMachine: r.OriginMachine.String,
+		OriginLabel: r.OriginLabel.String, OriginMachine: r.OriginMachine.String, ViaVoice: r.ViaVoice == 1,
 	}
 }
 
@@ -208,7 +210,7 @@ func insert(ctx context.Context, tx pdb.DBTX, now time.Time, d Draft) (m Message
 		ConversationID: d.Conversation, AuthorID: nullInt(d.Author), Kind: kind, Format: d.Format, Body: d.Body, AnswersAskID: nullInt(d.AnswersAsk),
 		ThreadRootID: nullInt(d.ThreadRoot), Broadcast: boolInt(d.Broadcast),
 		SessionID: nullInt(d.Session), DeviceID: nullInt(d.Device), ClientID: sql.NullString{String: d.ClientID, Valid: true},
-		OriginLabel: nullStr(d.Origin.Label), OriginMachine: nullStr(d.Origin.Machine), CreatedAt: at,
+		OriginLabel: nullStr(d.Origin.Label), OriginMachine: nullStr(d.Origin.Machine), ViaVoice: boolInt(d.ViaVoice), CreatedAt: at,
 	}
 	if len(d.App) > 0 {
 		p.AppJson = sql.NullString{String: string(d.App), Valid: true}
@@ -224,7 +226,7 @@ func insert(ctx context.Context, tx pdb.DBTX, now time.Time, d Draft) (m Message
 	m = Message{
 		ID: id, ConversationID: d.Conversation, AuthorID: d.Author, Kind: kind, Format: d.Format, Body: d.Body, CreatedAt: at, AnswersAskID: d.AnswersAsk,
 		ThreadRootID: d.ThreadRoot, Broadcast: d.Broadcast, SessionID: d.Session, HasApp: len(d.App) > 0, App: d.App,
-		OriginLabel: d.Origin.Label, OriginMachine: d.Origin.Machine,
+		OriginLabel: d.Origin.Label, OriginMachine: d.Origin.Machine, ViaVoice: d.ViaVoice,
 	}
 	if v := d.ViaApp; v != nil {
 		m.ViaAppID, m.ViaAgentID, m.AppResult = v.Message, v.Agent, v.Result

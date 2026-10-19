@@ -162,6 +162,11 @@ func serve(args []string) int {
 		if names := transcribeAuto(os.Getenv("CREDENTIALS_DIRECTORY"), transcript.DefaultEndpoints()); names != nil {
 			logger.Printf("voice transcription: %s, in that order", strings.Join(names, ", "))
 		}
+		// The voice call rides on the same Gemini key and the same promise: with transcription off, no audio leaves the box.
+		if key := readCredential(os.Getenv("CREDENTIALS_DIRECTORY"), "gemini_api_key"); key != "" {
+			api.EnableVoice(key)
+			logger.Printf("voice call: on")
+		}
 	}
 	go api.RunTimers(ctx)  // wakes the snoozes whose time has come, even when nobody has Now open
 	go api.RunUnfurls(ctx) // fetches the link previews the post transaction queued

@@ -12,3 +12,6 @@ allowBuilds:
   "@swc/core": false
   esbuild: false
   msw: false
+  # The call's Gemini SDK (apps/web/src/features/call): its install scripts are not needed in a browser bundle.
+  "@google/genai": false
+  protobufjs: false

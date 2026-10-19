@@ -5,6 +5,7 @@ import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { ApiError } from "../../shared/api.ts";
 import { initials, paletteOf, setRegistry, stripCf } from "../../shared/chat.ts";
 import { data, useData, useLive } from "../../shared/data.ts";
+import { CallBar, CallButton } from "../call/index.ts";
 import { Composer, useAttachments } from "../composer/index.ts";
 import { InviteAgentSheet } from "../crew/index.ts";
 import { usePlans } from "../plan/index.ts";
@@ -289,6 +290,7 @@ export function Conversation() {
             ) : null}
           </p>
         </div>
+        {conversation && !isNew ? <CallButton conversationId={convId} /> : null}
         {conversation && !isNew ? <StarButton id={convId} starred={conversation.starred} /> : null}
         {conversation && !isNew ? (
           <button type="button" className="iconbtn" aria-label="Show details" aria-pressed={info} aria-keyshortcuts="I" title="Show details · I" onClick={() => setInfo((on) => !on)}>
@@ -298,6 +300,7 @@ export function Conversation() {
           <span className="slot" aria-hidden="true" />
         )}
       </header>
+      {convId ? <CallBar conversationId={convId} /> : null}
       {conversation?.paused ? (
         <div className="banner pausebar" role="status">
           <span>Agents are paused after 20 messages in a row.</span>

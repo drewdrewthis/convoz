@@ -321,3 +321,22 @@ func requireBuild(t *testing.T) {
 		t.Fatal("the web app is not built into console/web: run make -C apps/convoz web")
 	}
 }
+
+// While the server has a voice key the pages may connect to Google's live address, and only then; the rest of the policy is the same.
+func TestPolicyNamesGoogleOnlyWhileVoiceIsOn(t *testing.T) {
+	defer SetVoice(false)
+	const google = "generativelanguage.googleapis.com"
+	cold := &ColdPage{}
+	if strings.Contains(policy(), google) || strings.Contains(cold.csp(), google) {
+		t.Fatal("the policy names Google while voice is off")
+	}
+	SetVoice(true)
+	for name, csp := range map[string]string{"lean": policy(), "cold": cold.csp()} {
+		if !strings.Contains(csp, "connect-src 'self' https://"+google+" wss://"+google+";") {
+			t.Errorf("%s policy has no Google connect-src: %s", name, csp)
+		}
+	}
+	if strings.Replace(policy(), googleLive, "", 1) != CSP {
+		t.Errorf("voice changes more than connect-src: %s", policy())
+	}
+}
