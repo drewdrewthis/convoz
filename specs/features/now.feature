@@ -76,6 +76,48 @@ Feature: Now
       When the owner taps "Reopen"
       Then Now lists the ask as open again
 
+    # Owner, feed ask 237: "I can't reopen the items in the feed. I should be able to. Also, I should always be able to quick reply/snooze/etc"
+    @v1 @browser
+    Scenario: Every item in the feed opens its conversation when tapped
+      Given conversation 41 has a snoozed ask, an answered ask and a dismissed ask
+      When the owner opens each fold in Now and taps the ask in it
+      Then conversation 41 opens with that ask in view
+
+    @v1 @browser
+    Scenario: Reopen puts a dismissed ask back on a phone
+      Given an open ask of "devtool" that the owner dismissed
+      When the owner opens "Dismissed today" in Now and taps "Reopen"
+      Then Now lists the ask as open again with its quick bar
+      When the owner dismisses it and reopens it from the ask options in conversation 41
+      Then the ask in conversation 41 shows its quick bar
+
+    @v1 @browser
+    Scenario Outline: An open ask always shows its quick bar
+      Given an open ask of "devtool" <before>
+      When the owner looks at the ask <where>
+      Then the ask shows its quick bar with <buttons>
+
+      Examples:
+        | before                   | where                            | buttons                         |
+        | in Now                   | in Now                           | Quick reply, Snooze, Dismiss    |
+        | in conversation 41       | in conversation 41               | Quick reply, Snooze, Dismiss    |
+        | in conversation 41       | in its thread                    | Snooze, Dismiss                 |
+        | that was dismissed       | in Now after "Reopen"            | Quick reply, Snooze, Dismiss    |
+        | that was snoozed         | in Now after "Unsnooze"          | Quick reply, Snooze, Dismiss    |
+        | in Now                   | in Now after a reload            | Quick reply, Snooze, Dismiss    |
+        | in conversation 41       | in conversation 41 after a reload| Quick reply, Snooze, Dismiss    |
+
+    # Owner, feed ask 240: "It doesn't reopen, but I should be able to click and still reply in thread or jump to convo. I should be able to follow up"
+    @v1 @browser
+    Scenario: An answered ask in the feed lets the owner follow up in its thread or jump to its conversation
+      Given an answered ask, a dismissed ask and a snoozed ask of "devtool"
+      When the owner opens the folds in Now
+      Then each row offers "Reply in thread" and "Jump to conversation"
+      When the owner taps "Reply in thread" on the answered row
+      Then the thread of the ask opens and its Reply box has focus
+      When the owner taps "Jump to conversation" on the answered row
+      Then conversation 41 opens with the ask in view and the ask is still answered
+
     @v1 @browser
     Scenario: The ask bar works from the keyboard
       Given an open ask of "devtool" has focus in Now

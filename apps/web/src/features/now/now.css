@@ -73,7 +73,9 @@
   .foldrows { list-style: none; margin: 8px 0 0; padding: 0; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-raised); overflow: hidden; }
   .foldrows li { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 14px; border-top: 1px solid var(--color-border); }
   .foldrows li:first-child { border-top: 0; }
-  .foldq { font-size: 14px; font-weight: 600; }
+  .foldq { font-size: 14px; font-weight: 600; color: inherit; text-decoration: none; }
+  .foldacts .foldstate { padding: 0 8px; }
+  .foldacts { display: flex; flex-wrap: wrap; align-items: center; margin: 0 -8px; }
   .foldwho, .foldstate { font-size: 13px; color: var(--color-muted); }
 }
 @layer components {

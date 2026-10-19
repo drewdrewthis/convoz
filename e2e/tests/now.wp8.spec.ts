@@ -2,7 +2,9 @@ import { agentSays, convoz, createConversation, ownerSays, unreadOf } from "../l
 import {
   QUESTION,
   agentAsks,
+  answerAsk,
   askCard,
+  markAsk,
   askOf,
   askWorld,
   nowOf,
@@ -13,6 +15,7 @@ import {
 } from "../lib/asks.ts";
 import { mintSession, nowCard, plainDb, requestMachine, seedUserCodes } from "../lib/machines.ts";
 import { must } from "../lib/owner.ts";
+import type { Locator, Page } from "@playwright/test";
 import { expect, scenario, test } from "../lib/scenario.ts";
 import { asAgent, browserWorld, idsOf, rowsOnList } from "../lib/wp3.ts";
 
@@ -218,6 +221,162 @@ scenario("The Dismissed fold lists dismissed asks and Reopen puts one back", { t
   // Then Now lists the ask as open again
   await expect(askCard(page)).toHaveCount(1);
   expect((await askOf(w.owner, id)).state).toBe("open");
+});
+
+/** The quick bar of an open ask: Snooze and Dismiss always, Quick reply where the card is not in a thread. Each button is on screen. */
+async function expectBar(page: Page, scope: Locator, withReply: boolean): Promise<void> {
+  const bar = scope.getByRole("group", { name: "Ask actions" });
+  const width = page.viewportSize()?.width ?? 0;
+  const names = withReply ? ["Quick reply", "Snooze", "Dismiss"] : ["Snooze", "Dismiss"];
+  for (const name of names) {
+    const b = bar.getByRole("button", { name, exact: true });
+    await expect(b).toBeVisible();
+    const box = (await b.boundingBox())!;
+    expect(box.x >= 0 && box.x + box.width <= width, `${name} is on screen`).toBe(true);
+  }
+  if (!withReply) await expect(bar.getByRole("button", { name: "Quick reply", exact: true })).toHaveCount(0);
+}
+
+scenario("Every item in the feed opens its conversation when tapped", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(120_000);
+  // Given conversation 41 has a snoozed ask, an answered ask and a dismissed ask
+  const w = await browserWorld({ server, page, context }, WORLD);
+  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  const lease = w.sessions.devtool!.lease;
+  const snoozedId = await agentAsks(w.srv, lease, conv, { question: "Snoozed question?" });
+  must(await snoozeAsk(w.owner, snoozedId, { preset: "1h" }), "snooze");
+  const answeredId = await agentAsks(w.srv, lease, conv, { question: "Answered question?" });
+  must(await answerAsk(w.owner, answeredId), "answer");
+  const dismissedId = await agentAsks(w.srv, lease, conv, { question: "Dismissed question?" });
+  must(await markAsk(w.owner, dismissedId, "dismiss"), "dismiss");
+
+  // When the owner opens each fold in Now and taps the ask in it
+  for (const [fold, question, id] of [["Snoozed", "Snoozed question?", snoozedId], ["Answered today", "Answered question?", answeredId], ["Dismissed today", "Dismissed question?", dismissedId]] as const) {
+    await openNow(page, w.srv);
+    await openFold(page, fold);
+    await page.locator(".foldrows li").filter({ hasText: question }).getByRole("link", { name: question }).click();
+
+    // Then conversation 41 opens with that ask in view
+    await expect(page).toHaveURL(new RegExp(`/chats/${conv}#m${id}$`));
+    await expect(askCard(page, question)).toBeInViewport();
+  }
+});
+
+scenario("Reopen puts a dismissed ask back on a phone", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(120_000);
+  // Given an open ask of "devtool" that the owner dismissed
+  const w = await browserWorld({ server, page, context }, WORLD);
+  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  const id = await agentAsks(w.srv, w.sessions.devtool!.lease, conv);
+  must(await markAsk(w.owner, id, "dismiss"), "dismiss");
+
+  // When the owner opens "Dismissed today" in Now and taps "Reopen"
+  await openNow(page, w.srv);
+  await openFold(page, "Dismissed today");
+  await page.locator(".foldrows li").getByRole("button", { name: "Reopen" }).click();
+
+  // Then Now lists the ask as open again with its quick bar
+  await expect(askCard(page)).toHaveCount(1);
+  expect((await askOf(w.owner, id)).state).toBe("open");
+  await expectBar(page, askCard(page), true);
+
+  // When the owner dismisses it and reopens it from the ask options in conversation 41
+  must(await markAsk(w.owner, id, "dismiss"), "dismiss again");
+  await page.goto(`${w.srv.origin}/chats/${conv}`);
+  await askCard(page).getByRole("button", { name: "Ask options" }).click();
+  await page.getByRole("menuitem", { name: "Reopen" }).click();
+
+  // Then the ask in conversation 41 shows its quick bar
+  await expectBar(page, askCard(page), true);
+  expect((await askOf(w.owner, id)).state).toBe("open");
+});
+
+scenario("An open ask always shows its quick bar", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(180_000);
+  const w = await browserWorld({ server, page, context }, WORLD);
+  const lease = w.sessions.devtool!.lease;
+  const fresh = async (title: string) => {
+    const conv = await createConversation(w.owner, { title, participants: ["devtool", "docs"] });
+    return { conv, id: await agentAsks(w.srv, lease, conv) };
+  };
+
+  // | in Now | in Now |
+  const a = await fresh("Row now");
+  await openNow(page, w.srv);
+  await expectBar(page, askCard(page), true);
+
+  // | in conversation 41 | in conversation 41 |
+  await page.goto(`${w.srv.origin}/chats/${a.conv}`);
+  await expectBar(page, askCard(page), true);
+
+  // | in conversation 41 | in its thread |
+  await askCard(page).getByRole("button", { name: "Reply in thread", exact: true }).click();
+  await expectBar(page, page.getByRole("log", { name: "Thread messages" }), false);
+
+  // | in conversation 41 | in conversation 41 after a reload |
+  await page.goto(`${w.srv.origin}/chats/${a.conv}`);
+  await page.reload();
+  await expectBar(page, askCard(page), true);
+
+  // | that was dismissed | in Now after "Reopen" |
+  must(await markAsk(w.owner, a.id, "dismiss"), "dismiss");
+  await openNow(page, w.srv);
+  await openFold(page, "Dismissed today");
+  await page.locator(".foldrows li").getByRole("button", { name: "Reopen" }).click();
+  await expectBar(page, askCard(page), true);
+
+  // | that was snoozed | in Now after "Unsnooze" |
+  must(await snoozeAsk(w.owner, a.id, { preset: "1h" }), "snooze");
+  await page.reload();
+  await openFold(page, "Snoozed");
+  await page.locator(".foldrows li").getByRole("button", { name: "Unsnooze" }).click();
+  await expectBar(page, askCard(page), true);
+
+  // | in Now | in Now after a reload |
+  await page.reload();
+  await expectBar(page, askCard(page), true);
+  await expect(askCard(page).getByRole("group", { name: "Ask actions" })).toBeVisible();
+});
+
+scenario("An answered ask in the feed lets the owner follow up in its thread or jump to its conversation", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(120_000);
+  // Given an answered ask, a dismissed ask and a snoozed ask of "devtool"
+  const w = await browserWorld({ server, page, context }, WORLD);
+  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  const lease = w.sessions.devtool!.lease;
+  const answeredId = await agentAsks(w.srv, lease, conv, { question: "Answered question?" });
+  must(await answerAsk(w.owner, answeredId), "answer");
+  must(await markAsk(w.owner, await agentAsks(w.srv, lease, conv, { question: "Dismissed question?" }), "dismiss"), "dismiss");
+  must(await snoozeAsk(w.owner, await agentAsks(w.srv, lease, conv, { question: "Snoozed question?" }), { preset: "1h" }), "snooze");
+
+  // When the owner opens the folds in Now
+  await openNow(page, w.srv);
+  for (const fold of ["Snoozed", "Answered today", "Dismissed today"]) await openFold(page, fold);
+
+  // Then each row offers "Reply in thread" and "Jump to conversation"
+  const rows = page.locator(".foldrows li");
+  await expect(rows).toHaveCount(3);
+  for (const row of await rows.all()) {
+    await expect(row.getByRole("link", { name: "Reply in thread", exact: true })).toBeVisible();
+    await expect(row.getByRole("link", { name: "Jump to conversation", exact: true })).toBeVisible();
+  }
+
+  // When the owner taps "Reply in thread" on the answered row
+  const answered = rows.filter({ hasText: "Answered question?" });
+  await answered.getByRole("link", { name: "Reply in thread", exact: true }).click();
+
+  // Then the thread of the ask opens and its Reply box has focus
+  await expect(page.getByRole("textbox", { name: "Reply in thread" })).toBeFocused();
+
+  // When the owner taps "Jump to conversation" on the answered row
+  await openNow(page, w.srv);
+  await openFold(page, "Answered today");
+  await page.locator(".foldrows li").getByRole("link", { name: "Jump to conversation", exact: true }).click();
+
+  // Then conversation 41 opens with the ask in view and the ask is still answered
+  await expect(page).toHaveURL(new RegExp(`/chats/${conv}#m${answeredId}$`));
+  await expect(askCard(page, "Answered question?")).toBeInViewport();
+  expect((await askOf(w.owner, answeredId)).state).toBe("answered");
 });
 
 scenario("The ask bar works from the keyboard", { tag: ["@browser"] }, async ({ server, page, context, dataDir, testApi }, info) => {
