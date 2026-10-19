@@ -180,6 +180,7 @@ func (s *Server) endSession(w http.ResponseWriter, r *http.Request, c *call) {
 	for _, conv := range released {
 		s.publishWorking(r.Context(), c.lease.IdentityID, conv, false, 0)
 	}
+	s.runners.release(c.lease.IdentityID, c.lease.SessionID)
 	s.Bus.Notify(c.lease.IdentityID) // a poll held for this lease answers "session ended" at once
 	w.WriteHeader(http.StatusNoContent)
 }

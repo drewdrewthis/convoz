@@ -85,6 +85,7 @@ type Server struct {
 	exports                                                                            ops.Exports   // export jobs; the zero value is ready
 	heartbeat                                                                          time.Duration // how often a quiet stream sends ": hb" and checks its device; heartbeatEvery unless a test shortens it
 	watching                                                                           watchSet      // the agents that hold a long poll of their inbox now (plan liveness, msg 281)
+	runners                                                                            runnerSet     // which session runs `convoz run` for an agent (handlers_runner.go)
 }
 
 // Daily message caps (design §13.1).
