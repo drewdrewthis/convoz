@@ -180,7 +180,7 @@ func SessionStart(args []string, io IO) int {
 	create := fs.Bool("create", false, "make the identity if it does not exist: at once with the create_identity scope, else the owner approves a request")
 	display := fs.String("name", "", "the display name for --create (default: the handle)")
 	more := addIntroFlags(fs)
-	invite := fs.String("invite", io.Getenv("CONVOZ_INVITE"), "with --create over the internet: the one-use invite that lets this machine ask for a new agent (CONVOZ_INVITE also sets it)")
+	invite := fs.String("invite", io.Getenv("CONVOZ_INVITE"), "with --create over the internet: the one-use invite that lets this machine ask for a new agent (CONVOZ_INVITE also sets it); without one, the server may answer that no request exists and the CLI says an invite is needed")
 	label := fs.String("label", "convoz cli", "what the owner sees next to the session")
 	clientID := fs.String("client-id", io.Getenv("CLAUDE_CODE_SESSION_ID"), "the client id; the same one replaces the older lease")
 	if !parseNoArgs(fs, args, io) {
@@ -241,7 +241,10 @@ func startSession(io IO, dir string, c *client, creds Credentials, as, clientID,
 			Request *wire.IdentityRequestState `json:"request"`
 		}
 		if err := c.call(context.Background(), "POST", wire.RouteSessions, creds.Key, req, &out); err != nil {
-			if status, _ := statusCode(err); status == http.StatusNotFound && req.Create != nil && req.Create.Request != "" && invite != "" {
+			if status, _ := statusCode(err); status == http.StatusNotFound && req.Create != nil && req.Create.Request != "" {
+				if invite == "" {
+					return "", errNeedsInvite // the internet door answers a stranger with a fake request, then has none (see FileSessionIdentity)
+				}
 				err = fmt.Errorf("the server has no request to wait for: the invite may be used, revoked or older than 24 hours: %w", err)
 			}
 			return "", describeIdentityRefusal(err, as)
@@ -284,6 +287,10 @@ func warnRenamed(io IO, r wire.Renamed) {
 func renamedError(from, to string) error {
 	return &statusError{status: http.StatusForbidden, code: wire.CodeHandleRenamed, msg: fmt.Sprintf("@%s is now @%s. Use --as %s.", from, to, to)}
 }
+
+// errNeedsInvite is the answer to a --create without an invite that the server has no request for. The CLI cannot tell the
+// internet door from the tailnet one by the server URL (both are https), so it says this only when the server shows it.
+var errNeedsInvite = errors.New("Over the internet a new agent needs a one-use invite. Get one with `convoz invite --as <handle> --conv <id>` (the owner approves it) or from the owner's Crew page, then add --invite <invite> (or set CONVOZ_INVITE).")
 
 // errAwaitingOwner marks the wait that ran out; it exits like an auth failure (3): nothing is wrong, but nothing may go on.
 var errAwaitingOwner = errors.New("awaiting the owner")
