@@ -47,6 +47,8 @@ type Conversation struct {
 	Participants   []Person     `json:"participants"`
 	Last           *LastMessage `json:"last"`
 	Unread         int64        `json:"unread"`
+	MainUnread     int64        `json:"main_unread"`       // the part of Unread that sits in the main list; the rest is thread replies
+	Threads        []ThreadRow  `json:"threads,omitempty"` // the threads with a reply, newest reply first
 	Starred        bool         `json:"starred"`
 	Rank           float64      `json:"rank"`
 
@@ -105,6 +107,18 @@ type LastReply struct {
 	Preview   string `json:"preview"` // the plain-text projection, at most 120 characters
 	CreatedAt int64  `json:"created_at"`
 	Unread    bool   `json:"unread,omitempty"`
+}
+
+// ThreadRow is one thread of a conversation as the list shows it under the conversation. Unread counts the replies the reader
+// has not read, only in a thread it is involved in (DA-3).
+type ThreadRow struct {
+	RootID      int64      `json:"root_id"`
+	Author      Person     `json:"author"`
+	Preview     string     `json:"preview"` // the root's plain text
+	ReplyCount  int64      `json:"reply_count"`
+	LastReply   *LastReply `json:"last_reply,omitempty"`
+	LastReplyAt int64      `json:"last_reply_at"`
+	Unread      int64      `json:"unread"`
 }
 
 // MentionSpan is one @mention: the handle as written, and the identity it names with its handle now.

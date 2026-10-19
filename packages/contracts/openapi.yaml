@@ -339,6 +339,7 @@ components:
     AgentWorkingFrame: { $ref: "components/event.yaml#/AgentWorkingFrame" }
     MessageSeenFrame: { $ref: "components/event.yaml#/MessageSeenFrame" }
     Seen: { $ref: "components/conversation.yaml#/Seen" }
+    ThreadRow: { $ref: "components/conversation.yaml#/ThreadRow" }
     SyncEvent: { $ref: "components/event.yaml#/SyncEvent" }
     SyncAnswer: { $ref: "components/event.yaml#/SyncAnswer" }
     SyncDelta: { $ref: "components/event.yaml#/SyncDelta" }

@@ -175,7 +175,7 @@ export function createDataCache(source: DataSource): DataCache {
             ...m,
             list: m.list.map((x) => (x.id === root_id ? { ...x, reply_count, last_reply_at: last_reply_at ?? x.last_reply_at, last_reply: last_reply ?? x.last_reply } : x)),
           }));
-          return true;
+          break; // the list rows follow: thread rows and their counts
         }
         case "agent.working":
         case "message.seen":

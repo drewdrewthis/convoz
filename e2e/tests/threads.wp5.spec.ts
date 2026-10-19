@@ -14,6 +14,7 @@ import {
   ownerHasRead,
   ownerReplies,
   rail,
+  threadPill,
   railState,
   replyBox,
   replyInThread,
@@ -135,9 +136,12 @@ scenario("Replies in a thread the owner replied in count as unread", { tag: ["@b
   await agentReplies(t, t.dev, "Yes, it can");
   await agentReplies(t, t.dev, "I will open the PR");
 
-  // Then conversation 41 is bold with 2 unread
+  // Owner msgs 266-267 (2026-10-19): "I guess this means that there are 5 unviewed items hidden in threads somewhere?" / "so I should
+  // actually see all the threads on the lists". The conversation badge is the main chat only; thread replies count on the thread's row.
+  // Then the row of thread 900 shows 2 unread and conversation 41 is not bold and shows no count
   await freshRail(page, t);
-  expect(await railState(page)).toEqual({ bold: true, unread: "Unread: 2" });
+  expect(await railState(page)).toEqual({ bold: false, unread: "" });
+  await expect(threadPill(page, ROOT_TEXT)).toHaveText("Unread: 2");
   expect(await unread(t)).toBe(2);
 });
 
@@ -153,9 +157,12 @@ scenario("A mention in a thread makes the owner involved", { tag: ["@browser", "
   // When "devtool" replies "@drew can you confirm?" in thread 900
   await agentReplies(t, t.dev, "@drew can you confirm?");
 
-  // Then conversation 41 is bold with 1 unread
+  // Owner msgs 266-267 (2026-10-19): "I guess this means that there are 5 unviewed items hidden in threads somewhere?" / "so I should
+  // actually see all the threads on the lists". The conversation badge is the main chat only; thread replies count on the thread's row.
+  // Then the row of thread 900 shows 1 unread and conversation 41 is not bold and shows no count
   await freshRail(page, t);
-  expect(await railState(page)).toEqual({ bold: true, unread: "Unread: 1" });
+  expect(await railState(page)).toEqual({ bold: false, unread: "" });
+  await expect(threadPill(page, ROOT_TEXT)).toHaveText("Unread: 1");
   expect(await unread(t)).toBe(1);
 });
 
@@ -176,14 +183,17 @@ scenario("Opening the conversation does not clear thread replies", { tag: ["@bro
   await expect(message(page, "A note in the main list")).toBeVisible();
   await expect(replyLine(message(page, ROOT_TEXT))).toContainText("3 replies");
 
-  // Then conversation 41 still shows 2 unread
+  // Owner msgs 266-267 (2026-10-19): "I guess this means that there are 5 unviewed items hidden in threads somewhere?" / "so I should
+  // actually see all the threads on the lists". The conversation badge is the main chat only; thread replies count on the thread's row.
+  // Then the row of thread 900 still shows 2 unread and conversation 41 shows no count
   await expect.poll(() => unread(t)).toBe(2);
   await backButton(page).click();
   await freshRail(page, t);
-  expect(await railState(page)).toEqual({ bold: true, unread: "Unread: 2" });
+  expect(await railState(page)).toEqual({ bold: false, unread: "" });
+  await expect(threadPill(page, ROOT_TEXT)).toHaveText("Unread: 2");
 
   // And opening thread 900 clears them
-  await rail(page).click();
+  await rail(page).locator("a.chatrow").click();
   await openThread(page, ROOT_TEXT);
   await expect(threadLog(page).getByRole("article").filter({ hasText: "I will open the PR" })).toBeVisible();
   await expect.poll(() => unread(t)).toBe(0);

@@ -175,3 +175,66 @@ func (q *Queries) PrevReplyID(ctx context.Context, arg PrevReplyIDParams) (int64
 	err := row.Scan(&column_1)
 	return column_1, err
 }
+
+const threadRoots = `-- name: ThreadRoots :many
+SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine, last_reply_at, app_json, via_app_agent_id, app_result_json FROM message_rows
+WHERE conversation_id = ?1 AND thread_root_id IS NULL AND reply_count > 0 AND deleted_at IS NULL AND id > ?2
+ORDER BY last_reply_id DESC LIMIT ?3
+`
+
+type ThreadRootsParams struct {
+	ConversationID int64
+	Floor          int64
+	MaxRows        int64
+}
+
+// The top-level messages of a conversation that have replies, newest reply first: the thread rows under a conversation in the list.
+func (q *Queries) ThreadRoots(ctx context.Context, arg ThreadRootsParams) ([]MessageRow, error) {
+	rows, err := q.db.QueryContext(ctx, threadRoots, arg.ConversationID, arg.Floor, arg.MaxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MessageRow
+	for rows.Next() {
+		var i MessageRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ConversationID,
+			&i.AuthorID,
+			&i.Kind,
+			&i.Format,
+			&i.Body,
+			&i.ThreadRootID,
+			&i.Broadcast,
+			&i.InMain,
+			&i.ReplyCount,
+			&i.LastReplyID,
+			&i.CreatedAt,
+			&i.EditedAt,
+			&i.DeletedAt,
+			&i.PurgedAt,
+			&i.SystemJson,
+			&i.SessionID,
+			&i.AnswersAskID,
+			&i.ViaAppMessageID,
+			&i.HasApp,
+			&i.OriginLabel,
+			&i.OriginMachine,
+			&i.LastReplyAt,
+			&i.AppJson,
+			&i.ViaAppAgentID,
+			&i.AppResultJson,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

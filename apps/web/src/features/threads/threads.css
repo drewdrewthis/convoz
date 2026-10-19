@@ -43,4 +43,20 @@
     flex: 1 1 auto; min-width: 0; width: auto; height: auto; min-height: 44px; padding: 0 12px; border: 0; border-radius: 0; outline: none; background: transparent;
     color: var(--color-text); font-size: 14px;
   }
+
+  /* thread sub-rows under a conversation (owner, msgs 266-267) */
+  .chatlist li { flex-wrap: wrap; }
+  .thrlist { flex: 1 1 100%; list-style: none; margin: 0; padding: 0 0 4px 28px; }
+  .thrlist li { display: block; }
+  .thrrow a { min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-radius: 14px; color: var(--color-text); font-size: 13px; text-decoration: none; }
+  .thrrow.unread .thrtext { font-weight: 600; }
+  .thrarrow { flex: none; color: var(--color-accent-text); font-weight: 700; }
+  .thrtext { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .thrcount { margin-left: auto; }
+  .thrlist .throlder { min-height: 44px; }
+  .thrlist.compact { padding: 0 0 2px 20px; }
+  .thrlist.compact .thrrow a { min-height: 32px; font-size: 13px; padding: 0 8px; }
+  .thrlist.compact .thrcount { min-width: 20px; padding: 1px 6px; font-size: 12px; }
+  .thrlist.compact .throlder { min-height: 32px; font-size: 12px; padding: 0 8px; }
+  @media (hover: hover) { .thrrow a:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); } }
 }
