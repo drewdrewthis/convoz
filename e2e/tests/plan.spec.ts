@@ -624,7 +624,8 @@ scenario("An agent that does not pick up a message shows as not responding", { t
   const watch = startWatch(p.w.box, p.dev.sid);
   try {
     // with no plan and a live watch there is nothing to say, so the line may go away entirely
-    await expect.poll(async () => ((await planLine(page).count()) ? await planLine(page).innerText() : ""), { timeout: 15_000 }).not.toContain("Not responding");
+    // allInnerTexts reads without waiting: a count then innerText would wait forever for a line that went away in between
+    await expect.poll(async () => (await planLine(page).allInnerTexts()).join(""), { timeout: 15_000 }).not.toContain("Not responding");
   } finally {
     watch.stop();
   }
