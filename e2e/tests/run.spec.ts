@@ -32,7 +32,7 @@ scenario("convoz run answers an item with a fresh process and acks it", { tag: [
     `const item = JSON.parse(fs.readFileSync(0, "utf8"));
 const e = process.env;
 fs.writeFileSync(${JSON.stringify(seen)}, JSON.stringify({ item, conv: e.CONVOZ_CONV, message: e.CONVOZ_MESSAGE, id: e.CONVOZ_ITEM, as: e.CONVOZ_AS }));
-execFileSync(convoz, ["post", e.CONVOZ_CONV, "on it"]);`,
+execFileSync(convoz, ["post", "--fyi", e.CONVOZ_CONV, "on it"]);`,
   );
   const runner = w.box.start(["run", "--as", "devtool", "--", process.execPath, answer], { timeoutMs: 40_000 });
   try {
@@ -69,7 +69,7 @@ scenario("A failing command is retried once, then the thread says it could not a
     "fail.mjs",
     `fs.appendFileSync(${JSON.stringify(seen)}, JSON.stringify(process.env.CONVOZ_MESSAGE) + "\\n");
 const item = JSON.parse(fs.readFileSync(0, "utf8"));
-if (item.message.body.includes("reply first")) execFileSync(convoz, ["reply", process.env.CONVOZ_MESSAGE, "done, then it broke"]);
+if (item.message.body.includes("reply first")) execFileSync(convoz, ["reply", "--fyi", process.env.CONVOZ_MESSAGE, "done, then it broke"]);
 process.stderr.write("boom\\n");
 process.exit(1);`,
   );
@@ -119,7 +119,7 @@ scenario("A second watcher is refused while convoz run serves the agent", { tag:
 
   // And "convoz inbox --peek" and "convoz post" for "devtool" still work
   expect((await w.box.run(["inbox", "--peek", "--sid", other.sid])).code).toBe(0);
-  expect((await w.box.run(["post", String(conv), "hello", "--sid", other.sid])).code).toBe(0);
+  expect((await w.box.run(["post", "--fyi", String(conv), "hello", "--sid", other.sid])).code).toBe(0);
 
   // And a watch that is already open when "convoz run" starts makes the run exit 3 with "@devtool already has a convoz watch open"
   first.stop();
@@ -151,7 +151,7 @@ scenario("A second convoz run for the same agent on the same machine is refused"
   const w = await chatWorld(server, { agents: ["devtool"] });
   const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool"] });
   const dir = scratch();
-  const answer = script(dir, "answer.mjs", `execFileSync(convoz, ["post", process.env.CONVOZ_CONV, "still here"]);`);
+  const answer = script(dir, "answer.mjs", `execFileSync(convoz, ["post", "--fyi", process.env.CONVOZ_CONV, "still here"]);`);
   const argv = ["run", "--as", "devtool", "--", process.execPath, answer];
   const first = w.box.start(argv, { timeoutMs: 40_000 });
   try {
@@ -195,7 +195,7 @@ fs.mkdirSync(dir, { recursive: true });
 fs.writeFileSync(path.join(dir, sid + ".jsonl"), "{}\\n");
 if (prompt.includes("one-line summary")) { console.log("SUMMARY-TESTONLY: answered two questions"); process.exit(0); }
 const m = /conv (\\d+) .* #(\\d+) @/.exec(prompt);
-execFileSync(${JSON.stringify(convozBin)}, ["reply", m[2], "answered"]);
+execFileSync(${JSON.stringify(convozBin)}, ["reply", "--fyi", m[2], "answered"]);
 `,
     { mode: 0o755 },
   );
@@ -240,6 +240,47 @@ execFileSync(${JSON.stringify(convozBin)}, ["reply", m[2], "answered"]);
     const s = await startSession(w.box, "devtool", "notes");
     const notes = await w.box.run(["handoff", "--list", "--sid", s.sid], { timeoutMs: 15_000 });
     expect(notes.stdout).toContain("SUMMARY-TESTONLY: answered two questions");
+  } finally {
+    runner.stop();
+  }
+});
+
+// Owner said (msg 366): "Maybe the message schema should require a true/false field that says if it requires an action/decision from the user -- this will differentiate regular messages from actual blocking requests. We can probably do a lot of powerful stuff with the schema and validation"
+scenario("Claude mode tells the child to post with --fyi", { tag: ["@cli"] }, async ({ server }) => {
+  test.setTimeout(60_000);
+  // Given a stub "claude" command on PATH that records its argv and replies to the item
+  const w = await chatWorld(server, { agents: ["devtool"] });
+  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool"] });
+  const dir = scratch();
+  const bin = path.join(dir, "bin");
+  fs.mkdirSync(bin);
+  const log = path.join(dir, "argv.log");
+  fs.writeFileSync(
+    path.join(bin, "claude"),
+    `#!${process.execPath}
+const fs = require("node:fs");
+const { execFileSync } = require("node:child_process");
+const argv = process.argv.slice(2);
+fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify(argv) + "\\n");
+const prompt = argv[argv.indexOf("--session-id") + 2] ?? "";
+const m = /conv (\\d+) .* #(\\d+) @/.exec(prompt);
+if (m) execFileSync(${JSON.stringify(convozBin)}, ["reply", "--fyi", m[2], "answered"]);
+`,
+    { mode: 0o755 },
+  );
+  // And "convoz run --as devtool" runs
+  const runner = w.box.start(["run", "--as", "devtool"], { timeoutMs: 45_000, env: { PATH: `${bin}:${baseEnv().PATH ?? ""}` } });
+  try {
+    await runner.waitForStdout(/serving @devtool/);
+
+    // When the owner posts a question to "devtool"
+    const id = await ownerSays(w.owner, conv, "@devtool is it green?");
+    await expect.poll(() => threadOf(w.owner, conv, id), { timeout: 15_000 }).toEqual(["devtool: answered"]);
+
+    // Then the prompt the stub was given tells it to answer with "convoz reply --fyi" or "convoz post --fyi"
+    const prompt = (JSON.parse(fs.readFileSync(log, "utf8").trim().split("\n")[0]!) as string[]).join("\n");
+    expect(prompt).toContain("convoz reply --fyi");
+    expect(prompt).toContain("convoz post --fyi");
   } finally {
     runner.stop();
   }

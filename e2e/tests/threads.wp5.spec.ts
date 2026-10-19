@@ -342,7 +342,7 @@ scenario("Reply to a message inside a thread goes to its root", { tag: ["@cli"] 
   const inside = await agentReplies(t, t.docs, "Looks fine to me");
 
   // When "devtool" runs "convoz reply" on that reply with "Thanks, shipping it"
-  const res = await convoz(t.w.box, t.devSid, ["reply", String(inside), "Thanks, shipping it"]);
+  const res = await convoz(t.w.box, t.devSid, ["reply", "--fyi", String(inside), "Thanks, shipping it"]);
 
   // Then the command succeeds and thread 900 shows the new reply
   expect(res.code, res.stderr).toBe(0);
@@ -358,7 +358,7 @@ scenario("An agent answers inside the thread", { tag: ["@cli"] }, async ({ serve
   const t = await threadWorld({ server });
 
   // When "devtool" runs "convoz reply 900 'Yes, it works without the API'"
-  const res = await convoz(t.w.box, t.devSid, ["reply", String(t.root), "Yes, it works without the API"]);
+  const res = await convoz(t.w.box, t.devSid, ["reply", "--fyi", String(t.root), "Yes, it works without the API"]);
   expect(res.code, res.stderr).toBe(0);
   expect(res.stdout).toMatch(/^\d+\n$/);
 

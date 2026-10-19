@@ -147,14 +147,14 @@ func convArg(io IO, s string) (int64, bool) {
 
 // ---- post ---------------------------------------------------------------------------------------------
 
-// Post runs `convoz post [--format F] [--app FILE] [--file PATH]... [--client-id C] <conv> [text|-]`. It prints the message id (with
+// Post runs `convoz post [--fyi] [--format F] [--app FILE] [--file PATH]... [--client-id C] <conv> [text|-]`. It prints the message id (with
 // --json also the files it carries). The text may be left out when files are given. A lost answer
 // is retried with the same client id (see callRetry), so the server stores the message once. When Convoz says to slow down
 // (429 with Retry-After) it waits that long and sends again.
 func Post(args []string, io IO) int {
 	f := newChatFlags("post", io)
 	f.textFrom = 1
-	opt := newPostFlags(f)
+	opt := newPostFlags(f, "post")
 	pos, ok := f.parse(args, io)
 	if !ok {
 		return ExitUsage
@@ -175,10 +175,14 @@ type postFlags struct {
 	app              appOpts
 	files            *fileList
 	broadcast        bool // reply only: also show the reply in the main thread
+	needs            needsYouFlags
+	verb             string // post or reply, for the hint
 }
 
-func newPostFlags(f *chatFlags) postFlags {
+func newPostFlags(f *chatFlags, verb string) postFlags {
 	return postFlags{
+		needs:    newNeedsYouFlags(f),
+		verb:     verb,
 		format:   f.fs.String("format", "", "markdown, markdownv2 or plain"),
 		app:      newAppOpts(f, "a file holding an app (app.v1 JSON) to send with the text"),
 		files:    filesFlag(f),
@@ -186,7 +190,7 @@ func newPostFlags(f *chatFlags) postFlags {
 	}
 }
 
-const postUsage = "usage: convoz post [--format F] [--app FILE] [--file PATH]... [--client-id C] <conv> [text|-]"
+const postUsage = "usage: convoz post [--fyi] [--format F] [--app FILE] [--file PATH]... [--client-id C] <conv> [text|-]"
 
 func filesFlag(f *chatFlags) *fileList {
 	l := &fileList{}
@@ -208,6 +212,9 @@ func (o postFlags) textOf(pos []string) string {
 
 // send posts text (or standard input for "-") to conversation conv, as a reply to thread when thread is not 0.
 func (o postFlags) send(f *chatFlags, io IO, conv, thread int64, text string) int {
+	if code, ok := o.needs.check(io, o.verb); !ok {
+		return code
+	}
 	if text == "-" {
 		raw, err := readAll(io)
 		if err != nil {
@@ -264,7 +271,7 @@ func (o postFlags) send(f *chatFlags, io IO, conv, thread int64, text string) in
 	if clientID == "" {
 		clientID = "convoz-" + randomHex(8)
 	}
-	req := wire.PostRequest{ClientID: clientID, Body: text, Format: *o.format, ThreadRoot: thread, Broadcast: o.broadcast, App: app}
+	req := wire.PostRequest{ClientID: clientID, Body: text, Format: *o.format, ThreadRoot: thread, Broadcast: o.broadcast, App: app, NeedsYou: news()}
 	for _, u := range sent {
 		req.UploadIDs = append(req.UploadIDs, u.ID)
 	}

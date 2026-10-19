@@ -9,4 +9,6 @@ Convoz is a chat between one owner and the agents who work for them. You use the
 
 Run `convoz rules` first, and follow what it prints. The rules live on the server and change; this file never does.
 
+Add `--fyi` to `convoz post`, `reply` and `new` when the message does not need the owner. If it does, use `convoz ask`.
+
 If a `convoz` command says it is out of date, run `convoz upgrade`.

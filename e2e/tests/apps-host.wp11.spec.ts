@@ -89,7 +89,7 @@ scenario("A typo in an app is caught at post time", { tag: ["@cli"] }, async ({ 
   const app = validApp("chart-bar-prototype-a1");
   app.props.colour = "red";
   const file = write(tmp(), "chart.json", app);
-  const ran = await convoz(a.w.box, a.devtool.sid, ["post", "--app", file, String(a.conv), "Tokens"]);
+  const ran = await convoz(a.w.box, a.devtool.sid, ["post", "--fyi", "--app", file, String(a.conv), "Tokens"]);
 
   // Then the CLI exits 2 naming "/props/colour"
   expect(ran.code).toBe(2);
@@ -131,7 +131,7 @@ scenario("An agent builds a Tier-2 app without npm", { tag: ["@cli", "@mcp"] }, 
   expect(html.toString()).toContain("window.convoz");
 
   // And "convoz post 41 --app deploy-report/dist/app.json --app-fallback 'Deploy report for box-3' Report" posts it
-  const posted = await convoz(a.w.box, a.devtool.sid, ["post", "--app", "deploy-report/dist/app.json", "--app-fallback", "Deploy report for box-3", String(a.conv), "Report"]);
+  const posted = await convoz(a.w.box, a.devtool.sid, ["post", "--fyi", "--app", "deploy-report/dist/app.json", "--app-fallback", "Deploy report for box-3", String(a.conv), "Report"]);
   expect(posted.code).toBe(0);
   const message = (await pageOf(a)).find((m) => m.body === "Report");
   expect(message?.app).toMatchObject({ type: "frame", fallback: "Deploy report for box-3", props: { bundle: { size: html.length, sha256: sha256(html) } } });
@@ -534,7 +534,7 @@ scenario("One tap on a picker answers the agent", { tag: ["@browser", "@cli"] },
   const rootText = "Step 1 is the runner comparison";
   const root = await ownerSays(a.w.owner, a.conv, rootText);
   const file = write(tmp(), "picker.json", validApp("picker-single-prototype-a2"));
-  const replied = await convoz(a.w.box, a.devtool.sid, ["reply", "--app", file, String(root), "Which runner should I compare first?"]);
+  const replied = await convoz(a.w.box, a.devtool.sid, ["reply", "--fyi", "--app", file, String(root), "Which runner should I compare first?"]);
   expect(replied.code).toBe(0);
   await openConversation(page, a.w.srv, a.conv);
   await openThread(page, rootText);

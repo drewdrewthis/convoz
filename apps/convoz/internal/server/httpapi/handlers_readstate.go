@@ -161,12 +161,12 @@ func (s *Server) listReplies(w http.ResponseWriter, r *http.Request, c *call) {
 	out := viewMessages(dir, page)
 	for i, m := range page {
 		if v, ok := asks[m.ID]; ok {
-			out[i].Ask = &v
+			out[i].AttachAsk(v)
 		}
 	}
 	head := viewMessage(dir, root)
 	if v, ok := asks[root.ID]; ok {
-		head.Ask = &v
+		head.AttachAsk(v)
 	}
 	if err := attachSlice(ctx, d, out); err != nil {
 		s.internalError(w, r, err)

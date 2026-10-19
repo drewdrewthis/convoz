@@ -2465,6 +2465,8 @@ export interface components {
             app?: components["schemas"]["App"] | components["schemas"]["AppStub"];
             /** @description Set on a message the owner sent through an app of an agent (I-46). */
             via_app?: components["schemas"]["ViaApp"];
+            /** @description On every message the server sends. True while the message is an ask that waits for the owner; false on every other message, and on an ask once it is answered, dismissed or closed. Computed when the message is read, never stored. */
+            needs_you?: boolean;
             /** @description Set on a message the owner's voice call posted; readers see "via voice call". */
             via_voice?: boolean;
             /** Format: int64 */
@@ -5365,12 +5367,16 @@ export interface operations {
                     via_app?: components["schemas"]["ViaAppRequest"];
                     /** @description The owner's voice call posts this (a lease answers 403 naming via_voice): readers see "via voice call". */
                     via_voice?: boolean;
+                    /** @description Whether the post needs the owner. Required for agents from the next release; true is refused on a plain post (422 needs_you_is_an_ask, with the convoz ask command and the agent's text), because a message that needs the owner is an ask. This release an agent that leaves it out is accepted as false, with a Convoz-Warning header. The owner's value is ignored. */
+                    needs_you?: boolean;
                 };
             };
         };
         responses: {
             200: components["responses"]["Posted"];
             201: components["responses"]["Posted"];
+            /** @description needs_you_is_an_ask: an agent sent needs_you true on a plain post. */
+            422: components["responses"]["Error"];
             default: components["responses"]["Error"];
         };
     };

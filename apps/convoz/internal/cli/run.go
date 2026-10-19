@@ -273,7 +273,7 @@ func (r *runner) tell(ctx context.Context, it wire.InboxItem) {
 	}
 	body := fmt.Sprintf("I couldn't answer this (convoz run: %s failed twice: %s).", name, last)
 	id := fmt.Sprintf("convoz-run-%d-%s", it.ID, it.ClaimToken)
-	req := wire.PostRequest{ClientID: id[:min(len(id), 64)], Body: body, ThreadRoot: rootOf(it)}
+	req := wire.PostRequest{ClientID: id[:min(len(id), 64)], Body: body, ThreadRoot: rootOf(it), NeedsYou: news()}
 	if err := r.k.callRetry("POST", convPath(it.Conversation.ID, "messages"), req, nil); err != nil && ctx.Err() == nil {
 		fmt.Fprintf(r.io.Stderr, "convoz run: telling the thread: %s\n", err)
 	}

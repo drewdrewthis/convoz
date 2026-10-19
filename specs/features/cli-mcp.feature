@@ -250,6 +250,47 @@ Feature: The convoz CLI and MCP server for agents
       When an item arrives while "convoz watch --exec ./handle-item" runs
       Then "./handle-item" runs once with the item as JSON on stdin, started without a shell
 
+  # Owner said (msg 366): "Maybe the message schema should require a true/false field that says if it requires an action/decision from the user -- this will differentiate regular messages from actual blocking requests. We can probably do a lot of powerful stuff with the schema and validation"
+  Rule: A post says whether it needs the owner; a message that does is an ask
+
+    @v1 @cli
+    Scenario: A post with --fyi says it does not need the owner
+      When "devtool" runs "convoz post --fyi 41 'Build is green'"
+      Then the CLI prints one line holding the message id and exits 0
+      And the CLI prints nothing else
+
+    @v1 @cli
+    Scenario: A post without --fyi still goes out with a hint
+      When "devtool" runs "convoz post 41 'Build is green'"
+      Then the CLI prints one line holding the message id and exits 0
+      And the CLI also says to add --fyi when the message does not need the owner, and to use "convoz ask" when it does
+
+    @v1 @cli
+    Scenario: A post that says it needs the owner is refused and points to convoz ask
+      When "devtool" runs "convoz post --needs-you 41 'Ship it?'"
+      Then the CLI exits 2 and points to "convoz ask"
+      And conversation 41 shows no message from "devtool"
+
+    @v1 @cli
+    Scenario: A reply and a new conversation take --fyi the same way
+      Given the owner posted "Status?" in conversation 41
+      When "devtool" runs "convoz reply --fyi" on that message with "Green" and "convoz new --fyi" with a title and a first message
+      Then both exit 0 and print one line holding an id
+      And "convoz reply --needs-you" and "convoz new --needs-you" exit 2 and point to "convoz ask"
+
+    @v1 @mcp
+    Scenario: The MCP post, reply and new tools need the needs_you field
+      When a client lists the tools of "convoz mcp --as devtool"
+      Then "post", "reply" and "new" each list "needs_you" as a required yes or no field
+      And a "post" call with needs_you false posts the message
+      And a "post" call with needs_you true is refused with the "convoz ask" pointer
+
+    @v1 @cli
+    Scenario: The rules, the skill and the help tell an agent to use --fyi for news and ask for a decision
+      When "devtool" runs "convoz rules", "convoz help" and "convoz post --help"
+      Then each exits 0 and names "--fyi"
+      And the rules and the help name "convoz ask" for a message that needs the owner
+
   Rule: Identity comes from the lease; agents change only their own profile
 
     @v1 @cli @I-40

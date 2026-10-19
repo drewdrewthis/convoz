@@ -48,7 +48,7 @@ scenario("An agent posts a PDF and a Markdown file", { tag: ["@cli"] }, async ({
   const f = files({ "report.pdf": PDF, "notes.md": NOTES_MD });
 
   // When "devtool" runs "convoz post --file report.pdf --file notes.md 41 'Report and notes'"
-  const res = await convoz(w.box, devtool.sid, ["post", "--file", f["report.pdf"]!, "--file", f["notes.md"]!, String(conv), "Report and notes"]);
+  const res = await convoz(w.box, devtool.sid, ["post", "--fyi", "--file", f["report.pdf"]!, "--file", f["notes.md"]!, String(conv), "Report and notes"]);
 
   // Then the CLI prints one line holding the message id and exits 0
   expect(res.code, res.stderr).toBe(0);
@@ -63,7 +63,7 @@ scenario("An agent posts a PDF and a Markdown file", { tag: ["@cli"] }, async ({
   ]);
 
   // And the text may be left out: "convoz post --json --file notes.md 41" prints the message id and the id, name and size of the file
-  const bare = await convoz(w.box, devtool.sid, ["post", "--json", "--file", f["notes.md"]!, String(conv)]);
+  const bare = await convoz(w.box, devtool.sid, ["post", "--fyi", "--json", "--file", f["notes.md"]!, String(conv)]);
   expect(bare.code, bare.stderr).toBe(0);
   const out = JSON.parse(bare.stdout) as { id: number; uploads: { id: string; name: string; size: number }[] };
   expect(out.uploads).toEqual([{ id: expect.stringMatching(/^[A-Za-z0-9_-]{22}$/), name: "notes.md", size: NOTES_MD.length }]);
@@ -75,7 +75,7 @@ scenario("The owner sees the files an agent posted", { tag: ["@browser"] }, asyn
   // Given "devtool" posted "report.pdf" and "notes.md" in conversation 41 with "convoz post --file"
   const u = await voiceWorld({ server, page, context });
   const f = files({ "report.pdf": PDF, "notes.md": NOTES_MD });
-  const res = await convoz(u.w.box, u.devtool.sid, ["post", "--file", f["report.pdf"]!, "--file", f["notes.md"]!, String(u.conv), "Report and notes"]);
+  const res = await convoz(u.w.box, u.devtool.sid, ["post", "--fyi", "--file", f["report.pdf"]!, "--file", f["notes.md"]!, String(u.conv), "Report and notes"]);
   expect(res.code, res.stderr).toBe(0);
 
   // When the owner opens conversation 41
@@ -97,7 +97,7 @@ scenario("An agent that is not in the conversation cannot attach files", { tag: 
     const f = files({ "report.pdf": PDF });
 
     // When "docs" runs "convoz post --file report.pdf 41 'Report'"
-    const res = await convoz(via, docs.sid, ["post", "--file", f["report.pdf"]!, String(conv), "Report"]);
+    const res = await convoz(via, docs.sid, ["post", "--fyi", "--file", f["report.pdf"]!, String(conv), "Report"]);
 
     // Then the CLI exits 3 and the error names "report.pdf"
     expect(res.code, res.stderr).toBe(3);
@@ -121,7 +121,7 @@ scenario("A message with 11 files is refused before anything is sent", { tag: ["
     const many = files(Object.fromEntries(Array.from({ length: 11 }, (_, i) => [`f${i}.md`, NOTES_MD])));
 
     // When "devtool" runs "convoz post" with 11 "--file" flags for 41
-    const res = await convoz(via, devtool.sid, ["post", ...Object.values(many).flatMap((p) => ["--file", p]), String(conv), "Too many"]);
+    const res = await convoz(via, devtool.sid, ["post", "--fyi", ...Object.values(many).flatMap((p) => ["--file", p]), String(conv), "Too many"]);
 
     // Then the CLI exits 2 and says a message carries at most 10 files
     expect(res.code, res.stderr).toBe(2);
@@ -142,7 +142,7 @@ scenario("A reply with a file lands in the thread", { tag: ["@cli"] }, async ({ 
   const f = files({ "report.pdf": PDF });
 
   // When "devtool" runs "convoz reply --file report.pdf <message>" with no text
-  const res = await convoz(w.box, devtool.sid, ["reply", "--json", "--file", f["report.pdf"]!, String(root)]);
+  const res = await convoz(w.box, devtool.sid, ["reply", "--fyi", "--json", "--file", f["report.pdf"]!, String(root)]);
   expect(res.code, res.stderr).toBe(0);
   const reply = JSON.parse(res.stdout) as { id: number; uploads: { name: string }[] };
 
@@ -166,7 +166,7 @@ scenario("A dropped connection mid-upload resumes and posts once", { tag: ["@cli
     const via = await machineVia(proxy.url, w.box2.key, w.box, devtool.sid);
 
     // When "devtool" runs "convoz post --file big.pdf 41 'Big report'"
-    const res = await via.run(["post", "--sid", devtool.sid, "--timeout", "20s", "--file", f["big.pdf"]!, String(conv), "Big report"], { timeoutMs: 60_000 });
+    const res = await via.run(["post", "--fyi", "--sid", devtool.sid, "--timeout", "20s", "--file", f["big.pdf"]!, String(conv), "Big report"], { timeoutMs: 60_000 });
 
     // Then the proxy log shows the upload continued from where Convoz stopped, not from the start
     const patches = proxy.log.filter((e) => e.method === "PATCH");
@@ -195,7 +195,7 @@ scenario("A post that failed after its files were sent is run again without a se
   const proxy = await forwarder(w.srv.target, { method: "POST", path: route, status: 400, times: 1 });
   try {
     const via = await machineVia(proxy.url, w.box2.key, w.box, devtool.sid);
-    const argv = ["post", "--file", f["report.pdf"]!, String(conv), "Report"];
+    const argv = ["post", "--fyi", "--file", f["report.pdf"]!, String(conv), "Report"];
     const first = await convoz(via, devtool.sid, argv);
     expect(first.code, first.stderr).not.toBe(0);
     expect(await messagesWith(w, conv, "Report")).toHaveLength(0);

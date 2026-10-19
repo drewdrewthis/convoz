@@ -101,7 +101,7 @@ export function ownerPostWith(owner: Owner, conv: number, fields: Record<string,
 
 /** A post with any body fields as an agent. */
 export function agentPostWith(srv: ServerHandle, lease: string, conv: number, fields: Record<string, unknown>): Promise<Res> {
-  return send(srv.target, "POST", `/api/conversations/${conv}/messages`, { json: { client_id: clientId(), ...fields }, ...bearer(lease) });
+  return send(srv.target, "POST", `/api/conversations/${conv}/messages`, { json: { client_id: clientId(), needs_you: false, ...fields }, ...bearer(lease) });
 }
 
 /** `PATCH /api/messages/:id` as the owner. The raw answer. */

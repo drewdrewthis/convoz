@@ -13,19 +13,25 @@ import (
 // maxNewTitleRunes is the longest title `convoz new` sends; the list shows it on one line.
 const maxNewTitleRunes = 80
 
-// New runs `convoz new [--with @a,@b] "title" ["first message"]`: the agent starts a conversation. The owner and the
+// New runs `convoz new [--fyi] [--with @a,@b] "title" ["first message"]`: the agent starts a conversation. The owner and the
 // agent are in it. An agent named with --with joins at once when it already shares a conversation with this agent; any
 // other one waits for the owner to approve, as with `convoz add` (I-17). It prints the new conversation id.
 func New(args []string, io IO) int {
 	f := newChatFlags("new", io)
 	f.textFrom = 1 // the first message may start with "--"; a title that does goes after "--"
+	needs := newNeedsYouFlags(f)
 	with := f.fs.String("with", "", "the agents to bring in, @handles separated by commas; the owner is always in")
 	pos, ok := f.parse(args, io)
 	if !ok {
 		return ExitUsage
 	}
 	if len(pos) < 1 || len(pos) > 2 {
-		return usageError(io, "usage: convoz new [--with @a,@b] \"title\" [\"first message\"]")
+		return usageError(io, "usage: convoz new [--fyi] [--with @a,@b] \"title\" [\"first message\"]")
+	}
+	if len(pos) == 2 || *needs.needsYou { // the hint is for a first message only
+		if code, ok := needs.check(io, "new"); !ok {
+			return code
+		}
 	}
 	title := strings.TrimSpace(pos[0])
 	if n := utf8.RuneCountInString(title); n < 1 || n > maxNewTitleRunes || strings.ContainsFunc(title, unicode.IsControl) {
@@ -56,7 +62,7 @@ func New(args []string, io IO) int {
 	conv := made.Conversation.ID
 	pending := notIn(handles, made.Conversation.Participants)
 	if body != "" {
-		if _, err := k.sendPost(conv, wire.PostRequest{ClientID: "convoz-" + randomHex(8), Body: body}); err != nil {
+		if _, err := k.sendPost(conv, wire.PostRequest{ClientID: "convoz-" + randomHex(8), Body: body, NeedsYou: news()}); err != nil {
 			fmt.Fprintf(io.Stderr, "convoz: conversation %d was made, but its first message was not sent\n", conv)
 			return k.fail(err)
 		}

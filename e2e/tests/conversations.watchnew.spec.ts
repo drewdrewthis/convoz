@@ -15,7 +15,7 @@ scenario("An agent starts a conversation with the owner and another agent", { ta
   await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
 
   // When "devtool" runs "convoz new --with @drew,@docs 'Plan: search filters' 'Here is the plan.'"
-  const res = await convoz(w.box, w.sessions.devtool!.sid, ["new", "--with", "@drew,@docs", "Plan: search filters", "Here is the plan."]);
+  const res = await convoz(w.box, w.sessions.devtool!.sid, ["new", "--fyi", "--with", "@drew,@docs", "Plan: search filters", "Here is the plan."]);
 
   // Then the CLI prints the new conversation id
   expect(res.code, res.stderr).toBe(0);
@@ -38,7 +38,7 @@ scenario("An agent starts a conversation with the owner and another agent", { ta
 scenario("A new conversation's other agent who shares no conversation with the creator becomes a join request", { tag: ["@cli", "@browser"] }, async ({ server, page, context }) => {
   // When "devtool" runs "convoz new --json --with @release-bot 'Plan: release'"
   const w = await browserWorld({ server, page, context }, { live: ["devtool", "release-bot"] });
-  const res = await convoz(w.box, w.sessions.devtool!.sid, ["new", "--json", "--with", "@release-bot", "Plan: release"]);
+  const res = await convoz(w.box, w.sessions.devtool!.sid, ["new", "--fyi", "--json", "--with", "@release-bot", "Plan: release"]);
 
   // Then the CLI prints the conversation id and "release-bot" as pending
   expect(res.code, res.stderr).toBe(0);
@@ -61,12 +61,12 @@ scenario("An agent starts at most 20 conversations an hour", { tag: ["@cli"] }, 
   const w = await world(server);
   const dev = await startSession(w.box, "devtool", "devtool");
   for (let i = 1; i <= 20; i++) {
-    const made = await convoz(w.box, dev.sid, ["new", `Plan ${i}`]);
+    const made = await convoz(w.box, dev.sid, ["new", "--fyi", `Plan ${i}`]);
     expect(made.code, made.stderr).toBe(0);
   }
 
   // When "devtool" runs "convoz new 'One too many'"
-  const over = await convoz(w.box, dev.sid, ["new", "One too many"]);
+  const over = await convoz(w.box, dev.sid, ["new", "--fyi", "One too many"]);
 
   // Then the CLI exits 5 and no conversation "One too many" exists
   expect(over.code).toBe(5);
@@ -76,7 +76,7 @@ scenario("An agent starts at most 20 conversations an hour", { tag: ["@cli"] }, 
   await testApi(w.srv).advanceClock(61 * 60_000);
 
   // Then "convoz new 'One more'" works
-  const more = await convoz(w.box, dev.sid, ["new", "One more"]);
+  const more = await convoz(w.box, dev.sid, ["new", "--fyi", "One more"]);
   expect(more.code, more.stderr).toBe(0);
 });
 

@@ -183,7 +183,7 @@ export async function ask(w: PushWorld, o: { urgent?: boolean; question?: string
 
 /** devtool posts a message in the conversation. */
 export async function say(w: PushWorld, body: string, extra: Record<string, unknown> = {}): Promise<number> {
-  const res = await send(w.srv.target, "POST", `/api/conversations/${w.conv}/messages`, { json: { client_id: clientId(), body, ...extra }, ...bearer(w.dev) });
+  const res = await send(w.srv.target, "POST", `/api/conversations/${w.conv}/messages`, { json: { client_id: clientId(), body, needs_you: false, ...extra }, ...bearer(w.dev) });
   return Number(must(res, "devtool posts", 201).json().id);
 }
 

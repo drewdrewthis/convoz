@@ -6,6 +6,7 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -53,6 +54,9 @@ func (s *Server) postMessage(w http.ResponseWriter, r *http.Request, c *call) {
 	}
 	if in.ViaVoice && isAgent {
 		writeFieldErr(w, http.StatusForbidden, "forbidden", "via_voice", "Only the owner's voice call sends a message by voice.")
+		return
+	}
+	if isAgent && !needsYouAllowed(w, in) {
 		return
 	}
 	if isAgent && !s.withinBudgets(w, c, now) {
@@ -108,6 +112,33 @@ func (s *Server) postMessage(w http.ResponseWriter, r *http.Request, c *call) {
 		}
 	}
 	writeJSON(w, status, wire.PostResponse{ID: posted.Message.ID, ConversationID: convID, CreatedAt: posted.Message.CreatedAt})
+}
+
+// needsYouWarning is the Convoz-Warning header of an agent post that leaves needs_you out. A later release refuses such a post.
+const needsYouWarning = "needs_you will be required; send needs_you:false for news, or use an ask"
+
+// needsYouAllowed applies the needs_you rule to an agent's plain post and writes the 422 itself. It runs before the rate limits, so a
+// refused post costs no budget. A message that needs the owner is an ask, so true is never valid here.
+func needsYouAllowed(w http.ResponseWriter, in wire.PostRequest) bool {
+	switch {
+	case in.NeedsYou == nil:
+		w.Header().Set("Convoz-Warning", needsYouWarning)
+	case *in.NeedsYou:
+		writeFieldErr(w, http.StatusUnprocessableEntity, "needs_you_is_an_ask", "needs_you", askPointer(in.Body))
+		return false
+	}
+	return true
+}
+
+// askPointer tells an agent how to send what it wrote as an ask, with its own text as the question.
+func askPointer(body string) string {
+	q := strings.Join(strings.Fields(body), " ")
+	if r := []rune(q); len(r) > 200 {
+		q = string(r[:200])
+	}
+	return "A message that needs the owner is an ask (it shows in Now and pushes them): convoz ask --question " + strconv.Quote(q) +
+		" --recommend LABEL --why WHY --alt LABEL --alt-why WHY --owners-call one-way|taste|values|scope --owners-call-why WHY <conv>. " +
+		"If it does not need the owner, send needs_you false."
 }
 
 // withinBudgets applies the three rate limits of an agent that writes to a conversation (a message or an ask). It writes the 429 itself.
@@ -306,7 +337,7 @@ func (s *Server) listMessages(w http.ResponseWriter, r *http.Request, c *call) {
 	for i, m := range page {
 		if v, ok := asks[m.ID]; ok {
 			v.App = out[i].App
-			out[i].Ask = &v
+			out[i].AttachAsk(v)
 		}
 	}
 	if err := attachSlice(ctx, d, out); err != nil {

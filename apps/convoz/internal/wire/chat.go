@@ -95,6 +95,9 @@ type Message struct {
 	ViaApp *ViaApp `json:"via_app,omitempty"`
 	// ViaVoice is set on a message the owner's voice call posted: readers see "via voice call".
 	ViaVoice bool `json:"via_voice,omitempty"`
+	// NeedsYou is true while the message is an ask that waits for the owner. It is computed when the message is read, never stored,
+	// and it is on every message so a reader can split news from a request that blocks.
+	NeedsYou bool `json:"needs_you"`
 	// Uploads are the files the message carries; Text is then the plain-text form of the whole message (a voice note reads
 	// "Voice note 0:20: <words>"), which `convoz read` prints.
 	Uploads []Upload `json:"uploads,omitempty"`
@@ -167,6 +170,14 @@ type PostRequest struct {
 	App        json.RawMessage `json:"app,omitempty"`       // agents only
 	ViaApp     *ViaAppRequest  `json:"via_app,omitempty"`   // the owner only
 	ViaVoice   bool            `json:"via_voice,omitempty"` // the owner's voice call posts this; the owner only
+	// NeedsYou says whether the post needs the owner. An agent sends false for news: true is refused on a plain post, because a message
+	// that needs the owner is an ask. Absent counts as false with a warning header this release. The owner's value is ignored.
+	NeedsYou *bool `json:"needs_you,omitempty"`
+}
+
+// AttachAsk puts the ask a message of kind ask carries on it and reads whether the owner still has to act.
+func (m *Message) AttachAsk(a AskView) {
+	m.Ask, m.NeedsYou = &a, a.State == "open"
 }
 
 // PostResponse is the answer to a post: 201 for a new message, 200 with the same ids for a repeat.
