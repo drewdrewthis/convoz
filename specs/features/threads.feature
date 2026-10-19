@@ -26,6 +26,12 @@ Feature: Threads
       And message 900 shows "1 reply" in the main list
       And the main list does not show the reply itself
 
+    @v1 @browser
+    Scenario: Following a reply link to the conversation that is already open opens the thread
+      Given conversation 41 is open
+      When the owner follows the link "/chats/41#reply=900" without reloading
+      Then the thread pane is open on message 900
+
     @v1 @cli
     Scenario: A watch line from a thread names the thread root
       Given "devtool" runs "convoz watch --json"
