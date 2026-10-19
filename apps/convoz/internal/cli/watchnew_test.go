@@ -145,7 +145,7 @@ func TestNewSendsTheTitleAndHandlesThenPostsTheFirstMessage(t *testing.T) {
 	var c created
 	run := agentRun(t, convServer(&c, devtool, drew, docs))
 
-	code, stdout, stderr := run(New, "--with", "@Drew, @docs,@docs", "Plan: filters", "Step one.")
+	code, stdout, stderr := run(New, "--fyi", "--with", "@Drew, @docs,@docs", "Plan: filters", "Step one.")
 
 	if code != ExitOK || stdout != "7\n" || stderr != "" {
 		t.Fatalf("exit %d stdout %q stderr %q", code, stdout, stderr)

@@ -63,3 +63,11 @@ Feature: One command serves an agent's inbox with a short-lived process per item
       And the stub got no write tools
       And the first call starts a session and the second resumes it
       And the third call starts a new session whose prompt holds the summary of the first, and the summary is kept as a handoff note
+
+    # Owner said (msg 366): "Maybe the message schema should require a true/false field that says if it requires an action/decision from the user -- this will differentiate regular messages from actual blocking requests. We can probably do a lot of powerful stuff with the schema and validation"
+    @v1 @cli
+    Scenario: Claude mode tells the child to post with --fyi
+      Given a stub "claude" command on PATH that records its argv and replies to the item
+      And "convoz run --as devtool" runs
+      When the owner posts a question to "devtool"
+      Then the prompt the stub was given tells it to answer with "convoz reply --fyi" or "convoz post --fyi"

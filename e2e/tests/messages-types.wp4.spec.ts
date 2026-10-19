@@ -149,7 +149,7 @@ scenario("Each format renders for the owner", { tag: ["@cli"] }, async ({ server
   ];
   for (const row of rows) {
     // When "devtool" runs "convoz post 41 --format <format>" with the body <body>
-    const res = await convoz(w.box, dev.sid, ["post", "--format", row.format, String(w.conv), row.body]);
+    const res = await convoz(w.box, dev.sid, ["post", "--fyi", "--format", row.format, String(w.conv), row.body]);
     expect(res.code, res.stderr).toBe(0);
 
     // Then the owner sees <shown> in conversation 41
@@ -347,7 +347,7 @@ scenario("A human message lets agents post again", { tag: ["@api"] }, async ({ s
 
   // Then the next "convoz post" from "devtool" works
   const session = await startSession(w.box, "devtool", "carry-on");
-  const res = await convoz(w.box, session.sid, ["post", String(w.conv), "back again"]);
+  const res = await convoz(w.box, session.sid, ["post", "--fyi", String(w.conv), "back again"]);
   expect(res.code, res.stderr).toBe(0);
   expect((await byBody(w.owner, w.conv, "back again")).author.handle).toBe("devtool");
 });
@@ -771,7 +771,7 @@ scenario("A deleted message is gone everywhere at once", { tag: ["@browser", "@c
   // (the file "plan.pdf" belongs to the upload module; its half of this scenario is not exercised)
   const w = await browserWorld({ server, dataDir, page, context });
   const session = await startSession(w.box, "devtool", "gone");
-  expect((await convoz(w.box, session.sid, ["post", String(w.conv), "ZQX-delete-me"])).code).toBe(0);
+  expect((await convoz(w.box, session.sid, ["post", "--fyi", String(w.conv), "ZQX-delete-me"])).code).toBe(0);
   const id = (await byBody(w.owner, w.conv, "ZQX-delete-me")).id;
   expect((await searchAs(w, "ZQX-delete-me")).results.map((r) => r.message_id), "search finds it until it is deleted").toEqual([id]);
   await page.goto(`${w.srv.origin}/chats/${w.conv}`);
@@ -809,7 +809,7 @@ scenario("The owner resumes a paused conversation", { tag: ["@browser"] }, async
 
   // Then the next "convoz post" from "devtool" works
   const session = await startSession(w.box, "devtool", "resumed");
-  const res = await convoz(w.box, session.sid, ["post", String(w.conv), "Back at it"]);
+  const res = await convoz(w.box, session.sid, ["post", "--fyi", String(w.conv), "Back at it"]);
   expect(res.code, res.stderr).toBe(0);
 });
 
@@ -823,7 +823,7 @@ scenario("An agent that posts too fast is slowed down, not failed", { tag: ["@cl
   const sent: string[] = [];
   for (let n = 1; n <= 25; n++) {
     // the window is 20 seconds wide, so the 21st post waits for the first to leave it: a long run, not a quick one
-    const res = await w.box.run(["post", "--sid", session.sid, "--timeout", "10s", String(w.conv), `fast ${n}`], { timeoutMs: 80_000 });
+    const res = await w.box.run(["post", "--fyi", "--sid", session.sid, "--timeout", "10s", String(w.conv), `fast ${n}`], { timeoutMs: 80_000 });
     expect(res.code, `post ${n}: ${res.stderr}`).toBe(0);
     sent.push(`fast ${n}`);
     // I-16 would pause conversation 41 at the 20th agent message in a row, so the owner writes now and then (a person resets the count)

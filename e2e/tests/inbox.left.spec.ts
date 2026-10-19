@@ -114,7 +114,7 @@ scenario("An item goes to the session that posted last in that conversation", { 
   // Given session "s2" posted in conversation 41 after session "s1"
   const { w, conv, s1, s2 } = await inboxWorld(server);
   for (const [s, text] of [[s1, "first"], [s2, "second"]] as const) {
-    const posted = await convoz(w.box, s.sid, ["post", String(conv), text]);
+    const posted = await convoz(w.box, s.sid, ["post", "--fyi", String(conv), text]);
     expect(posted.code, posted.stderr).toBe(0);
   }
 

@@ -31,7 +31,7 @@ scenario("An agent's own messages create no item for itself", { tag: ["@cli"] },
   const docs = await startSession(w.box, "docs", "docs");
 
   // When session "s1" posts "Starting on it" in conversation 41
-  const posted = await convoz(w.box, s1.sid, ["post", String(conv), "Starting on it"]);
+  const posted = await convoz(w.box, s1.sid, ["post", "--fyi", String(conv), "Starting on it"]);
   expect(posted.code, posted.stderr).toBe(0);
 
   // Then "convoz inbox --peek --sid s2" shows no item for that message
@@ -230,7 +230,7 @@ scenario("Watch finishes the item without an ack, and an ack still works", { tag
     await expect.poll(async () => peekFor(w.box, s.sid, conv), { timeout: 5_000 }).toEqual([]);
 
     // When "devtool" runs "convoz post 41 'Yes, all 11 checks pass'" and then "convoz ack" with the item from the stream line
-    const posted = await convoz(w.box, s.sid, ["post", String(conv), "Yes, all 11 checks pass"]);
+    const posted = await convoz(w.box, s.sid, ["post", "--fyi", String(conv), "Yes, all 11 checks pass"]);
     expect(posted.code, posted.stderr).toBe(0);
     const acked = await convoz(w.box, s.sid, ["ack", `${line!.item_id}:${line!.claim_token}`]);
     expect(acked.code, acked.stdout + acked.stderr).toBe(0);
@@ -270,7 +270,7 @@ scenario("Post prints only the message id", { tag: ["@cli"] }, async ({ server }
   const s = await startSession(w.box, "devtool", "post");
 
   // When "devtool" runs "convoz post 41 'Build is green'"
-  const res = await convoz(w.box, s.sid, ["post", String(conv), "Build is green"]);
+  const res = await convoz(w.box, s.sid, ["post", "--fyi", String(conv), "Build is green"]);
 
   // Then the CLI prints one line holding the message id and exits 0
   expect({ code: res.code, stdout: res.stdout.replace(/^\d+\n$/, "<id>\n"), stderr: res.stderr }).toEqual({ code: 0, stdout: "<id>\n", stderr: "" });

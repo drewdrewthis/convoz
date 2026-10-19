@@ -80,7 +80,7 @@ scenario("A client error is not retried", { tag: ["@cli"] }, async ({ server }) 
     const via = await machineVia(proxy.url, w.box2.key, w.box, s1.sid);
 
     // When "convoz post 999 hello" runs against a conversation that does not exist
-    const res = await convoz(via, s1.sid, ["post", "999", "hello"]);
+    const res = await convoz(via, s1.sid, ["post", "--fyi", "999", "hello"]);
 
     // Then the proxy log shows 1 request
     expect(proxy.entries("POST", "/api/conversations/999/messages").map((e) => e.status)).toHaveLength(1);
@@ -103,7 +103,7 @@ scenario("A rate limit is retried after Retry-After", { tag: ["@cli"] }, async (
     const via = await machineVia(proxy.url, w.box2.key, w.box, s1.sid);
 
     // When "convoz post 41 hello" runs
-    const res = await convoz(via, s1.sid, ["post", String(conv), "hello"]);
+    const res = await convoz(via, s1.sid, ["post", "--fyi", String(conv), "hello"]);
 
     // Then the second request is sent no sooner than 2 seconds later
     const posts = proxy.entries("POST", route);

@@ -36,7 +36,7 @@ arrives: answer it. If the watch stops, start it again. If the owner's message
 sits unanswered for 10 minutes, you get a reminder (reason unanswered): answer
 it. convoz ack still works, and does nothing a watch has not done already.
 For a new plan, or work you think is done, start a conversation with
-convoz new --with @agent "title" and post the plan or the proof there.
+convoz new --fyi --with @agent "title" and post the plan or the proof there.
 convoz agents lists the agents you can name in --with.
 
 An ask is a question with a recommended answer and 1 to 4 other options. The
@@ -46,6 +46,8 @@ with --owners-call KIND --owners-call-why TEXT; without it the ask is refused.
 Otherwise weigh the options, decide, and tell the owner in a post.
 An app is a small card that you attach with --app FILE; convoz app init
 makes one.
+Every post, reply and new says it does not need the owner with --fyi. A
+message that needs the owner is an ask: convoz ask.
 Files: post --file PATH attaches a file; convoz file ID downloads one.
 Text that starts with -- stays text in post, reply and new; -- alone also ends
 the flags (convoz post 41 -- "--note").

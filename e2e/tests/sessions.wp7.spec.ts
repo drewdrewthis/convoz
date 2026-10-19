@@ -26,11 +26,11 @@ scenario("Calls inside one Claude session share one lease", { tag: ["@mcp"] }, a
   // And "convoz mcp --as devtool" runs inside that Claude session
   const mcp = await McpClient.start(w.box, "devtool", claude);
   try {
-    const viaMcp = await mcp.tool("post", { conversation: w.conv, text: "hello from the mcp tool" });
+    const viaMcp = await mcp.tool("post", { conversation: w.conv, text: "hello from the mcp tool", needs_you: false });
     expect(viaMcp.isError, viaMcp.content[0]?.text).not.toBe(true);
 
     // When the same Claude session runs "convoz post 41 hello" in Bash
-    const bash = await w.box.run(["post", "--as", "devtool", String(w.conv), "hello from bash"], { claude, timeoutMs: 20_000 });
+    const bash = await w.box.run(["post", "--fyi", "--as", "devtool", String(w.conv), "hello from bash"], { claude, timeoutMs: 20_000 });
     expect(bash.code, bash.stderr).toBe(0);
 
     // Then the message is attributed to the same session label as the MCP calls

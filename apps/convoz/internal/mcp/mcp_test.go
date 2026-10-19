@@ -43,15 +43,16 @@ func TestPost_SchemaTakesAnAppInTheV1Shape(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ok := `{"conversation":41,"text":"hi","app":{"v":1,"type":"code","fallback":"x","props":{}}}`
+	ok := `{"conversation":41,"text":"hi","needs_you":false,"app":{"v":1,"type":"code","fallback":"x","props":{}}}`
 	if err := v.check(json.RawMessage(ok)); err != nil {
 		t.Fatalf("a whole app: %v", err)
 	}
 	for name, bad := range map[string]string{
-		"version": `{"conversation":41,"text":"hi","app":{"v":2,"type":"code","fallback":"x","props":{}}}`,
-		"type":    `{"conversation":41,"text":"hi","app":{"v":1,"type":"video","fallback":"x","props":{}}}`,
-		"missing": `{"conversation":41,"text":"hi","app":{"v":1,"type":"code","props":{}}}`,
-		"no text": `{"conversation":41}`,
+		"version":      `{"conversation":41,"text":"hi","needs_you":false,"app":{"v":2,"type":"code","fallback":"x","props":{}}}`,
+		"type":         `{"conversation":41,"text":"hi","needs_you":false,"app":{"v":1,"type":"video","fallback":"x","props":{}}}`,
+		"missing":      `{"conversation":41,"text":"hi","needs_you":false,"app":{"v":1,"type":"code","props":{}}}`,
+		"no text":      `{"conversation":41,"needs_you":false}`,
+		"no needs_you": `{"conversation":41,"text":"hi"}`,
 	} {
 		if err := v.check(json.RawMessage(bad)); err == nil {
 			t.Errorf("%s: must be refused", name)

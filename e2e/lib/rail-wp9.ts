@@ -109,7 +109,7 @@ export async function sectionOrder(owner: Owner, starred: boolean): Promise<numb
 
 /** `convoz post` as an agent session. */
 export async function agentSays(w: RailWorld["w"], handle: string, conv: number, text: string): Promise<void> {
-  const res = await convoz(w.box, w.sessions[handle]!.sid, ["post", "--format", "markdown", String(conv), text]);
+  const res = await convoz(w.box, w.sessions[handle]!.sid, ["post", "--fyi", "--format", "markdown", String(conv), text]);
   if (res.code !== 0) throw new Error(`convoz post as ${handle}: exit ${res.code}\n${res.stderr}`);
 }
 

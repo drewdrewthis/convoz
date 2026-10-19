@@ -561,7 +561,7 @@ scenario("The message details show who and where", { tag: ["@browser"] }, async 
   const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool"] });
   const started = await w.box.sessionStart("devtool", ["--label", "claude-7f3a"], { claude: "claude-TESTONLY-details" });
   expect(started.code, started.stderr).toBe(0);
-  const posted = await convoz(w.box, sidOf(started), ["post", String(conv), "Build is green"]);
+  const posted = await convoz(w.box, sidOf(started), ["post", "--fyi", String(conv), "Build is green"]);
   expect(posted.code, posted.stderr).toBe(0);
   await openChat(page, w.srv, conv, "Ship search filters");
 

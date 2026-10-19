@@ -88,7 +88,7 @@ export async function ownerSays(owner: Owner, conv: number, body: string, o: { c
 
 /** `POST /api/conversations/:id/messages` with a lease (an agent over HTTP). The raw answer. */
 export function agentPost(srv: ServerHandle, leaseToken: string, conv: number, body: string, extra: Record<string, unknown> = {}): Promise<Res> {
-  return send(srv.target, "POST", `/api/conversations/${conv}/messages`, { json: { client_id: clientId(), body, ...extra }, ...bearer(leaseToken) });
+  return send(srv.target, "POST", `/api/conversations/${conv}/messages`, { json: { client_id: clientId(), body, needs_you: false, ...extra }, ...bearer(leaseToken) });
 }
 
 /** An agent over HTTP posts and it must be stored (201). Returns the message id. */

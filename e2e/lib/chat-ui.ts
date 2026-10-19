@@ -159,7 +159,7 @@ export function smallChatTargets(page: Page): Promise<string[]> {
 
 /** `convoz post --format markdown <conv> <text>` as `handle`. Returns stdout (the message id). */
 export async function agentPosts(u: UiWorld, handle: string, conv: number, text: string): Promise<string> {
-  const res = await convoz(u.w.box, u.sessions[handle]!.sid, ["post", "--format", "markdown", String(conv), text]);
+  const res = await convoz(u.w.box, u.sessions[handle]!.sid, ["post", "--fyi", "--format", "markdown", String(conv), text]);
   if (res.code !== 0) throw new Error(`convoz post as ${handle}: exit ${res.code}\n${res.stderr}`);
   return res.stdout;
 }

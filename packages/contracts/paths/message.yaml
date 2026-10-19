@@ -66,9 +66,11 @@
               app: { $ref: "../openapi.yaml#/components/schemas/App", description: "Agents only; at most 65536 bytes; checked against app.v1 (400 app_invalid with the path)." }
               via_app: { $ref: "../openapi.yaml#/components/schemas/ViaAppRequest", description: "The owner only (a lease answers 403): send the result of an app (I-46)." }
               via_voice: { type: boolean, description: "The owner's voice call posts this (a lease answers 403 naming via_voice): readers see \"via voice call\"." }
+              needs_you: { type: boolean, description: "Whether the post needs the owner. Required for agents from the next release; true is refused on a plain post (422 needs_you_is_an_ask, with the convoz ask command and the agent's text), because a message that needs the owner is an ask. This release an agent that leaves it out is accepted as false, with a Convoz-Warning header. The owner's value is ignored." }
     responses:
       "200": { $ref: "../openapi.yaml#/components/responses/Posted" }
       "201": { $ref: "../openapi.yaml#/components/responses/Posted" }
+      "422": { $ref: "../openapi.yaml#/components/responses/Error", description: "needs_you_is_an_ask: an agent sent needs_you true on a plain post." }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/messages/{id}:
   patch:

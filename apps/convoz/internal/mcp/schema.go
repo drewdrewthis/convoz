@@ -38,6 +38,19 @@ func mustJSON(v any) json.RawMessage {
 	return raw
 }
 
+// needsYou is the required yes-or-no field of every tool that posts. False is news; true is refused with the pointer to the ask tool.
+func needsYou() props {
+	return boolean("Does this need the owner? false for news or a note to an agent. true is refused: use the ask tool.")
+}
+
+// needsYouFlag is the CLI flag for the field.
+func needsYouFlag(needs bool) string {
+	if needs {
+		return "--needs-you"
+	}
+	return "--fyi"
+}
+
 // conv is the argument that names a conversation.
 func conv() props { return integer("The conversation id.", 1, 1<<53-1) }
 

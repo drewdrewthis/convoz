@@ -102,9 +102,9 @@ scenario("The MCP server lists self-describing tools", { tag: ["@mcp"] }, async 
       expect(app.properties.v.const, name).toBe(1);
       expect(app.properties.type.enum, name).toContain("chart");
     }
-    const withApp = await mcp.tool("post", { conversation: w.conv, text: "A chart", app: { v: 1, type: "code", title: "Code", fallback: "Code", props: { mode: "code", text: "x" } } });
+    const withApp = await mcp.tool("post", { conversation: w.conv, text: "A chart", needs_you: false, app: { v: 1, type: "code", title: "Code", fallback: "Code", props: { mode: "code", text: "x" } } });
     expect(withApp.isError, withApp.content[0]?.text).not.toBe(true);
-    const badApp = await mcp.tool("post", { conversation: w.conv, text: "A chart", app: { v: 2, type: "code", fallback: "x", props: {} } });
+    const badApp = await mcp.tool("post", { conversation: w.conv, text: "A chart", needs_you: false, app: { v: 2, type: "code", fallback: "x", props: {} } });
     expect(badApp.isError).toBe(true);
   } finally {
     mcp.end();
@@ -147,7 +147,7 @@ scenario("A post retried after a lost response makes one message", { tag: ["@cli
     const via = await machineVia(proxy.url, w.box2.key, w.box, direct.sid);
 
     // When "convoz post 41 'Build is green'" runs
-    const res = await via.run(["post", "--sid", direct.sid, "--timeout", "10s", String(w.conv), "Build is green"], { timeoutMs: 40_000 });
+    const res = await via.run(["post", "--fyi", "--sid", direct.sid, "--timeout", "10s", String(w.conv), "Build is green"], { timeoutMs: 40_000 });
 
     // Then the proxy log shows 2 requests with the same client id
     const sent = proxy.entries("POST", route);
@@ -178,7 +178,7 @@ scenario("Exit codes tell scripts what went wrong", { tag: ["@cli"] }, async ({ 
   // "convoz post 41 hi" runs with an ended session -> 3
   const gone = await startSession(w.box, "devtool", "gone");
   expect((await w.box.sessionEnd(gone.sid)).code).toBe(0);
-  const ended = await convoz(w.box, gone.sid, ["post", String(w.conv), "hi"]);
+  const ended = await convoz(w.box, gone.sid, ["post", "--fyi", String(w.conv), "hi"]);
   expect(ended.code).toBe(3);
   expect(ended.stderr).toContain("session ended");
 

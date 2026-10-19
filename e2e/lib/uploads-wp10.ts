@@ -107,7 +107,7 @@ export async function uploadWhole(who: Actor, conv: number, kind: string, filena
 
 /** Post a message that carries uploads (the owner or an agent). */
 export function postWith(who: Actor, conv: number, body: string, uploadIds: string[]): Promise<Raw> {
-  return raw(who, "POST", `/api/conversations/${conv}/messages`, { json: { client_id: clientId(), body, upload_ids: uploadIds } });
+  return raw(who, "POST", `/api/conversations/${conv}/messages`, { json: { client_id: clientId(), body, needs_you: false, upload_ids: uploadIds } });
 }
 
 export const getFile = (who: Actor, id: string, headers: Record<string, string> = {}): Promise<Raw> => raw(who, "GET", `/api/files/${id}`, { headers });

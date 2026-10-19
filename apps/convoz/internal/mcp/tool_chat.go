@@ -158,9 +158,10 @@ func init() {
 		}})
 
 	Register(Tool{Name: "post", Order: 8, Description: "Post a message to a conversation you are in. It may carry an app and up to 10 files.",
-		InputSchema: object([]string{"conversation", "text"}, props{
+		InputSchema: object([]string{"conversation", "text", "needs_you"}, props{
 			"conversation": conv(),
 			"text":         text("The message text."),
+			"needs_you":    needsYou(),
 			"format":       oneOf("How the text is written.", "markdown", "markdownv2", "plain"),
 			"app":          appSchema(),
 			"files":        filesSchema(),
@@ -169,6 +170,7 @@ func init() {
 			var a struct {
 				Conversation int64           `json:"conversation"`
 				Text         string          `json:"text"`
+				NeedsYou     bool            `json:"needs_you"`
 				Format       string          `json:"format"`
 				App          json.RawMessage `json:"app"`
 				Files        []string        `json:"files"`
@@ -177,16 +179,17 @@ func init() {
 				return nil, err
 			}
 			return withApp(a.App, func(file string) (Output, error) {
-				argv := withFiles(withFlag(withFlag(nil, "format", a.Format), "app", file), a.Files)
+				argv := withFiles(withFlag(withFlag([]string{needsYouFlag(a.NeedsYou)}, "format", a.Format), "app", file), a.Files)
 				return runnerOf(ctx).run("post", a.Text, append(argv, strconv.FormatInt(a.Conversation, 10), "-")...)
 			})
 		}})
 
 	Register(Tool{Name: "reply", Order: 9, Description: "Reply in the thread of a main message of a conversation you are in. It may carry an app and up to 10 files.",
-		InputSchema: object([]string{"conversation", "message", "text"}, props{
+		InputSchema: object([]string{"conversation", "message", "text", "needs_you"}, props{
 			"conversation": conv(),
 			"message":      integer("The id of the main message that starts the thread.", 1, 1<<53-1),
 			"text":         text("The reply text."),
+			"needs_you":    needsYou(),
 			"broadcast":    boolean("Also show the reply in the main thread."),
 			"format":       oneOf("How the text is written.", "markdown", "markdownv2", "plain"),
 			"app":          appSchema(),
@@ -197,6 +200,7 @@ func init() {
 				Conversation int64           `json:"conversation"`
 				Message      int64           `json:"message"`
 				Text         string          `json:"text"`
+				NeedsYou     bool            `json:"needs_you"`
 				Broadcast    bool            `json:"broadcast"`
 				Format       string          `json:"format"`
 				App          json.RawMessage `json:"app"`
@@ -206,7 +210,7 @@ func init() {
 				return nil, err
 			}
 			return withApp(a.App, func(file string) (Output, error) {
-				argv := withFiles(withFlag(withFlag(withFlag(nil, "format", a.Format), "app", file), "broadcast", a.Broadcast), a.Files)
+				argv := withFiles(withFlag(withFlag(withFlag([]string{needsYouFlag(a.NeedsYou)}, "format", a.Format), "app", file), "broadcast", a.Broadcast), a.Files)
 				return runnerOf(ctx).run("reply", a.Text, append(argv, strconv.FormatInt(a.Message, 10), "-")...)
 			})
 		}})

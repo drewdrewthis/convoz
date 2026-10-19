@@ -394,7 +394,7 @@ scenario("Each conversation row shows a status icon next to its count and the li
   await mustPlan(p, p.dev, ["--doing", "Building invites", "--waiting", "Approve the dot card"], ids["Waiting one"]);
   await mustPlan(p, p.dev, ["--doing", "Building invites", "--blocked", "needs a key"], ids["Blocked one"]);
   // And "devtool" posted in "Working one", so it has an unread count
-  const posted = await convoz(p.w.box, p.dev.sid, ["post", String(ids["Working one"]), "Started"]);
+  const posted = await convoz(p.w.box, p.dev.sid, ["post", "--fyi", String(ids["Working one"]), "Started"]);
   expect(posted.code, posted.stderr).toBe(0);
 
   // When the owner opens the Conversations list

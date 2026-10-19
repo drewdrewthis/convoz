@@ -179,7 +179,7 @@ scenario("Any call from the claiming session extends its claims", { tag: ["@cli"
 
   // When "s1" posts a message after 50 seconds
   await testApi(w.srv).advanceClock(50_000);
-  const posted = await convoz(w.box, s1.sid, ["post", String(convs[0]), "Still on it"]);
+  const posted = await convoz(w.box, s1.sid, ["post", "--fyi", String(convs[0]), "Still on it"]);
   expect(posted.code, posted.stderr).toBe(0);
 
   // And "s2" polls 30 seconds later

@@ -19,8 +19,9 @@ You talk with one owner and the other agents through the ` + "`convoz`" + ` comm
 - A decision only the owner can make (one-way door, taste, values, scope): ` + "`convoz ask`" + ` with options and your pick. It shows in Now, with a push.
 - What you do, what is next, an ETA: ` + "`convoz plan`" + ` and ` + "`convoz status`" + `. It shows under the title and in the panel, not in the chat.
 - Something the owner must do (paste, approve, log in): ` + "`convoz plan --waiting \"...\"`" + `.
-- A finished result or proof: ` + "`convoz post`" + ` with the link, in one line.
-- An answer to a thread question: ` + "`convoz reply <root>`" + `.
+- A finished result or proof: ` + "`convoz post --fyi`" + ` with the link, in one line.
+- An answer to a thread question: ` + "`convoz reply --fyi <root>`" + `.
+- ` + "`--fyi`" + ` on ` + "`post`" + `, ` + "`reply`" + ` and ` + "`new`" + ` says the message does not need the owner. A message that needs the owner is an ask, so ` + "`--needs-you`" + ` is refused.
 Never put a decision or a plan in plain chat text.
 
 ### Rules
@@ -29,14 +30,14 @@ Never put a decision or a plan in plain chat text.
 3. Use plain words. Write short. Lead with the outcome.
 4. Keep your status current: ` + "`convoz status --state working --doing \"Fixing #412\"`" + `. Keep your plan current: up to 3 Now items when you work in parallel.
 5. Tie each answer to the plan: what is done, what is next, and when.
-6. For a new plan, or work you think is done, open one conversation: ` + "`convoz new --with @<reviewer> \"<the work>\"`" + `. Post the plan or the proof there, and one line linking it where the work came up. ` + "`convoz agents`" + ` lists the handles.
+6. For a new plan, or work you think is done, open one conversation: ` + "`convoz new --fyi --with @<reviewer> \"<the work>\"`" + `. Post the plan or the proof there, and one line linking it where the work came up. ` + "`convoz agents`" + ` lists the handles.
 7. For risky or large work, ask another agent to review it first.
 
 ### The loop
 1. Keep ` + "`convoz watch --json`" + ` running in the background and answer each line. If it stops, start it again.
 2. An owner message unanswered for 10 minutes gives a reminder (reason ` + "`unanswered`" + `): answer it.
 3. ` + "`convoz read 41`" + ` shows a conversation. Reply or post the result.
-A line with a thread_root_id came from a thread: use ` + "`convoz reply <thread_root_id>`" + `. Mention a person or agent with @handle.
-Files: ` + "`convoz post --file report.pdf 41 \"Report\"`" + ` attaches one; ` + "`convoz file <id>`" + ` downloads one. Apps: ` + "`convoz app init ./my-app`" + `, then ` + "`--app FILE`" + ` on a post.
+A line with a thread_root_id came from a thread: use ` + "`convoz reply --fyi <thread_root_id>`" + `. Mention a person or agent with @handle.
+Files: ` + "`convoz post --fyi --file report.pdf 41 \"Report\"`" + ` attaches one; ` + "`convoz file <id>`" + ` downloads one. Apps: ` + "`convoz app init ./my-app`" + `, then ` + "`--app FILE`" + ` on a post.
 Stuck on your own host (a prompt, an approval, a logout, no credits): ` + "`convoz status --state blocked --doing \"Needs a login\"`" + `.
 ` + "`convoz help`" + ` lists the commands.`

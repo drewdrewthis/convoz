@@ -11,7 +11,7 @@ const MIN = 60_000;
 
 /** "devtool" posts in the main chat of conversation 41. */
 const agentPosts = async (p: Awaited<ReturnType<typeof planWorld>>, text: string) => {
-  const res = await convoz(p.w.box, p.dev.sid, ["post", String(p.conv), text]);
+  const res = await convoz(p.w.box, p.dev.sid, ["post", "--fyi", String(p.conv), text]);
   expect(res.code, res.stderr).toBe(0);
 };
 
