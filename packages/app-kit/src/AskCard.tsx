@@ -112,6 +112,8 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
   const [optionsOnSnooze, setOptionsOnSnooze] = useState(false);
   const root = useRef<HTMLElement | null>(null);
   const open = ask.state === "open";
+  // The composer of a thread is the reply there (no onReply), so a thread card has no quick reply of its own.
+  const quickReply = where === "now" || Boolean(onReply);
   const shut = () => {
     setPanel("");
     setOptionsOnSnooze(false);
@@ -133,7 +135,7 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
     const k = e.key.toLowerCase();
     if (e.key === "Enter" && t === e.currentTarget) onAnswer({ choice: "recommended" });
     else if (k === "a" && ask.options.length > 1) onAnswer({ choice: "alternative", index: 1 });
-    else if (k === "r" && where === "now") setPanel("reply");
+    else if (k === "r" && quickReply) setPanel("reply");
     else if (k === "s") setPanel("snooze");
     else if (k === "x") onDismiss();
     else return;
@@ -210,12 +212,14 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
           {notice}
         </p>
       ) : null}
-      {open && where === "now" ? (
+      {open ? (
         <div className="askacts" role="group" aria-label="Ask actions">
-          <button className="askbtn" type="button" aria-expanded={panel === "reply"} onClick={() => toggle("reply")}>
-            <Icon d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            Quick reply
-          </button>
+          {quickReply ? (
+            <button className="askbtn" type="button" aria-expanded={panel === "reply"} onClick={() => toggle("reply")}>
+              <Icon d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              Quick reply
+            </button>
+          ) : null}
           <button className="askbtn" type="button" aria-haspopup="menu" aria-expanded={panel === "snooze"} onClick={() => toggle("snooze")}>
             <Icon d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2" />
             Snooze

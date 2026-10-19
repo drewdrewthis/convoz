@@ -234,7 +234,7 @@ function NowAsk({ ask, busy, presets, answer, dismiss, snooze }: { ask: Ask; bus
       onDismiss={() => dismiss(ask)}
       onUndismiss={() => undefined}
       onSnooze={(preset) => snooze(ask, preset)}
-      onReply={() => location.assign(`/chats/${ask.conversation_id}#reply=${ask.id}`)}
+      onReply={() => location.assign(`/chats/${ask.conversation_id}#reply=${ask.thread_root_id ?? ask.id}`)}
     />
     <Attention conversation={ask.conversation_id} />
     </>
@@ -263,9 +263,19 @@ function Folds({ snoozed, answered, dismissed, open, toggle, unsnooze, reopen }:
       <ul id={`${id}-${key}`} className="foldrows">
         {rows.map((ask) => (
           <li key={ask.id}>
-            <span className="foldq">{ask.question}</span>
+            <a className="foldq" href={`/chats/${ask.conversation_id}#m${ask.id}`}>
+              {ask.question}
+            </a>
             <span className="foldwho">{`${whoLine(ask.asker)} · ${ask.conversation?.title || "Untitled conversation"}`}</span>
-            {tail(ask)}
+            <div className="foldacts">
+              {tail(ask)}
+              <a className="askbtn" href={`/chats/${ask.conversation_id}#reply=${ask.thread_root_id ?? ask.id}`}>
+                Reply in thread
+              </a>
+              <a className="askbtn" href={`/chats/${ask.conversation_id}#m${ask.id}`}>
+                Jump to conversation
+              </a>
+            </div>
           </li>
         ))}
       </ul>
