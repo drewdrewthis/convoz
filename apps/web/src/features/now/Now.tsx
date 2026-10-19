@@ -15,7 +15,7 @@ import { presetsAt } from "./presets.ts";
 import { Attention } from "./Attention.tsx";
 
 /** Now is /: what needs the owner. Open asks first (urgent, then the newest), then the adds agents wait on and the machines waiting
- *  to connect; Snoozed, Answered today and Dismissed today fold away below. With nothing waiting, "All clear". */
+ *  to connect; Snoozed, Answered today and Dismissed today fold away below. With nothing waiting, the wordmark, "All clear" and the folds are centred, in that order. */
 export function Now() {
   const { say, fail } = useNotice();
   const load = useNow((s) => s.load);
@@ -25,6 +25,8 @@ export function Now() {
   const [onePasskey, setOnePasskey] = useState(false);
   const [busy, setBusy] = useState<ReadonlySet<number>>(new Set());
   const [folds, setFolds] = useState({ snoozed: false, answered: false, dismissed: false });
+  // Agents the owner approved from this feed: each keeps a "@name joined" card with a way to message it.
+  const [joined, setJoined] = useState<readonly string[]>([]);
   const focusAfter = useRef<number | null>(null);
   const deepLinked = useRef(false);
 
@@ -117,6 +119,8 @@ export function Now() {
     e.preventDefault();
   };
 
+  const markJoined = (handle: string) => setJoined((j) => (j.includes(handle) ? j : [...j, handle]));
+
   const denyAll = async () => {
     try {
       await call(client.POST("/api/machines/requests/deny-all", { body: {} }));
@@ -149,14 +153,14 @@ export function Now() {
         ) : null}
       </div>
       <div id="allclear" hidden={!now || some}>
+        <div className="wordmark">
+          <Wordmark />
+        </div>
         <div className="allclear">
           <span className="tick" aria-hidden="true">
             <TickIcon />
           </span>
           <span>All clear. Nothing needs you.</span>
-        </div>
-        <div className="wordmark">
-          <Wordmark />
         </div>
       </div>
       <Folds
@@ -182,6 +186,18 @@ export function Now() {
           ))}
         </section>
       ) : null}
+      {joined.length ? (
+        <section id="joined" className="block" aria-label="Agents that joined">
+          {joined.map((handle) => (
+            <article key={handle} className="card" aria-label={`@${handle} joined`}>
+              <h3>{`@${handle} joined`}</h3>
+              <div className="btns">
+                <a className="btn primary" href={`/chats/new?with=${encodeURIComponent(handle)}`}>{`Message @${handle}`}</a>
+              </div>
+            </article>
+          ))}
+        </section>
+      ) : null}
       <section id="requests-block" className="block" aria-labelledby="requests-heading" hidden={!waiting}>
         <div className="block-head">
           <h2 id="requests-heading">Machine requests</h2>
@@ -191,10 +207,10 @@ export function Now() {
         </div>
         <div id="requests">
           {(pending ?? []).map((req) =>
-            req.identity ? <RequestCard key={`m${req.id}`} item={{ kind: "login", key: `m${req.id}`, machine: req }} changed={reload} /> : <RequestCard key={`m${req.id}`} item={{ kind: "plain", key: `m${req.id}`, machine: req }} changed={reload} />,
+            req.identity ? <RequestCard key={`m${req.id}`} item={{ kind: "login", key: `m${req.id}`, machine: req }} changed={reload} approved={markJoined} /> : <RequestCard key={`m${req.id}`} item={{ kind: "plain", key: `m${req.id}`, machine: req }} changed={reload} />,
           )}
           {connecting.filter((c) => c.kind === "session").map((c) => (
-            <RequestCard key={c.key} item={c} changed={reload} />
+            <RequestCard key={c.key} item={c} changed={reload} approved={markJoined} />
           ))}
         </div>
       </section>

@@ -69,6 +69,8 @@
   }
   .folds { display: flex; flex-direction: column; align-items: stretch; padding: 2px 0 12px; gap: 8px; }
   .foldchips { display: flex; flex-wrap: wrap; gap: 8px; }
+  /* With nothing waiting the chips are centred under the all-clear line; with items they stay left. */
+  #allclear:not([hidden]) ~ .folds .foldchips { justify-content: center; }
   .foldrows { margin: 0; }
   .foldbtn svg { width: 12px; height: 12px; }
   .foldbtn[aria-expanded="true"] { color: var(--color-text); }

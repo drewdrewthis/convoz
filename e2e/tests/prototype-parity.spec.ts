@@ -24,7 +24,8 @@ import { AGENTS, LIVE, NOT_IDLE, ONLINE_IDLE, keepActual, maskPercent, protoWorl
 test.use({ deviceScaleFactor: 2 });
 
 /** No screen may hide more than its share of the frame behind grey boxes, so the masks cannot grow without this number changing. */
-const MASK_CAP: Record<string, number> = { now: 10, "now-asks": 10, conversations: 10, "conversation-thread": 10, thread: 10, "new-conversation": 10, crew: 20, rail: 10, "crew-status": 20 };
+/** now: 25, because the owner (msg 275) centred the wordmark and moved the All clear line under it, which the prototype frame does not show. */
+const MASK_CAP: Record<string, number> = { now: 25, "now-asks": 10, conversations: 10, "conversation-thread": 10, thread: 10, "new-conversation": 10, crew: 20, rail: 10, "crew-status": 20 };
 
 const SHOT = { maxDiffPixelRatio: 0.02, threshold: 0.2, animations: "disabled", caret: "hide", scale: "device" } as const;
 
