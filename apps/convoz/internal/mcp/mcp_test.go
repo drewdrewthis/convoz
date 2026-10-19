@@ -10,7 +10,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
 
-var wantTools = []string{"whoami", "brief", "inbox", "claim", "ack", "read", "search", "post", "reply", "ask", "plan", "status", "handoff", "profile", "app_validate", "app_build", "rename", "typing", "invite", "file"}
+var wantTools = []string{"whoami", "brief", "inbox", "claim", "ack", "read", "search", "post", "reply", "ask", "plan", "status", "handoff", "profile", "app_validate", "app_build", "rename", "typing", "invite", "file", "new", "agents"}
 
 func TestTools_AreInTheirOrder(t *testing.T) {
 	var got []string

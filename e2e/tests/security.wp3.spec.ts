@@ -20,7 +20,7 @@ scenario("People an agent lists in a new conversation are pending", { tag: ["@ap
   // Then "docs" is listed as pending
   const view = await viewOf(w.owner, conv);
   expect(view.pending?.map((p) => p.person.handle)).toEqual(["docs"]);
-  expect(handlesOf(view)).toEqual(["devtool"]);
+  expect(handlesOf(view)).toEqual(["drew", "devtool"]);
 
   // And "docs" cannot read the conversation until the owner approves
   expect((await convoz(w.box, docs.sid, ["read", String(conv)])).code).toBe(3);

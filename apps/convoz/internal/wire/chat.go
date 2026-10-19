@@ -11,6 +11,7 @@ import (
 const (
 	RouteConversations = "/api/conversations" // + "/<id>/messages", "/<id>/read"
 	RouteInbox         = "/api/inbox"
+	RouteAgents        = "/api/agents"
 	RouteInboxClaim    = "/api/inbox/claim"
 	RouteInboxAck      = "/api/inbox/ack"
 )
@@ -250,6 +251,23 @@ type AckResponse struct {
 	Results []AckResult  `json:"results"`
 	Error   *ErrorDetail `json:"error,omitempty"`
 }
+
+// AgentRow is one agent in `convoz agents`: what another agent needs to name it, and nothing private.
+type AgentRow struct {
+	Handle      string `json:"handle"`
+	DisplayName string `json:"display_name"`
+	Description string `json:"description"`
+	State       string `json:"state"`
+}
+
+// AgentsResponse is the answer of GET /api/agents.
+type AgentsResponse struct {
+	Agents []AgentRow `json:"agents"`
+}
+
+// WatchAdvice is the one way to listen: `convoz watch --json --once` in the background, run again after each answer. It works for
+// every agent, with or without a tool that reads a running command (coordinator, conv 19 msg 501). The brief and `session start` print it.
+const WatchAdvice = "Run `convoz watch --json --once` in the background. It exits when something arrives. Answer, ack, then run it again. Nothing is lost between runs: items stay in your inbox until you ack them."
 
 // WatchLine is what `convoz watch --json` prints for each item: one line of JSON.
 type WatchLine struct {

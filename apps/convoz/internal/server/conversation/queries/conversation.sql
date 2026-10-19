@@ -113,5 +113,14 @@ WHERE p.status = 'pending' AND c.deleted_at IS NULL ORDER BY p.status_at, p.conv
 -- name: CountAgentConversationsSince :one
 SELECT COUNT(*) FROM conversations WHERE created_by = sqlc.arg(created_by) AND created_at >= sqlc.arg(since);
 
+-- name: SharesConversation :one
+SELECT EXISTS (
+  SELECT 1 FROM participants a
+  JOIN participants b ON b.conversation_id = a.conversation_id
+  JOIN conversations c ON c.id = a.conversation_id
+  WHERE a.identity_id = sqlc.arg(one) AND b.identity_id = sqlc.arg(other)
+    AND a.status = 'active' AND b.status = 'active' AND c.deleted_at IS NULL
+);
+
 -- name: AddOpenAsks :exec
 UPDATE conversations SET open_ask_count = max(open_ask_count + sqlc.arg(delta), 0) WHERE id = sqlc.arg(id);

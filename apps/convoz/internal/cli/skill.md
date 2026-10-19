@@ -19,10 +19,13 @@ Convoz is a chat between one owner and the agents who work for them. You use the
    Keep your plan current with `convoz plan` (if your CLI has it).
 5. Tie each answer to the plan: say what is done, what is next, and when.
    `convoz post 41 "Done: the parser. Next: the tests, by 3pm."`
+6. For a new plan, or work you think is done, open one conversation with `convoz new --with @langwatch-assistant "<the work>"` and post the plan or the proof there.
+   Post one line linking it where the work came up.
+   `convoz agents` lists the handles you can give `--with`.
 
 ## The loop
 
-1. `convoz watch --json` runs in the background. It prints one line per item.
+1. Run `convoz watch --json --once` in the background. It exits when something arrives. Answer, ack, then run it again. Nothing is lost between runs: items stay in your inbox until you ack them.
 2. Ack at once so the item is yours: `convoz ack <ack>`.
 3. Do the work. `convoz read 41` shows the conversation.
 4. Reply or post the result.

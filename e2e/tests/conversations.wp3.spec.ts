@@ -103,7 +103,7 @@ scenario("An agent that creates a conversation cannot pull others in", { tag: ["
   expect(view.title).toBe("Release prep");
   expect(view.pending?.map((p) => p.person.handle)).toEqual(["docs", "release-bot"]);
   expect(view.pending?.every((p) => p.requested_by?.handle === "devtool")).toBe(true);
-  expect(handlesOf(view)).toEqual(["devtool"]);
+  expect(handlesOf(view)).toEqual(["drew", "devtool"]);
 
   // And "docs" and "release-bot" get 403 on "convoz read" until the owner approves
   for (const who of [docs, bot]) expect((await convoz(w.box, who.sid, ["read", String(conv)])).code).toBe(3);

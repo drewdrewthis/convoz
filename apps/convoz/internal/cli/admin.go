@@ -26,6 +26,7 @@ const (
 	ExitConflict    = 4 // HTTP 409 (a name or handle is taken)
 	ExitRateLimited = 5 // HTTP 429, also too_many_pending
 	ExitNetwork     = 6 // the socket cannot be reached
+	ExitNothing     = 3 // `watch --once --timeout` ended with no item; stderr tells it from a session that ended
 )
 
 // errUnreachable marks a failure to talk to the server at all (no socket, refused, timed out).

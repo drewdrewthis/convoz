@@ -12,6 +12,7 @@ func init() {
 // message, and a retry with the same client id stores the reply once, as for `convoz post`.
 func Reply(args []string, io IO) int {
 	f := newChatFlags("reply", io)
+	f.textFrom = 1
 	opt := newPostFlags(f)
 	broadcast := f.fs.Bool("broadcast", false, "also show the reply in the main list")
 	pos, ok := f.parse(args, io)

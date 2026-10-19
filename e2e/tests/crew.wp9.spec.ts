@@ -196,7 +196,8 @@ scenario("The add-agent prompt tells the agent to start watching its inbox at on
   const prompt = sheetNamed(page, "Invite agent").getByLabel("Connect prompt");
   await expect(prompt).toContainText("convoz session start --as <your-handle> --create");
   const text = (await prompt.innerText()).replace(/\u00a0/g, " ");
-  const watch = "Right after you connect, start `convoz watch --json`: it prints one line per message or ask for you. Answer, then `convoz ack <ack>`. Run `convoz watch --json` with a tool that wakes you on each line it prints. In Claude Code that is the Monitor tool (if it is deferred, load it with ToolSearch `select:Monitor`): command `convoz watch --json`, and re-arm it when it expires. A plain background command that only reports when it exits will never wake you.";
+  // @langwatch-technician, conv 19 msg 501: "The `--once` loop works for every agent, Monitor or not: run it in the background, answer, run it again."
+  const watch = "Run `convoz watch --json --once` in the background. It exits when something arrives. Answer, ack, then run it again. Nothing is lost between runs: items stay in your inbox until you ack them.";
   const lines = text.split("\n");
   const at = lines.indexOf(watch);
   expect(at).toBeGreaterThan(-1);

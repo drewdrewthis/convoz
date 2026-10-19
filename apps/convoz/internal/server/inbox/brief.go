@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
 
 // Brief sizes in bytes (design §3.8, M7). The sections share the default; a larger or smaller --max-bytes scales every budget.
@@ -168,7 +170,7 @@ func identitySection(in BriefInput, budget int) string {
 	if in.DisplayName != "" {
 		name = fmt.Sprintf("%s (@%s)", oneLine(in.DisplayName), in.Handle)
 	}
-	lines := []string{"## Who you are", "You are " + name + ".", "Start `convoz watch --json` now and keep it running: it prints one line per message or ask for you. Answer, then `convoz ack <ack>`."}
+	lines := []string{"## Who you are", "You are " + name + ".", "Start `convoz watch --json` now. " + wire.WatchAdvice}
 	if in.Description != "" {
 		lines = append(lines, oneLine(in.Description))
 	}
