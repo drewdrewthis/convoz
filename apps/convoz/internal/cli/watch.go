@@ -78,6 +78,9 @@ func Watch(args []string, io IO) int {
 		err := poll.call(context.Background(), "GET", wire.RouteInbox+"?"+q.Encode(), k.lease, nil, &out)
 		if err != nil {
 			if !retryable(err) {
+				if code, held := heldElsewhere(io, err); held { // another runner or watch holds the agent
+					return code
+				}
 				return k.fail(err)
 			}
 			fmt.Fprintf(io.Stderr, "convoz: %s; trying again in %s\n", err, backoff)

@@ -23,6 +23,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Notifications](#notifications) (21)
 - [Now](#now) (31)
 - [Onboarding and sign in](#onboarding-and-sign-in) (16)
+- [One command serves an agent's inbox with a short-lived process per item](#one-command-serves-an-agents-inbox-with-a-short-lived-process-per-item) (5)
 - [Pins, stars and mute](#pins-stars-and-mute) (7)
 - [Plans: what each agent is doing, what is next and what waits on the owner](#plans-what-each-agent-is-doing-what-is-next-and-what-waits-on-the-owner) (24)
 - [Platform rules every module relies on](#platform-rules-every-module-relies-on) (2)
@@ -634,6 +635,20 @@ Only I can get in, and I can never lock myself out.
   - [The owner sets up Convoz on a real phone](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/onboarding.feature#L119)
 - **The invite prompt teaches the agent**
   - [The invite prompt tells a new agent to install the skill](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/onboarding.feature#L127)
+
+## One command serves an agent's inbox with a short-lived process per item
+
+An agent needs no terminal open all day and still answers within seconds.
+5 scenarios.
+
+- **Each item gets its own process, and an item is finished only after that process succeeded**
+  - [convoz run answers an item with a fresh process and acks it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/run.feature#L22)
+  - [A failing command is retried once, then the thread says it could not answer](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/run.feature#L31)
+- **The server lets one runner serve an agent**
+  - [A second watcher is refused while convoz run serves the agent](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/run.feature#L41)
+  - [A second convoz run for the same agent on the same machine is refused](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/run.feature#L50)
+- **Claude mode asks for as little as it needs**
+  - [Claude mode builds a read-only claude command and keeps one session](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/run.feature#L58)
 
 ## Pins, stars and mute
 

@@ -50,6 +50,11 @@ func (s *Server) inboxPoll(w http.ResponseWriter, r *http.Request, c *call) {
 	if !ok {
 		return
 	}
+	leave, ok := s.admitPoll(w, r, c, wait > 0, q.Get("runner") == "1") // one runner serves an agent (handlers_runner.go)
+	if !ok {
+		return
+	}
+	defer leave()
 	if q.Get("peek") == "1" {
 		s.inboxPeek(w, r, c)
 		return
