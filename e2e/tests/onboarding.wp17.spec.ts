@@ -1,5 +1,7 @@
+import type { Page } from "@playwright/test";
 import { expect, scenario } from "../lib/scenario.ts";
 import { installFakePhone } from "../lib/push-phone.ts";
+import { newChat } from "../lib/chat-ui.ts";
 import { installed, world } from "../lib/wp17.ts";
 
 /*
@@ -81,4 +83,73 @@ scenario("An update waits for the owner's tap", { tag: ["@browser"] }, async ({ 
     )
     .not.toBe(before);
   await expect(page.getByRole("status").filter({ hasText: "Update ready" })).toHaveCount(0);
+});
+
+/** The page's visibility, set by hand: the document says "hidden" or "visible" and tells its listeners, as a browser does on a tab switch. */
+const setVisibility = (page: Page, state: "hidden" | "visible") =>
+  page.evaluate((v) => {
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => v });
+    document.dispatchEvent(new Event("visibilitychange"));
+  }, state);
+
+/** The script URL of the worker that controls the page; "none" while the page reloads under a new one. */
+const running = (page: Page) => page.evaluate(() => navigator.serviceWorker.controller?.scriptURL ?? "none").catch(() => "reloading");
+
+/** Deploy a new build while the app is open: a worker at another URL of the same scope waits as the update. */
+const deploy = (page: Page) => page.evaluate(async () => void (await navigator.serviceWorker.register("/sw.js?build=2", { type: "module", scope: "/" })));
+
+scenario("An update applies itself when the app is in the background", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  const u = await world({ server, page, context });
+  await page.goto(`${u.w.srv.origin}/`);
+  await installed(page);
+  const before = await running(page);
+
+  // Given a new build is deployed while the app is open
+  // When the app goes to the background
+  await setVisibility(page, "hidden");
+  await deploy(page);
+
+  // Then the new version runs without a tap
+  await expect.poll(() => running(page), { timeout: 30_000 }).not.toBe(before);
+  await expect.poll(() => running(page), { timeout: 30_000 }).toContain("build=2");
+
+  // And the "Update ready" bar does not stay
+  await expect(page.getByRole("status").filter({ hasText: "Update ready" })).toHaveCount(0);
+});
+
+scenario("An update waits while a message is half-written", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  const u = await world({ server, page, context });
+  await page.goto(`${u.w.srv.origin}/chats`);
+  await installed(page);
+  const before = await running(page);
+  // The composer is open before the build is deployed: a page change in the same moment can stall the worker's hand-over.
+  await newChat(page).click();
+  const box = page.getByRole("textbox", { name: "Message", exact: true });
+  await expect(box).toBeVisible();
+
+  // Given a new build is deployed while the app is open
+  await deploy(page);
+  const note = page.getByRole("status").filter({ hasText: "Update ready · Reload" });
+  await expect(note).toBeVisible({ timeout: 30_000 });
+  // And the owner has typed a message and not sent it
+  await box.fill("half a thought");
+
+  // When the app comes back to the screen
+  await setVisibility(page, "visible");
+
+  // Then the app still shows "Update ready · Reload" and the old version runs
+  await page.waitForTimeout(1500); // a reload, if one were coming, starts within this time
+  await expect(note).toBeVisible();
+  expect(await running(page)).toBe(before);
+  // And the typed message is still in the box
+  await expect(box).toHaveValue("half a thought");
+
+  // When the owner clears the box and the app comes back to the screen again
+  await box.fill("");
+  await setVisibility(page, "visible");
+
+  // Then the new version runs without a tap
+  await expect.poll(() => running(page), { timeout: 30_000 }).toContain("build=2");
 });
