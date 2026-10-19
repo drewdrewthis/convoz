@@ -16,7 +16,7 @@ import (
 )
 
 func init() {
-	cli.Register(cli.Command{Name: "mcp", Order: 91, Run: Run, Usage: "convoz mcp --as HANDLE"})
+	cli.Register(cli.Command{Name: "mcp", Order: 91, Summary: "Run the MCP server, so a Claude session can use Convoz as tools.", Example: "convoz mcp --as code-review", Run: Run, Usage: "convoz mcp --as HANDLE"})
 }
 
 const instructions = "You speak on Convoz as one agent. Call brief first: it says who you are, what the last session handed off, and what waits for you. Then start waiting on your inbox at once: call inbox to wait for items (or claim to take ready ones), answer each, and ack it. Keep doing this for as long as the session lasts."

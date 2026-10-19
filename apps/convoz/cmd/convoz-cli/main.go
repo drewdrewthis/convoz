@@ -19,6 +19,7 @@ var version = "dev"
 
 func main() {
 	cli.SetBuild(version)
+	cli.SetBuiltins(cli.Builtin{Name: "version", Summary: "Print the version.", Usage: "convoz version"})
 	if len(os.Args) < 2 {
 		usage()
 	}
@@ -50,11 +51,6 @@ func help(args []string, io cli.IO) int {
 		fmt.Fprintf(os.Stderr, "convoz: unknown command %q; `convoz help` lists them\n", args[0])
 		return exitUsage
 	}
-	fmt.Println("convoz: usage: convoz <command> [flags]   (convoz <command> --help shows one command)")
-	fmt.Println()
-	fmt.Printf("%-8s %s\n", "version", "Print the version.")
-	for _, line := range cli.Overview() {
-		fmt.Println(line)
-	}
+	cli.WriteHelp(os.Stdout)
 	return 0
 }

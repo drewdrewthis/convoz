@@ -12,7 +12,8 @@ import (
 const backupUsage = "convoz backup --data-dir D --recipient F --sign-key F --out FILE [--kek-file F]\n       convoz backup keygen --dir D"
 
 func init() {
-	cli.Register(cli.Command{Name: "backup", Order: 70, Usage: backupUsage, Run: runBackup})
+	cli.Register(cli.Command{Name: "backup", Order: 70, Summary: "Make an encrypted, signed backup of the data folder.",
+		Example: "convoz backup --data-dir /var/lib/convoz --recipient keys/recipient.key --sign-key keys/signing.key --out convoz.backup", Usage: backupUsage, Run: runBackup})
 }
 
 // runBackup is `convoz backup`: a signed, encrypted backup of a data dir. It may run beside a live server.

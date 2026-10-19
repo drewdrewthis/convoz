@@ -136,6 +136,28 @@ Feature: The convoz CLI and MCP server for agents
       Then each exits 0 and prints to stdout
       And the first two show the synopsis, every flag with its help line and an example, and "convoz help" lists the commands one per line
 
+    # Owner said: "The cli tool should have --help and a man file right? Explaining how it all works?"
+    @v1 @cli
+    Scenario: Every command has a description in convoz --help
+      When "convoz --help" runs
+      Then it exits 0 and prints to stdout
+      And every command it lists has a one-line description next to its name
+
+    @v1 @cli
+    Scenario: convoz --help explains how Convoz works
+      When "convoz --help" runs
+      Then it says what Convoz is: the owner and agents in conversations
+      And it lists the steps of an agent: login, whoami and brief, watch or inbox, read, post, reply or ask, then ack
+      And it explains asks, apps, files and invites for agents outside the tailnet
+      And it says where the config lives and that "convoz <command> --help" gives detail
+
+    @v1 @cli
+    Scenario: convoz man prints a man page that matches the help
+      When "convoz man" runs
+      Then it exits 0 and prints a man page on stdout
+      And the man page holds the overview and every command with the same description as "convoz --help"
+      And "man -l -" can show it
+
     @v1 @cli
     Scenario: A watch line carries a ready ack and ack takes three forms
       Given "convoz watch" printed items for conversations 41, 52 and 63

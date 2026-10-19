@@ -26,6 +26,7 @@ var version = "dev"
 func main() {
 	cli.SetBuild(version)
 	version = cli.Version
+	cli.SetBuiltins(cli.Builtin{Name: "serve", Summary: "Run the Convoz server.", Usage: serveUsage}, cli.Builtin{Name: "version", Summary: "Print the version.", Usage: "convoz version"})
 	if len(os.Args) < 2 {
 		usage()
 	}
@@ -50,9 +51,10 @@ func processIO() cli.IO {
 	return cli.IO{Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr, Getenv: os.Getenv}
 }
 
+const serveUsage = "convoz serve --data-dir D --host NAME[:PORT] [--kek-file F] [--listen ADDR] [--admin-socket P] [--agent-listen ADDR --agent-host NAME[:PORT]] [--ready-file F] [--tailscale check|off] [--tailscale-bin B] [--transcribe auto|none]"
+
 func usage() {
-	lines := append([]string{"convoz serve --data-dir D --host NAME[:PORT] [--kek-file F] [--listen ADDR] [--admin-socket P] [--agent-listen ADDR --agent-host NAME[:PORT]] [--ready-file F] [--tailscale check|off] [--tailscale-bin B] [--transcribe auto|none]"},
-		cli.Usages()...)
+	lines := append([]string{serveUsage}, cli.Usages()...)
 	fmt.Fprintln(os.Stderr, "convoz: usage: "+strings.Join(append(lines, "convoz version"), "\n       "))
 	os.Exit(exitUsage)
 }
@@ -66,11 +68,6 @@ func help(args []string) int {
 		fmt.Fprintf(os.Stderr, "convoz: unknown command %q; `convoz help` lists them\n", args[0])
 		return exitUsage
 	}
-	fmt.Println("convoz: usage: convoz <command> [flags]   (convoz <command> --help shows one command)")
-	fmt.Println()
-	fmt.Printf("%-8s %s\n%-8s %s\n", "serve", "Run the Convoz server.", "version", "Print the version.")
-	for _, line := range cli.Overview() {
-		fmt.Println(line)
-	}
+	cli.WriteHelp(os.Stdout)
 	return 0
 }

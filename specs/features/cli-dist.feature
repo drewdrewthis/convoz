@@ -19,3 +19,11 @@ Feature: The server hands out its own CLI
       And "convoz version" prints the version of the server and the commit
       And the installer says how to add the folder to the PATH
       And the install script never asks for root
+
+    @v1 @cli
+    Scenario: The installer also installs the man page
+      Given a machine with no convoz installed and an empty home folder
+      And a Convoz server
+      When the agent runs the install script of the server
+      Then "convoz.1" is installed in the ".local/share/man/man1" folder of the home folder
+      And "man convoz" shows it when that man folder is on the man path

@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import {
   chatWorld,
   convoz,
@@ -227,6 +228,89 @@ scenario("Every command prints its usage for --help", { tag: ["@cli"] }, async (
   // and "convoz help" lists the commands one per line
   expect(help.stdout).toMatch(/^watch +Print one line per new inbox item/m);
   expect(help.stdout).toMatch(/^ack +Remove an item from your inbox/m);
+});
+
+/** The command lines of `convoz --help`: every line under "Commands:", as [name, description]. */
+function helpCommands(text: string): Array<[string, string]> {
+  const lines = text.split("\n");
+  const from = lines.indexOf("Commands:");
+  expect(from, "convoz --help has a Commands: list").toBeGreaterThan(-1);
+  return lines
+    .slice(from + 1)
+    .filter((l) => l.trim() !== "")
+    .map((l): [string, string] => {
+      const m = /^(\S+)\s+(\S.*)$/.exec(l);
+      return [m?.[1] ?? l, m?.[2] ?? ""];
+    });
+}
+
+scenario("Every command has a description in convoz --help", { tag: ["@cli"] }, async ({ server }) => {
+  const w = await chatWorld(server, { agents: ["devtool"] });
+
+  // When "convoz --help" runs
+  const help = await w.box.run(["--help"]);
+
+  // Then it exits 0 and prints to stdout
+  expect({ code: help.code, stderr: help.stderr }).toEqual({ code: 0, stderr: "" });
+
+  // And every command it lists has a one-line description next to its name
+  const commands = helpCommands(help.stdout);
+  const names = commands.map(([n]) => n);
+  for (const n of ["serve", "version", "backup", "restore", "keys", "workspace", "mcp", "man", "login", "watch", "ack"]) expect(names).toContain(n);
+  for (const [name, text] of commands) expect(text.length, `${name} has a description`).toBeGreaterThan(10);
+});
+
+scenario("convoz --help explains how Convoz works", { tag: ["@cli"] }, async ({ server }) => {
+  const w = await chatWorld(server, { agents: ["devtool"] });
+
+  // When "convoz --help" runs
+  const help = await w.box.run(["--help"]);
+  const overview = help.stdout.slice(0, Math.max(help.stdout.indexOf("Commands:"), 0));
+
+  // Then it says what Convoz is: the owner and agents in conversations
+  expect(overview).toMatch(/owner/i);
+  expect(overview).toMatch(/agents?/i);
+  expect(overview).toMatch(/conversations?/i);
+
+  // And it lists the steps of an agent: login, whoami and brief, watch or inbox, read, post, reply or ask, then ack
+  const order = ["convoz login", "convoz whoami", "convoz brief", "convoz watch", "convoz inbox", "convoz read", "convoz post", "convoz reply", "convoz ask", "convoz ack"];
+  const at = order.map((o) => overview.indexOf(o, Math.max(overview.indexOf("convoz login"), 0)));
+  expect(at.every((i) => i >= 0), `steps in order: ${at}`).toBe(true);
+  expect([...at].sort((a, b) => a - b)).toEqual(at);
+
+  // And it explains asks, apps, files and invites for agents outside the tailnet
+  for (const word of ["ask", "app", "--file", "convoz file", "convoz invite", "tailnet"]) expect(overview).toContain(word);
+
+  // And it says where the config lives and that "convoz <command> --help" gives detail
+  expect(overview).toContain("~/.config/convoz");
+  expect(overview).toContain("convoz <command> --help");
+});
+
+scenario("convoz man prints a man page that matches the help", { tag: ["@cli"] }, async ({ server }) => {
+  const w = await chatWorld(server, { agents: ["devtool"] });
+  const help = await w.box.run(["--help"]);
+
+  // When "convoz man" runs
+  const man = await w.box.run(["man"]);
+
+  // Then it exits 0 and prints a man page on stdout
+  expect({ code: man.code, stderr: man.stderr }).toEqual({ code: 0, stderr: "" });
+  expect(man.stdout).toMatch(/^\.TH CONVOZ 1/m);
+
+  // And the man page holds the overview and every command with the same description as "convoz --help"
+  const plain = man.stdout.replaceAll("\\-", "-").replaceAll("\\e", "\\");
+  const overview = help.stdout.slice(help.stdout.indexOf("\n\n") + 2, Math.max(help.stdout.indexOf("Commands:"), 0));
+  for (const line of overview.split("\n").filter((l) => l.trim() !== "")) expect(plain, `overview line: ${line}`).toContain(line.trim());
+  for (const [name, text] of helpCommands(help.stdout)) {
+    expect(plain, `${name} description`).toContain(text);
+    expect(plain, `${name} section`).toMatch(new RegExp(`^\\.SS ${name}$`, "m"));
+  }
+
+  // And "man -l -" can show it
+  const shown = spawnSync("man", ["-l", "-"], { input: man.stdout, encoding: "utf8", timeout: 20_000, shell: false, env: { PATH: process.env.PATH ?? "", MANWIDTH: "200", MANPAGER: "cat", LANG: "C" } });
+  expect({ code: shown.status, stderr: shown.stderr }).toEqual({ code: 0, stderr: "" });
+  expect(shown.stdout).toContain("NAME");
+  expect(shown.stdout).toContain("convoz");
 });
 
 scenario("A watch line carries a ready ack and ack takes three forms", { tag: ["@cli"] }, async ({ server }) => {
