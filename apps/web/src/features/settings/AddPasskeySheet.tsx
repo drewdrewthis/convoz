@@ -93,7 +93,7 @@ export function AddPasskeySheet({ close, onAdded }: { close: () => void; onAdded
         </>
       }
     >
-      <p className="muted">First confirm it is you with a passkey you already have. Then create the new one on the device or security key you want to add.</p>
+      <p className="text-muted">First confirm it is you with a passkey you already have. Then create the new one on the device or security key you want to add.</p>
     </Sheet>
   );
 }

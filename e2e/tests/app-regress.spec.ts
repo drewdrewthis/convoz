@@ -1,11 +1,12 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { makeBootstrapLink } from "../lib/admin.ts";
 import { agentAsks, snoozeAsk } from "../lib/asks.ts";
 import { agentPost, convoz } from "../lib/chat.ts";
 import { clientId } from "../lib/machines.ts";
+import { webauthn } from "../lib/webauthn-browser.ts";
 import { bootstrapOwner, must } from "../lib/owner.ts";
 import { AGENTS, LIVE, NOT_IDLE, ONLINE_IDLE, reportStatuses, seedOpenAsks, seedPrototype, starAndMute } from "../lib/prototype-seed.ts";
-import { frozenWorld, matchesItself } from "../lib/regress.ts";
+import { FROZEN_AT, frozenWorld, matchesItself } from "../lib/regress.ts";
 import { expect, scenario, test } from "../lib/scenario.ts";
 
 /*
@@ -19,6 +20,9 @@ import { expect, scenario, test } from "../lib/scenario.ts";
 test.use({ deviceScaleFactor: 1, timezoneId: "UTC", locale: "en-US" });
 
 const world = (fx: Parameters<typeof frozenWorld>[0]) => frozenWorld(fx, { agents: AGENTS, live: LIVE });
+
+/** Sets text that carries the real day or time (a server stamp from before the clocks froze) to a fixed one, so the width it takes is the same on every day. */
+const pin = async (where: Locator, text: string) => where.evaluateAll((all, t) => all.forEach((e) => (e.textContent = t)), text);
 
 const ready = async (page: Page, heading: string) => expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
 
@@ -217,4 +221,164 @@ scenario("Sign in and the first onboarding screen keep their look", { tag: ["@br
   await page.goto(`${srv.origin}/bootstrap#${link.token}`);
   await expect(page.getByRole("button", { name: "Register passkey" })).toBeVisible();
   await matchesItself(page, info, "onboarding-first");
+});
+
+scenario("Conversation details and their sheets keep their look", { tag: ["@browser"] }, async ({ server, page, context, testApi }, info) => {
+  info.setTimeout(240_000);
+  // Background: the prototype's agents and conversations
+  const u = await world({ server, page, context, testApi });
+  const ids = await seedPrototype(u);
+
+  // When the owner opens the details of "Why did the nightly export get slower?"
+  await page.goto(`${u.w.srv.origin}/chats/${ids["Why did the nightly export get slower?"]}`);
+  await expect(page.getByRole("log", { name: "Messages" }).getByRole("article")).toHaveCount(2);
+  await page.getByRole("button", { name: "Show details" }).click();
+  const details = page.getByRole("complementary", { name: /^Details for / });
+  await expect(details.getByRole("button", { name: "Delete conversation" })).toBeVisible();
+  // Then they match their frame, with the plain, the danger and the close buttons
+  await matchesItself(page, info, "details");
+
+  // And the delete sheet (a danger and a quiet button) and the rename sheet (a primary and a quiet button) match theirs
+  await details.getByRole("button", { name: "Delete conversation" }).click();
+  await expect(page.getByRole("dialog", { name: "Delete conversation" })).toBeVisible();
+  await matchesItself(page, info, "delete-sheet");
+  await page.getByRole("dialog", { name: "Delete conversation" }).getByRole("button", { name: "Cancel" }).click();
+  await details.getByRole("button", { name: "Rename" }).click();
+  await expect(page.getByRole("dialog", { name: "Rename conversation" })).toBeVisible();
+  await matchesItself(page, info, "rename-sheet");
+});
+
+scenario("An agent profile and its revoke and rename forms keep their look", { tag: ["@browser"] }, async ({ server, page, context, testApi }, info) => {
+  info.setTimeout(240_000);
+  // Background: the prototype's agents, with docs and orchardist live too
+  const u = await frozenWorld({ server, page, context, testApi }, { agents: AGENTS, live: [...LIVE, "docs", "orchardist"] });
+
+  // When the owner opens the profile of night-watch
+  await page.goto(`${u.w.srv.origin}/crew/night-watch`);
+  await ready(page, "Agent");
+  await expect(page.getByRole("button", { name: "Revoke key" })).toBeVisible();
+  // Then it matches its frame: small plain and small danger buttons, a primary link, the session list (the "Created" line is the real day, so it is pinned)
+  await pin(page.getByText(/^Created .* last used /), "Created Oct 16, 2026, 6:00 PM · last used just now");
+  await matchesItself(page, info, "agent-profile");
+
+  // And the Handoffs tab, which is empty, matches its frame
+  await page.getByRole("tab", { name: "Handoffs" }).click();
+  await expect(page.getByText("No handoff notes.")).toBeVisible();
+  await matchesItself(page, info, "agent-handoffs");
+
+  // And the rename form (a field, a primary and a quiet button) and the revoke confirmation (a danger and a quiet button) match theirs
+  await page.getByRole("button", { name: "Change handle" }).click();
+  await expect(page.getByRole("group", { name: "Change handle" })).toBeVisible();
+  await matchesItself(page, info, "agent-rename");
+  await page.getByRole("group", { name: "Change handle" }).getByRole("button", { name: "Cancel" }).click();
+  await page.getByRole("button", { name: "Revoke key" }).click();
+  await expect(page.getByRole("group", { name: "Revoke key" })).toBeVisible();
+  await matchesItself(page, info, "agent-revoke");
+});
+
+scenario("Account, passkeys, privacy, machines and trash keep their look", { tag: ["@browser"] }, async ({ server, page, context, testApi }, info) => {
+  info.setTimeout(240_000);
+  // Background: the prototype's agents and conversations, and "Team updates" in the trash
+  const u = await world({ server, page, context, testApi });
+  const ids = await seedPrototype(u);
+  must(await u.w.owner.client.del(`/api/conversations/${ids["Team updates"]}`), "delete Team updates");
+  const at = (path: string) => page.goto(`${u.w.srv.origin}${path}`);
+
+  // When the owner opens Account, then Passkeys, Privacy & security, Delete my data, Machines and the Trash
+  await at("/account");
+  await ready(page, "Account");
+  await matchesItself(page, info, "account");
+  await at("/settings/passkeys");
+  await ready(page, "Passkeys");
+  await expect(page.getByRole("button", { name: "Remove passkey" })).toHaveCount(2);
+  // Then each matches its frame (the names carry the real day and a "Last used" line the real time of the sign-in, so they are pinned)
+  await pin(page.locator("#passkeys strong"), "Passkey 2026-10-16");
+  await pin(page.getByText(/^Last used /), "Last used Oct 16, 2026, 6:00 PM");
+  await matchesItself(page, info, "passkeys");
+  await at("/settings/privacy");
+  await ready(page, "Privacy & security");
+  await matchesItself(page, info, "privacy");
+  await at("/settings/delete");
+  await ready(page, "Delete my data");
+  await matchesItself(page, info, "delete-data");
+  await at("/crew/machines");
+  await ready(page, "Machines");
+  await expect(page.getByRole("button", { name: "Edit allow-list" })).toBeVisible();
+  await matchesItself(page, info, "machines");
+  await at("/trash");
+  await ready(page, "Trash");
+  await expect(page.getByRole("button", { name: "Restore Team updates" })).toBeVisible();
+  await matchesItself(page, info, "trash");
+  await page.getByRole("button", { name: "Restore Team updates" }).click();
+  await expect(page.getByText("Trash is empty.")).toBeVisible();
+  await matchesItself(page, info, "trash-empty");
+});
+
+scenario("Settings quiet hours, Advanced and the empty states keep their look", { tag: ["@browser"] }, async ({ server, page, context, testApi }, info) => {
+  info.setTimeout(240_000);
+  // Background: a world with no conversations
+  const u = await world({ server, page, context, testApi });
+
+  // When the owner opens Conversations with nothing in it, and a conversation that does not exist
+  await page.goto(`${u.w.srv.origin}/chats`);
+  await expect(page.locator("#chats-empty")).toBeVisible();
+  // Then each matches its frame (the empty state with its icon, and the not-found state)
+  await matchesItself(page, info, "conversations-empty");
+  await page.goto(`${u.w.srv.origin}/chats/999999`);
+  await ready(page, "Conversation not found");
+  await matchesItself(page, info, "not-found");
+
+  // And when Quiet hours go on in Settings, the two time fields join the switches and radios
+  await page.goto(`${u.w.srv.origin}/settings`);
+  await ready(page, "Settings");
+  await page.getByRole("switch", { name: "Quiet hours" }).check();
+  await expect(page.getByLabel("From")).toBeVisible();
+  await matchesItself(page, info, "settings-quiet-hours");
+
+  // And Advanced matches its frame
+  await page.getByRole("button", { name: "Advanced", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Load media automatically" })).toBeVisible();
+  await matchesItself(page, info, "settings-advanced");
+});
+
+scenario("The composer with a file keeps its look", { tag: ["@browser"] }, async ({ server, page, context, testApi }, info) => {
+  info.setTimeout(240_000);
+  // Background: the prototype's agents and conversations
+  const u = await world({ server, page, context, testApi });
+  const ids = await seedPrototype(u);
+
+  // When the owner picks a file in the composer of "Why did the nightly export get slower?"
+  await page.goto(`${u.w.srv.origin}/chats/${ids["Why did the nightly export get slower?"]}`);
+  await expect(page.getByRole("log", { name: "Messages" }).getByRole("article")).toHaveCount(2);
+  await page.locator('input[type="file"]').first().setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("regress") });
+  await expect(page.getByRole("button", { name: "Remove notes.txt" })).toBeVisible();
+  // Then the composer matches its frame, with the remove button on the file
+  await matchesItself(page, info, "composer-with-file");
+});
+
+scenario("The recovery page and the recovery codes step keep their look", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(240_000);
+  // Background: a server with a bootstrap link, and a virtual passkey in the browser
+  const srv = await server({ host: "localhost", adminSocket: true });
+  await page.clock.setFixedTime(FROZEN_AT);
+  const wa = await webauthn(context, page);
+  await wa.add();
+  const link = await makeBootstrapLink(srv.adminSocket!);
+
+  // When the browser opens the recovery page, it matches its frame
+  await page.goto(`${srv.origin}/recover`);
+  await expect(page.getByRole("textbox", { name: "Recovery code" })).toBeVisible();
+  await matchesItself(page, info, "recover");
+
+  // And when the owner registers the passkey, the codes step opens (the codes are random, so they are masked)
+  await page.goto(`${srv.origin}/bootstrap#${link.token}`);
+  await page.getByRole("textbox", { name: "Handle" }).fill("drew");
+  await page.getByRole("textbox", { name: "Display name" }).fill("Drew");
+  await page.getByRole("button", { name: "Register passkey" }).click();
+  await expect(page.getByRole("heading", { name: "Save your recovery codes" })).toBeVisible();
+  const codes = { mask: [page.getByRole("list", { name: "Recovery codes" })] };
+  // Then it matches its frame, with the box unticked and ticked
+  await matchesItself(page, info, "codes-step", codes);
+  await page.getByRole("checkbox", { name: "I saved them" }).check();
+  await matchesItself(page, info, "codes-step-saved", codes);
 });

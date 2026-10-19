@@ -5,6 +5,7 @@ import { useNotice } from "../../shared/notice.tsx";
 import { StepUpSheet, useSheets } from "../../shared/sheets.tsx";
 import { AddPasskeySheet } from "./AddPasskeySheet.tsx";
 import { Button } from "@convoz/ui/Button";
+import { List, ListRow } from "@convoz/ui/ListRow";
 
 const VIA: Record<string, string> = { bootstrap: "Added with the setup link", session: "Added in settings", recovery: "Added with a recovery code" };
 
@@ -52,21 +53,25 @@ export function Passkeys() {
 
   return (
     <>
-      <ul id="passkeys" className="group" aria-label="Passkeys">
+      <List id="passkeys" aria-label="Passkeys">
         {rows.map((p) => (
-          <li key={p.id} className="row">
-            <div className="grow">
+          <ListRow
+            key={p.id}
+            trailing={
+              <Button className="flex-none" size="small" onClick={() => remove(p)}>
+                Remove passkey
+              </Button>
+            }
+          >
+            <div className="min-w-0 grow">
               <strong>{p.label}</strong>
               {p.this_device ? <span className="badge">This device</span> : null}
-              <div className="sub">{`${VIA[p.registered_via] || "Added"}${fresh.has(p.id) ? " · Added just now" : ""}`}</div>
-              <div className="sub">{p.last_used_at ? `Last used ${fmtDate(p.last_used_at)}` : "Never used"}</div>
+              <div className="text-13 text-muted">{`${VIA[p.registered_via] || "Added"}${fresh.has(p.id) ? " · Added just now" : ""}`}</div>
+              <div className="text-13 text-muted">{p.last_used_at ? `Last used ${fmtDate(p.last_used_at)}` : "Never used"}</div>
             </div>
-            <Button className="flex-none" size="small" onClick={() => remove(p)}>
-              Remove passkey
-            </Button>
-          </li>
+          </ListRow>
         ))}
-      </ul>
+      </List>
       <div className="actions">
         <Button id="add" variant="primary" onClick={() => open((close) => <AddPasskeySheet close={close} onAdded={() => void load()} />)}>
           Add a passkey

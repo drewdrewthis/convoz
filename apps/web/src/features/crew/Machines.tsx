@@ -7,6 +7,8 @@ import { StepUpSheet, useSheets } from "../../shared/sheets.tsx";
 import { allowText, parseAllow } from "./allow.ts";
 import { ago } from "./status.ts";
 import { Button } from "@convoz/ui/Button";
+import { EmptyState } from "@convoz/ui/EmptyState";
+import { List, ListRow } from "@convoz/ui/ListRow";
 
 type Open = ReturnType<typeof useSheets>["open"];
 
@@ -25,13 +27,13 @@ export function Machines() {
     <>
       <div id="machines" aria-label="Machines">
         {machines === null ? null : machines.length ? (
-          <ul className="group">
+          <List>
             {machines.map((m) => (
               <MachineItem key={m.id} m={m} reload={reload} open={open} />
             ))}
-          </ul>
+          </List>
         ) : (
-          <p className="empty">No machines yet. Run convoz login on one.</p>
+          <EmptyState>No machines yet. Run convoz login on one.</EmptyState>
         )}
       </div>
       {sheet}
@@ -96,12 +98,12 @@ function MachineItem({ m, reload, open }: { m: Machine; reload: () => Promise<vo
       />
     ));
   return (
-    <li className="row stacked">
+    <ListRow stacked>
       <div>
         <strong>{m.name}</strong> <code>{m.key_hint}</code>
       </div>
-      <div className="sub">{`Allowed: ${allowText(m.allow)}. Scopes: ${m.scopes.join(", ")}.`}</div>
-      <div className="sub">{`${m.live_sessions} live ${m.live_sessions === 1 ? "session" : "sessions"} · ${m.last_used_at ? `last used ${ago(m.last_used_at)}` : "never used"}`}</div>
+      <div className="text-13 text-muted">{`Allowed: ${allowText(m.allow)}. Scopes: ${m.scopes.join(", ")}.`}</div>
+      <div className="text-13 text-muted">{`${m.live_sessions} live ${m.live_sessions === 1 ? "session" : "sessions"} · ${m.last_used_at ? `last used ${ago(m.last_used_at)}` : "never used"}`}</div>
       <div className="btns wrap">
         {act("Reveal", "machine.reveal", "reveal", "Show this machine's key once. This needs a passkey check.")}
         {act("Regenerate", "machine.regenerate", "regenerate", "Make a new key. The old key and its sessions stop working at once.", "danger")}
@@ -110,7 +112,7 @@ function MachineItem({ m, reload, open }: { m: Machine; reload: () => Promise<vo
           Edit allow-list
         </Button>
       </div>
-    </li>
+    </ListRow>
   );
 }
 
@@ -142,8 +144,8 @@ function KeySheet({ title, machineKey, close }: { title: string; machineKey: str
         </>
       }
     >
-      <p className="muted">Copy the key now. It is not shown again unless you reveal it with a passkey.</p>
-      <p className="muted">Paste into convoz login --stdin on the machine, never into an agent prompt.</p>
+      <p className="text-muted">Copy the key now. It is not shown again unless you reveal it with a passkey.</p>
+      <p className="text-muted">Paste into convoz login --stdin on the machine, never into an agent prompt.</p>
       <p>
         <output className="mono" aria-label="Machine key">
           {machineKey}

@@ -17,6 +17,7 @@ import { PendingFiles, Uploads } from "./messages/Uploads.tsx";
 import { SeenLine } from "./messages/SeenLine.tsx";
 import { ReplyLine } from "../threads/index.ts";
 import { Button } from "@convoz/ui/Button";
+import { EmptyState } from "@convoz/ui/EmptyState";
 
 /** A message that arrives while the log is within this many px of its bottom keeps the log at the bottom. */
 const NEAR_BOTTOM = 80;
@@ -271,9 +272,9 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, hint, co
           </Button>
         </div>
         {body}
-        <div id="hint" className="hintbox" hidden={!hint}>
-          <p>Type @ to bring in an agent.</p>
-        </div>
+        <EmptyState id="hint" variant="note" hidden={!hint}>
+          Type @ to bring in an agent.
+        </EmptyState>
         <div id="working" className="working" role="status" hidden={!working}>
           {working ?? ""}
         </div>

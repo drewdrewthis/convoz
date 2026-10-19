@@ -45,9 +45,6 @@
   .rowmenu { z-index: 9; right: auto; }
   .rowmenu > button { color: var(--color-text); }
 
-  /* ---- trash ---- */
-  .trash .group .row { cursor: default; }
-  .trashtitle, .trashwhen { display: block; }
   /* ---- link preview: the "Preview" button and the card under a message (prototype v41) ---- */
   .previewbtn { align-self: flex-start; min-height: 24px; padding: 0; border: 0; background: none; color: var(--color-accent-text); font: inherit; cursor: pointer; }
   .previewbtn span { display: inline-flex; align-items: center; height: 22px; padding: 0 4px; font-size: 12px; font-weight: 500; }

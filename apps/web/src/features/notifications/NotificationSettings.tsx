@@ -1,3 +1,5 @@
+import { Field } from "@convoz/ui/Field";
+import { List, ListRow } from "@convoz/ui/ListRow";
 import { useCallback, useEffect, useState } from "react";
 import { call, client, humanError } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
@@ -87,82 +89,71 @@ export function NotificationSettings() {
     <>
       <h2>Notifications</h2>
       {state === "chrome-ios" ? (
-        <div className="group">
-          <div className="row">
-            <span>This device</span>
-            <span className="sub">Chrome on iPhone has no notifications for web apps. {CHROME_IOS_HINT}</span>
-          </div>
-        </div>
+        <List as="div">
+          <ListRow as="div" title="This device" trailing={<span className="text-13 text-muted">Chrome on iPhone has no notifications for web apps. {CHROME_IOS_HINT}</span>} />
+        </List>
       ) : state === "needs-home-screen" ? (
-        <section className="group" aria-label="Add to Home Screen">
-          <p className="sub row stacked">
+        <List as="section" aria-label="Add to Home Screen">
+          <ListRow as="p" stacked>
             {onIosThirdPartyBrowser()
               ? "Push on iPhone works only for an app added from Safari. Open Convoz in Safari, then Share → Add to Home Screen, and open it from there."
               : "To turn push on, add Convoz to your Home Screen first: Share → Add to Home Screen."}
-          </p>
-        </section>
+          </ListRow>
+        </List>
       ) : state === "unsupported" ? (
-        <p className="sub">This browser cannot receive push.</p>
+        <p className="text-13 text-muted">This browser cannot receive push.</p>
       ) : (
-        <div className="group">
-          <label className="row">
-            <span>Push on this device</span>
-            <input type="checkbox" role="switch" aria-label="Push on this device" checked={Boolean(here)} disabled={busy} onChange={() => void togglePush()} />
-          </label>
-          <div className="row">
-            <span>This device</span>
-            <span className="sub">{step || (state === "blocked" ? "Blocked. Allow notifications for Convoz in the device settings." : STATE_NAME[state])}</span>
-          </div>
-          {here ? (
-            <button className="row" type="button" onClick={() => void test()}>
-              <span>Send a test push</span>
-              <span className="sub">{tested}</span>
-            </button>
-          ) : null}
-        </div>
+        <List as="div">
+          <Field type="checkbox" role="switch" label="Push on this device" aria-label="Push on this device" checked={Boolean(here)} disabled={busy} onChange={() => void togglePush()} />
+          <ListRow
+            as="div"
+            title="This device"
+            trailing={<span className="text-13 text-muted">{step || (state === "blocked" ? "Blocked. Allow notifications for Convoz in the device settings." : STATE_NAME[state])}</span>}
+          />
+          {here ? <ListRow as="button" title="Send a test push" trailing={<span className="text-13 text-muted">{tested}</span>} onClick={() => void test()} /> : null}
+        </List>
       )}
       {devices.length ? (
-        <ul className="group" aria-label="Push devices">
+        <List aria-label="Push devices">
           {devices.map((d) => (
-            <li className="row" key={d.id}>
-              <span className="grow">
+            <ListRow
+              key={d.id}
+              trailing={<span className="text-13 text-muted">{d.state === "active" ? "On" : `Off · ${WHY_OFF[d.disabled_reason ?? ""] ?? "off"}`}</span>}
+            >
+              <span className="min-w-0 grow">
                 {d.host}
                 {d.current ? " (this device)" : ""}
               </span>
-              <span className="sub">{d.state === "active" ? "On" : `Off · ${WHY_OFF[d.disabled_reason ?? ""] ?? "off"}`}</span>
-            </li>
+            </ListRow>
           ))}
-        </ul>
+        </List>
       ) : null}
 
-      <ul className="group" aria-label="Notification reasons">
-        <li className="row">
-          <label className="grow" htmlFor="notify-asks">
+      <List aria-label="Notification reasons">
+        <ListRow
+          trailing={
+            <select id="notify-asks" value={String(values["notify.asks"] ?? "all")} onChange={(e) => void save("notify.asks", e.target.value)}>
+              <option value="all">All</option>
+              <option value="urgent">Urgent only</option>
+              <option value="none">None</option>
+            </select>
+          }
+        >
+          <label className="min-w-0 grow text-13 font-semibold text-muted" htmlFor="notify-asks">
             Asks
           </label>
-          <select id="notify-asks" value={String(values["notify.asks"] ?? "all")} onChange={(e) => void save("notify.asks", e.target.value)}>
-            <option value="all">All</option>
-            <option value="urgent">Urgent only</option>
-            <option value="none">None</option>
-          </select>
-        </li>
+        </ListRow>
         {REASONS_WITH_SWITCH.map(([key, name]) => (
-          <li className="row" key={key}>
-            <label className="grow" htmlFor={key}>
-              {name}
-            </label>
-            <input id={key} type="checkbox" role="switch" checked={flag(key)} onChange={(e) => void save(key, e.target.checked)} />
-          </li>
+          <Field key={key} as="li" type="checkbox" role="switch" id={key} label={name} checked={flag(key)} onChange={(e) => void save(key, e.target.checked)} />
         ))}
-        <li className="row">
-          <span className="grow">Security alerts</span>
-          <span className="sub">Always on</span>
-        </li>
-      </ul>
+        <ListRow trailing={<span className="text-13 text-muted">Always on</span>}>
+          <span className="min-w-0 grow">Security alerts</span>
+        </ListRow>
+      </List>
 
       <h2 id="previews-title">Previews</h2>
-      <p className="sub">What the lock screen shows.</p>
-      <div className="group" role="radiogroup" aria-labelledby="previews-title">
+      <p className="text-13 text-muted">What the lock screen shows.</p>
+      <List as="div" role="radiogroup" aria-labelledby="previews-title">
         {(
           [
             ["full", "Sender and text"],
@@ -170,42 +161,28 @@ export function NotificationSettings() {
             ["none", "Nothing"],
           ] as const
         ).map(([v, name]) => (
-          <label className="row" key={v}>
-            <span>{name}</span>
-            <input type="radio" name="previews" value={v} checked={(values["notify.previews"] ?? "full") === v} onChange={() => void save("notify.previews", v)} />
-          </label>
+          <Field key={v} type="radio" label={name} name="previews" value={v} checked={(values["notify.previews"] ?? "full") === v} onChange={() => void save("notify.previews", v)} />
         ))}
-      </div>
+      </List>
 
       <h2>Quiet hours</h2>
-      <div className="group">
-        <label className="row">
-          <span>Quiet hours</span>
-          <input
-            type="checkbox"
-            role="switch"
-            aria-label="Quiet hours"
-            checked={quiet !== null}
-            onChange={(e) => void save("notify.quiet_hours", e.target.checked ? { start: "22:00", end: "07:00", tz: zone } : null)}
-          />
-        </label>
+      <List as="div">
+        <Field
+          type="checkbox"
+          role="switch"
+          label="Quiet hours"
+          aria-label="Quiet hours"
+          checked={quiet !== null}
+          onChange={(e) => void save("notify.quiet_hours", e.target.checked ? { start: "22:00", end: "07:00", tz: zone } : null)}
+        />
         {quiet ? (
           <>
-            <label className="row">
-              <span>From</span>
-              <input type="time" value={quiet.start} onChange={(e) => e.target.value && void save("notify.quiet_hours", { ...quiet, start: e.target.value })} />
-            </label>
-            <label className="row">
-              <span>Until</span>
-              <input type="time" value={quiet.end} onChange={(e) => e.target.value && void save("notify.quiet_hours", { ...quiet, end: e.target.value })} />
-            </label>
+            <Field type="time" label="From" value={quiet.start} onChange={(e) => e.target.value && void save("notify.quiet_hours", { ...quiet, start: e.target.value })} />
+            <Field type="time" label="Until" value={quiet.end} onChange={(e) => e.target.value && void save("notify.quiet_hours", { ...quiet, end: e.target.value })} />
           </>
         ) : null}
-        <label className="row">
-          <span>Let urgent asks through</span>
-          <input type="checkbox" role="switch" aria-label="Let urgent asks through" checked={flag("notify.urgent_bypass")} onChange={(e) => void save("notify.urgent_bypass", e.target.checked)} />
-        </label>
-      </div>
+        <Field type="checkbox" role="switch" label="Let urgent asks through" aria-label="Let urgent asks through" checked={flag("notify.urgent_bypass")} onChange={(e) => void save("notify.urgent_bypass", e.target.checked)} />
+      </List>
     </>
   );
 }

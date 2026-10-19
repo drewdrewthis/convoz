@@ -2,7 +2,6 @@
 @layer components {
   /* A connect request: what the agent said about itself, labelled as the agent's own words. */
   .agentintro { margin: 0 0 8px; }
-  .agentintro .sub { margin: 0 0 4px; }
   .agentintro .who { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0; overflow-wrap: anywhere; }
   .agentintro .who .ava { width: 32px; height: 32px; font-size: 13px; overflow: hidden; }
   .agentintro .who .ava[data-l]::before { content: attr(data-l); }

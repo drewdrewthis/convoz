@@ -9,6 +9,8 @@ import { nameOf } from "./Crew.tsx";
 import { ago, LOOK, shownState } from "./status.ts";
 import { useCrew } from "./store.ts";
 import { Button } from "@convoz/ui/Button";
+import { EmptyState } from "@convoz/ui/EmptyState";
+import { List, ListRow } from "@convoz/ui/ListRow";
 
 const TABS = ["Sessions", "Handoffs"] as const;
 
@@ -38,7 +40,7 @@ export function AgentProfile() {
 
   if (!everyone || !statuses) return <div className="crew" aria-busy="true" />;
   setRegistry(everyone);
-  if (!who) return <p className="empty">That agent is not on Crew.</p>;
+  if (!who) return <EmptyState>That agent is not on Crew.</EmptyState>;
   const status = statuses[handle];
   const shown = who.disabled ? "offline" : shownState(who.online, status?.state);
   const together = (conversations ?? []).filter((c) => c.participants.some((p) => p.handle === handle));
@@ -51,8 +53,8 @@ export function AgentProfile() {
         <div className="ptxt">
           <h2>{nameOf(who)}</h2>
           <p className="pstate">{who.disabled ? "Disabled" : LOOK[shown].label}</p>
-          {who.previous_handles?.length ? <p className="muted">{`Was @${who.previous_handles.join(", @")}`}</p> : null}
-          {who.description ? <p className="muted">{who.description}</p> : null}
+          {who.previous_handles?.length ? <p className="text-muted">{`Was @${who.previous_handles.join(", @")}`}</p> : null}
+          {who.description ? <p className="text-muted">{who.description}</p> : null}
           {!who.disabled && status?.doing ? <p>{`Doing: ${status.doing}`}</p> : null}
           {!who.disabled && status?.next ? <p>{`Next: ${status.next}`}</p> : null}
         </div>
@@ -197,31 +199,31 @@ function useLoaded<T>(load: () => Promise<T>): T | null {
 function Sessions({ handle }: { handle: string }) {
   const list = useLoaded<Session[]>(useCallback(async () => (await call(client.GET("/api/sessions"))).sessions.filter((s) => s.identity === handle && s.state === "live"), [handle]));
   if (!list) return null;
-  if (!list.length) return <p className="empty">No live sessions.</p>;
+  if (!list.length) return <EmptyState>No live sessions.</EmptyState>;
   return (
-    <ul className="group" aria-label="Sessions">
+    <List aria-label="Sessions">
       {list.map((s) => (
-        <li key={s.id} className="row stacked">
+        <ListRow key={s.id} stacked>
           <strong>{s.label}</strong>
-          <span className="sub">{`on ${s.machine} · last seen ${ago(s.last_seen_at)}`}</span>
-        </li>
+          <span className="text-13 text-muted">{`on ${s.machine} · last seen ${ago(s.last_seen_at)}`}</span>
+        </ListRow>
       ))}
-    </ul>
+    </List>
   );
 }
 
 function Handoffs({ handle }: { handle: string }) {
   const list = useLoaded<Handoff[]>(useCallback(async () => (await call(client.GET("/api/handoffs", { params: { query: { identity: handle } } }))).handoffs, [handle]));
   if (!list) return null;
-  if (!list.length) return <p className="empty">No handoff notes.</p>;
+  if (!list.length) return <EmptyState>No handoff notes.</EmptyState>;
   return (
-    <ul className="group" aria-label="Handoff notes">
+    <List aria-label="Handoff notes">
       {list.map((h) => (
-        <li key={h.id} className="row stacked">
+        <ListRow key={h.id} stacked>
           <span>{h.body}</span>
-          <span className="sub">{`${h.session} on ${h.machine} · ${ago(h.created_at)}`}</span>
-        </li>
+          <span className="text-13 text-muted">{`${h.session} on ${h.machine} · ${ago(h.created_at)}`}</span>
+        </ListRow>
       ))}
-    </ul>
+    </List>
   );
 }

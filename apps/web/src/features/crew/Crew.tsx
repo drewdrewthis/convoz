@@ -1,6 +1,7 @@
 import type { Identity } from "@convoz/api-client";
 import type { CrewStatus } from "./types.ts";
 import { MachineIcon, PlusIcon, SearchIcon } from "@convoz/ui/icons";
+import { EmptyState } from "@convoz/ui/EmptyState";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -140,9 +141,9 @@ export function Crew() {
           </section>
         );
       })}
-      <p id="crew-empty" className="empty" hidden={!agents || enabled.length !== 0 || disabled.length !== 0}>
+      <EmptyState id="crew-empty" hidden={!agents || enabled.length !== 0 || disabled.length !== 0}>
         No agents yet. Connect a machine and add an agent first.
-      </p>
+      </EmptyState>
       {disabled.length ? (
         <section className="cgrp" aria-label="Disabled">
           <h3>

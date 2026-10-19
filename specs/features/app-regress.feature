@@ -76,6 +76,45 @@ Feature: The app keeps its look while its code is reorganised
       When the owner opens a conversation in a 1280 by 800 window
       Then the rail beside the conversation matches its frame in light and in dark
 
+    @v1 @browser
+    Scenario: Conversation details and their sheets keep their look
+      Given the prototype's agents and conversations
+      When the owner opens the details of "Why did the nightly export get slower?"
+      Then they match their frame, with the plain, the danger and the close buttons
+      And the delete sheet and the rename sheet match theirs
+
+    @v1 @browser
+    Scenario: An agent profile and its revoke and rename forms keep their look
+      Given the prototype's agents, with docs and orchardist live too
+      When the owner opens the profile of night-watch
+      Then it matches its frame
+      And the Handoffs tab, the rename form and the revoke confirmation match theirs
+
+    @v1 @browser
+    Scenario: Account, passkeys, privacy, machines and trash keep their look
+      Given the prototype's agents and conversations, and "Team updates" in the trash
+      When the owner opens Account, Passkeys, Privacy & security, Delete my data, Machines (with the box that runs the agents) and the Trash
+      Then each matches its frame, and so does the Trash after the conversation is restored
+
+    @v1 @browser
+    Scenario: Settings quiet hours, Advanced and the empty states keep their look
+      Given a world with no conversations
+      When the owner opens Conversations with nothing in it, and a conversation that does not exist
+      Then each matches its frame
+      And Settings with Quiet hours on and Advanced match theirs
+
+    @v1 @browser
+    Scenario: The composer with a file keeps its look
+      Given the prototype's agents and conversations
+      When the owner picks a file in the composer of "Why did the nightly export get slower?"
+      Then the composer matches its frame, with the remove button on the file
+
+    @v1 @browser
+    Scenario: The recovery page and the recovery codes step keep their look
+      Given a server with a bootstrap link, and a virtual passkey in the browser
+      When the browser opens the recovery page, and then registers the passkey
+      Then the recovery page and the codes step match their frames, with the box unticked and ticked
+
   Rule: The sign-in page and the first onboarding screen match their frames
 
     @v1 @browser

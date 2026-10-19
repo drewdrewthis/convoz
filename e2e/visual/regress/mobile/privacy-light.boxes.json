@@ -1,0 +1,128 @@
+{
+ "viewport": [
+  390,
+  844
+ ],
+ "boxes": {
+  "a \"Back\"#0": [
+   6,
+   8,
+   44,
+   44
+  ],
+  "svg \"\"#0": [
+   17,
+   19,
+   22,
+   22
+  ],
+  "h1 \"Privacy & security\"#0": [
+   54,
+   16.2,
+   191.38,
+   27.59
+  ],
+  "button \"Search\"#0": [
+   280,
+   8,
+   44,
+   44
+  ],
+  "svg \"\"#1": [
+   291,
+   19,
+   22,
+   22
+  ],
+  "button \"Account menu\"#0": [
+   336,
+   8,
+   44,
+   44
+  ],
+  "svg \"\"#2": [
+   348,
+   20,
+   20,
+   20
+  ],
+  "a \"PasskeysAdd or remove a passkey\"#0": [
+   13,
+   129,
+   364,
+   62
+  ],
+  "a \"MachinesComputers that run your agents\"#0": [
+   13,
+   192,
+   364,
+   62
+  ],
+  "a \"SessionsAgent sessions that are live\"#0": [
+   13,
+   255,
+   364,
+   62
+  ],
+  "button \"Sign out all other devicesNeeds a passke\"#0": [
+   13,
+   318,
+   364,
+   62
+  ],
+  "a \"Export my dataA copy of everything you w\"#0": [
+   13,
+   381,
+   364,
+   62
+  ],
+  "a \"Delete my dataWhat stays after you delet\"#0": [
+   13,
+   444,
+   364,
+   62
+  ],
+  "nav \"Main\"#0": [
+   12,
+   770,
+   366,
+   62
+  ],
+  "a \"Now\"#0": [
+   17,
+   775,
+   118.66,
+   52
+  ],
+  "svg \"\"#3": [
+   65.33,
+   780.5,
+   22,
+   22
+  ],
+  "a \"Conversations\"#0": [
+   135.66,
+   775,
+   118.67,
+   52
+  ],
+  "svg \"\"#4": [
+   183.98,
+   780.5,
+   22,
+   22
+  ],
+  "a \"Crew\"#0": [
+   254.33,
+   775,
+   118.67,
+   52
+  ],
+  "svg \"\"#5": [
+   302.66,
+   780.5,
+   22,
+   22
+  ]
+ }
+}
