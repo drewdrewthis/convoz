@@ -119,13 +119,17 @@ func RequestDeviceCode(ctx context.Context, d pdb.DBTX, in DeviceRequest, nextCo
 		if attempt > 0 {
 			user = NewUserCode()
 		}
-		id, err := q.InsertMachineRequest(ctx, db.InsertMachineRequestParams{
+		p := db.InsertMachineRequestParams{
 			DeviceCodeHash: hashToken(code), UserCode: user, RequestedName: in.Name,
 			HostInfo:   sql.NullString{String: in.HostInfo, Valid: in.HostInfo != ""},
 			Source:     in.Source,
 			SourceNode: sql.NullString{String: in.SourceNode, Valid: in.SourceNode != ""},
 			CreatedAt:  now.UnixMilli(), ExpiresAt: now.Add(RequestTTL).UnixMilli(), PollIntervalMs: in.Interval.Milliseconds(),
-		})
+		}
+		id, old, err := insertRequestBeforeSourceNode(ctx, d, p)
+		if !old {
+			id, err = q.InsertMachineRequest(ctx, p)
+		}
 		if err == nil {
 			return DeviceCode{RequestID: id, DeviceCode: code, UserCode: user, Interval: in.Interval, ExpiresIn: RequestTTL}, nil
 		}
@@ -230,6 +234,9 @@ type Request struct {
 
 // PendingRequests lists requests that wait for the owner, oldest first.
 func PendingRequests(ctx context.Context, d pdb.DBTX, now time.Time) ([]Request, error) {
+	if out, old, err := pendingRequestsBeforeSourceNode(ctx, d, now); old {
+		return out, err
+	}
 	rows, err := db.New(d).ListPendingRequests(ctx, now.UnixMilli())
 	if err != nil {
 		return nil, err
@@ -243,6 +250,9 @@ func PendingRequests(ctx context.Context, d pdb.DBTX, now time.Time) ([]Request,
 
 // PendingRequest returns one request that still waits, or ErrNoRequest.
 func PendingRequest(ctx context.Context, d pdb.DBTX, id int64, now time.Time) (Request, error) {
+	if r, old, err := pendingRequestBeforeSourceNode(ctx, d, id, now); old {
+		return r, err
+	}
 	r, err := db.New(d).GetPendingRequest(ctx, db.GetPendingRequestParams{ID: id, Now: now.UnixMilli()})
 	if errors.Is(err, sql.ErrNoRows) {
 		return Request{}, ErrNoRequest
