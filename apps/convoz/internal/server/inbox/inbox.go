@@ -49,6 +49,8 @@ const (
 	ReasonAskResolved = "ask_resolved"
 	// ReasonAppResult tells an agent the owner sent a result through its app. One item per result; it never merges.
 	ReasonAppResult = "app_result"
+	// ReasonUnanswered reminds an agent that the owner's message got no answer in 10 minutes. The item carries that message; it never merges.
+	ReasonUnanswered = "unanswered"
 	// ReasonStatusDue asks an agent whose plan is late to update it (plan.feature). It names a conversation and no message; it never merges.
 	ReasonStatusDue = "status_due"
 )
@@ -203,7 +205,7 @@ func AskOf(ctx context.Context, d pdb.DBTX, identityID, id int64) (int64, error)
 }
 
 // Ack removes an item the session holds under token. It reports false (claim lost) for a wrong or old token, an
-// expired claim, another session's item, or an item that was acked already (but an ask_resolved item acked again by its own session is fine). conversation is the item's conversation.
+// expired claim, another session's item, or an item that was acked already (but an ask_resolved item acked again by its own session is fine, and so is any item the watch finished). conversation is the item's conversation.
 func Ack(ctx context.Context, d pdb.DBTX, now time.Time, identityID, sessionID, id int64, token []byte) (ok bool, conversation int64, err error) {
 	q := db.New(d)
 	conv, err := q.ItemConversation(ctx, db.ItemConversationParams{ID: id, IdentityID: identityID})
@@ -214,9 +216,9 @@ func Ack(ctx context.Context, d pdb.DBTX, now time.Time, identityID, sessionID, 
 	if err != nil || n > 0 {
 		return n > 0, conv.Int64, err
 	}
-	// A repeated ack of an ask_resolved item by the session that acked it is a no-op that succeeds (design §8.1): the claim token
-	// is cleared by the first ack, so the session is what can be checked.
-	again, err := q.AckedAskItem(ctx, db.AckedAskItemParams{ID: id, IdentityID: identityID, SessionID: nullInt(sessionID)})
+	// A repeated ack of an ask_resolved item by the session that acked it, or the ack of an item the watch finished by itself
+	// (AckThrough), is a no-op that succeeds (design §8.1): the claim token is cleared by the first ack, so the session is what can be checked.
+	again, err := q.AckedItem(ctx, db.AckedItemParams{ID: id, IdentityID: identityID, SessionID: nullInt(sessionID)})
 	return again, conv.Int64, err
 }
 
@@ -391,4 +393,13 @@ func Unanswered(ctx context.Context, d pdb.DBTX) ([]Waiting, error) {
 		out = append(out, Waiting{Identity: r.IdentityID, Conversation: r.ConversationID, Since: r.Since})
 	}
 	return out, err
+}
+
+// AckThrough finishes the claims of the session up to claim number after: a watch that asks after=K got every answer up to K, so
+// the items in them are delivered and need no ack. It returns the ids it finished.
+func AckThrough(ctx context.Context, d pdb.DBTX, now time.Time, identityID, sessionID, after int64) ([]int64, error) {
+	if after <= 0 {
+		return nil, nil
+	}
+	return db.New(d).AckThrough(ctx, db.AckThroughParams{Now: sql.NullInt64{Int64: now.UnixMilli(), Valid: true}, SessionID: nullInt(sessionID), IdentityID: identityID, After: sql.NullInt64{Int64: after, Valid: true}})
 }

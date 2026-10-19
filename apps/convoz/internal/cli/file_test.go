@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -46,5 +47,15 @@ func TestSaveTo_AChosenPathIsReplaced(t *testing.T) {
 	}
 	if got, _ := os.ReadFile(path); string(got) != "second" {
 		t.Fatalf("the file holds %q", got)
+	}
+}
+
+func TestFile_AnIDThatStartsWithADashIsTakenAfterDashDash(t *testing.T) {
+	cio := IO{Stderr: io.Discard, Stdout: io.Discard, Getenv: func(string) string { return "" }}
+	f := newChatFlags("file", cio)
+	f.fs.String("o", "", "")
+	pos, ok := f.parse([]string{"-o", "-", "--", "-abcdefgh"}, cio)
+	if !ok || len(pos) != 1 || pos[0] != "-abcdefgh" {
+		t.Fatalf("pos %v ok %v", pos, ok)
 	}
 }

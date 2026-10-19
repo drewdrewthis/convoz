@@ -7,7 +7,7 @@ InboxItem:
     id: { type: integer, format: int64 }
     claim_token: { type: string, description: "32 hex characters; the fence an ack must carry." }
     state: { type: string, enum: [ready, claimed] }
-    reason: { type: string, enum: [mention, thread, activity, ask_resolved, membership, app_result, status_due], description: "status_due: Convoz asks the agent to update its late plan; the message is a line from the server." }
+    reason: { type: string, enum: [mention, thread, activity, ask_resolved, membership, app_result, status_due, unanswered], description: "status_due: Convoz asks the agent to update its late plan; the message is a line from the server. unanswered: the owner's message got no answer in 10 minutes; the message is that one." }
     count: { type: integer, format: int64, description: How many messages the item covers. }
     mention_count: { type: integer, format: int64, description: How many of those messages mention the agent. }
     deliveries: { type: integer, format: int64, description: "How many times a claim handed the item out; at 5 it leaves the queue." }

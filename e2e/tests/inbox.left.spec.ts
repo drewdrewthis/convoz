@@ -159,11 +159,12 @@ scenario("Old items are cleaned up on schedule", { tag: ["@cli"] }, async ({ ser
   const s4 = await startSession(w.box, "devtool", "s4");
   const db = plainDb(dataDir);
   const rows = db
-    .prepare("SELECT x.id, x.state, x.expired_reason FROM inbox_items x JOIN identities i ON i.id = x.identity_id WHERE i.handle = 'devtool' ORDER BY x.id")
+    .prepare("SELECT x.id, x.state, x.expired_reason FROM inbox_items x JOIN identities i ON i.id = x.identity_id WHERE i.handle = 'devtool' AND x.reason <> 'unanswered' ORDER BY x.id")
     .all() as { id: number; state: string; expired_reason: string | null }[];
   db.close();
   expect(rows.some((r) => r.id === mine!.id), "the acked row is still stored").toBe(false);
-  expect((await inboxItems(w.box, s4.sid, ["--peek"])).map((i) => i.id)).toEqual([]);
+  // (the clock jumps made the owner's old messages unanswered: those reminders are new items, not the old ones)
+  expect((await inboxItems(w.box, s4.sid, ["--peek"])).filter((i) => i.reason !== "unanswered").map((i) => i.id)).toEqual([]);
 
   // And "convoz brief" lists the unacked one as expired unread
   expect(rows.map((r) => [r.state, r.expired_reason])).toEqual([["expired", "age"]]);

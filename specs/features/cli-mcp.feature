@@ -139,11 +139,11 @@ Feature: The convoz CLI and MCP server for agents
       Then the stream prints one line for each of the owner's messages within 3 seconds
 
     @v1 @cli
-    Scenario: Watch leaves the item in the inbox until the agent acks it
+    Scenario: Watch finishes the item without an ack, and an ack still works
       Given "convoz watch --json" runs as "devtool"
       And the owner posts "Is the build green?" in conversation 41
       And the stream printed one line for it
-      Then "convoz inbox --peek" still shows the item for conversation 41
+      Then "convoz inbox --peek" shows no item for conversation 41 (owner msg 821: no ack needed)
       When "devtool" runs "convoz post 41 'Yes, all 11 checks pass'" and then "convoz ack" with the item from the stream line
       Then "convoz inbox --peek" shows no item for conversation 41
 

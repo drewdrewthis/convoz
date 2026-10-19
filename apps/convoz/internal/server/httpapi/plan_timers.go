@@ -95,7 +95,79 @@ func (s *Server) sweepPlans(ctx context.Context) error {
 	if err := s.nudgeLate(ctx); err != nil {
 		return err
 	}
-	return s.noteUnresponsive(ctx)
+	if err := s.noteUnresponsive(ctx); err != nil {
+		return err
+	}
+	return s.remindUnanswered(ctx)
+}
+
+// remindUnanswered makes the unanswered items of the places whose owner message waited UnansweredAfter. Each place is one writer
+// transaction that checks again, makes the items and ends the wait, so two sweeps and a restart never remind twice or drop one.
+func (s *Server) remindUnanswered(ctx context.Context) error {
+	due, err := inbox.Due(ctx, s.reader(), s.Clock.Now())
+	if err != nil {
+		return err
+	}
+	for _, r := range due {
+		var woken []int64
+		err := s.Store.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) (err error) {
+			woken, err = remindPlace(ctx, tx.DBTX(), s.Clock.Now(), r)
+			return err
+		})
+		if err != nil {
+			return err
+		}
+		if len(woken) > 0 {
+			s.Bus.Notify(woken...)
+		}
+	}
+	return nil
+}
+
+// remindPlace is one reminder inside the writer: it returns the agents that got an item.
+func remindPlace(ctx context.Context, d pdb.DBTX, now time.Time, r inbox.Reminder) ([]int64, error) {
+	due, err := inbox.Due(ctx, d, now) // again, inside the one writer
+	if err != nil || !slices.Contains(due, r) {
+		return nil, err
+	}
+	if err := inbox.Reminded(ctx, d, r.Place); err != nil {
+		return nil, err
+	}
+	m, found, err := message.Get(ctx, d, r.Message) // an owner message that was deleted waits for nobody
+	if err != nil || !found {
+		return nil, err
+	}
+	dir, err := loadDirectory(ctx, d)
+	if err != nil {
+		return nil, err
+	}
+	parts, err := conversation.Participants(ctx, d, r.Conversation)
+	if err != nil {
+		return nil, err
+	}
+	var agents []int64
+	for _, pt := range parts {
+		if e := dir[pt.IdentityID]; e.Kind == "agent" && !e.Disabled {
+			agents = append(agents, pt.IdentityID)
+		}
+	}
+	mentioned, err := message.Mentioned(ctx, d, m.ID)
+	if err != nil {
+		return nil, err
+	}
+	var posters []int64
+	if r.ThreadRoot != 0 {
+		if posters, err = message.ThreadAuthors(ctx, d, r.ThreadRoot); err != nil {
+			return nil, err
+		}
+	}
+	targets := inbox.Targets(agents, mentioned, posters, r.ThreadRoot != 0)
+	for _, a := range targets {
+		if err := inbox.Remind(ctx, d, now, a, r); err != nil {
+			return nil, err
+		}
+	}
+	return targets, nil
 }
 
 func (s *Server) nudgeLate(ctx context.Context) error {

@@ -137,10 +137,18 @@ VALUES (sqlc.arg(identity_id), 'ask_resolved', sqlc.arg(conversation_id), sqlc.a
 -- The ask an ask_resolved item of this identity is about.
 SELECT ask_message_id FROM inbox_items WHERE id = sqlc.arg(id) AND identity_id = sqlc.arg(identity_id) AND reason = 'ask_resolved';
 
--- name: AckedAskItem :one
--- A repeat of an ack that went through: the item is acked, by this session.
-SELECT EXISTS (SELECT 1 FROM inbox_items WHERE id = sqlc.arg(id) AND identity_id = sqlc.arg(identity_id) AND reason = 'ask_resolved'
-               AND state = 'acked' AND acked_by_session = sqlc.arg(session_id));
+-- name: AckedItem :one
+-- A repeat of an ack that went through (ask_resolved items only), or the ack of an item the watch already finished: the item is acked, by this session.
+SELECT EXISTS (SELECT 1 FROM inbox_items WHERE id = sqlc.arg(id) AND identity_id = sqlc.arg(identity_id)
+               AND (reason = 'ask_resolved' OR acked_by_watch = 1) AND state = 'acked' AND acked_by_session = sqlc.arg(session_id));
+
+-- name: AckThrough :many
+-- A watch that asks after=K proves it got every answer up to claim number K: its claims of this session up to K are done, no ack needed.
+UPDATE inbox_items
+SET state = 'acked', acked_by_watch = 1, acked_at = sqlc.arg(now), acked_by_session = sqlc.arg(session_id), claim_session_id = NULL, claim_token = NULL,
+    claim_until = NULL, visibility_ms = NULL, updated_at = sqlc.arg(now)
+WHERE identity_id = sqlc.arg(identity_id) AND state = 'claimed' AND claim_session_id = sqlc.arg(session_id) AND claim_seq <= sqlc.arg(after)
+RETURNING id;
 
 -- name: HoldItemsFor :exec
 -- E-5: the ready items that carry a voice note wait until its transcript is done or the wait ends.
@@ -193,3 +201,23 @@ SELECT EXISTS (SELECT 1 FROM inbox_items WHERE identity_id = sqlc.arg(identity_i
 SELECT identity_id, CAST(conversation_id AS INTEGER) AS conversation_id, CAST(min(created_at) AS INTEGER) AS since FROM inbox_items
 WHERE state IN ('ready','claimed') AND reason IN ('mention','thread','activity') AND conversation_id IS NOT NULL
 GROUP BY identity_id, conversation_id;
+
+
+-- name: TrackPlace :exec
+-- The owner wrote the newest counted message of a place: it is due for a reminder at due_at, and an older one is forgotten.
+INSERT INTO inbox_unanswered (conversation_id, thread_root_id, message_id, due_at)
+VALUES (sqlc.arg(conversation_id), sqlc.arg(thread_root_id), sqlc.arg(message_id), sqlc.arg(due_at))
+ON CONFLICT (conversation_id, thread_root_id) DO UPDATE SET message_id = excluded.message_id, due_at = excluded.due_at;
+
+-- name: ClearPlace :exec
+DELETE FROM inbox_unanswered WHERE conversation_id = sqlc.arg(conversation_id) AND thread_root_id = sqlc.arg(thread_root_id);
+
+-- name: DuePlaces :many
+SELECT conversation_id, thread_root_id, message_id FROM inbox_unanswered
+WHERE due_at <= sqlc.arg(now) ORDER BY due_at, conversation_id, thread_root_id LIMIT sqlc.arg(max_rows);
+
+-- name: InsertUnansweredItem :exec
+-- The owner's message sat unanswered: an item like the one the message made, with the reason changed. It never merges.
+-- No event stands behind it, so source_seq is 0 (nothing reads it).
+INSERT INTO inbox_items (identity_id, reason, conversation_id, first_message_id, message_id, count, mention_count, source_seq, state, created_at, updated_at)
+VALUES (sqlc.arg(identity_id), 'unanswered', sqlc.arg(conversation_id), sqlc.arg(message_id), sqlc.arg(message_id), 1, 0, 0, 'ready', sqlc.arg(now), sqlc.arg(now));

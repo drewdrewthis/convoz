@@ -296,6 +296,16 @@ func Mentioned(ctx context.Context, d pdb.DBTX, id int64) ([]int64, error) {
 	return db.New(d).ListMentions(ctx, id)
 }
 
+// ThreadAuthors lists the identity ids that wrote a text or ask message in the thread of root (the root too).
+func ThreadAuthors(ctx context.Context, d pdb.DBTX, root int64) ([]int64, error) {
+	rows, err := db.New(d).ThreadAuthors(ctx, nullInt(root))
+	out := make([]int64, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, r.Int64)
+	}
+	return out, err
+}
+
 // StoreMentions records that message id mentions each identity.
 func StoreMentions(ctx context.Context, d pdb.DBTX, id int64, identities []int64) error {
 	q := db.New(d)

@@ -29,9 +29,8 @@ const preferenceRecheck = 5 * time.Second
 //
 // Without peek it answers the items this session holds, then claims ready ones, and when there are none and wait
 // is above 0 it holds the request until an item for the identity arrives or wait runs out. held=0 leaves the
-// already-held items out. after=K (`convoz watch`) answers only the held items claimed after the cursor K, and the answer
-// carries the new cursor: the watch prints each claim once and the poll does not return at once for an item the agent has
-// not acked yet, but a claim whose answer was lost, or that another loop of the session made, comes back at once. after
+// already-held items out. after=K (`convoz watch`) first finishes the items claimed up to K (the watch got them: no ack needed, no redelivery), then answers only the held items claimed after the cursor K, and the answer
+// carries the new cursor: the watch prints each claim once, but a claim whose answer was lost, or that another loop of the session made, comes back at once. after
 // overrides held. conv=C claims only the items of conversation C.
 func (s *Server) inboxPoll(w http.ResponseWriter, r *http.Request, c *call) {
 	q := r.URL.Query()
@@ -276,6 +275,17 @@ func (s *Server) claimOnce(ctx context.Context, c *call, req inbox.Request) (ite
 	now := s.Clock.Now()
 	err = s.Store.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) error {
 		d := tx.DBTX()
+		if req.ByCursor { // a watch needs no ack: asking after=K proves it got the answers up to K, so those items are done
+			done, err := inbox.AckThrough(ctx, d, now, req.Identity, req.Session, req.After)
+			if err != nil {
+				return err
+			}
+			for _, id := range done {
+				if err := s.ackAsk(ctx, d, now, c, id); err != nil {
+					return err
+				}
+			}
+		}
 		claimed, err := inbox.Claim(ctx, d, now, req)
 		if err != nil {
 			return err

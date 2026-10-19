@@ -193,12 +193,17 @@ func (s *Service) Create(ctx context.Context, d pdb.DBTX, now time.Time, in NewR
 }
 
 // newPublicID is 128 random bits as 22 URL-safe characters: the id in URLs and in each segment's AAD.
+// It never starts with "-": a command line would read such an id as a flag.
 func newPublicID() (string, error) {
 	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
+	for {
+		if _, err := rand.Read(b); err != nil {
+			return "", err
+		}
+		if id := base64.RawURLEncoding.EncodeToString(b); id[0] != '-' {
+			return id, nil
+		}
 	}
-	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
 func newStorageName() (string, error) {

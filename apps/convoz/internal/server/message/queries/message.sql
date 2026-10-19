@@ -71,5 +71,10 @@ DELETE FROM mentions WHERE message_id = sqlc.arg(message_id);
 -- name: InsertMention :exec
 INSERT OR IGNORE INTO mentions (message_id, identity_id) VALUES (sqlc.arg(message_id), sqlc.arg(identity_id));
 
+-- name: ThreadAuthors :many
+-- Who wrote counted messages (text and ask) in a thread, its root included, not deleted.
+SELECT DISTINCT author_id FROM messages
+WHERE (thread_root_id = sqlc.arg(root) OR id = sqlc.arg(root)) AND kind IN ('text','ask') AND deleted_at IS NULL AND author_id IS NOT NULL ORDER BY author_id;
+
 -- name: ListMentions :many
 SELECT identity_id FROM mentions WHERE message_id = sqlc.arg(message_id) ORDER BY identity_id;

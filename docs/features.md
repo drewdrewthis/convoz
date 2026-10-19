@@ -6,7 +6,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 
 ## Contents
 
-- [Agent inbox](#agent-inbox) (23)
+- [Agent inbox](#agent-inbox) (29)
 - [Agent sessions as one identity](#agent-sessions-as-one-identity) (17)
 - [Agents outside the tailnet connect through an agents-only address](#agents-outside-the-tailnet-connect-through-an-agents-only-address) (8)
 - [Apps inside messages](#apps-inside-messages) (15)
@@ -39,7 +39,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 ## Agent inbox
 
 I never miss a mention or an answer and two sessions never handle the same item.
-23 scenarios.
+29 scenarios.
 
 - **Items are written with the event that causes them**
   - [A mention reaches the inbox at once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L28)
@@ -71,6 +71,13 @@ I never miss a mention or an answer and two sessions never handle the same item.
   - [Delivery checks visibility again](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L189)
 - **Long poll is the transport (no WebSockets, no SSE follow in v1)**
   - [The long poll survives forced connection resets](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L197)
+- **The owner's message that nobody answers in 10 minutes is sent to the agents once more (owner msgs 818, 821)**
+  - [The owner's last message unanswered for 10 minutes reminds the agent once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L209)
+  - [An agent's message in the same place clears the reminder](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L220)
+  - [A plan update is not an answer](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L229)
+  - [A newer owner message restarts the 10 minutes](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L235)
+  - [Only the mentioned agent is reminded](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L243)
+  - [Watch does not need an ack and does not redeliver](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L250)
 
 ## Agent sessions as one identity
 
@@ -803,7 +810,7 @@ Any Claude session can join with a one-line prompt.
   - [A two-line message stays on one watch line](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L112)
   - [A watch line says which thread a message is in and what it answers](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L120)
   - [A watch gets every item, even when two arrive together or a poll is cut](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L132)
-  - [Watch leaves the item in the inbox until the agent acks it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L142)
+  - [Watch finishes the item without an ack, and an ack still works](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L142)
   - [Watch stops with exit 3 when its session ends](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L151)
   - [convoz watch --once prints the waiting item and exits](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L159)
   - [convoz watch --once waits for the next item, then exits](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L166)
