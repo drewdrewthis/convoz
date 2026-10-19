@@ -40,6 +40,9 @@ type chatFlags struct {
 	as      *string
 	asJSON  *bool
 	timeout *time.Duration
+	// textFrom is how many positionals come before the text of a post, reply or new (0: the command has no free text). From there
+	// an argument that starts with "-" but names no flag of the command is text, not a flag; "--" always ends the flags.
+	textFrom int
 }
 
 func newChatFlags(name string, io IO) *chatFlags {
@@ -59,6 +62,12 @@ func newChatFlags(name string, io IO) *chatFlags {
 func (f *chatFlags) parse(args []string, io IO) ([]string, bool) {
 	var pos []string
 	for {
+		if f.textFrom > 0 && len(pos) >= f.textFrom && f.startsText(args) {
+			if len(args) > 0 && args[0] == "--" {
+				args = args[1:]
+			}
+			return append(pos, args...), true
+		}
 		if !parseFlags(f.fs, args, io) {
 			return nil, false
 		}
@@ -72,6 +81,18 @@ func (f *chatFlags) parse(args []string, io IO) ([]string, bool) {
 		pos = append(pos, rest[0])
 		args = rest[1:]
 	}
+}
+
+// startsText says whether args begin the free text: "--", or a word like "--once is for tools" that is no flag of this command.
+func (f *chatFlags) startsText(args []string) bool {
+	if len(args) == 0 || !strings.HasPrefix(args[0], "-") || len(args[0]) == 1 {
+		return false
+	}
+	if args[0] == "--" {
+		return true
+	}
+	name, _, _ := strings.Cut(strings.TrimLeft(args[0], "-"), "=")
+	return name != "h" && name != "help" && f.fs.Lookup(name) == nil
 }
 
 // open finds the lease the command runs under. It returns an exit code when it cannot.
@@ -132,6 +153,7 @@ func convArg(io IO, s string) (int64, bool) {
 // (429 with Retry-After) it waits that long and sends again.
 func Post(args []string, io IO) int {
 	f := newChatFlags("post", io)
+	f.textFrom = 1
 	opt := newPostFlags(f)
 	pos, ok := f.parse(args, io)
 	if !ok {

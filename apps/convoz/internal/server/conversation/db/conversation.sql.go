@@ -729,6 +729,28 @@ func (q *Queries) SetTitle(ctx context.Context, arg SetTitleParams) error {
 	return err
 }
 
+const sharesConversation = `-- name: SharesConversation :one
+SELECT EXISTS (
+  SELECT 1 FROM participants a
+  JOIN participants b ON b.conversation_id = a.conversation_id
+  JOIN conversations c ON c.id = a.conversation_id
+  WHERE a.identity_id = ?1 AND b.identity_id = ?2
+    AND a.status = 'active' AND b.status = 'active' AND c.deleted_at IS NULL
+)
+`
+
+type SharesConversationParams struct {
+	One   int64
+	Other int64
+}
+
+func (q *Queries) SharesConversation(ctx context.Context, arg SharesConversationParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, sharesConversation, arg.One, arg.Other)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const softDelete = `-- name: SoftDelete :execrows
 UPDATE conversations SET deleted_at = ?1, deleted_by = ?2 WHERE id = ?3 AND deleted_at IS NULL
 `

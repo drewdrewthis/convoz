@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
+	"math"
 	"net/url"
 	"strconv"
 	"time"
@@ -26,23 +28,44 @@ const (
 // the claim runs out and the item comes back with a new token, and prints again.
 //
 // It exits 3 when the session ends and otherwise runs until it is stopped, riding out network errors.
+//
+// With --once it prints the first batch (every item waiting, or else the next ones to arrive) and exits 0, for an agent that
+// cannot read the output of a command that is still running: it runs watch in the background, answers, acks, and runs it again.
+// Nothing is lost between runs: an unacked item stays in the inbox. An explicit --timeout bounds the wait; with nothing by
+// then it prints nothing, says so on stderr and exits ExitNothing.
 func Watch(args []string, io IO) int {
 	f := newChatFlags("watch", io)
+	once := f.fs.Bool("once", false, "exit after the first batch of items")
 	if pos, ok := f.parse(args, io); !ok {
 		return ExitUsage
 	} else if len(pos) != 0 {
-		return usageError(io, "usage: convoz watch [--json]")
+		return usageError(io, "usage: convoz watch [--json] [--once]")
 	}
 	k, code := f.open(io)
 	if k == nil {
 		return code
 	}
+	var deadline time.Time // set only by an explicit --timeout with --once; zero waits for ever
+	f.fs.Visit(func(fl *flag.Flag) {
+		if fl.Name == "timeout" && *once {
+			deadline = time.Now().Add(*f.timeout)
+		}
+	})
 	poll := k.c.withTimeout((wire.MaxHoldSeconds + 15) * time.Second)
 	printed := map[string]bool{}
 	held := true // the first poll, and the first after an error, also returns claims whose answer was lost
 	backoff := watchBackoffFirst
 	for {
-		q := url.Values{"wait": {strconv.Itoa(wire.MaxHoldSeconds)}}
+		hold := wire.MaxHoldSeconds
+		if !deadline.IsZero() {
+			left := time.Until(deadline)
+			if left <= 0 {
+				fmt.Fprintf(io.Stderr, "convoz: no item arrived within %s\n", *f.timeout)
+				return ExitNothing
+			}
+			hold = min(hold, int(math.Ceil(left.Seconds())))
+		}
+		q := url.Values{"wait": {strconv.Itoa(hold)}}
 		if !held {
 			q.Set("held", "0")
 		}
@@ -71,6 +94,9 @@ func Watch(args []string, io IO) int {
 			if err := k.writeWatchLine(it); err != nil {
 				return fail(io, err)
 			}
+		}
+		if *once && len(out.Items) > 0 {
+			return ExitOK
 		}
 	}
 }

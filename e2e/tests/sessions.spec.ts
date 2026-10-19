@@ -25,6 +25,7 @@ import {
   type Allow,
 } from "../lib/machines.ts";
 import { createConversation, ownerSays } from "../lib/chat.ts";
+import { idsOf, seedDb } from "../lib/wp3.ts";
 import { apiServer, bootstrapOwner, must } from "../lib/owner.ts";
 import { send } from "../lib/http.ts";
 import { expect, scenario } from "../lib/scenario.ts";
@@ -36,15 +37,17 @@ const AGENTS = ["devtool", "dev-search", "docs", "release-bot"];
 const CLAUDE = "claude-TESTONLY-7f3a";
 
 /** Background: a fresh server with owner "drew", the four agents, and machine "box-2" with allow-list "devtool" and "dev-*". */
-async function background(server: (o?: ServerOptions) => Promise<ServerHandle>, o: { cli?: boolean; scopes?: string[]; list?: Allow } = {}) {
-  const srv = await server(o.cli ? { host: "localhost", adminSocket: true, env: POLL } : apiServer());
+async function background(server: (o?: ServerOptions) => Promise<ServerHandle>, o: { cli?: boolean; scopes?: string[]; list?: Allow; plaintext?: boolean } = {}) {
+  const plain = o.plaintext ? { CONVOZ_TEST_PLAINTEXT: "1" } : {};
+  const srv = await server(o.cli ? { host: "localhost", adminSocket: true, env: { ...POLL, ...plain } } : apiServer({ env: plain }));
   const owner = await bootstrapOwner(srv);
   const agents = await createAgents(owner, ...AGENTS);
   const box2 = await loginMachine(srv, owner, "box-2", o.list ?? allow("devtool", "dev-*"), o.scopes ? { scopes: o.scopes } : {});
   return { srv, owner, agents, box2 };
 }
 
-const WATCH_NEXT = "Next: start `convoz watch --json` now and keep it running: it prints one line per message or ask for you. Answer, then `convoz ack <ack>`.";
+// @langwatch-technician, conv 19 msg 501: "The `--once` loop works for every agent, Monitor or not: run it in the background, answer, run it again."
+const WATCH_NEXT = "Next: Run `convoz watch --json --once` in the background. It exits when something arrives. Answer, ack, then run it again. Nothing is lost between runs: items stay in your inbox until you ack them.";
 
 scenario("Session start tells the agent to start watching its inbox at once", { tag: ["@cli"] }, async ({ server }) => {
   const { srv, box2 } = await background(server, { cli: true });
@@ -712,9 +715,9 @@ scenario("Only the owner's session can decide an agent request", { tag: ["@api"]
   expect(denyIdentity).toBeDefined();
 });
 
-scenario("The card data is plain text, the avatar is cleaned and the join goes through the participants path", { tag: ["@api"] }, async ({ server }) => {
+scenario("The card data is plain text, the avatar is cleaned and the join goes through the participants path", { tag: ["@api"] }, async ({ server, dataDir }) => {
   // Given "box-2" filed a request for "dev-new" with the description "<b>**hi**</b>", a script in its SVG avatar and conversation 41
-  const { srv, owner, box2 } = await background(server);
+  const { srv, owner, box2 } = await background(server, { plaintext: true });
   const conv = await createConversation(owner, { participants: ["devtool"], title: "Ship search filters" });
   const before = await ownerSays(owner, conv, "before the add");
   const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><script>alert(1)</script><circle cx="5" cy="5" r="4"/></svg>';
@@ -744,6 +747,9 @@ scenario("The card data is plain text, the avatar is cleaned and the join goes t
   // And an agent that asks for a conversation the owner is not in is refused when it files
   const devtool = await lease(srv, box2.key, { as: "devtool" });
   const alone = must(await send(srv.target, "POST", "/api/conversations", { json: { client_id: "agent-made-0002", title: "Agents only", participants: [] }, ...bearer(devtool) }), "agent conversation", 201).json().conversation.id as number;
+  // (an agent's new conversation always holds the owner now, and the API cannot take the owner out, so the row is set straight in the data file)
+  const ownerId = (await idsOf(owner)).drew!;
+  seedDb(dataDir, (db) => db.prepare("UPDATE participants SET status = 'left' WHERE conversation_id = ? AND identity_id = ?").run(alone, ownerId));
   const refused = await mintSession(srv, box2.key, { as: "dev-other", create: { conversation_id: alone } });
   expect(refused.status).toBe(400);
   expect(refused.json().error.field).toBe("conversation");

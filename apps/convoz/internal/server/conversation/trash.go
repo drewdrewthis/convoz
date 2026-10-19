@@ -72,6 +72,12 @@ func AgentCreatedSince(ctx context.Context, d pdb.DBTX, who int64, since time.Ti
 	return db.New(d).CountAgentConversationsSince(ctx, db.CountAgentConversationsSinceParams{CreatedBy: who, Since: since.UnixMilli()})
 }
 
+// Shares reports whether two identities are both active in one live conversation: the owner already put them together,
+// so an agent that starts a conversation may bring the other one in without a request.
+func Shares(ctx context.Context, d pdb.DBTX, one, other int64) (bool, error) {
+	return db.New(d).SharesConversation(ctx, db.SharesConversationParams{One: one, Other: other})
+}
+
 // AddOpenAsks corrects the conversation's open-ask counter after asks were closed outside the ask flow.
 func AddOpenAsks(ctx context.Context, d pdb.DBTX, conv, delta int64) error {
 	return db.New(d).AddOpenAsks(ctx, db.AddOpenAsksParams{Delta: delta, ID: conv})

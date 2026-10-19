@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
@@ -151,11 +152,16 @@ func (s *Server) visibleDetail(ctx context.Context, d pdb.DBTX, p authz.Principa
 // maxNewParticipants leaves a place for the creator in the 20 a conversation holds.
 const maxNewParticipants = conversation.MaxParticipants - 1
 
-// maxAgentConversationsPerDay is how many conversations one agent may start in 24 hours (design §2.3).
-const maxAgentConversationsPerDay = 20
+// Limits on an agent that starts conversations: at most 20 an hour (a looping agent must not flood the owner's list), each
+// with a title of 1 to 80 characters.
+const (
+	maxAgentConversationsPerHour = 20
+	maxAgentTitleRunes           = 80
+)
 
-// createConversation is POST /api/conversations. The owner's participants are added at once; an agent's go pending
-// until a human approves (I-17), and an agent may start at most 20 conversations a day.
+// createConversation is POST /api/conversations. The owner's participants are added at once. An agent's conversation always
+// holds the owner; an agent it lists joins at once when it already shares a conversation with the creator, and otherwise
+// waits for a human to approve (I-17). The owner's own handle in the list changes nothing. An agent starts at most 20 an hour.
 // The same client_id again answers 200 with the conversation it made (I-24).
 func (s *Server) createConversation(w http.ResponseWriter, r *http.Request, c *call) {
 	var in struct {
@@ -173,6 +179,9 @@ func (s *Server) createConversation(w http.ResponseWriter, r *http.Request, c *c
 		return
 	case title != "" && !conversation.ValidTitle(title):
 		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "title", "A title has 1 to 120 characters.")
+		return
+	case c.p.SessionID != 0 && (title == "" || utf8.RuneCountInString(title) > maxAgentTitleRunes):
+		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "title", "An agent names its conversation with 1 to 80 characters.")
 		return
 	case len(in.Participants) > maxNewParticipants:
 		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "participants", "A conversation has at most 20 participants.")
@@ -213,28 +222,44 @@ func (s *Server) createConversation(w http.ResponseWriter, r *http.Request, c *c
 			return s.withRail(ctx, d, c.p, &view)
 		}
 		if isAgent {
-			n, err := conversation.AgentCreatedSince(ctx, d, who, now.Add(-24*time.Hour))
+			n, err := conversation.AgentCreatedSince(ctx, d, who, now.Add(-time.Hour))
 			if err != nil {
 				return err
 			}
-			if n >= maxAgentConversationsPerDay {
+			if n >= maxAgentConversationsPerHour {
 				capped = true
 				return nil
 			}
 		}
 		var members, listed []int64
+		if isAgent {
+			owner, err := identity.Owner(ctx, d)
+			if err != nil {
+				return err
+			}
+			members = append(members, owner.ID)
+		}
 		for _, handle := range in.Participants {
 			a, found, err := identity.Lookup(ctx, d, strings.ToLower(handle))
 			if err != nil {
 				return err
 			}
+			if found && isAgent && a.Kind == "human" { // the owner is in already
+				continue
+			}
 			if !found || a.Kind != "agent" || a.Disabled {
 				badName = true
 				return nil
 			}
+			shared := false
+			if isAgent && a.ID != who {
+				if shared, err = conversation.Shares(ctx, d, who, a.ID); err != nil {
+					return err
+				}
+			}
 			switch {
 			case a.ID == who:
-			case isAgent:
+			case isAgent && !shared:
 				listed = append(listed, a.ID)
 			default:
 				members = append(members, a.ID)
@@ -272,7 +297,7 @@ func (s *Server) createConversation(w http.ResponseWriter, r *http.Request, c *c
 	case conflict:
 		writeFieldErr(w, http.StatusConflict, "client_id_conflict", "client_id", "That client id was used for a different conversation.")
 	case capped:
-		tooMany(w, time.Hour, "An agent may start 20 conversations a day.")
+		tooMany(w, time.Hour, "An agent may start 20 conversations an hour.")
 	case badName:
 		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "participants", "Each participant must be the handle of an agent that is not disabled.")
 	case created:

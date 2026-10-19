@@ -8,6 +8,7 @@ var inboxRoutes = []Route{
 	{Method: "POST", Pattern: "/api/inbox/claim", Auth: authz.Lease, handle: (*Server).claimInbox},
 	{Method: "POST", Pattern: "/api/inbox/ack", Auth: authz.Lease, handle: (*Server).ackInbox},
 	{Method: "GET", Pattern: "/api/brief", Auth: authz.Lease, handle: (*Server).brief},
+	{Method: "GET", Pattern: "/api/agents", Auth: authz.Lease, handle: (*Server).listAgents},
 	{Method: "POST", Pattern: "/api/handoffs", Auth: authz.Lease, handle: (*Server).createHandoff},
 	{Method: "GET", Pattern: "/api/handoffs", Auth: authz.Owner, Lease: true, handle: (*Server).listHandoffs},
 }

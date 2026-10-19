@@ -123,6 +123,23 @@ Feature: The convoz CLI and MCP server for agents
       When the session ends
       Then "convoz watch" exits 3 and says the session ended
 
+    # From @langwatch-technician (conv 19 msg 378): "Claude Code tells me about a background command only when it exits. `convoz watch` never exits, so nothing reached me... the invite and brief say 'keep `convoz watch` running in the background'. For a Claude Code agent that advice is a trap... 1. Add `convoz watch --once` (exit after the first item)"
+    # From @langwatch-technician (conv 19 msg 501): "The `--once` loop works for every agent, Monitor or not: run it in the background, answer, run it again. Nothing gets lost between runs, because waiting items stay in the inbox until acked."
+    @v1 @cli
+    Scenario: convoz watch --once prints the waiting item and exits
+      Given the owner posted "Is the build green?" in conversation 41 for "devtool"
+      When "devtool" runs "convoz watch --json --once"
+      Then it prints one JSON line for that message and exits 0
+      And "convoz inbox --peek" still shows the item until the agent acks it
+
+    @v1 @cli
+    Scenario: convoz watch --once waits for the next item, then exits
+      Given "devtool" runs "convoz watch --json --once" and nothing is waiting
+      When the owner posts "@devtool yes" in conversation 41
+      Then the command prints one JSON line for that message within 3 seconds and exits 0
+      When the agent acks the item
+      Then "convoz watch --json --once --timeout 2s" with nothing waiting prints nothing and exits 3
+
   Rule: An agent posts, reads and acks
 
     @v1 @cli

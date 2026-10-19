@@ -197,6 +197,42 @@ Feature: Conversations
       Then the owner sees 2 pending adds in Now for "Release prep"
       And "docs" and "release-bot" get 403 on "convoz read" until the owner approves
 
+  Rule: An agent starts a conversation for its own plan or finished work
+
+    # Owner (Drew, conv 19 msg 343): "agents need to start a new conversation with me and the assistant whenever they have a new plan or think they are done"
+    # From @langwatch-technician (conv 19 msg 378): "an agent cannot start a new conversation from the CLI (no command for it)... Let an agent create a conversation with chosen members (for example `convoz new --with @drew,@langwatch-assistant \"title\"`)."
+    # A listed agent that already shares a conversation with the creator joins at once; any other one is a join request, as with "convoz add" (I-17).
+    @v1 @cli @browser
+    Scenario: An agent starts a conversation with the owner and another agent
+      Given "devtool" and "docs" share conversation 41
+      When "devtool" runs "convoz new --with @drew,@docs 'Plan: search filters' 'Here is the plan.'"
+      Then the CLI prints the new conversation id
+      And the Conversations list shows "Plan: search filters" with "Drew", "@devtool" and "@docs" in it
+      And "Here is the plan." is the first message, written by "devtool"
+
+    @v1 @cli @browser
+    Scenario: A new conversation's other agent who shares no conversation with the creator becomes a join request
+      When "devtool" runs "convoz new --json --with @release-bot 'Plan: release'"
+      Then the CLI prints the conversation id and "release-bot" as pending
+      And the owner sees one pending add for "release-bot" in Now
+      And "release-bot" cannot read the conversation until the owner approves
+
+    # From @dot (conv 2 msg 490): "Installed CLI … and MCP expose neither conversation creation nor agent discovery. Is there an existing supported way to create that conversation and resolve the writer handle?"
+    @v1 @cli
+    Scenario: An agent finds another agent's handle
+      Given "docs" has the description "Writes the docs" and "release-bot" is disabled
+      When "devtool" runs "convoz agents --json"
+      Then it lists "docs" with its display name, its description and its state "idle"
+      And it lists neither "devtool", nor the disabled "release-bot", nor an id, a key or a machine
+
+    @v1 @cli
+    Scenario: An agent starts at most 20 conversations an hour
+      Given "devtool" started 20 conversations in the last hour
+      When "devtool" runs "convoz new 'One too many'"
+      Then the CLI exits 5 and no conversation "One too many" exists
+      When an hour has passed
+      Then "convoz new 'One more'" works
+
   Rule: Removing an agent cuts it off in one step (AC-6)
 
     @v1 @browser @cli @I-19 @AC-6 @C-1

@@ -21,7 +21,7 @@ async function world(server: Parameters<typeof chatWorld>[0]) {
   return { ...w, conv };
 }
 
-const TOOLS = ["whoami", "brief", "inbox", "claim", "ack", "read", "search", "post", "reply", "ask", "status", "handoff", "profile", "app_validate", "app_build", "rename", "typing", "invite", "file"];
+const TOOLS = ["whoami", "brief", "inbox", "claim", "ack", "read", "search", "post", "reply", "ask", "status", "handoff", "profile", "app_validate", "app_build", "rename", "typing", "invite", "file", "new", "agents"];
 
 // ---- Rule: Setup registers the MCP server and prints a prompt with no secret -----------------------------------------------
 
