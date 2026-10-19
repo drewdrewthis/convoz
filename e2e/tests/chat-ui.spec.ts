@@ -1077,7 +1077,7 @@ scenario("On a phone the conversation pages fit a 320 px screen with large tap t
     await page.setViewportSize({ width, height: 844 });
     for (const [name, path] of [["Conversations", "/chats"], ["New conversation", "/chats/new"], ["Conversation", `/chats/${conv}`]] as const) {
       await page.goto(`${u.w.srv.origin}${path}`);
-      await page.waitForLoadState("networkidle");
+      await streamOpen(page); // the live stream never ends, so "networkidle" is a race under load: wait for the stream instead
       // the page is the chat UI, not an error page: its own heading shows
       await expect(page.getByRole("heading", { level: 1, name: name === "Conversation" ? /A very long title/ : name, exact: false })).toBeVisible();
       if ((await overflowX(page)) > 0) wide.push(`${name} at ${width}px`);
@@ -1104,7 +1104,7 @@ scenario("On a phone the conversation pages look right in dark and light", { tag
     await page.emulateMedia({ colorScheme: scheme });
     for (const [name, path] of [["chats", "/chats"], ["new-chat", "/chats/new"], ["conversation", `/chats/${conv}`]] as const) {
       await page.goto(`${u.w.srv.origin}${path}`);
-      await page.waitForLoadState("networkidle");
+      await streamOpen(page); // the live stream never ends, so "networkidle" is a race under load: wait for the stream instead
       await expect(page.getByRole("heading").first()).toBeVisible();
       await info.attach(`${name} (${scheme})`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
       looks.push(`${name} ${scheme} ${(await backgroundLuminance(page)) < 0.25 ? "dark" : (await backgroundLuminance(page)) > 0.75 ? "light" : "mid"}`);
