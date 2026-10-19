@@ -445,6 +445,42 @@ Feature: Conversations
       When the owner taps the pill
       Then "Fresh news" is in view and the pill is gone
 
+    # Owner (Drew, msg 253): "We just had to scroll really far for this conversation. There's a lot of text. I guess you should try to scroll to the bottom initially by itself."
+    @v1 @browser
+    Scenario: A long conversation opens at the newest message
+      Given conversation 41 holds 200 long messages with code, images and asks
+      When the owner opens conversation 41 from the Conversations list
+      Then the newest message is in view and stays there
+      When the owner reloads the page
+      Then the newest message is in view and stays there
+      When the owner goes back to the list and forward again
+      Then the newest message is in view and stays there
+      When the owner opens conversation 41 on a slow network
+      Then the newest message is in view and stays there
+
+    # Owner (Drew, msg 253): "We just had to scroll really far for this conversation."
+    @v1 @browser
+    Scenario: A link to a message in a long conversation still opens at that message
+      Given conversation 41 holds 200 long messages with code, images and asks
+      When the owner opens the link to "msg-101"
+      Then "msg-101" is in view and the log is not at the newest message
+
+    # Owner (Drew, msg 253): "And then if you're not there, maybe a little button hovers to scroll to the bottom automatically. Just make it easier."
+    @v1 @browser
+    Scenario: A Jump to latest button shows when the owner scrolls up and takes them to the newest message
+      Given conversation 41 holds 200 long messages with code, images and asks
+      And the owner has conversation 41 open at its newest message
+      Then no Jump to latest button shows
+      When the owner scrolls up two screens
+      Then a round Jump to latest button floats above the composer and covers neither the composer nor the log's last line
+      And it reads clearly in the dark and the light look
+      When the owner taps the button
+      Then the newest message is in view and the button is gone
+      When the owner scrolls up two screens and "devtool" posts "Fresh news" in conversation 41
+      Then the one button reads "New message ↓" with the count and no second control shows
+      When the owner taps it
+      Then "Fresh news" is in view and the button is gone
+
     # Owner (Drew, msg 159): "You can see it's difficult to tell there are new messages"
     @v1 @browser
     Scenario: A New messages line marks where unread began and stays while the chat is open
