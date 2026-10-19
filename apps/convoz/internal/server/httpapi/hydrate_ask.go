@@ -12,9 +12,11 @@ import (
 // person who snoozed.
 const askFrame = "ask.changed"
 
+var askEvents = []string{ask.EventCreated, ask.EventAnswered, ask.EventDismissed, ask.EventReopened, ask.EventClosed, ask.EventAcked,
+	ask.EventSnoozed, ask.EventUnsnoozed, ask.EventWoke}
+
 func init() {
-	for _, t := range []string{ask.EventCreated, ask.EventAnswered, ask.EventDismissed, ask.EventReopened, ask.EventClosed, ask.EventAcked,
-		ask.EventSnoozed, ask.EventUnsnoozed, ask.EventWoke} {
+	for _, t := range askEvents {
 		frameHydrators[t] = hydrateAsk
 	}
 }
