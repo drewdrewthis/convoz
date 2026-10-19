@@ -2,6 +2,7 @@ import type { Conversation } from "@convoz/api-client";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { humanError } from "../../shared/api.ts";
 import { data, useData, useLive } from "../../shared/data.ts";
+import { openCount, useNow } from "../now/index.ts";
 import { toast } from "../pins-stars/index.ts";
 import { useSearchUi } from "../search/index.ts";
 import { startDrag, type Drop } from "./drag.ts";
@@ -20,6 +21,7 @@ const openedId = (): number => Number(/^\/chats\/(\d+)$/.exec(location.pathname)
 export default function Sidebar() {
   const list = useData((s) => s.conversations);
   const me = useData((s) => s.me?.identity.handle ?? "");
+  const waiting = openCount(useNow((s) => s.now));
   const crew = useData((s) => s.identities?.filter((p) => p.kind === "agent" && !p.disabled).length ?? null);
   const [olderOpen, setOlderOpen] = useState(false);
   const [said, setSaid] = useState("");
@@ -123,6 +125,7 @@ export default function Sidebar() {
         <a className="rnav now" href="/" aria-current={location.pathname === "/" ? "page" : undefined}>
           <NowGlyph />
           <span>Now</span>
+          {waiting ? <span className="rbadge">{String(waiting)}</span> : null}
         </a>
         {g.starred.length ? (
           <div className="rgroup" role="group" aria-label="Starred">

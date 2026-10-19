@@ -237,6 +237,101 @@ async function expectBar(page: Page, scope: Locator, withReply: boolean): Promis
   if (!withReply) await expect(bar.getByRole("button", { name: "Quick reply", exact: true })).toHaveCount(0);
 }
 
+scenario("With nothing waiting, the feed centres the wordmark, the all-clear line under it, and the folds", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  // Given conversation 41 has an answered ask and a dismissed ask, and nothing else waits
+  const w = await browserWorld({ server, page, context }, WORLD);
+  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  const lease = w.sessions.devtool!.lease;
+  must(await answerAsk(w.owner, await agentAsks(w.srv, lease, conv, { question: "Answered question?" })), "answer");
+  must(await markAsk(w.owner, await agentAsks(w.srv, lease, conv, { question: "Dismissed question?" }), "dismiss"), "dismiss");
+
+  // When the owner opens Now
+  await openNow(page, w.srv);
+  const clear = page.getByText("All clear. Nothing needs you.");
+  await expect(clear).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Dismissed today/ })).toBeVisible();
+
+  // Then the wordmark, "All clear. Nothing needs you." and the fold chips are centred in the page column, in that order from the top
+  const vp = page.viewportSize()!;
+  const mid = async (l: Locator) => {
+    const b = (await l.boundingBox())!;
+    return { x: b.x + b.width / 2, y: b.y };
+  };
+  const wordmark = await mid(page.locator("#allclear .wordmark svg"));
+  const line = await mid(page.locator("#allclear .allclear"));
+  const chips = await mid(page.locator(".foldchips"));
+  const col = (await page.locator("#allclear").boundingBox())!;
+  const colMid = col.x + col.width / 2;
+  for (const [name, at] of [["wordmark", wordmark], ["all-clear line", line], ["fold chips", chips]] as const) {
+    expect(Math.abs(at.x - colMid), `${name} is centred`).toBeLessThanOrEqual(2);
+  }
+  expect(wordmark.y, "wordmark is above the line").toBeLessThan(line.y);
+  expect(line.y, "line is above the chips").toBeLessThan(chips.y);
+
+  // And the page does not scroll sideways
+  const fits = () => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
+  expect(await fits()).toBe(true);
+  await page.setViewportSize({ width: 320, height: 700 });
+  expect(await fits(), "no sideways scroll at 320 px").toBe(true);
+  await page.setViewportSize(vp);
+});
+
+scenario("The Now item shows how many items wait in the feed and updates live", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  // Given 2 open asks, 1 snoozed ask and 1 answered ask
+  const w = await browserWorld({ server, page, context }, WORLD);
+  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  const lease = w.sessions.devtool!.lease;
+  const open = [await agentAsks(w.srv, lease, conv, { question: "First?" }), await agentAsks(w.srv, lease, conv, { question: "Second?" })];
+  must(await snoozeAsk(w.owner, await agentAsks(w.srv, lease, conv, { question: "Snoozed?" }), { preset: "1h" }), "snooze");
+  must(await answerAsk(w.owner, await agentAsks(w.srv, lease, conv, { question: "Answered?" })), "answer");
+
+  // When the owner opens Now
+  await openNow(page, w.srv);
+
+  // Then the Now item in the rail and the Now tab on a phone show 2
+  const badge = page.locator(".rbadge:visible, #now-badge:visible");
+  await expect(badge).toHaveText("2");
+
+  // When the owner answers one ask
+  must(await answerAsk(w.owner, open[0]!), "answer one");
+
+  // Then the Now item shows 1
+  await expect(badge).toHaveText("1");
+
+  // When the owner answers the last ask
+  must(await answerAsk(w.owner, open[1]!), "answer last");
+
+  // Then the Now item shows no count
+  await expect(badge).toHaveCount(0);
+});
+
+scenario("After approving a new agent the card offers a message to it", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  // Given an agent asked to connect as "dev-ci" from the machine "box-2"
+  const w = await browserWorld({ server, page, context }, WORLD);
+  must(await mintSession(w.srv, w.box2.key, { as: "dev-ci", create: { description: "Runs CI" } }), "identity request", 202);
+
+  // When the owner opens Now and taps Approve
+  await openNow(page, w.srv);
+  await page.getByRole("article", { name: "box-2 wants to connect as @dev-ci", exact: true }).getByRole("button", { name: "Approve", exact: true }).click();
+
+  // Then the card reads "@dev-ci joined" with a "Message @dev-ci" button
+  const card = page.getByRole("article", { name: "@dev-ci joined", exact: true });
+  await expect(card).toBeVisible();
+  const message = card.getByRole("link", { name: "Message @dev-ci", exact: true });
+  await expect(message).toBeVisible();
+
+  // When the owner taps "Message @dev-ci"
+  await message.click();
+
+  // Then a new conversation opens with @dev-ci tagged and the cursor in the composer
+  await expect(page).toHaveURL(/\/chats\/new\?with=dev-ci$/);
+  await expect(page.locator("textarea:focus")).toBeVisible();
+  await expect(page.getByText("@dev-ci").first()).toBeVisible();
+});
+
 scenario("Every item in the feed opens its conversation when tapped", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
   info.setTimeout(120_000);
   // Given conversation 41 has a snoozed ask, an answered ask and a dismissed ask

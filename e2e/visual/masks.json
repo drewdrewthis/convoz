@@ -143,6 +143,20 @@
    "y": 55,
    "w": 295,
    "h": 44
+  },
+  {
+   "name": "Wordmark and All clear line (owner msg 275: centred, wordmark first)",
+   "x": 90,
+   "y": 100,
+   "w": 220,
+   "h": 235
+  },
+  {
+   "name": "Old place of the All clear line (owner msg 275)",
+   "x": 12,
+   "y": 135,
+   "w": 78,
+   "h": 35
   }
  ],
  "crew": [

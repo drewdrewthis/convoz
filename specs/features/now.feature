@@ -37,6 +37,34 @@ Feature: Now
       When the installed app is in the background
       Then the app badge shows 2
 
+    # Owner, msg 275: "also, this page is almost really nice. I'd say center everything, and drop the nothing needs you to where the list would be underneith"
+    @v1 @browser
+    Scenario: With nothing waiting, the feed centres the wordmark, the all-clear line under it, and the folds
+      Given conversation 41 has an answered ask and a dismissed ask, and nothing else waits
+      When the owner opens Now
+      Then the wordmark, "All clear. Nothing needs you." and the fold chips are centred in the page column, in that order from the top
+      And the page does not scroll sideways
+
+    # Conv 16, msg 321: "the \"Now\" should always reflect if there's something in the feed if anything is there"
+    @v1 @browser
+    Scenario: The Now item shows how many items wait in the feed and updates live
+      Given 2 open asks, 1 snoozed ask and 1 answered ask
+      When the owner opens Now
+      Then the Now item in the rail and the Now tab on a phone show 2
+      When the agent answers nothing and the owner answers one ask
+      Then the Now item shows 1
+      When the owner answers the last ask
+      Then the Now item shows no count
+
+    # Conv 17, msg 323: "after approving a new bot, I should have a quick way to message it right after"
+    @v1 @browser
+    Scenario: After approving a new agent the card offers a message to it
+      Given an agent asked to connect as "dev-ci" from the machine "box-2"
+      When the owner opens Now and taps Approve
+      Then the card reads "@dev-ci joined" with a "Message @dev-ci" button
+      When the owner taps "Message @dev-ci"
+      Then a new conversation opens with @dev-ci tagged and the cursor in the composer
+
   Rule: The owner answers from Now without losing their place
 
     @v1 @browser @I-15
