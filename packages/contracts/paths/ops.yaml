@@ -50,3 +50,19 @@
       "501": { description: Not available yet. }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/admin/health: {}  # not specified yet
+/api/client-errors:
+  post:
+    x-authz: { auth: owner }
+    operationId: reportClientError
+    summary: The web app reports an uncaught error; the server writes one line to its own log and stores nothing.
+    description: |
+      The owner's device session only. At most 60 reports an hour per device session (429 after that); a body over 16 KB is 400.
+      The message is cut to 500 characters, the stack to 4 KB, and the page keeps its path only.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "../components/ops.yaml#/ClientErrorRequest" }
+    responses:
+      "204": { description: The line is written. }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }

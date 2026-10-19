@@ -71,6 +71,8 @@ type Server struct {
 	postLimit auth.Limiter
 	// statusLimit is 1 status update every 5 seconds per agent identity with a burst of 10: at most 10 in any 50 seconds (design §13.1).
 	statusLimit auth.Limiter
+	// clientErrorLimit caps the web app's error reports at 60 an hour per device session.
+	clientErrorLimit auth.Limiter
 	// dayIdentityLimit and dayMachineLimit are the daily message caps of an agent identity and of a machine (design §13.1).
 	dayIdentityLimit auth.Limiter
 	dayMachineLimit  auth.Limiter
@@ -112,6 +114,7 @@ func NewServer(store *db.Store, clock platform.Clock, wa *webauthn.WebAuthn, key
 		tokenMissLimit:     auth.Limiter{Window: time.Minute, Max: 30},
 		postLimit:          auth.Limiter{Window: 20 * time.Second, Max: 20},
 		statusLimit:        auth.Limiter{Window: 50 * time.Second, Max: 10},
+		clientErrorLimit:   auth.Limiter{Window: time.Hour, Max: clientErrorsPerHour},
 		agentStartLimit:    auth.Limiter{Window: time.Hour, Max: agentStartsPerHour},
 		agentStartAll:      auth.Limiter{Window: time.Hour, Max: agentStartsAllPerHour},
 		agentDownloadLimit: auth.Limiter{Window: time.Hour, Max: agentDownloadsPerHour},

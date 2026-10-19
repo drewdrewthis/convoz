@@ -1796,6 +1796,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/client-errors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The web app reports an uncaught error; the server writes one line to its own log and stores nothing.
+         * @description The owner's device session only. At most 60 reports an hour per device session (429 after that); a body over 16 KB is 400.
+         *     The message is cut to 500 characters, the stack to 4 KB, and the page keeps its path only.
+         */
+        post: operations["reportClientError"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/health": {
         parameters: {
             query?: never;
@@ -3182,6 +3203,21 @@ export interface components {
             status: "running" | "done" | "failed";
             /** @description Archive bytes */
             size?: number;
+        };
+        ClientErrorRequest: {
+            message: string;
+            stack: string;
+            /** @description The path of the page; never a query. */
+            page: string;
+            /** @description The web build that ran. */
+            build: string;
+            /** @description The browser's user agent. */
+            ua: string;
+            /**
+             * Format: int64
+             * @description The browser's time of the error
+             */
+            at: number;
         };
     };
     responses: {
@@ -6029,6 +6065,29 @@ export interface operations {
             };
             /** @description Not available yet. */
             501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    reportClientError: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientErrorRequest"];
+            };
+        };
+        responses: {
+            /** @description The line is written. */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
