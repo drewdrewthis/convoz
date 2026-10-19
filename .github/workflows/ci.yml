@@ -1,7 +1,10 @@
 name: ci
 
 on:
+  # A draft PR runs no CI; it runs when the PR is marked ready, then on each push (owner msg 709: "CI should not run on drafts,
+  # right? so you can also leverage the draft feature"). Set at the skeleton (5b3efa8) with no ruling before this.
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [master]
 
@@ -13,6 +16,7 @@ env:
 
 jobs:
   verify:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -114,7 +118,7 @@ jobs:
 
   # AC-1: the slice's scenarios fail on the test-only commit and pass at head.
   red-green:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
