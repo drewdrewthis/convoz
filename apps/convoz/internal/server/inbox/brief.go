@@ -119,11 +119,14 @@ func ReasonRank(reason string) int {
 	return len(reasonOrder)
 }
 
-// Render lays the brief out within MaxBytes. The handoff and the asks come first and are not cut by the conversations; the
+// Render lays the brief out within MaxBytes: the rules (wire.RulesText), then the sections. The handoff and the asks come first and are not cut by the conversations; the
 // conversation section takes what the others left (then the decisions), and lists ten conversations a page.
 func Render(in BriefInput) Brief {
 	total := ClampBriefBytes(in.MaxBytes)
-	budget := func(i int) int { return budgets[i] * total / DefaultBriefBytes }
+	// The rules come first and are never cut; the sections share what they leave, so the whole brief still fits max_bytes.
+	rules := wire.RulesText
+	room := max(total-len(rules)-1, 0)
+	budget := func(i int) int { return budgets[i] * room / DefaultBriefBytes }
 	page := max(in.Page, 1)
 
 	secs := make([]BriefSection, 8)
@@ -145,7 +148,7 @@ func Render(in BriefInput) Brief {
 	for i := range secs {
 		secs[i].Title = titleOf(secs[i].Text)
 	}
-	text := strings.Join(sectionTexts(secs), "\n")
+	text := rules + "\n" + strings.Join(sectionTexts(secs), "\n")
 	if len(text)+1 > total { // only a handoff of the full 4096 bytes at the smallest size gets here
 		text = cutBytes(text, total-1)
 	}

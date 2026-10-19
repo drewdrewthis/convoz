@@ -4,8 +4,9 @@ import type { AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { agentPort, agentServer } from "../lib/agent-port.ts";
+import { chatWorld } from "../lib/chat.ts";
 import { send } from "../lib/http.ts";
-import { baseEnv, expect, run, scenario } from "../lib/scenario.ts";
+import { baseEnv, convozBin, expect, run, scenario } from "../lib/scenario.ts";
 
 /** The binary the installer picks on this machine: convoz-<os>-<arch>. */
 const cliName = `convoz-${os.platform()}-${os.arch() === "x64" ? "amd64" : os.arch()}`;
@@ -158,4 +159,74 @@ scenario("Login warns when the CLI and the server differ in version", { tag: ["@
   } finally {
     await fake.close();
   }
+});
+
+/** A testhooks build reads this as its own version: the way a scenario makes "a convoz older than the server". */
+const OLD = "0.0.1-old";
+
+/** The binary under test, copied to a folder of its own: `convoz upgrade` replaces the copy and never the real file. */
+function copyOfConvoz(): string {
+  const file = path.join(scratch("convoz-bin-"), "convoz");
+  fs.copyFileSync(convozBin, file);
+  fs.chmodSync(file, 0o755);
+  return file;
+}
+
+scenario("An out-of-date CLI is told to upgrade", { tag: ["@cli"] }, async ({ server }) => {
+  // Given a machine logged in to a server, with a convoz older than that server
+  const w = await chatWorld(server, { agents: ["devtool"] });
+  const current = (await send(w.srv.target, "GET", "/api/version")).json().version as string;
+  const old = { env: { CONVOZ_TEST_VERSION: OLD } };
+
+  // When the agent runs "convoz inbox --peek"
+  const first = await w.box.run(["inbox", "--peek", "--as", "devtool"], old);
+
+  // Then the CLI exits 7 and prints the message
+  const message = `convoz is out of date (you have ${OLD}, the server runs ${current}). Run: convoz upgrade\n`;
+  expect({ code: first.code, stderr: first.stderr, stdout: first.stdout }).toEqual({ code: 7, stderr: message, stdout: "" });
+
+  // And running it again within 10 minutes prints the same without asking the server again: the answer is kept, and not rewritten
+  const kept = path.join(w.box.configDir, "version-check");
+  const stamp = fs.statSync(kept).mtimeMs;
+  const second = await w.box.run(["inbox", "--peek", "--as", "devtool"], old);
+  expect({ code: second.code, stderr: second.stderr }).toEqual({ code: 7, stderr: message });
+  expect(fs.statSync(kept).mtimeMs).toBe(stamp);
+
+  // And "convoz help", "convoz version" and "convoz whoami" still run
+  for (const argv of [["help"], ["version"], ["whoami"]]) {
+    const ok = await w.box.run(argv, old);
+    expect({ argv, code: ok.code, stderr: ok.stderr }).toEqual({ argv, code: 0, stderr: "" });
+  }
+
+  // And a convoz of the same version as the server runs the command
+  const same = await w.box.run(["inbox", "--peek", "--as", "devtool"]);
+  expect({ code: same.code, stderr: same.stderr }).toEqual({ code: 0, stderr: "" });
+});
+
+scenario("convoz upgrade replaces the binary and the skill", { tag: ["@cli"] }, async ({ server }) => {
+  // Given a machine logged in to a server, with a convoz older than that server and a stale skill file
+  const w = await chatWorld(server, { agents: ["devtool"] });
+  const current = (await send(w.srv.target, "GET", "/api/version")).json().version as string;
+  const bin = copyOfConvoz();
+  const skill = path.join(w.box.home, ".claude", "skills", "convoz", "SKILL.md");
+  fs.mkdirSync(path.dirname(skill), { recursive: true });
+  fs.writeFileSync(skill, "---\nname: convoz\n---\nA stale skill.\n");
+
+  // When the agent runs "convoz upgrade"
+  const up = await run(bin, ["upgrade"], { env: w.box.env({ env: { CONVOZ_TEST_VERSION: OLD } }), timeoutMs: 60_000 });
+
+  // Then it prints "Upgraded convoz <old> → <new>"
+  expect(up.code, up.stderr).toBe(0);
+  expect(up.stdout).toContain(`Upgraded convoz ${OLD} → ${current}`);
+
+  // And "convoz version" now prints the version of the server
+  const ver = await run(bin, ["version"], { env: w.box.env() });
+  expect(ver.stdout.startsWith(`convoz ${current} commit `)).toBe(true);
+
+  // And the skill file is the one of the new convoz
+  const fresh = await run(bin, ["skill"], { env: w.box.env() });
+  expect(fs.readFileSync(skill, "utf8")).toBe(fresh.stdout);
+
+  // And no temporary file is left next to the binary
+  expect(fs.readdirSync(path.dirname(bin))).toEqual(["convoz"]);
 });

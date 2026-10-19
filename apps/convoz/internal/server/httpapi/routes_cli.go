@@ -10,6 +10,7 @@ import (
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/clidist"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
 
 // cliRoutes hand out the CLI of this server: the installer and the binaries. Public on the same origin, with no credential: they
@@ -17,6 +18,13 @@ import (
 var cliRoutes = []Route{
 	{Method: "GET", Pattern: "/install", Auth: authz.Pub, Agent: "an agent installs the CLI", handle: (*Server).installScript},
 	{Method: "GET", Pattern: "/cli/:file", Auth: authz.Pub, Agent: "an agent installs the CLI", handle: (*Server).cliFile},
+	{Method: "GET", Pattern: wire.RouteRules, Auth: authz.Pub, Agent: "an agent reads the rules, whatever its CLI version", handle: (*Server).rulesText},
+}
+
+// rulesText is GET /api/rules: the rules every agent follows, from the one Go source (wire.RulesText).
+func (*Server) rulesText(w http.ResponseWriter, _ *http.Request, _ *call) {
+	w.Header().Set("Cache-Control", "no-cache") // a rule change reaches the next run
+	writeJSON(w, http.StatusOK, wire.RulesResponse{Text: wire.RulesText})
 }
 
 //go:embed install.sh
@@ -42,7 +50,7 @@ func (s *Server) installScript(w http.ResponseWriter, r *http.Request, _ *call) 
 	http.ServeContent(w, r, "", time.Time{}, strings.NewReader(body))
 }
 
-// cliFile serves convoz-<os>-<arch> and SHA256SUMS. With ?v=<this server's version> the answer is immutable: a version never
+// cliFile serves convoz-<os>-<arch>, convoz-<os>-<arch>.sha256 (the digest of that binary, in the format of sha256sum) and SHA256SUMS. With ?v=<this server's version> the answer is immutable: a version never
 // changes its bytes. Without it (or with another version) the browser revalidates through the ETag.
 func (s *Server) cliFile(w http.ResponseWriter, r *http.Request, _ *call) {
 	name := r.PathValue("file")
@@ -52,6 +60,10 @@ func (s *Server) cliFile(w http.ResponseWriter, r *http.Request, _ *call) {
 	if name == "SHA256SUMS" {
 		body, contentType = clidist.Sums(), "text/plain; charset=utf-8"
 		etag = `"` + s.Cfg.Version + `-sums"`
+	} else if bin, isSum := strings.CutSuffix(name, ".sha256"); isSum {
+		if f, ok := clidist.Lookup(bin); ok {
+			body, contentType, etag = []byte(f.SHA256+"  "+bin+"\n"), "text/plain; charset=utf-8", `"`+f.SHA256+`-sum"`
+		}
 	} else if f, ok := clidist.Lookup(name); ok {
 		body, etag = f.Body, `"`+f.SHA256+`"`
 	}
