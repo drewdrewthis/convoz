@@ -5,7 +5,9 @@ const RoutePlans = "/api/plans"
 
 // PlanRequest is PUT /api/conversations/:id/plan: the caller's whole plan for the conversation. The identity comes from the lease.
 type PlanRequest struct {
-	Doing string `json:"doing,omitempty"`
+	// Now lists up to 3 items done in parallel, each with its own step and estimate; it replaces Doing, Step and ETA (give one or the other).
+	Now   []PlanNowRequest `json:"now,omitempty"`
+	Doing string           `json:"doing,omitempty"`
 	// Step is "N/M": the Doing item is at step N of M.
 	Step string `json:"step,omitempty"`
 	// Blocked says what the agent waits on in this conversation (not the owner: that is Waiting).
@@ -20,6 +22,21 @@ type PlanRequest struct {
 	Done []string `json:"done,omitempty"`
 	// ClientID names the request: a retry with the same one after a lost answer changes nothing (I-24).
 	ClientID string `json:"client_id,omitempty"`
+}
+
+// PlanNowRequest is one Now item of a request: its text, its step as "N/M" and its estimate as for PlanRequest.ETA.
+type PlanNowRequest struct {
+	Text string `json:"text"`
+	Step string `json:"step,omitempty"`
+	ETA  string `json:"eta,omitempty"`
+}
+
+// PlanNow is one thing the agent does now, with its own step and estimate.
+type PlanNow struct {
+	Text  string    `json:"text"`
+	Since int64     `json:"since,omitempty"`
+	Step  *PlanStep `json:"step,omitempty"`
+	ETA   int64     `json:"eta,omitempty"`
 }
 
 // PlanStep is "step At of Of".
@@ -42,18 +59,20 @@ type PlanDone struct {
 
 // Plan is one agent's plan in one conversation.
 type Plan struct {
-	ConversationID int64         `json:"conversation_id"`
-	IdentityID     int64         `json:"identity_id"`
-	Handle         string        `json:"handle"`
-	Doing          string        `json:"doing"`
-	DoingSince     int64         `json:"doing_since,omitempty"`
-	Step           *PlanStep     `json:"step,omitempty"`
-	Blocked        string        `json:"blocked,omitempty"`
-	ETA            int64         `json:"eta,omitempty"`
-	Next           []string      `json:"next"`
-	Waiting        []PlanWaiting `json:"waiting"`
-	Done           []PlanDone    `json:"done"` // newest first, at most 20
-	UpdatedAt      int64         `json:"updated_at"`
+	ConversationID int64  `json:"conversation_id"`
+	IdentityID     int64  `json:"identity_id"`
+	Handle         string `json:"handle"`
+	// Now lists up to 3 items, each with its own step and estimate. Doing, DoingSince, Step and ETA are the first one, for older readers.
+	Now        []PlanNow     `json:"now"`
+	Doing      string        `json:"doing"`
+	DoingSince int64         `json:"doing_since,omitempty"`
+	Step       *PlanStep     `json:"step,omitempty"`
+	Blocked    string        `json:"blocked,omitempty"`
+	ETA        int64         `json:"eta,omitempty"`
+	Next       []string      `json:"next"`
+	Waiting    []PlanWaiting `json:"waiting"`
+	Done       []PlanDone    `json:"done"` // newest first, at most 20
+	UpdatedAt  int64         `json:"updated_at"`
 	// DueAt is when the plan turns overdue by its own clock: the ETA, or 2 h after the update for a Doing with no ETA.
 	DueAt int64 `json:"due_at,omitempty"`
 	// NudgedAt is when Convoz last asked the agent to update this plan; absent when it never did since the plan was written.
@@ -81,6 +100,7 @@ type PlanAttention struct {
 	Handle         string `json:"handle"`
 	Text           string `json:"text"`
 	ETA            int64  `json:"eta,omitempty"`
+	More           int    `json:"more,omitempty"` // the plan has this many more Now items than the line shows
 	LastSeenAt     int64  `json:"last_seen_at,omitempty"`
 }
 

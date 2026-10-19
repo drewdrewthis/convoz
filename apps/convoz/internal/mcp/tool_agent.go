@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strconv"
 	"strings"
 
@@ -69,24 +70,46 @@ func init() {
 	Register(Tool{Name: "plan", Order: 11, Description: "Replace your plan in one conversation: what you do now, next, what waits on the owner, what you finished.",
 		InputSchema: object([]string{"conversation"}, props{
 			"conversation": conv(),
-			"doing":        props{"type": "string", "maxLength": 200, "description": "What you do now (one item)."},
-			"step":         props{"type": "string", "pattern": "^[1-9][0-9]?/[1-9][0-9]?$", "description": "The step of the doing item, as N/M."},
-			"eta":          props{"type": "string", "maxLength": 20, "description": "When the doing item should be done: a duration (30m, 1h30m) or HH:MM on this machine's clock."},
-			"blocked":      props{"type": "string", "maxLength": 200, "description": "What blocks you here (not the owner: use waiting)."},
-			"next":         list("What you do next, in order.", props{"type": "string", "minLength": 1, "maxLength": 200}, 0, 5),
-			"waiting":      list("What waits on the owner; something new pushes the owner.", props{"type": "string", "minLength": 1, "maxLength": 200}, 0, 5),
-			"done":         list("Items you finished since your last plan.", props{"type": "string", "minLength": 1, "maxLength": 200}, 0, 5),
+			"doing": props{"description": "What you do now: a list of up to 3 items when you work in parallel, each {text, eta?, step?}. A single text (with step and eta below) also works.",
+				"oneOf": []props{
+					{"type": "string", "maxLength": 200},
+					list("", props{"type": "object", "required": []string{"text"}, "additionalProperties": false, "properties": props{
+						"text": props{"type": "string", "minLength": 1, "maxLength": 200},
+						"step": props{"type": "string", "pattern": "^[1-9][0-9]?/[1-9][0-9]?$", "description": "The step of this item, as N/M."},
+						"eta":  props{"type": "string", "maxLength": 20, "description": "When this item should be done: a duration (30m, 1h30m) or HH:MM on this machine's clock."},
+					}}, 1, 3),
+				}},
+			"step":    props{"type": "string", "pattern": "^[1-9][0-9]?/[1-9][0-9]?$", "description": "The step of a single doing text, as N/M."},
+			"eta":     props{"type": "string", "maxLength": 20, "description": "When a single doing text should be done: a duration (30m, 1h30m) or HH:MM on this machine's clock."},
+			"blocked": props{"type": "string", "maxLength": 200, "description": "What blocks you here (not the owner: use waiting)."},
+			"next":    list("What you do next, in order.", props{"type": "string", "minLength": 1, "maxLength": 200}, 0, 5),
+			"waiting": list("What waits on the owner; something new pushes the owner.", props{"type": "string", "minLength": 1, "maxLength": 200}, 0, 5),
+			"done":    list("Items you finished since your last plan.", props{"type": "string", "minLength": 1, "maxLength": 200}, 0, 5),
 		}),
 		Call: func(ctx context.Context, args json.RawMessage) (any, error) {
 			var a struct {
-				Conversation              int64
-				Doing, Step, ETA, Blocked string
-				Next, Waiting, Done       []string
+				Conversation        int64
+				Doing               json.RawMessage
+				Step, ETA, Blocked  string
+				Next, Waiting, Done []string
 			}
 			if err := decodeArgs(args, &a); err != nil {
 				return nil, err
 			}
-			argv := withFlag(withFlag(withFlag(withFlag(nil, "doing", a.Doing), "step", a.Step), "eta", a.ETA), "blocked", a.Blocked)
+			// a list is each item's --doing, --step, --eta in turn (the CLI reads a --step or --eta as the --doing before it)
+			var items []struct{ Text, Step, ETA string }
+			var one string
+			if json.Unmarshal(a.Doing, &items) != nil {
+				if err := json.Unmarshal(a.Doing, &one); err != nil && len(a.Doing) > 0 && string(a.Doing) != "null" {
+					return nil, errors.New("doing is a text or a list of up to 3 items, each {text, eta, step}")
+				}
+				items = []struct{ Text, Step, ETA string }{{one, a.Step, a.ETA}}
+			}
+			var argv []string
+			for _, it := range items {
+				argv = withFlag(withFlag(withFlag(argv, "doing", it.Text), "step", it.Step), "eta", it.ETA)
+			}
+			argv = withFlag(argv, "blocked", a.Blocked)
 			for _, kind := range []struct {
 				name  string
 				items []string

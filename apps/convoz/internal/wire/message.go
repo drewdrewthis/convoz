@@ -16,6 +16,7 @@ type System struct {
 	// Done, Now and Waiting are the plan items a plan.changed line quotes; Liveness is not_responding or logged_out (agent.unresponsive).
 	Done     string `json:"done,omitempty"`
 	Now      string `json:"now,omitempty"`
+	Next     string `json:"next,omitempty"`
 	Waiting  string `json:"waiting,omitempty"`
 	Liveness string `json:"liveness,omitempty"`
 }

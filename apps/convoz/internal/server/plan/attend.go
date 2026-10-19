@@ -55,7 +55,8 @@ type Attention struct {
 	State        string
 	Agent        int64
 	Text         string // the item that waits, what blocks, what is being done
-	ETA          int64  // late and working: the estimate
+	ETA          int64  // late and working: the estimate of the item the line shows
+	More         int    // working, late, stale: how many more Now items the plan has
 	LastSeenAt   int64  // not_responding: when the agent last made a call
 }
 
@@ -99,9 +100,14 @@ func Attend(now int64, plans []Plan, agents map[int64]Agent, asks []Ask) (out []
 			a.State, a.Text = StateWaiting, p.Waiting[0].Text
 		case p.Blocked != "":
 			a.State, a.Text = StateBlocked, p.Blocked
-		case p.Doing != "":
-			a.Text, a.ETA = p.Doing, p.ETA
-			switch p.Overdue(anchor, now) {
+		case len(p.Now) > 0:
+			// the line shows the most urgent item: the one that is overdue, else the first
+			it, state := p.MostOverdue(anchor, now)
+			if state == "" {
+				it = p.Now[0]
+			}
+			a.Text, a.ETA, a.More = it.Text, it.ETA, len(p.Now)-1
+			switch state {
 			case "late":
 				a.State = StateLate
 			case "stale":
@@ -115,8 +121,12 @@ func Attend(now int64, plans []Plan, agents map[int64]Agent, asks []Ask) (out []
 			a.State = StateDone
 		}
 		offer(a)
-		if p.Doing != "" && p.Blocked == "" && (p.ETA == 0 || anchor < p.ETA) {
-			soon(p.dueFrom(anchor))
+		if p.Blocked == "" {
+			for _, it := range p.Now {
+				if it.ETA == 0 || anchor < it.ETA {
+					soon(it.dueFrom(anchor))
+				}
+			}
 		}
 	}
 	for _, k := range asks {

@@ -1,7 +1,8 @@
 // The plan parts of the details panel (the UX pass approved for phase 1): "Waiting on you" with the action in place, then one card per
 // agent (its state, Now with the estimate, Next numbered, Done folded). The "Conversation" settings follow in Details.tsx.
 import type { Conversation, Person, Plan, PlanAgent, PlanBoard } from "@convoz/api-client";
-import { useEffect, useState } from "react";
+import { ChevronIcon } from "@convoz/ui/icons";
+import { useEffect, useRef, useState } from "react";
 import { initials, paletteOf, stripCf } from "../../shared/chat.ts";
 import { AskInline, useNow } from "../now/index.ts";
 import { ago, clock, dayLabel, span, usePlans, when, type Tone } from "../plan/index.ts";
@@ -10,6 +11,15 @@ import { ago, clock, dayLabel, span, usePlans, when, type Tone } from "../plan/i
 export interface PlanActions {
   say(text: string): void;
   reply(text: string): void;
+}
+
+/**
+ * planRequest is the message "Ask for a plan" and "Ask for an update" post: it says how to set the plan, not only to share one,
+ * so the agent runs `convoz plan` and the panel fills, instead of writing the plan as a chat message (owner msg 594).
+ */
+export function planRequest(handle: string, conv: number, kind: "share" | "update"): string {
+  const ask = kind === "share" ? "please set your plan for this conversation" : "please update your plan for this conversation";
+  return `@${handle}, ${ask}. Use \`convoz plan ${conv}\`, not a chat message, so it shows in the panel:\n\n\`\`\`\nconvoz plan ${conv} --doing "what you do now" --eta 30m --next "then this" --next "then that" --done "what you finished"\n\`\`\`\n\nAdd \`--waiting "what you need from me"\` or \`--blocked "what stops you"\` if any. Up to 3 things at once? Repeat `--doing`, each with its own `--eta` and `--step`. Keep it current as you work. With MCP, use the \`plan\` tool. See \`convoz plan --help\`.`;
 }
 
 const URL_RE = /https?:\/\/[^\s<>"]+/;
@@ -108,7 +118,7 @@ export function AgentsSection({ row, board, act, onAdd, onRemove }: { row: Conve
       </div>
       <ul aria-label="Agents" className="pcards">
         {agents.map((p) => (
-          <AgentCard key={p.handle} person={p} plan={board?.plans.find((x) => x.handle === p.handle)} agent={board?.agents.find((x) => x.handle === p.handle)} act={act} onRemove={onRemove} />
+          <AgentCard key={p.handle} person={p} plan={board?.plans.find((x) => x.handle === p.handle)} agent={board?.agents.find((x) => x.handle === p.handle)} conv={row.id} act={act} onRemove={onRemove} />
         ))}
       </ul>
       {agents.length === 0 ? (
@@ -145,7 +155,7 @@ function stateOf(plan: Plan | undefined, agent: PlanAgent | undefined, now: numb
   return { word: "Done", tone: "grey", sub };
 }
 
-function AgentCard({ person, plan, agent, act, onRemove }: { person: Person; plan: Plan | undefined; agent: PlanAgent | undefined; act: PlanActions; onRemove(iid: number, handle: string): void }) {
+function AgentCard({ person, plan, agent, conv, act, onRemove }: { person: Person; plan: Plan | undefined; agent: PlanAgent | undefined; conv: number; act: PlanActions; onRemove(iid: number, handle: string): void }) {
   const now = serverNow();
   const st = stateOf(plan, agent, now);
   const h = person.handle;
@@ -157,19 +167,17 @@ function AgentCard({ person, plan, agent, act, onRemove }: { person: Person; pla
         <Ava handle={h} />
         <span className="pname">
           <b>{`@${h}`}</b>
-          <span>{st ? st.sub : `No plan yet${seen ? ` · active ${ago(seen, now)}` : ""}`}</span>
-        </span>
-        {st ? (
-          <span className="pstate" data-tone={st.tone}>
-            <span className="pdot" data-tone={st.tone} aria-hidden="true" />
-            {st.word}
+          <span className="psub">
+            {st ? (
+              <span className="pstate" data-tone={st.tone}>
+                <span className="pdot" data-tone={st.tone} aria-hidden="true" />
+                {st.word}
+              </span>
+            ) : null}
+            <span>{st ? st.sub : `No plan yet${seen ? ` · active ${ago(seen, now)}` : ""}`}</span>
           </span>
-        ) : null}
-        {person.id ? (
-          <button type="button" className="quietbtn" aria-label={`Remove @${h}`} onClick={() => onRemove(person.id!, h)}>
-            Remove
-          </button>
-        ) : null}
+        </span>
+        {person.id ? <AgentMenu handle={h} onRemove={() => onRemove(person.id!, h)} /> : null}
       </div>
       {agent?.liveness === "not_responding" ? (
         <p className="pnote">{`It has not picked up your message${agent.unanswered_since ? ` from ${when(agent.unanswered_since, now)}` : ""}. Its plan below may be out of date.`}</p>
@@ -186,7 +194,7 @@ function AgentCard({ person, plan, agent, act, onRemove }: { person: Person; pla
       ) : null}
       {!plan ? (
         <div className="pacts">
-          <button type="button" className="chipbtn" onClick={() => act.say(`@${h}, please share your plan for this conversation.`)}>
+          <button type="button" className="chipbtn" onClick={() => act.say(planRequest(h, conv, "share"))}>
             Ask for a plan
           </button>
         </div>
@@ -195,7 +203,7 @@ function AgentCard({ person, plan, agent, act, onRemove }: { person: Person; pla
       )}
       {late ? (
         <div className="pacts">
-          <button type="button" className="chipbtn" onClick={() => act.say(`@${h}, please update your plan for this conversation.`)}>
+          <button type="button" className="chipbtn" onClick={() => act.say(planRequest(h, conv, "update"))}>
             Ask for an update
           </button>
         </div>
@@ -204,51 +212,99 @@ function AgentCard({ person, plan, agent, act, onRemove }: { person: Person; pla
   );
 }
 
+/** AgentMenu is the "⋯" of a card: Remove lives here, so the header keeps to the name, the state and the age (owner msg 646). */
+function AgentMenu({ handle, onRemove }: { handle: string; onRemove(): void }) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: Event) => root.current && !root.current.contains(e.target as Node) && setOpen(false);
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, [open]);
+  return (
+    <span className="pmore" ref={root}>
+      <button type="button" className="quietbtn" aria-label={`More for @${handle}`} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        ⋯
+      </button>
+      {open ? (
+        <div className="msg-menu" role="menu">
+          <button type="button" role="menuitem" onClick={() => (setOpen(false), onRemove())}>
+            {`Remove @${handle}`}
+          </button>
+        </div>
+      ) : null}
+    </span>
+  );
+}
+
+/** StepBar is "step N of M" as a row of segments, up to 12 (a longer plan is shown to scale). */
+function StepBar({ at, of }: { at: number; of: number }) {
+  const n = Math.min(of, 12);
+  const on = Math.round((at / of) * n);
+  return (
+    <span className="pstep">
+      <span className="pbar" role="img" aria-label={`Step ${at} of ${of}`}>
+        {Array.from({ length: n }, (_, i) => (
+          <i key={i} data-on={i < on || undefined} />
+        ))}
+      </span>
+      <span aria-hidden="true">{`${at} of ${of}`}</span>
+    </span>
+  );
+}
+
+/** NowBlock is one Now item: its title, its step bar and one muted line of times. Each parallel item has its own (owner msg 659). */
+function NowBlock({ item, now }: { item: NonNullable<Plan["now"]>[number]; now: number }) {
+  const late = Boolean(item.eta && now >= item.eta);
+  const meta = [item.since ? `Started ${when(item.since, now)}` : "", item.eta && !late ? `ready ~${when(item.eta, now)}` : ""].filter(Boolean).join(" · ");
+  return (
+    <div className="pnow">
+      <p className="plbl">Now</p>
+      <p className="pwhat">{item.text}</p>
+      {item.step ? <StepBar at={item.step.at} of={item.step.of} /> : null}
+      {late ? <p className="pwhen amber">{`Was due ${when(item.eta!, now)} · ${span(now - item.eta!)} late`}</p> : meta ? <p className="pwhen">{meta}</p> : null}
+    </div>
+  );
+}
+
 function PlanBody({ plan, now }: { plan: Plan; now: number }) {
-  const late = Boolean(plan.doing && plan.eta && now >= plan.eta);
-  const timing = [plan.step ? `Step ${plan.step.at} of ${plan.step.of}` : ""];
-  if (plan.eta && !late) timing.push(`ready ~${when(plan.eta, now)} · in ${span(plan.eta - now)}`);
-  if (!plan.eta && plan.doing_since) timing.push(`Started ${when(plan.doing_since, now)} · no estimate`);
+  const late = plan.now.some((n) => n.eta && now >= n.eta);
   return (
     <>
-      <div className="pnow">
-        <p className="plbl">Now</p>
-        {plan.doing ? (
-          <>
-            <p className="pwhat">{plan.doing}</p>
-            {late ? (
-              <p className="pwhen amber">{`Was due ${when(plan.eta!, now)} · ${span(now - plan.eta!)} late`}</p>
-            ) : timing.some(Boolean) ? (
-              <p className="pwhen">{timing.filter(Boolean).join(" · ")}</p>
-            ) : null}
-            {late && plan.nudged_at ? <p className="pnote">{`Convoz asked it for an update at ${when(plan.nudged_at, now)}.`}</p> : null}
-          </>
-        ) : (
+      {plan.now.length ? plan.now.map((n, i) => <NowBlock key={i} item={n} now={now} />) : (
+        <div className="pnow">
+          <p className="plbl">Now</p>
           <p className="pwhat quiet">Nothing planned</p>
-        )}
-        {plan.blocked ? <p className="pblk">{`Blocked: ${plan.blocked}`}</p> : null}
-      </div>
+        </div>
+      )}
+      {late && plan.nudged_at ? <p className="pnote">{`Convoz asked it for an update at ${when(plan.nudged_at, now)}.`}</p> : null}
+      {plan.blocked ? <p className="pblk">{`Blocked: ${plan.blocked}`}</p> : null}
       {plan.next.length ? (
-        <>
+        <div className="pnextbox">
           <p className="plbl">Next</p>
           <ol className="pnext" aria-label="Next">
             {plan.next.map((n) => (
               <li key={n}>{n}</li>
             ))}
           </ol>
-        </>
+        </div>
       ) : null}
       {plan.done.length ? <DoneFold plan={plan} now={now} /> : null}
     </>
   );
 }
 
-/** DoneFold is the Done history, folded like "Older": "Done · n" opens it, grouped by day with times. */
+/** DoneFold is the Done history, folded like "Older": a plain row, "Done · n", opens it, grouped by day with times. */
 function DoneFold({ plan, now }: { plan: Plan; now: number }) {
   const [open, setOpen] = useState(false);
   let day = "";
   return (
     <div className="pfold">
+      <button type="button" className="pfoldrow" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <span>{`Done · ${plan.done.length}`}</span>
+        <ChevronIcon />
+      </button>
       {open ? (
         <ul className="pdone" aria-label="Done">
           {plan.done.flatMap((d, i) => {
@@ -265,9 +321,6 @@ function DoneFold({ plan, now }: { plan: Plan; now: number }) {
           })}
         </ul>
       ) : null}
-      <button type="button" className="foldbtn" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        {open ? "Show less" : `Done · ${plan.done.length}`}
-      </button>
     </div>
   );
 }

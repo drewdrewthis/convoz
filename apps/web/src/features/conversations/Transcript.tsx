@@ -347,7 +347,7 @@ function RowBody({ row, threaded, me, paused, conversation, onRetry, onDetails, 
   const { message: m, pending: p } = row;
   const pinned = useData((s) => Boolean(m && s.rows[conversation]?.pinned?.some((x) => x.id === m.id)));
   if (m?.kind === "system" || m?.author.kind === "system") {
-    return <NoticeRow message={m} canResume={paused === m.id} onResume={() => void resume(conversation)} />;
+    return <NoticeRow message={m} conversation={conversation} canResume={paused === m.id} onResume={() => void resume(conversation)} />;
   }
   if (m?.deleted) {
     return <Article person={m.author} me={me} first={row.first} stamp={clock(m.created_at)} body={<div className="text tombstone">Message deleted</div>} />;

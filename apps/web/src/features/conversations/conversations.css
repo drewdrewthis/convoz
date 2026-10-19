@@ -149,26 +149,34 @@
   .aghead { display: flex; align-items: center; gap: 10px; min-height: 44px; }
   .pname { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .pname b { font-size: 14px; font-weight: 600; }
-  .pname span { font-size: 12px; color: var(--color-muted); font-variant-numeric: tabular-nums; }
-  .pstate { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; white-space: nowrap; color: var(--color-muted); }
+  .psub { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; margin-top: 2px; font-size: 12px; color: var(--color-muted); font-variant-numeric: tabular-nums; }
+  .pstate { display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; color: var(--color-muted); background: color-mix(in srgb, currentColor 12%, transparent); }
+  .pmore { position: relative; flex: none; }
   .pstate[data-tone="green"] { color: var(--color-success); }
   .pstate[data-tone="amber"] { color: var(--color-warning); }
   .pstate[data-tone="red"] { color: var(--color-danger); }
   .plbl { margin: 8px 0 2px; font-size: 12px; font-weight: 600; color: var(--color-muted); }
-  .pnow { margin-top: 6px; padding-top: 4px; border-top: 1px solid var(--color-border); }
-  .pnow .plbl { margin-top: 4px; }
-  .pwhat { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.35; }
+  .pnow { margin-top: 8px; padding: 8px 10px; border-left: 3px solid var(--color-accent); border-radius: 4px 10px 10px 4px; background: color-mix(in srgb, var(--color-accent) 8%, var(--color-raised)); }
+  .pnow .plbl { margin: 0 0 2px; }
+  .pwhat { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.35; }
+  .pstep { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 12px; color: var(--color-muted); font-variant-numeric: tabular-nums; }
+  .pbar { display: inline-flex; gap: 3px; }
+  .pbar i { width: 14px; height: 4px; border-radius: 2px; background: var(--color-border); }
+  .pbar i[data-on] { background: var(--color-accent); }
   .pwhat.quiet { font-weight: 500; color: var(--color-muted); }
   .pwhen { margin: 2px 0 0; font-size: 13px; color: var(--color-muted); font-variant-numeric: tabular-nums; }
   .pwhen.amber { color: var(--color-warning); font-weight: 600; }
   .pblk { margin: 8px 0 0; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--color-danger) 12%, var(--color-raised)); color: var(--color-danger); font-size: 13.5px; font-weight: 600; }
   .pnote { margin: 8px 0 0; font-size: 13px; color: var(--color-muted); }
-  .pnext { margin: 0; padding: 0 0 0 26px; }
-  .pnext li { padding: 4px 0; font-size: 14px; line-height: 1.35; }
+  .pnextbox { margin-top: 4px; }
+  .pnext { margin: 0; padding: 0 0 0 22px; color: var(--color-muted); }
+  .pnext li { padding: 2px 0; font-size: 13px; line-height: 1.35; }
   .pnext li::marker { color: var(--color-muted); font-size: 13px; }
   .pfold { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--color-border); }
-  .foldbtn { min-height: 44px; padding: 0 14px; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-surface); color: var(--color-muted); font: inherit; font-size: 13px; cursor: pointer; }
-  .foldbtn[aria-expanded="true"] { color: var(--color-text); }
+  .pfoldrow { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 44px; padding: 0; border: 0; background: none; color: var(--color-muted); font: inherit; font-size: 13px; cursor: pointer; }
+  .pfoldrow svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s; }
+  .pfoldrow[aria-expanded="true"] { color: var(--color-text); }
+  .pfoldrow[aria-expanded="true"] svg { transform: rotate(90deg); }
   .pdone { list-style: none; margin: 4px 0; padding: 0; }
   .pdone .pday { padding: 8px 0 2px; font-size: 12px; font-weight: 600; color: var(--color-muted); }
   .pdone .pd { display: flex; align-items: baseline; gap: 10px; padding: 5px 0; font-size: 14px; color: var(--color-muted); }

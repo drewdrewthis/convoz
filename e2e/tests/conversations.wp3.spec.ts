@@ -419,7 +419,9 @@ scenario("A removed agent gets nothing more from that conversation", { tag: ["@b
 
   // When the owner removes "devtool" from conversation 41
   const panel = await showDetails(page);
-  await panel.getByRole("button", { name: "Remove @devtool" }).click();
+  // msg 646: Remove moved into the "⋯" menu of the agent's card
+  await panel.getByRole("button", { name: "More for @devtool" }).click();
+  await panel.getByRole("menuitem", { name: "Remove @devtool" }).click();
 
   // Then conversation 41 shows the system line "@devtool was removed"
   await expect(page.getByRole("log", { name: "Messages" }).getByText("@devtool was removed")).toBeVisible();
@@ -473,7 +475,9 @@ scenario("Remove agent shows a 10 second Undo toast and Undo puts the agent back
 
   // When the owner removes "devtool" from conversation 41
   const panel = await showDetails(page);
-  await panel.getByRole("button", { name: "Remove @devtool" }).click();
+  // msg 646: Remove moved into the "⋯" menu of the agent's card
+  await panel.getByRole("button", { name: "More for @devtool" }).click();
+  await panel.getByRole("menuitem", { name: "Remove @devtool" }).click();
   await expect(panel.getByRole("list", { name: "Agents" }).getByRole("listitem")).toHaveCount(0);
 
   // Then a toast says "Removed @devtool" with an Undo button for 10 seconds

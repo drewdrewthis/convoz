@@ -8,6 +8,7 @@ import {
 } from "../lib/plan.ts";
 import { decrypt, newSub, notes, received, settled, sleep, subscribe } from "../lib/push-wp14.ts";
 import { must } from "../lib/owner.ts";
+import { showDetails } from "../lib/wp3.ts";
 import { expect, scenario } from "../lib/scenario.ts";
 
 // plan.feature. The contract is the block at the top of lib/plan.ts.
@@ -77,6 +78,78 @@ scenario("An agent sets its plan with the plan tool", { tag: ["@mcp"] }, async (
   } finally {
     mcp.end();
   }
+});
+
+// ---- Rule: Up to 3 Now items, for an agent that works in parallel (owner msg 659) ---------------------------------------
+
+scenario("An agent working in parallel shows up to 3 Now items, each with its own estimate", { tag: ["@cli"] }, async ({ server, testApi }) => {
+  const p = await planWorld(server, { docsIn: false, env: { CONVOZ_TEST_PLAINTEXT: "1" } });
+
+  // When "devtool" runs "convoz plan 41 --doing 'Fix #8675 findings' --eta 30m --step 1/4 --doing 'Build #8798' --eta 2h"
+  const res = await mustPlan(p, p.dev, ["--doing", "Fix #8675 findings", "--eta", "30m", "--step", "1/4", "--doing", "Build #8798", "--eta", "2h"]);
+
+  // Then the command prints both Now items, the first with "step 1 of 4"
+  expect(res.stdout).toContain("Doing: Fix #8675 findings (step 1 of 4)");
+  expect(res.stdout).toContain("Doing: Build #8798");
+
+  // And the plan has 2 Now items, each with its own estimate
+  const mine = (await planOf(p, "devtool"))!;
+  expect(mine.now?.map((n) => n.text)).toEqual(["Fix #8675 findings", "Build #8798"]);
+  expect(mine.now![0]!.step).toEqual({ at: 1, of: 4 });
+  expect(mine.now![1]!.eta! - mine.now![0]!.eta!).toBeGreaterThan(80 * MIN);
+  expect(mine.now![1]!.step).toBeUndefined();
+
+  // And the line under the title reads the first item
+  expect((await board(p)).attention[0]).toMatchObject({ state: "working", text: "Fix #8675 findings", more: 1 });
+
+  // When 31 minutes pass with no update
+  await testApi(p.w.srv).advanceClock(31 * MIN);
+
+  // Then the plan is late by the first item, and the line shows it with "+1"
+  expect((await board(p)).attention[0]).toMatchObject({ state: "late", text: "Fix #8675 findings", more: 1 });
+  // And the nudge to "devtool" names "Fix #8675 findings"
+  const due = (await inboxItems(p.w.box, p.dev.sid, [])).filter((i) => i.reason === "status_due");
+  expect(due).toHaveLength(1);
+  expect(due[0]!.message.body).toContain("Fix #8675 findings");
+});
+
+scenario("The plan tool takes up to 3 Now items, each with its own estimate", { tag: ["@mcp"] }, async ({ server }) => {
+  const p = await planWorld(server);
+  const mcp = await McpClient.start(p.w.box, "devtool", "claude-TESTONLY-plan-par");
+  try {
+    // When "devtool" calls the MCP tool "plan" with doing a list of two items, each with its own eta
+    const out = await mcp.tool("plan", { conversation: p.conv, doing: [{ text: "Fix #8675 findings", eta: "30m", step: "1/4" }, { text: "Build #8798", eta: "2h" }] });
+    expect(out.isError ?? false, JSON.stringify(out)).toBe(false);
+
+    // Then the plan has those 2 Now items, each with its own estimate
+    const mine = (await planOf(p, "devtool"))!;
+    expect(mine.now?.map((n) => n.text)).toEqual(["Fix #8675 findings", "Build #8798"]);
+    expect(mine.now![0]!.step).toEqual({ at: 1, of: 4 });
+    expect(mine.now!.every((n) => n.eta)).toBe(true);
+
+    // When "devtool" calls the tool with doing as the single text "Build #8798"
+    const one = await mcp.tool("plan", { conversation: p.conv, doing: "Build #8798" });
+    expect(one.isError ?? false, JSON.stringify(one)).toBe(false);
+
+    // Then the plan has 1 Now item "Build #8798"
+    expect((await planOf(p, "devtool"))!.now?.map((n) => n.text)).toEqual(["Build #8798"]);
+  } finally {
+    mcp.end();
+  }
+});
+
+scenario("A fourth --doing is refused with a clear message", { tag: ["@cli"] }, async ({ server }) => {
+  const p = await planWorld(server);
+  // When "devtool" runs "convoz plan 41" with 4 "--doing" items
+  const four = await plan(p, p.dev, [1, 2, 3, 4].flatMap((i) => ["--doing", `Item ${i}`]));
+  // Then it exits 2 and says "--doing is at most 3 items"
+  expect(four.code).toBe(2);
+  expect(four.stderr).toContain("--doing is at most 3 items");
+  // When "devtool" runs "convoz plan 41 --eta 30m"
+  const lone = await plan(p, p.dev, ["--eta", "30m"]);
+  // Then it exits 2 and says "--eta needs a --doing before it"
+  expect(lone.code).toBe(2);
+  expect(lone.stderr).toContain("--eta needs a --doing before it");
 });
 
 // ---- Rule: One line under the title shows the most urgent state across the agents ---------------------------------------
@@ -173,7 +246,9 @@ scenario("The details panel puts what waits on the owner first, then each agent'
   const dev = agents.getByRole("listitem").filter({ hasText: "@devtool" }).first();
   await expect(dev).toContainText("Working");
   await expect(dev).toContainText("Switch on the internet door");
-  await expect(dev).toContainText("Step 2 of 3 · ready ~");
+  // msg 646: the step is a bar (named "Step 2 of 3"), and the time is one muted line, so it no longer reads "Step 2 of 3 · ready ~"
+  await expect(dev.getByRole("img", { name: "Step 2 of 3" })).toBeVisible();
+  await expect(dev).toContainText("ready ~");
   await expect(dev.getByRole("list", { name: "Next" }).getByRole("listitem")).toHaveText(["Reply chip", "Faster first load"]);
 
   // And its Done items are folded as "Done · 5"; tapping it shows all 5 under "Today"
@@ -197,6 +272,86 @@ scenario("The details panel puts what waits on the owner first, then each agent'
   await waiting.getByRole("button", { name: "I did it" }).click();
   await expect(waiting).toContainText("You said it is done");
   await expect.poll(async () => (await messagesOf(p.w.owner, p.conv)).map((m) => m.body)).toContain("@devtool I did it: Paste the prompt to dot");
+});
+
+scenario("Ask for a plan tells the agent the command that sets it", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  const p = await planUi({ server, page, context });
+  // Given "docs" has no plan in conversation 41
+  // When the owner opens the details of conversation 41 and taps "Ask for a plan" on the card of "@docs"
+  await page.goto(`${p.w.srv.origin}/chats/${p.conv}`);
+  const panel = await showDetails(page); // no agent has a plan, so there is no line under the title to tap
+  const docs = panel.getByRole("region", { name: "Agents · 2" }).getByRole("listitem").filter({ hasText: "@docs" });
+  await docs.getByRole("button", { name: "Ask for a plan" }).click();
+
+  // Then the chat shows the owner's message to "@docs" with "convoz plan 41 --doing" and "not a chat message"
+  const sent = async () => (await messagesOf(p.w.owner, p.conv)).map((m) => m.body).find((b) => b.startsWith("@docs, please set your plan")) ?? "";
+  await expect.poll(sent).toContain(`convoz plan ${p.conv} --doing`);
+  expect(await sent()).toContain("not a chat message");
+  // And it names the MCP "plan" tool and "convoz plan --help"
+  expect(await sent()).toContain("use the `plan` tool");
+  expect(await sent()).toContain("convoz plan --help");
+});
+
+scenario("The plan card puts Remove in a menu and shows the step as a bar", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  const p = await planUi({ server, page, context });
+  // Given "devtool" finished "One-time invites" and planned Doing "Switch on the internet door" at step 2 of 3 ready in 15 minutes and Next "Reply chip"
+  await mustPlan(p, p.dev, ["--done", "One-time invites"]);
+  await mustPlan(p, p.dev, ["--doing", "Switch on the internet door", "--step", "2/3", "--eta", "15m", "--next", "Reply chip", "--waiting", "Paste the prompt to dot"]);
+  await mustPlan(p, p.docs, ["--doing", "Docs", "--blocked", "needs Tailscale ACL change"]);
+
+  // When the owner opens the details of conversation 41
+  await page.goto(`${p.w.srv.origin}/chats/${p.conv}`);
+  const panel = await showDetails(page);
+  const dev = panel.getByRole("region", { name: "Agents · 2" }).getByRole("listitem").filter({ hasText: "@devtool" }).first();
+
+  // Then the card shows "Working", "updated" and a menu button, and no "Remove" button
+  await expect(dev).toContainText("Working");
+  await expect(dev).toContainText("updated");
+  await expect(dev.getByRole("button", { name: "More for @devtool" })).toBeVisible();
+  await expect(dev.getByRole("button", { name: "Remove @devtool" })).toHaveCount(0);
+  // And Now shows the title with a step bar at 2 of 3 and "ready ~"
+  await expect(dev.locator(".pnow")).toContainText("Switch on the internet door");
+  await expect(dev.getByRole("img", { name: "Step 2 of 3" })).toBeVisible();
+  await expect(dev.locator(".pnow")).toContainText("ready ~");
+  await expect(dev).not.toContainText("no estimate");
+  await page.screenshot({ path: "/tmp/plancard-desktop.png" });
+
+  // And at 320 pixels wide the panel has no sideways scroll and every button is at least 44 pixels tall
+  await page.setViewportSize({ width: 320, height: 700 });
+  await expect.poll(() => overflowX(page)).toBe(0);
+  const short = await panel.locator("button, a.chipbtn").evaluateAll((list) => list.filter((b) => b.getBoundingClientRect().height > 0 && b.getBoundingClientRect().height < 43.5).map((b) => b.textContent));
+  expect(short).toEqual([]);
+  await dev.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: "/tmp/plancard-phone.png" });
+
+  // When the owner opens the menu and taps "Remove"
+  await dev.getByRole("button", { name: "More for @devtool" }).click();
+  await page.getByRole("menuitem", { name: "Remove @devtool" }).click();
+  // Then "@devtool" is removed at once and a toast offers Undo, as before
+  await expect(page.getByText("Removed @devtool")).toBeVisible();
+});
+
+scenario("The card and the line show each parallel Now item with its own estimate", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  const p = await planUi({ server, page, context });
+  // Given "devtool" planned Doing "Fix #8675 findings" at step 1 of 4 ready in 30 minutes and Doing "Build #8798" ready in 2 hours
+  await mustPlan(p, p.dev, ["--doing", "Fix #8675 findings", "--step", "1/4", "--eta", "30m", "--doing", "Build #8798", "--eta", "2h"]);
+  // When the owner opens conversation 41
+  await page.goto(`${p.w.srv.origin}/chats/${p.conv}`);
+  // Then the line under the title reads "Working · Fix #8675 findings" with "+1"
+  await expect(planLine(page)).toContainText("Working · Fix #8675 findings");
+  await expect(planLine(page)).toContainText("+1");
+  // When the owner taps the line
+  await planLine(page).click();
+  // Then the card shows two Now blocks, each with its own "ready ~", and the step bar only on the first
+  const dev = detailsPanel(page).getByRole("region", { name: "Agents · 2" }).getByRole("listitem").filter({ hasText: "@devtool" }).first();
+  const blocks = dev.locator(".pnow");
+  await expect(blocks).toHaveCount(2);
+  await expect(blocks.nth(0)).toContainText("Fix #8675 findings");
+  await expect(blocks.nth(0)).toContainText("ready ~");
+  await expect(blocks.nth(0).getByRole("img", { name: "Step 1 of 4" })).toBeVisible();
+  await expect(blocks.nth(1)).toContainText("Build #8798");
+  await expect(blocks.nth(1)).toContainText("ready ~");
+  await expect(blocks.nth(1).getByRole("img")).toHaveCount(0);
 });
 
 scenario("The panel says when an agent is late or blocked", { tag: ["@browser"] }, async ({ server, page, context, testApi }) => {
@@ -290,8 +445,10 @@ scenario("The line and the panel update live, and a quiet line marks a finished 
   await expect(planLine(page)).toHaveText(`Working · Switch on the internet door · ready ~${await clockIn(page, first)}`);
 
   // And the chat shows the quiet line
-  const quiet = quietLine(page, "@devtool · Done: One-time invites · Now: Switch on the internet door");
+  // msg 632: the quiet line is now one row, "@devtool updated its plan", with Now beside it; Done shows when the row opens
+  const quiet = quietLine(page, "@devtool updated its plan");
   await expect(quiet).toHaveCount(1);
+  await expect(quiet).toContainText("Now: Switch on the internet door");
 
   // When "devtool" only moves its ready time to 40 minutes
   await mustPlan(p, p.dev, ["--doing", "Switch on the internet door", "--eta", "40m"]);
@@ -300,7 +457,42 @@ scenario("The line and the panel update live, and a quiet line marks a finished 
   const moved = (await planOf(p, "devtool"))!.eta!;
   await expect(planLine(page)).toHaveText(`Working · Switch on the internet door · ready ~${await clockIn(page, moved)}`);
   await sleep(500);
-  await expect(quietLine(page, "@devtool ·")).toHaveCount(1);
+  await expect(quietLine(page, "@devtool updated its plan")).toHaveCount(1); // msg 632: the row's new words
+});
+
+scenario("A plan update in the chat is one quiet row that expands", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  const p = await planUi({ server, page, context });
+  // Given "devtool" works on "One-time invites" and the owner has conversation 41 open
+  await mustPlan(p, p.dev, ["--doing", "One-time invites"]);
+  await page.goto(`${p.w.srv.origin}/chats/${p.conv}`);
+  await expect(planLine(page)).toBeVisible();
+
+  // When "devtool" runs "convoz plan 41 --done 'One-time invites' --doing 'Switch on the internet door' --waiting 'Approve the dot card'"
+  await mustPlan(p, p.dev, ["--done", "One-time invites", "--doing", "Switch on the internet door", "--next", "Reply chip", "--waiting", "Approve the dot card"]);
+
+  // Then the chat shows one row "@devtool updated its plan" with "Now: Switch on the internet door" and the pill "Waiting on you · 1"
+  const row = quietLine(page, "@devtool updated its plan");
+  await expect(row).toHaveCount(1);
+  await expect(row).toContainText("Now: Switch on the internet door");
+  const pill = row.getByRole("button", { name: "Waiting on you · 1" });
+  await expect(pill).toBeVisible();
+  // And the row is collapsed and shows no "Done:" line, and is not a list bullet
+  await expect(row.getByText("Done", { exact: true })).toHaveCount(0);
+  await page.screenshot({ path: "/tmp/planline-collapsed.png" });
+
+  // When the owner taps the row
+  await row.getByRole("button", { name: /updated its plan/ }).click();
+  // Then it shows the labelled lines "Done" "One-time invites", "Now", "Next" and "Waiting"
+  for (const [label, text] of [["Done", "One-time invites"], ["Now", "Switch on the internet door"], ["Next", "Reply chip"], ["Waiting", "Approve the dot card"]]) {
+    await expect(row.getByText(label!, { exact: true })).toBeVisible();
+    await expect(row).toContainText(text!);
+  }
+  await page.screenshot({ path: "/tmp/planline-expanded.png" });
+
+  // When the owner taps the pill "Waiting on you · 1"
+  await pill.click();
+  // Then the details panel opens
+  await expect(detailsPanel(page)).toBeVisible();
 });
 
 scenario("Only something new that waits on the owner pushes", { tag: ["@api"] }, async ({ server, dataDir }, info) => {

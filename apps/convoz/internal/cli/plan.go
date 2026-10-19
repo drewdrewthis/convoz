@@ -12,10 +12,52 @@ import (
 // Limits of a plan, the same as the server's (plan.feature).
 const (
 	maxPlanText    = 200
+	maxPlanNow     = 3
 	maxPlanNext    = 5
 	maxPlanWaiting = 5
 	maxPlanDone    = 5
 )
+
+// nowItems collects the Now items in the order the flags come: each --step and --eta belongs to the --doing just before it, so one
+// ordered collector serves the three flags (a flag.FlagSet alone cannot say which --eta followed which --doing).
+type nowItems struct {
+	items []wire.PlanNowRequest
+	bad   string // the first misuse, said when the parse is done
+}
+
+type nowFlag struct {
+	n    *nowItems
+	kind string // doing, step or eta
+}
+
+func (f nowFlag) String() string { return "" }
+
+func (f nowFlag) Set(v string) error {
+	n := f.n
+	if f.kind == "doing" {
+		n.items = append(n.items, wire.PlanNowRequest{Text: v})
+		return nil
+	}
+	if len(n.items) == 0 {
+		n.fail("--" + f.kind + " needs a --doing before it")
+		return nil
+	}
+	it := &n.items[len(n.items)-1]
+	if f.kind == "step" && it.Step != "" || f.kind == "eta" && it.ETA != "" {
+		n.fail("--" + f.kind + " is given twice for " + `"` + it.Text + `"`)
+	} else if f.kind == "step" {
+		it.Step = v
+	} else {
+		it.ETA = v
+	}
+	return nil
+}
+
+func (n *nowItems) fail(msg string) {
+	if n.bad == "" {
+		n.bad = msg
+	}
+}
 
 // Plan runs `convoz plan <conv> ...`: it replaces the agent's whole plan for the conversation at once, so the owner never sees half
 // of it. The owner sees the line under the conversation's title, the details panel and a dot in the list. A plan with --doing also
@@ -23,16 +65,17 @@ const (
 // plan without --waiting has nothing waiting on the owner any more. It prints the plan as stored.
 func Plan(args []string, io IO) int {
 	f := newChatFlags("plan", io)
-	doing := f.fs.String("doing", "", "what you do now (at most one item, 200 characters)")
-	step := f.fs.String("step", "", "the step of the doing item, as N/M (step 2 of 3 is 2/3)")
-	eta := f.fs.String("eta", "", "when the doing item should be done: a duration (30m, 1h30m) or a time HH:MM on this machine's clock")
+	var now nowItems
+	f.fs.Var(nowFlag{&now, "doing"}, "doing", "what you do now (200 characters); up to 3 times when you work in parallel")
+	f.fs.Var(nowFlag{&now, "step"}, "step", "the step of the --doing before it, as N/M (step 2 of 3 is 2/3)")
+	f.fs.Var(nowFlag{&now, "eta"}, "eta", "when the --doing before it should be done: a duration (30m, 1h30m) or a time HH:MM on this machine's clock")
 	blocked := f.fs.String("blocked", "", "what blocks you here (not the owner: use --waiting for that)")
 	var next, waiting, done repeated
 	f.fs.Var(&next, "next", "what you do next, in order (up to 5 times)")
 	f.fs.Var(&waiting, "waiting", "what waits on the owner (up to 5 times); something new pushes the owner")
 	f.fs.Var(&done, "done", "an item you finished (up to 5 times); a quiet line tells the owner")
 	clientID := f.fs.String("client-id", "", "the id that makes a retry safe; random when not given")
-	usage := "usage: convoz plan <conv> [--doing D] [--step N/M] [--eta 30m|HH:MM] [--blocked B] [--next N]... [--waiting W]... [--done D]..."
+	usage := "usage: convoz plan <conv> [--doing D [--step N/M] [--eta 30m|HH:MM]]... [--blocked B] [--next N]... [--waiting W]... [--done D]..."
 	pos, ok := f.parse(args, io)
 	if !ok {
 		return ExitUsage
@@ -44,6 +87,12 @@ func Plan(args []string, io IO) int {
 	if !ok {
 		return ExitUsage
 	}
+	if now.bad != "" {
+		return usageError(io, now.bad)
+	}
+	if len(now.items) > maxPlanNow {
+		return usageError(io, fmt.Sprintf("--doing is at most %d items", maxPlanNow))
+	}
 	for _, c := range []struct {
 		name  string
 		items []string
@@ -53,13 +102,14 @@ func Plan(args []string, io IO) int {
 			return usageError(io, fmt.Sprintf("--%s is at most %d items", c.name, c.most))
 		}
 	}
-	for _, t := range append(append(append([]string{*doing, *blocked}, next...), waiting...), done...) {
+	texts := append(append(append([]string{*blocked}, next...), waiting...), done...)
+	for _, it := range now.items {
+		texts = append(texts, it.Text)
+	}
+	for _, t := range texts {
 		if utf8.RuneCountInString(t) > maxPlanText {
 			return usageError(io, fmt.Sprintf("an item is at most %d characters", maxPlanText))
 		}
-	}
-	if *doing == "" && (*eta != "" || *step != "") {
-		return usageError(io, "--eta and --step belong to --doing")
 	}
 	k, code := f.open(io)
 	if k == nil {
@@ -69,7 +119,12 @@ func Plan(args []string, io IO) int {
 		*clientID = "convoz-" + randomHex(8)
 	}
 	_, offset := time.Now().Zone()
-	req := wire.PlanRequest{Doing: *doing, Step: *step, ETA: *eta, UTCOffset: offset, Blocked: *blocked, Next: next, Waiting: waiting, Done: done, ClientID: *clientID}
+	req := wire.PlanRequest{UTCOffset: offset, Blocked: *blocked, Next: next, Waiting: waiting, Done: done, ClientID: *clientID}
+	if len(now.items) == 1 { // one item goes in the older form, which every server reads
+		req.Doing, req.Step, req.ETA = now.items[0].Text, now.items[0].Step, now.items[0].ETA
+	} else {
+		req.Now = now.items
+	}
 	var stored wire.Plan
 	if err := k.callRetry("PUT", convPath(conv, "plan"), req, &stored); err != nil {
 		return k.fail(err)
@@ -85,13 +140,13 @@ func Plan(args []string, io IO) int {
 // planText is a plan as lines a person reads: one item per line, its kind first.
 func planText(p wire.Plan) string {
 	var b strings.Builder
-	if p.Doing != "" {
-		line := "Doing: " + plain(p.Doing)
-		if p.Step != nil {
-			line += fmt.Sprintf(" (step %d of %d)", p.Step.At, p.Step.Of)
+	for _, it := range p.Now {
+		line := "Doing: " + plain(it.Text)
+		if it.Step != nil {
+			line += fmt.Sprintf(" (step %d of %d)", it.Step.At, it.Step.Of)
 		}
-		if p.ETA != 0 {
-			line += " · ready ~" + time.UnixMilli(p.ETA).Format("15:04")
+		if it.ETA != 0 {
+			line += " · ready ~" + time.UnixMilli(it.ETA).Format("15:04")
 		}
 		b.WriteString(line + "\n")
 	}

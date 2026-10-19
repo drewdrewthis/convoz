@@ -69,12 +69,12 @@ func (s *Server) putPlan(w http.ResponseWriter, r *http.Request, c *call) {
 		if ch.Repeat {
 			return nil
 		}
-		if p.Doing != "" {
+		if len(p.Now) > 0 {
 			next := ""
 			if len(p.Next) > 0 {
 				next = p.Next[0]
 			}
-			if _, err := identity.SetStatus(ctx, d, now, who, "working", p.Doing, next); err != nil {
+			if _, err := identity.SetStatus(ctx, d, now, who, "working", p.Now[0].Text, next); err != nil {
 				return err
 			}
 			if _, err := event.Write(ctx, d, now, event.Entry{Type: eventStatusChanged, Actor: who, Session: c.p.SessionID, Payload: map[string]any{"state": "working"}}); err != nil {
@@ -87,9 +87,8 @@ func (s *Server) putPlan(w http.ResponseWriter, r *http.Request, c *call) {
 			return err
 		}
 		line := message.SystemLine{T: "plan.changed", Identity: who, Done: quote(ch.Done), Waiting: quote(ch.NewWaiting)}
-		if p.Doing != "" {
-			line.Now = p.Doing
-		}
+		line.Now = quote(nowTexts(p))
+		line.Next = quote(p.Next)
 		_, _, err = sayLine(ctx, d, now, who, conv, line)
 		return err
 	})
@@ -106,26 +105,50 @@ func (s *Server) putPlan(w http.ResponseWriter, r *http.Request, c *call) {
 	writeJSON(w, http.StatusOK, planView(dir, stored))
 }
 
-// parsePlan checks a plan request and reads its step and estimate; field names what is wrong ("" when it is fine).
+// parsePlan checks a plan request and reads the step and estimate of each Now item; field names what is wrong ("" when it is fine).
 func parsePlan(in wire.PlanRequest, now time.Time) (pi plan.Input, field, why string) {
-	if f, msg, ok := plan.Check(in.Doing, in.Blocked, in.Next, in.Waiting, in.Done); !ok {
+	items := in.Now
+	if len(items) > 0 && (in.Doing != "" || in.Step != "" || in.ETA != "") {
+		return pi, "now", "give now, or doing with step and eta, not both"
+	}
+	if len(items) == 0 && in.Doing != "" {
+		items = []wire.PlanNowRequest{{Text: in.Doing, Step: in.Step, ETA: in.ETA}}
+	}
+	texts := make([]string, len(items))
+	for i, it := range items {
+		texts[i] = it.Text
+	}
+	if f, msg, ok := plan.Check(texts, in.Blocked, in.Next, in.Waiting, in.Done); !ok {
 		return pi, f, msg
 	}
-	step, ok := plan.ParseStep(in.Step)
-	if !ok {
-		return pi, "step", "step is N/M, with 1 <= N <= M <= 99"
-	}
-	eta, ok := plan.ParseETA(in.ETA, in.UTCOffset, now)
-	if !ok {
-		return pi, "eta", "eta is a duration up to 7 days (30m, 1h30m) or a time HH:MM"
-	}
-	if in.Doing == "" && (step != nil || eta != 0) {
+	if len(items) == 0 && (in.Step != "" || in.ETA != "") {
 		return pi, "doing", "step and eta belong to doing"
+	}
+	for _, it := range items {
+		step, ok := plan.ParseStep(it.Step)
+		if !ok {
+			return pi, "step", "step is N/M, with 1 <= N <= M <= 99"
+		}
+		eta, ok := plan.ParseETA(it.ETA, in.UTCOffset, now)
+		if !ok {
+			return pi, "eta", "eta is a duration up to 7 days (30m, 1h30m) or a time HH:MM"
+		}
+		pi.Now = append(pi.Now, plan.Item{Text: it.Text, Step: step, ETA: eta})
 	}
 	if len(in.ClientID) > 64 {
 		return pi, "client_id", "client_id is at most 64 characters"
 	}
-	return plan.Input{Doing: in.Doing, Step: step, Blocked: in.Blocked, ETA: eta, Next: in.Next, Waiting: in.Waiting, Done: in.Done, ClientID: in.ClientID}, "", ""
+	pi.Blocked, pi.Next, pi.Waiting, pi.Done, pi.ClientID = in.Blocked, in.Next, in.Waiting, in.Done, in.ClientID
+	return pi, "", ""
+}
+
+// nowTexts is the text of each Now item.
+func nowTexts(p plan.Plan) []string {
+	out := make([]string, len(p.Now))
+	for i, it := range p.Now {
+		out[i] = it.Text
+	}
+	return out
 }
 
 // quote joins the items a system line quotes and keeps the line under its limit.
@@ -138,13 +161,21 @@ func quote(items []string) string {
 }
 
 func planView(dir directory, p plan.Plan) wire.Plan {
-	v := wire.Plan{ConversationID: p.Conversation, IdentityID: p.Agent, Handle: dir[p.Agent].Handle, Doing: p.Doing, DoingSince: p.DoingSince, Blocked: p.Blocked,
-		ETA: p.ETA, Next: append([]string{}, p.Next...), Waiting: []wire.PlanWaiting{}, Done: []wire.PlanDone{}, UpdatedAt: p.UpdatedAt, DueAt: p.DueAt()}
+	v := wire.Plan{ConversationID: p.Conversation, IdentityID: p.Agent, Handle: dir[p.Agent].Handle, Blocked: p.Blocked, Now: []wire.PlanNow{},
+		Next: append([]string{}, p.Next...), Waiting: []wire.PlanWaiting{}, Done: []wire.PlanDone{}, UpdatedAt: p.UpdatedAt, DueAt: p.DueAt()}
 	if p.Nudges > 0 {
 		v.NudgedAt = p.NudgedAt
 	}
-	if p.Step != nil {
-		v.Step = &wire.PlanStep{At: p.Step.At, Of: p.Step.Of}
+	for _, it := range p.Now {
+		n := wire.PlanNow{Text: it.Text, Since: it.Since, ETA: it.ETA}
+		if it.Step != nil {
+			n.Step = &wire.PlanStep{At: it.Step.At, Of: it.Step.Of}
+		}
+		v.Now = append(v.Now, n)
+	}
+	if len(v.Now) > 0 { // the first item, for readers from before parallel items
+		f := v.Now[0]
+		v.Doing, v.DoingSince, v.Step, v.ETA = f.Text, f.Since, f.Step, f.ETA
 	}
 	for _, x := range p.Waiting {
 		v.Waiting = append(v.Waiting, wire.PlanWaiting{Text: x.Text, Since: x.Since})
@@ -305,7 +336,7 @@ func (s *Server) board(ctx context.Context, c *call, conv int64) (wire.PlanBoard
 	}
 	lines, next := plan.Attend(nowMs, kept, facts, asks)
 	for _, a := range lines {
-		out.Attention = append(out.Attention, wire.PlanAttention{ConversationID: a.Conversation, State: a.State, Handle: dir[a.Agent].Handle, Text: a.Text, ETA: a.ETA, LastSeenAt: a.LastSeenAt})
+		out.Attention = append(out.Attention, wire.PlanAttention{ConversationID: a.Conversation, State: a.State, Handle: dir[a.Agent].Handle, Text: a.Text, ETA: a.ETA, More: a.More, LastSeenAt: a.LastSeenAt})
 	}
 	out.NextChangeAt = next
 	return out, nil

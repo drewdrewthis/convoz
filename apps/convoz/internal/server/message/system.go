@@ -32,7 +32,7 @@ type SystemLine struct {
 	From, To string
 	// plan.changed: the plan items the line quotes, as the agent wrote them (each optional, at least Done or Waiting). Like a title,
 	// what the line said must not change when the plan changes later.
-	Done, Now, Waiting string
+	Done, Now, Next, Waiting string
 	// agent.unresponsive: not_responding or logged_out (msg 281).
 	Liveness string
 }
@@ -79,7 +79,7 @@ func (l SystemLine) Valid() error {
 			return bad()
 		}
 	case l.T == "plan.changed":
-		if l.Identity <= 0 || l.Done == "" && l.Waiting == "" || !quotableItem(l.Done) || !quotableItem(l.Now) || !quotableItem(l.Waiting) {
+		if l.Identity <= 0 || l.Done == "" && l.Waiting == "" || !quotableItem(l.Done) || !quotableItem(l.Now) || !quotableItem(l.Next) || !quotableItem(l.Waiting) {
 			return bad()
 		}
 	case l.T == "agent.unresponsive":
@@ -125,9 +125,10 @@ func (l SystemLine) JSON() (string, error) {
 		To       string `json:"to,omitempty"`
 		Done     string `json:"done,omitempty"`
 		Now      string `json:"now,omitempty"`
+		Next     string `json:"next,omitempty"`
 		Waiting  string `json:"waiting,omitempty"`
 		Liveness string `json:"liveness,omitempty"`
-	}{1, l.T, l.Identity, l.By, l.Via, l.History, l.Streak, l.Title, l.From, l.To, l.Done, l.Now, l.Waiting, l.Liveness}
+	}{1, l.T, l.Identity, l.By, l.Via, l.History, l.Streak, l.Title, l.From, l.To, l.Done, l.Now, l.Next, l.Waiting, l.Liveness}
 	raw, err := json.Marshal(doc)
 	return string(raw), err
 }
@@ -146,6 +147,7 @@ func ParseSystem(raw string) (SystemLine, bool) {
 		To       string `json:"to"`
 		Done     string `json:"done"`
 		Now      string `json:"now"`
+		Next     string `json:"next"`
 		Waiting  string `json:"waiting"`
 		Liveness string `json:"liveness"`
 	}
@@ -153,7 +155,7 @@ func ParseSystem(raw string) (SystemLine, bool) {
 		return SystemLine{}, false
 	}
 	return SystemLine{T: doc.T, Identity: doc.Identity, By: doc.By, Via: doc.Via, History: doc.History, Streak: doc.Streak, Title: doc.Title, From: doc.From, To: doc.To,
-		Done: doc.Done, Now: doc.Now, Waiting: doc.Waiting, Liveness: doc.Liveness}, true
+		Done: doc.Done, Now: doc.Now, Next: doc.Next, Waiting: doc.Waiting, Liveness: doc.Liveness}, true
 }
 
 // WriteSystem writes a system line in the transaction of the action that caused it (M-4). It is not a post: it moves no

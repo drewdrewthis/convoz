@@ -3,7 +3,8 @@ PlanRequest:
   type: object
   additionalProperties: false
   properties:
-    doing: { type: string, maxLength: 200, description: What the agent does now (one item). }
+    now: { type: array, maxItems: 3, items: { $ref: "../openapi.yaml#/components/schemas/PlanNowRequest" }, description: "What the agent does now, up to 3 items when it works in parallel, each with its own step and eta. Give now, or doing with step and eta, not both." }
+    doing: { type: string, maxLength: 200, description: What the agent does now (one item; see now for more). }
     step: { type: string, pattern: "^[1-9][0-9]?/[1-9][0-9]?$", description: "N/M: the Doing item is at step N of M." }
     blocked: { type: string, maxLength: 200, description: What blocks the agent in this conversation (not the owner; that is waiting). }
     eta: { type: string, description: "When the Doing item should be done: a duration (30m, 1h30m) or HH:MM in the zone of utc_offset." }
@@ -12,6 +13,22 @@ PlanRequest:
     waiting: { type: array, maxItems: 5, items: { type: string, minLength: 1, maxLength: 200 }, description: What waits on the owner. }
     done: { type: array, maxItems: 5, items: { type: string, minLength: 1, maxLength: 200 }, description: Items finished since the last plan. }
     client_id: { type: string, maxLength: 64, description: A retry with the same id after a lost answer changes nothing. }
+PlanNowRequest:
+  type: object
+  additionalProperties: false
+  required: [text]
+  properties:
+    text: { type: string, minLength: 1, maxLength: 200 }
+    step: { type: string, pattern: "^[1-9][0-9]?/[1-9][0-9]?$" }
+    eta: { type: string, description: "A duration (30m, 1h30m) or HH:MM in the zone of utc_offset." }
+PlanNow:
+  type: object
+  required: [text]
+  properties:
+    text: { type: string }
+    since: { type: integer, format: int64 }
+    step: { $ref: "../openapi.yaml#/components/schemas/PlanStep" }
+    eta: { type: integer, format: int64, description: Epoch ms on the server clock. }
 PlanStep:
   type: object
   required: [at, of]
@@ -32,12 +49,13 @@ PlanDone:
     at: { type: integer, format: int64 }
 Plan:
   type: object
-  required: [conversation_id, identity_id, handle, doing, next, waiting, done, updated_at]
+  required: [conversation_id, identity_id, handle, now, doing, next, waiting, done, updated_at]
   properties:
     conversation_id: { type: integer, format: int64 }
     identity_id: { type: integer, format: int64 }
     handle: { type: string }
-    doing: { type: string }
+    now: { type: array, maxItems: 3, items: { $ref: "../openapi.yaml#/components/schemas/PlanNow" }, description: "The Now items, each with its own step and eta." }
+    doing: { type: string, description: "The first Now item, for older readers (with doing_since, step and eta)." }
     doing_since: { type: integer, format: int64 }
     step: { $ref: "../openapi.yaml#/components/schemas/PlanStep" }
     blocked: { type: string }
@@ -69,6 +87,7 @@ PlanAttention:
     handle: { type: string }
     text: { type: string }
     eta: { type: integer, format: int64 }
+    more: { type: integer, description: "How many more Now items the plan has than the line shows." }
     last_seen_at: { type: integer, format: int64 }
 PlanBoard:
   type: object

@@ -362,6 +362,8 @@ components:
     AgentStatusChangedFrame: { $ref: "components/prefs.yaml#/AgentStatusChangedFrame" }
     PlanRequest: { $ref: "components/plan.yaml#/PlanRequest" }
     PlanStep: { $ref: "components/plan.yaml#/PlanStep" }
+    PlanNowRequest: { $ref: "components/plan.yaml#/PlanNowRequest" }
+    PlanNow: { $ref: "components/plan.yaml#/PlanNow" }
     PlanWaiting: { $ref: "components/plan.yaml#/PlanWaiting" }
     PlanDone: { $ref: "components/plan.yaml#/PlanDone" }
     Plan: { $ref: "components/plan.yaml#/Plan" }

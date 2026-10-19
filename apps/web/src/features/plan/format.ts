@@ -43,6 +43,11 @@ interface Look {
 
 /** The line under a conversation's title, and the tone of its dot. */
 export function lineOf(a: PlanAttention, now: number): Look {
+  const look = oneLine(a, now);
+  return a.more ? { ...look, text: `${look.text} +${a.more}` } : look; // "+n": the plan has n more Now items than the line shows
+}
+
+function oneLine(a: PlanAttention, now: number): Look {
   switch (a.state) {
     case "waiting":
       return { text: `Waiting on you: ${a.text}`, tone: "amber" };
