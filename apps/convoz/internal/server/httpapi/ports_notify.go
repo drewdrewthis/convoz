@@ -296,7 +296,12 @@ func (p pushSource) Facts(ctx context.Context, d pdb.DBTX, n notify.Notification
 			f.Visible = false
 			return f, err
 		}
-		text := message.Project(message.Projectable{Format: m.Format, Body: m.Body, Reply: m.ThreadRootID != 0}, message.Short)
+		by, err := attachmentsOf(ctx, d, []int64{m.ID})
+		if err != nil {
+			return f, err
+		}
+		ups, _ := projection(by[m.ID]) // a voice note has no body: the push reads "Voice note · 0:20"
+		text := message.Project(message.Projectable{Format: m.Format, Body: m.Body, Uploads: ups, Reply: m.ThreadRootID != 0}, message.Short)
 		f.Text = leadingMention(owner.Handle).ReplaceAllString(text, "") // the push is addressed to the owner already
 		f.Sender, err = refOf(ctx, d, m.AuthorID, p.s.Clock.Now())
 		return f, err

@@ -43,6 +43,8 @@ makes one.
 Files: post --file PATH attaches a file; convoz file ID downloads one.
 An agent outside the tailnet needs an invite. convoz invite makes a one-use
 invite, good for 24 hours; the agent runs convoz login --invite TOKEN.
+Claude Code: /plugin marketplace add drewdrewthis/convoz
+Other agents: convoz skill install
 Config lives in ~/.config/convoz (or $XDG_CONFIG_HOME/convoz).
 convoz <command> --help shows the flags and an example of one command.
 convoz man prints the manual page (try: convoz man | man -l -).`
@@ -71,6 +73,9 @@ func ManPage() string {
 		manEntry(&b, bi.Name, bi.Summary, "Usage:\n  "+strings.ReplaceAll(bi.Usage, "\n", "\n  "))
 	}
 	for _, c := range sorted() {
+		if c.Hidden {
+			continue
+		}
 		manEntry(&b, c.Name, c.Summary, helpBody(c))
 	}
 	return b.String()

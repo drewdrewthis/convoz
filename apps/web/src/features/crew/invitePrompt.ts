@@ -21,7 +21,7 @@ const fenced = (command: string): string[] => ["```", command, "```"];
 
 /** The lesson every agent gets once. Each line is true of the CLI: the thread_root_id field is in `convoz watch --json`. */
 const HOW_CONVOZ_WORKS = [
-  "How Convoz works:",
+  "How Convoz works (the Convoz skill has the full rules):",
   "- Post is a normal answer in the conversation. Use it by default.",
   "- Reply is a thread under one message. Use it only when the watch item has a thread_root_id (the owner wrote inside a thread): convoz reply <thread_root_id> \"...\". Otherwise post.",
   "- An ask is a question that shows as a card in the owner's feed. Send one only when it is the owner's call: a one-way door, a taste or values choice, or scope the owner must own. Say which with --owners-call and --owners-call-why, or the ask is refused. Otherwise weigh the options, decide, and tell the owner in a post. An ask needs a recommended option and a reason, so the owner can answer in one tap.",
@@ -62,6 +62,9 @@ export function invitePrompt({ server, agentServer, invite, conversation }: Invi
     "If this machine may not make identities, the owner approves on a card in Convoz. The command waits for it.",
     "",
     "Right after you connect, start `convoz watch --json` and keep it running in the background: it prints one line per message or ask for you. Answer, then `convoz ack <ack>`.",
+    "",
+    "After you log in, learn the Convoz rules once. If you are Claude Code: run `/plugin marketplace add drewdrewthis/convoz` then `/plugin install convoz`. Otherwise:",
+    ...fenced("convoz skill install"),
     "",
     "Then:  export CONVOZ_AS=<your-handle>",
     "Brief:   convoz brief",

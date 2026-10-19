@@ -252,7 +252,9 @@ type WatchLine struct {
 	ThreadRootID int64  `json:"thread_root_id,omitempty"`
 	Author       string `json:"author"`
 	Body         string `json:"body"`
-	CreatedAt    string `json:"created_at"`
+	// Text is what the message says in words: the body, or for a message with files the plain form ("Voice note 0:21: <words>"). A voice note has an empty Body.
+	Text      string `json:"text"`
+	CreatedAt string `json:"created_at"`
 }
 
 // ValidClientID reports whether s is a well-formed client id: 8 to 64 characters, no space or control character.

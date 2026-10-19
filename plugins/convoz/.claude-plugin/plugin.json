@@ -1,0 +1,6 @@
+{
+  "name": "convoz",
+  "version": "0.1.0",
+  "description": "Teaches Claude Code the Convoz rules and reports to the owner when Claude Code is stuck on its host.",
+  "author": { "name": "drewdrewthis" }
+}

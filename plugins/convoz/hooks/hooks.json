@@ -1,0 +1,11 @@
+{
+  "description": "Tell the Convoz owner why a Claude Code agent is stuck, and when it works again.",
+  "hooks": {
+    "Notification": [
+      { "hooks": [{ "type": "command", "command": "convoz hook notify || true", "timeout": 3 }] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "convoz hook resume || true", "timeout": 3 }] }
+    ]
+  }
+}
