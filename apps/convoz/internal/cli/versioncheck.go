@@ -48,7 +48,7 @@ func versionGate(command string, io IO) int {
 	if server == "" {
 		return ExitOK
 	}
-	theirs := serverVersion(dir, server, time.Now(), fetchServerVersion)
+	theirs := serverVersion(dir, server, Version, time.Now(), fetchServerVersion)
 	if !outOfDate(Version, theirs) {
 		return ExitOK
 	}
@@ -76,13 +76,14 @@ type versionAnswer struct {
 	At      int64  `json:"at"`
 }
 
-// serverVersion is the version server runs: the kept answer when it is under 10 minutes old and is for this server, else a new
-// question to fetch. An answer that failed ("") is not kept, so the next command asks again.
-func serverVersion(dir, server string, now time.Time, fetch func(server string) string) string {
+// serverVersion is the version server runs: the kept answer when it is under 10 minutes old, is for this server and says this CLI
+// (local) is up to date, else a new question to fetch. A kept answer that differs from local may be from before a deploy that
+// upgraded this binary, so it is never what refuses a command. An answer that failed ("") is not kept, so the next command asks again.
+func serverVersion(dir, server, local string, now time.Time, fetch func(server string) string) string {
 	path := filepath.Join(dir, versionCacheFile)
 	if raw, err := os.ReadFile(path); err == nil {
 		var kept versionAnswer
-		if json.Unmarshal(raw, &kept) == nil && kept.Server == server && kept.Version != "" {
+		if json.Unmarshal(raw, &kept) == nil && kept.Server == server && kept.Version != "" && !outOfDate(local, kept.Version) {
 			if age := now.Sub(time.Unix(kept.At, 0)); age >= 0 && age < versionCheckEvery {
 				return kept.Version
 			}

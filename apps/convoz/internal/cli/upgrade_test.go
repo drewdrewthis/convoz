@@ -35,17 +35,44 @@ func TestServerVersionIsAskedOncePerTenMinutes(t *testing.T) {
 	fetch := func(string) string { asked++; return "v2" }
 	start := time.Unix(1_000_000, 0)
 
-	if got := serverVersion(dir, "http://s", start, fetch); got != "v2" || asked != 1 {
+	if got := serverVersion(dir, "http://s", "v2", start, fetch); got != "v2" || asked != 1 {
 		t.Fatalf("first call: %q, asked %d", got, asked)
 	}
-	if got := serverVersion(dir, "http://s", start.Add(9*time.Minute), fetch); got != "v2" || asked != 1 {
+	if got := serverVersion(dir, "http://s", "v2", start.Add(9*time.Minute), fetch); got != "v2" || asked != 1 {
 		t.Fatalf("within 10 minutes the kept answer is used: %q, asked %d", got, asked)
 	}
-	if serverVersion(dir, "http://s", start.Add(11*time.Minute), fetch); asked != 2 {
+	if serverVersion(dir, "http://s", "v2", start.Add(11*time.Minute), fetch); asked != 2 {
 		t.Fatalf("after 10 minutes the server is asked again, asked %d", asked)
 	}
-	if serverVersion(dir, "http://other", start.Add(11*time.Minute), fetch); asked != 3 {
+	if serverVersion(dir, "http://other", "v2", start.Add(11*time.Minute), fetch); asked != 3 {
 		t.Fatalf("another server is another question, asked %d", asked)
+	}
+}
+
+func TestServerVersionDoesNotTrustAKeptAnswerThatBlocksAnUpgradedCLI(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Unix(1_000_000, 0)
+	old := func(string) string { return "old" }
+	serverVersion(dir, "http://s", "old", now, old) // keeps "old"
+
+	asked := 0
+	fresh := func(string) string { asked++; return "new" }
+	if got := serverVersion(dir, "http://s", "new", now.Add(time.Minute), fresh); got != "new" || asked != 1 {
+		t.Fatalf("an upgraded binary must ask again: %q, asked %d", got, asked)
+	}
+	if got := serverVersion(dir, "http://s", "new", now.Add(2*time.Minute), fresh); got != "new" || asked != 1 {
+		t.Fatalf("the new answer is kept: %q, asked %d", got, asked)
+	}
+}
+
+func TestServerVersionStillRefusesAnOldCLIAfterADeploy(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Unix(1_000_000, 0)
+	fresh := func(string) string { return "new" }
+	serverVersion(dir, "http://s", "new", now, fresh) // keeps "new"
+	got := serverVersion(dir, "http://s", "old", now.Add(time.Minute), fresh)
+	if !outOfDate("old", got) {
+		t.Fatalf("an old binary must still be told to upgrade, server answer %q", got)
 	}
 }
 
@@ -54,8 +81,8 @@ func TestServerVersionKeepsNoAnswerThatFailed(t *testing.T) {
 	asked := 0
 	fetch := func(string) string { asked++; return "" }
 	now := time.Unix(1_000_000, 0)
-	serverVersion(dir, "http://s", now, fetch)
-	serverVersion(dir, "http://s", now, fetch)
+	serverVersion(dir, "http://s", "v2", now, fetch)
+	serverVersion(dir, "http://s", "v2", now, fetch)
 	if asked != 2 {
 		t.Fatalf("a failed question is asked again, asked %d", asked)
 	}
