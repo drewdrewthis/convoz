@@ -30,6 +30,12 @@ const NO_SENDS: PendingSend[] = [];
  * composer pinned to the bottom of the visible screen. New conversation starts blank; "@" brings in an agent, and the first
  * send makes the conversation and moves the URL to it.
  */
+/** Now's "Reply in thread" lands on a conversation with #reply=<ask id>: open that thread. */
+function openReplyLink(conv: number): void {
+  const reply = Number(/^#reply=(\d+)$/.exec(location.hash)?.[1] ?? 0);
+  if (reply) void useThreads.getState().openThread(conv, reply);
+}
+
 export function Conversation() {
   const [isNew] = useState(() => location.pathname === "/chats/new");
   const [key] = useState(() => (isNew ? NEW : location.pathname.split("/")[2]!));
@@ -100,6 +106,14 @@ export function Conversation() {
     return () => removeEventListener("keydown", onKey);
   }, [convId]);
 
+  // The same link followed while this conversation is already open changes only the hash: no reload, so the load effect does not run.
+  useEffect(() => {
+    if (!convId) return;
+    const follow = () => openReplyLink(convId);
+    addEventListener("hashchange", follow);
+    return () => removeEventListener("hashchange", follow);
+  }, [convId]);
+
   const openWith = useCallback(
     (handle: string) => {
       setAgentHandle(handle);
@@ -139,9 +153,7 @@ export function Conversation() {
         throw err;
       }
       if (target) await loadUntil(s, key, id, target);
-      // Now's "Reply in thread" lands here with #reply=<ask id>.
-      const reply = Number(/^#reply=(\d+)$/.exec(location.hash)?.[1] ?? 0);
-      if (reply) void useThreads.getState().openThread(id, reply);
+      openReplyLink(id);
       rememberChat(id);
       const who = data.store.getState().rows[id]!.participants.find((p) => p.kind === "agent") ?? { handle: "agent" };
       setAgentHandle(who.handle);

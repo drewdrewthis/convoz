@@ -289,6 +289,21 @@ scenario("The owner sees an agent replying in a thread", { tag: ["@browser"] }, 
   }
 });
 
+scenario("Following a reply link to the conversation that is already open opens the thread", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given conversation 41 is open
+  const t = await threadWorld({ server, page, context }, { browser: true });
+  await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
+  await expect(message(page, ROOT_TEXT)).toBeVisible();
+  await expect(threadPane(page)).toHaveCount(0);
+
+  // When the owner follows the link "/chats/41#reply=900" without reloading
+  await page.evaluate((hash) => (location.hash = hash), `#reply=${t.root}`);
+
+  // Then the thread pane is open on message 900
+  await expect(threadPane(page)).toBeVisible();
+  await expect(threadLog(page).getByRole("article").filter({ hasText: ROOT_TEXT })).toBeVisible();
+});
+
 scenario("A watch line from a thread names the thread root", { tag: ["@cli"] }, async ({ server }) => {
   // Given "devtool" runs "convoz watch --json"
   const t = await threadWorld({ server });
