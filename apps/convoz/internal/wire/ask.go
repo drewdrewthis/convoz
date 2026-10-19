@@ -148,6 +148,17 @@ type AskView struct {
 	Reply          *AskReply        `json:"reply,omitempty"` // a draft ask once answered
 }
 
+// RepliedNote is what an agent is told when its ask closed because the owner replied in the ask's thread instead of choosing.
+const RepliedNote = "The owner replied instead of choosing. Ask again if you still need a decision."
+
+// Note is the line that tells an agent what a closed ask means for it; empty when the ask needs none.
+func (a AskView) Note() string {
+	if a.State == "closed" && a.CloseReason == "replied" {
+		return RepliedNote
+	}
+	return ""
+}
+
 // AskOptionRequest is one option of a new ask.
 type AskOptionRequest struct {
 	Label string `json:"label"`

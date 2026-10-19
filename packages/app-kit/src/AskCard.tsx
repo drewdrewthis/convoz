@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from "react";
 import { DraftReview, type DraftData } from "./DraftReview.tsx";
 
 /* The ask card: one question an agent put to the owner, with the answers it offers. Now and a conversation draw the same card.
@@ -91,9 +91,24 @@ export function stateLine(a: AskData): string {
     case "dismissed":
       return "Dismissed";
     case "closed":
-      return "Closed";
+      return a.close_reason === "replied" ? "Answered with a reply" : "Closed";
   }
   return "";
+}
+
+/** The phone layout of the app (its single mobile breakpoint): a menu opens as a bottom sheet there. */
+const PHONE = "(max-width: 600px)";
+
+function usePhone(): boolean {
+  return useSyncExternalStore(
+    (notify) => {
+      const q = matchMedia(PHONE);
+      q.addEventListener("change", notify);
+      return () => q.removeEventListener("change", notify);
+    },
+    () => matchMedia(PHONE).matches,
+    () => false,
+  );
 }
 
 const HISTORY: Record<string, string> = { create: "Asked", answer: "Answered", dismiss: "Dismissed", undismiss: "Reopened", withdraw: "Withdrawn", close: "Closed" };
@@ -116,6 +131,9 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
   const [text, setText] = useState("");
   const [optionsOnSnooze, setOptionsOnSnooze] = useState(false);
   const root = useRef<HTMLElement | null>(null);
+  const sheet = useRef<HTMLDivElement | null>(null);
+  const gap = useRef<HTMLDivElement | null>(null);
+  const phone = usePhone();
   const open = ask.state === "open";
   const draft = open ? ask.draft : undefined;
   // The composer of a thread is the reply there (no onReply), so a thread card has no quick reply of its own.
@@ -125,6 +143,14 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
     setOptionsOnSnooze(false);
   };
   const toggle = (p: typeof panel) => setPanel((cur) => (cur === p ? "" : p));
+
+  // On a phone the sheet covers the foot of the screen, so the card gets a gap as tall as the sheet and scrolls up past it: no button of the card sits under the sheet.
+  const sheetOpen = phone && (panel === "snooze" || panel === "options");
+  useLayoutEffect(() => {
+    if (!sheetOpen || !sheet.current || !gap.current) return;
+    gap.current.style.height = `${sheet.current.offsetHeight}px`;
+    gap.current.scrollIntoView({ block: "end" });
+  }, [sheetOpen, optionsOnSnooze]);
 
   // A menu closes on a press outside the card, and on Escape.
   useEffect(() => {
@@ -158,16 +184,74 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
     shut();
   };
 
-  const menu = (items: ReactNode) => (
-    <div className="askmenu" role="menu">
-      {items}
-    </div>
-  );
+  const menu = (items: ReactNode) =>
+    phone ? (
+      <>
+        <div className="asksheet-scrim" onClick={shut} />
+        <div ref={sheet} className="askmenu asksheet" role="menu">
+          {items}
+          <button role="menuitem" type="button" onClick={shut}>
+            Cancel
+          </button>
+        </div>
+      </>
+    ) : (
+      <div className="askmenu" role="menu">
+        {items}
+      </div>
+    );
   const presetItems = presets.map((p) => (
     <button key={p.key} role="menuitem" type="button" onClick={() => (shut(), onSnooze(p.key))}>
       {p.label}
     </button>
   ));
+
+  const optionsMenu =
+    panel === "options" ? (
+      optionsOnSnooze ? (
+        menu(presetItems)
+      ) : (
+        menu(
+          <>
+            {where === "conversation" ? (
+              <button role="menuitem" type="button" onClick={() => setPanel("history")}>
+                History
+              </button>
+            ) : null}
+            {open ? (
+              <>
+                <button role="menuitem" type="button" onClick={() => setOptionsOnSnooze(true)}>
+                  Snooze
+                </button>
+                <button role="menuitem" type="button" onClick={() => (shut(), onDismiss())}>
+                  Dismiss
+                </button>
+              </>
+            ) : null}
+            {ask.state === "dismissed" ? (
+              <button role="menuitem" type="button" onClick={() => (shut(), onUndismiss())}>
+                Reopen
+              </button>
+            ) : null}
+            {onCopyLink ? (
+              <button role="menuitem" type="button" onClick={() => (shut(), onCopyLink())}>
+                Copy link
+              </button>
+            ) : null}
+            {onPin ? (
+              <button role="menuitem" type="button" onClick={() => (shut(), onPin())}>
+                {pinned ? "Unpin" : "Pin"}
+              </button>
+            ) : null}
+            {onDelete ? (
+              <button role="menuitem" type="button" onClick={() => (shut(), onDelete())}>
+                Delete
+              </button>
+            ) : null}
+          </>,
+        )
+      )
+    ) : null;
 
   const Tag = as;
   const urgent = ask.urgent && open;
@@ -185,6 +269,7 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
           </span>
         </div>
       ) : null}
+      {optionsMenu}
       <h3 id={labelId} className="askq">
         {ask.question}
       </h3>
@@ -208,7 +293,7 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
       ) : (
         <>
           <p className={`askstate ${ask.state}`}>{stateLine(ask)}</p>
-          {ask.state === "closed" && ask.close_reason ? <p className="asknote">{`Why: ${ask.close_reason.replaceAll("_", " ")}`}</p> : null}
+          {ask.state === "closed" && ask.close_reason && ask.close_reason !== "replied" ? <p className="asknote">{`Why: ${ask.close_reason.replaceAll("_", " ")}`}</p> : null}
         </>
       )}
       {notice ? (
@@ -240,6 +325,7 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
           </button>
         </div>
       ) : null}
+      {panel === "snooze" ? menu(presetItems) : null}
       {draft ? <DraftReview draft={draft} busy={busy} onSend={(text) => onAnswer({ choice: "recommended", text })} onDecline={() => onAnswer({ choice: "alternative", index: 1 })} /> : null}
       <div className="askopts">
         {open && !draft
@@ -269,52 +355,7 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
           </button>
         </form>
       ) : null}
-      {panel === "snooze" ? menu(presetItems) : null}
-      {panel === "options" ? (
-        optionsOnSnooze ? (
-          menu(presetItems)
-        ) : (
-          menu(
-            <>
-              {where === "conversation" ? (
-                <button role="menuitem" type="button" onClick={() => setPanel("history")}>
-                  History
-                </button>
-              ) : null}
-              {open ? (
-                <>
-                  <button role="menuitem" type="button" onClick={() => setOptionsOnSnooze(true)}>
-                    Snooze
-                  </button>
-                  <button role="menuitem" type="button" onClick={() => (shut(), onDismiss())}>
-                    Dismiss
-                  </button>
-                </>
-              ) : null}
-              {ask.state === "dismissed" ? (
-                <button role="menuitem" type="button" onClick={() => (shut(), onUndismiss())}>
-                  Reopen
-                </button>
-              ) : null}
-              {onCopyLink ? (
-                <button role="menuitem" type="button" onClick={() => (shut(), onCopyLink())}>
-                  Copy link
-                </button>
-              ) : null}
-              {onPin ? (
-                <button role="menuitem" type="button" onClick={() => (shut(), onPin())}>
-                  {pinned ? "Unpin" : "Pin"}
-                </button>
-              ) : null}
-              {onDelete ? (
-                <button role="menuitem" type="button" onClick={() => (shut(), onDelete())}>
-                  Delete
-                </button>
-              ) : null}
-            </>,
-          )
-        )
-      ) : null}
+      {sheetOpen ? <div ref={gap} className="askgap" aria-hidden="true" /> : null}
       {panel === "history" ? (
         <ul className="askhist" aria-label="History">
           {(ask.history ?? []).map((h, i) => (

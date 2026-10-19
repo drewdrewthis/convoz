@@ -1501,6 +1501,7 @@ Every transition below that changes state also writes one `ask_transitions` row 
 | open, dismissed | withdraw | asker | closed(withdrawn) | count−1 if it was open; history |
 | open, dismissed | asker removed / left | system | closed(removed) | count−1 if open; history |
 | open, dismissed | asker identity disabled | system | closed(agent_revoked) | count−1 if open; history |
+| open (snoozed too) | the owner replies in the ask's thread, or in the thread it was asked in (an agent's reply never counts) | system | closed(replied) | count−1; snoozes deleted; inbox `ask_resolved`; history. The agent is told to ask again if it still needs a decision. Migration 0036 widens the `close_reason` check |
 | open, dismissed | ask message deleted | author or owner | closed(deleted) | count−1 if open; inbox `ask_resolved`; history |
 | answered, closed | ask message deleted | author or owner | (same) | message tombstoned only; the decision and history are kept |
 | answered, dismissed, closed | ack | the asking identity (any session, acking its `ask_resolved` item with its claim token) | (same) | `acked_at`, `acked_by_session` once; a repeat → 200 no-op |

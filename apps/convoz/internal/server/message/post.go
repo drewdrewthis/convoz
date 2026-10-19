@@ -80,6 +80,12 @@ type Places interface {
 	Posted(ctx context.Context, d pdb.DBTX, now time.Time, m Message) error
 }
 
+// AskCloser closes the asks of a thread when its owner replies there (ask module). It returns the identities whose inbox got an
+// item, for the caller to wake after the commit.
+type AskCloser interface {
+	OwnerReplied(ctx context.Context, d pdb.DBTX, now time.Time, m Message) (wake []int64, err error)
+}
+
 // Indexer writes the message into full-text search, inside the same transaction (search module). It is called again with
 // the new text after an edit, so the row must be replaced, not added.
 type Indexer interface {
@@ -153,6 +159,7 @@ type Ports struct {
 	Threads       Threads
 	Inbox         InboxFanOut
 	Places        Places
+	Asks          AskCloser
 	Journal       Journal
 	Search        Indexer
 	Uploads       UploadBinder
@@ -265,6 +272,13 @@ func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) 
 	if err != nil {
 		return Posted{}, err
 	}
+	var woken []int64
+	// A reply in words, not an answer to an ask and not the result of an app, ends the asks of its thread.
+	if p.Asks != nil && draft.ThreadRoot != 0 && draft.AnswersAsk == 0 && draft.ViaApp == nil {
+		if woken, err = p.Asks.OwnerReplied(ctx, d, now, m); err != nil {
+			return Posted{}, err
+		}
+	}
 	asker, err := askerAnswered(ctx, d, draft)
 	if err != nil {
 		return Posted{}, err
@@ -282,7 +296,7 @@ func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) 
 	if err != nil {
 		return Posted{}, err
 	}
-	return Posted{Message: m, Wake: recipients, Paused: paused}, nil
+	return Posted{Message: m, Wake: append(recipients, woken...), Paused: paused}, nil
 }
 
 // askerAnswered is the author of the ask that a message answers; 0 when the message answers none.

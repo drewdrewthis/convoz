@@ -186,6 +186,47 @@ Feature: Asks and their state machine
       When "devtool" withdraws the ask and the page reconnects
       Then the card shows closed with no reload
 
+  # Drew, conv 1 msg 1006: "Snooze ui is janked on mobile. Replying to a feed item should dismiss it and the agent should have to ask it again"
+  Rule: Snooze opens as a bottom sheet on a phone and covers no button of the card
+
+    @v1 @browser @phone
+    Scenario: Snoozing on a phone opens a sheet that covers no button
+      Given "devtool" asked "Send this reply to Alex?" with the draft "Sounds good, Thursday works." in answer to "Can we meet Thursday?" from "Alex · Slack DM"
+      And the owner opens Now on a phone
+      When the owner taps "Snooze" on the card
+      Then a sheet with "1 hour", "Tomorrow" and "Cancel" opens at the bottom of the screen
+      And the sheet covers no button of the card
+      And the sheet is shown in dark and in light
+      When the owner taps outside the sheet
+      Then the sheet closes
+      When the owner taps "Snooze" and then "Cancel"
+      Then the sheet closes and the ask is still in Now
+      When the owner taps "Snooze" and then "1 hour"
+      Then the sheet closes and Now no longer lists the ask
+
+  Rule: A reply to an ask closes it, and the agent must ask again
+
+    @v1 @browser
+    Scenario: Replying to an ask closes it and the agent must ask again
+      Given an open ask of "devtool", and the owner has the conversation and Now open in two pages
+      When the owner replies to the ask in its thread
+      Then Now no longer lists it and the card in the conversation shows "Answered with a reply", with no reload
+      And "devtool" has to ask again: the same question opens as a new ask
+
+    @v1 @cli
+    Scenario: An agent's reply does not close an ask
+      Given an open ask of "devtool"
+      When "docs" replies in the thread of the ask
+      And "devtool" replies in the thread of the ask
+      Then the ask is still open
+
+    @v1 @cli
+    Scenario: An agent sees that the owner replied instead of choosing
+      Given an open ask of "devtool" that the owner then snoozed
+      When the owner replies in the thread of the ask
+      Then the ask is closed because the owner replied
+      And "devtool" reads in its inbox and in its watch: "The owner replied instead of choosing. Ask again if you still need a decision."
+
   # Drew, conv 32 msg 650: "ship a standard 'review a draft' mini app with Convoz, so agents don't hand-build one for every message
   # they draft for him. It shows the original message being answered (who, where, text) and the agent's draft in an editable box, with
   # Send and Don't send buttons. It returns {send, text} with the edited text, so the agent posts exactly what Drew approved."

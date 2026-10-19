@@ -131,6 +131,7 @@ func (k *chatCmd) writeWatchLine(it wire.InboxItem) error {
 	}
 	if it.Message.Ask != nil {
 		line.Reply = it.Message.Ask.Reply
+		line.Note = it.Message.Ask.Note()
 	}
 	if err := enc.Encode(line); err != nil {
 		return err

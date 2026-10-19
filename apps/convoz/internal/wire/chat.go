@@ -304,6 +304,8 @@ type WatchLine struct {
 	Before      *Before `json:"before,omitempty"`
 	// Reply is the answer of a draft ask (an ask_resolved item): send true with the final text, or send false. Absent on any other item.
 	Reply *AskReply `json:"reply,omitempty"`
+	// Note is what the item means for the agent when the message is an ask that closed without a choice (the owner replied). Absent otherwise.
+	Note string `json:"note,omitempty"`
 }
 
 // ValidClientID reports whether s is a well-formed client id: 8 to 64 characters, no space or control character.
