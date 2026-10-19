@@ -44,8 +44,8 @@ export default function InviteAgentSheet({ close, conversation }: Props) {
   const copiedRef = useRef(false);
   const inviteRef = useRef<MadeInvite | null>(null);
   const asked = useRef(false); // one invite per opening, even when an effect runs twice
-  // An agent outside the tailnet cannot reach this page's address; the server says where it can connect, when it has such an address.
-  const prompt = useMemo(() => invitePrompt({ server: agentUrl ?? location.origin, invite: invite?.token, conversation }), [agentUrl, invite, conversation]);
+  // An agent outside the tailnet cannot reach this page's address, and the agents-only port refuses the tailnet: the prompt gives both doors.
+  const prompt = useMemo(() => invitePrompt({ server: location.origin, agentServer: agentUrl ?? undefined, invite: invite?.token, conversation }), [agentUrl, invite, conversation]);
   const conversationId = conversation?.id;
 
   useEffect(() => {

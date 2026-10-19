@@ -3,8 +3,10 @@
  * owner for access (I-42). A prompt for the agents-only address carries one invite, which works once and ends after 24 hours.
  */
 export interface InviteTarget {
-  /** The server the agent connects to. */
+  /** The server the agent connects to: the main address, which the tailnet reaches. */
   server: string;
+  /** The agents-only address for the open internet, when the server has one. The prompt then gives both doors, tailnet first. */
+  agentServer?: string;
   /** The one-use invite an agent outside the tailnet needs (cvz_i_…). Left out for a server on the tailnet. */
   invite?: string;
   /** The conversation the sheet was opened from; the agent joins it once the owner approves. */
@@ -30,26 +32,31 @@ const HOW_CONVOZ_WORKS = [
 ];
 
 /** invitePrompt is the one prompt the owner pastes into an agent. The agent picks its own handle and sends its own identity. */
-export function invitePrompt({ server, invite, conversation }: InviteTarget): string {
+export function invitePrompt({ server, agentServer, invite, conversation }: InviteTarget): string {
   const joins = conversation ? ` --conversation ${conversation.id}` : "";
   const flags = `[--description "one line about you"] [--avatar file.svg]${joins}`;
   const invited = invite ? ` --invite ${invite}` : "";
   // The export comes first so the install script, which sees it, can print the login line, and so does every convoz run in this shell.
-  const install = invite ? `export CONVOZ_INVITE=${invite}; ${installLine(server)}` : installLine(server);
+  const installFor = (s: string) => (invite ? `export CONVOZ_INVITE=${invite}; ${installLine(s)}` : installLine(s));
+  // One labeled block per door: each block runs as pasted, with no shell variable to keep between commands.
+  const doors: [string, string][] = agentServer ? [["on the tailnet", server], ["from the open internet", agentServer]] : [["", server]];
+  const perDoor = (heading: string, command: (s: string) => string): string[] =>
+    doors.flatMap(([label, s]) => [label ? `${heading} ${label}:` : `${heading}:`, ...fenced(command(s))]);
   return [
     "Connect to Convoz.",
-    `Server:  ${server}`,
+    ...(agentServer
+      ? [`On the tailnet: use ${server}`, `From the open internet: use ${agentServer}`, "Use the one that works from this machine. The invite works on both."]
+      : [`Server:  ${server}`]),
     ...(invite ? [`Invite:  ${invite}  (works once, for 24 hours)`] : []),
     conversation ? `You will join the conversation "${conversation.title || "Untitled conversation"}" once the owner approves.` : "You will join the conversations you are tagged in.",
     "",
     "Pick your own handle: 2 to 40 characters from a-z, 0-9 and -, starting with a letter (for example code-review). Use it for <your-handle> below.",
     "The description is one line of plain text, up to 80 characters. The avatar is a simple SVG file, up to 4 KB, with no scripts or links. Both are optional.",
     "",
-    "Install (copy the whole block):",
-    ...fenced(install),
-    "New machine (convoz login has not been run here):",
-    ...fenced(`convoz login --server ${server}${invited} --as <your-handle> ${flags}`),
+    ...perDoor("Install (copy the whole block)", installFor),
+    ...perDoor("New machine (convoz login has not been run here)", (s) => `convoz login --server ${s}${invited} --as <your-handle> ${flags}`),
     "The owner approves you and this machine on one card in Convoz. Wait for it; the command ends when the owner decides.",
+    // No door here: a logged-in machine already holds the address it logged in at.
     "Already logged in on this machine:",
     ...fenced(`convoz session start --as <your-handle> --create${invited} ${flags}`),
     "If this machine may not make identities, the owner approves on a card in Convoz. The command waits for it.",

@@ -22,14 +22,32 @@ Feature: Agents outside the tailnet connect through an agents-only address
       Then the CLI logs in as machine "dot-box"
       And "convoz session start --as dot" works on "dot-box" against the same address
 
-  Rule: The invite prompt tells the agent an address it can reach
+  Rule: The invite prompt tells the agent both addresses it can reach
+
+    # Owner ruling (Drew, conv 1 msg 245): "I thought the ideas was that there were two entry points. One for people already on the Tail net, and one for the open Internet."
+    # The agents-only port refuses a caller on the tailnet by design, so a prompt with only that address fails for an agent on the tailnet.
 
     @v1 @browser
     Scenario: The invite prompt shows the agents-only address
       Given a Convoz server with an agents-only address
       When the owner opens the invite sheet in Crew
-      Then the prompt names the agents-only address as the server
-      And the prompt does not name the tailnet address
+      Then the prompt names the agents-only address for the open internet
+
+    @v1 @browser
+    Scenario: The invite prompt gives the tailnet and the internet entry points
+      Given a Convoz server with an agents-only address
+      When the owner opens the invite sheet in Crew
+      Then the prompt names the tailnet address first and the agents-only address second
+      And the install and "convoz login" commands each have a code block for each address, and "convoz session start" has one
+
+    @v1 @cli @browser
+    Scenario: One invite works through the main address
+      Given a Convoz server with an agents-only address, an invite, and a machine "box-2" logged in without the create_identity scope
+      When a new machine runs "convoz login --invite" against the main address
+      Then the owner approves one card and the CLI logs in
+      And a session start with that invite on the main address files a request for the owner
+      And a second use of the same invite is refused on either address
+      And on the main address a used invite gets a clear error, and the CLI prints it and exits non-zero
 
   Rule: An agent outside the tailnet needs a one-use invite
 

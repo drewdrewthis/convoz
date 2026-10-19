@@ -157,7 +157,14 @@ type IdentityFiled struct {
 func (f IdentityFiled) Fake() bool { return f.fake }
 
 // InviteToken is the invite a request over the internet carries. A nil one is a request from the tailnet, which needs none.
-type InviteToken struct{ Token string }
+type InviteToken struct {
+	Token string
+	// Reveal is set on the tailnet: a bad invite there is answered with ErrInviteSpent, not the fake answer. The internet hides the reason.
+	Reveal bool
+}
+
+// ErrInviteSpent is the tailnet's answer to an invite that is used, expired or unknown.
+var ErrInviteSpent = errors.New("the invite was used or has expired")
 
 // FileSessionIdentity files the request of a logged-in machine that may not create identities itself. The same machine asking again for
 // the same handle gets its waiting request back. A machine files at most IdentityRequestsPerDay requests in 24 hours. Over the internet
@@ -176,6 +183,9 @@ func FileSessionIdentity(ctx context.Context, d pdb.DBTX, p Ports, m Machine, in
 			return IdentityFiled{}, err
 		}
 		if !ok {
+			if invite.Reveal {
+				return IdentityFiled{}, ErrInviteSpent
+			}
 			return IdentityFiled{Ref: FakeIdentityRef(), ExpiresAt: now.Add(IdentityRequestTTL).UnixMilli(), fake: true}, nil
 		}
 		in = withInviteConversation(ctx, d, p, in, inv)

@@ -143,8 +143,8 @@ func sessionIdentity(ctx context.Context, d pdb.DBTX, p Ports, m Machine, in Min
 	pkg := IdentityPackage{Handle: handle, DisplayName: in.Create.DisplayName, Description: in.Create.Description, AvatarSVG: in.Create.AvatarSVG, ConversationID: in.Create.ConversationID}
 	if m.Scopes&ScopeCreateIdentity == 0 || !m.Allow.CoversHandle(handle) {
 		var invite *InviteToken
-		if in.ViaInternet {
-			invite = &InviteToken{Token: in.Create.Invite}
+		if in.ViaInternet || in.Create.Invite != "" { // an invite sent on the tailnet is one-use too
+			invite = &InviteToken{Token: in.Create.Invite, Reveal: !in.ViaInternet}
 		}
 		f, err := FileSessionIdentity(ctx, d, p, m, pkg, invite, now)
 		if err != nil {

@@ -81,17 +81,20 @@ func (s *Server) deviceCode(w http.ResponseWriter, r *http.Request, _ *call) {
 	}
 	req := auth.DeviceRequest{Name: in.Name, HostInfo: string(info), Source: source, SourceNode: node, Interval: s.interval()}
 	var out auth.DeviceCode
-	spent := !via // over the internet a request is made only for a usable invite, which it spends
+	// Over the internet a request is made only for a usable invite, which it spends. On the tailnet an invite is not needed, but one that
+	// is sent is one-use as well (owner ruling, ask 52): it is spent here the same way, and a used one makes no request.
+	useInvite := via || in.Invite != ""
+	spent := !useInvite
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
 		var err error
 		now := s.Clock.Now()
 		var inv auth.Invite
-		if via {
+		if useInvite {
 			if inv, spent, err = auth.TakeInvite(ctx, tx.DBTX(), flowPorts, in.Invite, now); err != nil || !spent {
 				return err // no invite: nothing is made, and the answer below looks like an accepted request
 			}
 			// The global limit counts the starts that carry an invite only: a flood without one makes no card, so it must not use up the hour.
-			if !s.agentStartAll.Allow("all", now) {
+			if via && !s.agentStartAll.Allow("all", now) {
 				return errAgentStartsFull
 			}
 			if intro != nil {
@@ -126,7 +129,7 @@ func (s *Server) deviceCode(w http.ResponseWriter, r *http.Request, _ *call) {
 				return err
 			}
 		}
-		if via {
+		if useInvite {
 			if err = auth.SpendInvite(ctx, tx.DBTX(), flowPorts, inv, auth.InviteLogin, out.RequestID, now); err != nil {
 				return err
 			}
@@ -155,6 +158,8 @@ func (s *Server) deviceCode(w http.ResponseWriter, r *http.Request, _ *call) {
 		writeErr(w, http.StatusTooManyRequests, "rate_limited", "This machine asked too often. Try again later.")
 	case err != nil:
 		s.internalError(w, r, err)
+	case !spent && !via:
+		writeErr(w, http.StatusBadRequest, wire.CodeInviteSpent, inviteSpentMessage)
 	case !spent:
 		// The stranger's answer: the same as an accepted request. The code belongs to nothing and polls like an expired one.
 		writeJSON(w, http.StatusOK, wire.DeviceCodeResponse{
@@ -168,6 +173,9 @@ func (s *Server) deviceCode(w http.ResponseWriter, r *http.Request, _ *call) {
 		})
 	}
 }
+
+// inviteSpentMessage is what the tailnet is told about a bad invite; the internet is not told which invites are valid.
+const inviteSpentMessage = "This invite was used or has expired. Ask the owner for a new one."
 
 // errAgentStartsFull rolls a start back when the hour's global budget for starts with an invite is used up.
 var errAgentStartsFull = errors.New("too many login starts with an invite this hour")

@@ -153,6 +153,28 @@ func TestADeviceStartOnTheTailnetNeedsNoInvite(t *testing.T) {
 	}
 }
 
+func TestADeviceStartOnTheTailnetSpendsTheInviteAndSaysWhenItIsBad(t *testing.T) {
+	s := agentTestAPI(t)
+	invite := testInvites(t, s, 1)[0]
+	start := func(inv string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest("POST", "/api/device/code", strings.NewReader(deviceBody("box-1", "", inv)))
+		req.Host, req.RemoteAddr = "convoz.testonly.ts.net", "127.0.0.1:4000"
+		return serve(s.Handler(), req)
+	}
+	if rec := start(invite); rec.Code != http.StatusOK || pendingCount(t, s) != 1 || openInvites(t, s) != 0 {
+		t.Fatalf("first use: got %d, %d requests, %d open", rec.Code, pendingCount(t, s), openInvites(t, s))
+	}
+	for _, bad := range []string{invite, "cvz_i_unknown"} {
+		rec := start(bad)
+		if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), `"invite_spent"`) || !strings.Contains(rec.Body.String(), "Ask the owner for a new one.") {
+			t.Fatalf("%q: got %d %s, want 400 invite_spent", bad, rec.Code, rec.Body.String())
+		}
+	}
+	if n := pendingCount(t, s); n != 1 {
+		t.Fatalf("a bad invite made a request: %d", n)
+	}
+}
+
 func TestAnInviteThatRanOutMakesNoRequestAndIsAudited(t *testing.T) {
 	s, clock := steppedAPI(t)
 	h := s.AgentHandler()
