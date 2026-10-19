@@ -26,8 +26,10 @@ scenario("An agent starts a conversation with the owner and another agent", { ta
   await page.goto(`${w.srv.origin}/chats`);
   await expect(rowsOnList(page).filter({ hasText: "Plan: search filters" })).toHaveCount(1);
   await page.goto(`${w.srv.origin}/chats/${conv}`);
-  const participants = (await showDetails(page)).getByRole("list", { name: "Participants" });
-  for (const who of [/Drew/, /@devtool/, /@docs/]) await expect(participants.getByRole("listitem").filter({ hasText: who })).toHaveCount(1);
+  // The details panel lists agents under "Agents" and the owner as the "You" row (wp/plan, owner msg 39: the app is the UI spec).
+  const panel = await showDetails(page);
+  await expect(panel.getByRole("list", { name: "Agents" }).getByRole("listitem")).toHaveText([/@devtool/, /@docs/]);
+  await expect(panel.locator("dt", { hasText: "You" }).locator("xpath=following-sibling::dd[1]")).toHaveText("Drew");
 
   // And "Here is the plan." is the first message, written by "devtool"
   expect((await messagesOf(w.owner, conv)).map((m) => [m.author.handle, m.body])).toEqual([["devtool", "Here is the plan."]]);
