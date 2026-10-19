@@ -2273,7 +2273,12 @@ export interface components {
             last_activity_at: number;
             participants: components["schemas"]["Person"][];
             last: components["schemas"]["LastMessage"] | null;
+            /** @description Everything unread in it: the main list and the replies of the threads the caller is in. */
             unread: number;
+            /** @description The part of unread that sits in the main list; the row badge. The replies of a thread count on its own row in threads. */
+            main_unread?: number;
+            /** @description The threads of the conversation that have a reply, newest reply first. */
+            threads?: components["schemas"]["ThreadRow"][];
             /** @description The caller starred it. Personal to the caller (I-22); always false for an agent. */
             starred: boolean;
             /**
@@ -2736,6 +2741,28 @@ export interface components {
              * @description Epoch ms of the first claim that covered it.
              */
             at: number;
+        };
+        /** @description One thread under its conversation in the list. Unread is per reader and counts only in a thread the reader is in. */
+        ThreadRow: {
+            /** Format: int64 */
+            root_id: number;
+            author: components["schemas"]["Person"];
+            /** @description The root's plain text. */
+            preview: string;
+            /** Format: int64 */
+            reply_count: number;
+            /** Format: int64 */
+            last_reply_at: number;
+            last_reply?: {
+                /** Format: int64 */
+                id: number;
+                author: components["schemas"]["Person"];
+                preview: string;
+                /** Format: int64 */
+                created_at: number;
+                unread?: boolean;
+            };
+            unread: number;
         };
         /** @description One stored event, thin (ids and enums, at most 1 KB, never content). */
         SyncEvent: {

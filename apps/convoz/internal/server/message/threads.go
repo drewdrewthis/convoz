@@ -75,3 +75,9 @@ func ReplyPreview(body string) string {
 		return string(r)
 	}
 }
+
+// ThreadRoots lists the top-level messages of a conversation after floor that have replies, newest reply first, at most max.
+func ThreadRoots(ctx context.Context, d pdb.DBTX, conv, floor, max int64) ([]Message, error) {
+	rows, err := db.New(d).ThreadRoots(ctx, db.ThreadRootsParams{ConversationID: conv, Floor: floor, MaxRows: max})
+	return fromRows(rows, false), err
+}

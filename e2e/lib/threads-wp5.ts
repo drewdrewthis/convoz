@@ -134,6 +134,9 @@ export async function openRail(page: Page, origin: string): Promise<void> {
 /** Is the row bold, and what does its unread pill say ("" for none)? */
 export async function railState(page: Page): Promise<{ bold: boolean; unread: string }> {
   const row = rail(page);
-  const pill = unreadDot(row);
+  const pill = unreadDot(row.locator("a.chatrow")); // the conversation row; its thread rows count on their own
   return { bold: await isBold(row.getByRole("heading")), unread: (await pill.count()) ? ((await pill.first().textContent()) ?? "").replace(/\s+/g, " ").trim() : "" };
 }
+
+/** The "Unread: N" pill of the thread row under conversation 41 in the list, by the root's text. */
+export const threadPill = (page: Page, text: string): Locator => page.locator("#chats").getByRole("link", { name: new RegExp(`^Open thread: .*${text}`) }).getByText(/^Unread: \d/);

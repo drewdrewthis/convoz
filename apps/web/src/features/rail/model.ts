@@ -36,7 +36,7 @@ export const previewOf = (c: Conversation, me: string): string =>
   c.last ? `${c.last.author_handle === me ? "You" : c.last.author_handle}: ${c.last.preview}` : "No messages yet";
 
 /** The label a screen reader gets for a row, as the prototype words it. */
-export const rowLabel = (c: Conversation): string => `${titleOf(c)}${c.muted_until ? ", muted" : ""}${c.unread > 0 ? `, ${c.unread} unread` : ""}`;
+export const rowLabel = (c: Conversation): string => `${titleOf(c)}${c.muted_until ? ", muted" : ""}${(c.main_unread ?? c.unread) > 0 ? `, ${c.main_unread ?? c.unread} unread` : ""}`;
 
 /** The mute that never ends (the schema's "forever"). */
 export const FOREVER = 253402300799000;

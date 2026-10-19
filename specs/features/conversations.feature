@@ -231,11 +231,15 @@ Feature: Conversations
 
   Rule: Read position is honest (DA-2, DA-4)
 
+    # Owner, 2026-10-19 (msg 266, on the row "Convoz feedback with Cl... 5"): "This is confusing, right -- I guess this means that there are
+    # 5 unviewed items hidden in threads somewhere?" Msg 267: "that's what I was saying we needed to update -- so I could more easily see
+    # hidden threads, and jump back in. Basically a conversation is the main thread, but then there are sub-threads right, so I should
+    # actually see all the threads on the lists." The conversation badge counts the main chat only; thread replies count on the thread's row.
     @v1 @browser @I-15
     Scenario: Mark all read clears the conversation
       Given conversation 41 has 7 unread main messages and 2 unread replies in an involved thread
       When the owner marks the conversation read
-      Then conversation 41 shows no unread count and is not bold
+      Then conversation 41 and its thread rows show no unread count and it is not bold
 
   Rule: A loop pause is visible and the owner resumes it
 

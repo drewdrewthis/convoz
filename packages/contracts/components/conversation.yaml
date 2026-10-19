@@ -19,7 +19,12 @@ Conversation:
       oneOf:
         - $ref: "../openapi.yaml#/components/schemas/LastMessage"
         - type: "null"
-    unread: { type: integer }
+    unread: { type: integer, description: "Everything unread in it: the main list and the replies of the threads the caller is in." }
+    main_unread: { type: integer, description: The part of unread that sits in the main list; the row badge. The replies of a thread count on its own row in threads. }
+    threads:
+      type: array
+      description: The threads of the conversation that have a reply, newest reply first.
+      items: { $ref: "../openapi.yaml#/components/schemas/ThreadRow" }
     starred: { type: boolean, description: The caller starred it. Personal to the caller (I-22); always false for an agent. }
     rank:
       type: number
@@ -51,6 +56,26 @@ Conversation:
     last_read: { type: integer, format: int64, description: The caller's read cursor in the main list when the row was built; absent when it has none. The single-conversation route only. The page keeps the value from when it opened, to mark where unread began. }
     deleted_at: { type: integer, format: int64, description: In the trash since. }
     purges_at: { type: integer, format: int64, description: When the trash removes it for good. }
+ThreadRow:
+  type: object
+  description: One thread under its conversation in the list. Unread is per reader and counts only in a thread the reader is in.
+  required: [root_id, author, preview, reply_count, last_reply_at, unread]
+  properties:
+    root_id: { type: integer, format: int64 }
+    author: { $ref: "../openapi.yaml#/components/schemas/Person" }
+    preview: { type: string, description: The root's plain text. }
+    reply_count: { type: integer, format: int64 }
+    last_reply_at: { type: integer, format: int64 }
+    last_reply:
+      type: object
+      required: [id, author, preview, created_at]
+      properties:
+        id: { type: integer, format: int64 }
+        author: { $ref: "../openapi.yaml#/components/schemas/Person" }
+        preview: { type: string }
+        created_at: { type: integer, format: int64 }
+        unread: { type: boolean }
+    unread: { type: integer }
 Seen:
   type: object
   description: An agent that has seen a message, because its inbox claim covers it. Stored, so it survives a reload.

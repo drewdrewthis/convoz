@@ -32,3 +32,9 @@ WHERE conversation_id = sqlc.arg(conversation_id) AND kind = 'text' AND deleted_
 SELECT * FROM message_rows
 WHERE thread_root_id = sqlc.arg(root_id) AND kind <> 'system' AND deleted_at IS NULL
 ORDER BY id DESC LIMIT 1;
+
+-- name: ThreadRoots :many
+-- The top-level messages of a conversation that have replies, newest reply first: the thread rows under a conversation in the list.
+SELECT * FROM message_rows
+WHERE conversation_id = sqlc.arg(conversation_id) AND thread_root_id IS NULL AND reply_count > 0 AND deleted_at IS NULL AND id > sqlc.arg(floor)
+ORDER BY last_reply_id DESC LIMIT sqlc.arg(max_rows);

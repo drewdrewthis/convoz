@@ -1,5 +1,5 @@
 import type { Conversation } from "@convoz/api-client";
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { humanError } from "../../shared/api.ts";
 import { data, useData, useLive } from "../../shared/data.ts";
 import { toast } from "../pins-stars/index.ts";
@@ -8,6 +8,7 @@ import { startDrag, type Drop } from "./drag.ts";
 import { Logo } from "./Logo.tsx";
 import { BackArrow, ChevronIcon, ComposeGlyph, CrewGlyph, InviteGlyph, ForwardArrow, GripIcon, NowGlyph, SearchGlyph, StarIcon } from "./icons.tsx";
 import { groups, isOlder, rowLabel, titleOf } from "./model.ts";
+import { ThreadRows } from "../threads/index.ts";
 import { moveRow, setStar, stepRow } from "./actions.ts";
 
 const openedId = (): number => Number(/^\/chats\/(\d+)$/.exec(location.pathname)?.[1] ?? 0);
@@ -69,13 +70,14 @@ export default function Sidebar() {
     setStar(c.id, !c.starred).then(() => toast(c.starred ? "Unstarred" : "Starred"), fail);
 
   const row = (c: Conversation, grp: "starred" | "mid" | "older") => (
-    <div key={c.id} className="rrow" data-rid={grp === "older" ? undefined : c.id} data-grp={grp} data-current={c.id === current ? "true" : undefined} onPointerDown={grp === "older" ? undefined : (e) => startDrag(e, drop)} onKeyDown={(e) => key(e, c)}>
-      <a className={`rgo${c.unread > 0 ? " unread" : ""}${c.muted_until ? " muted" : ""}`} id={`rr-${c.id}`} href={`/chats/${c.id}`} aria-current={c.id === current ? "page" : undefined} aria-label={rowLabel(c)} draggable={false}>
+    <Fragment key={c.id}>
+    <div className="rrow" data-rid={grp === "older" ? undefined : c.id} data-grp={grp} data-current={c.id === current ? "true" : undefined} onPointerDown={grp === "older" ? undefined : (e) => startDrag(e, drop)} onKeyDown={(e) => key(e, c)}>
+      <a className={`rgo${(c.main_unread ?? c.unread) > 0 ? " unread" : ""}${c.muted_until ? " muted" : ""}`} id={`rr-${c.id}`} href={`/chats/${c.id}`} aria-current={c.id === current ? "page" : undefined} aria-label={rowLabel(c)} draggable={false}>
         <span className="rtitle">{titleOf(c)}</span>
-        {c.unread > 0 ? (
+        {(c.main_unread ?? c.unread) > 0 ? (
           <span className="rcnt">
             <span className="sr">Unread: </span>
-            {c.unread > 99 ? "99+" : c.unread}
+            {(c.main_unread ?? c.unread) > 99 ? "99+" : (c.main_unread ?? c.unread)}
           </span>
         ) : null}
       </a>
@@ -88,6 +90,8 @@ export default function Sidebar() {
         </button>
       )}
     </div>
+    <ThreadRows c={c} compact />
+    </Fragment>
   );
 
   return (

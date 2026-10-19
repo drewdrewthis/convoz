@@ -55,23 +55,35 @@ Feature: Threads
       Then conversation 41 is not bold in the rail
       And message 900 shows "5 replies · @docs"
 
+    # Owner, 2026-10-19 (msg 266, on the row "Convoz feedback with Cl... 5"): "This is confusing, right -- I guess this means that there are
+    # 5 unviewed items hidden in threads somewhere?" Msg 267: "that's what I was saying we needed to update -- so I could more easily see
+    # hidden threads, and jump back in. Basically a conversation is the main thread, but then there are sub-threads right, so I should
+    # actually see all the threads on the lists." The conversation badge counts the main chat only; thread replies count on the thread's row.
     @v1 @browser @I-14
     Scenario: Replies in a thread the owner replied in count as unread
       Given the owner replied in thread 900 and has read conversation 41
       When "devtool" posts 2 replies in thread 900
-      Then conversation 41 is bold with 2 unread
+      Then the row of thread 900 shows 2 unread and conversation 41 is not bold and shows no count
 
+    # Owner, 2026-10-19 (msg 266, on the row "Convoz feedback with Cl... 5"): "This is confusing, right -- I guess this means that there are
+    # 5 unviewed items hidden in threads somewhere?" Msg 267: "that's what I was saying we needed to update -- so I could more easily see
+    # hidden threads, and jump back in. Basically a conversation is the main thread, but then there are sub-threads right, so I should
+    # actually see all the threads on the lists." The conversation badge counts the main chat only; thread replies count on the thread's row.
     @v1 @browser @I-14
     Scenario: A mention in a thread makes the owner involved
       Given the owner has read conversation 41
       When "devtool" replies "@drew can you confirm?" in thread 900
-      Then conversation 41 is bold with 1 unread
+      Then the row of thread 900 shows 1 unread and conversation 41 is not bold and shows no count
 
+    # Owner, 2026-10-19 (msg 266, on the row "Convoz feedback with Cl... 5"): "This is confusing, right -- I guess this means that there are
+    # 5 unviewed items hidden in threads somewhere?" Msg 267: "that's what I was saying we needed to update -- so I could more easily see
+    # hidden threads, and jump back in. Basically a conversation is the main thread, but then there are sub-threads right, so I should
+    # actually see all the threads on the lists." The conversation badge counts the main chat only; thread replies count on the thread's row.
     @v1 @browser @I-14
     Scenario: Opening the conversation does not clear thread replies
       Given the owner replied in thread 900 and "devtool" then posted 2 replies there
       When the owner opens conversation 41 but not the thread
-      Then conversation 41 still shows 2 unread
+      Then the row of thread 900 still shows 2 unread and conversation 41 shows no count
       And opening thread 900 clears them
 
     @v1 @browser @I-14
@@ -144,3 +156,34 @@ Feature: Threads
       Then the chip shows a dot
       When the owner reads the thread
       Then the dot is gone, and a newer reply brings it back
+
+  Rule: The Conversations list shows every thread under its conversation
+
+    # Owner, 2026-10-19 (msg 266, on the row "Convoz feedback with Cl... 5"): "This is confusing, right -- I guess this means that there are
+    # 5 unviewed items hidden in threads somewhere?" Msg 267: "that's what I was saying we needed to update -- so I could more easily see
+    # hidden threads, and jump back in. Basically a conversation is the main thread, but then there are sub-threads right, so I should
+    # actually see all the threads on the lists. \"older\" works well --- we can use that for the threads as well".
+    @v1 @browser @I-14
+    Scenario: Each conversation lists its threads under it, and a thread opens from its row
+      Given "devtool" and "docs" replied in thread 900 of conversation 41
+      When the owner opens the Conversations list
+      Then conversation 41 lists thread 900 under it as an indented row with its root text
+      When the owner taps the row of thread 900
+      Then the thread pane is open with the replies
+
+    @v1 @browser @I-14
+    Scenario: Thread replies count on the thread's row, not the conversation's
+      Given the owner replied in thread 900 and has read conversation 41
+      And the owner opened the Conversations list
+      When "devtool" posts 2 replies in thread 900
+      Then without a reload the row of thread 900 shows "Unread: 2" and conversation 41 shows no count
+      When the owner opens thread 900
+      Then the row of thread 900 shows no count
+
+    @v1 @browser @I-21
+    Scenario: Threads with no reply since yesterday fold into Older under their conversation
+      Given thread 900 has a recent reply and thread 901 has no reply since yesterday
+      When the owner opens the Conversations list
+      Then conversation 41 lists thread 900 and the toggle "Older · 1" under it
+      And expanding "Older · 1" shows thread 901
+

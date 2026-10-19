@@ -120,8 +120,12 @@ func conversationView(ctx context.Context, d pdb.DBTX, p authz.Principal, dir di
 			out.Last = &wire.LastMessage{ID: m.ID, AuthorHandle: dir[m.AuthorID].Handle, Preview: message.Preview(previewWords(ctx, d, m))}
 		}
 	}
-	out.Unread, err = unreadOf(ctx, d, p.Identity(), cv, floor)
+	mainUnread, threadUnread, err := unreadParts(ctx, d, p.Identity(), cv, floor)
 	if err != nil {
+		return wire.Conversation{}, err
+	}
+	out.MainUnread, out.Unread = mainUnread, min(mainUnread+threadUnread, message.MaxUnread)
+	if out.Threads, err = threadRowsOf(ctx, d, p, dir, cv, floor); err != nil {
 		return wire.Conversation{}, err
 	}
 	out.Paused = cv.Paused()

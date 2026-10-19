@@ -498,20 +498,26 @@ scenario("Mark all read clears the conversation", { tag: ["@browser"] }, async (
   const root = await agentSays(w.srv, dev.lease, conv, "message 1");
   for (let i = 2; i <= 7; i++) await agentSays(w.srv, dev.lease, conv, `message ${i}`);
   seedReply(dataDir, conv, root, ids.devtool!, "reply 1");
-  seedReply(dataDir, conv, root, ids.devtool!, "reply 2");
+  const last = seedReply(dataDir, conv, root, ids.devtool!, "reply 2");
+  // the seed skips the counters the server keeps; the list shows a thread only when its root counts a reply
+  seedDb(dataDir, (db) => db.prepare("UPDATE messages SET reply_count = 2, last_reply_id = ? WHERE id = ?").run(last, root));
   seedDb(dataDir, (db) =>
     db.prepare("INSERT INTO thread_reads (identity_id, conversation_id, root_id, last_read_id, involved_at) VALUES (?, ?, ?, 0, ?)").run(ids.drew!, conv, root, Date.now()),
   );
   await page.goto(`${w.srv.origin}/chats`);
   const row = rowsOnList(page).filter({ hasText: "Ship search filters" });
-  await expect(unreadDot(row)).toHaveText("Unread: 9"); // 7 main and, since WP5, the 2 replies of the thread it is in
+  const thread = row.getByRole("link", { name: /^Open thread: / });
+  // Owner msgs 266-267 (2026-10-19): "I guess this means that there are 5 unviewed items hidden in threads somewhere?" / "so I should
+  // actually see all the threads on the lists". The conversation shows its 7 main messages; the 2 replies count on the thread's row.
+  await expect(unreadDot(row.locator("a.chatrow"))).toHaveText("Unread: 7");
+  await expect(unreadDot(thread)).toHaveText("Unread: 2");
   expect(await isBold(row.getByRole("heading"))).toBe(true);
 
   // When the owner marks the conversation read
   await row.click({ button: "right" });
   await page.getByRole("menu", { name: "Conversation actions" }).getByRole("menuitem", { name: "Mark all read" }).click();
 
-  // Then conversation 41 shows no unread count and is not bold
+  // Then conversation 41 and its thread rows show no unread count and it is not bold
   await expect(unreadDot(row)).toHaveCount(0);
   expect(await isBold(row.getByRole("heading"))).toBe(false);
   expect(await unreadOf(w.owner, conv)).toBe(0);

@@ -2,6 +2,7 @@
 import type { Conversation } from "@convoz/api-client";
 import { memo, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { stripCf, whenLabel } from "../../shared/chat.ts";
+import { ThreadRows } from "../threads/index.ts";
 import { GripIcon, startDrag, type Drop } from "../rail/index.ts";
 
 /** The Reorder mode of the list: handles on the rows of Starred and Conversations (Older rows keep still) until Done. */
@@ -25,7 +26,8 @@ export interface RowProps {
 /** Row is one conversation; a row whose data did not change keeps its node, so a selection in it survives an update. */
 export const Row = memo(function Row({ c, me, index, measure, style, grp, mode }: RowProps) {
   const moving = Boolean(mode?.on && grp);
-  const unread = c.unread > 0;
+  const mainUnread = c.main_unread ?? c.unread;
+  const unread = mainUnread > 0;
   const preview = c.last ? `${c.last.author_handle === me ? "You" : c.last.author_handle}: ${c.last.preview}` : "No messages yet";
   return (
     <li className={`${unread ? "unread" : ""}${c.muted_until ? " muted" : ""}`.trim() || undefined} data-id={c.id} data-rid={moving ? c.id : undefined} data-grp={moving ? grp : undefined} data-index={index} ref={measure} style={style}>
@@ -41,7 +43,7 @@ export const Row = memo(function Row({ c, me, index, measure, style, grp, mode }
         {unread ? (
           <span className="count">
             <span className="sr">Unread: </span>
-            <span>{c.unread > 99 ? "99+" : String(c.unread)}</span>
+            <span>{mainUnread > 99 ? "99+" : String(mainUnread)}</span>
           </span>
         ) : null}
       </a>
@@ -57,6 +59,7 @@ export const Row = memo(function Row({ c, me, index, measure, style, grp, mode }
           <GripIcon />
         </button>
       ) : null}
+      <ThreadRows c={c} />
     </li>
   );
 });
