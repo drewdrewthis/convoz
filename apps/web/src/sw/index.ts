@@ -13,7 +13,10 @@ let registration: ServiceWorkerRegistration | undefined;
 /** A worker that waits while another controls the page is an update; the first worker never waits. */
 function watch(reg: ServiceWorkerRegistration): void {
   const check = (worker: ServiceWorker | null) => {
-    if (worker && navigator.serviceWorker.controller) useUpdate.setState({ ready: true });
+    if (!worker || !navigator.serviceWorker.controller) return;
+    useUpdate.setState({ ready: true });
+    // A page the owner is looking at keeps its bar; only a page out of sight takes the update at once.
+    if (document.visibilityState === "hidden") applyWhenHidden();
   };
   check(reg.waiting);
   reg.addEventListener("updatefound", () => {
@@ -61,13 +64,41 @@ export function registerServiceWorker(): void {
   if (document.readyState === "complete") start();
   else addEventListener("load", start);
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") void registration?.update().catch(() => {});
+    if (document.visibilityState === "hidden") return applyWhenHidden();
+    // The look for a new build finishes first: a hand-over started in the middle of it can stall.
+    void Promise.resolve(registration?.update()).catch(() => {}).then(applyWhenSafe);
   });
 }
 
+/** Unsent text in any field of the page. Composer text lives only in component state (it is not saved), so a reload would lose it. */
+function halfWritten(): boolean {
+  const fields = document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("textarea, input:not([type=checkbox],[type=radio],[type=button],[type=submit],[type=hidden],[type=file])");
+  return [...fields].some((f) => f.value.trim() !== "") || !!document.querySelector("[contenteditable=true]:not(:empty)");
+}
+
+/** The worker that applyWhenSafe already applied: one try per waiting worker, so a failed hand-over never loops. */
+let tried: ServiceWorker | null | undefined;
+
 /**
- * applyUpdate lets the waiting worker take over and reloads the page under it. Nothing changes until it is called, so the
- * owner chooses the moment (a half-written message is not lost to a surprise reload).
+ * applyWhenSafe applies a waiting update by itself, while the app is in the background or when it comes back to the screen, but
+ * only with nothing half-written. Otherwise the "Update ready" bar stays for the owner's tap.
+ */
+function applyWhenSafe(): void {
+  const waiting = registration?.waiting;
+  if (!waiting || waiting === tried || !navigator.serviceWorker.controller) return;
+  if (halfWritten()) return; // hidden too: on a phone the owner often switches apps in the middle of a message
+  tried = waiting;
+  applyUpdate();
+}
+
+/** A page that hides while it unloads (a reload, a link) must not apply the update, so the page has to stay hidden for a moment first. */
+function applyWhenHidden(): void {
+  setTimeout(() => document.visibilityState === "hidden" && applyWhenSafe(), 500);
+}
+
+/**
+ * applyUpdate lets the waiting worker take over and reloads the page under it. The bar's Reload button calls it, and
+ * applyWhenSafe calls it when no reload can cost the owner a half-written message.
  */
 export function applyUpdate(): void {
   const waiting = registration?.waiting;
