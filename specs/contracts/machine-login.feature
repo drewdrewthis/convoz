@@ -81,6 +81,21 @@ Feature: Machine login with a device flow (contracts)
       Then the server answers 409 with the code "machine_name_taken"
       And the key of the active "box-2" still works
 
+    # Owner (msg 772): "@claude-convoz this is a blocking bug" (the name "drew-sweatshop" is taken on Approve);
+    # (msg 774): "Seems wrong"; (msg 775): "Why wouldn't the machine key be shared"
+    @v1 @api @I-33 @I-36
+    Scenario: A second agent on a machine that is already connected joins it with the same key
+      Given the machine "box-2" is connected from one node and serves "dot"
+      When a second agent "ink" on the same node asks to connect as "box-2" and the owner approves
+      Then "ink" receives the key of the existing machine "box-2"
+      And "box-2" is still one machine, and it may act as both "dot" and "ink"
+
+    @v1 @api @I-33 @I-36
+    Scenario: A request from another node with the same name is still refused
+      Given the machine "box-2" is connected from one node
+      When another node asks to connect as "box-2" and the owner approves
+      Then the server answers 409 with the code "machine_name_taken" and the key is not given out
+
   Rule: An agent that logs in sends its own identity, and the server checks it twice
 
     @v1 @api @I-3 @I-36
