@@ -62,6 +62,17 @@ Feature: Conversations
       Then the new conversation has "docs" as a participant
       And "docs" gets a mention item
 
+    # Owner (Drew, conv 15 msg 316): "I can send an image as the first message"
+    # Owner (Drew, conv 15 msg 317): "*can't"
+    @v1 @browser
+    Scenario: The owner can start a conversation with an image and no text
+      Given "devtool" has a live session
+      When the owner opens New conversation with "devtool" and attaches "chart.png" by the Attach button or by paste
+      Then the composer shows "chart.png" under "Files to send" and Send is enabled
+      When the owner sends
+      Then the new conversation holds one message with the image, and with the words when there are any
+      And the conversation is titled by the words, or by the file name when there are none
+
     @v1 @browser @phone
     Scenario: On a phone a new conversation takes its title from the first message and goes to the top of Conversations
       Given the owner has conversations "Ship search filters" and "Deploy alerts runbook" on a phone

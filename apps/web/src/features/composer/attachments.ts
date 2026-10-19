@@ -7,11 +7,11 @@ import { asUpload, uploadFile } from "../../shared/uploads.ts";
 const MOST_FILES = 10;
 const TOO_MANY = "10 is the most per message.";
 
-/** One file to send: uploading, failed, or done with its upload. */
+/** One file to send: held (a new conversation has no id to upload to yet), uploading, failed, or done with its upload. */
 export interface Attachment {
   key: string;
   file: File;
-  state: "uploading" | "failed" | "done";
+  state: "held" | "uploading" | "failed" | "done";
   /** Bytes the server holds. */
   sent: number;
   upload?: Upload;
@@ -44,7 +44,8 @@ export function pasteFiles(event: ClipboardEvent, attachments: Attachments): voi
 
 /**
  * useAttachments holds the files of the composer. The page owns it, so a drop anywhere on the conversation adds to the same list.
- * With no conversation yet (a new one) nothing can be attached: an upload belongs to a conversation.
+ * With no conversation yet (a new one) the files are held in the list: an upload belongs to a conversation, so they go up once the first
+ * send has made it (a conversation made at Attach would be wrong if the agents are picked later).
  */
 export function useAttachments(conversationId: number): Attachments {
   const list = useRef<Attachment[]>([]);
@@ -85,10 +86,11 @@ export function useAttachments(conversationId: number): Attachments {
     items: list.current,
     note: note.current,
     add: (files) => {
-      if (!conv.current || !files.length) return;
-      const taken = files.slice(0, Math.max(0, MOST_FILES - list.current.length)).map((file): Attachment => ({ key: `f${++n}`, file, state: "uploading", sent: 0 }));
+      if (!files.length) return;
+      const state = conv.current ? "uploading" : "held";
+      const taken = files.slice(0, Math.max(0, MOST_FILES - list.current.length)).map((file): Attachment => ({ key: `f${++n}`, file, state, sent: 0 }));
       put([...list.current, ...taken], taken.length < files.length ? TOO_MANY : "");
-      for (const a of taken) start(a.key, a.file);
+      if (state === "uploading") for (const a of taken) start(a.key, a.file);
     },
     remove: (key) => {
       forget(key);

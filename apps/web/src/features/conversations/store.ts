@@ -6,6 +6,7 @@ import { create } from "zustand";
 import { ApiError } from "../../shared/api.ts";
 import { newId } from "../../shared/chat.ts";
 import { data, outbox, source, sync } from "../../shared/data.ts";
+import { asUpload, uploadFile } from "../../shared/uploads.ts";
 
 /** A send waiting for the link looks again this often even if no `online` event comes. */
 const OFFLINE_RECHECK_MS = 10_000;
@@ -20,6 +21,8 @@ export interface PendingSend {
   uploadIds?: string[];
   /** Those uploads as the message shows them; absent for a send restored from the outbox (only the ids are kept there). */
   files?: Upload[];
+  /** For a new conversation: files chosen before it existed. They go up once it is made; they stay here until then, so a failed send loses none. */
+  held?: File[];
 }
 
 /** One conversation page. A new conversation has convId 0 until its first send makes it. */
@@ -42,8 +45,8 @@ export interface ConversationsState {
   catchUp(key: string): Promise<void>;
   /** A new server message: the owner's own copy replaces its pending send; */
   received(convId: number, m: Message): void;
-  /** Send a message; `files` are finished uploads (the body may then be empty). */
-  send(key: string, body: string, files?: Upload[]): void;
+  /** Send a message; `files` are finished uploads and `held` are files to upload once the conversation exists (the body may then be empty). */
+  send(key: string, body: string, files?: Upload[], held?: File[]): void;
   retry(key: string, cid: string): void;
   markRead(key: string): Promise<void>;
   /** Send the unconfirmed sends of conversations no page has open (the outbox), after the link came back. */
@@ -96,7 +99,14 @@ export const useConversations = create<ConversationsState>()((set, get) => {
           patch(key, () => ({ convId: made.id }));
           t = thread(key)!;
         }
-        const p = t.pending.find((x) => x.cid === cid)!;
+        let p = t.pending.find((x) => x.cid === cid)!;
+        if (p.held?.length) {
+          const signal = new AbortController().signal;
+          const files: Upload[] = [];
+          for (const file of p.held) files.push(asUpload(await uploadFile(t.convId, file, { signal })));
+          patch(key, (now) => ({ pending: now.pending.map((x) => (x.cid === cid ? { ...x, held: undefined, files, uploadIds: files.map((f) => f.id) } : x)) }));
+          p = thread(key)!.pending.find((x) => x.cid === cid)!;
+        }
         if (!queued) void outbox.put({ cid, conversationId: t.convId, body: p.body, uploadIds: p.uploadIds, createdAt: Date.now() }); // before the post: a cut-off send is found again
         queued = true;
         const sent = await source.post(t.convId, cid, p.body, p.uploadIds);
@@ -166,11 +176,13 @@ export const useConversations = create<ConversationsState>()((set, get) => {
         void get().markRead(key);
       }
     },
-    send: (key, body, files) => {
+    send: (key, body, files, held) => {
       const t = thread(key);
       if (!t) return;
       const cid = newId();
-      const carried = files?.length ? { files, uploadIds: files.map((f) => f.id) } : {};
+      // a held file shows by name in the bubble until it is uploaded
+      const named = (held ?? []).map((f, i): Upload => ({ id: `held-${i}`, kind: "file", name: f.name, size: f.size, mime: f.type, inline: false }));
+      const carried = held?.length ? { held, files: named } : files?.length ? { files, uploadIds: files.map((f) => f.id) } : {};
       patch(key, (now) => ({ pending: [...now.pending, { cid, body, state: "sending", base: newest(now.convId), ...carried }] }));
       void enqueue(key, cid);
     },
