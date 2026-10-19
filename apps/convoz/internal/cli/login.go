@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	stdio "io"
+	"net/http"
 	"os"
 	"regexp"
 	"runtime"
@@ -46,7 +47,7 @@ func Login(args []string, io IO) int {
 	name := fs.String("name", defaultMachineName(), "the name of this machine")
 	stdin := fs.Bool("stdin", false, "store the key given on standard input instead of asking the owner")
 	store := fs.String("store", storeAuto, "where the key lives: file, keychain or auto")
-	as := fs.String("as", "", "the handle of the agent that asks to connect; the owner's one Approve makes the machine and this agent")
+	as := fs.String("as", "", "the handle of the agent that asks to connect; the owner's one Approve makes the machine and this agent. On a machine that is already logged in to this server, only the agent is asked for, and the machine key is reused")
 	invite := fs.String("invite", io.Getenv("CONVOZ_INVITE"), "the one-use invite that lets an agent outside the tailnet ask to connect (CONVOZ_INVITE also sets it); a server on the tailnet needs none")
 	more := addIntroFlags(fs)
 	if !parseNoArgs(fs, args, io) {
@@ -91,6 +92,11 @@ func Login(args []string, io IO) int {
 		return finishLogin(io, dir, kc, Credentials{Server: base, Machine: *name, Key: key}, *store, false)
 	}
 	WarnIfStale(io, newClient(base))
+	if intro != nil {
+		if code, done := loginAgainAs(io, dir, kc, base, intro, strings.TrimSpace(*invite)); done {
+			return code
+		}
+	}
 	return deviceFlow(io, dir, kc, newClient(base), base, *name, *store, intro, strings.TrimSpace(*invite))
 }
 
@@ -173,7 +179,44 @@ func finishLogin(io IO, dir string, kc keychain, c Credentials, store string, fr
 	}
 	fmt.Fprintf(io.Stdout, "Logged in as machine %q.\n", c.Machine)
 	fmt.Fprintln(io.Stdout, watchNext)
+	fmt.Fprintf(io.Stdout, "Credentials saved in %s.\n", dir)
 	return ExitOK
+}
+
+// loginAgainAs handles `login --as` on a machine that is already logged in to this server: the machine key is shared, so it only
+// asks the owner to add the agent, by the same request as `session start --as H --create`. done is false when there is no usable
+// login (none stored, another server, or a key the server no longer knows): the caller then logs the machine in as before.
+func loginAgainAs(io IO, dir string, kc keychain, base string, intro *wire.IdentityIntro, invite string) (code int, done bool) {
+	creds, err := loadCredentials(dir, kc)
+	if err != nil || creds.Server != base {
+		return 0, false
+	}
+	asked := false
+	onAsk := func() {
+		asked = true
+		fmt.Fprintf(io.Stdout, "This machine is already logged in as %s. Asking the owner to add @%s on it. Open Convoz, Now.\n", creds.Machine, intro.Handle)
+	}
+	c := newClient(base)
+	sid, err := startSession(io, dir, c, creds, strings.ToLower(intro.Handle), "convoz-"+randomHex(8), "convoz login", intro, invite, onAsk)
+	if status, _ := statusCode(err); status == http.StatusUnauthorized {
+		fmt.Fprintln(io.Stderr, "convoz: The stored key no longer works. Logging this machine in again.")
+		return 0, false
+	}
+	if err != nil {
+		return fail(io, err), true
+	}
+	// The session only proved the agent is allowed here; login leaves none behind.
+	if err := endSession(dir, c, sid); err != nil {
+		return fail(io, err), true
+	}
+	if asked {
+		fmt.Fprintf(io.Stdout, "@%s is now on this machine.\n", intro.Handle)
+	} else {
+		fmt.Fprintf(io.Stdout, "@%s is already allowed on this machine (%s). No request needed.\n", intro.Handle, creds.Machine)
+	}
+	fmt.Fprintln(io.Stdout, watchNext)
+	fmt.Fprintf(io.Stdout, "Using credentials in %s.\n", dir)
+	return ExitOK, true
 }
 
 func deviceFlow(io IO, dir string, kc keychain, c *client, base, name, store string, intro *wire.IdentityIntro, invite string) int {

@@ -150,6 +150,24 @@ Feature: Machine login with a device flow
       Then the CLI exits 4 and says the handle is taken
       And no card appears in Now
 
+    @v1 @cli @I-36
+    Scenario: Logging in again as a new agent on a logged-in machine asks only to add the agent
+      Given "box-2" is logged in
+      When "convoz login --as code-review" runs on "box-2"
+      Then the CLI says "box-2" is already logged in and asks the owner to add @code-review
+      And the owner sees one Now card for @code-review and no card for a new machine
+      And Crew → Machines still lists one machine, "box-2"
+      When the owner taps Approve on that card
+      Then the CLI exits 0 and prints the folder that holds the credentials
+      And "convoz session start --as code-review" works on "box-2"
+
+    @v1 @cli @I-36
+    Scenario: Logging in as an agent the machine already has needs no request
+      Given "box-2" is logged in and allows "devtool"
+      When "convoz login --as devtool" runs on "box-2"
+      Then the CLI exits 0 and says "devtool" is already allowed on this machine
+      And no card appears in Now
+
     # Owner (Drew, msg 143): "History should be accessible yes"
     @v1 @cli
     Scenario: An agent login may name a conversation, and the card shows its title

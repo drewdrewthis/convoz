@@ -122,7 +122,7 @@ import path from "node:path";
 import { createConversation, ownerSays } from "../lib/chat.ts";
 import { Client, send } from "../lib/http.ts";
 import { fakeTailscale, whoisNode } from "../lib/fake-tailscale.ts";
-import { CliMachine, modeOf } from "../lib/cli.ts";
+import { CliMachine, installedMachine, modeOf } from "../lib/cli.ts";
 import { agentServer, startLoginViaAgent } from "../lib/agent-port.ts";
 import { faultProxy } from "../lib/fault-proxy.ts";
 import {
@@ -138,6 +138,7 @@ import {
   loginMachine,
   mintSession,
   approveCard,
+  approveIdentity,
   declineCard,
   identityRequests,
   nowCard,
@@ -821,6 +822,61 @@ scenario("A login as a handle that exists is refused", { tag: ["@cli"] }, async 
 
   // And no card appears in Now
   expect(must(await owner.client.get("/api/now"), "now").json().machine_requests).toEqual([]);
+});
+
+scenario("Logging in again as a new agent on a logged-in machine asks only to add the agent", { tag: ["@cli"] }, async ({ server }) => {
+  // Given "box-2" is logged in
+  const srv = await server(localServer());
+  const owner = await bootstrapOwner(srv);
+  const box = await installedMachine(srv.origin, "box-2", (await loginMachine(srv, owner, "box-2", allow())).key);
+
+  // When "convoz login --as code-review" runs on "box-2"
+  const login = box.start(["login", "--server", srv.origin, "--as", "code-review"]);
+
+  // Then the CLI says "box-2" is already logged in and asks the owner to add @code-review
+  await login.waitForStdout(/This machine is already logged in as box-2\. Asking the owner to add @code-review on it\. Open Convoz, Now\./);
+
+  // And the owner sees one Now card for @code-review and no card for a new machine
+  expect(must(await owner.client.get("/api/now"), "now").json().machine_requests).toEqual([]);
+  const cards = await identityRequests(owner);
+  expect(cards).toHaveLength(1);
+
+  // And Crew -> Machines still lists one machine, "box-2"
+  expect(must(await owner.client.get("/api/machines"), "machines").json().machines.map((m: { name: string }) => m.name)).toEqual(["box-2"]);
+
+  // When the owner taps Approve on that card
+  must(await approveIdentity(owner, cards[0]!.ref), "approve", 201);
+
+  // Then the CLI exits 0 and prints the folder that holds the credentials
+  const done = await login.done;
+  expect(done.code, done.stderr).toBe(0);
+  expect(done.stdout).toContain(`Using credentials in ${box.configDir}.`);
+  expect(done.stdout + done.stderr).not.toMatch(/cvz_[a-z]_/);
+
+  // And "convoz session start --as code-review" works on "box-2"
+  const started = await box.sessionStart("code-review");
+  expect(started.code, started.stderr).toBe(0);
+});
+
+scenario("Logging in as an agent the machine already has needs no request", { tag: ["@cli"] }, async ({ server }) => {
+  // Given "box-2" is logged in and allows "devtool"
+  const srv = await server(localServer());
+  const owner = await bootstrapOwner(srv);
+  await createAgents(owner, "devtool");
+  const box = await installedMachine(srv.origin, "box-2", (await loginMachine(srv, owner, "box-2", allow("devtool"))).key);
+
+  // When "convoz login --as devtool" runs on "box-2"
+  const res = await box.run(["login", "--server", srv.origin, "--as", "devtool"]);
+
+  // Then the CLI exits 0 and says "devtool" is already allowed on this machine
+  expect(res.code, res.stderr).toBe(0);
+  expect(res.stdout).toContain("@devtool is already allowed on this machine");
+  expect(res.stdout).toContain(`Using credentials in ${box.configDir}.`);
+
+  // And no card appears in Now
+  const now = must(await owner.client.get("/api/now"), "now").json();
+  expect(now.machine_requests).toEqual([]);
+  expect(await identityRequests(owner)).toEqual([]);
 });
 
 scenario("An agent login may name a conversation, and the card shows its title", { tag: ["@cli"] }, async ({ server }) => {
