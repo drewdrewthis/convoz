@@ -1,5 +1,5 @@
 import type { Conversation, Message } from "@convoz/api-client";
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { humanError } from "../../shared/api.ts";
 import { stripCf } from "../../shared/chat.ts";
 import { source } from "../../shared/data.ts";
@@ -49,7 +49,7 @@ function useLines(rows: Conversation[], me: string): Record<number, Message[]> {
 }
 
 /** Unread is the digest under the asks (owner, conv 1, msgs 535 and 562): a summary line, then one card per conversation with its newest unread lines. */
-export function Unread({ rows, me }: { rows: Conversation[]; me: string }) {
+export const Unread = memo(function Unread({ rows, me }: { rows: Conversation[]; me: string }) {
   const { fail } = useNotice();
   const [busy, setBusy] = useState(false);
   const lines = useLines(rows, me);
@@ -106,4 +106,4 @@ export function Unread({ rows, me }: { rows: Conversation[]; me: string }) {
       </div>
     </section>
   );
-}
+});
