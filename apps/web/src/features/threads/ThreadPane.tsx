@@ -1,9 +1,10 @@
-import { AttachIcon, BackIcon, SendIcon } from "@convoz/ui/icons";
+import { AttachIcon, BackIcon, MicIcon, SendIcon } from "@convoz/ui/icons";
 import type { Message } from "@convoz/api-client";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { stripCf } from "../../shared/chat.ts";
 import { replyingNote, useReplying } from "../../shared/presence.ts";
-import { AttachmentList, pasteFiles, useAttachments } from "../composer/index.ts";
+import { AttachmentList, keepFocus, pasteFiles, useAttachments } from "../composer/index.ts";
+import { useVoiceNote } from "../voice/index.ts";
 import { useThreads, type PendingReply } from "./store.ts";
 
 /** A thread sits beside the chat from this width, and fills the screen below it. */
@@ -45,6 +46,7 @@ export function ThreadPane({ title, bubbles }: ThreadPaneProps) {
   const input = useRef<HTMLInputElement>(null);
   const picker = useRef<HTMLInputElement>(null);
   const attachments = useAttachments(t?.conversation ?? 0);
+  const voice = useVoiceNote(t?.conversation ?? 0, (sent) => reply("", [sent.id]));
   const log = useRef<HTMLDivElement>(null);
   const root = t?.rootId;
   const note = replyingNote(useReplying(t?.conversation ?? 0, root ?? -1));
@@ -65,6 +67,7 @@ export function ThreadPane({ title, bubbles }: ThreadPaneProps) {
   if (!t) return null;
   const heading = `in ${stripCf(title)}`;
   const files = attachments.items;
+  const empty = text.trim() === "" && files.length === 0;
   const canSend = (text.trim() !== "" || files.length > 0) && files.every((f) => f.state === "done");
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -112,7 +115,8 @@ export function ThreadPane({ title, bubbles }: ThreadPaneProps) {
       </div>
       <form className="threadform" onSubmit={submit}>
         <AttachmentList attachments={attachments} />
-        <div className="composer glass thrcomposer">
+        {voice.bar}
+        <div className="composer glass thrcomposer" hidden={voice.recording}>
           <button type="button" className="attachbtn" aria-label="Attach a file to the reply" title="Attach a file" onClick={() => picker.current?.click()}>
             <AttachIcon />
           </button>
@@ -130,13 +134,18 @@ export function ThreadPane({ title, bubbles }: ThreadPaneProps) {
           <label htmlFor="thr-composer" className="sr">
             Reply in thread
           </label>
-          <input ref={input} id="thr-composer" value={text} onChange={(e) => setText(e.target.value)} onPaste={(e) => pasteFiles(e, attachments)} placeholder="Reply…" autoComplete="off" enterKeyHint="send" />
-          {text.trim() || files.length ? (
-            <button type="submit" className="sendbtn" aria-label="Send reply" disabled={!canSend}>
+          <input ref={input} id="thr-composer" value={text} onChange={(e) => { setText(e.target.value); voice.clearNote(); }} onPaste={(e) => pasteFiles(e, attachments)} placeholder="Reply…" autoComplete="off" enterKeyHint="send" />
+          <span className="sendslot">
+            {/* Send stays in the page (and disabled) under the microphone while there is nothing to send. */}
+            <button type="submit" className={`sendbtn${empty ? " under" : ""}`} aria-label="Send reply" disabled={!canSend} onMouseDown={keepFocus}>
               <SendIcon />
             </button>
-          ) : null}
+            <button ref={voice.mic} type="button" className="sendbtn mic" aria-label="Record a voice message" title="Record a voice message" hidden={!empty} onMouseDown={keepFocus} onClick={voice.start}>
+              <MicIcon />
+            </button>
+          </span>
         </div>
+        {voice.note}
       </form>
     </>
   );

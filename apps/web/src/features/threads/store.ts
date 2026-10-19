@@ -124,7 +124,7 @@ export const useThreads = create<ThreadsState>()((set, get) => {
       const mine = data.store.getState().me?.identity.handle === m.author.handle;
       patch((now) => {
         // the server's copy of a pending reply (it came by the stream before the answer to the POST)
-        const at = mine ? now.pending.findIndex((p) => p.body === m.body && m.id > p.base) : -1;
+        const at = mine && !now.replies.some((r) => r.id === m.id) ? now.pending.findIndex((p) => p.body === m.body && m.id > p.base) : -1;
         return { replies: merge(now.replies, [m]), pending: at >= 0 ? now.pending.filter((_, i) => i !== at) : now.pending };
       });
       void get().markRead();
