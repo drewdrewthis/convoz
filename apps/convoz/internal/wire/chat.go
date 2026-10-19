@@ -279,7 +279,7 @@ type AgentsResponse struct {
 
 // WatchAdvice is the one way to listen: keep `convoz watch --json` running and read each line as it arrives (coordinator, conv 19 msgs 580
 // and 583; owner msg 438: one correct way). `--once` stays in the CLI for scripts and is taught nowhere. The brief and `session start` print it.
-const WatchAdvice = "Keep `convoz watch --json` running in the background and read each line as it arrives: answer, then `convoz ack` it. If the watch stops, start it again. Nothing is lost: items stay in your inbox until you ack them."
+const WatchAdvice = "Keep `convoz watch --json` running in the background and read each line as it arrives: answer it. If the watch stops, start it again."
 
 // WatchLine is what `convoz watch --json` prints for each item: one line of JSON.
 type WatchLine struct {

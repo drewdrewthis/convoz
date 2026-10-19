@@ -41,20 +41,64 @@ func (q *Queries) AckItem(ctx context.Context, arg AckItemParams) (int64, error)
 	return result.RowsAffected()
 }
 
-const ackedAskItem = `-- name: AckedAskItem :one
-SELECT EXISTS (SELECT 1 FROM inbox_items WHERE id = ?1 AND identity_id = ?2 AND reason = 'ask_resolved'
-               AND state = 'acked' AND acked_by_session = ?3)
+const ackThrough = `-- name: AckThrough :many
+UPDATE inbox_items
+SET state = 'acked', acked_by_watch = 1, acked_at = ?1, acked_by_session = ?2, claim_session_id = NULL, claim_token = NULL,
+    claim_until = NULL, visibility_ms = NULL, updated_at = ?1
+WHERE identity_id = ?3 AND state = 'claimed' AND claim_session_id = ?2 AND claim_seq <= ?4
+RETURNING id
 `
 
-type AckedAskItemParams struct {
+type AckThroughParams struct {
+	Now        sql.NullInt64
+	SessionID  sql.NullInt64
+	IdentityID int64
+	After      sql.NullInt64
+}
+
+// A watch that asks after=K proves it got every answer up to claim number K: its claims of this session up to K are done, no ack needed.
+func (q *Queries) AckThrough(ctx context.Context, arg AckThroughParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, ackThrough,
+		arg.Now,
+		arg.SessionID,
+		arg.IdentityID,
+		arg.After,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const ackedItem = `-- name: AckedItem :one
+SELECT EXISTS (SELECT 1 FROM inbox_items WHERE id = ?1 AND identity_id = ?2
+               AND (reason = 'ask_resolved' OR acked_by_watch = 1) AND state = 'acked' AND acked_by_session = ?3)
+`
+
+type AckedItemParams struct {
 	ID         int64
 	IdentityID int64
 	SessionID  sql.NullInt64
 }
 
-// A repeat of an ack that went through: the item is acked, by this session.
-func (q *Queries) AckedAskItem(ctx context.Context, arg AckedAskItemParams) (bool, error) {
-	row := q.db.QueryRowContext(ctx, ackedAskItem, arg.ID, arg.IdentityID, arg.SessionID)
+// A repeat of an ack that went through (ask_resolved items only), or the ack of an item the watch already finished: the item is acked, by this session.
+func (q *Queries) AckedItem(ctx context.Context, arg AckedItemParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, ackedItem, arg.ID, arg.IdentityID, arg.SessionID)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
@@ -175,6 +219,20 @@ func (q *Queries) ClaimSeq(ctx context.Context, identityID int64) (int64, error)
 	return seq, err
 }
 
+const clearPlace = `-- name: ClearPlace :exec
+DELETE FROM inbox_unanswered WHERE conversation_id = ?1 AND thread_root_id = ?2
+`
+
+type ClearPlaceParams struct {
+	ConversationID int64
+	ThreadRootID   int64
+}
+
+func (q *Queries) ClearPlace(ctx context.Context, arg ClearPlaceParams) error {
+	_, err := q.db.ExecContext(ctx, clearPlace, arg.ConversationID, arg.ThreadRootID)
+	return err
+}
+
 const clearPreference = `-- name: ClearPreference :exec
 UPDATE inbox_items SET prefer_session_id = NULL WHERE prefer_session_id = ?1 AND state IN ('ready','claimed')
 `
@@ -212,6 +270,45 @@ DELETE FROM inbox_items WHERE id = ?1
 func (q *Queries) DeleteItem(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, deleteItem, id)
 	return err
+}
+
+const duePlaces = `-- name: DuePlaces :many
+SELECT conversation_id, thread_root_id, message_id FROM inbox_unanswered
+WHERE due_at <= ?1 ORDER BY due_at, conversation_id, thread_root_id LIMIT ?2
+`
+
+type DuePlacesParams struct {
+	Now     int64
+	MaxRows int64
+}
+
+type DuePlacesRow struct {
+	ConversationID int64
+	ThreadRootID   int64
+	MessageID      int64
+}
+
+func (q *Queries) DuePlaces(ctx context.Context, arg DuePlacesParams) ([]DuePlacesRow, error) {
+	rows, err := q.db.QueryContext(ctx, duePlaces, arg.Now, arg.MaxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DuePlacesRow
+	for rows.Next() {
+		var i DuePlacesRow
+		if err := rows.Scan(&i.ConversationID, &i.ThreadRootID, &i.MessageID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const expireNotVisible = `-- name: ExpireNotVisible :exec
@@ -579,6 +676,30 @@ func (q *Queries) InsertStatusDueItem(ctx context.Context, arg InsertStatusDueIt
 	return err
 }
 
+const insertUnansweredItem = `-- name: InsertUnansweredItem :exec
+INSERT INTO inbox_items (identity_id, reason, conversation_id, first_message_id, message_id, count, mention_count, source_seq, state, created_at, updated_at)
+VALUES (?1, 'unanswered', ?2, ?3, ?3, 1, 0, 0, 'ready', ?4, ?4)
+`
+
+type InsertUnansweredItemParams struct {
+	IdentityID     int64
+	ConversationID sql.NullInt64
+	MessageID      sql.NullInt64
+	Now            int64
+}
+
+// The owner's message sat unanswered: an item like the one the message made, with the reason changed. It never merges.
+// No event stands behind it, so source_seq is 0 (nothing reads it).
+func (q *Queries) InsertUnansweredItem(ctx context.Context, arg InsertUnansweredItemParams) error {
+	_, err := q.db.ExecContext(ctx, insertUnansweredItem,
+		arg.IdentityID,
+		arg.ConversationID,
+		arg.MessageID,
+		arg.Now,
+	)
+	return err
+}
+
 const itemConversation = `-- name: ItemConversation :one
 SELECT conversation_id FROM inbox_items WHERE id = ?1 AND identity_id = ?2
 `
@@ -778,6 +899,30 @@ type SetClaimSeqParams struct {
 
 func (q *Queries) SetClaimSeq(ctx context.Context, arg SetClaimSeqParams) error {
 	_, err := q.db.ExecContext(ctx, setClaimSeq, arg.IdentityID, arg.Seq)
+	return err
+}
+
+const trackPlace = `-- name: TrackPlace :exec
+INSERT INTO inbox_unanswered (conversation_id, thread_root_id, message_id, due_at)
+VALUES (?1, ?2, ?3, ?4)
+ON CONFLICT (conversation_id, thread_root_id) DO UPDATE SET message_id = excluded.message_id, due_at = excluded.due_at
+`
+
+type TrackPlaceParams struct {
+	ConversationID int64
+	ThreadRootID   int64
+	MessageID      int64
+	DueAt          int64
+}
+
+// The owner wrote the newest counted message of a place: it is due for a reminder at due_at, and an older one is forgotten.
+func (q *Queries) TrackPlace(ctx context.Context, arg TrackPlaceParams) error {
+	_, err := q.db.ExecContext(ctx, trackPlace,
+		arg.ConversationID,
+		arg.ThreadRootID,
+		arg.MessageID,
+		arg.DueAt,
+	)
 	return err
 }
 

@@ -57,3 +57,20 @@ func reasonFor(identity int64, a message.Arrival) string {
 	}
 	return inbox.ReasonActivity
 }
+
+// placesPort tells the inbox which place the owner last wrote in, or that someone else answered there. A counted message is a text or
+// an ask. Plan updates are no messages, system lines are kind system, and a result sent through an app or the answer to an ask has
+// its own item already: none of these counts either way. An agent's ask clears the place: it is a response to what the owner wrote
+// (it asks the owner for the next step), so the agent is not silent.
+type placesPort struct{ owner bool }
+
+func (pp placesPort) Posted(ctx context.Context, d pdb.DBTX, _ time.Time, m message.Message) error {
+	if m.Kind == "system" || m.ViaAppID != 0 || m.AnswersAskID != 0 {
+		return nil
+	}
+	place := inbox.Place{Conversation: m.ConversationID, ThreadRoot: m.ThreadRootID}
+	if pp.owner {
+		return inbox.OwnerSpoke(ctx, d, place, m.ID, m.CreatedAt)
+	}
+	return inbox.Answered(ctx, d, place)
+}

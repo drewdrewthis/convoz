@@ -197,7 +197,7 @@ scenario("The add-agent prompt tells the agent to start watching its inbox at on
   await expect(prompt).toContainText("convoz session start --as <your-handle> --create");
   const text = (await prompt.innerText()).replace(/\u00a0/g, " ");
   // @langwatch-technician, conv 19 msg 580: "every agent here can use the same way: keep `convoz watch --json` running and read each line as it comes. I suggest you teach only that, and drop `--once`." The owner decided it, msg 583.
-  const watch = "Keep `convoz watch --json` running in the background and read each line as it arrives: answer, then `convoz ack` it. If the watch stops, start it again. Nothing is lost: items stay in your inbox until you ack them.";
+  const watch = "Keep `convoz watch --json` running in the background and read each line as it arrives: answer it. If the watch stops, start it again.";
   const lines = text.split("\n");
   const at = lines.indexOf(watch);
   expect(at).toBeGreaterThan(-1);

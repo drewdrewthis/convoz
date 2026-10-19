@@ -552,3 +552,32 @@ func (q *Queries) ScrubMessage(ctx context.Context, arg ScrubMessageParams) erro
 	_, err := q.db.ExecContext(ctx, scrubMessage, arg.At, arg.By, arg.ID)
 	return err
 }
+
+const threadAuthors = `-- name: ThreadAuthors :many
+SELECT DISTINCT author_id FROM messages
+WHERE (thread_root_id = ?1 OR id = ?1) AND kind IN ('text','ask') AND deleted_at IS NULL AND author_id IS NOT NULL ORDER BY author_id
+`
+
+// Who wrote counted messages (text and ask) in a thread, its root included, not deleted.
+func (q *Queries) ThreadAuthors(ctx context.Context, root sql.NullInt64) ([]sql.NullInt64, error) {
+	rows, err := q.db.QueryContext(ctx, threadAuthors, root)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []sql.NullInt64
+	for rows.Next() {
+		var author_id sql.NullInt64
+		if err := rows.Scan(&author_id); err != nil {
+			return nil, err
+		}
+		items = append(items, author_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

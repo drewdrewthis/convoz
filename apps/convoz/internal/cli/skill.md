@@ -39,8 +39,8 @@ Never put a decision or a plan in plain chat text. The owner scans Now and the p
 
 ## The loop
 
-1. Keep `convoz watch --json` running in the background and read each line as it arrives: answer, then `convoz ack` it. If the watch stops, start it again. Nothing is lost: items stay in your inbox until you ack them.
-2. Ack at once so the item is yours: `convoz ack <ack>`.
+1. Keep `convoz watch --json` running in the background and read each line as it arrives: answer it. If the watch stops, start it again.
+2. If the owner's message sits unanswered for 10 minutes, you get a reminder (reason `unanswered`): answer it.
 3. Do the work. `convoz read 41` shows the conversation.
 4. Reply or post the result.
 

@@ -24,15 +24,16 @@ const (
 	printedMemory = 1000
 )
 
-// Watch runs `convoz watch [--json]`: it long-polls the inbox and prints one line per item as soon as it is claimed,
-// then leaves the item in the inbox. Every claim of the session reaches it, even one made by a poll whose answer was lost. The agent acks it with `convoz ack` after it has answered; if it never does,
-// the claim runs out and the item comes back with a new token, and prints again.
+// Watch runs `convoz watch [--json]`: it long-polls the inbox and prints one line per item as soon as it is claimed. Every claim of the
+// session reaches it, even one made by a poll whose answer was lost. The agent needs no ack: the next poll carries the cursor of the
+// answer this one got, and the server finishes the items up to it, so an item is printed once and not redelivered. (`convoz ack`
+// still succeeds, for older agents.)
 //
 // It exits 3 when the session ends and otherwise runs until it is stopped, riding out network errors.
 //
 // With --once it prints the first batch (every item waiting, or else the next ones to arrive) and exits 0, for an agent that
-// cannot read the output of a command that is still running: it runs watch in the background, answers, acks, and runs it again.
-// Nothing is lost between runs: an unacked item stays in the inbox. An explicit --timeout bounds the wait; with nothing by
+// cannot read the output of a command that is still running. It has no next poll to prove it got the batch, so its items stay in the
+// inbox until `convoz ack`ed, and come back when the claim runs out. An explicit --timeout bounds the wait; with nothing by
 // then it prints nothing, says so on stderr and exits ExitNothing.
 func Watch(args []string, io IO) int {
 	f := newChatFlags("watch", io)

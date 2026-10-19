@@ -74,6 +74,12 @@ type InboxFanOut interface {
 	FanOut(ctx context.Context, d pdb.DBTX, now time.Time, identity int64, a Arrival) error
 }
 
+// Places keeps track of which place (the main chat or one thread) a new message lands in, for the reminder of an owner's message
+// that nobody answers (inbox module).
+type Places interface {
+	Posted(ctx context.Context, d pdb.DBTX, now time.Time, m Message) error
+}
+
 // Indexer writes the message into full-text search, inside the same transaction (search module). It is called again with
 // the new text after an edit, so the row must be replaced, not added.
 type Indexer interface {
@@ -146,6 +152,7 @@ type Ports struct {
 	Reads         Reads
 	Threads       Threads
 	Inbox         InboxFanOut
+	Places        Places
 	Journal       Journal
 	Search        Indexer
 	Uploads       UploadBinder
@@ -247,6 +254,11 @@ func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) 
 			if err := p.Journal.ReadMoved(ctx, d, now, draft.Author, draft.Conversation, m.ID); err != nil {
 				return Posted{}, err
 			}
+		}
+	}
+	if p.Places != nil {
+		if err := p.Places.Posted(ctx, d, now, m); err != nil {
+			return Posted{}, err
 		}
 	}
 	recipients, err := p.Conversations.AgentRecipients(ctx, d, draft.Conversation, draft.Author)

@@ -215,7 +215,7 @@ scenario("A watch gets every item, even when two arrive together or a poll is cu
   }
 });
 
-scenario("Watch leaves the item in the inbox until the agent acks it",{ tag: ["@cli"] }, async ({ server }) => {
+scenario("Watch finishes the item without an ack, and an ack still works", { tag: ["@cli"] }, async ({ server }) => {
   // Given "convoz watch --json" runs as "devtool"
   const w = await chatWorld(server, { agents: ["devtool"] });
   const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool"] });
@@ -226,8 +226,8 @@ scenario("Watch leaves the item in the inbox until the agent acks it",{ tag: ["@
     await ownerSays(w.owner, conv, "Is the build green?");
     const [line] = await watchLines(watch, 1, 3_000);
 
-    // Then "convoz inbox --peek" still shows the item for conversation 41
-    expect((await peekFor(w.box, s.sid, conv)).map((i) => i.id)).toEqual([line!.item_id]);
+    // Then "convoz inbox --peek" shows no item for conversation 41 (the next poll of the watch finished it; owner msg 821: no ack needed)
+    await expect.poll(async () => peekFor(w.box, s.sid, conv), { timeout: 5_000 }).toEqual([]);
 
     // When "devtool" runs "convoz post 41 'Yes, all 11 checks pass'" and then "convoz ack" with the item from the stream line
     const posted = await convoz(w.box, s.sid, ["post", String(conv), "Yes, all 11 checks pass"]);

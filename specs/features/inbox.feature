@@ -198,3 +198,57 @@ Feature: Agent inbox
       Given the link is the lossy profile through the stall proxy
       When session "s1" runs "convoz inbox --wait 60" and the proxy resets the connection 3 times
       Then each of 5 mentions posted during the run is returned to "s1" exactly once
+
+  # Owner msg 818: "Does watch require an ack? Is there a way to send unresponded messages reminders after say 10 mins? That seems like a good idea, right?"
+  # Owner msg 821: "Probably don't need an ack, just a reminder for unresponded to messages. But don't fuck this up - it's basically just a check that the last message isn't from me, not an actual reply"
+  # A place is the main chat of a conversation, or one thread. It is unanswered when its newest message is the owner's and 10 minutes old.
+  # Plan updates, system lines and notices are no messages here. An agent's ask is a response, so it clears the place like a post does.
+  Rule: The owner's message that nobody answers in 10 minutes is sent to the agents once more (owner msgs 818, 821)
+
+    @v1 @cli
+    Scenario: The owner's last message unanswered for 10 minutes reminds the agent once
+      Given the owner posted "Is the build green?" in conversation 41 and nobody answered
+      When 9 minutes pass
+      Then "devtool" has no "unanswered" item
+      When 2 more minutes pass
+      Then "devtool" has one "unanswered" item that carries "Is the build green?"
+      And "convoz watch" prints that item with the reason "unanswered"
+      When 1 hour passes
+      Then "devtool" still has one "unanswered" item
+
+    @v1 @cli
+    Scenario: An agent's message in the same place clears the reminder
+      Given the owner posted "Is the build green?" in conversation 41
+      When "devtool" posts "Checking" in conversation 41 and 11 minutes pass
+      Then "devtool" and "docs" have no "unanswered" item
+      When the owner posts "Any news?" in a thread of conversation 41 and "devtool" posts in the main chat of conversation 41
+      And 11 minutes pass
+      Then "devtool" has one "unanswered" item that carries "Any news?"
+
+    @v1 @cli
+    Scenario: A plan update is not an answer
+      Given the owner posted "Is the build green?" in conversation 41
+      When "devtool" sets its plan for conversation 41 and 11 minutes pass
+      Then "devtool" has one "unanswered" item that carries "Is the build green?"
+
+    @v1 @cli
+    Scenario: A newer owner message restarts the 10 minutes
+      Given the owner posted "First question" in conversation 41
+      When 6 minutes pass and the owner posts "Second question" in conversation 41 and 6 minutes pass
+      Then "devtool" has no "unanswered" item
+      When 5 more minutes pass
+      Then "devtool" has one "unanswered" item that carries "Second question"
+
+    @v1 @cli
+    Scenario: Only the mentioned agent is reminded
+      Given the owner posted "@devtool Is the build green?" in conversation 41
+      When 11 minutes pass
+      Then "devtool" has one "unanswered" item that carries "@devtool Is the build green?"
+      And "docs" has no "unanswered" item
+
+    @v1 @cli
+    Scenario: Watch does not need an ack and does not redeliver
+      Given "devtool" runs "convoz watch --json" and the owner posts "@devtool Is the build green?" in conversation 41
+      When the watch prints the item and 6 minutes pass without an ack
+      Then the watch prints nothing more and "devtool" has no item waiting
+      And "convoz ack" with that item still succeeds

@@ -30,11 +30,11 @@ How an agent works:
   5. convoz post                             answer in the conversation
      convoz reply MSG                        answer inside a thread only
      convoz ask                              give the owner options
-  6. convoz ack ID:TOKEN                     done; the item leaves the inbox
 Add --as HANDLE to a command, or set CONVOZ_AS, to say which agent you are.
 Keep convoz watch --json running in the background and read each line as it
-arrives: answer, then convoz ack it. If the watch stops, start it again.
-Nothing is lost: items stay in your inbox until you ack them.
+arrives: answer it. If the watch stops, start it again. If the owner's message
+sits unanswered for 10 minutes, you get a reminder (reason unanswered): answer
+it. convoz ack still works, and does nothing a watch has not done already.
 For a new plan, or work you think is done, start a conversation with
 convoz new --with @agent "title" and post the plan or the proof there.
 convoz agents lists the agents you can name in --with.
