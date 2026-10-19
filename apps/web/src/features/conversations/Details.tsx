@@ -1,4 +1,4 @@
-import type { Conversation, Person } from "@convoz/api-client";
+import type { Conversation, Person, PlanBoard } from "@convoz/api-client";
 import { Field } from "@convoz/ui/Field";
 import { Sheet } from "@convoz/ui/Sheet";
 import { useEffect, useRef, useState } from "react";
@@ -12,19 +12,25 @@ import { PinnedList, toast } from "../pins-stars/index.ts";
 import { setMute } from "../rail/index.ts";
 import { AddAgentSheet } from "./AddAgentSheet.tsx";
 import { addAgent, decideAdd, deleteConversation, markAllRead, removeAgent, rename } from "./actions.ts";
+import { AgentsSection, WaitingSection, type PlanActions } from "./PlanSections.tsx";
 
 export interface DetailsProps {
   row: Conversation;
   onClose(): void;
   /** Opens the sheet that invites a new agent into this conversation. */
   onInvite(): void;
+  /** The plans of this conversation (GET /api/plans?conversation=), once read. */
+  board?: PlanBoard;
+  /** Post a message as the owner, or start one in the composer. */
+  act: PlanActions;
 }
 
 /**
- * Details is the panel "Details for <title>" (prototype v41, key I): who is here, how the conversation is set, and what the owner
- * can do to it. On a phone it fills the screen; on a wide one it sits at the right edge.
+ * Details is the panel "Details for <title>" (key I, or a tap on the line under the title). In the order of the UX pass approved for
+ * phase 1: what waits on the owner, then one card per agent with its plan, then how the conversation is set and what the owner can do
+ * to it. On a phone it is a bottom sheet at 80% of the height; on a wide screen it sits at the right edge.
  */
-export function Details({ row, onClose, onInvite }: DetailsProps) {
+export function Details({ row, onClose, onInvite, board, act }: DetailsProps) {
   const { fail } = useNotice();
   const { sheet, open } = useSheets();
   const close = useRef<HTMLButtonElement>(null);
@@ -52,9 +58,11 @@ export function Details({ row, onClose, onInvite }: DetailsProps) {
     toast(`Removed @${handle}`, () => addAgent(row.id, iid, "full").catch((err) => fail(humanError(err))));
   };
 
-  const agents = row.participants.filter((p) => p.kind === "agent");
   return (
+    <>
+    <div className="detscrim" aria-hidden="true" onClick={onClose} />
     <aside className="details" aria-label={`Details for ${title}`} onKeyDown={(event) => event.key === "Escape" && onClose()}>
+      <div className="detgrab" aria-hidden="true" />
       <header className="detailsbar">
         <div className="titles">
           <h2>Details</h2>
@@ -66,45 +74,14 @@ export function Details({ row, onClose, onInvite }: DetailsProps) {
       </header>
       <div className="detailsbody">
         {error ? <p role="alert">{error}</p> : null}
-        <section aria-labelledby="det-parts" className="detsec">
-          <div className="dethead">
-            <h3 id="det-parts">Participants</h3>
-            <button type="button" className="btn small quiet" onClick={() => open((done) => <AddAgentSheet id={row.id} done={done} onInvite={onInvite} onAdd={(who, handle) => addAgent(row.id, who).then(() => toast(`${handle} joined ${title}`))} />)}>
-              + Add
-            </button>
-          </div>
-          <ul aria-label="Participants" className="plist">
-            {row.participants.map((p) => (
-              <li key={p.handle} className="prow">
-                <Who person={p} />
-                {p.kind === "agent" && p.id ? (
-                  <button type="button" className="btn small quiet" aria-label={`Remove @${p.handle}`} onClick={() => void run(() => remove(p.id!, p.handle))}>
-                    Remove
-                  </button>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-          {agents.length === 0 ? <p className="muted">No agents yet.</p> : null}
-          {row.pending?.length ? (
-            <>
-              <h4 className="detsub">Waiting for approval</h4>
-              <ul aria-label="Waiting for approval" className="plist">
-                {row.pending.map((add) => (
-                  <li key={add.person.handle} className="prow">
-                    <Who person={add.person} note={add.requested_by ? `asked by @${add.requested_by.handle}` : undefined} />
-                    <button type="button" className="btn small quiet" aria-label={`Approve @${add.person.handle}`} onClick={() => void run(() => decideAdd(row.id, add.person.id!, true))}>
-                      Approve
-                    </button>
-                    <button type="button" className="btn small quiet" aria-label={`Decline @${add.person.handle}`} onClick={() => void run(() => decideAdd(row.id, add.person.id!, false))}>
-                      Decline
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </>
-          ) : null}
-        </section>
+        <WaitingSection row={row} board={board} act={act} decide={(iid, approve) => void run(() => decideAdd(row.id, iid, approve))} />
+        <AgentsSection
+          row={row}
+          board={board}
+          act={act}
+          onAdd={() => open((done) => <AddAgentSheet id={row.id} done={done} onInvite={onInvite} onAdd={(who, handle) => addAgent(row.id, who).then(() => toast(`${handle} joined ${title}`))} />)}
+          onRemove={(iid, handle) => void run(() => remove(iid, handle))}
+        />
 
         <PinnedList row={row} />
 
@@ -113,6 +90,7 @@ export function Details({ row, onClose, onInvite }: DetailsProps) {
             <h3 id="det-conv">Conversation</h3>
           </div>
           <dl className="convrows">
+            <Row label="You" value={row.participants.filter((p) => p.kind !== "agent").map(personName).join(", ")} />
             <Row label="Started by" value={row.started_by ? personName(row.started_by) : ""} />
             <Row label="Created" value={fmtDate(row.created_at)} />
             <Row label="Muted" value={row.muted_until ? `Until ${fmtDate(row.muted_until)}` : "No"} />
@@ -137,6 +115,7 @@ export function Details({ row, onClose, onInvite }: DetailsProps) {
       </div>
       {sheet}
     </aside>
+    </>
   );
 }
 
@@ -172,18 +151,6 @@ function DeleteSheet({ id, done }: { id: number; done(): void }) {
 
 function personName(p: Person): string {
   return p.kind === "agent" ? `@${p.handle}` : p.display_name || p.handle;
-}
-
-function Who({ person, note }: { person: Person; note?: string }) {
-  return (
-    <span className="who">
-      <span className={`ava p${paletteOf(person.handle)}`} aria-hidden="true" data-l={initials(person.handle)} />
-      <span className="whotext">
-        <span className="nm">{person.kind === "agent" ? `@${person.handle}` : person.display_name || person.handle}</span>
-        <span className="sub">{note ?? (person.kind === "agent" ? person.display_name : "You")}</span>
-      </span>
-    </span>
-  );
 }
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {

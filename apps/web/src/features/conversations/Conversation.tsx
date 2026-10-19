@@ -7,12 +7,14 @@ import { initials, paletteOf, setRegistry, stripCf } from "../../shared/chat.ts"
 import { data, useData, useLive } from "../../shared/data.ts";
 import { Composer, useAttachments } from "../composer/index.ts";
 import { InviteAgentSheet } from "../crew/index.ts";
+import { usePlans } from "../plan/index.ts";
 import { StarButton } from "../pins-stars/index.ts";
 import { rememberChat } from "../search/index.ts";
 import { ThreadPane, useThreads } from "../threads/index.ts";
 import { resume } from "./actions.ts";
 import { Details } from "./Details.tsx";
 import { MessageDetails } from "./MessageDetails.tsx";
+import { PlanLine } from "./PlanLine.tsx";
 import { useFocusReport } from "../notifications/index.ts";
 import { replyingNote, usePresence, useReplying } from "../../shared/presence.ts";
 import { backLabel, useBackCount } from "./backCount.ts";
@@ -82,6 +84,8 @@ export function Conversation() {
   }, [title]);
 
   const waiting = useBackCount(convId);
+  const board = usePlans((s) => (convId ? s.boards[convId] : undefined));
+  const attention = board?.attention.find((a) => a.conversation_id === convId);
   const fit = useFitFrame(frame);
 
   // The details and a thread share the right edge: opening one closes the other. A thread belongs to this page.
@@ -173,7 +177,13 @@ export function Conversation() {
     if (isNew && convId) history.replaceState(null, "", `/chats/${convId}`);
   }, [isNew, convId]);
 
+  // The plans of this conversation: the line under the title and the panel. The stream keeps them fresh (features/plan).
+  useEffect(() => {
+    if (convId && !isNew) void usePlans.getState().load(convId).catch(() => {});
+  }, [convId, isNew]);
+
   useLive(() => {
+    if (convId) void usePlans.getState().load(convId).catch(() => {});
     const s = actions();
     void s.catchUp(key);
     void s.markRead(key);
@@ -257,7 +267,8 @@ export function Conversation() {
         <div className="titles">
           <h1 id="heading">{title}</h1>
           {conversation?.muted_until ? <span className="mutedtag">Muted</span> : null}
-          <p id="subtitle" className="subtitle" hidden={!presence}>
+          {attention ? <PlanLine attention={attention} onOpen={() => setInfo(true)} /> : null}
+          <p id="subtitle" className="subtitle" hidden={!presence || Boolean(attention)}>
             {agent && presence ? (
               <>
                 <span className="who">{`@${agent.handle}`}</span>
@@ -344,7 +355,7 @@ export function Conversation() {
         </p>
       </main>
       <ThreadPane title={title} bubbles={(list, pending) => <ThreadBubbles messages={list} pending={pending} me={me} conversation={convId} onRetry={(cid) => useThreads.getState().retry(cid)} />} />
-      {info && conversation ? <Details row={conversation} onClose={() => setInfo(false)} onInvite={() => setInviting(true)} /> : null}
+      {info && conversation ? <Details row={conversation} onClose={() => setInfo(false)} onInvite={() => setInviting(true)} board={board} act={{ say: (text) => send(text, []), reply: compose }} /> : null}
       {inviting && convId ? (
         <Suspense fallback={null}>
           <InviteAgentSheet close={() => setInviting(false)} conversation={{ id: convId, title: stripCf(conversation?.title ?? "") }} />
@@ -353,6 +364,16 @@ export function Conversation() {
       {inspected ? <MessageDetails conversationId={convId} message={inspected} done={() => setInspected(null)} /> : null}
     </div>
   );
+
+  /** compose starts a message in the box (the panel's Reply): the box is the composer's own state, so it is set the way typing sets it. */
+  function compose(text: string) {
+    setInfo(false);
+    const box = textRef.current;
+    if (!box) return;
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(box, text);
+    box.dispatchEvent(new Event("input", { bubbles: true }));
+    box.focus();
+  }
 
   function retry(cid: string) {
     actions().retry(key, cid);

@@ -1,0 +1,49 @@
+# Paths of the plan module (plan.feature). Only the work package that owns plans edits this file; the root openapi.yaml lists each
+# path once.
+/api/conversations/{id}/plan:
+  put:
+    x-authz: { auth: lease, scope: status }
+    security: [{ leaseBearer: [] }]
+    operationId: putPlan
+    summary: An agent replaces its whole plan for one conversation.
+    description: |
+      The identity comes from the lease, which needs the `status` scope (a plan also moves the agent's status: a plan with a Doing sets it
+      to working). Everything is replaced at once except Done, whose items go in front of the kept history (20 at most). A Waiting item
+      that was not there before pushes the owner (plan_waiting); a finished item, or something new waiting, writes one quiet system line
+      (plan.changed). A conversation the caller is not in is 404. More than 5 next, waiting or done items, a text over 200 characters,
+      an eta that is no duration up to 7 days nor HH:MM, or a step that is not N/M is 400 `invalid_request` with the field. A retry
+      with the client_id of the request that wrote the plan changes nothing.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "../openapi.yaml#/components/schemas/PlanRequest" }
+    responses:
+      "200":
+        description: The plan as stored.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/Plan" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/plans:
+  get:
+    x-authz: { auth: human }
+    operationId: getPlans
+    summary: The plans, the agents' liveness and the line of each conversation the caller may see.
+    description: |
+      With `conversation`, only that conversation (404 when the caller cannot see it). The lines are ranked by the server: waiting, blocked,
+      not_responding or logged_out, late, stale, working, next, done. `next_change_at` says when time alone changes a line next; read again then.
+    parameters:
+      - name: conversation
+        in: query
+        required: false
+        schema: { type: integer, format: int64, minimum: 1 }
+    responses:
+      "200":
+        description: The board.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/PlanBoard" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }

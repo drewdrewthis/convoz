@@ -168,3 +168,18 @@ DELETE FROM inbox_items WHERE state = 'expired' AND updated_at < sqlc.arg(before
 -- The agent whose app got a result is told (design 3.8): one item per result, ids only. It never merges.
 INSERT INTO inbox_items (identity_id, reason, conversation_id, first_message_id, message_id, count, mention_count, source_seq, state, created_at, updated_at)
 VALUES (sqlc.arg(identity_id), 'app_result', sqlc.arg(conversation_id), sqlc.arg(message_id), sqlc.arg(message_id), 1, 0, sqlc.arg(source_seq), 'ready', sqlc.arg(now), sqlc.arg(now));
+
+-- name: InsertStatusDueItem :exec
+-- The server asks an agent whose plan is late to update it (plan.feature): one item per nudge, no message. It never merges.
+INSERT INTO inbox_items (identity_id, reason, conversation_id, count, mention_count, source_seq, state, created_at, updated_at)
+VALUES (sqlc.arg(identity_id), 'status_due', sqlc.arg(conversation_id), 1, 0, sqlc.arg(source_seq), 'ready', sqlc.arg(now), sqlc.arg(now));
+
+-- name: HasOpenStatusDue :one
+SELECT EXISTS (SELECT 1 FROM inbox_items WHERE identity_id = sqlc.arg(identity_id) AND conversation_id = sqlc.arg(conversation_id)
+               AND reason = 'status_due' AND state IN ('ready','claimed'));
+
+-- name: Unanswered :many
+-- The messages that wait for an agent: per agent and conversation, since when the oldest conversation item nobody acked has waited.
+SELECT identity_id, CAST(conversation_id AS INTEGER) AS conversation_id, CAST(min(created_at) AS INTEGER) AS since FROM inbox_items
+WHERE state IN ('ready','claimed') AND reason IN ('mention','thread','activity') AND conversation_id IS NOT NULL
+GROUP BY identity_id, conversation_id;

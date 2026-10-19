@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://convoz.dev/events/plan.changed.v1.json",
+  "title": "plan.changed.v1",
+  "description": "An agent replaced its plan in a conversation (counts only; the plan is read from the plans table, I-23). new_waiting above 0 pushes the owner.",
+  "type": "object",
+  "required": [
+    "conversation_id",
+    "new_waiting",
+    "done"
+  ],
+  "properties": {
+    "conversation_id": {
+      "type": "integer"
+    },
+    "new_waiting": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "done": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false
+}

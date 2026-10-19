@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -16,6 +17,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/notify"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/plan"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/prefs"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/readstate"
@@ -59,6 +61,7 @@ type eventBody struct {
 	DeviceID       int64  `json:"device_id"`
 	MachineID      int64  `json:"machine_id"`
 	ConversationID int64  `json:"conversation_id"`
+	NewWaiting     int    `json:"new_waiting"`
 }
 
 func bodyOf(e notify.Event) eventBody {
@@ -107,6 +110,12 @@ func (p pushSource) Triggers(ctx context.Context, d pdb.DBTX, e notify.Event) ([
 		t.Reason, t.TopicKind, t.TopicID, t.Conversation, t.ExceptDevice = notify.ReasonSecurity, notify.TopicSecurity, e.Seq, 0, body.DeviceID
 	case eventRecoveryUsed:
 		t.Reason, t.TopicKind, t.TopicID, t.Conversation = notify.ReasonSecurity, notify.TopicSecurity, e.Seq, 0
+	case eventPlanChanged:
+		// Only something new that waits on the owner pushes: a finished item or a moved estimate is a quiet line or nothing.
+		if byOwner || body.NewWaiting == 0 {
+			return nil, nil
+		}
+		t.Reason, t.TopicKind, t.TopicID, t.Message = notify.ReasonPlanWaiting, notify.TopicConversation, e.Conversation, 0
 	default:
 		return nil, nil
 	}
@@ -165,7 +174,7 @@ func enabled(t notify.Trigger, st map[string]any) bool {
 	switch t.Reason {
 	case notify.ReasonAsk:
 		return asks == "all"
-	case notify.ReasonAskUrgent, notify.ReasonSnoozeWake:
+	case notify.ReasonAskUrgent, notify.ReasonSnoozeWake, notify.ReasonPlanWaiting:
 		return asks != "none"
 	case notify.ReasonMention:
 		return flag(st, "notify.mentions")
@@ -318,6 +327,8 @@ func (p pushSource) Facts(ctx context.Context, d pdb.DBTX, n notify.Notification
 		added, err := refOf(ctx, d, bodyOf(ev).IdentityID, p.s.Clock.Now())
 		f.Text = "wants to add " + added + " to " + titleOr(title)
 		return f, err
+	case notify.ReasonPlanWaiting:
+		return p.planWaitingFacts(ctx, d, n, f)
 	case notify.ReasonPaused:
 		f.Sender = titleOr(title)
 		f.Text = fmt.Sprintf("Paused after %d agent messages in a row", message.LoopLimit)
@@ -385,4 +396,26 @@ func (w pushWake) SnoozeWoke(ctx context.Context, d pdb.DBTX, now time.Time, per
 		Person: person, Reason: notify.ReasonSnoozeWake, SourceSeq: sourceSeq, Conversation: conv, Message: askMessage,
 		TopicKind: notify.TopicAsk, TopicID: askMessage,
 	})
+}
+
+// planWaitingFacts shows the item that waits on the owner, as the plan says now: the newest one. A plan that no longer waits on the
+// owner by the time the push goes out is not pushed.
+func (p pushSource) planWaitingFacts(ctx context.Context, d pdb.DBTX, n notify.Notification, f notify.Facts) (notify.Facts, error) {
+	ev, found, err := eventAt(ctx, d, n.SourceSeq)
+	if err != nil || !found {
+		f.Visible = false
+		return f, err
+	}
+	pl, err := plan.Get(ctx, d, ev.Actor, n.Conversation)
+	if errors.Is(err, plan.ErrNotFound) || err == nil && len(pl.Waiting) == 0 {
+		f.Visible = false
+		return f, nil
+	}
+	if err != nil {
+		return f, err
+	}
+	newest := slices.MaxFunc(pl.Waiting, func(a, b plan.Waiting) int { return cmp.Compare(a.Since, b.Since) })
+	f.Text = "Waiting on you: " + newest.Text
+	f.Sender, err = refOf(ctx, d, ev.Actor, p.s.Clock.Now())
+	return f, err
 }

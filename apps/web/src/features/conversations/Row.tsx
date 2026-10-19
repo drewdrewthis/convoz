@@ -2,6 +2,7 @@
 import type { Conversation } from "@convoz/api-client";
 import { memo, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { stripCf, whenLabel } from "../../shared/chat.ts";
+import { PlanIcon } from "../plan/index.ts";
 import { ThreadRows } from "../threads/index.ts";
 import { GripIcon, startDrag, type Drop } from "../rail/index.ts";
 
@@ -40,6 +41,7 @@ export const Row = memo(function Row({ c, me, index, measure, style, grp, mode }
           </div>
           <div className="preview">{preview}</div>
         </div>
+        <PlanIcon id={c.id} />
         {unread ? (
           <span className="count">
             <span className="sr">Unread: </span>

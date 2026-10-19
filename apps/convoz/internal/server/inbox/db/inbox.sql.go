@@ -359,6 +359,23 @@ func (q *Queries) ExtendClaims(ctx context.Context, arg ExtendClaimsParams) ([]E
 	return items, nil
 }
 
+const hasOpenStatusDue = `-- name: HasOpenStatusDue :one
+SELECT EXISTS (SELECT 1 FROM inbox_items WHERE identity_id = ?1 AND conversation_id = ?2
+               AND reason = 'status_due' AND state IN ('ready','claimed'))
+`
+
+type HasOpenStatusDueParams struct {
+	IdentityID     int64
+	ConversationID sql.NullInt64
+}
+
+func (q *Queries) HasOpenStatusDue(ctx context.Context, arg HasOpenStatusDueParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasOpenStatusDue, arg.IdentityID, arg.ConversationID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const heldItems = `-- name: HeldItems :many
 SELECT id, conversation_id, first_message_id, message_id, count, mention_count, reason, state, claim_token, claim_until, deliveries
 FROM inbox_items
@@ -515,6 +532,29 @@ func (q *Queries) InsertAskResolvedItem(ctx context.Context, arg InsertAskResolv
 		arg.IdentityID,
 		arg.ConversationID,
 		arg.AskMessageID,
+		arg.SourceSeq,
+		arg.Now,
+	)
+	return err
+}
+
+const insertStatusDueItem = `-- name: InsertStatusDueItem :exec
+INSERT INTO inbox_items (identity_id, reason, conversation_id, count, mention_count, source_seq, state, created_at, updated_at)
+VALUES (?1, 'status_due', ?2, 1, 0, ?3, 'ready', ?4, ?4)
+`
+
+type InsertStatusDueItemParams struct {
+	IdentityID     int64
+	ConversationID sql.NullInt64
+	SourceSeq      int64
+	Now            int64
+}
+
+// The server asks an agent whose plan is late to update it (plan.feature): one item per nudge, no message. It never merges.
+func (q *Queries) InsertStatusDueItem(ctx context.Context, arg InsertStatusDueItemParams) error {
+	_, err := q.db.ExecContext(ctx, insertStatusDueItem,
+		arg.IdentityID,
+		arg.ConversationID,
 		arg.SourceSeq,
 		arg.Now,
 	)
@@ -737,6 +777,42 @@ type TransferPreferenceParams struct {
 func (q *Queries) TransferPreference(ctx context.Context, arg TransferPreferenceParams) error {
 	_, err := q.db.ExecContext(ctx, transferPreference, arg.ToSession, arg.FromSession)
 	return err
+}
+
+const unanswered = `-- name: Unanswered :many
+SELECT identity_id, CAST(conversation_id AS INTEGER) AS conversation_id, CAST(min(created_at) AS INTEGER) AS since FROM inbox_items
+WHERE state IN ('ready','claimed') AND reason IN ('mention','thread','activity') AND conversation_id IS NOT NULL
+GROUP BY identity_id, conversation_id
+`
+
+type UnansweredRow struct {
+	IdentityID     int64
+	ConversationID int64
+	Since          int64
+}
+
+// The messages that wait for an agent: per agent and conversation, since when the oldest conversation item nobody acked has waited.
+func (q *Queries) Unanswered(ctx context.Context) ([]UnansweredRow, error) {
+	rows, err := q.db.QueryContext(ctx, unanswered)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UnansweredRow
+	for rows.Next() {
+		var i UnansweredRow
+		if err := rows.Scan(&i.IdentityID, &i.ConversationID, &i.Since); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const upsertConversationItem = `-- name: UpsertConversationItem :exec

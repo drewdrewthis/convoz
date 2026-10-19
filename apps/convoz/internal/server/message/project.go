@@ -74,6 +74,10 @@ type ProjectSystem struct {
 	Title    string // conversation.renamed: the title the line quotes
 	From     string // member.renamed: the handle before
 	To       string // member.renamed: the handle after
+	Done     string // plan.changed: the items the line quotes
+	Now      string
+	Waiting  string
+	Liveness string // agent.unresponsive: not_responding or logged_out
 }
 
 // ProjectAsk is an ask.
@@ -177,6 +181,19 @@ func systemText(s ProjectSystem) string {
 		return s.By.Ref() + " resumed the conversation"
 	case "conversation.restored":
 		return s.By.Ref() + " restored this conversation from Trash"
+	case "plan.changed":
+		text := s.Identity.Ref()
+		for _, part := range [][2]string{{"Done: ", s.Done}, {"Now: ", s.Now}, {"Waiting on you: ", s.Waiting}} {
+			if part[1] != "" {
+				text += " · " + part[0] + part[1]
+			}
+		}
+		return text
+	case "agent.unresponsive":
+		if s.Liveness == "logged_out" {
+			return s.Identity.Ref() + " is logged out"
+		}
+		return s.Identity.Ref() + " is not responding"
 	}
 	return ""
 }

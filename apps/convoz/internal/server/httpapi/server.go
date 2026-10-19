@@ -84,6 +84,7 @@ type Server struct {
 	maintaining                                                                        sync.Mutex    // held while a list read runs the clean-up, so a second list read waits for it instead of reading the list before the clean-up
 	exports                                                                            ops.Exports   // export jobs; the zero value is ready
 	heartbeat                                                                          time.Duration // how often a quiet stream sends ": hb" and checks its device; heartbeatEvery unless a test shortens it
+	watching                                                                           watchSet      // the agents that hold a long poll of their inbox now (plan liveness, msg 281)
 }
 
 // Daily message caps (design §13.1).

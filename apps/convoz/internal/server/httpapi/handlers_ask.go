@@ -488,6 +488,7 @@ func (s *Server) RunTimers(ctx context.Context) {
 			if err := s.expireInvites(ctx); err != nil && ctx.Err() == nil {
 				s.Log.Printf("invite expiry: %v", err)
 			}
+			s.sweepNow(ctx) // late plans and agents that stopped responding
 		}
 	}
 }

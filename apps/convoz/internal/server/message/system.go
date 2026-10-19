@@ -30,6 +30,11 @@ type SystemLine struct {
 	// member.renamed: the handles before and after (I-51). Handles, not words: an agent's handles are never scrubbed, and a
 	// retired one is never reused, so the line stays true.
 	From, To string
+	// plan.changed: the plan items the line quotes, as the agent wrote them (each optional, at least Done or Waiting). Like a title,
+	// what the line said must not change when the plan changes later.
+	Done, Now, Waiting string
+	// agent.unresponsive: not_responding or logged_out (msg 281).
+	Liveness string
 }
 
 // handleRE is a handle as the identities table allows it.
@@ -73,6 +78,14 @@ func (l SystemLine) Valid() error {
 		if l.Identity <= 0 || !handleRE.MatchString(l.From) || !handleRE.MatchString(l.To) || l.From == l.To {
 			return bad()
 		}
+	case l.T == "plan.changed":
+		if l.Identity <= 0 || l.Done == "" && l.Waiting == "" || !quotableItem(l.Done) || !quotableItem(l.Now) || !quotableItem(l.Waiting) {
+			return bad()
+		}
+	case l.T == "agent.unresponsive":
+		if l.Identity <= 0 || l.Liveness != "not_responding" && l.Liveness != "logged_out" {
+			return bad()
+		}
 	default:
 		return bad()
 	}
@@ -84,6 +97,14 @@ func (l SystemLine) Valid() error {
 func quotableTitle(t string) bool {
 	n := utf8.RuneCountInString(t)
 	return n >= 1 && n <= 120 && !strings.ContainsFunc(t, unicode.IsControl)
+}
+
+// MaxItemRunes is the longest plan item a plan.changed line quotes.
+const MaxItemRunes = 200
+
+// quotableItem reports whether t can be quoted by a plan.changed line: empty, or at most MaxItemRunes characters and no control characters.
+func quotableItem(t string) bool {
+	return utf8.RuneCountInString(t) <= MaxItemRunes && !strings.ContainsFunc(t, unicode.IsControl)
 }
 
 // JSON is the stored form, {"v":1,"t":...} with only the fields the subtype takes.
@@ -102,7 +123,11 @@ func (l SystemLine) JSON() (string, error) {
 		Title    string `json:"title,omitempty"`
 		From     string `json:"from,omitempty"`
 		To       string `json:"to,omitempty"`
-	}{1, l.T, l.Identity, l.By, l.Via, l.History, l.Streak, l.Title, l.From, l.To}
+		Done     string `json:"done,omitempty"`
+		Now      string `json:"now,omitempty"`
+		Waiting  string `json:"waiting,omitempty"`
+		Liveness string `json:"liveness,omitempty"`
+	}{1, l.T, l.Identity, l.By, l.Via, l.History, l.Streak, l.Title, l.From, l.To, l.Done, l.Now, l.Waiting, l.Liveness}
 	raw, err := json.Marshal(doc)
 	return string(raw), err
 }
@@ -119,11 +144,16 @@ func ParseSystem(raw string) (SystemLine, bool) {
 		Title    string `json:"title"`
 		From     string `json:"from"`
 		To       string `json:"to"`
+		Done     string `json:"done"`
+		Now      string `json:"now"`
+		Waiting  string `json:"waiting"`
+		Liveness string `json:"liveness"`
 	}
 	if json.Unmarshal([]byte(raw), &doc) != nil || doc.T == "" {
 		return SystemLine{}, false
 	}
-	return SystemLine{T: doc.T, Identity: doc.Identity, By: doc.By, Via: doc.Via, History: doc.History, Streak: doc.Streak, Title: doc.Title, From: doc.From, To: doc.To}, true
+	return SystemLine{T: doc.T, Identity: doc.Identity, By: doc.By, Via: doc.Via, History: doc.History, Streak: doc.Streak, Title: doc.Title, From: doc.From, To: doc.To,
+		Done: doc.Done, Now: doc.Now, Waiting: doc.Waiting, Liveness: doc.Liveness}, true
 }
 
 // WriteSystem writes a system line in the transaction of the action that caused it (M-4). It is not a post: it moves no

@@ -107,6 +107,9 @@ paths:
   /api/conversations/{id}/prefs: { $ref: "paths/prefs.yaml#/~1api~1conversations~1{id}~1prefs" }
   /api/messages/{id}/pin: { $ref: "paths/prefs.yaml#/~1api~1messages~1{id}~1pin" }
   /api/status: { $ref: "paths/prefs.yaml#/~1api~1status" }
+  # ---- plan
+  /api/conversations/{id}/plan: { $ref: "paths/plan.yaml#/~1api~1conversations~1{id}~1plan" }
+  /api/plans: { $ref: "paths/plan.yaml#/~1api~1plans" }
   # ---- ask
   /api/asks: { $ref: "paths/ask.yaml#/~1api~1asks" }
   /api/asks/{id}: { $ref: "paths/ask.yaml#/~1api~1asks~1{id}" }
@@ -357,6 +360,15 @@ components:
     CrewStatus: { $ref: "components/prefs.yaml#/CrewStatus" }
     StatusList: { $ref: "components/prefs.yaml#/StatusList" }
     AgentStatusChangedFrame: { $ref: "components/prefs.yaml#/AgentStatusChangedFrame" }
+    PlanRequest: { $ref: "components/plan.yaml#/PlanRequest" }
+    PlanStep: { $ref: "components/plan.yaml#/PlanStep" }
+    PlanWaiting: { $ref: "components/plan.yaml#/PlanWaiting" }
+    PlanDone: { $ref: "components/plan.yaml#/PlanDone" }
+    Plan: { $ref: "components/plan.yaml#/Plan" }
+    PlanAgent: { $ref: "components/plan.yaml#/PlanAgent" }
+    PlanAttention: { $ref: "components/plan.yaml#/PlanAttention" }
+    PlanBoard: { $ref: "components/plan.yaml#/PlanBoard" }
+    PlanChangedFrame: { $ref: "components/plan.yaml#/PlanChangedFrame" }
     SearchPart: { $ref: "components/search.yaml#/SearchPart" }
     SearchResult: { $ref: "components/search.yaml#/SearchResult" }
     SearchConversation: { $ref: "components/search.yaml#/SearchConversation" }

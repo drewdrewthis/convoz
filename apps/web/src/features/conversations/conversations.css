@@ -89,4 +89,92 @@
   .pintext { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; color: var(--color-text); text-decoration: none; overflow-wrap: anywhere; }
   .mutedtag { font-size: 12px; color: var(--color-muted); }
   .starbtn[aria-pressed="true"] { color: var(--color-warning); }
+
+  /* ---- plans: the line under a title, the row dot, and the plan parts of the details panel (plan.feature) ---- */
+  /* Amber text is --color-warning: 7:1 on the light surface, where --color-amber is too close to 4.5:1 for small text. */
+  .pdot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 999px; background: var(--color-idle); }
+  .pdot[data-tone="green"] { background: var(--color-success); }
+  .pdot[data-tone="amber"] { background: var(--color-amber); }
+  .pdot[data-tone="red"] { background: var(--color-danger); }
+  /* The status icon of a row (msg 382): right of the title, next to the unread count and as tall as it. */
+  .planicon { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; color: var(--color-muted); }
+  .planicon[data-tone="amber"] { color: var(--color-warning); }
+  .planicon[data-tone="red"] { color: var(--color-danger); }
+  .planicon[data-tone="green"] { color: var(--color-success); }
+  .planicon svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .planicon .spin { width: 8px; height: 8px; border-radius: 999px; background: currentColor; animation: planpulse 1.6s ease-in-out infinite; }
+  @keyframes planpulse { 50% { opacity: .35; transform: scale(.7); } }
+  @media (prefers-reduced-motion: reduce) { .planicon .spin { animation: none; } }
+  .chatrow .planicon + .count { margin-left: -6px; }
+  /* The line keeps the header compact: its 44 px tap target overlaps the title's lower half instead of pushing the bar down. */
+  .planline {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px; max-width: 100%; min-height: 44px; margin: -12px 0 -14px;
+    padding: 0 6px; border: 0; background: none; font: inherit; font-size: 12px; line-height: 1.3; color: var(--color-muted); cursor: pointer;
+  }
+  .planline.amber { color: var(--color-warning); font-weight: 600; }
+  .planline .pltext { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .planline:focus-visible { outline: 2px solid var(--color-ring, var(--color-accent)); outline-offset: -4px; border-radius: 10px; }
+
+  .detgrab, .detscrim { display: none; }
+  @media (max-width: 600px) {
+    /* a phone: the panel is a bottom sheet at 80% of the height over a scrim, so the chat stays in view above it */
+    .detscrim { display: block; position: absolute; inset: 0; z-index: 6; background: var(--scrim, rgba(0, 0, 0, .45)); }
+    .details { top: auto; height: 80%; border-top: 1px solid var(--color-border); border-radius: 22px 22px 0 0; }
+    .details .detailsbar { padding-top: 4px; }
+    .detgrab { display: block; flex: none; width: 36px; height: 5px; margin: 8px auto 0; border-radius: 999px; background: var(--color-edge); opacity: .6; }
+  }
+  .plansec { display: flex; flex-direction: column; gap: 6px; }
+  .sechead { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 36px; margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .02em; color: var(--color-muted); }
+  .sechead h3 { margin: 0; font-size: inherit; font-weight: inherit; }
+  h3.sechead { justify-content: flex-start; }
+  .sechead.amber { color: var(--color-warning); }
+  .quietbtn { min-height: 44px; padding: 0 12px; margin-right: -12px; border: 0; background: none; color: var(--color-accent-text); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .pcards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .pcard { background: var(--color-raised); border: 1px solid var(--color-border); border-radius: 14px; padding: 12px 14px; min-width: 0; overflow-wrap: anywhere; }
+  .pcard.wait { border-color: color-mix(in srgb, var(--color-amber) 40%, var(--color-border)); }
+  .pcard.sent .pq { color: var(--color-muted); }
+  .pcard .ava { flex: none; width: 28px; height: 28px; font-size: 13px; }
+  .pcard .ava::before { content: attr(data-l); }
+  .pmeta { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; color: var(--color-muted); }
+  .pmeta .ava { width: 24px; height: 24px; font-size: 12px; }
+  .pmeta b { color: var(--color-text); font-weight: 600; }
+  .pq { margin: 4px 0 10px; font-size: 15px; font-weight: 600; line-height: 1.35; }
+  .psent { margin: 0; min-height: 44px; display: flex; align-items: center; font-size: 13px; color: var(--color-muted); }
+  .pacts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .chipbtn {
+    min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text);
+    font: inherit; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; cursor: pointer;
+  }
+  .chipbtn.go { background: var(--grad, var(--color-accent)); color: var(--color-on-accent); border-color: transparent; }
+  .aghead { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+  .pname { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .pname b { font-size: 14px; font-weight: 600; }
+  .pname span { font-size: 12px; color: var(--color-muted); font-variant-numeric: tabular-nums; }
+  .pstate { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; white-space: nowrap; color: var(--color-muted); }
+  .pstate[data-tone="green"] { color: var(--color-success); }
+  .pstate[data-tone="amber"] { color: var(--color-warning); }
+  .pstate[data-tone="red"] { color: var(--color-danger); }
+  .plbl { margin: 8px 0 2px; font-size: 12px; font-weight: 600; color: var(--color-muted); }
+  .pnow { margin-top: 6px; padding-top: 4px; border-top: 1px solid var(--color-border); }
+  .pnow .plbl { margin-top: 4px; }
+  .pwhat { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.35; }
+  .pwhat.quiet { font-weight: 500; color: var(--color-muted); }
+  .pwhen { margin: 2px 0 0; font-size: 13px; color: var(--color-muted); font-variant-numeric: tabular-nums; }
+  .pwhen.amber { color: var(--color-warning); font-weight: 600; }
+  .pblk { margin: 8px 0 0; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--color-danger) 12%, var(--color-raised)); color: var(--color-danger); font-size: 13.5px; font-weight: 600; }
+  .pnote { margin: 8px 0 0; font-size: 13px; color: var(--color-muted); }
+  .pnext { margin: 0; padding: 0 0 0 26px; }
+  .pnext li { padding: 4px 0; font-size: 14px; line-height: 1.35; }
+  .pnext li::marker { color: var(--color-muted); font-size: 13px; }
+  .pfold { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--color-border); }
+  .foldbtn { min-height: 44px; padding: 0 14px; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-surface); color: var(--color-muted); font: inherit; font-size: 13px; cursor: pointer; }
+  .foldbtn[aria-expanded="true"] { color: var(--color-text); }
+  .pdone { list-style: none; margin: 4px 0; padding: 0; }
+  .pdone .pday { padding: 8px 0 2px; font-size: 12px; font-weight: 600; color: var(--color-muted); }
+  .pdone .pd { display: flex; align-items: baseline; gap: 10px; padding: 5px 0; font-size: 14px; color: var(--color-muted); }
+  .pdone .pd span { flex: 1; min-width: 0; }
+  .pdone .pd time { font-size: 12px; font-variant-numeric: tabular-nums; }
+  .pempty { text-align: center; }
+  .pempty b { display: block; font-size: 15px; margin-bottom: 4px; }
+  .pempty p { margin: 0 0 12px; font-size: 13px; color: var(--color-muted); }
 }

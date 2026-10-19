@@ -14,6 +14,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/inbox"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/plan"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/settings"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/transcript"
@@ -48,6 +49,13 @@ func (s *Server) inboxPoll(w http.ResponseWriter, r *http.Request, c *call) {
 		return
 	}
 	req := inbox.Request{Identity: c.lease.IdentityID, Session: c.lease.SessionID, N: n, Visibility: vis, IncludeHeld: q.Get("held") != "0", Conv: conv}
+	if wait > 0 { // a watch: the agent counts as connected while it holds the poll (plan liveness, msg 281)
+		s.agentCalled(r.Context(), req.Identity, 1)
+		defer s.agentCalled(context.WithoutCancel(r.Context()), req.Identity, -1)
+	} else {
+		s.agentCalled(r.Context(), req.Identity, 0)
+	}
+	s.sweepNow(r.Context())
 
 	hold := time.NewTimer(wait)
 	defer hold.Stop()
@@ -112,6 +120,8 @@ func (s *Server) claimInbox(w http.ResponseWriter, r *http.Request, c *call) {
 		return
 	}
 	req := inbox.Request{Identity: c.lease.IdentityID, Session: c.lease.SessionID, N: n, Visibility: vis, IncludeHeld: true, Conv: in.Conv}
+	s.agentCalled(r.Context(), req.Identity, 0)
+	s.sweepNow(r.Context())
 	items, fresh, err := s.claimOnce(r.Context(), c, req)
 	if err != nil {
 		s.internalError(w, r, err)
@@ -246,7 +256,7 @@ func (s *Server) claimOnce(ctx context.Context, c *call, req inbox.Request) (ite
 			delivered[it.ID] = true
 		}
 		for _, it := range claimed {
-			if it.Held || !delivered[it.ID] {
+			if it.Held || !delivered[it.ID] || it.Reason == inbox.ReasonStatusDue { // a nudge is no work on the conversation
 				continue
 			}
 			fresh = append(fresh, inbox.Hold{Conversation: it.ConversationID, Message: it.MessageID, Until: it.ClaimUntil})
@@ -264,6 +274,8 @@ func (s *Server) claimOnce(ctx context.Context, c *call, req inbox.Request) (ite
 // inboxPeek lists the identity's ready and claimed items and claims none. Claims that ran out are merged back first,
 // so what it shows keeps the one-ready-item rule.
 func (s *Server) inboxPeek(w http.ResponseWriter, r *http.Request, c *call) {
+	s.agentCalled(r.Context(), c.lease.IdentityID, 0)
+	s.sweepNow(r.Context())
 	ctx, d, now := r.Context(), s.reader(), s.Clock.Now()
 	err := s.mergeExpired(ctx, c.lease.IdentityID, now)
 	var peeked []inbox.Item
@@ -323,6 +335,16 @@ func (s *Server) deliver(ctx context.Context, d pdb.DBTX, now time.Time, p authz
 		if it.Reason == "membership" {
 			// The removal notice is exempt from the can-see check: the agent can no longer see the conversation (C-1).
 			wi, ok, err := s.membershipNotice(ctx, d, dir, it)
+			if err != nil {
+				return nil, err
+			}
+			if ok {
+				out = append(out, wi)
+			}
+			continue
+		}
+		if it.Reason == inbox.ReasonStatusDue {
+			wi, ok, err := s.statusDueItem(ctx, d, now, p, it, expire)
 			if err != nil {
 				return nil, err
 			}
@@ -472,6 +494,9 @@ func (s *Server) ackInbox(w http.ResponseWriter, r *http.Request, c *call) {
 	for _, conv := range done {
 		s.publishWorking(r.Context(), c.lease.IdentityID, conv, false, 0)
 	}
+	if len(done) > 0 {
+		s.endStretch(r.Context(), c.lease.IdentityID) // an ack ends a stretch of not responding (msg 281)
+	}
 	if lost {
 		writeJSON(w, http.StatusConflict, wire.AckResponse{Results: results, Error: &wire.ErrorDetail{Code: wire.AckClaimLost, Message: "A claim ran out or belongs to another session."}})
 		return
@@ -513,4 +538,52 @@ func inboxMessage(dir directory, m message.Message) wire.Message {
 	v := dir.message(m)
 	v.ThreadRootID = m.ThreadRootID
 	return v
+}
+
+// sweepNow runs the plan sweep for an inbox call, so an agent that polls hears of a late plan at once. A failure is logged, never
+// the call's: the timers sweep again.
+func (s *Server) sweepNow(ctx context.Context) {
+	if err := s.sweepPlans(ctx); err != nil && ctx.Err() == nil {
+		s.Log.Printf("plan sweep: %v", err)
+	}
+}
+
+// statusDueItem builds the wire item of a nudge: a line from the server that asks the agent to update its plan, with the command
+// to do it. ok is false when the agent can no longer see the conversation (with expire set the item then leaves the queue).
+func (s *Server) statusDueItem(ctx context.Context, d pdb.DBTX, now time.Time, p authz.Principal, it inbox.Item, expire bool) (wire.InboxItem, bool, error) {
+	cv, found, err := conversation.Get(ctx, d, it.ConversationID)
+	if err != nil {
+		return wire.InboxItem{}, false, err
+	}
+	_, visible, err := canSee(ctx, d, p, it.ConversationID)
+	if err != nil {
+		return wire.InboxItem{}, false, err
+	}
+	if !found || !visible {
+		if expire {
+			err = inbox.ExpireNotVisible(ctx, d, now, it.ID)
+		}
+		return wire.InboxItem{}, false, err
+	}
+	conv := strconv.FormatInt(it.ConversationID, 10)
+	body := "Your plan in conversation " + conv + " needs an update."
+	if pl, err := plan.Get(ctx, d, p.Identity(), it.ConversationID); err == nil {
+		switch pl.Overdue(pl.UpdatedAt, now.UnixMilli()) {
+		case "late":
+			body = "Your plan in conversation " + conv + " is late: \"" + pl.Doing + "\" was due " + time.UnixMilli(pl.ETA).UTC().Format(time.RFC3339) + "."
+		case "stale":
+			body = "Your plan in conversation " + conv + " has had no update for 2 h: \"" + pl.Doing + "\"."
+		}
+	}
+	body += " Say where you are: convoz plan " + conv + " --doing \"…\" --eta 30m (or --done, --blocked, --waiting)."
+	wi := wire.InboxItem{ID: it.ID, State: it.State, Reason: it.Reason, Count: it.Count, Deliveries: it.Deliveries, Conversation: wire.InboxConversation{ID: it.ConversationID},
+		Message: wire.Message{Author: systemAuthor, Body: body, Format: "plain", Kind: "system", CreatedAt: now.UnixMilli()}}
+	if cv.Title != "" {
+		title := cv.Title
+		wi.Conversation.Title = &title
+	}
+	if it.ClaimToken != nil {
+		wi.ClaimToken = hex.EncodeToString(it.ClaimToken)
+	}
+	return wi, true, nil
 }

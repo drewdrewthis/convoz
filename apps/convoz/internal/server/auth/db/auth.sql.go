@@ -1279,6 +1279,18 @@ func (q *Queries) InsertStepUp(ctx context.Context, arg InsertStepUpParams) (int
 	return id, err
 }
 
+const lastSeenOfIdentity = `-- name: LastSeenOfIdentity :one
+SELECT CAST(COALESCE(max(last_seen_at), 0) AS INTEGER) AS last_seen FROM sessions WHERE identity_id = ?1
+`
+
+// When an agent last made a call through any of its sessions (0 for one that never had a session).
+func (q *Queries) LastSeenOfIdentity(ctx context.Context, identityID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, lastSeenOfIdentity, identityID)
+	var last_seen int64
+	err := row.Scan(&last_seen)
+	return last_seen, err
+}
+
 const listActiveMachines = `-- name: ListActiveMachines :many
 SELECT m.id, m.name, m.key_hint, m.scopes, m.allow_mode, m.last_used_at,
   (SELECT COUNT(*) FROM sessions s WHERE s.machine_id = m.id AND s.ended_at IS NULL AND s.expires_at > ?1) AS live_sessions

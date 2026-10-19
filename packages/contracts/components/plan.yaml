@@ -1,0 +1,89 @@
+# Schemas of the plan module (plan.feature).
+PlanRequest:
+  type: object
+  additionalProperties: false
+  properties:
+    doing: { type: string, maxLength: 200, description: What the agent does now (one item). }
+    step: { type: string, pattern: "^[1-9][0-9]?/[1-9][0-9]?$", description: "N/M: the Doing item is at step N of M." }
+    blocked: { type: string, maxLength: 200, description: What blocks the agent in this conversation (not the owner; that is waiting). }
+    eta: { type: string, description: "When the Doing item should be done: a duration (30m, 1h30m) or HH:MM in the zone of utc_offset." }
+    utc_offset: { type: integer, description: The agent's zone in seconds east of UTC, for an eta given as HH:MM. }
+    next: { type: array, maxItems: 5, items: { type: string, minLength: 1, maxLength: 200 } }
+    waiting: { type: array, maxItems: 5, items: { type: string, minLength: 1, maxLength: 200 }, description: What waits on the owner. }
+    done: { type: array, maxItems: 5, items: { type: string, minLength: 1, maxLength: 200 }, description: Items finished since the last plan. }
+    client_id: { type: string, maxLength: 64, description: A retry with the same id after a lost answer changes nothing. }
+PlanStep:
+  type: object
+  required: [at, of]
+  properties:
+    at: { type: integer }
+    of: { type: integer }
+PlanWaiting:
+  type: object
+  required: [text, since]
+  properties:
+    text: { type: string }
+    since: { type: integer, format: int64, description: When the item first showed. }
+PlanDone:
+  type: object
+  required: [text, at]
+  properties:
+    text: { type: string }
+    at: { type: integer, format: int64 }
+Plan:
+  type: object
+  required: [conversation_id, identity_id, handle, doing, next, waiting, done, updated_at]
+  properties:
+    conversation_id: { type: integer, format: int64 }
+    identity_id: { type: integer, format: int64 }
+    handle: { type: string }
+    doing: { type: string }
+    doing_since: { type: integer, format: int64 }
+    step: { $ref: "../openapi.yaml#/components/schemas/PlanStep" }
+    blocked: { type: string }
+    eta: { type: integer, format: int64, description: Epoch ms on the server clock. }
+    next: { type: array, items: { type: string } }
+    waiting: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/PlanWaiting" } }
+    done: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/PlanDone" }, description: Newest first, at most 20. }
+    updated_at: { type: integer, format: int64 }
+    due_at: { type: integer, format: int64, description: "When the plan turns overdue: its eta, or 2 h after the update for a Doing with no eta." }
+    nudged_at: { type: integer, format: int64, description: When Convoz last asked the agent to update this plan. }
+PlanAgent:
+  type: object
+  required: [identity_id, handle, state, doing, online, liveness]
+  properties:
+    identity_id: { type: integer, format: int64 }
+    handle: { type: string }
+    state: { $ref: "../openapi.yaml#/components/schemas/AgentState" }
+    doing: { type: string }
+    online: { type: boolean }
+    last_seen_at: { type: integer, format: int64 }
+    liveness: { type: string, enum: [ok, not_responding, logged_out], description: "not_responding: a message waited 10 min and the agent holds no watch; logged_out: and it has no live session." }
+    unanswered_since: { type: integer, format: int64, description: Since when the oldest message that waits for it has waited. }
+PlanAttention:
+  type: object
+  required: [conversation_id, state, handle, text]
+  properties:
+    conversation_id: { type: integer, format: int64 }
+    state: { type: string, enum: [waiting, blocked, not_responding, logged_out, late, stale, working, next, done] }
+    handle: { type: string }
+    text: { type: string }
+    eta: { type: integer, format: int64 }
+    last_seen_at: { type: integer, format: int64 }
+PlanBoard:
+  type: object
+  required: [now, plans, agents, asks, attention]
+  properties:
+    now: { type: integer, format: int64, description: The server's clock. }
+    plans: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Plan" } }
+    agents: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/PlanAgent" } }
+    asks: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/OpenAsk" } }
+    attention: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/PlanAttention" }, description: One line per conversation with something to show. }
+    next_change_at: { type: integer, format: int64 }
+PlanChangedFrame:
+  description: SSE plan.changed (people who can see the conversation); read the plans of the conversation again.
+  type: object
+  required: [conversation_id]
+  properties:
+    conversation_id: { type: integer, format: int64 }
+    prev_seq_for_you: { type: integer, format: int64 }

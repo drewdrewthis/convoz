@@ -352,3 +352,7 @@ FROM sessions s JOIN machines m ON m.id = s.machine_id ORDER BY s.id DESC LIMIT 
 -- name: CountLiveSessionsOfClient :one
 SELECT COUNT(*) FROM sessions
 WHERE identity_id = sqlc.arg(identity_id) AND machine_id = sqlc.arg(machine_id) AND client_id = sqlc.arg(client_id) AND ended_at IS NULL AND expires_at > sqlc.arg(now);
+
+-- name: LastSeenOfIdentity :one
+-- When an agent last made a call through any of its sessions (0 for one that never had a session).
+SELECT CAST(COALESCE(max(last_seen_at), 0) AS INTEGER) AS last_seen FROM sessions WHERE identity_id = sqlc.arg(identity_id);
