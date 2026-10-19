@@ -306,7 +306,19 @@ def main():
     print(f"{'TOTAL':40s} {len(all_sc):4d}")
     if "--write-coverage" in sys.argv:
         write_coverage(root, all_sc, per_file)
+    if not errors and features_stale():
+        errors.append("docs/features.md is stale")
     return 1 if errors else 0
+
+
+def features_stale():
+    """A stale generated feature list fails the same CI step that checks the specs."""
+    import importlib.util
+    here = os.path.dirname(os.path.abspath(__file__))
+    spec = importlib.util.spec_from_file_location("features", os.path.join(here, "features.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.main_check() != 0
 
 
 def write_coverage(root, all_sc, per_file):
