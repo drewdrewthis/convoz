@@ -194,3 +194,17 @@ Feature: Threads
       Then every thread row ends inside its list and its unread count is in view
       And the long preview ends with an ellipsis and the page does not scroll sideways
 
+    # Owner (Drew, msg 685): "ui fail on long links in threads"
+    # The owner's screenshot: a long Slack link in the owner's own bubble ran past the left edge of the thread pane, and the message's ⋯ button covered the bubble's time.
+    @v1 @browser
+    Scenario: A long link in a thread stays inside its bubble
+      Given the owner and "devtool" posted a message that is one very long link, in the thread and in the conversation
+      When the owner opens the conversation and the thread at 1280 and 390 px wide
+      Then every long link ends inside the bubble, the bubble ends inside the pane, and the page does not scroll sideways
+
+    # Owner (Drew, msg 685 screenshot): the ⋯ button covered the time ("5:" cut)
+    @v1 @browser
+    Scenario: The message actions button does not cover the time
+      Given the owner replied in thread 900, and the owner and "devtool" each posted in the conversation
+      When the owner looks at the messages at 1280 and 390 px wide
+      Then no message's actions button sits over its time, in the conversation and in the thread pane

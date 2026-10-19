@@ -1,9 +1,9 @@
-import { agentSays } from "../lib/chat.ts";
-import { recordStreams, streamOpen } from "../lib/chat-ui.ts";
+import { agentSays, ownerSays } from "../lib/chat.ts";
+import { message, messageLog, recordStreams, streamOpen } from "../lib/chat-ui.ts";
 import { expect, scenario } from "../lib/scenario.ts";
-import { ROOT_TEXT, agentReplies, openRail, ownerHasRead, ownerReplies, threadLog, threadPane, threadWorld, type ThreadWorld } from "../lib/threads-wp5.ts";
+import { ROOT_TEXT, agentReplies, closeThread, openRail, openThread, ownerHasRead, ownerReplies, threadLog, threadPane, threadWorld, type ThreadWorld } from "../lib/threads-wp5.ts";
 import { seedDb } from "../lib/wp3.ts";
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 /*
  * THREADS ON THE LIST: specs/features/threads.feature, rule "The Conversations list shows every thread under its conversation"
@@ -135,6 +135,87 @@ scenario("A long thread preview stays inside the row and keeps its unread count 
       expect(m.overflowX, `page sideways scroll at ${width}`).toBeLessThanOrEqual(0);
     }
     if (width === 390) await page.screenshot({ path: "/tmp/thrwrap-mobile.png" });
+  }
+});
+
+scenario("A long link in a thread stays inside its bubble", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  const t = await threadWorld({ server, page, context }, { browser: true });
+
+  // Given the owner and "devtool" posted a message that is one very long link, in the thread and in the conversation
+  const link = (who: string) => `https://langwatch.slack.com/archives/C0123456789/p1760000000123456?thread_ts=1760000000.123456&cid=C0123456789&utm_source=${who}_share_link_with_a_very_long_tail_0123456789`;
+  await ownerReplies(t, link("owner_thread"));
+  await agentReplies(t, t.dev, link("agent_thread"));
+  await ownerSays(t.w.owner, t.conv, link("owner_main"));
+  await agentSays(t.w.srv, t.dev, t.conv, link("agent_main"));
+
+  // Owner (Drew, msg 685): "ui fail on long links in threads"
+  const fits = (log: Locator, tag: string) =>
+    log.evaluate((el, key) => {
+      const edge = el.getBoundingClientRect();
+      const rows = [...el.querySelectorAll<HTMLElement>("article")].filter((a) => a.textContent?.includes(key));
+      return {
+        rows: rows.length,
+        // the text itself (not only its box) must be inside the pane: a bubble can be inside while its text runs out
+        out: Math.max(...rows.map((a) => Math.max(edge.left - a.querySelector(".text")!.getBoundingClientRect().left, a.querySelector(".text")!.getBoundingClientRect().right - edge.right))),
+        textOut: Math.max(...rows.map((a) => a.querySelector<HTMLElement>(".text")!.scrollWidth - a.querySelector<HTMLElement>(".text")!.clientWidth)),
+        sideways: document.documentElement.scrollWidth - window.innerWidth,
+      };
+    }, tag);
+
+  // When the owner opens the conversation and the thread at 1280 and 390 px wide
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
+    await expect(message(page, ROOT_TEXT)).toBeVisible();
+
+    // Then every long link ends inside the bubble, the bubble ends inside the pane, and the page does not scroll sideways
+    for (const tag of ["owner_main", "agent_main"]) {
+      const m = await fits(messageLog(page), tag);
+      expect(m.rows, `${tag} rows at ${width}`).toBe(1);
+      expect(m.out, `${tag} bubble outside the chat at ${width}`).toBeLessThanOrEqual(0.5);
+      expect(m.textOut, `${tag} text wider than its bubble at ${width}`).toBeLessThanOrEqual(0);
+      expect(m.sideways, `page sideways scroll at ${width}`).toBeLessThanOrEqual(0);
+    }
+    await openThread(page, ROOT_TEXT);
+    for (const tag of ["owner_thread", "agent_thread"]) {
+      const m = await fits(threadLog(page), tag);
+      expect(m.rows, `${tag} rows at ${width}`).toBe(1);
+      expect(m.out, `${tag} bubble outside the pane at ${width}`).toBeLessThanOrEqual(0.5);
+      expect(m.textOut, `${tag} text wider than its bubble at ${width}`).toBeLessThanOrEqual(0);
+      expect(m.sideways, `page sideways scroll at ${width}`).toBeLessThanOrEqual(0);
+    }
+    if (width === 1280) await page.screenshot({ path: "/tmp/linkwrap-thread.png" });
+    await closeThread(page);
+  }
+});
+
+scenario("The message actions button does not cover the time", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  const t = await threadWorld({ server, page, context }, { browser: true });
+
+  // Given the owner replied in thread 900, and the owner and "devtool" each posted in the conversation
+  await ownerReplies(t, "On it");
+  await ownerSays(t.w.owner, t.conv, "Mine in the list");
+  await agentSays(t.w.srv, t.dev, t.conv, "Theirs in the list");
+
+  // Owner (Drew, msg 685 screenshot): the message's ⋯ button covered the bubble's time ("5:" cut)
+  const overlap = (log: Locator, text: string) =>
+    log.getByRole("article").filter({ hasText: text }).first().evaluate((a) => {
+      const stamp = a.querySelector(".stamp")!.getBoundingClientRect();
+      const btn = a.querySelector(".msg-actions-btn")!.getBoundingClientRect();
+      return Math.min(stamp.right, btn.right) - Math.max(stamp.left, btn.left) > 0.5 && Math.min(stamp.bottom, btn.bottom) - Math.max(stamp.top, btn.top) > 0.5;
+    });
+
+  // When the owner looks at the messages at 1280 and 390 px wide
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
+    await expect(message(page, "Mine in the list")).toBeVisible();
+
+    // Then no message's actions button sits over its time, in the conversation and in the thread pane
+    for (const text of ["Mine in the list", "Theirs in the list"]) expect(await overlap(messageLog(page), text), `${text} at ${width}`).toBe(false);
+    await openThread(page, ROOT_TEXT);
+    expect(await overlap(threadLog(page), "On it"), `thread reply at ${width}`).toBe(false);
+    await closeThread(page);
   }
 });
 
