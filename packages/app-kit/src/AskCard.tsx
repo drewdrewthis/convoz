@@ -47,7 +47,7 @@ export interface Answer {
 
 export interface AskCardProps {
   ask: AskData;
-  /** now: the card of the Now list (who asked, which conversation, quick reply). conversation: the card in the transcript (History, Ask options). */
+  /** now: the card of the Now list (who asked, which conversation, quick reply). conversation: the card in the transcript (the same quick buttons; History is in the ⋯ menu). */
   where: "now" | "conversation";
   /** The id of the question's heading; the card is named by it. */
   labelId: string;
@@ -179,14 +179,9 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
           <span className="asklabel">Ask</span>
           {urgent ? <span className="askurgent">· Urgent</span> : null}
           <span className="askbar-end">
-            <button className="askbtn" type="button" aria-expanded={panel === "history"} onClick={() => toggle("history")}>
-              History
+            <button className="askbtn" type="button" aria-label="Ask options" aria-haspopup="menu" aria-expanded={panel === "options"} onClick={() => (setOptionsOnSnooze(false), toggle("options"))}>
+              <span aria-hidden="true">⋯</span>
             </button>
-            {open || ask.state === "dismissed" || onCopyLink ? (
-              <button className="askbtn" type="button" aria-label="Ask options" aria-haspopup="menu" aria-expanded={panel === "options"} onClick={() => (setOptionsOnSnooze(false), toggle("options"))}>
-                <span aria-hidden="true">⋯</span>
-              </button>
-            ) : null}
           </span>
         </div>
       ) : null}
@@ -281,6 +276,11 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
         ) : (
           menu(
             <>
+              {where === "conversation" ? (
+                <button role="menuitem" type="button" onClick={() => setPanel("history")}>
+                  History
+                </button>
+              ) : null}
               {open ? (
                 <>
                   <button role="menuitem" type="button" onClick={() => setOptionsOnSnooze(true)}>

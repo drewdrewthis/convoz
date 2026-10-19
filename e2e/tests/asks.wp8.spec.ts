@@ -403,12 +403,22 @@ scenario("The ask history shows who dismissed it", { tag: ["@browser"] }, async 
   // When the owner dismisses it, undismisses it and then answers "Merge it"
   must(await markAsk(w.owner, id, "dismiss"), "dismiss");
   must(await markAsk(w.owner, id, "undismiss"), "undismiss");
+
+  // Owner (Drew, msg 716): "this history button seems kind of useless? A better ui would just be the quick buttons"
+  await page.goto(`${w.srv.origin}/chats/${conv}`);
+  const open = askCard(page);
+  for (const name of ["Quick reply", "Snooze", "Dismiss"]) await expect(open.getByRole("group", { name: "Ask actions" }).getByRole("button", { name })).toBeVisible();
+  await expect(open.getByRole("link", { name: "Open" })).toHaveCount(0); // you are already in the conversation
+  await expect(open.getByRole("button", { name: "History" })).toHaveCount(0); // it is in the ⋯ menu
+  await page.screenshot({ path: "/tmp/askcard-conv.png" });
   must(await answerAsk(w.owner, id, { choice: "recommended" }), "answer");
 
   // Then the ask's history lists "Dismissed by Drew", "Reopened by Drew" and "Answered by Drew · Merge it" with their times
-  await page.goto(`${w.srv.origin}/chats/${conv}`);
+  await page.reload();
   const card = askCard(page);
-  await card.getByRole("button", { name: "History" }).click();
+  // Owner (Drew, msg 716): "this history button seems kind of useless? A better ui would just be the quick buttons" - History is now in the card's ⋯ menu.
+  await card.getByRole("button", { name: "Ask options" }).click();
+  await card.getByRole("menuitem", { name: "History" }).click();
   const rows = await card.getByRole("list", { name: "History" }).getByRole("listitem").allInnerTexts();
   const wanted = ["Dismissed by Drew", "Reopened by Drew", "Answered by Drew · Merge it"];
   const at = wanted.map((text) => rows.findIndex((r) => r.includes(text)));
