@@ -76,6 +76,18 @@ func TestServerVersionStillRefusesAnOldCLIAfterADeploy(t *testing.T) {
 	}
 }
 
+func TestServerVersionKeepsAnOutOfDateAnswerForTheSameCLI(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Now()
+	asked := 0
+	fetch := func(string) string { asked++; return "new" }
+	serverVersion(dir, "http://s", "old", now, fetch)
+	serverVersion(dir, "http://s", "old", now.Add(time.Minute), fetch)
+	if asked != 1 {
+		t.Fatalf("the same old CLI must not ask again within 10 minutes: asked %d", asked)
+	}
+}
+
 func TestServerVersionKeepsNoAnswerThatFailed(t *testing.T) {
 	dir := t.TempDir()
 	asked := 0
