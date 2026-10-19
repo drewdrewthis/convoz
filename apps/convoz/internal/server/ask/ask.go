@@ -34,6 +34,8 @@ const (
 	ReasonWithdrawn = "withdrawn"
 	ReasonDeleted   = "deleted"
 	ReasonRevoked   = "agent_revoked"
+	// ReasonReplied is the owner answering in the ask's thread instead of choosing: the agent must ask again if it still needs a decision.
+	ReasonReplied = "replied"
 )
 
 // Choice kinds.

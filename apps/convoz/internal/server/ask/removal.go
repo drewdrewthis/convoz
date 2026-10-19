@@ -84,6 +84,17 @@ func CloseForAgent(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, agen
 	return closeAll(ctx, d, p, now, ids, ReasonRevoked, false)
 }
 
+// CloseForReply closes the open asks of a thread the owner replied in (the ask whose message roots it, and the asks asked inside it),
+// snoozed ones included, with the reason "replied", and tells each asking agent: the owner answered in words instead of choosing, so
+// an agent that still needs a decision must ask again.
+func CloseForReply(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, conversationID, threadRoot int64) error {
+	ids, err := db.New(d).AsksToCloseOnReply(ctx, db.AsksToCloseOnReplyParams{ConversationID: conversationID, ThreadRoot: threadRoot})
+	if err != nil {
+		return err
+	}
+	return closeAll(ctx, d, p, now, ids, ReasonReplied, true)
+}
+
 // MessageDeleted closes the ask of a deleted ask message and tells its agent. An answered or closed ask keeps its decision:
 // only the message is a tombstone. A message that carries no ask is left alone.
 func MessageDeleted(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, messageID int64) error {

@@ -3277,7 +3277,7 @@ export interface components {
             /** @enum {string} */
             state: "open" | "answered" | "dismissed" | "closed";
             /** @enum {string} */
-            close_reason?: "removed" | "withdrawn" | "deleted" | "agent_revoked";
+            close_reason?: "removed" | "withdrawn" | "deleted" | "agent_revoked" | "replied";
             /** @description On a draft ask: Send (the recommended one) and Don't send. */
             options: components["schemas"]["AskOption"][];
             /** @description Present on a draft ask. Absent after a purge. */

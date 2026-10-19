@@ -117,3 +117,17 @@ func (askCascade) MessagePurged(ctx context.Context, d pdb.DBTX, now time.Time, 
 	}
 	return ask.MessagePurged(ctx, d, now, m.ID)
 }
+
+// askReplyPort closes the open asks of a thread when the owner replies there. Only the owner counts: an agent's reply never does.
+type askReplyPort struct{ owner bool }
+
+func (r askReplyPort) OwnerReplied(ctx context.Context, d pdb.DBTX, now time.Time, m message.Message) ([]int64, error) {
+	if !r.owner {
+		return nil, nil
+	}
+	fx := &askEffects{}
+	if err := ask.CloseForReply(ctx, d, askPorts(authz.Principal{}, fx), now, m.ConversationID, m.ThreadRootID); err != nil {
+		return nil, err
+	}
+	return fx.wake, nil
+}

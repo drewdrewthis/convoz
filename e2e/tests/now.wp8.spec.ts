@@ -766,7 +766,7 @@ scenario("Tonight is not offered from 6:00 PM", { tag: ["@browser"] }, async ({ 
   await askCard(page).getByRole("button", { name: "Snooze" }).click();
 
   // Then it offers "1 hour" and "Tomorrow" but not "Tonight"
-  await expect(page.getByRole("menuitem")).toHaveText(["1 hour", "Tomorrow"]);
+  await expect(page.getByRole("menuitem").filter({ hasNotText: "Cancel" })).toHaveText(["1 hour", "Tomorrow"]);
   await expect(page.getByRole("menuitem", { name: "Tonight" })).toHaveCount(0);
 });
 

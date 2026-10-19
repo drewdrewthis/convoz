@@ -43,3 +43,38 @@ func (q *Queries) AsksToCloseOnRemoval(ctx context.Context, arg AsksToCloseOnRem
 	}
 	return items, nil
 }
+
+const asksToCloseOnReply = `-- name: AsksToCloseOnReply :many
+SELECT a.message_id FROM asks a JOIN messages m ON m.id = a.message_id
+WHERE a.conversation_id = ?1 AND a.state = 'open' AND (a.message_id = ?2 OR m.thread_root_id = ?2)
+ORDER BY a.message_id
+`
+
+type AsksToCloseOnReplyParams struct {
+	ConversationID int64
+	ThreadRoot     int64
+}
+
+// The open asks (snoozed ones are open) of a thread: the ask whose message is the thread's root, and the asks asked inside the thread.
+func (q *Queries) AsksToCloseOnReply(ctx context.Context, arg AsksToCloseOnReplyParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, asksToCloseOnReply, arg.ConversationID, arg.ThreadRoot)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var message_id int64
+		if err := rows.Scan(&message_id); err != nil {
+			return nil, err
+		}
+		items = append(items, message_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

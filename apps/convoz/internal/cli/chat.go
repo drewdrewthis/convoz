@@ -469,6 +469,9 @@ func itemLine(it wire.InboxItem) string {
 		reply, _ := json.Marshal(ask.Reply)
 		line += " reply: " + plain(string(reply))
 	}
+	if ask := it.Message.Ask; ask != nil && ask.Note() != "" {
+		line += " — " + ask.Note()
+	}
 	return line
 }
 
@@ -566,6 +569,9 @@ func printAsk(io IO, a wire.AskView) {
 		state = "Closed (" + strings.ReplaceAll(a.CloseReason, "_", " ") + ")"
 	}
 	fmt.Fprintf(io.Stdout, "  [ask %s]\n", plain(state))
+	if note := a.Note(); note != "" {
+		fmt.Fprintf(io.Stdout, "  %s\n", note)
+	}
 	for _, h := range a.History {
 		fmt.Fprintf(io.Stdout, "    %s %s\n", plain(historyLine(h, a)), time.UnixMilli(h.At).UTC().Format(time.RFC3339))
 	}

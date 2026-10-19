@@ -65,7 +65,7 @@ Ask:
     urgent: { type: boolean }
     owners_call: { $ref: "../openapi.yaml#/components/schemas/OwnersCall", description: Absent on an ask from before the field, and after a purge. }
     state: { type: string, enum: [open, answered, dismissed, closed] }
-    close_reason: { type: string, enum: [removed, withdrawn, deleted, agent_revoked] }
+    close_reason: { type: string, enum: [removed, withdrawn, deleted, agent_revoked, replied] }
     options: { type: array, minItems: 2, maxItems: 5, items: { $ref: "../openapi.yaml#/components/schemas/AskOption" }, description: "On a draft ask: Send (the recommended one) and Don't send." }
     draft: { $ref: "../openapi.yaml#/components/schemas/AskDraft", description: Present on a draft ask. Absent after a purge. }
     reply: { $ref: "../openapi.yaml#/components/schemas/AskReply", description: Present on an answered draft ask. }

@@ -59,13 +59,21 @@
   .askdrafttext:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
   .askreply { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
   .askreply input { flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 0 14px; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-surface); color: var(--color-text); font: inherit; font-size: 15px; }
+  /* A menu opens in the flow of the card, under the row that opened it, so it covers no button of the card. */
   .askmenu {
-    position: absolute; right: 8px; bottom: 56px; z-index: 5; display: flex; flex-direction: column; min-width: 10rem; padding: 4px;
-    border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-raised); box-shadow: var(--float);
+    display: flex; flex-direction: column; margin: 6px 0 0; padding: 4px;
+    border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-raised);
   }
-  .askbar ~ .askmenu { top: 36px; bottom: auto; }
+  /* On a phone it is a bottom sheet over a scrim; the card keeps a gap as tall as the sheet (.askgap) and scrolls up past it. */
+  .asksheet-scrim { position: fixed; inset: 0; z-index: 50; background: var(--scrim); }
+  .askmenu.asksheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 51; margin: 0; padding: 8px 12px calc(12px + var(--bottom));
+    border-width: 1px 0 0; border-radius: 22px 22px 0 0; box-shadow: var(--float);
+  }
   .askmenu button { min-height: 44px; padding: 0 14px; border: 0; border-radius: 8px; background: none; color: var(--color-text); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
   .askmenu button:hover { background: var(--color-soft); }
+  .asksheet button { min-height: 48px; text-align: center; font-size: 16px; }
+  .asksheet button:last-child { color: var(--color-muted); }
   .askcard .askstate { margin: 4px 0 0; font-size: 14px; font-weight: 600; color: var(--color-accent-text); }
   .askcard .askstate.dismissed, .askcard .askstate.closed { color: var(--color-muted); }
   .asknote { margin: 6px 0 0; font-size: 13px; color: var(--color-muted); }

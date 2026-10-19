@@ -62,3 +62,14 @@ func TestAskDraft_LimitsAndTruncation(t *testing.T) {
 		t.Errorf("a short original changed: %q", short)
 	}
 }
+
+func TestAskView_NoteIsForAnAskTheOwnerRepliedTo(t *testing.T) {
+	if got := (AskView{State: "closed", CloseReason: "replied"}).Note(); got != RepliedNote {
+		t.Errorf("Note() = %q, want %q", got, RepliedNote)
+	}
+	for _, a := range []AskView{{State: "closed", CloseReason: "withdrawn"}, {State: "open"}, {State: "answered"}} {
+		if got := a.Note(); got != "" {
+			t.Errorf("%s %s: Note() = %q, want none", a.State, a.CloseReason, got)
+		}
+	}
+}
