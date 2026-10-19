@@ -2,7 +2,7 @@ import type { Ask, Me, NowPendingAdd } from "@convoz/api-client";
 import { AskCard, whoLine, stateLine, type Answer } from "@convoz/app-kit";
 import { Wordmark } from "@convoz/ui/Wordmark";
 import { TickIcon } from "@convoz/ui/icons";
-import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { call, client, humanError } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { markUseful } from "../../shared/perf.ts";
@@ -47,7 +47,8 @@ export function Now() {
   useEffect(() => {
     data.loadConversations().catch(() => {});
   }, []);
-  const unread = unreadRows(conversations);
+  // Memoised: Now re-renders on every poll of /api/now, and the digest must not (it is the long list).
+  const unread = useMemo(() => unreadRows(conversations), [conversations]);
 
   useEffect(() => {
     if (now) markUseful();

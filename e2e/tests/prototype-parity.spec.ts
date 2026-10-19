@@ -230,6 +230,7 @@ async function matchesElement(page: import("@playwright/test").Page, screen: str
       },
       MASKS[screen] ?? [],
     );
+    const cdp = await page.context().newCDPSession(page); await cdp.send("Performance.enable"); const mt = async () => Object.fromEntries((await cdp.send("Performance.getMetrics")).metrics.filter((m) => /Duration$/.test(m.name)).map((m) => [m.name.replace("Duration", ""), +m.value.toFixed(2)])); const m0 = await mt();
     const dir = process.env.PARITY_ACTUAL_DIR;
     if (dir) await el.screenshot({ path: `${dir}/${screen}-${scheme}.png`, animations: "disabled", caret: "hide", scale: "device" });
     await expect(el).toHaveScreenshot(["prototype", `${screen}-${scheme}.png`], SHOT);
