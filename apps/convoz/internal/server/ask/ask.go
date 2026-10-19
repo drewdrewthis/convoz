@@ -17,6 +17,8 @@ const (
 	MaxWhy          = 280
 	MaxAlternatives = 4
 	MaxCustomText   = 4000
+	MaxOriginal     = 2000
+	MaxOriginalFrom = 200
 	// MaxSnooze is how far ahead a snooze may reach.
 	MaxSnooze = 31 * 24 * time.Hour
 )
@@ -47,6 +49,12 @@ type Option struct{ Label, Why string }
 // OwnersCall is why only the owner can decide an ask: a Kind (one-way, taste, values or scope) and a Reason.
 type OwnersCall struct{ Kind, Reason string }
 
+// Draft is a message the agent wants to send in the owner's name; Original is the message it answers, from OriginalFrom.
+type Draft struct{ Text, Original, OriginalFrom string }
+
+// The two options of a draft ask: the owner sends the draft (Send is the recommended choice, and carries the final text) or does not.
+var draftOptions = []Option{{Label: "Send", Why: "Post the draft, as written or as edited."}, {Label: "Don't send", Why: "Drop the draft."}}
+
 // Choice is what an answer was.
 type Choice struct {
 	Kind  string
@@ -69,6 +77,7 @@ type Ask struct {
 	Question                    string
 	Urgent                      bool
 	OwnersCall                  *OwnersCall // nil on an ask from before the field, and after a purge
+	Draft                       *Draft      // nil on any ask that is not a draft ask, and after a purge
 	Scrubbed                    bool
 	State, CloseReason          string
 	Options                     []Option
@@ -81,11 +90,15 @@ type Ask struct {
 	History                     []Transition
 }
 
-// Answer is the answer in words: the chosen option's label, or the custom text.
+// Answer is the answer in words: the chosen option's label, or the custom text; "Send: <text>" or "Don't send" on a draft ask.
 func (a Ask) Answer() string {
 	switch {
 	case a.Chosen == nil:
 		return ""
+	case a.Draft != nil && a.Chosen.Kind == Recommended:
+		return "Send: " + a.Chosen.Text
+	case a.Draft != nil:
+		return "Don't send"
 	case a.Chosen.Kind == Custom:
 		return a.Chosen.Text
 	case a.Chosen.Kind == Recommended && len(a.Options) > 0:

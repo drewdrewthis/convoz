@@ -48,6 +48,15 @@
   .askopts .askopt:not(.rec):last-child { border-style: dashed; color: var(--color-muted); }
   .askopt.rec { background: var(--grad); border-color: transparent; color: var(--color-on-accent); font-weight: 600; }
   .askopt:disabled { opacity: .55; cursor: default; }
+  .askdraft { display: flex; flex-direction: column; gap: 8px; margin: 6px 0 0; }
+  .askorig { margin: 0; padding: 6px 12px; border-left: 3px solid var(--color-border); color: var(--color-muted); font-size: 14px; line-height: 20px; overflow-wrap: anywhere; max-height: 40vh; overflow-y: auto; }
+  .askorig p { margin: 0; }
+  .askorigfrom { font-size: 12px; font-weight: 600; color: var(--color-text); }
+  .askorigtext { white-space: pre-wrap; }
+  .askdraftlabel { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--color-text); }
+  .askedited { padding: 0 6px; border-radius: 999px; background: var(--color-soft); font-size: 11px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--color-muted); }
+  .askdrafttext { box-sizing: border-box; width: 100%; min-height: 88px; max-height: 60vh; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); color: var(--color-text); font: inherit; font-size: 16px; line-height: 22px; resize: none; overflow-y: auto; scroll-margin-block: 80px; }
+  .askdrafttext:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
   .askreply { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
   .askreply input { flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 0 14px; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-surface); color: var(--color-text); font: inherit; font-size: 15px; }
   .askmenu {

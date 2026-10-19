@@ -23,8 +23,11 @@ type BriefAsk struct {
 }
 
 func answerOf(kind, text sql.NullString, label string) string {
-	if kind.String == "custom" {
+	switch {
+	case kind.String == "custom":
 		return text.String
+	case kind.String == "recommended" && text.String != "": // only a draft ask keeps text with the recommended choice (Send)
+		return "Send: " + text.String
 	}
 	return label
 }

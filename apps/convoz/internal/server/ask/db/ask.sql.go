@@ -97,7 +97,7 @@ func (q *Queries) AnsweredSince(ctx context.Context, since sql.NullInt64) ([]int
 }
 
 const askByID = `-- name: AskByID :one
-SELECT message_id, conversation_id, asker_id, question, urgent, owners_call_kind, owners_call_reason, scrubbed_at, state, close_reason, chosen_kind, chosen_index, chosen_text,
+SELECT message_id, conversation_id, asker_id, question, urgent, owners_call_kind, owners_call_reason, draft_text, original_text, original_from, scrubbed_at, state, close_reason, chosen_kind, chosen_index, chosen_text,
        answer_via, resolved_by, resolved_at, acked_at, version, created_at, updated_at
 FROM asks WHERE message_id = ?1
 `
@@ -110,6 +110,9 @@ type AskByIDRow struct {
 	Urgent           int64
 	OwnersCallKind   sql.NullString
 	OwnersCallReason sql.NullString
+	DraftText        sql.NullString
+	OriginalText     sql.NullString
+	OriginalFrom     sql.NullString
 	ScrubbedAt       sql.NullInt64
 	State            string
 	CloseReason      sql.NullString
@@ -136,6 +139,9 @@ func (q *Queries) AskByID(ctx context.Context, messageID int64) (AskByIDRow, err
 		&i.Urgent,
 		&i.OwnersCallKind,
 		&i.OwnersCallReason,
+		&i.DraftText,
+		&i.OriginalText,
+		&i.OriginalFrom,
 		&i.ScrubbedAt,
 		&i.State,
 		&i.CloseReason,
@@ -154,7 +160,7 @@ func (q *Queries) AskByID(ctx context.Context, messageID int64) (AskByIDRow, err
 }
 
 const asksByIDs = `-- name: AsksByIDs :many
-SELECT message_id, conversation_id, asker_id, question, urgent, owners_call_kind, owners_call_reason, scrubbed_at, state, close_reason, chosen_kind, chosen_index, chosen_text,
+SELECT message_id, conversation_id, asker_id, question, urgent, owners_call_kind, owners_call_reason, draft_text, original_text, original_from, scrubbed_at, state, close_reason, chosen_kind, chosen_index, chosen_text,
        answer_via, resolved_by, resolved_at, acked_at, version, created_at, updated_at
 FROM asks WHERE message_id IN (/*SLICE:ids*/?)
 `
@@ -167,6 +173,9 @@ type AsksByIDsRow struct {
 	Urgent           int64
 	OwnersCallKind   sql.NullString
 	OwnersCallReason sql.NullString
+	DraftText        sql.NullString
+	OriginalText     sql.NullString
+	OriginalFrom     sql.NullString
 	ScrubbedAt       sql.NullInt64
 	State            string
 	CloseReason      sql.NullString
@@ -209,6 +218,9 @@ func (q *Queries) AsksByIDs(ctx context.Context, ids []int64) ([]AsksByIDsRow, e
 			&i.Urgent,
 			&i.OwnersCallKind,
 			&i.OwnersCallReason,
+			&i.DraftText,
+			&i.OriginalText,
+			&i.OriginalFrom,
 			&i.ScrubbedAt,
 			&i.State,
 			&i.CloseReason,
@@ -415,8 +427,8 @@ func (q *Queries) HistoryOf(ctx context.Context, ids []int64) ([]AskTransition, 
 }
 
 const insertAsk = `-- name: InsertAsk :exec
-INSERT INTO asks (message_id, conversation_id, asker_id, asked_by_session, question, urgent, owners_call_kind, owners_call_reason, state, version, created_at, updated_at)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'open', 1, ?9, ?9)
+INSERT INTO asks (message_id, conversation_id, asker_id, asked_by_session, question, urgent, owners_call_kind, owners_call_reason, draft_text, original_text, original_from, state, version, created_at, updated_at)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'open', 1, ?12, ?12)
 `
 
 type InsertAskParams struct {
@@ -428,6 +440,9 @@ type InsertAskParams struct {
 	Urgent           int64
 	OwnersCallKind   sql.NullString
 	OwnersCallReason sql.NullString
+	DraftText        sql.NullString
+	OriginalText     sql.NullString
+	OriginalFrom     sql.NullString
 	Now              int64
 }
 
@@ -441,6 +456,9 @@ func (q *Queries) InsertAsk(ctx context.Context, arg InsertAskParams) error {
 		arg.Urgent,
 		arg.OwnersCallKind,
 		arg.OwnersCallReason,
+		arg.DraftText,
+		arg.OriginalText,
+		arg.OriginalFrom,
 		arg.Now,
 	)
 	return err
@@ -692,7 +710,8 @@ func (q *Queries) OptionsOf(ctx context.Context, ids []int64) ([]AskOption, erro
 }
 
 const scrubAsk = `-- name: ScrubAsk :exec
-UPDATE asks SET scrubbed_at = CAST(?1 AS INTEGER), question = '', owners_call_reason = CASE WHEN owners_call_reason IS NULL THEN NULL ELSE '' END, chosen_text = CASE WHEN chosen_text IS NULL THEN NULL ELSE '' END
+UPDATE asks SET scrubbed_at = CAST(?1 AS INTEGER), question = '', owners_call_reason = CASE WHEN owners_call_reason IS NULL THEN NULL ELSE '' END,
+    draft_text = CASE WHEN draft_text IS NULL THEN NULL ELSE '' END, original_text = CASE WHEN original_text IS NULL THEN NULL ELSE '' END, original_from = CASE WHEN original_from IS NULL THEN NULL ELSE '' END, chosen_text = CASE WHEN chosen_text IS NULL THEN NULL ELSE '' END
 WHERE message_id = ?2 AND scrubbed_at IS NULL
 `
 

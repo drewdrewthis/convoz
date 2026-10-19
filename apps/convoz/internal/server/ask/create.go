@@ -21,6 +21,7 @@ type New struct {
 	Urgent                                   bool
 	OwnersCall                               OwnersCall // checked by the caller (wire.OwnersCall.Problem); the table refuses an unknown kind
 	App                                      []byte     // the checked app shown with the question (compact JSON); nil for none
+	Draft                                    *Draft     // a draft ask: it has no options and no owner's call of its own, the module sets both
 }
 
 // Check refuses an ask that is not complete or is too long, naming the field (I-11, AC-13).
@@ -31,6 +32,8 @@ func (n New) Check() error {
 		return &FieldError{"question", "Ask a question."}
 	case utf8.RuneCountInString(n.Question) > MaxQuestion:
 		return &FieldError{"question", "A question has at most 500 characters."}
+	case n.Draft != nil:
+		return checkDraft(*n.Draft)
 	case len(n.Alternatives) < 1 || len(n.Alternatives) > MaxAlternatives:
 		return &FieldError{"alternatives", "Give 1 to 4 alternatives."}
 	}
@@ -41,6 +44,21 @@ func (n New) Check() error {
 		if err := checkOption(o); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// checkDraft judges a draft: the text 1 to 4000 characters, the original at most 2000 and its from-line at most 200.
+func checkDraft(d Draft) error {
+	switch {
+	case strings.TrimSpace(d.Text) == "":
+		return &FieldError{"draft", "A draft ask needs the draft text."}
+	case utf8.RuneCountInString(d.Text) > MaxCustomText:
+		return &FieldError{"draft", "A draft has at most 4000 characters."}
+	case utf8.RuneCountInString(d.Original) > MaxOriginal:
+		return &FieldError{"original", "The original has at most 2000 characters."}
+	case utf8.RuneCountInString(d.OriginalFrom) > MaxOriginalFrom:
+		return &FieldError{"original_from", "The from-line of the original has at most 200 characters."}
 	}
 	return nil
 }
@@ -81,14 +99,21 @@ func Create(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, n New) (a A
 		return a, replayed, err
 	}
 	at := now.UnixMilli()
-	if err := q.InsertAsk(ctx, db.InsertAskParams{
+	row := db.InsertAskParams{
 		MessageID: id, ConversationID: n.Conversation, AskerID: n.Asker, AskedBySession: sql.NullInt64{Int64: n.Session, Valid: n.Session != 0},
 		Question: n.Question, Urgent: boolInt(n.Urgent), Now: at,
 		OwnersCallKind: sql.NullString{String: n.OwnersCall.Kind, Valid: true}, OwnersCallReason: sql.NullString{String: n.OwnersCall.Reason, Valid: true},
-	}); err != nil {
+	}
+	options := append([]Option{n.Recommended}, n.Alternatives...)
+	if d := n.Draft; d != nil { // its owner's call is not stored: a reader gets the fixed "in your name" call
+		row.OwnersCallKind, row.OwnersCallReason = sql.NullString{}, sql.NullString{}
+		row.DraftText, row.OriginalText, row.OriginalFrom = sql.NullString{String: d.Text, Valid: true}, nullText(d.Original), nullText(d.OriginalFrom)
+		options = draftOptions
+	}
+	if err := q.InsertAsk(ctx, row); err != nil {
 		return Ask{}, false, err
 	}
-	for i, o := range append([]Option{n.Recommended}, n.Alternatives...) {
+	for i, o := range options {
 		if err := q.InsertOption(ctx, db.InsertOptionParams{MessageID: id, Idx: int64(i), Label: o.Label, Why: o.Why}); err != nil {
 			return Ask{}, false, err
 		}
@@ -118,5 +143,7 @@ func boolInt(b bool) int64 {
 	}
 	return 0
 }
+
+func nullText(v string) sql.NullString { return sql.NullString{String: v, Valid: v != ""} }
 
 func nullInt(v int64) sql.NullInt64 { return sql.NullInt64{Int64: v, Valid: v != 0} }

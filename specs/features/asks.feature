@@ -158,3 +158,58 @@ Feature: Asks and their state machine
       Given an ask of "devtool" that the owner dismissed
       When the owner opens the ask's menu
       Then the menu has no Snooze item
+
+  Rule: An app on an ask shows on its card
+
+    @v1 @browser
+    Scenario: An app on an ask shows on its card in Now and in the conversation
+      Given "devtool" asked in conversation 41 with a "Tokens per day" chart app attached
+      When the owner opens Now
+      Then the card of the ask shows the chart "Tokens per day"
+      And conversation 41 shows the same chart on the card of the ask
+
+  # Drew, conv 32 msg 650: "ship a standard 'review a draft' mini app with Convoz, so agents don't hand-build one for every message
+  # they draft for him. It shows the original message being answered (who, where, text) and the agent's draft in an editable box, with
+  # Send and Don't send buttons. It returns {send, text} with the edited text, so the agent posts exactly what Drew approved."
+  Rule: Anything sent in the owner's name is a draft ask that the owner reviews and may edit
+
+    @v1 @browser
+    Scenario: An agent asks the owner to review a draft and gets back the edited text
+      Given "devtool" asked "Send this reply to Alex?" with the draft "Sounds good, Thursday works." in answer to "Can we meet Thursday?" from "Alex · Slack DM"
+      When the owner opens Now
+      Then the card shows the question, the original quoted with its from-line and the draft in an editable box
+      And the card shows no "Edited" marker
+      When the owner changes the draft to "Sounds good, Thursday at 10 works."
+      Then the card shows an "Edited" marker
+      When the owner taps "Send"
+      Then "devtool" gets the answer send true with the text "Sounds good, Thursday at 10 works." in its inbox and its watch
+      And conversation 41 shows "Send: Sounds good, Thursday at 10 works."
+
+    @v1 @browser
+    Scenario: Don't send returns send false and no text
+      Given "devtool" asked "Send this reply to Alex?" with the draft "Sounds good, Thursday works." in answer to "Can we meet Thursday?" from "Alex · Slack DM"
+      When the owner opens Now and taps "Don't send"
+      Then "devtool" gets the answer send false and no text in its inbox and its watch
+      And conversation 41 shows "Don't send"
+
+    @v1 @browser
+    Scenario: A draft ask is reviewed inside the conversation too
+      Given "devtool" asked "Send this reply to Alex?" with the draft "Sounds good, Thursday works." in answer to "Can we meet Thursday?" from "Alex · Slack DM"
+      When the owner opens conversation 41, changes the draft to "Sounds good, Thursday at 10 works." and taps "Send"
+      Then "devtool" gets the answer send true with the text "Sounds good, Thursday at 10 works." in its inbox and its watch
+
+    @v1 @cli
+    Scenario: A draft ask needs no owner's-call reason
+      When "devtool" runs "convoz ask --draft 'Sounds good, Thursday works.' --original 'Can we meet Thursday?' --original-from 'Alex · Slack DM' 41 'Send this reply to Alex?'"
+      Then the command succeeds and the owner sees the ask in Now with the call "Your call · in-your-name: It goes out in your name."
+      When "devtool" runs "convoz ask" with the call "in-your-name" and options but no draft
+      Then the command exits 2 and says the call is for a draft ask only
+      When "devtool" runs "convoz ask --draft" with a recommendation as well
+      Then the command exits 2 and says a draft ask takes no options and no owner's call
+
+    @v1 @cli
+    Scenario: A long original is cut and a long draft is refused
+      When "devtool" runs "convoz ask --draft" with an original of 2500 characters
+      Then the owner sees the original cut to 2000 characters and ending with "…"
+      When "devtool" runs "convoz ask --draft" with a draft of 4001 characters
+      Then the command exits 2 and the owner sees no new ask

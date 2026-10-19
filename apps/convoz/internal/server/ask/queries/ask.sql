@@ -1,6 +1,6 @@
 -- name: InsertAsk :exec
-INSERT INTO asks (message_id, conversation_id, asker_id, asked_by_session, question, urgent, owners_call_kind, owners_call_reason, state, version, created_at, updated_at)
-VALUES (sqlc.arg(message_id), sqlc.arg(conversation_id), sqlc.arg(asker_id), sqlc.narg(asked_by_session), sqlc.arg(question), sqlc.arg(urgent), sqlc.arg(owners_call_kind), sqlc.arg(owners_call_reason), 'open', 1, sqlc.arg(now), sqlc.arg(now));
+INSERT INTO asks (message_id, conversation_id, asker_id, asked_by_session, question, urgent, owners_call_kind, owners_call_reason, draft_text, original_text, original_from, state, version, created_at, updated_at)
+VALUES (sqlc.arg(message_id), sqlc.arg(conversation_id), sqlc.arg(asker_id), sqlc.narg(asked_by_session), sqlc.arg(question), sqlc.arg(urgent), sqlc.narg(owners_call_kind), sqlc.narg(owners_call_reason), sqlc.narg(draft_text), sqlc.narg(original_text), sqlc.narg(original_from), 'open', 1, sqlc.arg(now), sqlc.arg(now));
 
 -- name: InsertOption :exec
 INSERT INTO ask_options (message_id, idx, label, why) VALUES (sqlc.arg(message_id), sqlc.arg(idx), sqlc.arg(label), sqlc.arg(why));
@@ -10,12 +10,12 @@ INSERT INTO ask_options (message_id, idx, label, why) VALUES (sqlc.arg(message_i
 UPDATE asks SET sealed = 1 WHERE message_id = sqlc.arg(message_id);
 
 -- name: AskByID :one
-SELECT message_id, conversation_id, asker_id, question, urgent, owners_call_kind, owners_call_reason, scrubbed_at, state, close_reason, chosen_kind, chosen_index, chosen_text,
+SELECT message_id, conversation_id, asker_id, question, urgent, owners_call_kind, owners_call_reason, draft_text, original_text, original_from, scrubbed_at, state, close_reason, chosen_kind, chosen_index, chosen_text,
        answer_via, resolved_by, resolved_at, acked_at, version, created_at, updated_at
 FROM asks WHERE message_id = sqlc.arg(message_id);
 
 -- name: AsksByIDs :many
-SELECT message_id, conversation_id, asker_id, question, urgent, owners_call_kind, owners_call_reason, scrubbed_at, state, close_reason, chosen_kind, chosen_index, chosen_text,
+SELECT message_id, conversation_id, asker_id, question, urgent, owners_call_kind, owners_call_reason, draft_text, original_text, original_from, scrubbed_at, state, close_reason, chosen_kind, chosen_index, chosen_text,
        answer_via, resolved_by, resolved_at, acked_at, version, created_at, updated_at
 FROM asks WHERE message_id IN (sqlc.slice(ids));
 
@@ -97,7 +97,8 @@ SELECT message_id FROM asks WHERE state = 'dismissed' AND resolved_at >= sqlc.ar
 SELECT message_id FROM asks WHERE asker_id = sqlc.arg(asker_id) AND state IN ('open','dismissed') ORDER BY message_id;
 
 -- name: ScrubAsk :exec
-UPDATE asks SET scrubbed_at = CAST(sqlc.arg(now) AS INTEGER), question = '', owners_call_reason = CASE WHEN owners_call_reason IS NULL THEN NULL ELSE '' END, chosen_text = CASE WHEN chosen_text IS NULL THEN NULL ELSE '' END
+UPDATE asks SET scrubbed_at = CAST(sqlc.arg(now) AS INTEGER), question = '', owners_call_reason = CASE WHEN owners_call_reason IS NULL THEN NULL ELSE '' END,
+    draft_text = CASE WHEN draft_text IS NULL THEN NULL ELSE '' END, original_text = CASE WHEN original_text IS NULL THEN NULL ELSE '' END, original_from = CASE WHEN original_from IS NULL THEN NULL ELSE '' END, chosen_text = CASE WHEN chosen_text IS NULL THEN NULL ELSE '' END
 WHERE message_id = sqlc.arg(message_id) AND scrubbed_at IS NULL;
 
 -- name: DeleteOptionsOf :exec

@@ -45,7 +45,7 @@ func (s *Server) postAsk(w http.ResponseWriter, r *http.Request, c *call) {
 		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "conversation_id", "Name the conversation.")
 		return
 	}
-	if problem := in.OwnersCall.Problem(); problem != "" {
+	if problem := in.OwnersCallProblem(); problem != "" {
 		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "owners_call", problem)
 		return
 	}
@@ -57,6 +57,9 @@ func (s *Server) postAsk(w http.ResponseWriter, r *http.Request, c *call) {
 	}
 	for _, o := range in.Alternatives {
 		n.Alternatives = append(n.Alternatives, ask.Option{Label: o.Label, Why: o.Why})
+	}
+	if d := in.Draft; d != nil {
+		n.Draft = &ask.Draft{Text: d.Text, Original: d.Original, OriginalFrom: d.OriginalFrom}
 	}
 	if s.askRefused(w, r, c, n.Check()) {
 		return

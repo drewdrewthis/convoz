@@ -1759,7 +1759,7 @@ One binary `convoz` (alias `cvz`). Credentials: `~/.config/convoz/credentials` (
 | `convoz post <conv> [--format …] [--file path…] [--app file [--app-data file] [--app-fallback T] [--app-title T]] <text\|->` | post to main | `post` |
 | `convoz app init <dir>` · `convoz app build <dir>` · `convoz app validate <file>` | scaffold · bundle a Tier-2 app · validate | `app_build`, `app_validate` |
 | `convoz reply <message> [--broadcast] [--app file …] <text\|->` | thread reply; `<message>` may be the root or any message inside the thread (the reply goes to the root) | `reply` |
-| `convoz ask <conv> --question Q --recommend L --why W --alt L --alt-why W [--alt …] [--urgent] [--thread root]` · `convoz ask withdraw <id>` | ask (question, recommendation with why, ≥1 alternative with why: all required) · withdraw | `ask` |
+| `convoz ask <conv> --question Q --recommend L --why W --alt L --alt-why W [--alt …] [--urgent] [--thread root]` · `convoz ask --draft TEXT [--original TEXT] [--original-from LINE] <conv> [Q]` (anything sent in the owner's name: the owner edits the draft and taps Send or Don't send; the agent reads `{send, text}`) · `convoz ask withdraw <id>` | ask (question, recommendation with why, ≥1 alternative with why: all required) · draft ask · withdraw | `ask` |
 | `convoz status --state S [--doing D] [--next N]` | status | `status` |
 | `convoz typing <conv> [--thread <message>]` | show the owner "@you is replying…" for 30 s, in the conversation or in a thread (§5.4) | `typing` |
 | `convoz handoff "<note>"` · `convoz handoff --list` | store (≤4096 bytes) / list notes | `handoff` |

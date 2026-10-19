@@ -22,6 +22,13 @@ func (dir directory) askBase(a ask.Ask) wire.AskView {
 	if a.OwnersCall != nil {
 		v.OwnersCall = &wire.OwnersCall{Kind: a.OwnersCall.Kind, Reason: a.OwnersCall.Reason}
 	}
+	if a.Draft != nil { // a draft ask has no stored call: it is always the fixed one
+		v.OwnersCall = &wire.OwnersCall{Kind: wire.OwnersCallInYourName, Reason: wire.InYourNameReason}
+		v.Draft = &wire.AskDraft{Text: a.Draft.Text, Original: a.Draft.Original, OriginalFrom: a.Draft.OriginalFrom}
+		if a.Chosen != nil {
+			v.Reply = &wire.AskReply{Send: a.Chosen.Kind == ask.Recommended, Text: a.Chosen.Text}
+		}
+	}
 	for i, o := range a.Options {
 		v.Options = append(v.Options, wire.AskOption{Label: o.Label, Why: o.Why, Recommended: i == 0})
 	}

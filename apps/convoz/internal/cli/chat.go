@@ -464,7 +464,12 @@ func itemLine(it wire.InboxItem) string {
 		title = *it.Conversation.Title
 	}
 	first, _, _ := strings.Cut(wordsOf(it.Message), "\n")
-	return fmt.Sprintf("%s conv %d %q %s x%d #%d @%s: %s", ref, it.Conversation.ID, title, it.Reason, it.Count, it.Message.ID, it.Message.Author.Handle, plain(first))
+	line := fmt.Sprintf("%s conv %d %q %s x%d #%d @%s: %s", ref, it.Conversation.ID, title, it.Reason, it.Count, it.Message.ID, it.Message.Author.Handle, plain(first))
+	if ask := it.Message.Ask; ask != nil && ask.Reply != nil { // the answer of a draft ask is what the agent acts on
+		reply, _ := json.Marshal(ask.Reply)
+		line += " reply: " + plain(string(reply))
+	}
+	return line
 }
 
 // wordsOf is what a message says: its body, or for a message with files the plain form the server made of it ("Voice note 0:20:
@@ -539,6 +544,10 @@ func Ack(args []string, io IO) int {
 // printAsk writes what an ask message holds besides its question: the options with their reasons, where the ask stands and
 // its history, so an agent reads who dismissed or answered it (C-6).
 func printAsk(io IO, a wire.AskView) {
+	if a.Draft != nil {
+		printDraft(io, a)
+		return
+	}
 	for i, o := range a.Options {
 		mark := "-"
 		if i == 0 {
@@ -560,6 +569,37 @@ func printAsk(io IO, a wire.AskView) {
 	for _, h := range a.History {
 		fmt.Fprintf(io.Stdout, "    %s %s\n", plain(historyLine(h, a)), time.UnixMilli(h.At).UTC().Format(time.RFC3339))
 	}
+}
+
+// printDraft is printAsk of a draft ask: the original, the draft, and once answered the reply an agent acts on: send true with the
+// final text, or send false.
+func printDraft(io IO, a wire.AskView) {
+	if a.Draft.Original != "" {
+		fmt.Fprintf(io.Stdout, "  [original%s] %s\n", plainFrom(a.Draft.OriginalFrom), plain(a.Draft.Original))
+	}
+	fmt.Fprintf(io.Stdout, "  [draft] %s\n", plain(a.Draft.Text))
+	switch {
+	case a.Reply != nil && a.Reply.Send:
+		fmt.Fprintf(io.Stdout, "  [ask Send: %s]\n", plain(a.Reply.Text))
+	case a.Reply != nil:
+		fmt.Fprintln(io.Stdout, "  [ask Don't send]")
+	default:
+		fmt.Fprintf(io.Stdout, "  [ask %s]\n", plain(a.State))
+	}
+	if a.Reply != nil {
+		reply, _ := json.Marshal(a.Reply)
+		fmt.Fprintf(io.Stdout, "  reply: %s\n", reply)
+	}
+	for _, h := range a.History {
+		fmt.Fprintf(io.Stdout, "    %s %s\n", plain(historyLine(h, a)), time.UnixMilli(h.At).UTC().Format(time.RFC3339))
+	}
+}
+
+func plainFrom(from string) string {
+	if from == "" {
+		return ""
+	}
+	return " from " + plain(from)
 }
 
 // historyLine is one history row in words: "Dismissed by Drew", "Reopened by Drew", "Answered by Drew · Merge it".

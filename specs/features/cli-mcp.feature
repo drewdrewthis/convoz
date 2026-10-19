@@ -54,6 +54,12 @@ Feature: The convoz CLI and MCP server for agents
       And the owner sees no ask in Now
 
     @v1 @mcp
+    Scenario: The ask tool takes a draft to review and needs no owner's call
+      When the "ask" tool is called with a question and a draft with the text of a reply, the message it answers and who sent it
+      Then the owner sees a draft ask in Now with the call "Your call · in-your-name: It goes out in your name."
+      And when the owner sends an edited text, the agent reads send true with that text, and with Don't send it reads send false and no text
+
+    @v1 @mcp
     Scenario: The MCP server ends its lease on exit
       Given "convoz mcp --as devtool" is running with a live session
       When its stdin closes

@@ -3222,11 +3222,25 @@ export interface components {
         /** @description Why only the owner can decide an ask. The card shows it under the question. */
         OwnersCall: {
             /**
-             * @description A one-way door, a choice of taste or values, or scope the owner must own.
+             * @description A one-way door, a choice of taste or values, or scope the owner must own. in-your-name is the call of a draft ask only: the server sets it, with the reason "It goes out in your name."
              * @enum {string}
              */
-            kind: "one-way" | "taste" | "values" | "scope";
+            kind: "one-way" | "taste" | "values" | "scope" | "in-your-name";
             reason: string;
+        };
+        /** @description A message the agent wants to send in the owner's name, and the message it answers when there is one. */
+        AskDraft: {
+            /** @description The draft. */
+            text: string;
+            /** @description The message the draft answers. The CLI and the MCP tool cut a longer one and end it with "…". */
+            original?: string;
+            /** @description Who sent the original and where, like "Alex · Slack DM". */
+            original_from?: string;
+        };
+        /** @description The answer of a draft ask as its agent reads it. `text` is the final text, as the owner left it, and is present only when `send` is true. */
+        AskReply: {
+            send: boolean;
+            text?: string;
         };
         /** @description One row of the ask's history (C-6). Append-only; ids and enums only. A row without `by` was made by the system. */
         AskHistoryRow: {
@@ -3264,9 +3278,14 @@ export interface components {
             state: "open" | "answered" | "dismissed" | "closed";
             /** @enum {string} */
             close_reason?: "removed" | "withdrawn" | "deleted" | "agent_revoked";
+            /** @description On a draft ask: Send (the recommended one) and Don't send. */
             options: components["schemas"]["AskOption"][];
+            /** @description Present on a draft ask. Absent after a purge. */
+            draft?: components["schemas"]["AskDraft"];
+            /** @description Present on an answered draft ask. */
+            reply?: components["schemas"]["AskReply"];
             chosen?: components["schemas"]["AskChoice"];
-            /** @description The answer in words: the chosen option's label, or the custom text. */
+            /** @description The answer in words: the chosen option's label, or the custom text; "Send: <text>" or "Don't send" on a draft ask. */
             answer?: string;
             /** @enum {string} */
             answer_via?: "inline" | "now";
@@ -3293,6 +3312,10 @@ export interface components {
             id: number;
             title: string | null;
         };
+        /**
+         * @description An ask with options (recommended, alternatives and owners_call; without owners_call it is refused) or a draft ask (draft alone: it has
+         *     no options and no owner's call, the server sets both).
+         */
         AskRequest: {
             /** Format: int64 */
             conversation_id: number;
@@ -3300,10 +3323,11 @@ export interface components {
             thread_root_id?: number;
             client_id: components["schemas"]["ClientId"];
             question: string;
-            recommended: components["schemas"]["AskOption"];
-            alternatives: components["schemas"]["AskOption"][];
-            owners_call: components["schemas"]["OwnersCall"];
+            recommended?: components["schemas"]["AskOption"];
+            alternatives?: components["schemas"]["AskOption"][];
+            owners_call?: components["schemas"]["OwnersCall"];
             urgent?: boolean;
+            draft?: components["schemas"]["AskDraft"];
             /** @description An app shown with the question (a chart, a table, a diff). It helps the owner decide and never answers: no picker, form or select checklist (400 app_type_not_allowed_on_ask). */
             app?: components["schemas"]["App"];
         };
@@ -3312,7 +3336,7 @@ export interface components {
             choice: "recommended" | "alternative" | "custom";
             /** @description With choice alternative: which one. */
             index?: number;
-            /** @description With choice custom: the person's words. */
+            /** @description With choice custom: the person's words. With choice recommended on a draft ask: the final text to send (the draft when left out). A draft ask is answered with recommended (send) or alternative 1 (do not send). */
             text?: string;
             /** @description The version the person saw; another version is a 409. */
             if_version?: number;

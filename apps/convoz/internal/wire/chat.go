@@ -302,6 +302,8 @@ type WatchLine struct {
 	// ThreadTopic and Before say where the message sits and what it answers; see InboxItem.
 	ThreadTopic string  `json:"thread_topic,omitempty"`
 	Before      *Before `json:"before,omitempty"`
+	// Reply is the answer of a draft ask (an ask_resolved item): send true with the final text, or send false. Absent on any other item.
+	Reply *AskReply `json:"reply,omitempty"`
 }
 
 // ValidClientID reports whether s is a well-formed client id: 8 to 64 characters, no space or control character.
