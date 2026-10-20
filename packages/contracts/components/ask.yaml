@@ -60,6 +60,8 @@ Ask:
     conversation_id: { type: integer, format: int64 }
     conversation: { $ref: "../openapi.yaml#/components/schemas/AskConversation" }
     thread_root_id: { type: integer, format: int64, description: The thread the ask was asked in. }
+    reply_count: { type: integer, format: int64, description: "The replies in the thread that Reply in thread opens on this ask: its own, or the one it was asked in. Absent for none." }
+    unread_replies: { type: integer, format: int64, description: "Of those, the ones the reader has not read, only in a thread the reader is in. Per reader. Absent for none." }
     asker: { $ref: "../openapi.yaml#/components/schemas/Person" }
     question: { type: string, maxLength: 500, description: Empty after a purge. }
     urgent: { type: boolean }

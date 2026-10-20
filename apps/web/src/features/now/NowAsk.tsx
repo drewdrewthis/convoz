@@ -31,6 +31,7 @@ export function NowAsk({ ask, busy, presets, answer, dismiss, snooze }: NowAskPr
         onDismiss={() => dismiss(ask)}
         onUndismiss={() => undefined}
         onSnooze={(preset) => snooze(ask, preset)}
+        replies={{ count: ask.reply_count, unread: ask.unread_replies }}
         onReply={() => navigate(`/chats/${ask.conversation_id}#reply=${ask.thread_root_id ?? ask.id}`)}
       />
       <AskApp ask={ask} />

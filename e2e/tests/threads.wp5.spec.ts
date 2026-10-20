@@ -552,6 +552,6 @@ scenario("The chip has a dot while the last reply is unread", { tag: ["@browser"
   // Then the dot is gone, and a newer reply brings it back
   await expect(chip).not.toHaveAccessibleName(/unread/);
   await agentReplies(t, t.docs, "Another view.");
-  await expect(chip).toHaveText("3 replies · @docs");
+  await expect(chip).toHaveText("3 replies · @docs · 1 new");
   await expect(chip).toHaveAccessibleName(/, unread$/);
 });

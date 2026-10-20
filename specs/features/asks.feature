@@ -111,6 +111,13 @@ Feature: Asks and their state machine
       Then conversation 41 opens with the thread of the ask and its Reply box has focus
       And the answered ask has no option buttons and keeps "Reply in thread"
 
+    # Owner said (msg 1202, relayed in msg 1204): "wherever a message shows 'Reply in thread', add a small count of the replies, and of the new ones. Then you can tell at a glance that a thread exists and has something new."
+    @v1 @browser
+    Scenario: The Reply in thread button of an ask shows the replies
+      Given an open ask of "devtool" in conversation 41 and "docs" replied in its thread
+      When the owner opens conversation 41
+      Then "Reply in thread" on the ask shows "1 reply"
+
     @v1 @browser
     Scenario: The ask menu opens once
       Given an open ask of "devtool" in conversation 41

@@ -81,6 +81,9 @@ func TestThreadCountsLeaveOutOwnSystemDeletedAndBroadcastReplies(t *testing.T) {
 		if n, err := message.CountThreadUnread(ctx, d, 20, 21, owner); err != nil || n != 0 {
 			t.Errorf("after the reply: %d err=%v", n, err)
 		}
+		if got, err := message.CountThreadsUnread(ctx, d, []message.ReadPoint{{Root: 20, After: 20}, {Root: 99, After: 0}}, owner); err != nil || len(got) != 1 || got[20] != 1 {
+			t.Errorf("grouped unread %v err=%v: the same count as one thread alone, and a thread with none is absent", got, err)
+		}
 		if n, err := message.CountBroadcastRead(ctx, d, 20, 20, 23, owner); err != nil || n != 1 {
 			t.Errorf("broadcasts read in the thread: %d err=%v", n, err)
 		}

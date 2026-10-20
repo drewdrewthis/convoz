@@ -2,6 +2,7 @@
 // The ask card sits here too: Now and the transcript draw the same card.
 export { AskCard } from "./AskCard.tsx";
 export { stateLine, whoLine } from "./askData.ts";
+export { ReplyCount } from "./ReplyCount.tsx";
 export { DraftReview } from "./DraftReview.tsx";
 export type { DraftData } from "./DraftReview.tsx";
 export type { AskCardProps } from "./AskCard.tsx";

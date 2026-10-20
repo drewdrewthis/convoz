@@ -17,7 +17,7 @@ const openThread = (conversation: number, root: number) => useThreads.getState()
 /** AskInline is the ask card inside a conversation. Its changes go to the same routes as Now's, and the message that holds the ask
  *  takes the new state at once (the stream frame brings the same state a moment later). */
 // deleteSheet comes from the conversation feature (which owns message deletion), so this feature does not import it.
-export function AskInline({ ask, labelId, inThread = false, deleteSheet }: { ask: Ask; labelId: string; inThread?: boolean; deleteSheet?: (close: () => void) => ReactNode }) {
+export function AskInline({ ask, labelId, inThread = false, deleteSheet, replies }: { ask: Ask; labelId: string; inThread?: boolean; deleteSheet?: (close: () => void) => ReactNode; replies?: { count?: number; unread?: number } }) {
   const { fail } = useNotice();
   const skew = useNow((s) => s.skew);
   const [busy, setBusy] = useState(false);
@@ -53,6 +53,7 @@ export function AskInline({ ask, labelId, inThread = false, deleteSheet }: { ask
       onDismiss={() => void run(() => dismissAsk(ask.id, ask.version))}
       onUndismiss={() => void run(() => undismissAsk(ask.id, ask.version))}
       onSnooze={(preset) => void run(() => snoozeAsk(ask.id, preset))}
+      replies={replies ?? { count: ask.reply_count, unread: ask.unread_replies }}
       onReply={inThread ? undefined : () => void openThread(ask.conversation_id, ask.thread_root_id ?? ask.id)}
       pinned={pinned}
       onPin={() => void (pinned ? unpinMessage : pinMessage)(ask.conversation_id, ask.id).catch((err) => toast(humanError(err)))}

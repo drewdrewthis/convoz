@@ -64,3 +64,13 @@ SELECT * FROM message_rows
 WHERE conversation_id = sqlc.arg(conversation_id) AND in_main = 1 AND kind <> 'system' AND deleted_at IS NULL
   AND via_app_message_id IS NULL AND answers_ask_id IS NULL
 ORDER BY id DESC LIMIT 1;
+
+-- name: CountThreadUnreadByRoot :many
+-- Unread replies of many threads in one go, each thread with its own read point: pairs is a JSON array of [root_id, after].
+-- Counts what CountThreadUnread counts, without its stop at MaxUnread.
+SELECT m.thread_root_id AS root_id, COUNT(*) AS unread
+FROM json_each(sqlc.arg(pairs)) p
+JOIN messages m ON m.thread_root_id = json_extract(p.value, '$[0]')
+WHERE m.broadcast = 0 AND m.kind <> 'system' AND m.deleted_at IS NULL
+  AND m.id > json_extract(p.value, '$[1]') AND m.author_id <> sqlc.arg(reader_id)
+GROUP BY m.thread_root_id;

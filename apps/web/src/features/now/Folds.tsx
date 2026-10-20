@@ -1,5 +1,5 @@
 import type { Ask } from "@convoz/api-client";
-import { stateLine, whoLine } from "@convoz/app-kit";
+import { ReplyCount, stateLine, whoLine } from "@convoz/app-kit";
 import { Button } from "@convoz/ui/Button";
 import { useId, type ReactNode } from "react";
 import { visit } from "../../shared/navigate.ts";
@@ -56,6 +56,7 @@ export function Folds({ snoozed, answered, dismissed, open, toggle, unsnooze, re
               {tail(ask)}
               <Button variant="text" size="inline" href={`/chats/${ask.conversation_id}#reply=${ask.thread_root_id ?? ask.id}`} onClick={(e) => visit(e, `/chats/${ask.conversation_id}#reply=${ask.thread_root_id ?? ask.id}`)}>
                 Reply in thread
+                <ReplyCount count={ask.reply_count} unread={ask.unread_replies} />
               </Button>
               <Button variant="text" size="inline" href={`/chats/${ask.conversation_id}#m${ask.id}`}>
                 Jump to conversation

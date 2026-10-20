@@ -126,19 +126,23 @@ type AskView struct {
 	ConversationID int64            `json:"conversation_id"`
 	Conversation   *AskConversation `json:"conversation,omitempty"`
 	ThreadRootID   int64            `json:"thread_root_id,omitempty"`
-	Asker          Person           `json:"asker"`
-	Question       string           `json:"question"`
-	Urgent         bool             `json:"urgent"`
-	OwnersCall     *OwnersCall      `json:"owners_call,omitempty"` // absent on an ask from before the field
-	State          string           `json:"state"`
-	CloseReason    string           `json:"close_reason,omitempty"`
-	Options        []AskOption      `json:"options"`
-	Chosen         *AskChoice       `json:"chosen,omitempty"`
-	Answer         string           `json:"answer,omitempty"`
-	AnswerVia      string           `json:"answer_via,omitempty"`
-	ResolvedBy     *Person          `json:"resolved_by,omitempty"`
-	ResolvedAt     int64            `json:"resolved_at,omitempty"`
-	AckedAt        int64            `json:"acked_at,omitempty"`
+	// ReplyCount and UnreadReplies are of the thread "Reply in thread" opens on this ask: its own, or the one it was asked in.
+	// UnreadReplies is per reader and 0 for a reader who is not in that thread.
+	ReplyCount    int64       `json:"reply_count,omitempty"`
+	UnreadReplies int64       `json:"unread_replies,omitempty"`
+	Asker         Person      `json:"asker"`
+	Question      string      `json:"question"`
+	Urgent        bool        `json:"urgent"`
+	OwnersCall    *OwnersCall `json:"owners_call,omitempty"` // absent on an ask from before the field
+	State         string      `json:"state"`
+	CloseReason   string      `json:"close_reason,omitempty"`
+	Options       []AskOption `json:"options"`
+	Chosen        *AskChoice  `json:"chosen,omitempty"`
+	Answer        string      `json:"answer,omitempty"`
+	AnswerVia     string      `json:"answer_via,omitempty"`
+	ResolvedBy    *Person     `json:"resolved_by,omitempty"`
+	ResolvedAt    int64       `json:"resolved_at,omitempty"`
+	AckedAt       int64       `json:"acked_at,omitempty"`
 	// OwnerReply is the latest reply of the owner in the thread of this open ask; present while the ask waits on the agent's answer.
 	OwnerReply *AskOwnerReply `json:"owner_reply,omitempty"`
 	// Answers is the short summary of the answers to the owner's questions that the latest update of the ask carries.

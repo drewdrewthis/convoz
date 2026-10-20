@@ -15,7 +15,7 @@ import { DeleteSheet, EditedMark, MessageMenu } from "./messages/MessageMenu.tsx
 import { NoticeRow, pausedNow } from "./messages/Notice.tsx";
 import { PendingFiles, Uploads } from "./messages/Uploads.tsx";
 import { SeenLine } from "./messages/SeenLine.tsx";
-import { ReplyLine } from "../threads/index.ts";
+import { ReplyLine, useNewReplies } from "../threads/index.ts";
 import { TriageBadge } from "../../shared/TriageBadge.tsx";
 import { Button } from "@convoz/ui/Button";
 import { EmptyState } from "@convoz/ui/EmptyState";
@@ -350,6 +350,7 @@ const MessageRow = memo(function MessageRow(props: RowProps) {
 function RowBody({ row, threaded, me, paused, conversation, onRetry, onDetails, hl }: RowProps) {
   const { message: m, pending: p } = row;
   const pinned = useData((s) => Boolean(m && s.rows[conversation]?.pinned?.some((x) => x.id === m.id)));
+  const fresh = useNewReplies(m);
   if (m?.kind === "system" || m?.author.kind === "system") {
     return <NoticeRow message={m} conversation={conversation} canResume={paused === m.id} onResume={() => void resume(conversation)} />;
   }
@@ -363,7 +364,7 @@ function RowBody({ row, threaded, me, paused, conversation, onRetry, onDetails, 
     // only markdown draws an image of an upload in the body; plain text and markdownv2 leave it to the file list
     const files = m.uploads?.length ? <Uploads uploads={m.uploads} body={format === "markdown" ? m.body : ""} /> : null;
     const said = !text && files ? null : format ? <Markdown text={text} format={format} /> : <div className="text">{text}</div>;
-    const askCard = m.kind === "ask" && m.ask ? <AskInline ask={m.ask} labelId={label} inThread={threaded} deleteSheet={(close) => <DeleteSheet message={m} close={close} />} /> : null;
+    const askCard = m.kind === "ask" && m.ask ? <AskInline ask={m.ask} replies={m.thread_root_id ? undefined : { count: m.reply_count, unread: fresh }} labelId={label} inThread={threaded} deleteSheet={(close) => <DeleteSheet message={m} close={close} />} /> : null;
     const body = askCard ?? (
       <>
         {said}

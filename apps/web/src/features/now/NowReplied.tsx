@@ -1,5 +1,5 @@
 import type { Ask } from "@convoz/api-client";
-import { whoLine } from "@convoz/app-kit";
+import { ReplyCount, whoLine } from "@convoz/app-kit";
 import { List, ListRow } from "@convoz/ui/ListRow";
 import { visit } from "../../shared/navigate.ts";
 import { ago } from "./Unread.tsx";
@@ -19,7 +19,11 @@ export function NowReplied({ asks }: { asks: Ask[] }) {
         {asks.map((ask) => (
           <ListRow key={ask.id} as="a" href={threadOf(ask)} onClick={(e) => visit(e, threadOf(ask))} stacked data-replied={ask.id}>
             <span className="text-15 font-semibold [overflow-wrap:anywhere]">{ask.question}</span>
-            <span className="text-13 text-muted">{`${whoLine(ask.asker)} · ${ago(ask.owner_reply?.at ?? ask.created_at)}`}</span>
+            <span className="text-13 text-muted">
+              {`${whoLine(ask.asker)} · ${ago(ask.owner_reply?.at ?? ask.created_at)}`}
+              {ask.reply_count ? " · " : null}
+              <ReplyCount count={ask.reply_count} unread={ask.unread_replies} />
+            </span>
             {ask.owner_reply?.text ? <span className="text-13 text-muted [overflow-wrap:anywhere]">{`You: ${ask.owner_reply.text}`}</span> : null}
           </ListRow>
         ))}

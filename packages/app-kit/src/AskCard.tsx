@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, typ
 import { Button } from "@convoz/ui/Button";
 import { cx } from "@convoz/ui/cx";
 import { DraftReview } from "./DraftReview.tsx";
+import { ReplyCount } from "./ReplyCount.tsx";
 import { AskMenu, MenuItem } from "./AskMenu.tsx";
 import { clock, historyText, stateLine, waitingLine, whoLine, type Answer, type AskData, type SnoozePreset } from "./askData.ts";
 
@@ -25,6 +26,8 @@ export interface AskCardProps {
   onSnooze(preset: string): void;
   /** "Reply in thread": opens the thread on this ask. No button where the Reply box is already beside the card. */
   onReply?(): void;
+  /** The thread "Reply in thread" opens: its replies and how many are new to the viewer. Shown beside the button. */
+  replies?: { count?: number; unread?: number };
   /** Pin and Delete of the message that holds the ask; no item when the caller gives none. */
   onPin?(): void;
   pinned?: boolean;
@@ -80,7 +83,7 @@ function Answers({ ask, className }: { ask: AskData; className?: string }) {
 }
 
 /** AskCard draws one ask. It keeps only what the eye needs (which panel is open); every change goes up through a callback. */
-export function AskCard({ ask, where, labelId, as = "article", presets, busy, notice, onAnswer, onDismiss, onUndismiss, onSnooze, onReply, onPin, pinned, onDelete, onCopyLink, openHref, dataId }: AskCardProps) {
+export function AskCard({ ask, where, labelId, as = "article", presets, busy, notice, onAnswer, onDismiss, onUndismiss, onSnooze, onReply, replies, onPin, pinned, onDelete, onCopyLink, openHref, dataId }: AskCardProps) {
   const [panel, setPanel] = useState<"" | "reply" | "snooze" | "history" | "options">("");
   const [text, setText] = useState("");
   const [optionsOnSnooze, setOptionsOnSnooze] = useState(false);
@@ -270,6 +273,7 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
         {onReply ? (
           <Button size="option" variant="dashed" onClick={onReply}>
             Reply in thread
+            <ReplyCount count={replies?.count} unread={replies?.unread} />
           </Button>
         ) : null}
       </div>

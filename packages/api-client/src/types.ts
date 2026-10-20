@@ -61,6 +61,8 @@ export interface ThreadUpdatedFrame {
   root_id: number;
   reply_count: number;
   last_reply_id: number;
+  /** The replies this reader has not read in the thread; absent from a server that does not send it. */
+  unread_replies?: number;
   /** When the newest reply came (ms); absent from a server that does not send it. */
   last_reply_at?: number;
   /** The newest reply as this reader sees it, for the reply chip; absent from a server that does not send it. */
