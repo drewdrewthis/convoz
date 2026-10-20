@@ -41,6 +41,8 @@ func Ask(args []string, io IO) int {
 	original := f.fs.String("original", "", "with --draft: the message the draft answers (at most 2000 characters, cut with … when longer)")
 	originalFrom := f.fs.String("original-from", "", "with --draft: who sent the original and where, like \"Alex · Slack DM\"")
 	appOpt := newAppOpts(f, "a file holding an app (app.v1 JSON) to show with the question")
+	update := f.fs.Int64("update", 0, "update this open ask of yours in place, after the owner's questions in its thread (no conversation needed)")
+	answers := f.fs.String("answers", "", "with --update: a short summary of your answers to the owner's questions (at most 1000 characters; required once the owner replied)")
 	clientID := f.fs.String("client-id", "", "the id that makes a retry safe; random when not given")
 	pos, ok := f.parse(args, io)
 	if !ok {
@@ -48,6 +50,12 @@ func Ask(args []string, io IO) int {
 	}
 	if len(pos) == 2 && pos[0] == "withdraw" {
 		return askWithdraw(f, io, pos[1])
+	}
+	if *update > 0 {
+		return askUpdate(f, io, pos, *update, wire.AskUpdateRequest{Question: *question, OwnersCallReason: *callWhy, Answers: *answers}, *recommend, *why, alts, altWhys)
+	}
+	if *answers != "" {
+		return usageError(io, "--answers goes with --update")
 	}
 	isDraft := *draft != ""
 	if len(pos) != 1 && !(isDraft && len(pos) == 2) {
@@ -119,6 +127,37 @@ func Ask(args []string, io IO) int {
 	}
 	if k.asJSON {
 		k.printJSON(map[string]any{"id": out.Ask.ID, "conversation_id": out.Ask.ConversationID, "state": out.Ask.State})
+	} else {
+		fmt.Fprintln(k.io.Stdout, out.Ask.ID)
+	}
+	return ExitOK
+}
+
+// askUpdate runs `convoz ask --update ID [--question Q] [--recommend L --why W --alt L --alt-why W ...] [--owners-call-why W] --answers TEXT`:
+// the asker updates its open ask in place. The options are given as a whole or not at all.
+func askUpdate(f *chatFlags, io IO, pos []string, id int64, req wire.AskUpdateRequest, recommend, why string, alts, altWhys repeated) int {
+	if len(pos) != 0 {
+		return usageError(io, "usage: convoz ask --update <ask id> [--question Q] [--recommend L --why W --alt L --alt-why W ...] [--owners-call-why W] --answers TEXT")
+	}
+	if recommend != "" || why != "" || len(alts) > 0 || len(altWhys) > 0 {
+		if strings.TrimSpace(recommend) == "" || strings.TrimSpace(why) == "" || len(alts) == 0 || len(alts) != len(altWhys) {
+			return usageError(io, "to change the options give --recommend, --why and each --alt with its --alt-why")
+		}
+		req.Recommended = &wire.AskOptionRequest{Label: recommend, Why: why}
+		for i, label := range alts {
+			req.Alternatives = append(req.Alternatives, wire.AskOptionRequest{Label: label, Why: altWhys[i]})
+		}
+	}
+	k, code := f.open(io)
+	if k == nil {
+		return code
+	}
+	var out wire.OneAsk
+	if err := k.callRetry("PATCH", fmt.Sprintf("%s/%d", wire.RouteAsks, id), req, &out); err != nil {
+		return k.fail(err)
+	}
+	if k.asJSON {
+		k.printJSON(map[string]any{"id": out.Ask.ID, "conversation_id": out.Ask.ConversationID, "state": out.Ask.State, "revision": out.Ask.Revision, "changed": out.Ask.Changed})
 	} else {
 		fmt.Fprintln(k.io.Stdout, out.Ask.ID)
 	}

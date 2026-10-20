@@ -53,6 +53,12 @@ Feature: The app keeps its look while its code is reorganised
       And when the owner opens the Snooze choices of an ask, the sheet matches its frame
 
     @v1 @browser
+    Scenario: Now with a replied ask and an updated ask keeps its look
+      Given an open ask the owner replied to, and an open ask updated after the owner's questions
+      When the owner opens Now
+      Then it matches its frame, with the section "You replied · waiting on the agent" and the updated ask with its answers
+
+    @v1 @browser
     Scenario: Now with a waiting plan item keeps its look
       Given "devtool" waits on the owner for "Approve the staging push"
       When the owner opens Now

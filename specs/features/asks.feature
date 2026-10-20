@@ -204,14 +204,16 @@ Feature: Asks and their state machine
       When the owner taps "Snooze" and then "1 hour"
       Then the sheet closes and Now no longer lists the ask
 
-  Rule: A reply to an ask closes it, and the agent must ask again
+  # Owner said (msg 1117): "the feed items are sometimes like you know they don't really give me the context that I need. And while opening things in a new thread, like responding in a thread is relatively easy, it fails to consider that as a user flow, right? It's like, okay, I've opened it as a thing, and now it's like basically just delegates to a new thread, but then the item still stays there. It doesn't show that I've responded. The conversation kind of doesn't continue in the same way, right?"
+  # Owner said (msg 1131): "update this ask so it has all of my QA answered ... that's the way to do it."
+  Rule: A reply to an ask is a question: the ask stays open, the agent answers in the thread and updates the same ask
 
     @v1 @browser
-    Scenario: Replying to an ask closes it and the agent must ask again
+    Scenario: Replying to an ask keeps it open and moves it to You replied
       Given an open ask of "devtool", and the owner has the conversation and Now open in two pages
       When the owner replies to the ask in its thread
-      Then Now no longer lists it and the card in the conversation shows "Answered with a reply", with no reload
-      And "devtool" has to ask again: the same question opens as a new ask
+      Then Now no longer lists it in the main list but under "You replied · waiting on the agent", with no reload
+      And the card in the conversation shows "You replied · waiting on @devtool" and still offers its options
 
     @v1 @cli
     Scenario: An agent's reply does not close an ask
@@ -221,11 +223,44 @@ Feature: Asks and their state machine
       Then the ask is still open
 
     @v1 @cli
-    Scenario: An agent sees that the owner replied instead of choosing
+    Scenario: An agent is told to answer in the thread and update the same ask
       Given an open ask of "devtool" that the owner then snoozed
       When the owner replies in the thread of the ask
-      Then the ask is closed because the owner replied
-      And "devtool" reads in its inbox and in its watch: "The owner replied instead of choosing. Ask again if you still need a decision."
+      Then the ask is still open and records the reply and its message
+      And the history of the ask has an "owner_replied" row
+      And "devtool" reads in its inbox and in its watch: "@owner replied in the thread of your ask: answer there, then update the same ask with `convoz ask --update <id> --answers ...` (do not send a new ask)."
+
+    @v1 @cli
+    Scenario: The agent updates the ask in place with the answers
+      Given an open ask of "devtool" that the owner replied to
+      When "devtool" runs "convoz ask --update" with a new question, new options and a summary of its answers
+      Then it is the same ask, still open, with the new question and options, the summary, the version moved and an "updated" row in its history
+      And the owner's reply mark is gone and the ask is in the main list of Now, not under "You replied"
+      And no new ask was made and "devtool" has the same number of open asks
+
+    @v1 @cli
+    Scenario: An update needs the answers, the asker and an open ask
+      Given an open ask of "devtool" that the owner replied to
+      When "devtool" updates it without answers
+      Then the update is refused and names the field "answers"
+      When "docs" updates it
+      Then the update is refused
+      When the owner dismisses the ask and "devtool" updates it
+      Then the update is refused as a conflict
+
+    @v1 @cli
+    Scenario: The rules tell an agent to pre-answer the owner's obvious questions
+      When an agent reads "convoz rules"
+      Then the rules say to answer the owner's obvious questions in the ask and name feature flag, reviewer, number of PRs, review bot and QA
+      And the rules say to answer questions asked in the ask's thread and update the same ask with "convoz ask --update"
+
+    @v1 @browser
+    Scenario: The updated ask shows in Now with the answers, and leaves You replied
+      Given an open ask of "devtool" that the owner replied to, and the owner has the conversation and Now open in two pages
+      When "devtool" updates the ask with its answers
+      Then Now lists the ask in the main list with "Updated after your questions", "v2 · changed: question" and the summary folded to 2 lines with "More"
+      And the ask is no longer under "You replied"
+      And the card in the conversation shows the same, and its history has the update
 
   # Drew, conv 32 msg 650: "ship a standard 'review a draft' mini app with Convoz, so agents don't hand-build one for every message
   # they draft for him. It shows the original message being answered (who, where, text) and the agent's draft in an editable box, with

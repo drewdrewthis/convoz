@@ -219,6 +219,21 @@ func (q *Queries) ClaimSeq(ctx context.Context, identityID int64) (int64, error)
 	return seq, err
 }
 
+const clearMainPlaceOfRoot = `-- name: ClearMainPlaceOfRoot :exec
+DELETE FROM inbox_unanswered WHERE conversation_id = ?1 AND thread_root_id = 0 AND message_id = ?2
+`
+
+type ClearMainPlaceOfRootParams struct {
+	ConversationID int64
+	RootID         int64
+}
+
+// A reply in a thread answers the main-chat message that roots it (the thread is where that message was answered), when it is the one tracked.
+func (q *Queries) ClearMainPlaceOfRoot(ctx context.Context, arg ClearMainPlaceOfRootParams) error {
+	_, err := q.db.ExecContext(ctx, clearMainPlaceOfRoot, arg.ConversationID, arg.RootID)
+	return err
+}
+
 const clearPlace = `-- name: ClearPlace :exec
 DELETE FROM inbox_unanswered WHERE conversation_id = ?1 AND thread_root_id = ?2
 `

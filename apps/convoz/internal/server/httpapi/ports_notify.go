@@ -83,7 +83,7 @@ func (p pushSource) Triggers(ctx context.Context, d pdb.DBTX, e notify.Event) ([
 	body := bodyOf(e)
 	byOwner := e.Actor == owner.ID
 	switch e.Type {
-	case ask.EventCreated:
+	case ask.EventCreated, ask.EventUpdated: // an updated ask pushes like a new one: the owner asked questions and waits for the answers
 		if byOwner {
 			return nil, nil
 		}

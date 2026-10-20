@@ -13,7 +13,7 @@ import { world, type World } from "./wp3.ts";
  *   POST /api/asks/:id/{answer,dismiss,undismiss}  (owner)   answer {choice: recommended | alternative(+index 1..4) | custom(+text), if_version?, client_id?}
  *   POST /api/asks/:id/withdraw          (asker's lease)
  *   PUT|DELETE /api/asks/:id/snooze      (owner)   {preset: "1h" | "tonight" | "tomorrow", tz?} or {until}
- *   GET  /api/now                        {now, poll_ms, badge, asks, snoozed, answered_today, pending_adds, machine_requests}
+ *   GET  /api/now                        {now, poll_ms, badge, asks, replied, snoozed, answered_today, pending_adds, machine_requests}
  * A 409 carries `{error:{code,message}, ask}`. An ask is `{id, conversation_id, asker, question, urgent, state, close_reason?, options[{label,why}],
  * chosen?{kind,index?,text?}, answer?, owners_call?{kind: one-way|taste|values|scope, reason},  resolved_by?, acked_at?, version, history[], snoozed_until?}`; the first option is the recommended one.
  */
@@ -53,6 +53,10 @@ export interface AskView {
   version: number;
   owners_call?: OwnersCall;
   snoozed_until?: number;
+  owner_reply?: { id: number; text: string; at: number };
+  answers?: string;
+  revision?: number;
+  changed?: string;
   history?: { version: number; event: string; to_state: string; by?: Person; at: number }[];
 }
 
@@ -61,6 +65,7 @@ export interface NowView {
   poll_ms: number;
   badge: number;
   asks: AskView[];
+  replied: AskView[];
   snoozed: AskView[];
   answered_today: AskView[];
   pending_adds: { conversation: { id: number; title: string | null }; person: Person; requested_by?: Person; at: number }[];
@@ -194,4 +199,10 @@ export async function setServerTime(
 ): Promise<void> {
   await testApi.freezeClock();
   await testApi.advanceClock(Date.parse(iso) - (await nowOf(owner)).now);
+}
+
+/** The owner replies in the thread rooted at `root` over the API. Returns the id of the reply message. */
+export async function ownerRepliesIn(owner: Owner, conv: number, root: number, body: string): Promise<number> {
+  const res = await owner.client.post(`/api/conversations/${conv}/messages`, { client_id: clientId(), body, thread_root_id: root });
+  return Number(must(res, `owner replies in the thread of ${root}`, 201).json().id);
 }

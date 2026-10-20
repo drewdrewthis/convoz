@@ -1,8 +1,8 @@
 import "./app/effects.ts";
 import { watchErrors } from "./shared/clientErrors.ts";
 import { createRoot } from "react-dom/client";
-import { App, prepare } from "./app/App.tsx";
-import { ErrorBoundary } from "./app/ErrorBoundary.tsx";
+import { prepare } from "./app/App.tsx";
+import { Root } from "./app/Root.tsx";
 import { route } from "./app/routes.tsx";
 import { call, client } from "./shared/api.ts";
 import { dropEarly } from "./shared/early.ts";
@@ -16,11 +16,7 @@ const def = route(location.pathname, document.documentElement.dataset.status);
 prepare(def);
 if (!def.useful) noFirstScreen();
 registerServiceWorker();
-void def.load().then((Page) => createRoot(document.getElementById("root")!).render(
-    <ErrorBoundary>
-      <App def={def} Page={Page} />
-    </ErrorBoundary>,
-  ));
+void def.load().then((Page) => createRoot(document.getElementById("root")!).render(<Root first={{ path: location.pathname, def, Page }} />));
 // After the first screen: the saved look and the owner's palette. The boot script already painted what this device had.
 void afterFirstScreen()
   .then(() => import("./features/settings/index.ts"))

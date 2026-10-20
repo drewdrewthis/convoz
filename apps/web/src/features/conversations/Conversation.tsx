@@ -6,6 +6,7 @@ import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { ApiError } from "../../shared/api.ts";
 import { initials, paletteOf, setRegistry, stripCf } from "../../shared/chat.ts";
 import { data, useData, useLive } from "../../shared/data.ts";
+import { navigatedInApp } from "../../shared/navigate.ts";
 import { CallBar, CallButton } from "../call/index.ts";
 import { Composer, useAttachments } from "../composer/index.ts";
 import { InviteAgentSheet } from "../crew/index.ts";
@@ -118,11 +119,17 @@ export function Conversation() {
     return () => removeEventListener("keydown", onKey);
   }, [convId]);
 
+  // "Reply" on the digest of Now lands here with #compose: the composer has the focus.
+  useEffect(() => {
+    if (opened && location.hash === "#compose") textRef.current?.focus();
+  }, [opened]);
+
   // The same link followed while this conversation is already open changes only the hash: no reload, so the load effect does not run.
   useEffect(() => {
     if (!convId) return;
     const follow = () => {
       if (location.hash === "#plan") setInfo(true);
+      if (location.hash === "#compose") textRef.current?.focus();
       openReplyLink(convId);
       const wanted = Number(/^#m(\d+)$/.exec(location.hash)?.[1] ?? 0);
       if (!wanted) return;
@@ -224,7 +231,7 @@ export function Conversation() {
   }, [convId, conversation?.seen]);
 
   const back = (event: MouseEvent<HTMLAnchorElement>) => {
-    const sameSite = document.referrer.startsWith(location.origin + "/");
+    const sameSite = navigatedInApp() || document.referrer.startsWith(location.origin + "/");
     if (history.length > 1 && sameSite) {
       event.preventDefault();
       history.back();

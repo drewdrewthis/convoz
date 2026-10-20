@@ -77,55 +77,111 @@ func state(t *testing.T, s *pdb.Store, id int64) (st, reason string) {
 	return
 }
 
-func TestCloseForReply_ClosesTheOpenAsksOfTheThread(t *testing.T) {
+func ownerReplied(t *testing.T, s *pdb.Store, p ask.Ports, root, reply int64) {
+	t.Helper()
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error {
+		return ask.OwnerReplied(ctx, d, p, t0, 10, root, reply, 1)
+	})
+}
+
+func get(t *testing.T, s *pdb.Store, id int64) (a ask.Ask) {
+	t.Helper()
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error {
+		var err error
+		a, err = ask.Get(ctx, d, id)
+		return err
+	})
+	return
+}
+
+func TestOwnerReplied_KeepsTheOpenAsksOfTheThreadOpenAndRemembersTheReply(t *testing.T) {
 	s := world(t)
 	cv, inbox, journal := &fakeConversations{open: 4}, &fakeInbox{}, &fakeJournal{}
 	p := ask.Ports{Conversations: cv, Inbox: inbox, Journal: journal}
-	for name, root := range map[string]int64{"the ask's own thread": 5, "the thread the ask was asked in": 6, "a snoozed ask's thread": 11} {
-		dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error { return ask.CloseForReply(ctx, d, p, t0, 10, root) })
-		var id int64
-		switch root {
-		case 5:
-			id = 5
-		case 6:
-			id = 7
-		case 11:
-			id = 11
+	for reply, root := range map[int64]int64{50: 5, 60: 6, 110: 11} { // the ask's own thread, the thread it was asked in, a snoozed ask's thread
+		ownerReplied(t, s, p, root, reply)
+	}
+	for id, reply := range map[int64]int64{5: 50, 7: 60, 11: 110} {
+		a := get(t, s, id)
+		if a.State != ask.Open || a.OwnerReplyID != reply || a.OwnerRepliedAt != t0.UnixMilli() {
+			t.Errorf("ask %d is %s, reply %d at %d; want open with reply %d", id, a.State, a.OwnerReplyID, a.OwnerRepliedAt, reply)
 		}
-		if st, why := state(t, s, id); st != "closed" || why != ask.ReasonReplied {
-			t.Errorf("%s: ask %d is %s (%s), want closed (replied)", name, id, st, why)
+		if h := a.History[len(a.History)-1]; h.Event != "owner_replied" || h.ToState != ask.Open {
+			t.Errorf("ask %d: last history row is %+v, want owner_replied while open", id, h)
 		}
 	}
-	slices.Sort(inbox.told) // the cases above run in map order
+	slices.Sort(inbox.told)
 	if !slices.Equal(inbox.told, []int64{5, 7, 11}) {
 		t.Errorf("the asking agents were told of %v, want asks 5, 7 and 11", inbox.told)
 	}
-	if cv.open != 1 {
-		t.Errorf("open ask counter = %d, want 4-3", cv.open)
-	}
-	if st, _ := state(t, s, 11); st != "closed" {
-		t.Errorf("a snoozed ask must close too")
+	if cv.open != 4 {
+		t.Errorf("open ask counter = %d, want it unchanged at 4", cv.open)
 	}
 	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error {
 		var n int
-		if err := d.QueryRowContext(ctx, `SELECT COUNT(*) FROM ask_snoozes`).Scan(&n); err != nil || n != 0 {
-			t.Errorf("the snooze of a closed ask stays: %d %v", n, err)
+		if err := d.QueryRowContext(ctx, `SELECT COUNT(*) FROM ask_snoozes`).Scan(&n); err != nil || n != 1 {
+			t.Errorf("the snooze of a replied ask must stay: %d %v", n, err)
 		}
 		return nil
 	})
 }
 
-func TestCloseForReply_LeavesOtherThreadsAndSettledAsksAlone(t *testing.T) {
+func TestOwnerReplied_LeavesOtherThreadsAndSettledAsksAlone(t *testing.T) {
 	s := world(t)
 	p := ask.Ports{Conversations: &fakeConversations{}, Inbox: &fakeInbox{}, Journal: &fakeJournal{}}
-	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error { return ask.CloseForReply(ctx, d, p, t0, 10, 6) })
-	for id, want := range map[int64]string{5: "open", 7: "closed", 9: "open", 11: "open"} {
-		if st, _ := state(t, s, id); st != want {
-			t.Errorf("ask %d is %s, want %s", id, st, want)
+	ownerReplied(t, s, p, 6, 60)
+	ownerReplied(t, s, p, 12, 120)
+	for id, want := range map[int64]int64{5: 0, 7: 60, 9: 0, 11: 0, 12: 0} {
+		if got := get(t, s, id).OwnerReplyID; got != want {
+			t.Errorf("ask %d remembers reply %d, want %d", id, got, want)
 		}
 	}
-	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error { return ask.CloseForReply(ctx, d, p, t0, 10, 12) })
 	if st, _ := state(t, s, 12); st != "dismissed" {
 		t.Errorf("a dismissed ask was already resolved for its agent, got %s", st)
+	}
+}
+
+type fakeMessages struct{}
+
+func (*fakeMessages) PostAsk(context.Context, pdb.DBTX, time.Time, ask.AskMessage) (int64, bool, error) {
+	return 0, false, nil
+}
+func (*fakeMessages) SetQuestion(context.Context, pdb.DBTX, time.Time, int64, string) error {
+	return nil
+}
+func (*fakeMessages) PostAnswer(context.Context, pdb.DBTX, time.Time, ask.AnswerMessage) error {
+	return nil
+}
+
+func TestUpdate_ChangesTheAskInPlaceAfterTheOwnersQuestions(t *testing.T) {
+	s := world(t)
+	cv := &fakeConversations{open: 4}
+	p := ask.Ports{Messages: &fakeMessages{}, Conversations: cv, Inbox: &fakeInbox{}, Journal: &fakeJournal{}}
+	ownerReplied(t, s, p, 6, 60)
+	update := func(in ask.Updating) (a ask.Ask, err error) {
+		dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error { a, err = ask.Update(ctx, d, p, t0, in); return nil })
+		return
+	}
+
+	if _, err := update(ask.Updating{ID: 7, By: 2, Question: "Merge it, now?"}); err == nil {
+		t.Error("an update after the owner's reply must carry answers")
+	}
+	if _, err := update(ask.Updating{ID: 7, By: 3, Answers: "x"}); err != ask.ErrNotAsker {
+		t.Errorf("another agent updated the ask: %v", err)
+	}
+	if _, err := update(ask.Updating{ID: 12, By: 2, Answers: "x"}); err == nil {
+		t.Error("a dismissed ask is not open: its update must be refused")
+	}
+	a, err := update(ask.Updating{
+		ID: 7, By: 2, Question: "Merge it, now?", Answers: "Behind a flag; the review bot passed.",
+		Recommended: &ask.Option{Label: "Yes", Why: "Green"}, Alternatives: []ask.Option{{Label: "No", Why: "Wait"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	last := a.History[len(a.History)-1]
+	if a.State != ask.Open || a.OwnerRepliedAt != 0 || a.Question != "Merge it, now?" || a.Answers != "Behind a flag; the review bot passed." || a.Changed != "question, options" ||
+		len(a.Options) != 2 || last.Event != "updated" || cv.open != 4 {
+		t.Errorf("updated ask = %+v (history %+v, counter %d)", a, last, cv.open)
 	}
 }

@@ -3,7 +3,7 @@ import { Button } from "@convoz/ui/Button";
 import { cx } from "@convoz/ui/cx";
 import { DraftReview } from "./DraftReview.tsx";
 import { AskMenu, MenuItem } from "./AskMenu.tsx";
-import { clock, historyText, stateLine, whoLine, type Answer, type AskData, type SnoozePreset } from "./askData.ts";
+import { clock, historyText, stateLine, waitingLine, whoLine, type Answer, type AskData, type SnoozePreset } from "./askData.ts";
 
 /* The ask card: one question an agent put to the owner, with the answers it offers. Now and a conversation draw the same card. */
 
@@ -60,6 +60,24 @@ const Icon = ({ d }: { d: string }) => (
 );
 
 const URGENT_EDGE = "border-[color-mix(in_srgb,var(--color-danger)_55%,var(--color-border))]";
+
+/** Answers is what an update of the ask says after the owner's questions: the line, the version trail and the summary of the answers, folded to 2 lines with "More". */
+function Answers({ ask, className }: { ask: AskData; className?: string }) {
+  const [more, setMore] = useState(false);
+  const long = (ask.answers ?? "").length > 110 || (ask.answers ?? "").includes("\n");
+  return (
+    <div className={cx("mb-2 flex flex-col gap-1 text-13 leading-[18px] text-muted", className)}>
+      <p className="m-0 font-semibold text-text">Updated after your questions</p>
+      {ask.revision && ask.revision > 1 ? <p className="m-0">{`v${ask.revision}${ask.changed ? ` · changed: ${ask.changed}` : ""}`}</p> : null}
+      <p className={cx("m-0 whitespace-pre-line [overflow-wrap:anywhere]", !more && "line-clamp-2")}>{ask.answers}</p>
+      {long ? (
+        <Button variant="text" size="inline" className="self-start -ml-8" aria-expanded={more} onClick={() => setMore(!more)}>
+          {more ? "Less" : "More"}
+        </Button>
+      ) : null}
+    </div>
+  );
+}
 
 /** AskCard draws one ask. It keeps only what the eye needs (which panel is open); every change goes up through a callback. */
 export function AskCard({ ask, where, labelId, as = "article", presets, busy, notice, onAnswer, onDismiss, onUndismiss, onSnooze, onReply, onPin, pinned, onDelete, onCopyLink, openHref, dataId }: AskCardProps) {
@@ -185,6 +203,7 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
       <h3 id={labelId} className={cx("m-0 pt-12 pb-3 text-17 leading-[22px] font-semibold [overflow-wrap:anywhere]", clear)}>
         {ask.question}
       </h3>
+      {open && ask.answers ? <Answers ask={ask} className={clear || undefined} /> : null}
       {ask.owners_call ? <p className={cx("m-0 mb-2 text-13 leading-[18px] text-muted [overflow-wrap:anywhere]", clear)}>{`Your call · ${ask.owners_call.kind}: ${ask.owners_call.reason}`}</p> : null}
       {now ? (
         <div className={cx("flex items-center gap-x-8 text-13 leading-[20px] text-muted", clear)}>
@@ -194,6 +213,7 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
           </span>
         </div>
       ) : null}
+      {open && ask.owner_reply ? <p className="m-0 mt-4 mb-2 rounded-full bg-selection px-10 py-px text-14 font-semibold text-muted">{waitingLine(ask)}</p> : null}
       {draft ? null : open ? (
         <div className={cx("mt-6 mb-9 flex flex-col gap-1 text-13 leading-[18px] text-muted", clear)}>
           {ask.options.map((o, i) => (

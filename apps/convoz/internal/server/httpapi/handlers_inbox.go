@@ -514,9 +514,11 @@ func (s *Server) askMessageView(ctx context.Context, d pdb.DBTX, dir directory, 
 	v := viewMessage(dir, m)
 	a, err := ask.Get(ctx, d, m.ID)
 	if err == nil {
-		base := dir.askBase(a)
-		base.App = v.App
-		v.AttachAsk(base)
+		var base wire.AskView
+		if base, err = dir.askWithReply(ctx, d, a); err == nil {
+			base.App = v.App
+			v.AttachAsk(base)
+		}
 	}
 	if errors.Is(err, ask.ErrNotFound) {
 		err = nil

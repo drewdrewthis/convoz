@@ -564,7 +564,7 @@ scenario("Ask content never changes after it is posted", { tag: ["@api", "@invar
   const { w, conv, devtool } = await askWorld(server, { plaintext: true });
   const id = await agentAsks(w.srv, devtool.lease, conv);
 
-  // When "devtool" tries to edit the ask message or its options
+  // When "devtool" tries to edit the ask message or its options (PATCH /api/asks/:id is the agent's update since migration 0039; it has no `options` field, so it answers 400)
   const edit = await agentEdits(w.srv, devtool.lease, id, { body: "Merge #415 and #416?" });
   const options = await send(w.srv.target, "PATCH", `/api/asks/${id}`, { json: { options: [{ label: "x", why: "y" }] }, ...bearer(devtool.lease) });
   const db = plainDb(dataDir);
@@ -583,7 +583,7 @@ scenario("Ask content never changes after it is posted", { tag: ["@api", "@invar
   }
 
   // Then the server refuses the change
-  expect([edit.status, options.status === 404 || options.status === 405, sealed]).toEqual([400, true, expect.stringContaining("immutable")]);
+  expect([edit.status, [400, 404, 405].includes(options.status), sealed]).toEqual([400, true, expect.stringContaining("immutable")]);
 
   // And GET /api/now shows the original question and options
   const now = await nowOf(w.owner);

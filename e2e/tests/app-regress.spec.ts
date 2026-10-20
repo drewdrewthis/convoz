@@ -1,6 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 import { makeBootstrapLink } from "../lib/admin.ts";
-import { QUESTION, agentAsks, answerAsk, markAsk, openFold, snoozeAsk } from "../lib/asks.ts";
+import { QUESTION, agentAsks, answerAsk, markAsk, openFold, ownerRepliesIn, snoozeAsk } from "../lib/asks.ts";
 import { agentPost, convoz, createConversation } from "../lib/chat.ts";
 import { clientId, mintSession, requestMachine, seedUserCodes } from "../lib/machines.ts";
 import { webauthn } from "../lib/webauthn-browser.ts";
@@ -144,6 +144,34 @@ scenario("Now with asks and the snooze sheet keep their look", { tag: ["@browser
   await card.getByRole("group", { name: "Ask actions" }).getByRole("button", { name: "Snooze" }).click();
   await expect(page.getByRole("menuitem", { name: "1 hour" })).toBeVisible();
   await matchesItself(page, info, "snooze-sheet");
+});
+
+scenario("Now with a replied ask and an updated ask keeps its look", { tag: ["@browser"] }, async ({ server, page, context, testApi }, info) => {
+  info.setTimeout(240_000);
+  // Background: the prototype's agents and conversations. Given an open ask the owner replied to, and an open ask updated after the owner's questions
+  const u = await world({ server, page, context, testApi });
+  const ids = await seedPrototype(u);
+  const lease = (h: string) => u.sessions[h]!.lease;
+  const waiting = await agentAsks(u.w.srv, lease("devtool"), ids["Bug #8642 · null check fix"]!, {
+    question: "Push the 8642 fix to staging?",
+    rec: ["Push it", "the new test fails before the fix and passes after, and I reproduced the bug twice."],
+    alts: [["Hold", "staging is busy with the export run, so waiting avoids a noisy deploy."]],
+  });
+  await ownerRepliesIn(u.w.owner, ids["Bug #8642 · null check fix"]!, waiting, "Is it behind a flag, and who reviewed it? Why one PR and not two?");
+  const updated = await agentAsks(u.w.srv, lease("night-watch"), ids["Ops reports"]!, {
+    question: "Close the incident?",
+    rec: ["Close it", "the error rate is back to 0.3% and has held for 20 minutes."],
+    alts: [["Keep open", "the 4.1% peak is recent, and one more quiet window would make me surer."]],
+  });
+  await ownerRepliesIn(u.w.owner, ids["Ops reports"]!, updated, "What caused the peak?");
+  const ran = await convoz(u.w.box, u.sessions["night-watch"]!.sid, ["ask", "--update", String(updated), "--answers", "A bad deploy of the export job caused the peak. It was rolled back at 5:12, and the error rate has held at 0.3% since. The review bot and QA passed on the rollback."]);
+  expect({ code: ran.code, stderr: ran.stderr }).toEqual({ code: 0, stderr: "" });
+
+  // When the owner opens Now, Then it matches its frame, with the section "You replied · waiting on the agent" and the updated ask with its answers
+  await page.goto(`${u.w.srv.origin}/`);
+  await expect(page.getByRole("article", { name: "Close the incident?" })).toContainText("Updated after your questions");
+  await expect(page.locator("#replied")).toContainText("Push the 8642 fix to staging?");
+  await matchesItself(page, info, "now-replied");
 });
 
 scenario("Now with a waiting plan item keeps its look", { tag: ["@browser"] }, async ({ server, page, context, testApi }, info) => {

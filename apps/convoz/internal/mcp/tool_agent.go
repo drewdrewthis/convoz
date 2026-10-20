@@ -14,7 +14,7 @@ import (
 
 func init() {
 	Register(Tool{Name: "ask", Order: 10, Description: "Ask the owner a decision only they can make: a question, your pick and 1-4 alternatives with reasons, and owners_call (else refused: decide it yourself). For text sent in the owner's name, give draft instead; the answer is {send, text}.",
-		InputSchema: object([]string{"conversation", "question"}, props{
+		InputSchema: object([]string{}, props{
 			"conversation": conv(),
 			"question":     props{"type": "string", "minLength": 1, "maxLength": 500, "description": "What you ask."},
 			// Not in "required": a draft ask has neither (draft is given instead), and a choice ask without them is refused by the tool.
@@ -25,6 +25,8 @@ func init() {
 			"owners_call": ownersCall(),
 			"urgent":      boolean("The owner sees the ask first."),
 			"thread":      integer("Ask in the thread of this main message.", 1, 1<<53-1),
+			"update":      integer("Update this open ask of yours in place instead of asking a new one, after the owner's questions in its thread. Give what changed (question, recommended and alternatives together, owners_call.reason) and answers.", 1, 1<<53-1),
+			"answers":     props{"type": "string", "maxLength": 1000, "description": "With update: a short summary of your answers to the owner's questions. Required once the owner replied in the ask's thread."},
 			"app":         appSchema(),
 		}),
 		Call: func(ctx context.Context, args json.RawMessage) (any, error) {
@@ -37,10 +39,26 @@ func init() {
 				OwnersCall   wire.OwnersCall     `json:"owners_call"`
 				Urgent       bool                `json:"urgent"`
 				Thread       int64               `json:"thread"`
+				Update       int64               `json:"update"`
+				Answers      string              `json:"answers"`
 				App          json.RawMessage     `json:"app"`
 			}
 			if err := decodeArgs(args, &a); err != nil {
 				return nil, err
+			}
+			if a.Update > 0 {
+				argv := withFlag(withFlag(withFlag([]string{}, "update", a.Update), "question", a.Question), "answers", a.Answers)
+				if r := a.Recommended; r != nil {
+					argv = append(argv, "--recommend", r["label"], "--why", r["why"])
+					for _, alt := range a.Alternatives {
+						argv = append(argv, "--alt", alt["label"], "--alt-why", alt["why"])
+					}
+				}
+				argv = withFlag(argv, "owners-call-why", a.OwnersCall.Reason)
+				return runnerOf(ctx).run("ask", "", argv...)
+			}
+			if a.Conversation == 0 || a.Question == "" {
+				return nil, Failed{"An ask needs conversation and question; to change an ask you already sent, give update."}
 			}
 			if a.Draft == nil {
 				if problem := a.OwnersCall.Problem(); problem != "" {

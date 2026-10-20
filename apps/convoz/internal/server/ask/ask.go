@@ -34,7 +34,7 @@ const (
 	ReasonWithdrawn = "withdrawn"
 	ReasonDeleted   = "deleted"
 	ReasonRevoked   = "agent_revoked"
-	// ReasonReplied is the owner answering in the ask's thread instead of choosing: the agent must ask again if it still needs a decision.
+	// ReasonReplied is how asks closed before migration 0039, when the owner's reply in the ask's thread closed it. New replies keep the ask open.
 	ReasonReplied = "replied"
 )
 
@@ -87,9 +87,13 @@ type Ask struct {
 	AnswerVia                   string
 	ResolvedBy, ResolvedAt      int64
 	AckedAt                     int64
-	Version                     int64
-	CreatedAt, UpdatedAt        int64
-	History                     []Transition
+	// OwnerRepliedAt and OwnerReplyID are the latest reply of the owner in the thread of this open ask; 0 when there is none.
+	OwnerRepliedAt, OwnerReplyID int64
+	// Answers is the summary of the answers the latest update carries, and Changed what that update changed ("question, options"); empty before any update.
+	Answers, Changed     string
+	Version              int64
+	CreatedAt, UpdatedAt int64
+	History              []Transition
 }
 
 // Answer is the answer in words: the chosen option's label, or the custom text; "Send: <text>" or "Don't send" on a draft ask.
@@ -122,6 +126,10 @@ const (
 	EventSnoozed   = "ask.snoozed.v1"
 	EventUnsnoozed = "ask.unsnoozed.v1"
 	EventWoke      = "ask.woke.v1"
+	// EventOwnerReplied is the owner replying in the thread of an open ask: the ask stays open.
+	EventOwnerReplied = "ask.owner_replied.v1"
+	// EventUpdated is the asking agent updating its open ask in place.
+	EventUpdated = "ask.updated.v1"
 )
 
 // Change is a thin event the module asks its journal to write. Audience is set when only one identity may see it (a snooze).
@@ -161,6 +169,8 @@ type Messages interface {
 	// PostAsk writes the ask message. Replayed is true when the client id wrote it before; then nothing changed.
 	PostAsk(ctx context.Context, d pdb.DBTX, now time.Time, m AskMessage) (id int64, replayed bool, err error)
 	PostAnswer(ctx context.Context, d pdb.DBTX, now time.Time, m AnswerMessage) error
+	// SetQuestion writes the updated question into the ask message, so previews and search follow the card.
+	SetQuestion(ctx context.Context, d pdb.DBTX, now time.Time, ask int64, question string) error
 }
 
 // Conversations is the conversation side of an ask.

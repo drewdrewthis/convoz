@@ -98,7 +98,7 @@ func (q *Queries) AnsweredSince(ctx context.Context, since sql.NullInt64) ([]int
 
 const askByID = `-- name: AskByID :one
 SELECT message_id, conversation_id, asker_id, question, urgent, owners_call_kind, owners_call_reason, draft_text, original_text, original_from, scrubbed_at, state, close_reason, chosen_kind, chosen_index, chosen_text,
-       answer_via, resolved_by, resolved_at, acked_at, version, created_at, updated_at
+       answer_via, resolved_by, resolved_at, acked_at, owner_replied_at, owner_reply_id, answers, changed, version, created_at, updated_at
 FROM asks WHERE message_id = ?1
 `
 
@@ -123,6 +123,10 @@ type AskByIDRow struct {
 	ResolvedBy       sql.NullInt64
 	ResolvedAt       sql.NullInt64
 	AckedAt          sql.NullInt64
+	OwnerRepliedAt   sql.NullInt64
+	OwnerReplyID     sql.NullInt64
+	Answers          sql.NullString
+	Changed          sql.NullString
 	Version          int64
 	CreatedAt        int64
 	UpdatedAt        int64
@@ -152,6 +156,10 @@ func (q *Queries) AskByID(ctx context.Context, messageID int64) (AskByIDRow, err
 		&i.ResolvedBy,
 		&i.ResolvedAt,
 		&i.AckedAt,
+		&i.OwnerRepliedAt,
+		&i.OwnerReplyID,
+		&i.Answers,
+		&i.Changed,
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -161,7 +169,7 @@ func (q *Queries) AskByID(ctx context.Context, messageID int64) (AskByIDRow, err
 
 const asksByIDs = `-- name: AsksByIDs :many
 SELECT message_id, conversation_id, asker_id, question, urgent, owners_call_kind, owners_call_reason, draft_text, original_text, original_from, scrubbed_at, state, close_reason, chosen_kind, chosen_index, chosen_text,
-       answer_via, resolved_by, resolved_at, acked_at, version, created_at, updated_at
+       answer_via, resolved_by, resolved_at, acked_at, owner_replied_at, owner_reply_id, answers, changed, version, created_at, updated_at
 FROM asks WHERE message_id IN (/*SLICE:ids*/?)
 `
 
@@ -186,6 +194,10 @@ type AsksByIDsRow struct {
 	ResolvedBy       sql.NullInt64
 	ResolvedAt       sql.NullInt64
 	AckedAt          sql.NullInt64
+	OwnerRepliedAt   sql.NullInt64
+	OwnerReplyID     sql.NullInt64
+	Answers          sql.NullString
+	Changed          sql.NullString
 	Version          int64
 	CreatedAt        int64
 	UpdatedAt        int64
@@ -231,6 +243,10 @@ func (q *Queries) AsksByIDs(ctx context.Context, ids []int64) ([]AsksByIDsRow, e
 			&i.ResolvedBy,
 			&i.ResolvedAt,
 			&i.AckedAt,
+			&i.OwnerRepliedAt,
+			&i.OwnerReplyID,
+			&i.Answers,
+			&i.Changed,
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -600,6 +616,32 @@ func (q *Queries) MarkDismissed(ctx context.Context, arg MarkDismissedParams) (i
 	return result.RowsAffected()
 }
 
+const markOwnerReplied = `-- name: MarkOwnerReplied :execrows
+UPDATE asks SET owner_replied_at = CAST(?1 AS INTEGER), owner_reply_id = CAST(?2 AS INTEGER), version = version + 1, updated_at = ?1
+WHERE message_id = ?3 AND version = ?4 AND state = 'open'
+`
+
+type MarkOwnerRepliedParams struct {
+	Now       int64
+	ReplyID   int64
+	MessageID int64
+	Version   int64
+}
+
+// The owner replied in the thread of an open ask: it stays open and remembers the latest reply.
+func (q *Queries) MarkOwnerReplied(ctx context.Context, arg MarkOwnerRepliedParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, markOwnerReplied,
+		arg.Now,
+		arg.ReplyID,
+		arg.MessageID,
+		arg.Version,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const markReopened = `-- name: MarkReopened :execrows
 UPDATE asks
 SET state = 'open', resolved_by = NULL, resolved_at = NULL, acked_at = NULL, acked_by_session = NULL, version = version + 1, updated_at = ?1
@@ -733,6 +775,40 @@ UPDATE asks SET sealed = 1 WHERE message_id = ?1
 func (q *Queries) SealAsk(ctx context.Context, messageID int64) error {
 	_, err := q.db.ExecContext(ctx, sealAsk, messageID)
 	return err
+}
+
+const updateAsk = `-- name: UpdateAsk :execrows
+UPDATE asks
+SET question = ?1, owners_call_reason = ?2, answers = ?3, changed = CAST(?4 AS TEXT),
+    owner_replied_at = NULL, owner_reply_id = NULL, version = version + 1, updated_at = ?5
+WHERE message_id = ?6 AND version = ?7 AND state = 'open'
+`
+
+type UpdateAskParams struct {
+	Question         string
+	OwnersCallReason sql.NullString
+	Answers          sql.NullString
+	Changed          string
+	Now              int64
+	MessageID        int64
+	Version          int64
+}
+
+// The asking agent updated its open ask in place: the content it may change, the summary of the answers and what changed; the owner's reply mark clears.
+func (q *Queries) UpdateAsk(ctx context.Context, arg UpdateAskParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateAsk,
+		arg.Question,
+		arg.OwnersCallReason,
+		arg.Answers,
+		arg.Changed,
+		arg.Now,
+		arg.MessageID,
+		arg.Version,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const upsertSnooze = `-- name: UpsertSnooze :exec

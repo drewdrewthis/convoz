@@ -174,3 +174,30 @@ func TestTargets(t *testing.T) {
 		t.Errorf("no agent, no target: %v", got)
 	}
 }
+
+func answered(t *testing.T, s *pdb.Store, p inbox.Place) {
+	t.Helper()
+	run(t, s, func(ctx context.Context, d pdb.DBTX) {
+		if err := inbox.Answered(ctx, d, p); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+func TestAReplyInTheThreadOfTheOwnersMainMessageAnswersTheMainChat(t *testing.T) {
+	s := seeded(t)
+	spoke(t, s, mainChat, 5, t0) // the owner's main-chat message 5 roots thread 5
+	answered(t, s, thread)
+	if got := due(t, s, t0.Add(time.Hour)); len(got) != 0 {
+		t.Fatalf("the thread reply answered message 5: %+v", got)
+	}
+}
+
+func TestAReplyInAnotherThreadLeavesTheMainChatWaiting(t *testing.T) {
+	s := seeded(t)
+	spoke(t, s, mainChat, 7, t0)
+	answered(t, s, thread) // thread 5 is not rooted at message 7
+	if got := due(t, s, t0.Add(time.Hour)); len(got) != 1 || got[0].Message != 7 {
+		t.Fatalf("message 7 still waits: %+v", got)
+	}
+}

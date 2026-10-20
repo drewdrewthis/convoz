@@ -6,12 +6,12 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 
 ## Contents
 
-- [Agent inbox](#agent-inbox) (29)
+- [Agent inbox](#agent-inbox) (30)
 - [Agent sessions as one identity](#agent-sessions-as-one-identity) (17)
 - [Agents outside the tailnet connect through an agents-only address](#agents-outside-the-tailnet-connect-through-an-agents-only-address) (8)
 - [An agent that reads all conversations](#an-agent-that-reads-all-conversations) (6)
 - [Apps inside messages](#apps-inside-messages) (15)
-- [Asks and their state machine](#asks-and-their-state-machine) (30)
+- [Asks and their state machine](#asks-and-their-state-machine) (34)
 - [Brief, handoff, read and search for agents](#brief-handoff-read-and-search-for-agents) (17)
 - [Composer](#composer) (26)
 - [Console on a phone](#console-on-a-phone) (28)
@@ -22,7 +22,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Machine login with a device flow](#machine-login-with-a-device-flow) (23)
 - [Messages and their types](#messages-and-their-types) (17)
 - [Notifications](#notifications) (21)
-- [Now](#now) (31)
+- [Now](#now) (34)
 - [Onboarding and sign in](#onboarding-and-sign-in) (16)
 - [One command serves an agent's inbox with a short-lived process per item](#one-command-serves-an-agents-inbox-with-a-short-lived-process-per-item) (6)
 - [Pins, stars and mute](#pins-stars-and-mute) (7)
@@ -42,7 +42,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 ## Agent inbox
 
 I never miss a mention or an answer and two sessions never handle the same item.
-29 scenarios.
+30 scenarios.
 
 - **Items are written with the event that causes them**
   - [A mention reaches the inbox at once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L28)
@@ -77,10 +77,11 @@ I never miss a mention or an answer and two sessions never handle the same item.
 - **The owner's message that nobody answers in 10 minutes is sent to the agents once more (owner msgs 818, 821)**
   - [The owner's last message unanswered for 10 minutes reminds the agent once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L209)
   - [An agent's message in the same place clears the reminder](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L220)
-  - [A plan update is not an answer](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L229)
-  - [A newer owner message restarts the 10 minutes](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L235)
-  - [Only the mentioned agent is reminded](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L243)
-  - [Watch does not need an ack and does not redeliver](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L250)
+  - [An agent's reply in the thread of the owner's main-chat message answers it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L230)
+  - [A plan update is not an answer](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L238)
+  - [A newer owner message restarts the 10 minutes](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L244)
+  - [Only the mentioned agent is reminded](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L252)
+  - [Watch does not need an ack and does not redeliver](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L259)
 
 ## Agent sessions as one identity
 
@@ -171,7 +172,7 @@ I can see and decide without leaving Convoz, while no app can act for me.
 ## Asks and their state machine
 
 I can decide in one tap and the agent gets a clear, final answer.
-30 scenarios.
+34 scenarios.
 
 - **An ask has a question, a recommendation and at least one alternative, each with a reason**
   - [A complete ask opens](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L23)
@@ -204,16 +205,20 @@ I can decide in one tap and the agent gets a clear, final answer.
   - [After the stream was cut, an ask withdrawn meanwhile shows closed with no reload](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L183)
 - **Snooze opens as a bottom sheet on a phone and covers no button of the card**
   - [Snoozing on a phone opens a sheet that covers no button](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L193)
-- **A reply to an ask closes it, and the agent must ask again**
-  - [Replying to an ask closes it and the agent must ask again](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L210)
-  - [An agent's reply does not close an ask](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L217)
-  - [An agent sees that the owner replied instead of choosing](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L224)
+- **A reply to an ask is a question: the ask stays open, the agent answers in the thread and updates the same ask**
+  - [Replying to an ask keeps it open and moves it to You replied](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L212)
+  - [An agent's reply does not close an ask](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L219)
+  - [An agent is told to answer in the thread and update the same ask](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L226)
+  - [The agent updates the ask in place with the answers](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L234)
+  - [An update needs the answers, the asker and an open ask](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L242)
+  - [The rules tell an agent to pre-answer the owner's obvious questions](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L252)
+  - [The updated ask shows in Now with the answers, and leaves You replied](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L258)
 - **Anything sent in the owner's name is a draft ask that the owner reviews and may edit**
-  - [An agent asks the owner to review a draft and gets back the edited text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L236)
-  - [Don't send returns send false and no text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L248)
-  - [A draft ask is reviewed inside the conversation too](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L255)
-  - [A draft ask needs no owner's-call reason](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L261)
-  - [A long original is cut and a long draft is refused](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L270)
+  - [An agent asks the owner to review a draft and gets back the edited text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L271)
+  - [Don't send returns send false and no text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L283)
+  - [A draft ask is reviewed inside the conversation too](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L290)
+  - [A draft ask needs no owner's-call reason](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L296)
+  - [A long original is cut and a long draft is refused](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L305)
 
 ## Brief, handoff, read and search for agents
 
@@ -587,7 +592,7 @@ My phone is useful and not noisy.
 ## Now
 
 I can clear my queue from my phone in a few taps.
-31 scenarios.
+34 scenarios.
 
 - **Now lists what waits on the owner, most urgent first**
   - [Urgent asks come before other asks](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L20)
@@ -611,20 +616,24 @@ I can clear my queue from my phone in a few taps.
   - [An answered ask in the feed lets the owner follow up in its thread or jump to its conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L173)
   - [The ask bar works from the keyboard](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L183)
   - [A losing answer shows what won](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L190)
+- **Asks the owner replied to wait under You replied, and the thread opens inside the app**
+  - [Asks the owner replied to wait in their own section](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L200)
+  - [Reply in thread opens the thread without a page load, and the ask moves on return](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L210)
+  - [An unread conversation in Now has a Reply action that focuses the composer](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L218)
 - **Snooze hides an ask until its time**
-  - [A snoozed ask returns at its time](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L198)
-  - [Snooze shows an Undo toast and Undo puts the ask back](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L206)
-  - [Unsnooze returns an ask at once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L214)
-  - [Snooze presets set the right wake time](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L222)
-  - [The count updates in every open tab](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L234)
-  - [Tonight is not offered from 6:00 PM](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L240)
+  - [A snoozed ask returns at its time](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L226)
+  - [Snooze shows an Undo toast and Undo puts the ask back](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L234)
+  - [Unsnooze returns an ask at once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L242)
+  - [Snooze presets set the right wake time](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L250)
+  - [The count updates in every open tab](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L262)
+  - [Tonight is not offered from 6:00 PM](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L268)
 - **Agent adds wait for a human (pending adds)**
-  - [Approving a pending add lets the agent in from the request](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L249)
-  - [Declining a pending add keeps the agent out](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L256)
+  - [Approving a pending add lets the agent in from the request](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L277)
+  - [Declining a pending add keeps the agent out](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L284)
 - **Machine requests are approved from Now**
-  - [Now shows an agent's connect request as one card with Approve and Decline](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L266)
-  - [A machine request deep link brings its card into view](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L274)
-  - [An expired machine request leaves Now](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L280)
+  - [Now shows an agent's connect request as one card with Approve and Decline](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L294)
+  - [A machine request deep link brings its card into view](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L302)
+  - [An expired machine request leaves Now](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L308)
 
 ## Onboarding and sign in
 

@@ -52,7 +52,10 @@ func hydrateMessage(name string) hydrator {
 				return name, nil, err
 			}
 			if err == nil {
-				base := dir.askBase(a)
+				base, err := dir.askWithReply(ctx, d, a)
+				if err != nil {
+					return name, nil, err
+				}
 				base.App = v.App
 				v.AttachAsk(base)
 			}

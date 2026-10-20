@@ -1,6 +1,7 @@
 import type { Ask } from "@convoz/api-client";
 import { AskCard, type Answer } from "@convoz/app-kit";
 import { useId } from "react";
+import { navigate } from "../../shared/navigate.ts";
 import { AskApp } from "./AskApp.tsx";
 import { Attention } from "./Attention.tsx";
 
@@ -30,7 +31,7 @@ export function NowAsk({ ask, busy, presets, answer, dismiss, snooze }: NowAskPr
         onDismiss={() => dismiss(ask)}
         onUndismiss={() => undefined}
         onSnooze={(preset) => snooze(ask, preset)}
-        onReply={() => location.assign(`/chats/${ask.conversation_id}#reply=${ask.thread_root_id ?? ask.id}`)}
+        onReply={() => navigate(`/chats/${ask.conversation_id}#reply=${ask.thread_root_id ?? ask.id}`)}
       />
       <AskApp ask={ask} />
       <Attention conversation={ask.conversation_id} />

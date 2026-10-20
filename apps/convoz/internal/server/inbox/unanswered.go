@@ -31,8 +31,17 @@ func OwnerSpoke(ctx context.Context, d pdb.DBTX, p Place, messageID, createdAt i
 	return db.New(d).TrackPlace(ctx, db.TrackPlaceParams{ConversationID: p.Conversation, ThreadRootID: p.ThreadRoot, MessageID: messageID, DueAt: createdAt + UnansweredAfter.Milliseconds()})
 }
 
-// Answered notes that someone else posted a counted message in the place: nothing waits there any more.
+// Answered notes that someone else posted a counted message in the place: nothing waits there any more. A reply in a thread also
+// answers the owner's main-chat message that roots the thread, when that is the message the main chat waits on: the answer to it
+// is in its thread (owner msg 1117: "the conversation kind of doesn't continue in the same way").
 func Answered(ctx context.Context, d pdb.DBTX, p Place) error {
+	if err := clearPlace(ctx, d, p); err != nil || p.ThreadRoot == 0 {
+		return err
+	}
+	return db.New(d).ClearMainPlaceOfRoot(ctx, db.ClearMainPlaceOfRootParams{ConversationID: p.Conversation, RootID: p.ThreadRoot})
+}
+
+func clearPlace(ctx context.Context, d pdb.DBTX, p Place) error {
 	return db.New(d).ClearPlace(ctx, db.ClearPlaceParams{ConversationID: p.Conversation, ThreadRootID: p.ThreadRoot})
 }
 
@@ -52,7 +61,7 @@ func Remind(ctx context.Context, d pdb.DBTX, now time.Time, identityID int64, r 
 }
 
 // Reminded ends the wait of the place: its reminder is sent (or has nobody to go to). Call it in the transaction of Remind.
-func Reminded(ctx context.Context, d pdb.DBTX, p Place) error { return Answered(ctx, d, p) }
+func Reminded(ctx context.Context, d pdb.DBTX, p Place) error { return clearPlace(ctx, d, p) }
 
 // Targets are the agents a reminder goes to, from agents (the enabled agent participants), the agents the message @mentions and,
 // for a thread, the identities that posted in it. The mentioned agents when there are any; else for a thread its agent posters;

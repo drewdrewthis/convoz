@@ -1,0 +1,770 @@
+{
+ "viewport": [
+  1280,
+  720
+ ],
+ "boxes": {
+  "nav \"Conversations\"#0": [
+   0,
+   0,
+   240,
+   720
+  ],
+  "a \"\"#0": [
+   18,
+   16,
+   110,
+   32
+  ],
+  "svg[img] \"Convoz\"#0": [
+   18,
+   21,
+   110,
+   22
+  ],
+  "svg \"\"#0": [
+   18.55,
+   25.27,
+   34.1,
+   13.57
+  ],
+  "button \"Back\"#0": [
+   150,
+   16,
+   32,
+   32
+  ],
+  "svg \"\"#1": [
+   157,
+   23,
+   18,
+   18
+  ],
+  "button \"Forward\"#0": [
+   190,
+   16,
+   32,
+   32
+  ],
+  "svg \"\"#2": [
+   197,
+   23,
+   18,
+   18
+  ],
+  "button \"Search\"#0": [
+   10,
+   60,
+   148,
+   32
+  ],
+  "svg \"\"#3": [
+   19,
+   69,
+   14,
+   14
+  ],
+  "a \"New conversation\"#0": [
+   162,
+   60,
+   32,
+   32
+  ],
+  "svg \"\"#4": [
+   171,
+   69,
+   14,
+   14
+  ],
+  "a \"Invite agent\"#0": [
+   198,
+   60,
+   32,
+   32
+  ],
+  "svg \"\"#5": [
+   207,
+   69,
+   14,
+   14
+  ],
+  "a \"Now1\"#0": [
+   10,
+   104,
+   220,
+   32
+  ],
+  "svg \"\"#6": [
+   18,
+   113,
+   14,
+   14
+  ],
+  "a \"Conversations\"#0": [
+   10,
+   148,
+   220,
+   18.8
+  ],
+  "a \"assistant\"#0": [
+   10,
+   167.8,
+   220,
+   32
+  ],
+  "button \"Star conversation assistant\"#0": [
+   202,
+   169.8,
+   28,
+   28
+  ],
+  "svg \"\"#7": [
+   209,
+   176.8,
+   14,
+   14
+  ],
+  "button \"Reorder assistant. Alt plus arrow keys move it.\"#0": [
+   180,
+   169.8,
+   22,
+   28
+  ],
+  "svg \"\"#8": [
+   184,
+   176.8,
+   14,
+   14
+  ],
+  "a \"Ops reports, 1 unread\"#0": [
+   10,
+   200.8,
+   220,
+   32
+  ],
+  "svg \"\"#9": [
+   181.5,
+   210.3,
+   15,
+   15
+  ],
+  "button \"Star conversation Ops reports\"#0": [
+   202,
+   202.8,
+   28,
+   28
+  ],
+  "svg \"\"#10": [
+   209,
+   209.8,
+   14,
+   14
+  ],
+  "button \"Reorder Ops reports. Alt plus arrow keys move it.\"#0": [
+   180,
+   202.8,
+   22,
+   28
+  ],
+  "svg \"\"#11": [
+   184,
+   209.8,
+   14,
+   14
+  ],
+  "a \"Open thread: Close the incident?\"#0": [
+   30,
+   233.8,
+   200,
+   32
+  ],
+  "a \"Bug #8642 · null check fix, 3 unread\"#0": [
+   10,
+   268.8,
+   220,
+   32
+  ],
+  "svg \"\"#12": [
+   181.5,
+   278.3,
+   15,
+   15
+  ],
+  "button \"Star conversation Bug #8642 · null check fix\"#0": [
+   202,
+   270.8,
+   28,
+   28
+  ],
+  "svg \"\"#13": [
+   209,
+   277.8,
+   14,
+   14
+  ],
+  "button \"Reorder Bug #8642 · null check fix. Alt plus arrow keys move it.\"#0": [
+   180,
+   270.8,
+   22,
+   28
+  ],
+  "svg \"\"#14": [
+   184,
+   277.8,
+   14,
+   14
+  ],
+  "a \"Open thread: Push the 8642 fix to staging?\"#0": [
+   30,
+   301.8,
+   200,
+   32
+  ],
+  "a \"Issue #100 · agent chat, 6 unread\"#0": [
+   10,
+   336.8,
+   220,
+   32
+  ],
+  "button \"Star conversation Issue #100 · agent chat\"#0": [
+   202,
+   338.8,
+   28,
+   28
+  ],
+  "svg \"\"#15": [
+   209,
+   345.8,
+   14,
+   14
+  ],
+  "button \"Reorder Issue #100 · agent chat. Alt plus arrow keys move it.\"#0": [
+   180,
+   338.8,
+   22,
+   28
+  ],
+  "svg \"\"#16": [
+   184,
+   345.8,
+   14,
+   14
+  ],
+  "a \"lane-search, 4 unread\"#0": [
+   10,
+   369.8,
+   220,
+   32
+  ],
+  "button \"Star conversation lane-search\"#0": [
+   202,
+   371.8,
+   28,
+   28
+  ],
+  "svg \"\"#17": [
+   209,
+   378.8,
+   14,
+   14
+  ],
+  "button \"Reorder lane-search. Alt plus arrow keys move it.\"#0": [
+   180,
+   371.8,
+   22,
+   28
+  ],
+  "svg \"\"#18": [
+   184,
+   378.8,
+   14,
+   14
+  ],
+  "a \"Team updates\"#0": [
+   10,
+   402.8,
+   220,
+   32
+  ],
+  "button \"Star conversation Team updates\"#0": [
+   202,
+   404.8,
+   28,
+   28
+  ],
+  "svg \"\"#19": [
+   209,
+   411.8,
+   14,
+   14
+  ],
+  "button \"Reorder Team updates. Alt plus arrow keys move it.\"#0": [
+   180,
+   404.8,
+   22,
+   28
+  ],
+  "svg \"\"#20": [
+   184,
+   411.8,
+   14,
+   14
+  ],
+  "a \"usage-bot, 2 unread\"#0": [
+   10,
+   435.8,
+   220,
+   32
+  ],
+  "button \"Star conversation usage-bot\"#0": [
+   202,
+   437.8,
+   28,
+   28
+  ],
+  "svg \"\"#21": [
+   209,
+   444.8,
+   14,
+   14
+  ],
+  "button \"Reorder usage-bot. Alt plus arrow keys move it.\"#0": [
+   180,
+   437.8,
+   22,
+   28
+  ],
+  "svg \"\"#22": [
+   184,
+   444.8,
+   14,
+   14
+  ],
+  "a \"scrum-master, 1 unread\"#0": [
+   10,
+   468.8,
+   220,
+   32
+  ],
+  "button \"Star conversation scrum-master\"#0": [
+   202,
+   470.8,
+   28,
+   28
+  ],
+  "svg \"\"#23": [
+   209,
+   477.8,
+   14,
+   14
+  ],
+  "button \"Reorder scrum-master. Alt plus arrow keys move it.\"#0": [
+   180,
+   470.8,
+   22,
+   28
+  ],
+  "svg \"\"#24": [
+   184,
+   477.8,
+   14,
+   14
+  ],
+  "a \"Why did the nightly export get slower?\"#0": [
+   10,
+   501.8,
+   220,
+   32
+  ],
+  "button \"Star conversation Why did the nightly export get slower?\"#0": [
+   202,
+   503.8,
+   28,
+   28
+  ],
+  "svg \"\"#25": [
+   209,
+   510.8,
+   14,
+   14
+  ],
+  "button \"Reorder Why did the nightly export get slower?. Alt plus arrow keys move it.\"#0": [
+   180,
+   503.8,
+   22,
+   28
+  ],
+  "svg \"\"#26": [
+   184,
+   510.8,
+   14,
+   14
+  ],
+  "a \"night-watch\"#0": [
+   10,
+   534.8,
+   220,
+   32
+  ],
+  "button \"Star conversation night-watch\"#0": [
+   202,
+   536.8,
+   28,
+   28
+  ],
+  "svg \"\"#27": [
+   209,
+   543.8,
+   14,
+   14
+  ],
+  "button \"Reorder night-watch. Alt plus arrow keys move it.\"#0": [
+   180,
+   536.8,
+   22,
+   28
+  ],
+  "svg \"\"#28": [
+   184,
+   543.8,
+   14,
+   14
+  ],
+  "a \"Crew10\"#0": [
+   10,
+   674,
+   220,
+   32
+  ],
+  "svg \"\"#29": [
+   18,
+   683,
+   14,
+   14
+  ],
+  "h1 \"Now\"#0": [
+   251,
+   19.2,
+   46.56,
+   27.59
+  ],
+  "button \"Account menu\"#0": [
+   1217,
+   11,
+   44,
+   44
+  ],
+  "svg \"\"#30": [
+   1229,
+   23,
+   20,
+   20
+  ],
+  "h3 \"Close the incident?\"#0": [
+   463,
+   65,
+   586,
+   37
+  ],
+  "button \"More\"#0": [
+   455,
+   177,
+   46,
+   44
+  ],
+  "button \"Quick reply\"#0": [
+   455,
+   333,
+   106,
+   44
+  ],
+  "svg \"\"#31": [
+   463,
+   346,
+   18,
+   18
+  ],
+  "button \"Snooze\"#0": [
+   561,
+   333,
+   80,
+   44
+  ],
+  "svg \"\"#32": [
+   569,
+   346,
+   18,
+   18
+  ],
+  "a \"Open\"#0": [
+   641,
+   333,
+   69,
+   44
+  ],
+  "svg \"\"#33": [
+   649,
+   346,
+   18,
+   18
+  ],
+  "button \"Dismiss\"#0": [
+   710,
+   333,
+   84,
+   44
+  ],
+  "svg \"\"#34": [
+   718,
+   346,
+   18,
+   18
+  ],
+  "button \"Close it\"#0": [
+   463,
+   391,
+   586,
+   50
+  ],
+  "button \"Keep open\"#0": [
+   463,
+   449,
+   586,
+   50
+  ],
+  "button \"Reply in thread\"#0": [
+   463,
+   507,
+   586,
+   50
+  ],
+  "a \"Push the 8642 fix to staging?Devtool @de\"#0": [
+   449,
+   617.8,
+   614,
+   85.38
+  ],
+  "a \"Ops reportsnowUnread: 1night-watch Close\"#0": [
+   463,
+   761.97,
+   586,
+   53.59
+  ],
+  "h2 \"Ops reports\"#0": [
+   463,
+   769.97,
+   526,
+   19.59
+  ],
+  "time \"now\"#0": [
+   997,
+   771.36,
+   22,
+   16.8
+  ],
+  "span \"Unread: 1\"#0": [
+   1027,
+   770.27,
+   22,
+   19
+  ],
+  "a \"Reply\"#0": [
+   455,
+   815.56,
+   49,
+   44
+  ],
+  "button \"Mark Ops reports read\"#0": [
+   504,
+   815.56,
+   77,
+   44
+  ],
+  "a \"Bug #8642 · null check fixnowUnread: 3de\"#0": [
+   463,
+   875.56,
+   586,
+   97.59
+  ],
+  "h2 \"Bug #8642 · null check fix\"#0": [
+   463,
+   883.56,
+   526,
+   19.59
+  ],
+  "time \"now\"#1": [
+   997,
+   884.95,
+   22,
+   16.8
+  ],
+  "span \"Unread: 3\"#0": [
+   1027,
+   883.86,
+   22,
+   19
+  ],
+  "a \"Reply\"#1": [
+   455,
+   973.16,
+   49,
+   44
+  ],
+  "button \"Mark Bug #8642 · null check fix read\"#0": [
+   504,
+   973.16,
+   77,
+   44
+  ],
+  "a \"Issue #100 · agent chatnowUnread: 6devto\"#0": [
+   463,
+   1033.16,
+   586,
+   97.59
+  ],
+  "h2 \"Issue #100 · agent chat\"#0": [
+   463,
+   1041.16,
+   526,
+   19.59
+  ],
+  "time \"now\"#2": [
+   997,
+   1042.55,
+   22,
+   16.8
+  ],
+  "span \"Unread: 6\"#0": [
+   1027,
+   1041.45,
+   22,
+   19
+  ],
+  "a \"Reply\"#2": [
+   455,
+   1130.75,
+   49,
+   44
+  ],
+  "button \"Mark Issue #100 · agent chat read\"#0": [
+   504,
+   1130.75,
+   77,
+   44
+  ],
+  "a \"lane-searchnowUnread: 4lane-search Desig\"#0": [
+   463,
+   1190.75,
+   586,
+   97.59
+  ],
+  "h2 \"lane-search\"#0": [
+   463,
+   1198.75,
+   526,
+   19.59
+  ],
+  "time \"now\"#3": [
+   997,
+   1200.14,
+   22,
+   16.8
+  ],
+  "span \"Unread: 4\"#0": [
+   1027,
+   1199.05,
+   22,
+   19
+  ],
+  "a \"Reply\"#3": [
+   455,
+   1288.34,
+   49,
+   44
+  ],
+  "button \"Mark lane-search read\"#0": [
+   504,
+   1288.34,
+   77,
+   44
+  ],
+  "a \"usage-botnowUnread: 2usage-bot The docs \"#0": [
+   463,
+   1348.34,
+   586,
+   75.59
+  ],
+  "h2 \"usage-bot\"#0": [
+   463,
+   1356.34,
+   526,
+   19.59
+  ],
+  "time \"now\"#4": [
+   997,
+   1357.73,
+   22,
+   16.8
+  ],
+  "span \"Unread: 2\"#0": [
+   1027,
+   1356.64,
+   22,
+   19
+  ],
+  "a \"Reply\"#4": [
+   455,
+   1423.94,
+   49,
+   44
+  ],
+  "button \"Mark usage-bot read\"#0": [
+   504,
+   1423.94,
+   77,
+   44
+  ],
+  "a \"scrum-masternowUnread: 1scrum-master Two\"#0": [
+   463,
+   1483.94,
+   586,
+   53.59
+  ],
+  "h2 \"scrum-master\"#0": [
+   463,
+   1491.94,
+   526,
+   19.59
+  ],
+  "time \"now\"#5": [
+   997,
+   1493.33,
+   22,
+   16.8
+  ],
+  "span \"Unread: 1\"#1": [
+   1027,
+   1492.23,
+   22,
+   19
+  ],
+  "a \"Reply\"#5": [
+   455,
+   1537.53,
+   49,
+   44
+  ],
+  "button \"Mark scrum-master read\"#0": [
+   504,
+   1537.53,
+   77,
+   44
+  ],
+  "button \"Mark all read\"#0": [
+   448,
+   1592.53,
+   616,
+   50
+  ]
+ }
+}

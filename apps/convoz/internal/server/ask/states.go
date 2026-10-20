@@ -3,6 +3,7 @@ package ask
 import (
 	"context"
 	"database/sql"
+	"sort"
 	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/ask/db"
@@ -71,7 +72,8 @@ func fromRow(r askRow) Ask {
 	a := Ask{
 		ID: r.MessageID, ConversationID: r.ConversationID, AskerID: r.AskerID, Question: r.Question, Urgent: r.Urgent == 1,
 		Scrubbed: r.ScrubbedAt.Valid, State: r.State, CloseReason: r.CloseReason.String, AnswerVia: r.AnswerVia.String,
-		ResolvedBy: r.ResolvedBy.Int64, ResolvedAt: r.ResolvedAt.Int64, AckedAt: r.AckedAt.Int64, Version: r.Version,
+		ResolvedBy: r.ResolvedBy.Int64, ResolvedAt: r.ResolvedAt.Int64, AckedAt: r.AckedAt.Int64, OwnerRepliedAt: r.OwnerRepliedAt.Int64, OwnerReplyID: r.OwnerReplyID.Int64,
+		Answers: r.Answers.String, Changed: r.Changed.String, Version: r.Version,
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 	if r.OwnersCallKind.Valid && !r.ScrubbedAt.Valid {
@@ -88,7 +90,8 @@ func fromRow(r askRow) Ask {
 
 // Waiting is what Now lists for one person.
 type Waiting struct {
-	Open      []Ask           // open and not snoozed: urgent first, then the newest
+	Open      []Ask           // open, not snoozed and not replied to by the owner: urgent first, then the newest
+	Replied   []Ask           // open, not snoozed, and the owner replied in its thread: waiting on the agent, the newest reply first
 	Snoozed   []Ask           // open and snoozed by this person: the soonest wake first
 	Until     map[int64]int64 // the snooze time of each snoozed ask
 	Answered  []Ask           // answered since the cut: newest first
@@ -127,10 +130,13 @@ func ForNow(ctx context.Context, d pdb.DBTX, person int64, now time.Time, since 
 	for _, id := range open {
 		if _, hidden := until[id]; hidden {
 			w.Snoozed = append(w.Snoozed, byID[id])
+		} else if byID[id].OwnerRepliedAt > 0 {
+			w.Replied = append(w.Replied, byID[id])
 		} else {
 			w.Open = append(w.Open, byID[id])
 		}
 	}
+	sort.SliceStable(w.Replied, func(i, j int) bool { return w.Replied[i].OwnerRepliedAt > w.Replied[j].OwnerRepliedAt })
 	sortByWake(w.Snoozed, until)
 	for _, id := range answered {
 		w.Answered = append(w.Answered, byID[id])
