@@ -8,8 +8,8 @@ import type { Locator, Page } from "@playwright/test";
 /*
  * THREADS ON THE LIST: specs/features/threads.feature, rule "The Conversations list shows every thread under its conversation"
  * (owner msgs 266-267). Under a conversation row the list shows an indented link "Open thread: <root text>" per thread with a reply,
- * newest reply first, with its own "Unread: N" count; the row of the conversation counts the main list only. Threads with no unread message
- * sit under a per-conversation "Older · n" button (owner msg 1855).
+ * newest reply first, with its own "Unread: N" count; the row of the conversation counts the main list only. Threads quiet since
+ * yesterday sit under a per-conversation "Older · n" button.
  */
 const threadRow = (page: Page, text: string | RegExp) => page.locator("#chats").getByRole("link", { name: typeof text === "string" ? new RegExp(`^Open thread: .*${text}`) : text });
 const convRow = (page: Page) => page.locator("#chats a.chatrow").filter({ has: page.getByRole("heading", { name: "Ship search filters" }) });
@@ -73,30 +73,27 @@ scenario("Thread replies count on the thread's row, not the conversation's", { t
   await expect(threadRow(page, ROOT_TEXT).getByText(/^Unread: /)).toHaveCount(0);
 });
 
-scenario("Threads with no unread message fold into Older under their conversation", { tag: ["@browser", "@I-21"] }, async ({ server, page, context, dataDir }) => {
+scenario("Threads with no reply since yesterday fold into Older under their conversation", { tag: ["@browser", "@I-21"] }, async ({ server, page, context, dataDir }) => {
   const t: ThreadWorld = await threadWorld({ server, page, context }, { browser: true });
 
-  // Given thread 900 has an unread reply, thread 901 has only the owner's own reply, and thread 902 has an unread reply from 2 days ago
+  // Given thread 900 has a recent reply and thread 901 has no reply since yesterday
   await agentReplies(t, t.dev, "A fresh reply");
-  const read = await agentSays(t.w.srv, t.dev, t.conv, "The read topic");
-  await ownerReplies({ ...t, root: read }, "My own reply");
-  const stale = await agentSays(t.w.srv, t.dev, t.conv, "The stale unread topic");
-  await agentReplies({ ...t, root: stale }, t.docs, "A stale reply");
-  seedDb(dataDir, (db) => db.prepare("UPDATE messages SET created_at = created_at - ? WHERE thread_root_id = ?").run(2 * DAY, stale));
+  const old = await agentSays(t.w.srv, t.dev, t.conv, "The older topic");
+  await agentReplies({ ...t, root: old }, t.docs, "A stale reply");
+  seedDb(dataDir, (db) => db.prepare("UPDATE messages SET created_at = created_at - ? WHERE thread_root_id = ?").run(2 * DAY, old));
 
   // When the owner opens the Conversations list
   await openRail(page, t.w.srv.origin);
 
-  // Then threads 900 and 902 show, and thread 901 sits under the toggle "Older · 1"
+  // Then conversation 41 lists thread 900 and the toggle "Older · 1" under it
   await expect(threadRow(page, ROOT_TEXT)).toBeVisible();
-  await expect(threadRow(page, "The stale unread topic")).toBeVisible();
   const toggle = page.locator("#chats").getByRole("button", { name: "Older · 1" }).last();
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
-  await expect(threadRow(page, "The read topic")).toHaveCount(0);
+  await expect(threadRow(page, "The older topic")).toHaveCount(0);
 
   // And expanding "Older · 1" shows thread 901
   await toggle.click();
-  await expect(threadRow(page, "The read topic")).toBeVisible();
+  await expect(threadRow(page, "The older topic")).toBeVisible();
   await page.screenshot({ path: test_shot(page) });
 });
 

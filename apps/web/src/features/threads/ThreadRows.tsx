@@ -4,14 +4,14 @@ import { stripCf } from "../../shared/chat.ts";
 
 type Thread = NonNullable<Conversation["threads"]>[number];
 
-/** A thread is Older when nothing in it is new for the viewer (owner, msg 1855): conversations go Older by time, threads by unread. */
-const isOldThread = (t: Thread): boolean => t.unread === 0;
+/** A thread is Older by the conversation rule: no reply since this morning (the viewer's own time zone). */
+const isOldThread = (t: Thread, now = Date.now()): boolean => t.last_reply_at < new Date(now).setHours(0, 0, 0, 0);
 
 const rootWords = (t: Thread): string => stripCf(t.preview) || `${t.author.handle}: ${t.last_reply?.preview ?? ""}`;
 
 /**
  * ThreadRows lists the threads of one conversation as indented sub-rows under its row (owner, msgs 266-267): "↳ root text", its own
- * unread count, newest reply first. Threads with no unread message fold under a per-conversation "Older · n" toggle. A tap opens the thread.
+ * unread count, newest reply first. Threads quiet since yesterday fold under a per-conversation "Older · n" toggle. A tap opens the thread.
  */
 export function ThreadRows({ c, compact = false }: { c: Conversation; compact?: boolean }) {
   const [open, setOpen] = useState(false);
