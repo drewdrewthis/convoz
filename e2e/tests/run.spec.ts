@@ -169,7 +169,7 @@ scenario("A second convoz run for the same agent on the same machine is refused"
   }
 });
 
-scenario("Claude mode builds a read-only claude command and keeps one session", { tag: ["@cli"] }, async ({ server }) => {
+scenario("Claude mode builds a claude command with a normal agent's tools and keeps one session", { tag: ["@cli"] }, async ({ server }) => {
   test.setTimeout(90_000);
   // Given a stub "claude" command on PATH that records its argv and replies to the item
   const w = await chatWorld(server, { agents: ["devtool"] });
@@ -211,7 +211,7 @@ execFileSync(${JSON.stringify(convozBin)}, ["reply", "--fyi", m[2], "answered"])
       await expect.poll(() => threadOf(w.owner, conv, id), { timeout: 15_000 }).toEqual(["devtool: answered"]);
     }
 
-    // Then the stub was given the read-only allow-list, the deny-list for files and apps, a spend limit and the "dontAsk" mode every time
+    // Then the stub was given a normal agent's tools, a spend limit and the "dontAsk" mode every time
     const calls: string[][] = fs.readFileSync(log, "utf8").trim().split("\n").map((l) => JSON.parse(l));
     const asks = calls.filter((c) => !c.some((a) => a.includes("one-line summary")));
     expect(asks).toHaveLength(3);
@@ -220,11 +220,10 @@ execFileSync(${JSON.stringify(convozBin)}, ["reply", "--fyi", m[2], "answered"])
       expect(c[0]).toBe("-p");
       expect(flag("--permission-mode")).toBe("dontAsk");
       expect(flag("--max-budget-usd")).toBe("2.00");
-      expect(flag("--allowedTools").split(",")).toEqual(["Read(./**)", "Grep", "Glob", "Bash(convoz reply:*)", "Bash(convoz post:*)", "Bash(convoz read:*)", "Bash(convoz plan:*)", "Bash(convoz status:*)", "Bash(gh issue view:*)", "Bash(gh pr view:*)"]);
-      expect(flag("--disallowedTools").split(",")).toEqual(["Bash(convoz * --file*)", "Bash(convoz * --app*)"]);
+      expect(flag("--allowedTools").split(",")).toEqual(["Read", "Grep", "Glob", "Bash", "Edit", "Write", "WebFetch", "WebSearch", "Skill", "Agent"]);
 
-      // And the stub got no write tools
-      expect(flag("--allowedTools")).not.toMatch(/Edit|Write/);
+      // And the stub got no deny-list
+      expect(c).not.toContain("--disallowedTools");
     }
 
     // And the first call starts a session and the second resumes it

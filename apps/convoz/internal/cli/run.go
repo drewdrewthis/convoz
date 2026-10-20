@@ -40,7 +40,7 @@ func (l *stringList) Set(v string) error { *l = append(*l, v); return nil }
 //
 // With `-- cmd args` the command runs once per item: the item as JSON on stdin; CONVOZ_SID (the runner's session, so the command's
 // own convoz calls and acks are the runner's), CONVOZ_AS, CONVOZ_CONV, CONVOZ_THREAD, CONVOZ_MESSAGE and CONVOZ_ITEM in its
-// environment. Without it, each item is one `claude -p` run in --workdir with a read-only tool list (see readOnlyTools).
+// environment. Without it, each item is one `claude -p` run in --workdir with a normal agent's tools (see defaultTools).
 //
 // An item is acked only after its command exited 0. A failure keeps the item held, so it comes back to be tried again; before
 // the retry the runner checks whether the agent already answered in the item's thread (a command that replied and then failed
@@ -55,7 +55,7 @@ func Run(args []string, io IO) int {
 	f := newChatFlags("run", io)
 	workdir := f.fs.String("workdir", "", "the directory Claude mode runs in (default: here)")
 	var allow stringList
-	f.fs.Var(&allow, "allow", "a tool rule to add to the read-only list in Claude mode, e.g. 'Bash(gh run view:*)'; repeatable")
+	f.fs.Var(&allow, "allow", "a tool rule to add to the default list in Claude mode, e.g. 'Bash(gh run view:*)'; repeatable")
 	write := f.fs.Bool("write", false, "Claude mode may also edit and write files under the workdir")
 	budget := f.fs.String("budget", "2.00", "Claude mode: the most one item may spend, in dollars (a first turn alone costs about $0.40)")
 	freshAfter := f.fs.Int("fresh-after", 20, "Claude mode: start a new session, with a summary of the old one, after this many items")

@@ -52,15 +52,15 @@ Feature: One command serves an agent's inbox with a short-lived process per item
       When "convoz run --as devtool -- <script>" runs again on "box-2"
       Then it exits 1 with "already running (pid" and the first run keeps serving
 
-  Rule: Claude mode asks for as little as it needs
+  Rule: Claude mode gives the child a normal agent's tools
 
     @v1 @cli
-    Scenario: Claude mode builds a read-only claude command and keeps one session
+    Scenario: Claude mode builds a claude command with a normal agent's tools and keeps one session
       Given a stub "claude" command on PATH that records its argv and replies to the item
       And "convoz run --as devtool --fresh-after 2" runs
       When the owner posts three questions to "devtool" one after another
-      Then the stub was given the read-only allow-list, the deny-list for files and apps, a spend limit and the "dontAsk" mode every time
-      And the stub got no write tools
+      Then the stub was given a normal agent's tools, a spend limit and the "dontAsk" mode every time
+      And the stub got no deny-list
       And the first call starts a session and the second resumes it
       And the third call starts a new session whose prompt holds the summary of the first, and the summary is kept as a handoff note
 
