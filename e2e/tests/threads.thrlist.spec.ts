@@ -64,6 +64,13 @@ scenario("Thread replies count on the thread's row, not the conversation's", { t
   await expect(row.getByText("Unread: 2")).toBeVisible();
   await expect(convRow(page).getByText(/^Unread: /)).toHaveCount(0);
 
+  // When the owner folds the threads of conversation 41, its row counts the 2 hidden replies (owner, msg 2055)
+  await page.locator("#chats").getByRole("button", { name: "Fold threads of Ship search filters" }).click();
+  await expect(convRow(page).getByText("Unread: 2")).toBeVisible();
+  // And showing the threads again moves the count back to thread 900's row
+  await page.locator("#chats").getByRole("button", { name: "Show threads of Ship search filters" }).click();
+  await expect(convRow(page).getByText(/^Unread: /)).toHaveCount(0);
+
   // When the owner opens thread 900
   await row.click();
   await expect(threadLog(page).getByRole("article").filter({ hasText: "I will open the PR" })).toBeVisible();

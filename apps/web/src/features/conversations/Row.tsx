@@ -3,7 +3,7 @@ import type { Conversation } from "@convoz/api-client";
 import { memo, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { stripCf, whenLabel } from "../../shared/chat.ts";
 import { PlanIcon } from "../plan/index.ts";
-import { ThreadFold, ThreadRows } from "../threads/index.ts";
+import { ThreadFold, ThreadRows, rowUnread, useThreadFold } from "../threads/index.ts";
 import { GripIcon, startDrag, type Drop } from "../rail/index.ts";
 
 /** The Reorder mode of the list: handles on the rows of Starred and Conversations (Older rows keep still) until Done. */
@@ -27,7 +27,8 @@ export interface RowProps {
 /** Row is one conversation; a row whose data did not change keeps its node, so a selection in it survives an update. */
 export const Row = memo(function Row({ c, me, index, measure, style, grp, mode }: RowProps) {
   const moving = Boolean(mode?.on && grp);
-  const mainUnread = c.main_unread ?? c.unread;
+  const folded = useThreadFold((s) => s.folded.includes(c.id));
+  const mainUnread = rowUnread(c, folded);
   const unread = mainUnread > 0;
   const preview = c.last ? `${c.last.author_handle === me ? "You" : c.last.author_handle}: ${c.last.preview}` : "No messages yet";
   return (

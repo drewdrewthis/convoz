@@ -11,7 +11,7 @@ import { startDrag, type Drop } from "./drag.ts";
 import { Logo } from "./Logo.tsx";
 import { BackArrow, ChevronIcon, ComposeGlyph, CrewGlyph, InviteGlyph, ForwardArrow, GripIcon, PanelGlyph, NowGlyph, SearchGlyph, StarIcon } from "./icons.tsx";
 import { groups, isOlder, rowLabel, titleOf } from "./model.ts";
-import { ThreadFold, ThreadRows } from "../threads/index.ts";
+import { ThreadFold, ThreadRows, rowUnread, useThreadFold } from "../threads/index.ts";
 import { useFold } from "./fold.ts";
 import { moveRow, setStar, stepRow } from "./actions.ts";
 
@@ -74,19 +74,21 @@ export default function Sidebar() {
     },
     [fail],
   );
+  const foldedIds = useThreadFold((s) => s.folded);
+  const unreadOf = (c: Conversation) => rowUnread(c, foldedIds.includes(c.id));
   const star = (c: Conversation) =>
     setStar(c.id, !c.starred).then(() => toast(c.starred ? "Unstarred" : "Starred"), fail);
 
   const row = (c: Conversation, grp: "starred" | "mid" | "older") => (
     <Fragment key={c.id}>
     <div className="rrow group/rrow" data-rid={grp === "older" ? undefined : c.id} data-grp={grp} data-current={c.id === current ? "true" : undefined} onPointerDown={grp === "older" ? undefined : (e) => startDrag(e, drop)} onKeyDown={(e) => key(e, c)}>
-      <a className={`rgo${(c.main_unread ?? c.unread) > 0 ? " unread" : ""}${c.muted_until ? " muted" : ""}`} id={`rr-${c.id}`} href={`/chats/${c.id}`} aria-current={c.id === current ? "page" : undefined} aria-label={rowLabel(c)} draggable={false}>
+      <a className={`rgo${unreadOf(c) > 0 ? " unread" : ""}${c.muted_until ? " muted" : ""}`} id={`rr-${c.id}`} href={`/chats/${c.id}`} aria-current={c.id === current ? "page" : undefined} aria-label={rowLabel(c, unreadOf(c))} draggable={false}>
         <span className="rtitle">{titleOf(c)}</span>
         <PlanIcon id={c.id} />
-        {(c.main_unread ?? c.unread) > 0 ? (
+        {unreadOf(c) > 0 ? (
           <span className="rcnt">
             <span className="sr">Unread: </span>
-            {(c.main_unread ?? c.unread) > 99 ? "99+" : (c.main_unread ?? c.unread)}
+            {unreadOf(c) > 99 ? "99+" : unreadOf(c)}
           </span>
         ) : null}
       </a>

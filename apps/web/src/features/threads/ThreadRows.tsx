@@ -10,6 +10,10 @@ const isOldThread = (t: Thread): boolean => t.unread === 0;
 
 const listed = (c: Conversation): Thread[] => (c.threads ?? []).filter((t) => t.reply_count > 0);
 
+/** rowUnread is the count on a conversation row: its main chat, plus its threads while the owner has them folded away (msg 2055), so a hidden reply still counts. */
+export const rowUnread = (c: Conversation, folded: boolean): number =>
+  c.main_unread === undefined ? c.unread : c.main_unread + (folded ? listed(c).reduce((n, t) => n + t.unread, 0) : 0);
+
 const rootWords = (t: Thread): string => stripCf(t.preview) || `${t.author.handle}: ${t.last_reply?.preview ?? ""}`;
 
 /**
