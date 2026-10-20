@@ -8,17 +8,15 @@ import (
 	"testing"
 )
 
-func TestAllowedToolsReadOnlyByDefault(t *testing.T) {
+func TestAllowedToolsGiveANormalAgentsToolsByDefault(t *testing.T) {
 	got := allowedTools(nil, false)
-	for _, w := range []string{"Read(./**)", "Bash(convoz reply:*)", "Bash(gh pr view:*)"} {
+	for _, w := range []string{"Read", "Bash", "Edit", "Write", "Skill"} {
 		if !slices.Contains(got, w) {
-			t.Errorf("read-only list lacks %s: %v", w, got)
+			t.Errorf("default list lacks %s: %v", w, got)
 		}
 	}
-	for _, bad := range []string{"Edit(./**)", "Write(./**)", "Bash(git log:*)", "Bash"} {
-		if slices.Contains(got, bad) {
-			t.Errorf("read-only list holds %s", bad)
-		}
+	if len(denyTools) != 0 {
+		t.Errorf("nothing is denied by default: %v", denyTools)
 	}
 }
 
@@ -41,7 +39,7 @@ func TestAllowedToolsWriteAndExtraAddWithoutDuplicates(t *testing.T) {
 }
 
 func TestClaudeArgsPutThePromptBeforeTheVariadicFlags(t *testing.T) {
-	c := claudeCall{Allow: []string{"Read(./**)", "Grep"}, Deny: denyTools, Budget: "1.00", Session: "s-1", Prompt: "hello"}
+	c := claudeCall{Allow: []string{"Read(./**)", "Grep"}, Deny: []string{"Bash(convoz * --file*)", "Bash(convoz * --app*)"}, Budget: "1.00", Session: "s-1", Prompt: "hello"}
 	want := []string{"-p", "--permission-mode", "dontAsk", "--max-budget-usd", "1.00", "--session-id", "s-1", "hello",
 		"--allowedTools", "Read(./**),Grep", "--disallowedTools", "Bash(convoz * --file*),Bash(convoz * --app*)"}
 	if got := c.args(); !reflect.DeepEqual(got, want) {
@@ -113,7 +111,7 @@ func TestRunLockRefusesASecondRunnerAndNamesItsPid(t *testing.T) {
 
 func TestClaudePromptCarriesRulesAndSummaryOnlyWhenGiven(t *testing.T) {
 	p := claudePrompt("RULES-TEXT", "did X", "devtool", "7:tok conv 41 \"t\" mention x1 #9 @drew: hi")
-	for _, w := range []string{"RULES-TEXT", "Summary of earlier work: did X", "untrusted", itemMarker, "#9 @drew: hi"} {
+	for _, w := range []string{"RULES-TEXT", "Summary of earlier work: did X", "holds a Convoz key", itemMarker, "#9 @drew: hi"} {
 		if !strings.Contains(p, w) {
 			t.Errorf("prompt lacks %q", w)
 		}
