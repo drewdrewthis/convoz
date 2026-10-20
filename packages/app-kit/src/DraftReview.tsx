@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
+import { Button } from "@convoz/ui/Button";
 
 /* The review of a draft ask: the message that is answered, the draft in a box the owner edits, and Send or Don't send.
  * Send carries the text as it stands, so the agent posts exactly what the owner approved. */
@@ -30,21 +31,21 @@ export function DraftReview({ draft, busy, onSend, onDecline }: { draft: DraftDa
   }, [text]);
 
   return (
-    <div className="askdraft">
+    <div className="mt-6 flex flex-col gap-8">
       {draft.original ? (
-        <blockquote className="askorig">
-          {draft.original_from ? <p className="askorigfrom">{draft.original_from}</p> : null}
-          <p className="askorigtext">{shown(draft.original)}</p>
+        <blockquote className="m-0 max-h-[40vh] overflow-y-auto border-0 border-l-3 border-solid border-border px-12 py-6 text-14 leading-[20px] text-muted [overflow-wrap:anywhere]">
+          {draft.original_from ? <p className="m-0 text-12 font-semibold text-text">{draft.original_from}</p> : null}
+          <p className="m-0 whitespace-pre-wrap">{shown(draft.original)}</p>
         </blockquote>
       ) : null}
-      <div className="askdraftlabel">
+      <div className="flex items-center gap-8 text-12 font-bold tracking-[.04em] text-text uppercase">
         <span>Draft</span>
-        {edited ? <span className="askedited">Edited</span> : null}
+        {edited ? <span className="rounded-full bg-soft px-6 text-[11px] font-semibold tracking-[0] text-muted normal-case">Edited</span> : null}
       </div>
       {/* 16px text keeps a phone from zooming in on focus; the box scrolls into view above the keyboard. */}
       <textarea
         ref={box}
-        className="askdrafttext"
+        className="box-border max-h-[60vh] min-h-88 w-full resize-none overflow-y-auto rounded-[12px] border border-solid border-border bg-surface px-12 py-10 text-16 leading-[22px] text-text [font-family:inherit] [scroll-margin-block:80px] focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1"
         aria-label="Draft"
         value={text}
         maxLength={MAX_DRAFT}
@@ -55,13 +56,13 @@ export function DraftReview({ draft, busy, onSend, onDecline }: { draft: DraftDa
           setTimeout(() => el.scrollIntoView?.({ block: "center", behavior: "smooth" }), 300);
         }}
       />
-      <div className="askopts">
-        <button className="askopt rec" type="button" disabled={busy || !text.trim()} onClick={() => onSend(text.trim())}>
+      <div className="flex flex-col gap-8">
+        <Button size="option" variant="primary" disabled={busy || !text.trim()} onClick={() => onSend(text.trim())}>
           Send
-        </button>
-        <button className="askopt" type="button" disabled={busy} onClick={onDecline}>
+        </Button>
+        <Button size="option" variant="dashed" disabled={busy} onClick={onDecline}>
           Don't send
-        </button>
+        </Button>
       </div>
     </div>
   );

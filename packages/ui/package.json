@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./theme.css": "./src/theme.css",
+    "./cx": "./src/cx.ts",
     "./*": "./src/*.tsx"
   },
   "peerDependencies": {

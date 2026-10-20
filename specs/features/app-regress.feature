@@ -59,6 +59,28 @@ Feature: The app keeps its look while its code is reorganised
       Then it matches its frame in light and in dark
 
     @v1 @browser
+    Scenario: An empty Now and its open folds keep their look
+      Given an answered ask, a dismissed ask and a snoozed ask, and nothing else waits
+      When the owner opens Now, and then opens the three folds
+      Then the all-clear line with the chips matches its frame
+      And the open folds match theirs
+      And in the conversation the answered ask and the dismissed ask match theirs
+
+    @v1 @browser
+    Scenario: Ask cards with a draft, a quick reply and in a conversation keep their look
+      Given "devtool" asked a question and asked the owner to review a draft reply
+      When the owner opens Now, and then the quick reply of the question
+      Then the cards, and the quick reply with its text, match their frames
+      And in the conversation the asks, the options menu and the history match theirs
+
+    @v1 @browser
+    Scenario: Now with an add to decide and connect requests keeps its look
+      Given "devtool" asked to add "release-bot", a machine "box-9" waits with a code, and an agent asks to connect as "dev-ci"
+      When the owner opens Now, and then approves the agent
+      Then the cards match their frame
+      And the joined card matches its frame
+
+    @v1 @browser
     Scenario: Crew keeps its look
       Given every agent is idle
       When the owner opens Crew

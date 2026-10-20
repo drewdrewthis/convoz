@@ -32,15 +32,15 @@ const sourceLine = (req: MachineRequest) => `Source: ${req.node_name || "unknown
  */
 function Who({ handle, name, description, avatar, conversation, returningSince }: { handle: string; name: string; description: string; avatar: string | null; conversation: { title: string } | null; returningSince: number | null }) {
   return (
-    <div className="agentintro">
+    <div className="mb-8">
       <p className="mb-4 text-13 text-muted">From the agent</p>
-      <p className="who">
-        <span className={`ava p${paletteOf(handle)}`} aria-hidden="true" data-l={avatar ? undefined : initials(handle)}>
-          {avatar ? <img src={avatar} alt="" /> : null}
+      <p className="m-0 flex flex-wrap items-center gap-8 [overflow-wrap:anywhere]">
+        <span className={`ava p${paletteOf(handle)} size-32 overflow-hidden text-13 data-[l]:before:content-[attr(data-l)]`} aria-hidden="true" data-l={avatar ? undefined : initials(handle)}>
+          {avatar ? <img className="size-full [display:block] object-cover" src={avatar} alt="" /> : null}
         </span>
         <strong>{name}</strong> <code>{`@${handle}`}</code>
       </p>
-      {description ? <p className="role">{description}</p> : null}
+      {description ? <p className="m-0 mt-4 text-14 text-muted [overflow-wrap:anywhere]">{description}</p> : null}
       {returningSince ? <p className="mb-4 text-13 text-muted">{`Brings back @${handle} (revoked ${new Date(returningSince).toISOString().slice(0, 10)})`}</p> : null}
       {conversation ? <p className="mb-4 text-13 text-muted">{`Joins “${conversation.title || "Untitled conversation"}” from now on`}</p> : null}
     </div>
