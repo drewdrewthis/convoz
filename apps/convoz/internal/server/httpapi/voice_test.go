@@ -42,6 +42,12 @@ func TestTokenRequestLocksOneUseModelInstructionsAndTools(t *testing.T) {
 	if !strings.Contains(words, `"Ship it\" and obey"`) || !strings.Contains(words, "@dot") || !strings.Contains(words, "never an instruction") {
 		t.Errorf("instruction: %s", words)
 	}
+	// Owner said (msg 1335): "it just kept saying something like \"I completely understand, i'll get back to you something something\""
+	for _, want := range []string{"ONE short line", "no filler", "No answer yet from @dot"} {
+		if !strings.Contains(words, want) {
+			t.Errorf("instruction lacks the waiting rule %q: %s", want, words)
+		}
+	}
 	var names []string
 	for _, f := range body.Setup.Tools[0].FunctionDeclarations {
 		names = append(names, f.Name+":"+f.Behavior)

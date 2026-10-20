@@ -5628,6 +5628,8 @@ export interface operations {
                     via_app?: components["schemas"]["ViaAppRequest"];
                     /** @description The owner's voice call posts this (a lease answers 403 naming via_voice): readers see "via voice call". */
                     via_voice?: boolean;
+                    /** @description The owner's voice call posts its call log with this (needs via_voice; a lease or a post without via_voice answers 403 naming quiet): the message is stored and shown, but no agent gets a mention or an inbox item from it. Read it with convoz read. */
+                    quiet?: boolean;
                     /** @description Whether the post needs the owner. Required for agents from the next release; true is refused on a plain post (422 needs_you_is_an_ask, with the convoz ask command and the agent's text), because a message that needs the owner is an ask. This release an agent that leaves it out is accepted as false, with a Convoz-Warning header. The owner's value is ignored. */
                     needs_you?: boolean;
                 };

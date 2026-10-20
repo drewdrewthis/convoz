@@ -1,6 +1,6 @@
-import { agentSays } from "../lib/chat.ts";
+import { agentPost, agentSays, convoz, messagesOf, peekFor } from "../lib/chat.ts";
 import { messageLog } from "../lib/chat-ui.ts";
-import { callButton, callSheet, callStatus, callWorld, fakeMic, fakeModel, KEY, micStates, onACall, openConversation, OWNER_WORDS, ownerPosts, tokenRequests, trackMicrophone, transcription, voiceKey } from "../lib/call.ts";
+import { callButton, callLogs, callSheet, callStatus, callWorld, fakeMic, fakeModel, KEY, micStates, onACall, openConversation, OWNER_WORDS, ownerPosts, tokenRequests, trackMicrophone, transcription, voiceKey } from "../lib/call.ts";
 import { ownerPostWith, agentPostWith } from "../lib/messages-wp4.ts";
 import { must } from "../lib/owner.ts";
 import { expect, scenario, test } from "../lib/scenario.ts";
@@ -77,7 +77,7 @@ scenario("What the owner asks is posted to the agent, marked as a voice call", {
 
   // And the call says "Asked @dot"
   await expect(callStatus(page)).toHaveText("Asked @dot");
-  await expect.poll(() => model.responses().map((r) => r.response)).toEqual([{ posted: true }]);
+  await expect.poll(() => model.responses().map((r) => r.response)).toEqual([{ posted: true, next: expect.stringContaining("say nothing until the owner speaks") }]);
 });
 
 scenario("An agent's answer reaches the call", { tag: ["@browser"] }, async ({ server, page, context }) => {
@@ -94,6 +94,135 @@ scenario("An agent's answer reaches the call", { tag: ["@browser"] }, async ({ s
   // Then the call hears "AGENT REPLY from dot: Yes, deployed at 14:02."
   await expect.poll(() => model.turns()).toEqual(["AGENT REPLY from dot: Yes, deployed at 14:02."]);
   expect(model.sent.find((m) => m.clientContent).clientContent.turnComplete).toBe(true);
+});
+
+scenario("An agent's reply in the thread of the question reaches the call", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Background
+  const u = await callWorld({ server, page, context });
+  await voiceKey(u.w, KEY);
+
+  // Given the owner is on a call in conversation 41 and the call posted "@dot is the deploy done?"
+  const model = await onACall(page, u.w.srv, u.conv);
+  model.hear(OWNER_WORDS);
+  model.call("ask_agent", { handle: "dot", text: OWNER_WORDS });
+  await expect.poll(async () => (await ownerPosts(u.w, u.conv)).length).toBe(1);
+  const root = (await messagesOf(u.w.owner, u.conv)).find((m) => m.body === `@dot ${OWNER_WORDS}`)!.id;
+
+  // When "dot" answers "Yes, deployed at 14:02." in the thread of that message
+  must(await agentPost(u.w.srv, u.dot.lease, u.conv, "Yes, deployed at 14:02.", { thread_root_id: root }), "agent replies in the thread", 201);
+
+  // Then the call hears "AGENT REPLY from dot: Yes, deployed at 14:02." once
+  // Owner said (msg 1331): "it just kept saying the same thing. i hope there are logs for this"
+  await expect.poll(() => model.turns()).toEqual(["AGENT REPLY from dot: Yes, deployed at 14:02."]);
+  await expect(callStatus(page)).toHaveText("@dot answered");
+});
+
+scenario("The model does not repeat itself while it waits", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Background
+  const u = await callWorld({ server, page, context });
+  await voiceKey(u.w, KEY);
+
+  // Given the owner is on a call in conversation 41 and the model asked dot "is the deploy done?"
+  const model = await onACall(page, u.w.srv, u.conv);
+  model.hear(OWNER_WORDS);
+  model.call("ask_agent", { handle: "dot", text: OWNER_WORDS });
+  await expect.poll(() => model.responses()).toHaveLength(1);
+  expect(model.responses()[0].response.next).toContain("Sent to @dot, waiting");
+
+  // When the model says "Sent to dot, waiting" and then, with no new word from the owner, says two more things
+  // Owner said (msg 1335): "it just kept saying something like \"I completely understand, i'll get back to you something something\""
+  model.speak("Sent to dot, waiting");
+  model.speak("I completely understand, I will get back to you");
+  model.speak("Just a moment more");
+  // And the owner speaks, and the model answers
+  model.hear("any news?");
+  model.speak("Still waiting on dot");
+
+  // Then the first line and the answer to the owner are played, and the two repeats are muted
+  await callSheet(page).getByRole("button", { name: "Hang up" }).click();
+  await expect.poll(async () => (await callLogs(u.w, u.conv)).length).toBe(1);
+  const log = (await callLogs(u.w, u.conv))[0]!.body;
+  expect(log).toMatch(/model: Sent to dot, waiting\n/);
+  expect(log).toMatch(/model \(muted\): I completely understand, I will get back to you\n/);
+  expect(log).toMatch(/model \(muted\): Just a moment more\n/);
+  expect(log).toMatch(/model: Still waiting on dot\n/);
+});
+
+scenario("The call says once that no answer came in two minutes", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Background
+  const u = await callWorld({ server, page, context });
+  await voiceKey(u.w, KEY);
+  await page.clock.install();
+
+  // Given the owner is on a call in conversation 41 and the model asked dot "is the deploy done?"
+  const model = await onACall(page, u.w.srv, u.conv);
+  model.hear(OWNER_WORDS);
+  model.call("ask_agent", { handle: "dot", text: OWNER_WORDS });
+  await expect.poll(() => model.responses()).toHaveLength(1);
+
+  // When two minutes pass and "dot" has not answered
+  await page.clock.fastForward("01:55");
+  expect(model.turns()).toEqual([]);
+  await page.clock.fastForward("00:10");
+
+  // Then the call tells the model to say "No answer yet from @dot" once, and the call says it too
+  await expect.poll(() => model.turns()).toEqual([expect.stringContaining('Say once "No answer yet from @dot"')]);
+  await expect(callStatus(page)).toHaveText("No answer yet from @dot");
+  model.speak("No answer yet from dot");
+
+  // And five more minutes bring no second notice
+  await page.clock.fastForward("05:00");
+  expect(model.turns()).toHaveLength(1);
+
+  // And the call log has the line "waiting timeout" and the model's line is not muted
+  await callSheet(page).getByRole("button", { name: "Hang up" }).click();
+  await expect.poll(async () => (await callLogs(u.w, u.conv)).length).toBe(1);
+  const log = (await callLogs(u.w, u.conv))[0]!.body;
+  expect(log).toMatch(/waiting timeout: no answer from @dot/);
+  expect(log).toMatch(/model: No answer yet from dot\n/);
+});
+
+scenario("A finished call leaves its log in the conversation, closed, and agents can read it", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Background
+  const u = await callWorld({ server, page, context });
+  await voiceKey(u.w, KEY);
+
+  // Given the owner is on a call in conversation 41, the model asked dot "is the deploy done?" and dot answered in the thread
+  const model = await onACall(page, u.w.srv, u.conv);
+  model.hear(OWNER_WORDS);
+  model.call("ask_agent", { handle: "dot", text: OWNER_WORDS });
+  await expect.poll(async () => (await ownerPosts(u.w, u.conv)).length).toBe(1);
+  const root = (await messagesOf(u.w.owner, u.conv)).find((m) => m.body === `@dot ${OWNER_WORDS}`)!.id;
+  const answer = await agentPost(u.w.srv, u.dot.lease, u.conv, "Yes, deployed at 14:02.", { thread_root_id: root });
+  const answerId = must(answer, "agent replies in the thread", 201).json().id as number;
+  await expect.poll(() => model.turns()).toHaveLength(1);
+  model.speak("dot says: yes, deployed at 14:02");
+
+  // When the owner taps Hang up
+  await callSheet(page).getByRole("button", { name: "Hang up" }).click();
+
+  // Then conversation 41 shows one closed "Call log" row, which opens to the words and the events with times
+  const row = messageLog(page).locator("details.calllog");
+  await expect(row).toHaveCount(1);
+  await expect(row.locator("summary")).toContainText("Call log");
+  await expect(row.locator("pre")).toBeHidden();
+  await row.locator("summary").click();
+  await expect(row.locator("pre")).toContainText(`owner: ${OWNER_WORDS}`);
+  await expect(row.locator("pre")).toContainText(`answered [message ${answerId}]: Yes, deployed at 14:02.`);
+  await expect(row.locator("pre")).toContainText("ended: hung up by the owner");
+
+  // And "dot" reads the log with "convoz read 41"
+  const read = await convoz(u.w.box, u.dot.sid, ["read", String(u.conv)]);
+  expect(read.stdout).toContain("Call log");
+  expect(read.stdout).toMatch(new RegExp(`\\d\\d:\\d\\d:\\d\\d\\.\\d{3} sent to @dot \\[message ${root}\\]`));
+  expect(read.stdout).toContain("model: dot says: yes, deployed at 14:02");
+
+  // And the log woke nobody: dot has no inbox item for it
+  expect((await peekFor(u.w.box, u.dot.sid, u.conv)).filter((i) => i.message.body.includes("Call log"))).toEqual([]);
+
+  // And the log holds no audio and stays under 16 KB
+  const body = (await callLogs(u.w, u.conv))[0]!.body;
+  expect(body.length).toBeLessThan(16_000);
 });
 
 scenario("An instruction inside an agent's reply is refused", { tag: ["@browser"] }, async ({ server, page, context }) => {
@@ -347,4 +476,27 @@ scenario("The mark is stored with the message and shown to every reader", { tag:
 
   // And the same message without the mark shows none
   expect(read.find((m) => m.body === "@dot and typed")?.via_voice).toBeUndefined();
+});
+
+scenario("Only the owner's voice call posts a quiet message, and it wakes no agent", { tag: ["@api"] }, async ({ server }) => {
+  // Background
+  const u = await callWorld({ server });
+
+  // When "dot" posts a quiet message
+  const agent = await agentPostWith(u.w.srv, u.dot.lease, u.conv, { client_id: "quiet-agent-1", body: "hello", quiet: true });
+  // Then the server answers 403 naming "quiet"
+  expect(agent.status).toBe(403);
+  expect(agent.json().error.field).toBe("quiet");
+
+  // When the owner posts a quiet message that is not marked as sent by a voice call
+  const plain = await ownerPostWith(u.w.owner, u.conv, { client_id: "quiet-owner-1", body: "hello", quiet: true });
+  // Then the server answers 403 naming "quiet"
+  expect(plain.status).toBe(403);
+  expect(plain.json().error.field).toBe("quiet");
+
+  // When the owner's voice call posts a quiet message that mentions "@dot"
+  must(await ownerPostWith(u.w.owner, u.conv, { client_id: "quiet-owner-2", body: "Call log\n10:00:00.000 sent to @dot", via_voice: true, quiet: true }), "quiet post", 201);
+  // Then the message is stored and "dot" has no inbox item for it
+  expect((await ownerPosts(u.w, u.conv)).map((m) => m.body)).toEqual(["Call log\n10:00:00.000 sent to @dot"]);
+  expect(await peekFor(u.w.box, u.dot.sid, u.conv)).toEqual([]);
 });

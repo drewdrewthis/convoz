@@ -80,11 +80,16 @@ export interface FakeModel {
   hear(text: string): void;
   /** The model asks the page to run a tool. */
   call(name: string, args: Record<string, unknown>, id?: string): void;
+  /** The model speaks one turn: a piece of voice, its text transcription and the end of the turn. */
+  speak(text: string): void;
   /** The tool answers the page sent back. */
   responses(): any[];
   /** The text turns the page sent (what it passes to the model besides audio). */
   turns(): string[];
 }
+
+/** 20 ms of silence as the model's voice (24 kHz PCM16). */
+const SILENCE = Buffer.alloc(960).toString("base64");
 
 export async function fakeModel(page: Page): Promise<FakeModel> {
   const sent: any[] = [];
@@ -110,6 +115,7 @@ export async function fakeModel(page: Page): Promise<FakeModel> {
     sent,
     closed: () => closed,
     hear: (text) => say({ serverContent: { inputTranscription: { text } } }),
+    speak: (text) => say({ serverContent: { modelTurn: { parts: [{ inlineData: { mimeType: "audio/pcm;rate=24000", data: SILENCE } }] }, outputTranscription: { text }, turnComplete: true } }),
     call: (name, args, id = `call-${++n}`) => say({ toolCall: { functionCalls: [{ id, name, args }] } }),
     responses: () => sent.filter((m) => m.toolResponse).flatMap((m) => m.toolResponse.functionResponses),
     turns: () => sent.filter((m) => m.clientContent).flatMap((m) => m.clientContent.turns.flatMap((t: any) => t.parts.map((p: any) => p.text))),
@@ -139,4 +145,9 @@ export async function onACall(page: Page, srv: ServerHandle, conv: number): Prom
 export async function ownerPosts(w: World, conv: number): Promise<{ body: string; via_voice?: boolean }[]> {
   const res = must(await w.owner.client.get(`/api/conversations/${conv}/messages`), "read the conversation");
   return (res.json().messages as { author: { handle: string }; body: string; via_voice?: boolean }[]).filter((m) => m.author.handle === "drew");
+}
+
+/** The call logs in a conversation as the server holds them: the owner's messages marked "via voice call" that start with "Call log". */
+export async function callLogs(w: World, conv: number): Promise<{ body: string; via_voice?: boolean }[]> {
+  return (await ownerPosts(w, conv)).filter((m) => m.via_voice && m.body.startsWith("Call log"));
 }

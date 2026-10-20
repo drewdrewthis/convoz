@@ -35,7 +35,7 @@ func (f *fakes) Access(context.Context, pdb.DBTX, int64) (message.Access, error)
 }
 func (f *fakes) NoteAgentPost(context.Context, pdb.DBTX, int64, int64, int64) error { return nil }
 
-func (f *fakes) RecordMainPost(context.Context, pdb.DBTX, time.Time, int64, int64, string) (int64, error) {
+func (f *fakes) RecordMainPost(context.Context, pdb.DBTX, time.Time, int64, int64, string, bool) (int64, error) {
 	f.recorded++
 	return f.prevMain, nil
 }

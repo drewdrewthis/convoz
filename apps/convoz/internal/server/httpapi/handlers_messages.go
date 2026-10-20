@@ -56,6 +56,10 @@ func (s *Server) postMessage(w http.ResponseWriter, r *http.Request, c *call) {
 		writeFieldErr(w, http.StatusForbidden, "forbidden", "via_voice", "Only the owner's voice call sends a message by voice.")
 		return
 	}
+	if in.Quiet && (!in.ViaVoice || isAgent) {
+		writeFieldErr(w, http.StatusForbidden, "forbidden", "quiet", "Only the owner's voice call posts a quiet message.")
+		return
+	}
 	if isAgent && !needsYouAllowed(w, in) {
 		return
 	}
@@ -77,7 +81,7 @@ func (s *Server) postMessage(w http.ResponseWriter, r *http.Request, c *call) {
 	}
 	draft := message.Draft{
 		Conversation: convID, Author: who, Session: c.p.SessionID, Device: c.dev.ID, ClientID: in.ClientID, Body: in.Body, Format: in.Format,
-		ThreadRoot: in.ThreadRoot, Broadcast: in.Broadcast, App: app, UploadIDs: uploadIDs, ViaVoice: in.ViaVoice,
+		ThreadRoot: in.ThreadRoot, Broadcast: in.Broadcast, App: app, UploadIDs: uploadIDs, ViaVoice: in.ViaVoice, Quiet: in.Quiet,
 	}
 	if in.ViaApp != nil {
 		via, ok := s.viaApp(w, r, c, convID, *in.ViaApp)

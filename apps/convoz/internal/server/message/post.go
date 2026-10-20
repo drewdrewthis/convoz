@@ -32,7 +32,7 @@ type Conversations interface {
 	Access(ctx context.Context, d pdb.DBTX, conv int64) (Access, error)
 	// RecordMainPost moves the counters for a new main message, names a nameless conversation and returns the
 	// newest main message id from before this one.
-	RecordMainPost(ctx context.Context, d pdb.DBTX, now time.Time, conv, messageID int64, body string) (prevLastMain int64, err error)
+	RecordMainPost(ctx context.Context, d pdb.DBTX, now time.Time, conv, messageID int64, body string, quiet bool) (prevLastMain int64, err error)
 	// NoteAgentPost records the session of an agent that posted, for the inbox's session preference.
 	NoteAgentPost(ctx context.Context, d pdb.DBTX, conv, author, session int64) error
 	// AgentRecipients lists the enabled agent participants other than author: the identities that get an inbox item.
@@ -226,7 +226,7 @@ func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) 
 	inMain := draft.ThreadRoot == 0 || draft.Broadcast
 	var prevMain int64
 	if inMain {
-		if prevMain, err = p.Conversations.RecordMainPost(ctx, d, now, draft.Conversation, m.ID, m.Body); err != nil {
+		if prevMain, err = p.Conversations.RecordMainPost(ctx, d, now, draft.Conversation, m.ID, m.Body, draft.Quiet); err != nil {
 			return Posted{}, err
 		}
 	}
@@ -284,6 +284,9 @@ func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) 
 		return Posted{}, err
 	}
 	arrival := Arrival{Message: m, Mentioned: mentioned, SourceSeq: seq, HasUploads: len(draft.UploadIDs) > 0}
+	if draft.Quiet {
+		recipients = nil
+	}
 	for _, who := range recipients {
 		if who == asker {
 			continue // the asker gets one ask_resolved item for its answer, not a second item for the same message (I-43)
@@ -348,7 +351,7 @@ func bumpReplies(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, reply 
 // afterInsert runs the ports that follow a new message in the same transaction: mentions, the uploads it carries (before the
 // search index, which reads them), the search index, its link preview and its audit line. Any error rolls the whole post back.
 func afterInsert(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft, m Message) (mentioned []int64, err error) {
-	if p.Mentions != nil {
+	if p.Mentions != nil && !draft.Quiet {
 		if mentioned, err = p.Mentions.RecordMentions(ctx, d, now, m); err != nil {
 			return nil, err
 		}

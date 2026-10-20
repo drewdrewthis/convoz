@@ -6,7 +6,9 @@ import { data } from "../../shared/data.ts";
 import { Player, toBase64 } from "./audio.ts";
 import { release, type Gesture } from "./gesture.ts";
 import { OwnerIntent } from "./guard.ts";
+import { CallLog } from "./log.ts";
 import { runTool, type ToolDeps } from "./tools.ts";
+import { Waiting } from "./waiting.ts";
 import workletUrl from "./worklet.js?url&no-inline";
 
 export interface CallOptions {
@@ -25,6 +27,17 @@ export interface CallControl {
 
 /** The longest an agent's reply may be when it is passed to the model. */
 const MOST_REPLY = 4000;
+
+/** How long a question may wait for its agent before the call says so (once). */
+const NO_ANSWER_MS = 120_000;
+
+/** The thread of a message the call posted: how many replies the page has seen of it, and how far it passed them on. */
+interface AskedThread {
+  handle: string;
+  replies: number;
+  lastReply: number;
+  fetching: boolean;
+}
 
 const REFUSALS: Record<string, string> = { voice_off: "Calls are off.", rate_limited: "Too many calls this hour. Wait a little." };
 
@@ -48,6 +61,13 @@ class Call implements CallControl {
   private player: Player;
   private intent = new OwnerIntent();
   private seen = 0;
+  private readonly delivered = new Set<number>();
+  /** The messages this call posted, by id: the answer may come in the main chat or in their threads. */
+  private readonly asked = new Map<number, AskedThread>();
+  /** The agents the call still waits for, with the timer of the "no answer yet" line. */
+  private readonly awaiting = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly waiting = new Waiting();
+  private readonly log = new CallLog();
   private stop: (() => void)[] = [];
   private readonly hangUpOnLeave = () => this.close();
 
@@ -74,7 +94,7 @@ class Call implements CallControl {
         config: token.config as Parameters<typeof ai.live.connect>[0]["config"],
         callbacks: {
           onmessage: (m) => void this.onMessage(m, FunctionResponseScheduling.SILENT),
-          onerror: () => this.fail("The call dropped."),
+          onerror: () => this.fail("The call dropped.", true),
           onclose: () => this.fail("Call ended"),
         },
       });
@@ -82,7 +102,7 @@ class Call implements CallControl {
       await this.listen(stream);
       this.stop.push(data.store.subscribe(() => this.passOnReplies()));
     } catch (err) {
-      this.fail(err instanceof Error ? err.message : "The call could not start.");
+      this.fail(err instanceof Error ? err.message : "The call could not start.", true);
     }
   }
 
@@ -90,12 +110,16 @@ class Call implements CallControl {
     this.muted = on;
   }
 
-  close(): void {
+  close(reason = "hung up by the owner"): void {
     if (this.closed) return;
     this.closed = true;
     removeEventListener("pagehide", this.hangUpOnLeave);
     for (const f of this.stop) f();
     this.stop = [];
+    for (const t of this.awaiting.values()) clearTimeout(t);
+    this.awaiting.clear();
+    this.log.event(`ended: ${reason}`);
+    void saveCallLog(this.o.conversation, this.log);
     this.player.interrupt();
     try {
       this.session?.close();
@@ -106,9 +130,10 @@ class Call implements CallControl {
   }
 
   /** The other end closed the call, or it failed: free everything and tell the owner. */
-  private fail(status: string): void {
+  private fail(status: string, error = false): void {
     if (this.closed) return;
-    this.close();
+    if (error) this.log.event(`error: ${status}`);
+    this.close(status);
     this.o.over(status);
   }
 
@@ -137,12 +162,25 @@ class Call implements CallControl {
     if (this.closed) return;
     if (m.setupComplete) {
       this.ready = true;
+      this.log.event("connected");
       this.o.say("Live");
     }
     const content = m.serverContent;
-    if (content?.inputTranscription?.text) this.intent.heard();
+    if (content?.inputTranscription?.text) {
+      this.intent.heard();
+      this.waiting.end();
+      this.log.say("owner", content.inputTranscription.text);
+    }
     if (content?.interrupted) this.player.interrupt();
-    for (const part of content?.modelTurn?.parts ?? []) if (part.inlineData?.data) this.player.play(part.inlineData.data);
+    for (const part of content?.modelTurn?.parts ?? []) {
+      if (!part.inlineData?.data) continue;
+      if (this.waiting.allowsAudio()) this.player.play(part.inlineData.data);
+    }
+    if (content?.outputTranscription?.text) this.log.say(this.waiting.muting ? "model (muted)" : "model", content.outputTranscription.text);
+    if (content?.turnComplete) {
+      this.waiting.turnDone();
+      this.log.endTurn();
+    }
     if (m.goAway) this.o.say("The call is about to end.");
     for (const fc of m.toolCall?.functionCalls ?? []) {
       const { response, cue } = await runTool(this.tools(), fc.name ?? "", fc.args);
@@ -151,18 +189,76 @@ class Call implements CallControl {
     }
   }
 
-  /** New messages of the conversation that an agent wrote go to the model as quotes; after one, the owner must speak again to order anything. */
+  /**
+   * An agent's words go to the model as quotes, once each, in order: new messages of the main chat, and the replies in the threads of the
+   * messages this call posted (an agent may answer a question in its thread, as it did for the owner's call on 2026-10-20). After one,
+   * the owner must speak again to order anything.
+   */
   private passOnReplies(): void {
-    const list = data.store.getState().messages[this.o.conversation]?.list ?? [];
-    for (const m of list) {
-      if (m.id <= this.seen) continue;
-      this.seen = m.id;
-      const text = replyText(m);
-      if (!text || !this.session) continue;
-      this.intent.quoted();
-      this.session.sendClientContent({ turns: [{ role: "user", parts: [{ text: `AGENT REPLY from ${m.author.handle}: ${text}` }] }], turnComplete: true });
-      this.o.say(`@${m.author.handle} answered`);
+    const state = data.store.getState();
+    for (const m of state.messages[this.o.conversation]?.list ?? []) {
+      if (m.id > this.seen) {
+        this.seen = m.id;
+        this.deliver(m);
+      }
+      const thread = this.asked.get(m.id);
+      if (thread && (m.reply_count ?? 0) > thread.replies) void this.readThread(m.id, thread);
     }
+  }
+
+  /** Read the replies of a thread past the last one passed on, then look again if more came meanwhile. */
+  private async readThread(root: number, thread: AskedThread): Promise<void> {
+    if (thread.fetching) return;
+    thread.fetching = true;
+    try {
+      const count = data.store.getState().messages[this.o.conversation]?.list.find((m) => m.id === root)?.reply_count ?? 0;
+      const { messages } = await call(client.GET("/api/messages/{id}/replies", { params: { path: { id: root }, query: { after: thread.lastReply, limit: 100 } } }));
+      thread.replies = Math.max(thread.replies, count);
+      for (const m of messages) {
+        thread.lastReply = Math.max(thread.lastReply, m.id);
+        if (!this.closed) this.deliver(m);
+      }
+      thread.fetching = false;
+      if (!this.closed) this.passOnReplies(); // more may have come while this read ran
+    } catch {
+      thread.fetching = false; // the next change of the thread reads it again
+    }
+  }
+
+  private deliver(m: Message): void {
+    const text = replyText(m);
+    if (!text || !this.session || this.delivered.has(m.id)) return;
+    this.delivered.add(m.id);
+    this.intent.quoted();
+    this.waiting.end();
+    clearTimeout(this.awaiting.get(m.author.handle));
+    this.awaiting.delete(m.author.handle);
+    this.log.event(`@${m.author.handle} answered [message ${m.id}]: ${text}`);
+    this.session.sendClientContent({ turns: [{ role: "user", parts: [{ text: `AGENT REPLY from ${m.author.handle}: ${text}` }] }], turnComplete: true });
+    this.log.event(`read out @${m.author.handle} [message ${m.id}]`);
+    this.o.say(`@${m.author.handle} answered`);
+  }
+
+  /** The call posted a question: it listens to that message's thread, tells the model to wait quietly, and says so once if no answer comes. */
+  private asking(handle: string, id: number): void {
+    this.log.event(`sent to @${handle} [message ${id}]`);
+    this.asked.set(id, { handle, replies: 0, lastReply: 0, fetching: false });
+    this.waiting.begin();
+    clearTimeout(this.awaiting.get(handle));
+    this.awaiting.set(
+      handle,
+      setTimeout(() => this.noAnswer(handle), NO_ANSWER_MS),
+    );
+  }
+
+  /** Our own notice, not an agent's words: it asks the model for the one line and leaves the owner's right to order as it is. */
+  private noAnswer(handle: string): void {
+    this.awaiting.delete(handle);
+    if (this.closed || !this.session) return;
+    this.log.event(`waiting timeout: no answer from @${handle}`);
+    this.waiting.allowOneLine();
+    this.session.sendClientContent({ turns: [{ role: "user", parts: [{ text: `NOTICE from the call: @${handle} has not answered yet. Say once "No answer yet from @${handle}", then stay quiet and keep listening.` }] }], turnComplete: true });
+    this.o.say(`No answer yet from @${handle}`);
   }
 
   private tools(): ToolDeps {
@@ -171,7 +267,7 @@ class Call implements CallControl {
     return {
       intent: this.intent,
       agents: () => (state().rows[conversation]?.participants ?? []).filter((p) => p.kind === "agent").map((p) => p.handle),
-      post: (handle, text) => postAsOwner(conversation, `@${handle} ${text}`),
+      post: async (handle, text) => this.asking(handle, await postAsOwner(conversation, `@${handle} ${text}`)),
       recent: (n) => (state().messages[conversation]?.list ?? []).slice(-n).map((m) => ({ author: m.author.handle, text: (m.body ?? "").slice(0, 500) })),
       status: (handle) => ({ handle, online: Boolean(state().identities?.find((p) => p.handle === handle)?.online) }),
     };
@@ -185,8 +281,19 @@ function replyText(m: Message): string {
 }
 
 /** postAsOwner posts what the owner asked, marked "via voice call", and shows it at once. */
-async function postAsOwner(conversation: number, body: string): Promise<void> {
+async function postAsOwner(conversation: number, body: string): Promise<number> {
   const sent = await call(client.POST("/api/conversations/{id}/messages", { params: { path: { id: conversation } }, body: { client_id: newId(), body, via_voice: true } }));
   const me = data.store.getState().me!.identity;
   data.putMessages(conversation, [{ id: sent.id, author: { handle: me.handle, display_name: me.display_name, kind: "human" }, body, format: "markdown", created_at: sent.created_at, via_voice: true }]);
+  return sent.id;
+}
+
+/** The log of a finished call goes to the conversation as one quiet message (no agent is woken, the main list shows it collapsed). */
+async function saveCallLog(conversation: number, log: CallLog): Promise<void> {
+  if (log.empty) return;
+  try {
+    await client.POST("/api/conversations/{id}/messages", { params: { path: { id: conversation } }, body: { client_id: newId(), body: log.render(), format: "plain", via_voice: true, quiet: true }, keepalive: true });
+  } catch {
+    /* the call is over; a log that cannot be saved is lost, not shown as an error */
+  }
 }
