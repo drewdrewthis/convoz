@@ -127,6 +127,22 @@ func CheckText(t string) bool {
 	return n >= 1 && n <= MaxText && !strings.ContainsFunc(t, unicode.IsControl)
 }
 
+// Filler reports whether t says there is nothing, such as "Nothing" or "n/a": an agent that fills every field writes it, and shown
+// as "Waiting on you: Nothing" it raises an alarm for no reason. Such an item is dropped.
+func Filler(t string) bool {
+	switch strings.Trim(strings.ToLower(strings.TrimSpace(t)), ".!-—– ") {
+	case "", "nothing", "none", "n/a", "na", "nil", "null", "no", "nope", "nothing yet", "nothing waiting", "nothing for now",
+		"nothing right now", "nothing at the moment", "nothing blocking", "not blocked", "no blockers", "none yet", "tbd":
+		return true
+	}
+	return false
+}
+
+// withoutFiller returns list without its Filler items.
+func withoutFiller(list []string) []string {
+	return slices.DeleteFunc(slices.Clone(list), Filler)
+}
+
 // Check validates the lists of an input. field names what is wrong, as the API reports it.
 func Check(doing []string, blocked string, next, waiting, done []string) (field, why string, ok bool) {
 	switch {
@@ -215,7 +231,11 @@ func Replace(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int64, 
 	if in.ClientID != "" && old.ClientID == in.ClientID {
 		return old, Change{Repeat: true}, nil
 	}
-	b := Body{Blocked: in.Blocked, Next: slices.Clone(in.Next), ClientID: in.ClientID}
+	if Filler(in.Blocked) {
+		in.Blocked = ""
+	}
+	in.Next, in.Waiting = withoutFiller(in.Next), withoutFiller(in.Waiting)
+	b := Body{Blocked: in.Blocked, Next: in.Next, ClientID: in.ClientID}
 	var eta sql.NullInt64 // the column holds the earliest estimate
 	for _, it := range in.Now {
 		it.Since = at
@@ -291,6 +311,12 @@ func fromRows(rows []db.Plan) []Plan {
 func fromRow(r db.Plan) Plan {
 	p := Plan{Agent: r.AgentID, Conversation: r.ConversationID, UpdatedAt: r.UpdatedAt, Nudges: int(r.Nudges), NudgedAt: r.NudgedAt.Int64, NudgeAnchor: r.NudgeAnchor}
 	_ = json.Unmarshal([]byte(r.BodyJson), &p.Body) // the CHECK keeps it valid JSON; a field it lacks reads as empty
+	// Plans stored before Filler was dropped on write may still hold "Nothing".
+	p.Waiting = slices.DeleteFunc(p.Waiting, func(w Waiting) bool { return Filler(w.Text) })
+	p.Next = withoutFiller(p.Next)
+	if Filler(p.Blocked) {
+		p.Blocked = ""
+	}
 	if len(p.Now) == 0 {
 		// Plans written before parallel Now items hold one Doing, its step in the body and its estimate in the column.
 		var old struct {
