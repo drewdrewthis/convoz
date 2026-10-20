@@ -119,18 +119,18 @@
     responses:
       "200": { $ref: "../openapi.yaml#/components/responses/Empty" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
-/api/agents/{id}/read-all:
+/api/agents/{id}/triage:
   put:
-    x-authz: { auth: owner, step_up: identity.read_all }
-    operationId: setAgentReadAll
-    summary: The owner lets an agent read every conversation and thread, or takes the right back ("Can read all conversations" in Crew).
+    x-authz: { auth: owner, step_up: identity.triage }
+    operationId: setAgentTriage
+    summary: The owner makes an agent a triage agent, or takes the right back ("Triage agent" in Crew).
     description: |
-      Owner said (msg 784): "give an agent privileges to be able to monitor and review all conversations and threads without being added.
-      Not the inbox". Needs a fresh passkey check for `identity.read_all` on this agent. With the right the agent reads any conversation
-      that is not in the trash (conversations, messages, threads, edits, plans, asks, files, search) and posts a message or reply in it as
-      itself. It cannot add or remove anyone, rename, upload, write a plan, mark read, or answer, dismiss or snooze an ask, and it gets no
-      inbox item, mention or "Seen by" for a conversation it is not in. Off takes effect on the agent's next request. Nothing is posted in
-      any chat. An agent that is not there or is disabled is 404.
+      Owner said (msg 1217): "Triage agents, yeah, they can read all of it. They can message. They don't have to be in the conversation."
+      Needs a fresh passkey check for `identity.triage` on this agent. A triage agent reads any conversation that is not in the trash
+      (conversations, messages, threads, edits, plans, asks, files, search), posts a message or reply in it as itself, and adds or removes
+      agents in it, itself included, without approval. It cannot rename, upload, write a plan, mark read, answer, dismiss or snooze an ask,
+      or remove the owner or a person, and it gets no inbox item, mention or "Seen by" for a conversation it is not in. Off takes effect on
+      the agent's next request. Nothing is posted in any chat. An agent that is not there or is disabled is 404.
     parameters:
       - $ref: "../openapi.yaml#/components/parameters/Id"
       - $ref: "../openapi.yaml#/components/parameters/StepUp"
@@ -151,16 +151,16 @@
           application/json:
             schema:
               type: object
-              required: [read_all]
+              required: [triage]
               properties:
-                read_all: { type: boolean }
+                triage: { type: boolean }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/waiting:
   get:
     x-authz: { auth: lease }
     security: [{ leaseBearer: [] }]
     operationId: getWaiting
-    summary: What waits on the owner in every conversation (`convoz waiting`). Only an agent with the read-all right; any other caller is 403.
+    summary: What waits on the owner in every conversation (`convoz waiting`). Only a triage agent; any other caller is 403.
     responses:
       "200":
         description: Open asks, owner messages unanswered for 10 minutes, waiting plan items and the owner's unread counts.

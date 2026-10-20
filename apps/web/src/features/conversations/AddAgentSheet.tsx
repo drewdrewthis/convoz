@@ -4,6 +4,7 @@ import { humanError } from "../../shared/api.ts";
 import { initials, paletteOf } from "../../shared/chat.ts";
 import { data, useData } from "../../shared/data.ts";
 import { CancelButton } from "../../shared/sheets.tsx";
+import { TriageBadge } from "../../shared/TriageBadge.tsx";
 import { Button } from "@convoz/ui/Button";
 
 export interface AddAgentProps {
@@ -38,6 +39,7 @@ export function AddAgentSheet({ id, done, onAdd, onInvite }: AddAgentProps) {
                 <span className="handle">@{p.handle}</span>
                 <span className="name">{p.display_name}</span>
               </span>
+              <TriageBadge handle={p.handle} />
             </button>
           </li>
         ))}

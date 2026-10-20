@@ -11,7 +11,7 @@ import (
 
 // Waiting runs `convoz waiting [--json]`: across every conversation the owner let this agent read, the open asks, the owner's messages
 // nobody answered for 10 minutes, the plan items that wait on the owner and the owner's unread counts, so the agent can triage what
-// needs the owner. The server refuses an agent without the read-all right.
+// needs the owner. The server refuses an agent without the triage right.
 func Waiting(args []string, io IO) int {
 	f := newChatFlags("waiting", io)
 	pos, ok := f.parse(args, io)

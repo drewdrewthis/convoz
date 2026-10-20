@@ -4,6 +4,7 @@ import type { Conversation, Person, Plan, PlanAgent, PlanBoard } from "@convoz/a
 import { ChevronIcon } from "@convoz/ui/icons";
 import { useEffect, useRef, useState } from "react";
 import { initials, paletteOf, stripCf } from "../../shared/chat.ts";
+import { TriageBadge } from "../../shared/TriageBadge.tsx";
 import { AskInline, useNow } from "../now/index.ts";
 import { ago, clock, dayLabel, span, usePlans, when, type Tone } from "../plan/index.ts";
 
@@ -89,7 +90,7 @@ export function WaitingSection({ row, board, act, decide }: { row: Conversation;
           <p className="pmeta">
             <Ava handle={add.person.handle} />
             <b>{who(add.person)}</b>
-            {add.requested_by ? ` · asked by @${add.requested_by.handle}` : " · wants to join"}
+            {add.requested_by && add.requested_by.handle !== add.person.handle ? ` · asked by @${add.requested_by.handle}` : " · wants to join"}
           </p>
           <div className="pacts">
             <button type="button" className="chipbtn go" aria-label={`Approve @${add.person.handle}`} onClick={() => decide(add.person.id!, true)}>
@@ -166,7 +167,10 @@ function AgentCard({ person, plan, agent, conv, act, onRemove }: { person: Perso
       <div className="aghead">
         <Ava handle={h} />
         <span className="pname">
-          <b>{`@${h}`}</b>
+          <span className="flex items-center gap-6">
+            <b>{`@${h}`}</b>
+            <TriageBadge handle={h} />
+          </span>
           <span className="psub">
             {st ? (
               <span className="pstate" data-tone={st.tone}>

@@ -69,6 +69,7 @@ type ProjectSystem struct {
 	T        string
 	Identity Person
 	By       Person
+	Via      string // "triage": a triage agent added or removed, and the line names it
 	History  string
 	Streak   int
 	Title    string // conversation.renamed: the title the line quotes
@@ -152,17 +153,30 @@ func allKind(list []Upload, kind string) bool {
 func systemText(s ProjectSystem) string {
 	switch s.T {
 	case "member.added":
-		if s.History == "full" {
-			return "Added " + s.Identity.Ref() + " · full history"
+		added := "Added " + s.Identity.Ref()
+		if s.Via == "triage" {
+			added = s.By.Ref() + " added " + s.Identity.Ref()
+			if s.By == s.Identity {
+				added = s.By.Ref() + " joined"
+			}
 		}
-		return "Added " + s.Identity.Ref()
+		if s.History == "full" {
+			return added + " · full history"
+		}
+		return added
 	case "member.requested":
+		if s.By == s.Identity {
+			return s.By.Ref() + " wants to join"
+		}
 		return s.By.Ref() + " wants to add " + s.Identity.Ref()
 	case "member.approved":
 		return "Approved · " + s.Identity.Ref() + " added"
 	case "member.declined":
 		return "Declined · " + s.Identity.Ref() + " not added"
 	case "member.removed":
+		if s.Via == "triage" {
+			return s.By.Ref() + " removed " + s.Identity.Ref()
+		}
 		return s.Identity.Ref() + " was removed"
 	case "member.left":
 		return s.Identity.Ref() + " left"

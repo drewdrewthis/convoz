@@ -18,9 +18,9 @@ import (
 // participantPort answers authz's question "is this identity in that conversation?" from the conversation module.
 type participantPort struct{ d pdb.DBTX }
 
-// ReadsAll answers authz.ReadAllReader: the agent holds the right and the conversation is not in the trash.
-func (p participantPort) ReadsAll(ctx context.Context, conversationID, identityID int64) (bool, error) {
-	granted, err := identity.ReadsAll(ctx, p.d, identityID)
+// IsTriage answers authz.TriageReader: the agent holds the right and the conversation is not in the trash.
+func (p participantPort) IsTriage(ctx context.Context, conversationID, identityID int64) (bool, error) {
+	granted, err := identity.IsTriage(ctx, p.d, identityID)
 	if err != nil || !granted {
 		return false, err
 	}
@@ -38,17 +38,22 @@ func canSee(ctx context.Context, d pdb.DBTX, p authz.Principal, conversationID i
 	return authz.CanSee(ctx, participantPort{d}, p, conversationID)
 }
 
-// canRead is authz.CanRead over d: canSee plus the read-all right. Use it only on read paths (and posting); a change stays canSee.
+// canRead is authz.CanRead over d: canSee plus the triage right. Use it only on read paths (and posting); a change stays canSee.
 func canRead(ctx context.Context, d pdb.DBTX, p authz.Principal, conversationID int64) (floor int64, ok bool, err error) {
 	return authz.CanRead(ctx, participantPort{d}, p, conversationID)
 }
 
-// readsAll says whether the caller is an agent holding the read-all right.
-func readsAll(ctx context.Context, d pdb.DBTX, p authz.Principal) (bool, error) {
+// canManage is authz.CanManageAgents over d: the one gate of adding and removing agents, open to a triage agent in any live conversation.
+func canManage(ctx context.Context, d pdb.DBTX, p authz.Principal, conversationID int64) (bool, error) {
+	return authz.CanManageAgents(ctx, participantPort{d}, p, conversationID)
+}
+
+// isTriage says whether the caller is an agent holding the triage right.
+func isTriage(ctx context.Context, d pdb.DBTX, p authz.Principal) (bool, error) {
 	if p.SessionID == 0 {
 		return false, nil
 	}
-	return identity.ReadsAll(ctx, d, p.IdentityID)
+	return identity.IsTriage(ctx, d, p.IdentityID)
 }
 
 // directory maps identity ids to their entries, for turning ids into handles and names.

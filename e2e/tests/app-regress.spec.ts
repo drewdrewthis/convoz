@@ -8,6 +8,7 @@ import { bootstrapOwner, must } from "../lib/owner.ts";
 import { AGENTS, LIVE, NOT_IDLE, ONLINE_IDLE, reportStatuses, seedOpenAsks, seedPrototype, starAndMute } from "../lib/prototype-seed.ts";
 import { FROZEN_AT, frozenWorld, matchesItself } from "../lib/regress.ts";
 import { expect, scenario, test } from "../lib/scenario.ts";
+import { agentJoins } from "../lib/triage.ts";
 import { asAgent } from "../lib/wp3.ts";
 
 /*
@@ -272,6 +273,22 @@ scenario("Now with an add to decide and connect requests keeps its look", { tag:
   await page.getByRole("article", { name: "box-2 wants to connect as @dev-ci", exact: true }).getByRole("button", { name: "Approve", exact: true }).click();
   await expect(page.getByRole("article", { name: "@dev-ci joined", exact: true })).toBeVisible();
   await matchesItself(page, info, "now-joined");
+});
+
+scenario("Now with a join request keeps its look", { tag: ["@browser"] }, async ({ server, page, context, testApi }, info) => {
+  info.setTimeout(240_000);
+  // Background: "lane-search" asked to join "Ship search filters", which it is not in
+  const u = await world({ server, page, context, testApi });
+  const conv = await createConversation(u.w.owner, { title: "Ship search filters", participants: ["devtool"] });
+  must(await agentJoins(u.w.srv, u.sessions["lane-search"]!.lease, conv), "ask to join", 201);
+  must(await u.w.owner.client.post(`/api/conversations/${conv}/read`, { main_id: 0, all: true }), "read it all");
+
+  // When the owner opens Now
+  await page.goto(`${u.w.srv.origin}/`);
+  await expect(page.getByRole("article", { name: /wants to join/ })).toBeVisible();
+
+  // Then the join request card matches its frame
+  await matchesItself(page, info, "now-join-request");
 });
 
 scenario("Crew keeps its look", { tag: ["@browser"] }, async ({ server, page, context, testApi }, info) => {

@@ -326,6 +326,9 @@ func (p pushSource) Facts(ctx context.Context, d pdb.DBTX, n notify.Notification
 		}
 		added, err := refOf(ctx, d, bodyOf(ev).IdentityID, p.s.Clock.Now())
 		f.Text = "wants to add " + added + " to " + titleOr(title)
+		if bodyOf(ev).IdentityID == ev.Actor { // an agent asking for its own seat
+			f.Text = "wants to join " + titleOr(title)
+		}
 		return f, err
 	case notify.ReasonPlanWaiting:
 		return p.planWaitingFacts(ctx, d, n, f)

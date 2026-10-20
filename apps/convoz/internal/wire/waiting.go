@@ -3,7 +3,7 @@ package wire
 // RouteWaiting is GET /api/waiting: what waits on the owner, for an agent the owner let read every conversation.
 const RouteWaiting = "/api/waiting"
 
-// WaitingResponse is GET /api/waiting: what waits on the owner across every conversation a read-all agent can read, for triage.
+// WaitingResponse is GET /api/waiting: what waits on the owner across every conversation a triage agent can read, for triage.
 type WaitingResponse struct {
 	Now        int64               `json:"now"`
 	Asks       []WaitingAsk        `json:"asks"`

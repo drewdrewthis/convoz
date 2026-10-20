@@ -752,7 +752,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/agents/{id}/read-all": {
+    "/api/agents/{id}/triage": {
         parameters: {
             query?: never;
             header?: never;
@@ -761,15 +761,15 @@ export interface paths {
         };
         get?: never;
         /**
-         * The owner lets an agent read every conversation and thread, or takes the right back ("Can read all conversations" in Crew).
-         * @description Owner said (msg 784): "give an agent privileges to be able to monitor and review all conversations and threads without being added.
-         *     Not the inbox". Needs a fresh passkey check for `identity.read_all` on this agent. With the right the agent reads any conversation
-         *     that is not in the trash (conversations, messages, threads, edits, plans, asks, files, search) and posts a message or reply in it as
-         *     itself. It cannot add or remove anyone, rename, upload, write a plan, mark read, or answer, dismiss or snooze an ask, and it gets no
-         *     inbox item, mention or "Seen by" for a conversation it is not in. Off takes effect on the agent's next request. Nothing is posted in
-         *     any chat. An agent that is not there or is disabled is 404.
+         * The owner makes an agent a triage agent, or takes the right back ("Triage agent" in Crew).
+         * @description Owner said (msg 1217): "Triage agents, yeah, they can read all of it. They can message. They don't have to be in the conversation."
+         *     Needs a fresh passkey check for `identity.triage` on this agent. A triage agent reads any conversation that is not in the trash
+         *     (conversations, messages, threads, edits, plans, asks, files, search), posts a message or reply in it as itself, and adds or removes
+         *     agents in it, itself included, without approval. It cannot rename, upload, write a plan, mark read, answer, dismiss or snooze an ask,
+         *     or remove the owner or a person, and it gets no inbox item, mention or "Seen by" for a conversation it is not in. Off takes effect on
+         *     the agent's next request. Nothing is posted in any chat. An agent that is not there or is disabled is 404.
          */
-        put: operations["setAgentReadAll"];
+        put: operations["setAgentTriage"];
         post?: never;
         delete?: never;
         options?: never;
@@ -784,7 +784,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** What waits on the owner in every conversation (`convoz waiting`). Only an agent with the read-all right; any other caller is 403. */
+        /** What waits on the owner in every conversation (`convoz waiting`). Only a triage agent; any other caller is 403. */
         get: operations["getWaiting"];
         put?: never;
         post?: never;
@@ -1023,6 +1023,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/conversations/{id}/join-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * An agent asks for a seat in a conversation it is not in (`convoz join`). The owner approves or denies it in Now; a triage agent just joins.
+         * @description A pending add where the agent is also the requester (I-17). Asking again while it waits changes nothing. The answer never carries the
+         *     conversation's title. A conversation that does not exist is 404.
+         */
+        post: operations["requestJoin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/conversations/{id}/participants": {
         parameters: {
             query?: never;
@@ -1032,7 +1053,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Add an agent at once and say what history it sees. An agent can only ask; its request waits for a person. */
+        /** Add an agent at once and say what history it sees. An agent can only ask and its request waits for a person; a triage agent adds at once, in any conversation, itself included. */
         post: operations["addParticipant"];
         delete?: never;
         options?: never;
@@ -1050,7 +1071,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Take an agent out. It gets one notice, and nothing more from the conversation. */
+        /** Take an agent out. It gets one notice, and nothing more from the conversation. A person does it, or a triage agent in any conversation; any other agent is 403. */
         delete: operations["removeParticipant"];
         options?: never;
         head?: never;
@@ -2122,7 +2143,7 @@ export interface components {
         /** @description Made once per command and reused on a retry, so a retry never makes a second one. */
         ClientId: string;
         /** @enum {string} */
-        StepUpAction: "passkey.add" | "passkey.remove" | "recovery.regenerate" | "machine.reveal" | "machine.regenerate" | "machine.revoke" | "machine.allow" | "identity.create" | "identity.read_all" | "data.export" | "data.delete" | "message.purge" | "signout.all";
+        StepUpAction: "passkey.add" | "passkey.remove" | "recovery.regenerate" | "machine.reveal" | "machine.regenerate" | "machine.revoke" | "machine.allow" | "identity.create" | "identity.triage" | "data.export" | "data.delete" | "message.purge" | "signout.all";
         Owner: {
             /** Format: int64 */
             id: number;
@@ -2187,15 +2208,15 @@ export interface components {
              * @description Agents only: when the handle last changed.
              */
             handle_changed_at?: number;
-            /** @description Agents only, absent when off: the owner let this agent read every conversation and thread and post in them as itself. */
-            read_all?: boolean;
+            /** @description Agents only, absent when off: a triage agent reads every conversation and thread, posts in them as itself and adds or removes agents in any chat. */
+            triage?: boolean;
             created_by?: {
                 /** @enum {string} */
                 kind: "human" | "machine";
                 name: string;
             };
         };
-        /** @description What waits on the owner across every conversation a read-all agent can read. */
+        /** @description What waits on the owner across every conversation a triage agent can read. */
         WaitingResponse: {
             /** Format: int64 */
             now: number;
@@ -4863,7 +4884,7 @@ export interface operations {
             default: components["responses"]["Error"];
         };
     };
-    setAgentReadAll: {
+    setAgentTriage: {
         parameters: {
             query?: never;
             header: {
@@ -4890,7 +4911,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        read_all: boolean;
+                        triage: boolean;
                     };
                 };
             };
@@ -5293,6 +5314,55 @@ export interface operations {
         };
         responses: {
             200: components["responses"]["OneConversation"];
+            default: components["responses"]["Error"];
+        };
+    };
+    requestJoin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: components["requestBodies"]["Empty"];
+        responses: {
+            /** @description The agent and where it stands (active, or pending a person). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        participant: {
+                            /** Format: int64 */
+                            identity_id: number;
+                            handle: string;
+                            /** @enum {string} */
+                            status: "active" | "pending";
+                        };
+                    };
+                };
+            };
+            /** @description The agent and where it stands (active, or pending a person). */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        participant: {
+                            /** Format: int64 */
+                            identity_id: number;
+                            handle: string;
+                            /** @enum {string} */
+                            status: "active" | "pending";
+                        };
+                    };
+                };
+            };
+            429: components["responses"]["Error"];
             default: components["responses"]["Error"];
         };
     };

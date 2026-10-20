@@ -86,6 +86,13 @@ Feature: The app keeps its look while its code is reorganised
       Then the cards match their frame
       And the joined card matches its frame
 
+    # Owner said (msg 1217): "agents should be able to request to join for themselves."
+    @v1 @browser
+    Scenario: Now with a join request keeps its look
+      Given "lane-search" asked to join "Ship search filters"
+      When the owner opens Now
+      Then the join request card matches its frame
+
     @v1 @browser
     Scenario: Crew keeps its look
       Given every agent is idle

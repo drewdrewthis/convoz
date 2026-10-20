@@ -84,6 +84,81 @@
   "long": "@devtool wants to add @docs"
  },
  {
+  "name": "system: join requested",
+  "message": {
+   "system": {
+    "t": "member.requested",
+    "identity": {
+     "handle": "docs",
+     "name": "Docs"
+    },
+    "by": {
+     "handle": "docs",
+     "name": "Docs"
+    }
+   }
+  },
+  "short": "@docs wants to join",
+  "long": "@docs wants to join"
+ },
+ {
+  "name": "system: added by triage",
+  "message": {
+   "system": {
+    "t": "member.added",
+    "identity": {
+     "handle": "docs",
+     "name": "Docs"
+    },
+    "by": {
+     "handle": "triage",
+     "name": "Triage"
+    },
+    "via": "triage"
+   }
+  },
+  "short": "@triage added @docs",
+  "long": "@triage added @docs"
+ },
+ {
+  "name": "system: removed by triage",
+  "message": {
+   "system": {
+    "t": "member.removed",
+    "identity": {
+     "handle": "docs",
+     "name": "Docs"
+    },
+    "by": {
+     "handle": "triage",
+     "name": "Triage"
+    },
+    "via": "triage"
+   }
+  },
+  "short": "@triage removed @docs",
+  "long": "@triage removed @docs"
+ },
+ {
+  "name": "system: triage joined",
+  "message": {
+   "system": {
+    "t": "member.added",
+    "identity": {
+     "handle": "triage",
+     "name": "Triage"
+    },
+    "by": {
+     "handle": "triage",
+     "name": "Triage"
+    },
+    "via": "triage"
+   }
+  },
+  "short": "@triage joined",
+  "long": "@triage joined"
+ },
+ {
   "name": "system: approved",
   "message": {
    "system": {

@@ -72,7 +72,7 @@ func (s *Server) markRead(w http.ResponseWriter, r *http.Request, c *call) {
 	case err != nil:
 		s.internalError(w, r, err)
 	case !visible:
-		// `convoz read` moves the cursor after every read. A read-all agent has no seat, so no cursor: the move is a quiet success.
+		// `convoz read` moves the cursor after every read. A triage agent has no seat, so no cursor: the move is a quiet success.
 		if _, reads, err := canRead(r.Context(), s.reader(), c.p, id); err == nil && reads {
 			writeJSON(w, http.StatusOK, map[string]any{})
 			return

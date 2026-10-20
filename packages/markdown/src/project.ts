@@ -21,6 +21,7 @@ export interface Projectable {
     t: string;
     identity: Person;
     by: Person;
+    via?: string;
     history?: string;
     streak?: number;
     title?: string;
@@ -53,15 +54,19 @@ const ref = (p: Person) => (p.name === "" || p.name.toLowerCase() === p.handle.t
 function systemText(s: NonNullable<Projectable["system"]>): string {
   switch (s.t) {
     case "member.added":
-      return s.history === "full" ? `Added ${ref(s.identity)} · full history` : `Added ${ref(s.identity)}`;
+    {
+      let added = `Added ${ref(s.identity)}`;
+      if (s.via === "triage") added = s.by.handle === s.identity.handle ? `${ref(s.by)} joined` : `${ref(s.by)} added ${ref(s.identity)}`;
+      return s.history === "full" ? `${added} · full history` : added;
+    }
     case "member.requested":
-      return `${ref(s.by)} wants to add ${ref(s.identity)}`;
+      return s.by.handle === s.identity.handle ? `${ref(s.by)} wants to join` : `${ref(s.by)} wants to add ${ref(s.identity)}`;
     case "member.approved":
       return `Approved · ${ref(s.identity)} added`;
     case "member.declined":
       return `Declined · ${ref(s.identity)} not added`;
     case "member.removed":
-      return `${ref(s.identity)} was removed`;
+      return s.via === "triage" ? `${ref(s.by)} removed ${ref(s.identity)}` : `${ref(s.identity)} was removed`;
     case "member.left":
       return `${ref(s.identity)} left`;
     case "member.disabled":

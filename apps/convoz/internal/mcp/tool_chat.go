@@ -157,7 +157,7 @@ func init() {
 			return runnerOf(ctx).run("search", "", append(argv, "--", a.Query)...)
 		}})
 
-	Register(Tool{Name: "waiting", Order: 22, Description: "List what waits on the owner in every conversation: open asks, unanswered owner messages, waiting plan items and the owner's unread counts. Needs the read-all right.",
+	Register(Tool{Name: "waiting", Order: 22, Description: "List what waits on the owner in every conversation: open asks, unanswered owner messages, waiting plan items and the owner's unread counts. Needs a triage agent.",
 		InputSchema: object(nil, props{}),
 		Call: func(ctx context.Context, _ json.RawMessage) (any, error) {
 			return runnerOf(ctx).run("waiting", "")

@@ -21,7 +21,7 @@ import (
 )
 
 // listConversations is GET /api/conversations: latest activity first. The owner sees every conversation, an agent
-// only those it takes part in, unless the owner let it read all (migration 0038). ?deleted=1 lists the trash instead (the owner only).
+// only those it takes part in, unless it is a triage agent (migrations 0038, 0040). ?deleted=1 lists the trash instead (the owner only).
 func (s *Server) listConversations(w http.ResponseWriter, r *http.Request, c *call) {
 	ctx, d := r.Context(), s.reader()
 	trash := r.URL.Query().Get("deleted") == "1"
@@ -38,7 +38,7 @@ func (s *Server) listConversations(w http.ResponseWriter, r *http.Request, c *ca
 	var list []conversation.Conversation
 	all := c.p.Role == "owner"
 	if !all && !trash {
-		all, err = readsAll(ctx, d, c.p) // an agent the owner let read everything lists everything
+		all, err = isTriage(ctx, d, c.p) // an agent the owner let read everything lists everything
 	}
 	switch {
 	case err != nil:

@@ -52,7 +52,7 @@ Identity:
     online: { type: boolean, description: Agents only. True while the agent has a live session. }
     previous_handles: { type: array, items: { type: string }, description: "Agents only: the handles it had before, newest first. A mention of one still names this agent (I-51)." }
     handle_changed_at: { type: integer, format: int64, description: "Agents only: when the handle last changed." }
-    read_all: { type: boolean, description: "Agents only, absent when off: the owner let this agent read every conversation and thread and post in them as itself." }
+    triage: { type: boolean, description: "Agents only, absent when off: a triage agent reads every conversation and thread, posts in them as itself and adds or removes agents in any chat." }
     created_by:
       type: object
       required: [kind, name]
@@ -129,7 +129,7 @@ Renamed:
 WaitingResponse:
   type: object
   required: [now, asks, unanswered, plans, unread]
-  description: What waits on the owner across every conversation a read-all agent can read.
+  description: What waits on the owner across every conversation a triage agent can read.
   properties:
     now: { type: integer, format: int64 }
     asks: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/WaitingAsk" }, description: Open asks, snoozed ones included. }
