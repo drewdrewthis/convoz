@@ -37,7 +37,8 @@ func pathIID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 }
 
 // addParticipant is POST /api/conversations/:id/participants. A person adds an agent at once and says what history it
-// sees; an agent can only ask, and the add waits for a human (I-17, I-18).
+// sees; an agent can only ask, and the add waits for a human (I-17, I-18). A triage agent adds at once, in any conversation, itself
+// included (owner, msg 1217).
 func (s *Server) addParticipant(w http.ResponseWriter, r *http.Request, c *call) {
 	convID, ok := pathID(w, r)
 	if !ok {
@@ -63,14 +64,16 @@ func (s *Server) addParticipant(w http.ResponseWriter, r *http.Request, c *call)
 		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "identity_id", "Name the agent by identity_id or handle.")
 		return
 	}
-	asAgent, now := c.p.SessionID != 0, s.Clock.Now()
+	now := s.Clock.Now()
 	var (
-		status  string
-		changed bool
-		bad     bool
-		full    bool
-		visible bool
-		target  identity.Principal
+		asAgent   bool // an agent that only asks: a triage agent does not
+		viaTriage bool // a triage agent adds, and the line names it
+		status    string
+		changed   bool
+		bad       bool
+		full      bool
+		visible   bool
+		target    identity.Principal
 	)
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
 		d := tx.DBTX()
@@ -78,9 +81,14 @@ func (s *Server) addParticipant(w http.ResponseWriter, r *http.Request, c *call)
 		if err != nil || !found {
 			return err
 		}
-		if _, visible, err = canSee(ctx, d, c.p, convID); err != nil || !visible {
+		if visible, err = canManage(ctx, d, c.p, convID); err != nil || !visible {
 			return err
 		}
+		triage, err := isTriage(ctx, d, c.p)
+		if err != nil {
+			return err
+		}
+		asAgent, viaTriage = c.p.SessionID != 0 && !triage, c.p.SessionID != 0 && triage
 		if in.IdentityID != 0 {
 			target, found, err = identity.ByID(ctx, d, in.IdentityID)
 		} else {
@@ -101,7 +109,7 @@ func (s *Server) addParticipant(w http.ResponseWriter, r *http.Request, c *call)
 			status = cur.Status
 			return nil
 		}
-		status, changed, full, err = seatAgent(ctx, d, now, c.p.Identity(), asAgent, convID, cv.LastMessageID, target.ID)
+		status, changed, full, err = seatAgent(ctx, d, now, c.p.Identity(), asAgent, viaTriage, convID, cv.LastMessageID, target.ID)
 		return err
 	})
 	switch {
@@ -125,12 +133,79 @@ func (s *Server) addParticipant(w http.ResponseWriter, r *http.Request, c *call)
 	}
 }
 
+// requestJoin is POST /api/conversations/:id/join-requests: an agent asks to take a seat in a conversation it is not in. It is a pending
+// add where the requester is the agent itself, so the owner settles it in Now like any other (I-17); asking again while it waits changes
+// nothing. A triage agent just joins (owner, msg 1217: "agents should be able to request to join for themselves"). The answer never
+// carries the conversation's title: only the owner's card does.
+func (s *Server) requestJoin(w http.ResponseWriter, r *http.Request, c *call) {
+	convID, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	var in struct{}
+	if !decode(w, r, &in) {
+		return
+	}
+	who, now := c.p.IdentityID, s.Clock.Now()
+	if key := "join|" + strconv.FormatInt(who, 10); !s.statusLimit.Allow(key, now) {
+		tooMany(w, s.statusLimit.RetryAfter(key, now), "Too many join requests. Slow down.")
+		return
+	}
+	var (
+		status  string
+		changed bool
+		full    bool
+		missing bool
+		handle  string
+	)
+	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
+		d := tx.DBTX()
+		cv, found, err := conversation.Get(ctx, d, convID)
+		if err != nil || !found {
+			missing = !found
+			return err
+		}
+		handle = dirHandle(ctx, d, who)
+		cur, seated, err := conversation.SeatOf(ctx, d, convID, who)
+		if err != nil {
+			return err
+		}
+		if seated && (cur.Status == conversation.StatusActive || cur.Status == conversation.StatusPending) {
+			status = cur.Status
+			return nil
+		}
+		triage, err := isTriage(ctx, d, c.p)
+		if err != nil {
+			return err
+		}
+		status, changed, full, err = seatAgent(ctx, d, now, who, !triage, triage, convID, cv.LastMessageID, who)
+		return err
+	})
+	switch {
+	case err != nil:
+		s.internalError(w, r, err)
+	case missing:
+		writeErr(w, http.StatusNotFound, "not_found", "No such conversation.")
+	case full:
+		writeErr(w, http.StatusConflict, "participants_full", "A conversation has at most 20 participants.")
+	default:
+		code := http.StatusOK
+		if changed {
+			code = http.StatusCreated
+		}
+		writeJSON(w, code, map[string]any{"participant": map[string]any{"identity_id": who, "handle": handle, "status": status}})
+	}
+}
+
 // seatAgent adds an agent to a conversation. A person adds it at once and says what history it sees; an agent can only ask, and
 // the add then waits for a human (I-17, I-18). It writes the system line, the seat and the read cursor, and
 // reports the seat's status, whether anything changed and whether the conversation is full.
-func seatAgent(ctx context.Context, d pdb.DBTX, now time.Time, by int64, asAgent bool, convID, lastMessageID, target int64) (status string, changed, full bool, err error) {
+func seatAgent(ctx context.Context, d pdb.DBTX, now time.Time, by int64, asAgent, viaTriage bool, convID, lastMessageID, target int64) (status string, changed, full bool, err error) {
 	status = conversation.StatusActive
 	line := message.SystemLine{T: "member.added", Identity: target, By: by, Via: "add"}
+	if viaTriage {
+		line.Via = "triage"
+	}
 	if asAgent {
 		status = conversation.StatusPending
 		line = message.SystemLine{T: "member.requested", Identity: target, By: by}
@@ -249,7 +324,7 @@ func decideParticipant(approve bool) handler {
 	}
 }
 
-// removeParticipant is DELETE /api/conversations/:id/participants/:iid: a person takes an agent out.
+// removeParticipant is DELETE /api/conversations/:id/participants/:iid: a person, or a triage agent, takes an agent out.
 func (s *Server) removeParticipant(w http.ResponseWriter, r *http.Request, c *call) {
 	convID, ok := pathID(w, r)
 	if !ok {
@@ -280,14 +355,27 @@ func (s *Server) leaveConversation(w http.ResponseWriter, r *http.Request, c *ca
 // removal leaves ONE notice for it, and the conversation says so.
 func (s *Server) endSeat(w http.ResponseWriter, r *http.Request, c *call, convID, who int64, status string) {
 	now := s.Clock.Now()
-	var visible, ended, human bool
+	var visible, ended, human, refused, viaTriage bool
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
 		d := tx.DBTX()
 		_, found, err := conversation.Get(ctx, d, convID)
 		if err != nil || !found {
 			return err
 		}
-		if _, visible, err = canSee(ctx, d, c.p, convID); err != nil || !visible {
+		if status == conversation.StatusRemoved {
+			// Taking an agent out is a person's act, or a triage agent's in any conversation (owner, msg 1217); a plain agent never does.
+			if visible, err = canManage(ctx, d, c.p, convID); err != nil || !visible {
+				return err
+			}
+			if triage, err := isTriage(ctx, d, c.p); err != nil {
+				return err
+			} else if c.p.SessionID != 0 && !triage {
+				refused = true
+				return nil
+			} else {
+				viaTriage = c.p.SessionID != 0
+			}
+		} else if _, visible, err = canSee(ctx, d, c.p, convID); err != nil || !visible {
 			return err
 		}
 		target, found, err := identity.ByID(ctx, d, who)
@@ -305,6 +393,9 @@ func (s *Server) endSeat(w http.ResponseWriter, r *http.Request, c *call, convID
 			return err
 		}
 		line := message.SystemLine{T: "member.removed", Identity: who, By: c.p.Identity()}
+		if viaTriage {
+			line.Via = "triage"
+		}
 		if status == conversation.StatusLeft {
 			line = message.SystemLine{T: "member.left", Identity: who}
 		}
@@ -328,6 +419,8 @@ func (s *Server) endSeat(w http.ResponseWriter, r *http.Request, c *call, convID
 		s.internalError(w, r, err)
 	case !visible:
 		notVisible(w, c)
+	case refused:
+		writeErr(w, http.StatusForbidden, "forbidden", "Only a triage agent or a person can remove an agent.")
 	case human:
 		writeErr(w, http.StatusBadRequest, "invalid_request", "Only an agent can be removed from a conversation.")
 	case !ended:

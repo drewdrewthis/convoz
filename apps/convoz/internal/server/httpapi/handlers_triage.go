@@ -16,11 +16,11 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
 
-// setReadAll is PUT /api/agents/:id/read-all {"on": bool}: the owner lets an agent read every conversation and thread (and post in them
-// as itself), or takes the right back. Owner said (msg 784): "I think I also want an option to tag or give an agent privileges to be
-// able to monitor and review all conversations and threads without being added." It needs a fresh passkey check for this agent and
+// setTriage is PUT /api/agents/:id/triage {"on": bool}: the owner makes an agent a triage agent (reads every conversation and thread, posts in
+// them as itself, adds and removes agents in any chat), or takes the right back. Owner said (msg 1217): "Triage agents, yeah, they can read
+// all of it. They can message. They don't have to be in the conversation." It needs a fresh passkey check for this agent and
 // writes an audit line; it posts nothing in any chat. The right is looked up per request, so a revoke bites on the next call.
-func (s *Server) setReadAll(w http.ResponseWriter, r *http.Request, c *call) {
+func (s *Server) setTriage(w http.ResponseWriter, r *http.Request, c *call) {
 	id, ok := pathID(w, r)
 	if !ok {
 		return
@@ -38,7 +38,7 @@ func (s *Server) setReadAll(w http.ResponseWriter, r *http.Request, c *call) {
 	now := s.Clock.Now()
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
 		d := tx.DBTX()
-		if err := auth.ConsumeStepUp(ctx, d, c.stepUp, c.dev.ID, "identity.read_all", &id, now); err != nil {
+		if err := auth.ConsumeStepUp(ctx, d, c.stepUp, c.dev.ID, "identity.triage", &id, now); err != nil {
 			return err
 		}
 		if who, found, err := identity.ByID(ctx, d, id); err != nil {
@@ -46,12 +46,12 @@ func (s *Server) setReadAll(w http.ResponseWriter, r *http.Request, c *call) {
 		} else if !found || who.Kind != "agent" || who.Disabled {
 			return auth.ErrNoAgent
 		}
-		if _, err := identity.SetReadAll(ctx, d, id, *in.On); err != nil {
+		if _, err := identity.SetTriage(ctx, d, id, *in.On); err != nil {
 			return err
 		}
-		action := "identity.read_all.off"
+		action := "identity.triage.off"
 		if *in.On {
-			action = "identity.read_all.on"
+			action = "identity.triage.on"
 		}
 		return flowPorts.Journal.Audit(ctx, d, now, auth.AuditEntry{Actor: c.human.ID, Device: c.dev.ID, Action: action, TargetKind: "identity", TargetID: id})
 	})
@@ -63,20 +63,20 @@ func (s *Server) setReadAll(w http.ResponseWriter, r *http.Request, c *call) {
 	case err != nil:
 		s.internalError(w, r, err)
 	default:
-		writeJSON(w, http.StatusOK, map[string]any{"read_all": *in.On})
+		writeJSON(w, http.StatusOK, map[string]any{"triage": *in.On})
 	}
 }
 
-// waiting is GET /api/waiting: for an agent with the read-all right, what waits on the owner in every conversation it can read. It
+// waiting is GET /api/waiting: for an agent with the triage right, what waits on the owner in every conversation it can read. It
 // refuses any other caller. Open asks, the owner's newest main-chat messages unanswered for inbox.UnansweredAfter, plan items that
 // wait on the owner, and the owner's unread count per conversation. Threads are not scanned for unanswered messages.
 func (s *Server) waiting(w http.ResponseWriter, r *http.Request, c *call) {
 	ctx, d := r.Context(), s.reader()
-	if granted, err := readsAll(ctx, d, c.p); err != nil {
+	if granted, err := isTriage(ctx, d, c.p); err != nil {
 		s.internalError(w, r, err)
 		return
 	} else if !granted {
-		writeErr(w, http.StatusForbidden, "forbidden", "The owner has not let you read all conversations.")
+		writeErr(w, http.StatusForbidden, "forbidden", "The owner has not made you a triage agent.")
 		return
 	}
 	out, err := s.waitingOn(ctx, d, c)

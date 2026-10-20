@@ -5,6 +5,7 @@ import { mentionsOf } from "@convoz/markdown";
 import { AttachIcon, MicIcon, SendIcon } from "@convoz/ui/icons";
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { initials, paletteOf, stripCf } from "../../shared/chat.ts";
+import { TriageBadge } from "../../shared/TriageBadge.tsx";
 import { useVoiceNote } from "../voice/index.ts";
 import { AttachmentList } from "./AttachmentList.tsx";
 import { pasteFiles, type Attachments } from "./attachments.ts";
@@ -126,6 +127,7 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
                     </span>
                     <span className="name">{stripCf(who.display_name)}</span>
                   </span>{" "}
+                  <TriageBadge handle={who.handle} />{" "}
                   <span className={`state${who.online ? " on" : ""}`}>
                     <i aria-hidden="true" />
                     <span>{who.online ? "Online" : "Offline"}</span>

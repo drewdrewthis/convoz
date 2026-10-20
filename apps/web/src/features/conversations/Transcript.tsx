@@ -16,6 +16,7 @@ import { NoticeRow, pausedNow } from "./messages/Notice.tsx";
 import { PendingFiles, Uploads } from "./messages/Uploads.tsx";
 import { SeenLine } from "./messages/SeenLine.tsx";
 import { ReplyLine } from "../threads/index.ts";
+import { TriageBadge } from "../../shared/TriageBadge.tsx";
 import { Button } from "@convoz/ui/Button";
 import { EmptyState } from "@convoz/ui/EmptyState";
 
@@ -425,6 +426,7 @@ function Article({ person, me, first, stamp, tag, onStamp, body, extra, menu, mi
               <>
                 <span className={`ava p${paletteOf(person.handle)}`} aria-hidden="true" data-l={initials(person.handle)} />
                 <span className="author"><span className="who">{stripCf(person.display_name) || person.handle}</span> <span className="handle">@{person.handle}</span></span>
+                <TriageBadge handle={person.handle} />
               </>
             )}{" "}
             {time}

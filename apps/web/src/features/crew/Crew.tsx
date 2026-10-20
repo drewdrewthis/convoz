@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { call, client, humanError } from "../../shared/api.ts";
 import { setRegistry } from "../../shared/chat.ts";
+import { TriageBadge } from "../../shared/TriageBadge.tsx";
 import { data, useData, useLive } from "../../shared/data.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { useSheets } from "../../shared/sheets.tsx";
@@ -188,7 +189,7 @@ function AgentRow({ r }: { r: Row }) {
           <span className="nm">{nameOf(r.who)}</span>
           <span className="st">{r.who.disabled ? "Disabled" : statusLine(r)}</span>
         </span>
-        {r.who.read_all ? <span className="rdall">Reads all</span> : null}
+        {r.who.triage ? <TriageBadge handle={r.who.handle} /> : null}
         {asks ? <span className="chip">{`${asks} ${asks === 1 ? "ask" : "asks"}`}</span> : null}
       </a>
     </li>

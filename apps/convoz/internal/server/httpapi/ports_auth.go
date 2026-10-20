@@ -142,7 +142,7 @@ func (seatPort) Join(ctx context.Context, d pdb.DBTX, now time.Time, conv, agent
 	if byHuman == 0 {
 		by, asAgent = agent, true
 	}
-	_, _, _, err = seatAgent(ctx, d, now, by, asAgent, conv, cv.LastMessageID, agent)
+	_, _, _, err = seatAgent(ctx, d, now, by, asAgent, false, conv, cv.LastMessageID, agent)
 	return err
 }
 

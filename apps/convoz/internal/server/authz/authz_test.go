@@ -6,8 +6,8 @@ import (
 )
 
 type fakeReader struct {
-	member  map[[2]int64]Member
-	readAll map[int64]bool
+	member map[[2]int64]Member
+	triage map[int64]bool
 }
 
 func (f fakeReader) Membership(_ context.Context, conv, who int64) (Member, bool, error) {
@@ -15,12 +15,12 @@ func (f fakeReader) Membership(_ context.Context, conv, who int64) (Member, bool
 	return m, ok, nil
 }
 
-func (f fakeReader) ReadsAll(_ context.Context, _, who int64) (bool, error) {
-	return f.readAll[who], nil
+func (f fakeReader) IsTriage(_ context.Context, _, who int64) (bool, error) {
+	return f.triage[who], nil
 }
 
 func TestCanRead(t *testing.T) {
-	r := fakeReader{member: map[[2]int64]Member{{7, 5}: {Active: true}}, readAll: map[int64]bool{6: true}}
+	r := fakeReader{member: map[[2]int64]Member{{7, 5}: {Active: true}}, triage: map[int64]bool{6: true}}
 	agent := func(id int64) Principal { return Principal{SessionID: 1, IdentityID: id} }
 	for name, tc := range map[string]struct {
 		p               Principal
@@ -28,7 +28,7 @@ func TestCanRead(t *testing.T) {
 		canSee, canRead bool
 	}{
 		"a participant reads and sees":        {agent(5), 7, true, true},
-		"a read-all agent reads, never sees":  {agent(6), 7, false, true},
+		"a triage agent reads, never sees":    {agent(6), 7, false, true},
 		"an agent without the right is out":   {agent(8), 7, false, false},
 		"a person with no seat is not helped": {Principal{Authenticated: true, HumanID: 6, Role: "member"}, 7, false, false},
 	} {
@@ -37,6 +37,25 @@ func TestCanRead(t *testing.T) {
 		}
 		if _, ok, _ := CanRead(context.Background(), r, tc.p, tc.conv); ok != tc.canRead {
 			t.Errorf("%s: CanRead = %v", name, ok)
+		}
+	}
+}
+
+func TestCanManageAgents(t *testing.T) {
+	r := fakeReader{member: map[[2]int64]Member{{7, 5}: {Active: true}}, triage: map[int64]bool{6: true}}
+	agent := func(id int64) Principal { return Principal{SessionID: 1, IdentityID: id} }
+	for name, tc := range map[string]struct {
+		p    Principal
+		want bool
+	}{
+		"a participant may":                   {agent(5), true},
+		"a triage agent may, not in the chat": {agent(6), true},
+		"an agent with no seat and no right":  {agent(8), false},
+		"the owner may":                       {Principal{Authenticated: true, HumanID: 1, Role: "owner"}, true},
+		"a person with no seat is not helped": {Principal{Authenticated: true, HumanID: 6, Role: "member"}, false},
+	} {
+		if got, _ := CanManageAgents(context.Background(), r, tc.p, 7); got != tc.want {
+			t.Errorf("%s: CanManageAgents = %v", name, got)
 		}
 	}
 }

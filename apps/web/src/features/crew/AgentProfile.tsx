@@ -2,6 +2,7 @@ import type { Handoff, Session } from "./types.ts";
 import { useCallback, useEffect, useState } from "react";
 import { call, client, fmtDate, humanError, stepUp } from "../../shared/api.ts";
 import { setRegistry } from "../../shared/chat.ts";
+import { TriageBadge } from "../../shared/TriageBadge.tsx";
 import { data, useData, useLive } from "../../shared/data.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { StepUpSheet, useSheets } from "../../shared/sheets.tsx";
@@ -49,17 +50,17 @@ export function AgentProfile() {
   const together = (conversations ?? []).filter((c) => c.participants.some((p) => p.handle === handle));
   const asks = status?.open_asks ?? [];
   const machines = [...new Set((everySession ?? []).map((x) => x.machine))];
-  const setReadAll = (on: boolean) =>
+  const setTriage = (on: boolean) =>
     open((close) => (
       <StepUpSheet
-        title={on ? "Let this agent read everything" : "Stop reading everything"}
-        intro={on ? `@${handle} will read every conversation and thread, and can post in them as itself. This needs a passkey check.` : `@${handle} will only read the conversations it is in.`}
+        title={on ? "Make this a triage agent" : "Stop being a triage agent"}
+        intro={on ? `@${handle} will read every conversation and thread, post in them as itself, and add or remove agents in any chat. This needs a passkey check.` : `@${handle} will only read and change the conversations it is in.`}
         confirm={on ? "Allow" : "Turn off"}
-        action="identity.read_all"
+        action="identity.triage"
         target={who.id}
         close={close}
         perform={async (stepId) => {
-          await call(client.PUT("/api/agents/{id}/read-all", { params: { path: { id: who.id }, header: stepUp(stepId) }, body: { on } }));
+          await call(client.PUT("/api/agents/{id}/triage", { params: { path: { id: who.id }, header: stepUp(stepId) }, body: { on } }));
           await reload();
         }}
       />
@@ -71,6 +72,11 @@ export function AgentProfile() {
         <Ring handle={handle} shown={shown} />
         <div className="ptxt">
           <h2>{nameOf(who)}</h2>
+          {who.triage ? (
+            <p>
+              <TriageBadge handle={handle} />
+            </p>
+          ) : null}
           <p className="pstate">{who.disabled ? "Disabled" : LOOK[shown].label}</p>
           {who.previous_handles?.length ? <p className="text-muted">{`Was @${who.previous_handles.join(", @")}`}</p> : null}
           {who.description ? <p className="text-muted">{who.description}</p> : null}
@@ -141,11 +147,11 @@ export function AgentProfile() {
           )}
         </div>
         {who.disabled ? null : (
-          <div className="readall">
+          <div className="triageset">
             <List as="div">
-              <Field type="checkbox" label="Can read all conversations" checked={!!who.read_all} onChange={(e) => setReadAll(e.target.checked)} />
+              <Field type="checkbox" label="Triage agent" checked={!!who.triage} onChange={(e) => setTriage(e.target.checked)} />
             </List>
-            <p className="hint">{`Reads every conversation and thread, and can post in them as itself. It can't answer your asks. Any process that can sign in as @${handle} on ${machines.length ? machines.join(", ") : "a machine that allows it"} gets this.`}</p>
+            <p className="hint">{`Reads every conversation and thread, posts in any of them, and can add or remove agents in any chat, itself included. It can't answer your asks. Any process that can sign in as @${handle} on ${machines.length ? machines.join(", ") : "a machine that allows it"} gets this.`}</p>
           </div>
         )}
         {renaming && !who.disabled ? (

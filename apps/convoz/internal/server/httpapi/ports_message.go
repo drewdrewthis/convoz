@@ -26,11 +26,11 @@ func messagePorts(p authz.Principal) message.Ports {
 	}
 }
 
-// readAllPorts is messagePorts where the read-all right counts: posting a message and reading its edits. Edit,
+// triagePorts is messagePorts where the triage right counts: posting a message and reading its edits. Edit,
 // delete and every other act keep messagePorts, which asks for a seat.
-func readAllPorts(p authz.Principal) message.Ports {
+func triagePorts(p authz.Principal) message.Ports {
 	ports := messagePorts(p)
-	ports.Conversations = conversationPort{p: p, readAll: true}
+	ports.Conversations = conversationPort{p: p, triage: true}
 	return ports
 }
 

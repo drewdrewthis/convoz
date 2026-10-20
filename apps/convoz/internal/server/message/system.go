@@ -23,7 +23,7 @@ type SystemLine struct {
 	T        string // the subtype
 	Identity int64  // the subject
 	By       int64  // who did it
-	Via      string // member.added: mention, add or create
+	Via      string // member.added: mention, add, create or triage; member.removed: triage (a triage agent did it, so the line names it)
 	History  string // member.added: since_now or full
 	Streak   int    // conversation.paused: LoopLimit
 	Title    string // conversation.renamed: the new title, quoted by the line (optional; at most MaxTitleRunes, no control characters)
@@ -62,11 +62,11 @@ func (l SystemLine) Valid() error {
 			return bad()
 		}
 	case slices.Contains(subjectBy, l.T):
-		if l.Identity <= 0 || l.By <= 0 {
+		if l.Identity <= 0 || l.By <= 0 || l.Via != "" && (l.Via != "triage" || l.T != "member.removed") {
 			return bad()
 		}
 	case l.T == "member.added":
-		if l.Identity <= 0 || l.By <= 0 || !slices.Contains([]string{"mention", "add", "create"}, l.Via) ||
+		if l.Identity <= 0 || l.By <= 0 || !slices.Contains([]string{"mention", "add", "create", "triage"}, l.Via) ||
 			l.History != "" && l.History != "since_now" && l.History != "full" {
 			return bad()
 		}

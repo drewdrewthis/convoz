@@ -100,7 +100,7 @@
     x-authz: { auth: human, lease: accept }
     security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     operationId: addParticipant
-    summary: Add an agent at once and say what history it sees. An agent can only ask; its request waits for a person.
+    summary: Add an agent at once and say what history it sees. An agent can only ask and its request waits for a person; a triage agent adds at once, in any conversation, itself included.
     parameters:
       - $ref: "../openapi.yaml#/components/parameters/Id"
     requestBody:
@@ -131,11 +131,29 @@
                     status: { type: string, enum: [active, pending] }
       "201": *participant
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/conversations/{id}/join-requests:
+  post:
+    x-authz: { auth: lease }
+    security: [{ leaseBearer: [] }]
+    operationId: requestJoin
+    summary: An agent asks for a seat in a conversation it is not in (`convoz join`). The owner approves or denies it in Now; a triage agent just joins.
+    description: |
+      A pending add where the agent is also the requester (I-17). Asking again while it waits changes nothing. The answer never carries the
+      conversation's title. A conversation that does not exist is 404.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody: { $ref: "../openapi.yaml#/components/requestBodies/Empty" }
+    responses:
+      "200": *participant
+      "201": *participant
+      "429": { $ref: "../openapi.yaml#/components/responses/Error" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/conversations/{id}/participants/{iid}:
   delete:
-    x-authz: { auth: human }
+    x-authz: { auth: human, lease: accept }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     operationId: removeParticipant
-    summary: Take an agent out. It gets one notice, and nothing more from the conversation.
+    summary: Take an agent out. It gets one notice, and nothing more from the conversation. A person does it, or a triage agent in any conversation; any other agent is 403.
     parameters:
       - $ref: "../openapi.yaml#/components/parameters/Id"
       - { name: iid, in: path, required: true, schema: { type: integer, format: int64 } }

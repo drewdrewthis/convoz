@@ -38,9 +38,9 @@ type Entry struct {
 	// Description and Capabilities are an agent's own words about itself (PATCH /api/me/profile); empty for a human.
 	Description  string   `json:"description,omitempty"`
 	Capabilities []string `json:"capabilities,omitempty"`
-	// ReadAll is an agent's owner-given right to read every conversation and thread, and to post in them (migration 0038). List leaves it
-	// false (it must run on every release's schema); ReadAllIDs says who has it.
-	ReadAll bool `json:"read_all,omitempty"`
+	// Triage marks a triage agent: the owner let it read every conversation and thread, post in them and add or remove agents anywhere
+	// (migrations 0038, 0040). List leaves it false (it must run on every release's schema); TriageIDs says who has it.
+	Triage bool `json:"triage,omitempty"`
 	// AvatarURL is where the identity's own SVG avatar is served (I-32); empty for the letter on a tint.
 	AvatarURL string `json:"avatar_url,omitempty"`
 	// PreviousHandles are the handles an agent had before, newest first (I-51); a mention of one still names it.
@@ -176,24 +176,24 @@ func Avatar(ctx context.Context, d pdb.DBTX, id int64) (svg string, ok bool, err
 	return v.String, err == nil && v.Valid, err
 }
 
-// ReadsAll says whether id is an enabled agent the owner let read every conversation.
-func ReadsAll(ctx context.Context, d pdb.DBTX, id int64) (bool, error) {
-	return db.New(d).AgentReadsAll(ctx, id)
+// IsTriage says whether id is an enabled agent the owner let read every conversation.
+func IsTriage(ctx context.Context, d pdb.DBTX, id int64) (bool, error) {
+	return db.New(d).AgentIsTriage(ctx, id)
 }
 
-// SetReadAll turns the read-everything right of an agent on or off. It reports false when there is no such agent.
-func SetReadAll(ctx context.Context, d pdb.DBTX, id int64, on bool) (bool, error) {
+// SetTriage turns the triage right of an agent on or off. It reports false when there is no such agent.
+func SetTriage(ctx context.Context, d pdb.DBTX, id int64, on bool) (bool, error) {
 	v := int64(0)
 	if on {
 		v = 1
 	}
-	n, err := db.New(d).SetAgentReadAll(ctx, db.SetAgentReadAllParams{On: v, ID: id})
+	n, err := db.New(d).SetAgentTriage(ctx, db.SetAgentTriageParams{On: v, ID: id})
 	return n > 0, err
 }
 
-// ReadAllIDs is the set of agents that hold the read-all right.
-func ReadAllIDs(ctx context.Context, d pdb.DBTX) (map[int64]bool, error) {
-	ids, err := db.New(d).ListReadAll(ctx)
+// TriageIDs is the set of agents that hold the triage right.
+func TriageIDs(ctx context.Context, d pdb.DBTX) (map[int64]bool, error) {
+	ids, err := db.New(d).ListTriage(ctx)
 	out := make(map[int64]bool, len(ids))
 	for _, id := range ids {
 		out[id] = true

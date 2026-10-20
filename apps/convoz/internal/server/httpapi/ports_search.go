@@ -55,7 +55,7 @@ func searchScope(ctx context.Context, d pdb.DBTX, p authz.Principal, dir directo
 	var err error
 	all := p.Role == "owner"
 	if !all {
-		all, err = readsAll(ctx, d, p)
+		all, err = isTriage(ctx, d, p)
 	}
 	switch {
 	case err != nil:

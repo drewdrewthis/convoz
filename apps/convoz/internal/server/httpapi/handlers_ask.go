@@ -114,7 +114,7 @@ func (s *Server) askVisible(w http.ResponseWriter, r *http.Request, c *call) (as
 	return s.askAccess(w, r, c, canSee)
 }
 
-// askReadable is askVisible for a read: an agent with the read-all right may read the ask of any conversation, never change it.
+// askReadable is askVisible for a read: an agent with the triage right may read the ask of any conversation, never change it.
 func (s *Server) askReadable(w http.ResponseWriter, r *http.Request, c *call) (ask.Ask, bool) {
 	return s.askAccess(w, r, c, canRead)
 }

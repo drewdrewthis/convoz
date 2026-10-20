@@ -91,7 +91,7 @@ func (s *Server) postMessage(w http.ResponseWriter, r *http.Request, c *call) {
 	}
 	var posted message.Posted
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) (err error) {
-		posted, err = message.Post(ctx, tx.DBTX(), readAllPorts(c.p), now, draft)
+		posted, err = message.Post(ctx, tx.DBTX(), triagePorts(c.p), now, draft)
 		return err
 	})
 	if s.messageRefused(w, err) {
@@ -255,7 +255,7 @@ func systemView(dir directory, m message.Message) (*wire.System, string) {
 	}
 	sys := &wire.System{T: line.T, Via: line.Via, History: line.History, Streak: line.Streak, Title: line.Title, From: line.From, To: line.To,
 		Done: line.Done, Now: line.Now, Next: line.Next, Waiting: line.Waiting, Liveness: line.Liveness}
-	proj := message.ProjectSystem{T: line.T, History: line.History, Streak: line.Streak, Title: line.Title, From: line.From, To: line.To,
+	proj := message.ProjectSystem{T: line.T, Via: line.Via, History: line.History, Streak: line.Streak, Title: line.Title, From: line.From, To: line.To,
 		Done: line.Done, Now: line.Now, Waiting: line.Waiting, Liveness: line.Liveness}
 	if line.Identity != 0 {
 		p := dir.person(line.Identity)
@@ -379,7 +379,7 @@ func (s *Server) listEdits(w http.ResponseWriter, r *http.Request, c *call) {
 		return
 	}
 	ctx, d := r.Context(), s.reader()
-	list, err := message.History(ctx, d, readAllPorts(c.p), id)
+	list, err := message.History(ctx, d, triagePorts(c.p), id)
 	var dir directory
 	if err == nil {
 		dir, err = loadDirectory(ctx, d)

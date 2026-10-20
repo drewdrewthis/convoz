@@ -13,6 +13,7 @@ var conversationRoutes = []Route{
 	{Method: "POST", Pattern: "/api/conversations/:id/participants", Auth: authz.Human, Lease: true, handle: (*Server).addParticipant},
 	{Method: "POST", Pattern: "/api/conversations/:id/participants/:iid/approve", Auth: authz.Human, handle: decideParticipant(true)},
 	{Method: "POST", Pattern: "/api/conversations/:id/participants/:iid/decline", Auth: authz.Human, handle: decideParticipant(false)},
-	{Method: "DELETE", Pattern: "/api/conversations/:id/participants/:iid", Auth: authz.Human, handle: (*Server).removeParticipant},
+	{Method: "DELETE", Pattern: "/api/conversations/:id/participants/:iid", Auth: authz.Human, Lease: true, handle: (*Server).removeParticipant},
+	{Method: "POST", Pattern: "/api/conversations/:id/join-requests", Auth: authz.Lease, handle: (*Server).requestJoin},
 	{Method: "POST", Pattern: "/api/conversations/:id/leave", Auth: authz.Human, Lease: true, handle: (*Server).leaveConversation},
 }

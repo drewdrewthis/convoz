@@ -6,10 +6,10 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 
 ## Contents
 
+- [A triage agent](#a-triage-agent) (16)
 - [Agent inbox](#agent-inbox) (30)
 - [Agent sessions as one identity](#agent-sessions-as-one-identity) (17)
 - [Agents outside the tailnet connect through an agents-only address](#agents-outside-the-tailnet-connect-through-an-agents-only-address) (8)
-- [An agent that reads all conversations](#an-agent-that-reads-all-conversations) (6)
 - [Apps inside messages](#apps-inside-messages) (15)
 - [Asks and their state machine](#asks-and-their-state-machine) (34)
 - [Brief, handoff, read and search for agents](#brief-handoff-read-and-search-for-agents) (17)
@@ -38,6 +38,33 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Threads](#threads) (23)
 - [Voice call](#voice-call) (7)
 - [Voice notes](#voice-notes) (11)
+
+## A triage agent
+
+It can tell me what waits on me and keep the right agents in each chat, and I can cut it off in one tap.
+16 scenarios.
+
+- **The owner makes an agent a triage agent in its profile and sees the badge in Crew**
+  - [The owner makes an agent a triage agent in the agent profile](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/triage.feature#L23)
+  - [A triage agent wears a badge wherever its name shows](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/triage.feature#L35)
+- **A triage agent reads everything, posts as itself and is never an inbox recipient**
+  - [A triage agent reads a conversation it is not in](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/triage.feature#L49)
+  - [A triage agent posts in a conversation it is not in, as itself](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/triage.feature#L58)
+  - [A triage agent gets no inbox item from a conversation it is not in](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/triage.feature#L65)
+  - [Turning it off ends the reading on the next command](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/triage.feature#L74)
+- **convoz waiting lists what waits on the owner**
+  - [convoz waiting lists an open ask, an unanswered message and a waiting plan item](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/triage.feature#L83)
+- **A triage agent adds and removes agents in any chat, without approval**
+  - [A triage agent adds an agent to a conversation it is not in](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/triage.feature#L98)
+  - [A triage agent removes an agent from a conversation it is not in](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/triage.feature#L109)
+  - [A triage agent adds itself to a conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/triage.feature#L119)
+  - [The chat names the triage agent that added or removed an agent](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/triage.feature#L129)
+- **Any other agent asks to join, and the owner decides in Now**
+  - [An agent asks to join a conversation and asking again changes nothing](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/triage.feature#L140)
+  - [The owner approves a join request and the agent hears it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/triage.feature#L149)
+  - [The owner denies a join request and the agent hears it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/triage.feature#L157)
+  - [The owner sees a join request in Now and approves it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/triage.feature#L165)
+  - [The owner denies a join request in Now](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/triage.feature#L173)
 
 ## Agent inbox
 
@@ -128,21 +155,6 @@ I approve it with one tap and my own app stays on the tailnet.
   - [The owner revokes an invite](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/agent-port.feature#L67)
   - [An agent invites another agent and the card says who invited it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/agent-port.feature#L75)
   - [The owner makes an invite with the CLI on the server's own machine](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/agent-port.feature#L82)
-
-## An agent that reads all conversations
-
-It can tell me what waits on me, and I can cut it off in one tap.
-6 scenarios.
-
-- **The owner gives the right in the agent's profile and sees it in Crew**
-  - [The owner turns on reading everything in the agent profile](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/read-all.feature#L22)
-- **A granted agent reads everything, posts as itself and is never an inbox recipient**
-  - [A granted agent reads a conversation it is not in](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/read-all.feature#L34)
-  - [A granted agent posts in a conversation it is not in, as itself](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/read-all.feature#L43)
-  - [A granted agent gets no inbox item from a conversation it is not in](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/read-all.feature#L50)
-  - [Turning it off ends the reading on the next command](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/read-all.feature#L59)
-- **convoz waiting lists what waits on the owner**
-  - [convoz waiting lists an open ask, an unanswered message and a waiting plan item](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/read-all.feature#L68)
 
 ## Apps inside messages
 

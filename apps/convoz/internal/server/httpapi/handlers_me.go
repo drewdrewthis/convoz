@@ -58,7 +58,7 @@ func (s *Server) identities(w http.ResponseWriter, r *http.Request, _ *call) {
 		s.internalError(w, r, err)
 		return
 	}
-	readAll, err := identity.ReadAllIDs(r.Context(), s.reader())
+	triaged, err := identity.TriageIDs(r.Context(), s.reader())
 	if err != nil {
 		s.internalError(w, r, err)
 		return
@@ -69,7 +69,7 @@ func (s *Server) identities(w http.ResponseWriter, r *http.Request, _ *call) {
 	}
 	out := make([]identityJSON, 0, len(list))
 	for _, e := range list {
-		e.ReadAll = readAll[e.ID]
+		e.Triage = triaged[e.ID]
 		row := identityJSON{Entry: e}
 		if e.Kind == "agent" {
 			live, err := auth.LiveSessionCount(r.Context(), s.reader(), e.ID, s.Clock.Now())

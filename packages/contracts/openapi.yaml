@@ -69,7 +69,7 @@ paths:
   /api/identities/{id}/avatar.svg: { $ref: "paths/identity.yaml#/~1api~1identities~1{id}~1avatar.svg" }
   /api/crew/agents: { $ref: "paths/identity.yaml#/~1api~1crew~1agents" }
   /api/identities/{id}/disable: { $ref: "paths/identity.yaml#/~1api~1identities~1{id}~1disable" }
-  /api/agents/{id}/read-all: { $ref: "paths/identity.yaml#/~1api~1agents~1{id}~1read-all" }
+  /api/agents/{id}/triage: { $ref: "paths/identity.yaml#/~1api~1agents~1{id}~1triage" }
   /api/waiting: { $ref: "paths/identity.yaml#/~1api~1waiting" }
   /api/me/handle: { $ref: "paths/identity.yaml#/~1api~1me~1handle" }
   /api/identities/{id}/handle: { $ref: "paths/identity.yaml#/~1api~1identities~1{id}~1handle" }
@@ -85,6 +85,7 @@ paths:
   /api/conversations: { $ref: "paths/conversation.yaml#/~1api~1conversations" }
   /api/conversations/{id}: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}" }
   /api/conversations/{id}/restore: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}~1restore" }
+  /api/conversations/{id}/join-requests: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}~1join-requests" }
   /api/conversations/{id}/participants: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}~1participants" }
   /api/conversations/{id}/participants/{iid}: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}~1participants~1{iid}" }
   /api/conversations/{id}/participants/{iid}/approve: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}~1participants~1{iid}~1approve" }

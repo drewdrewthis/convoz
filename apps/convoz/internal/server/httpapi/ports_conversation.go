@@ -11,11 +11,11 @@ import (
 )
 
 // conversationPort answers for the conversation module and for who may post in it.
-// readAll lets the read-all right count: for reading a message's history and for the one write a read-all agent may do in a
+// triage lets the triage right count: for reading a message's history and for the one write a triage agent may do in a
 // conversation it is not in, posting a message.
 type conversationPort struct {
-	p       authz.Principal
-	readAll bool
+	p      authz.Principal
+	triage bool
 }
 
 func (a conversationPort) Access(ctx context.Context, d pdb.DBTX, conv int64) (message.Access, error) {
@@ -24,7 +24,7 @@ func (a conversationPort) Access(ctx context.Context, d pdb.DBTX, conv int64) (m
 		return message.Denied, err
 	}
 	see := canSee
-	if a.readAll {
+	if a.triage {
 		see = canRead
 	}
 	_, visible, err := see(ctx, d, a.p, conv)

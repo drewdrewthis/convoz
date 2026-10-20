@@ -47,9 +47,14 @@ export const initials = (handle: string | undefined): string => (handle || "?").
 // The prototype tints an agent by its place in the agent registry (index mod 6). The server lists agents in the order they were made,
 // so a page sets the order once it has the crew; an agent not in it (not expected) falls back to a hash of its handle.
 let registry: string[] = [];
-export const setRegistry = (people: Pick<Identity, "kind" | "handle">[]): void => {
+let triaged = new Set<string>();
+export const setRegistry = (people: Pick<Identity, "kind" | "handle" | "triage">[]): void => {
   registry = people.filter((p) => p.kind === "agent").map((p) => p.handle);
+  triaged = new Set(people.filter((p) => p.triage).map((p) => p.handle));
 };
+
+/** isTriage says whether the crew the page last set lists the agent as a triage agent. */
+export const isTriage = (handle: string): boolean => triaged.has(handle);
 
 /** paletteOf is the avatar tint (0 to 5) of an agent: its index in the registry, mod 6. */
 export function paletteOf(handle: string): number {
