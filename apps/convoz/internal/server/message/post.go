@@ -263,7 +263,8 @@ func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) 
 			}
 		}
 	}
-	if p.Places != nil {
+	// A quiet message (the call log) waits for nobody: no unanswered reminder, and an earlier wait is kept (owner msg 2121).
+	if p.Places != nil && !draft.Quiet {
 		if err := p.Places.Posted(ctx, d, now, m); err != nil {
 			return Posted{}, err
 		}

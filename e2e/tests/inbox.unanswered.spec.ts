@@ -67,6 +67,23 @@ scenario("An agent's message in the same place clears the reminder", { tag: ["@c
   expect((await unanswered(p, p.dev)).map((i) => i.message.body)).toEqual(["Any news?"]);
 });
 
+// Owner msg 2121: a call log is a quiet message. It wakes no agent, so it must not start a wait of its own.
+scenario("A voice call log is not a message that waits for an answer", { tag: ["@cli"] }, async ({ server, testApi }) => {
+  const p = await planWorld(server);
+  // Given "devtool" answered the owner in conversation 41
+  await ownerSays(p.w.owner, p.conv, "Is the build green?");
+  await agentPosts(p, "Green");
+
+  // When the owner's voice call posts its call log and 11 minutes pass
+  const log = await p.w.owner.client.post(`/api/conversations/${p.conv}/messages`, { client_id: clientId(), body: "Call log (1m)\n10:00:00.000 connected", via_voice: true, quiet: true });
+  must(log, "call log", 201);
+  await testApi(p.w.srv).advanceClock(11 * MIN);
+
+  // Then "devtool" and "docs" have no "unanswered" item
+  expect(await unanswered(p, p.dev)).toEqual([]);
+  expect(await unanswered(p, p.docs)).toEqual([]);
+});
+
 // Owner msg 1117: "...It doesn't show that I've responded. The conversation kind of doesn't continue in the same way, right?"
 scenario("An agent's reply in the thread of the owner's main-chat message answers it", { tag: ["@cli"] }, async ({ server, testApi }) => {
   const p = await planWorld(server);
