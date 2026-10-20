@@ -690,8 +690,8 @@ An agent needs no terminal open all day and still answers within seconds.
 - **The server lets one runner serve an agent**
   - [A second watcher is refused while convoz run serves the agent](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/run.feature#L41)
   - [A second convoz run for the same agent on the same machine is refused](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/run.feature#L50)
-- **Claude mode gives the child a normal agent's tools**
-  - [Claude mode builds a claude command with a normal agent's tools and keeps one session](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/run.feature#L58)
+- **Claude mode is a plain wrapper around claude -p**
+  - [Claude mode builds a claude command with every tool and keeps one session](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/run.feature#L58)
   - [Claude mode tells the child to post with --fyi](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/run.feature#L69)
 
 ## Pins, stars and mute

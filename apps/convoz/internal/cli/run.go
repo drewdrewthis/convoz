@@ -35,12 +35,12 @@ type stringList []string
 func (l *stringList) String() string     { return strings.Join(*l, " ") }
 func (l *stringList) Set(v string) error { *l = append(*l, v); return nil }
 
-// Run runs `convoz run --as H [--workdir D] [--allow RULE]... [--write] [--budget USD] [--fresh-after N] [--item-timeout D] [-- cmd args...]`:
+// Run runs `convoz run --as H [--workdir D] [--budget USD] [--fresh-after N] [--item-timeout D] [-- cmd args...]`:
 // it serves the agent's inbox with one short-lived process per item, so the agent needs no terminal open.
 //
 // With `-- cmd args` the command runs once per item: the item as JSON on stdin; CONVOZ_SID (the runner's session, so the command's
 // own convoz calls and acks are the runner's), CONVOZ_AS, CONVOZ_CONV, CONVOZ_THREAD, CONVOZ_MESSAGE and CONVOZ_ITEM in its
-// environment. Without it, each item is one `claude -p` run in --workdir with a normal agent's tools (see defaultTools).
+// environment. Without it, each item is one `claude -p` run in --workdir with every tool (see claudeCall.args).
 //
 // An item is acked only after its command exited 0. A failure keeps the item held, so it comes back to be tried again; before
 // the retry the runner checks whether the agent already answered in the item's thread (a command that replied and then failed
@@ -54,16 +54,17 @@ func Run(args []string, io IO) int {
 	own, cmd := splitDash(args)
 	f := newChatFlags("run", io)
 	workdir := f.fs.String("workdir", "", "the directory Claude mode runs in (default: here)")
+	// --allow and --write are kept so old service files still start; Claude mode already has every tool.
 	var allow stringList
-	f.fs.Var(&allow, "allow", "a tool rule to add to the default list in Claude mode, e.g. 'Bash(gh run view:*)'; repeatable")
-	write := f.fs.Bool("write", false, "Claude mode may also edit and write files under the workdir")
+	f.fs.Var(&allow, "allow", "no effect: Claude mode has every tool")
+	f.fs.Bool("write", false, "no effect: Claude mode has every tool")
 	budget := f.fs.String("budget", "2.00", "Claude mode: the most one item may spend, in dollars (a first turn alone costs about $0.40)")
 	freshAfter := f.fs.Int("fresh-after", 20, "Claude mode: start a new session, with a summary of the old one, after this many items")
 	itemTimeout := f.fs.Duration("item-timeout", 10*time.Minute, "kill an item's command after this long")
 	if pos, ok := f.parse(own, io); !ok {
 		return ExitUsage
 	} else if len(pos) != 0 || *f.as == "" {
-		return usageError(io, "usage: convoz run --as HANDLE [--workdir D] [--allow RULE]... [--write] [--budget USD] [--fresh-after N] [--item-timeout D] [-- cmd args...]")
+		return usageError(io, "usage: convoz run --as HANDLE [--workdir D] [--budget USD] [--fresh-after N] [--item-timeout D] [-- cmd args...]")
 	}
 	handle := strings.ToLower(*f.as)
 	dir, err := configDir(io.Getenv)
@@ -91,7 +92,7 @@ func Run(args []string, io IO) int {
 	}
 	statePath := filepath.Join(dir, runDir, handle+".json")
 	r := &runner{k: k, io: runIO, handle: handle, cmd: cmd, workdir: *workdir, timeout: *itemTimeout, budget: *budget, freshAfter: *freshAfter,
-		allow: allowedTools(allow, *write), statePath: statePath, st: loadRunState(statePath)}
+		statePath: statePath, st: loadRunState(statePath)}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	code = r.loop(ctx)
@@ -120,7 +121,6 @@ type runner struct {
 	timeout    time.Duration
 	budget     string
 	freshAfter int
-	allow      []string
 	statePath  string
 	st         *runState
 	lastErr    string // the last stderr line of the last failed command
@@ -391,7 +391,7 @@ func (r *runner) nextClaudeCall(ctx context.Context, it wire.InboxItem) claudeCa
 		r.st.SessionID, r.st.Items = newSessionID(), 0
 		r.save()
 	}
-	call := claudeCall{Allow: r.allow, Deny: denyTools, Budget: r.budget, Session: r.st.SessionID, Resume: transcriptExists(r.io.Getenv, r.st.SessionID)}
+	call := claudeCall{Budget: r.budget, Session: r.st.SessionID, Resume: transcriptExists(r.io.Getenv, r.st.SessionID)}
 	rules, summary := "", ""
 	if !call.Resume {
 		rules, summary = r.rules(), r.st.Summary

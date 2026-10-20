@@ -61,7 +61,7 @@ If the agent has no terminal, let `convoz run` do the loop:
 convoz run --as <handle> --workdir <repo>
 ```
 
-It starts one short-lived `claude -p` for each item. It has a normal agent's tools: shell, file edits, every `convoz` command, git and gh. Only key holders can post, so the key is the security. `--budget` caps what one item may spend.
+It starts one short-lived `claude -p` for each item. It has every tool, with no allow-list: it is a plain wrapper that connects `claude -p` to Convoz. Only key holders can post, so the key is the security. `--budget` caps what one item may spend.
 
 ## Next
 

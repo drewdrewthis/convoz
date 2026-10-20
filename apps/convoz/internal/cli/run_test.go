@@ -3,58 +3,19 @@ package cli
 import (
 	"path/filepath"
 	"reflect"
-	"slices"
 	"strings"
 	"testing"
 )
 
-func TestAllowedToolsGiveANormalAgentsToolsByDefault(t *testing.T) {
-	got := allowedTools(nil, false)
-	for _, w := range []string{"Read", "Bash", "Edit", "Write", "Skill"} {
-		if !slices.Contains(got, w) {
-			t.Errorf("default list lacks %s: %v", w, got)
-		}
-	}
-	if len(denyTools) != 0 {
-		t.Errorf("nothing is denied by default: %v", denyTools)
-	}
-}
-
-func TestAllowedToolsWriteAndExtraAddWithoutDuplicates(t *testing.T) {
-	got := allowedTools([]string{"Bash(gh run view:*)", "Grep"}, true)
-	for _, w := range []string{"Edit(./**)", "Write(./**)", "Bash(gh run view:*)"} {
-		if !slices.Contains(got, w) {
-			t.Errorf("list lacks %s: %v", w, got)
-		}
-	}
-	n := 0
-	for _, g := range got {
-		if g == "Grep" {
-			n++
-		}
-	}
-	if n != 1 {
-		t.Errorf("Grep appears %d times", n)
-	}
-}
-
-func TestClaudeArgsPutThePromptBeforeTheVariadicFlags(t *testing.T) {
-	c := claudeCall{Allow: []string{"Read(./**)", "Grep"}, Deny: []string{"Bash(convoz * --file*)", "Bash(convoz * --app*)"}, Budget: "1.00", Session: "s-1", Prompt: "hello"}
-	want := []string{"-p", "--permission-mode", "dontAsk", "--max-budget-usd", "1.00", "--session-id", "s-1", "hello",
-		"--allowedTools", "Read(./**),Grep", "--disallowedTools", "Bash(convoz * --file*),Bash(convoz * --app*)"}
+func TestClaudeArgsGiveEveryToolWithNoList(t *testing.T) {
+	c := claudeCall{Budget: "1.00", Session: "s-1", Prompt: "hello"}
+	want := []string{"-p", "--permission-mode", "bypassPermissions", "--max-budget-usd", "1.00", "--session-id", "s-1", "hello"}
 	if got := c.args(); !reflect.DeepEqual(got, want) {
 		t.Errorf("args\n got %q\nwant %q", got, want)
 	}
 	c.Resume = true
 	if got := c.args(); got[5] != "--resume" {
 		t.Errorf("a resumed session passes --resume: %q", got)
-	}
-}
-
-func TestClaudeArgsWithoutToolsLeaveTheFlagsOut(t *testing.T) {
-	got := claudeCall{Budget: "1.00", Session: "s", Prompt: "p"}.args()
-	if strings.Contains(strings.Join(got, " "), "Tools") {
-		t.Errorf("no tools were given: %q", got)
 	}
 }
 
