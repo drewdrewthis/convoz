@@ -86,7 +86,10 @@
   /* ---- plans: the line under a title, the row dot, and the plan parts of the details panel (plan.feature) ---- */
   /* Amber text is --color-warning: 7:1 on the light surface, where --color-amber is too close to 4.5:1 for small text. */
   .pdot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 999px; background: var(--color-idle); }
-  .pdot[data-tone="green"] { background: var(--color-success); }
+  /* Working is motion, not a static green dot (owner msgs 1310, 1924): a small ring that turns while the agent works. */
+  .pdot[data-tone="green"] { background: none; border: 2px solid color-mix(in srgb, var(--color-success) 30%, transparent); border-top-color: var(--color-success); animation: pdotspin 0.9s linear infinite; }
+  @keyframes pdotspin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .pdot[data-tone="green"] { animation: none; border-color: var(--color-success); } }
   .pdot[data-tone="amber"] { background: var(--color-amber); }
   .pdot[data-tone="red"] { background: var(--color-danger); }
   /* The status icon of a row (msg 382): right of the title, next to the unread count and as tall as it. */
