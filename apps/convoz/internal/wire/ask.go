@@ -139,21 +139,44 @@ type AskView struct {
 	ResolvedBy     *Person          `json:"resolved_by,omitempty"`
 	ResolvedAt     int64            `json:"resolved_at,omitempty"`
 	AckedAt        int64            `json:"acked_at,omitempty"`
-	Version        int64            `json:"version"`
-	CreatedAt      int64            `json:"created_at"`
-	SnoozedUntil   int64            `json:"snoozed_until,omitempty"`
-	History        []AskHistoryRow  `json:"history,omitempty"`
-	App            json.RawMessage  `json:"app,omitempty"`   // the app shown with the question, or its stub
-	Draft          *AskDraft        `json:"draft,omitempty"` // a draft ask: the message to send in the owner's name
-	Reply          *AskReply        `json:"reply,omitempty"` // a draft ask once answered
+	// OwnerReply is the latest reply of the owner in the thread of this open ask; present while the ask waits on the agent's answer.
+	OwnerReply *AskOwnerReply `json:"owner_reply,omitempty"`
+	// Answers is the short summary of the answers to the owner's questions that the latest update of the ask carries.
+	Answers string `json:"answers,omitempty"`
+	// Revision is 2 after the first update, 3 after the next; absent on an ask that was never updated. Changed is what the latest update changed.
+	Revision     int             `json:"revision,omitempty"`
+	Changed      string          `json:"changed,omitempty"`
+	Version      int64           `json:"version"`
+	CreatedAt    int64           `json:"created_at"`
+	SnoozedUntil int64           `json:"snoozed_until,omitempty"`
+	History      []AskHistoryRow `json:"history,omitempty"`
+	App          json.RawMessage `json:"app,omitempty"`   // the app shown with the question, or its stub
+	Draft        *AskDraft       `json:"draft,omitempty"` // a draft ask: the message to send in the owner's name
+	Reply        *AskReply       `json:"reply,omitempty"` // a draft ask once answered
 }
 
-// RepliedNote is what an agent is told when its ask closed because the owner replied in the ask's thread instead of choosing.
+// AskOwnerReply is the owner's latest reply in the thread of an open ask: the message, a short excerpt of its words and when it was sent.
+type AskOwnerReply struct {
+	ID   int64  `json:"id"`
+	Text string `json:"text"`
+	At   int64  `json:"at"`
+}
+
+// OwnerReplyExcerpt is how many characters of the owner's reply an ask shows.
+const OwnerReplyExcerpt = 100
+
+// RepliedNote is what an agent is told about an ask that closed before migration 0039 because the owner replied in its thread.
 const RepliedNote = "The owner replied instead of choosing. Ask again if you still need a decision."
 
-// Note is the line that tells an agent what a closed ask means for it; empty when the ask needs none.
+// OwnerRepliedNote is what an agent is told when the owner replied in the thread of its open ask instead of choosing.
+const OwnerRepliedNote = "@owner replied in the thread of your ask: answer there, then update the same ask with `convoz ask --update <id> --answers ...` (do not send a new ask)."
+
+// Note is the line that tells an agent what an ask means for it after the owner replied; empty when the ask needs none.
 func (a AskView) Note() string {
-	if a.State == "closed" && a.CloseReason == "replied" {
+	switch {
+	case a.State == "open" && a.OwnerReply != nil:
+		return OwnerRepliedNote
+	case a.State == "closed" && a.CloseReason == "replied":
 		return RepliedNote
 	}
 	return ""
@@ -206,6 +229,16 @@ type AskAnswerRequest struct {
 type AskMarkRequest struct {
 	IfVersion int64  `json:"if_version,omitempty"`
 	ClientID  string `json:"client_id,omitempty"`
+}
+
+// AskUpdateRequest is PATCH /api/asks/:id: the asking agent updates its open ask in place. Recommended and Alternatives are given together
+// and replace the options; Answers is the summary (at most 1000 characters) of the answers to the owner's questions, required once the owner replied.
+type AskUpdateRequest struct {
+	Question         string             `json:"question,omitempty"`
+	Recommended      *AskOptionRequest  `json:"recommended,omitempty"`
+	Alternatives     []AskOptionRequest `json:"alternatives,omitempty"`
+	OwnersCallReason string             `json:"owners_call_reason,omitempty"`
+	Answers          string             `json:"answers,omitempty"`
 }
 
 // AskSnoozeRequest is PUT /api/asks/:id/snooze: a preset (1h, tonight, tomorrow; the last two read in TZ) or an exact time.

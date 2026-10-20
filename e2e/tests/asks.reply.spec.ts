@@ -1,8 +1,7 @@
 import type { Locator, Page } from "@playwright/test";
 import { streamOpen, uiWorld } from "../lib/chat-ui.ts";
 import { agentPost, convoz, createConversation, inboxItems, startWatch } from "../lib/chat.ts";
-import { QUESTION, agentAsks, askCard, askWorld, expectState, openNow, snoozeAsk } from "../lib/asks.ts";
-import { clientId } from "../lib/machines.ts";
+import { QUESTION, agentAsks, askCard, askOf, askWorld, expectState, markAsk, nowOf, openNow, ownerRepliesIn, snoozeAsk } from "../lib/asks.ts";
 import { box } from "../lib/mobile.ts";
 import { must } from "../lib/owner.ts";
 import { expect, scenario } from "../lib/scenario.ts";
@@ -11,10 +10,14 @@ import { browserWorld } from "../lib/wp3.ts";
 
 /*
  * ASK REPLIES AND THE SNOOZE SHEET (owner, conv 1 msg 1006): "Snooze ui is janked on mobile. Replying to a feed item should dismiss it and
- * the agent should have to ask it again". The bindings of the two rules added to specs/features/asks.feature after the withdrawn asks.
+ * the agent should have to ask it again". The snooze sheet binds as it did. The reply half was changed by the owner's msgs 1117 and 1131
+ * (migration 0039): a reply in an ask's thread keeps the ask open under "You replied", the agent answers in the thread and updates the
+ * same ask in place (`convoz ask --update`). The bindings of the rule "A reply to an ask is a question" of specs/features/asks.feature.
  */
 
-const NOTE = "The owner replied instead of choosing. Ask again if you still need a decision.";
+const NOTE = "@owner replied in the thread of your ask: answer there, then update the same ask with `convoz ask --update <id> --answers ...` (do not send a new ask).";
+const UPDATED = "Merge #415 on its own, now that the tests are in?";
+const ANSWERS = "Behind a feature flag. @drew-reviewer owns the area. One PR: the change is atomic. The review bot and QA passed. Details are in the thread above and the checks of the PR.";
 const DRAFT_QUESTION = "Send this reply to Alex?";
 
 /** The buttons of a card that sit under the rectangle `r`: "label". */
@@ -90,7 +93,7 @@ scenario("Snoozing on a phone opens a sheet that covers no button", { tag: ["@br
   await expect(card).toHaveCount(0);
 });
 
-scenario("Replying to an ask closes it and the agent must ask again", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+scenario("Replying to an ask keeps it open and moves it to You replied", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
   info.setTimeout(90_000);
   // Given an open ask of "devtool", and the owner has the conversation and Now open in two pages
   const u = await uiWorld({ server, page, context }, { agents: ["devtool"], live: ["devtool"] });
@@ -110,17 +113,19 @@ scenario("Replying to an ask closes it and the agent must ask again", { tag: ["@
   await threadPane(page).waitFor();
   await replyInThread(page, "Use the smaller one");
 
-  // Then Now no longer lists it and the card in the conversation shows "Answered with a reply", with no reload
+  // Then Now no longer lists it in the main list but under "You replied · waiting on the agent", with no reload
   await expect(askCard(now)).toHaveCount(0, { timeout: 4_000 });
-  await expect(askCard(page).first()).toContainText("Answered with a reply", { timeout: 4_000 });
-  await expect(askCard(page).first().getByRole("button", { name: "Quick reply" })).toHaveCount(0);
-  expect(await expectState(u.w.owner, id)).toBe("closed (replied)");
+  const replied = now.locator("#replied");
+  await expect(replied.getByText("You replied · waiting on the agent", { exact: true })).toBeVisible({ timeout: 4_000 });
+  await expect(replied.getByRole("link", { name: new RegExp(QUESTION) })).toContainText("Use the smaller one");
+  expect((await nowOf(u.w.owner)).badge).toBe(0);
+  expect(await expectState(u.w.owner, id)).toBe("open");
 
-  // And "devtool" has to ask again: the same question opens as a new ask
-  const again = await agentAsks(u.w.srv, lease, conv);
-  expect(again).not.toBe(id);
-  await expect(askCard(now)).toBeVisible({ timeout: 4_000 });
-  await expect(now.getByRole("article", { name: QUESTION })).toHaveCount(1);
+  // And the card in the conversation shows "You replied · waiting on @devtool" and still offers its options
+  const card = askCard(page).first();
+  await expect(card).toContainText("You replied · waiting on @devtool", { timeout: 4_000 });
+  await expect(card.getByRole("button", { name: "Quick reply" })).toBeVisible();
+  await expect(card.getByRole("button", { name: "Merge it" })).toBeVisible();
 });
 
 scenario("An agent's reply does not close an ask", { tag: ["@cli"] }, async ({ server }) => {
@@ -136,23 +141,30 @@ scenario("An agent's reply does not close an ask", { tag: ["@cli"] }, async ({ s
 
   // Then the ask is still open
   expect(await expectState(w.owner, id)).toBe("open");
+  expect((await askOf(w.owner, id)).owner_reply).toBeUndefined();
 });
 
-scenario("An agent sees that the owner replied instead of choosing", { tag: ["@cli"] }, async ({ server }) => {
+scenario("An agent is told to answer in the thread and send the updated ask there", { tag: ["@cli"] }, async ({ server }) => {
   // Given an open ask of "devtool" that the owner then snoozed
   const { w, conv, devtool } = await askWorld(server);
   const id = await agentAsks(w.srv, devtool.lease, conv);
   must(await snoozeAsk(w.owner, id, { preset: "1h" }), "snooze");
 
   // When the owner replies in the thread of the ask
-  must(await w.owner.client.post(`/api/conversations/${conv}/messages`, { client_id: clientId(), body: "Use the smaller one", thread_root_id: id }), "owner replies in the thread", 201);
+  const reply = await ownerRepliesIn(w.owner, conv, id, "Use the smaller one, but why not both?");
 
-  // Then the ask is closed because the owner replied
-  expect(await expectState(w.owner, id)).toBe("closed (replied)");
+  // Then the ask is still open and records the reply and its message
+  const ask = await askOf(w.owner, id);
+  expect({ state: ask.state, reply: ask.owner_reply?.id, text: ask.owner_reply?.text, snoozed: Boolean(ask.snoozed_until) }).toEqual({
+    state: "open", reply, text: "Use the smaller one, but why not both?", snoozed: true,
+  });
 
-  // And "devtool" reads in its inbox and in its watch: "The owner replied instead of choosing. Ask again if you still need a decision."
-  const item = (await inboxItems(w.box, devtool.sid, ["--peek"])).find((i) => i.reason === "ask_resolved") as unknown as { message: { id: number; ask: { close_reason: string } } };
-  expect({ ask: item.message.id, reason: item.message.ask.close_reason }).toEqual({ ask: id, reason: "replied" });
+  // And the history of the ask has an "owner_replied" row
+  expect(ask.history?.map((h) => `${h.event}:${h.to_state}`)).toEqual(["create:open", "owner_replied:open"]);
+
+  // And "devtool" reads in its inbox and in its watch: "@owner replied in the thread of your ask: answer there, then update the same ask with `convoz ask --update <id> --answers ...` (do not send a new ask)."
+  const item = (await inboxItems(w.box, devtool.sid, ["--peek"])).find((i) => i.reason === "ask_resolved") as unknown as { message: { id: number; ask: { state: string } } };
+  expect({ ask: item.message.id, state: item.message.ask.state }).toEqual({ ask: id, state: "open" });
   const peek = await convoz(w.box, devtool.sid, ["inbox", "--peek"]);
   expect(peek.stdout).toContain(NOTE);
   const watch = startWatch(w.box, devtool.sid);
@@ -163,4 +175,121 @@ scenario("An agent sees that the owner replied instead of choosing", { tag: ["@c
   } finally {
     await watch.stop();
   }
+});
+
+/** `convoz ask --update ID` as an agent. The raw run. */
+const updateAsk = (w: { box: Parameters<typeof convoz>[0] }, sid: string, id: number, extra: string[]) => convoz(w.box, sid, ["ask", "--json", "--update", String(id), ...extra]);
+const NEW_OPTIONS = ["--recommend", "Merge it", "--why", "Behind a flag, bot and QA passed", "--alt", "Hold it", "--alt-why", "Wait for #412"];
+
+scenario("The agent updates the ask in place with the answers", { tag: ["@cli"] }, async ({ server }) => {
+  // Given an open ask of "devtool" that the owner replied to
+  const { w, conv, devtool } = await askWorld(server);
+  const id = await agentAsks(w.srv, devtool.lease, conv);
+  await ownerRepliesIn(w.owner, conv, id, "Which checks pass?");
+  const before = await askOf(w.owner, id);
+
+  // When "devtool" runs "convoz ask --update" with a new question, new options and a summary of its answers
+  const ran = await updateAsk(w, devtool.sid, id, ["--question", UPDATED, ...NEW_OPTIONS, "--answers", ANSWERS]);
+  expect({ code: ran.code, stderr: ran.stderr }).toEqual({ code: 0, stderr: "" });
+
+  // Then it is the same ask, still open, with the new question and options, the summary, the version moved and an "updated" row in its history
+  const ask = await askOf(w.owner, id);
+  expect({ id: ask.id, state: ask.state, question: ask.question, options: ask.options.map((o) => o.why), answers: ask.answers, revision: ask.revision, changed: ask.changed }).toEqual({
+    id, state: "open", question: UPDATED, options: ["Behind a flag, bot and QA passed", "Wait for #412"], answers: ANSWERS, revision: 2, changed: "question, options",
+  });
+  expect(ask.version).toBeGreaterThan(before.version);
+  expect(ask.history?.map((h) => h.event)).toEqual(["create", "owner_replied", "updated"]);
+
+  // And the owner's reply mark is gone and the ask is in the main list of Now, not under "You replied"
+  expect(ask.owner_reply).toBeUndefined();
+  const now = await nowOf(w.owner);
+  expect({ main: now.asks.map((a) => a.id), replied: now.replied }).toEqual({ main: [id], replied: [] });
+
+  // And no new ask was made and "devtool" has the same number of open asks
+  expect((await convoz(w.box, devtool.sid, ["brief"])).stdout).toContain(UPDATED);
+  expect(now.asks).toHaveLength(1);
+});
+
+scenario("An update needs the answers, the asker and an open ask", { tag: ["@cli"] }, async ({ server }) => {
+  // Given an open ask of "devtool" that the owner replied to
+  const { w, conv, devtool, docs } = await askWorld(server);
+  const id = await agentAsks(w.srv, devtool.lease, conv);
+  await ownerRepliesIn(w.owner, conv, id, "Which checks pass?");
+
+  // When "devtool" updates it without answers
+  const bare = await updateAsk(w, devtool.sid, id, ["--question", UPDATED]);
+
+  // Then the update is refused and names the field "answers"
+  expect(bare.code).not.toBe(0);
+  expect(bare.stdout + bare.stderr).toContain("answers");
+
+  // When "docs" updates it
+  const other = await updateAsk(w, docs.sid, id, ["--question", UPDATED, "--answers", ANSWERS]);
+
+  // Then the update is refused
+  expect(other.code).not.toBe(0);
+  expect((await askOf(w.owner, id)).question).toBe(QUESTION);
+
+  // When the owner dismisses the ask and "devtool" updates it
+  must(await markAsk(w.owner, id, "dismiss"), "dismiss");
+  const late = await updateAsk(w, devtool.sid, id, ["--question", UPDATED, "--answers", ANSWERS]);
+
+  // Then the update is refused as a conflict
+  expect(late.code).not.toBe(0);
+  expect((await askOf(w.owner, id)).question).toBe(QUESTION);
+});
+
+scenario("The rules tell an agent to pre-answer the owner's obvious questions", { tag: ["@cli"] }, async ({ server }) => {
+  const { w } = await askWorld(server);
+  // When an agent reads "convoz rules"
+  const rules = (await w.box.run(["rules", "--as", "devtool"])).stdout;
+
+  // Then the rules say to answer the owner's obvious questions in the ask and name feature flag, reviewer, number of PRs, review bot and QA
+  expect(rules).toContain("Before an ask, answer the owner's obvious questions in it.");
+  for (const word of ["feature flag", "why this reviewer", "why N PRs and not one", "review bot and QA"]) expect(rules).toContain(word);
+
+  // And the rules say to answer questions asked in the ask's thread and update the same ask with "convoz ask --update"
+  expect(rules).toContain("answer them there and update the same ask (`convoz ask --update`)");
+});
+
+scenario("The updated ask shows in Now with the answers, and leaves You replied", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  // Given an open ask of "devtool" that the owner replied to, and the owner has the conversation and Now open in two pages
+  const u = await uiWorld({ server, page, context }, { agents: ["devtool"], live: ["devtool"] });
+  const lease = u.sessions.devtool!.lease;
+  const conv = await createConversation(u.w.owner, { title: "Ship search filters", participants: ["devtool"] });
+  const id = await agentAsks(u.w.srv, lease, conv);
+  await ownerRepliesIn(u.w.owner, conv, id, "Which checks pass?");
+  await page.goto(`${u.w.srv.origin}/chats/${conv}`);
+  await expect(askCard(page, QUESTION).first()).toContainText("You replied · waiting on @devtool");
+  const now: Page = await context.newPage();
+  await openNow(now, u.w.srv);
+  await expect(now.locator("#replied")).toBeVisible();
+  await streamOpen(page);
+  await streamOpen(now);
+
+  // When "devtool" updates the ask with its answers
+  const ran = await convoz(u.w.box, u.sessions.devtool!.sid, ["ask", "--json", "--update", String(id), "--question", UPDATED, "--answers", ANSWERS]);
+  expect({ code: ran.code, stderr: ran.stderr }).toEqual({ code: 0, stderr: "" });
+
+  // Then Now lists the ask in the main list with "Updated after your questions", "v2 · changed: question" and the summary folded to 2 lines with "More"
+  const card = askCard(now, UPDATED);
+  await expect(card).toContainText("Updated after your questions", { timeout: 4_000 });
+  await expect(card).toContainText("v2 · changed: question");
+  await expect(card).toContainText("Behind a feature flag.");
+  await expect(card.getByRole("button", { name: "More" })).toBeVisible();
+  await card.getByRole("button", { name: "More" }).click();
+  await expect(card.getByRole("button", { name: "Less" })).toBeVisible();
+
+  // And the ask is no longer under "You replied"
+  await expect(now.locator("#replied")).toHaveCount(0);
+  await expect(askCard(now, QUESTION)).toHaveCount(0);
+
+  // And the card in the conversation shows the same, and its history has the update
+  const inline = askCard(page, UPDATED).first();
+  await expect(inline).toContainText("Updated after your questions", { timeout: 4_000 });
+  await expect(inline).toContainText("v2 · changed: question");
+  await inline.getByRole("button", { name: "Ask options" }).click();
+  await page.getByRole("menuitem", { name: "History" }).click();
+  await expect(inline.getByRole("list", { name: "History" })).toContainText("Updated by Devtool @devtool");
 });

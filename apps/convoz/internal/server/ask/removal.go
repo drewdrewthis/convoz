@@ -84,15 +84,43 @@ func CloseForAgent(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, agen
 	return closeAll(ctx, d, p, now, ids, ReasonRevoked, false)
 }
 
-// CloseForReply closes the open asks of a thread the owner replied in (the ask whose message roots it, and the asks asked inside it),
-// snoozed ones included, with the reason "replied", and tells each asking agent: the owner answered in words instead of choosing, so
-// an agent that still needs a decision must ask again.
-func CloseForReply(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, conversationID, threadRoot int64) error {
-	ids, err := db.New(d).AsksToCloseOnReply(ctx, db.AsksToCloseOnReplyParams{ConversationID: conversationID, ThreadRoot: threadRoot})
+// OwnerReplied records the owner's reply in a thread on the open asks of that thread (the ask whose message roots it, and the asks
+// asked inside it; snoozed ones are open). The ask stays open: it remembers the reply (time and message), the history grows and the
+// asking agent is told to answer in the thread and update the same ask. A second reply moves the reply on and tells the agent again.
+func OwnerReplied(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, conversationID, threadRoot, replyID, by int64) error {
+	q := db.New(d)
+	ids, err := q.OpenAsksOfThread(ctx, db.OpenAsksOfThreadParams{ConversationID: conversationID, ThreadRoot: threadRoot})
+	if err != nil || len(ids) == 0 {
+		return err
+	}
+	asks, err := Views(ctx, d, ids)
 	if err != nil {
 		return err
 	}
-	return closeAll(ctx, d, p, now, ids, ReasonReplied, true)
+	for _, id := range ids {
+		a := asks[id]
+		won, err := q.MarkOwnerReplied(ctx, db.MarkOwnerRepliedParams{Now: now.UnixMilli(), ReplyID: replyID, MessageID: a.ID, Version: a.Version})
+		if err != nil {
+			return err
+		}
+		if won == 0 {
+			return lost(ctx, d, a.ID)
+		}
+		if err := q.InsertTransition(ctx, db.InsertTransitionParams{MessageID: a.ID, Version: a.Version + 1, Event: "owner_replied", ToState: Open, ByIdentity: nullInt(by), At: now.UnixMilli()}); err != nil {
+			return err
+		}
+		seq, err := p.Journal.Write(ctx, d, now, Change{
+			Type: EventOwnerReplied, Actor: by, Conversation: a.ConversationID, Message: a.ID,
+			Payload: map[string]any{"message_id": a.ID, "state": Open, "version": a.Version + 1, "reply_id": replyID},
+		})
+		if err != nil {
+			return err
+		}
+		if err := p.Inbox.AskResolved(ctx, d, now, a.AskerID, a.ConversationID, a.ID, seq); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // MessageDeleted closes the ask of a deleted ask message and tells its agent. An answered or closed ask keeps its decision:

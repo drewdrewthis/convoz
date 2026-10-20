@@ -466,8 +466,14 @@
    22,
    19
   ],
-  "button \"Mark Bug #8642 · null check fix read\"#0": [
+  "a \"Reply\"#0": [
    455,
+   231.39,
+   49,
+   44
+  ],
+  "button \"Mark Bug #8642 · null check fix read\"#0": [
+   504,
    231.39,
    77,
    44
@@ -496,8 +502,14 @@
    22,
    19
   ],
-  "button \"Mark Issue #100 · agent chat read\"#0": [
+  "a \"Reply\"#1": [
    455,
+   388.98,
+   49,
+   44
+  ],
+  "button \"Mark Issue #100 · agent chat read\"#0": [
+   504,
    388.98,
    77,
    44
@@ -526,8 +538,14 @@
    22,
    19
   ],
-  "button \"Mark lane-search read\"#0": [
+  "a \"Reply\"#2": [
    455,
+   546.58,
+   49,
+   44
+  ],
+  "button \"Mark lane-search read\"#0": [
+   504,
    546.58,
    77,
    44
@@ -556,8 +574,14 @@
    22,
    19
   ],
-  "button \"Mark usage-bot read\"#0": [
+  "a \"Reply\"#3": [
    455,
+   682.17,
+   49,
+   44
+  ],
+  "button \"Mark usage-bot read\"#0": [
+   504,
    682.17,
    77,
    44
@@ -586,8 +610,14 @@
    22,
    19
   ],
-  "button \"Mark scrum-master read\"#0": [
+  "a \"Reply\"#4": [
    455,
+   795.77,
+   49,
+   44
+  ],
+  "button \"Mark scrum-master read\"#0": [
+   504,
    795.77,
    77,
    44

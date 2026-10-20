@@ -26,12 +26,10 @@ type New struct {
 
 // Check refuses an ask that is not complete or is too long, naming the field (I-11, AC-13).
 func (n New) Check() error {
-	q := strings.TrimSpace(n.Question)
+	if err := n.checkQuestion(); err != nil {
+		return err
+	}
 	switch {
-	case q == "":
-		return &FieldError{"question", "Ask a question."}
-	case utf8.RuneCountInString(n.Question) > MaxQuestion:
-		return &FieldError{"question", "A question has at most 500 characters."}
 	case n.Draft != nil:
 		return checkDraft(*n.Draft)
 	case len(n.Alternatives) < 1 || len(n.Alternatives) > MaxAlternatives:
@@ -44,6 +42,17 @@ func (n New) Check() error {
 		if err := checkOption(o); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// checkQuestion judges the question alone: there, and at most 500 characters.
+func (n New) checkQuestion() error {
+	switch {
+	case strings.TrimSpace(n.Question) == "":
+		return &FieldError{"question", "Ask a question."}
+	case utf8.RuneCountInString(n.Question) > MaxQuestion:
+		return &FieldError{"question", "A question has at most 500 characters."}
 	}
 	return nil
 }

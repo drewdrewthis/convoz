@@ -603,6 +603,9 @@ func printDraft(io IO, a wire.AskView) {
 		reply, _ := json.Marshal(a.Reply)
 		fmt.Fprintf(io.Stdout, "  reply: %s\n", reply)
 	}
+	if note := a.Note(); note != "" {
+		fmt.Fprintf(io.Stdout, "  %s\n", note)
+	}
 	for _, h := range a.History {
 		fmt.Fprintf(io.Stdout, "    %s %s\n", plain(historyLine(h, a)), time.UnixMilli(h.At).UTC().Format(time.RFC3339))
 	}
@@ -637,6 +640,10 @@ func historyLine(h wire.AskHistoryRow, a wire.AskView) string {
 		return "Reopened by " + who
 	case "withdraw":
 		return "Withdrawn by " + who
+	case "owner_replied":
+		return "Replied in the thread by " + who
+	case "replace":
+		return "Replaced by an updated ask"
 	}
 	return "Closed (" + strings.ReplaceAll(a.CloseReason, "_", " ") + ")"
 }

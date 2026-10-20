@@ -192,6 +192,34 @@ Feature: Now
       When one browser answers "Merge it" and the other then answers "Hold it"
       Then the second browser shows "Answered · Merge it" and that its answer was not used
 
+  # Owner said (msg 1117): "the feed items are sometimes like you know they don't really give me the context that I need. And while opening things in a new thread, like responding in a thread is relatively easy, it fails to consider that as a user flow, right? It's like, okay, I've opened it as a thing, and now it's like basically just delegates to a new thread, but then the item still stays there. It doesn't show that I've responded. The conversation kind of doesn't continue in the same way, right?"
+  # Owner said (msg 1131): "update this ask so it has all of my QA answered ... that's the way to do it."
+  Rule: Asks the owner replied to wait under You replied, and the thread opens inside the app
+
+    @v1 @browser
+    Scenario: Asks the owner replied to wait in their own section
+      Given an open ask of "devtool" that the owner replied to with a long reply, and an open ask of "docs" that the owner did not reply to
+      When the owner opens Now
+      Then Now lists the ask of "docs" in the main list
+      And under "You replied · waiting on the agent" it lists the ask of "devtool" with its question, "@devtool", the first 100 characters of the reply and its age
+      And the ask of "devtool" is not in the main list and does not count in the badge
+      When the owner taps the row
+      Then the thread of the ask opens
+
+    @v1 @browser
+    Scenario: Reply in thread opens the thread without a page load, and the ask moves on return
+      Given an open ask of "devtool" in Now
+      When the owner taps "Reply in thread" on the ask in Now
+      Then the thread opens and its Reply box has focus, and the page was not loaded again
+      When the owner sends "Which runner?" in the thread and goes back to Now
+      Then the ask is under "You replied · waiting on the agent" at once, without waiting for a poll
+
+    @v1 @browser
+    Scenario: An unread conversation in Now has a Reply action that focuses the composer
+      Given "devtool" posted a message in conversation 41 that the owner has not read
+      When the owner opens Now and taps "Reply" on the unread card
+      Then conversation 41 opens inside the app and its composer has focus
+
   Rule: Snooze hides an ask until its time
 
     @v1 @browser @I-13

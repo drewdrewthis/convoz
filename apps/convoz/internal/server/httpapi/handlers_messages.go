@@ -361,10 +361,15 @@ func askViewsOf(ctx context.Context, d pdb.DBTX, dir directory, page []message.M
 	}
 	asks, err := ask.Views(ctx, d, ids)
 	out := make(map[int64]wire.AskView, len(asks))
-	for id, a := range asks {
-		out[id] = dir.askBase(a)
+	if err != nil {
+		return nil, err
 	}
-	return out, err
+	for id, a := range asks {
+		if out[id], err = dir.askWithReply(ctx, d, a); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
 }
 
 // listEdits is GET /api/messages/:id/edits: the earlier texts of a message, for anyone who can see it (M-13).

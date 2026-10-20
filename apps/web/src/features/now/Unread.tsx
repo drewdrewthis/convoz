@@ -3,6 +3,7 @@ import { memo, useEffect, useState } from "react";
 import { humanError } from "../../shared/api.ts";
 import { stripCf } from "../../shared/chat.ts";
 import { source } from "../../shared/data.ts";
+import { visit } from "../../shared/navigate.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { markAllRead } from "../conversations/index.ts";
 import { toast } from "../pins-stars/index.ts";
@@ -94,9 +95,14 @@ export const Unread = memo(function Unread({ rows, me }: { rows: Conversation[];
               </a>
               {/* Only the threads with something new; the rest are in the conversation. */}
               <ThreadRows c={{ ...c, threads: (c.threads ?? []).filter((t) => t.unread > 0) }} compact />
-              <Button variant="text" size="inline" className="-ml-8 self-start" disabled={busy} aria-label={`Mark ${titleOf(c)} read`} onClick={() => void run([c.id], "Marked read")}>
-                Mark read
-              </Button>
+              <div className="flex items-center">
+                <Button variant="text" size="inline" className="-ml-8" href={`/chats/${c.id}#compose`} onClick={(e) => visit(e, `/chats/${c.id}#compose`)}>
+                  Reply
+                </Button>
+                <Button variant="text" size="inline" disabled={busy} aria-label={`Mark ${titleOf(c)} read`} onClick={() => void run([c.id], "Marked read")}>
+                  Mark read
+                </Button>
+              </div>
             </li>
           );
         })}

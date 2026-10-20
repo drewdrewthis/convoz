@@ -390,6 +390,8 @@ components:
     SearchResponse: { $ref: "components/search.yaml#/SearchResponse" }
     AskOption: { $ref: "components/ask.yaml#/AskOption" }
     AskChoice: { $ref: "components/ask.yaml#/AskChoice" }
+    AskUpdateRequest: { $ref: "components/ask.yaml#/AskUpdateRequest" }
+    AskOwnerReply: { $ref: "components/ask.yaml#/AskOwnerReply" }
     OwnersCall: { $ref: "components/ask.yaml#/OwnersCall" }
     AskDraft: { $ref: "components/ask.yaml#/AskDraft" }
     AskReply: { $ref: "components/ask.yaml#/AskReply" }

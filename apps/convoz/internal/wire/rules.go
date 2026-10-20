@@ -32,6 +32,7 @@ Never put a decision or a plan in plain chat text.
 5. Tie each answer to the plan: what is done, what is next, and when.
 6. For a new plan, or work you think is done, open one conversation: ` + "`convoz new --fyi --with @<reviewer> \"<the work>\"`" + `. Post the plan or the proof there, and one line linking it where the work came up. ` + "`convoz agents`" + ` lists the handles.
 7. For risky or large work, ask another agent to review it first.
+8. Before an ask, answer the owner's obvious questions in it. For a merge or review: is it behind a feature flag, why this reviewer, why N PRs and not one, did it pass the review bot and QA. If the owner asks questions in the ask's thread, answer them there and update the same ask (` + "`convoz ask --update`" + `).
 
 ### The loop
 1. Keep ` + "`convoz watch --json`" + ` running in the background and answer each line. If it stops, start it again.

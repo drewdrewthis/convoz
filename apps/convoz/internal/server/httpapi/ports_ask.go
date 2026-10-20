@@ -60,6 +60,10 @@ func (m askMessages) PostAnswer(ctx context.Context, d pdb.DBTX, now time.Time, 
 	return err
 }
 
+func (m askMessages) SetQuestion(ctx context.Context, d pdb.DBTX, now time.Time, askID int64, question string) error {
+	return message.SetAskBody(ctx, d, messagePorts(m.p), now, askID, question)
+}
+
 // askConversations is the conversation side of an ask.
 type askConversations struct{}
 
@@ -118,7 +122,7 @@ func (askCascade) MessagePurged(ctx context.Context, d pdb.DBTX, now time.Time, 
 	return ask.MessagePurged(ctx, d, now, m.ID)
 }
 
-// askReplyPort closes the open asks of a thread when the owner replies there. Only the owner counts: an agent's reply never does.
+// askReplyPort records the owner's reply on the open asks of a thread. Only the owner counts: an agent's reply never does.
 type askReplyPort struct{ owner bool }
 
 func (r askReplyPort) OwnerReplied(ctx context.Context, d pdb.DBTX, now time.Time, m message.Message) ([]int64, error) {
@@ -126,7 +130,7 @@ func (r askReplyPort) OwnerReplied(ctx context.Context, d pdb.DBTX, now time.Tim
 		return nil, nil
 	}
 	fx := &askEffects{}
-	if err := ask.CloseForReply(ctx, d, askPorts(authz.Principal{}, fx), now, m.ConversationID, m.ThreadRootID); err != nil {
+	if err := ask.OwnerReplied(ctx, d, askPorts(authz.Principal{}, fx), now, m.ConversationID, m.ThreadRootID, m.ID, m.AuthorID); err != nil {
 		return nil, err
 	}
 	return fx.wake, nil

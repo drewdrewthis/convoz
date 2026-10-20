@@ -10,6 +10,9 @@ import { Status } from "./Status.tsx";
 /** From this width the signed-in app is a sidebar rail and the page (prototype v41 desktop); under it, the phone UI. */
 const DESK = "(min-width: 900px)";
 
+/** The new-chat key is bound once, whichever page is drawn first or next. */
+let newChatKey = false;
+
 /**
  * prepare readies the document for a page before the first render: the body attributes the stylesheet keys on, the tab
  * title, whether a 401 sends the browser to sign in, and Cmd+J / Ctrl+J (a new chat from anywhere in the signed-in app),
@@ -18,6 +21,10 @@ const DESK = "(min-width: 900px)";
  */
 export function prepare(def: PageDef): void {
   const body = document.body.dataset;
+  // The page before this one (a navigation inside the app) leaves none of its marks.
+  delete body.public;
+  delete body.shell;
+  delete body.chat;
   body.page = def.name;
   if (def.public) body.public = "";
   if (def.frame === "shell") body.shell = "";
@@ -26,6 +33,8 @@ export function prepare(def: PageDef): void {
   page.public = Boolean(def.public);
   if (def.frame === "focus") return;
   document.body.toggleAttribute("data-desk", matchMedia(DESK).matches);
+  if (newChatKey) return;
+  newChatKey = true;
   document.addEventListener("keydown", (event) => {
     if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "j") {
       event.preventDefault();

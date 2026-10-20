@@ -13,7 +13,7 @@ import (
 const askFrame = "ask.changed"
 
 var askEvents = []string{ask.EventCreated, ask.EventAnswered, ask.EventDismissed, ask.EventReopened, ask.EventClosed, ask.EventAcked,
-	ask.EventSnoozed, ask.EventUnsnoozed, ask.EventWoke}
+	ask.EventSnoozed, ask.EventUnsnoozed, ask.EventWoke, ask.EventOwnerReplied, ask.EventUpdated}
 
 func init() {
 	for _, t := range askEvents {

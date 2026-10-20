@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/ask"
@@ -38,12 +39,19 @@ func (dir directory) askBase(a ask.Ask) wire.AskView {
 	if a.ResolvedBy != 0 {
 		v.ResolvedBy = ptr(dir.person(a.ResolvedBy))
 	}
+	v.Answers, v.Changed = a.Answers, a.Changed
 	for _, h := range a.History {
 		row := wire.AskHistoryRow{Version: h.Version, Event: h.Event, ToState: h.ToState, At: h.At}
 		if h.By != 0 {
 			row.By = ptr(dir.person(h.By))
 		}
 		v.History = append(v.History, row)
+		if h.Event == "updated" {
+			v.Revision++
+		}
+	}
+	if v.Revision > 0 {
+		v.Revision++
 	}
 	return v
 }
@@ -55,7 +63,10 @@ func askViews(ctx context.Context, d pdb.DBTX, dir directory, list []ask.Ask, sn
 	titles := map[int64]*wire.AskConversation{}
 	out := make([]wire.AskView, 0, len(list))
 	for _, a := range list {
-		v := dir.askBase(a)
+		v, err := dir.askWithReply(ctx, d, a)
+		if err != nil {
+			return nil, err
+		}
 		conv, seen := titles[a.ConversationID]
 		if !seen {
 			c, found, err := conversation.GetAny(ctx, d, a.ConversationID)
@@ -94,4 +105,29 @@ func (s *Server) oneAskView(ctx context.Context, d pdb.DBTX, dir directory, a as
 		return wire.AskView{}, err
 	}
 	return list[0], nil
+}
+
+// askWithReply is askBase plus the owner's latest reply on an open ask, which is read from its message.
+func (dir directory) askWithReply(ctx context.Context, d pdb.DBTX, a ask.Ask) (wire.AskView, error) {
+	v := dir.askBase(a)
+	if a.State != ask.Open || a.OwnerReplyID == 0 {
+		return v, nil
+	}
+	reply, err := ownerReplyOf(ctx, d, a)
+	v.OwnerReply = reply
+	return v, err
+}
+
+// ownerReplyOf is the owner's latest reply on an open ask: its first words (a voice note's transcript included), cut at
+// wire.OwnerReplyExcerpt characters. Nil when the reply message is gone.
+func ownerReplyOf(ctx context.Context, d pdb.DBTX, a ask.Ask) (*wire.AskOwnerReply, error) {
+	m, found, err := message.GetAny(ctx, d, a.OwnerReplyID)
+	if err != nil || !found {
+		return nil, err
+	}
+	text := strings.Join(strings.Fields(plainText(ctx, d, m)), " ")
+	if r := []rune(text); len(r) > wire.OwnerReplyExcerpt {
+		text = string(r[:wire.OwnerReplyExcerpt]) + "…"
+	}
+	return &wire.AskOwnerReply{ID: m.ID, Text: text, At: a.OwnerRepliedAt}, nil
 }

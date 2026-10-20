@@ -246,6 +246,33 @@ func (s *Server) askWithdraw(w http.ResponseWriter, r *http.Request, c *call) {
 	})
 }
 
+// askUpdate is PATCH /api/asks/:id: the asking agent updates its open ask in place, after the owner's questions in its thread.
+func (s *Server) askUpdate(w http.ResponseWriter, r *http.Request, c *call) {
+	if c.p.SessionID == 0 {
+		writeErr(w, http.StatusForbidden, "forbidden", "Only the asking agent updates an ask.")
+		return
+	}
+	var in wire.AskUpdateRequest
+	if !decode(w, r, &in) {
+		return
+	}
+	a, ok := s.askVisible(w, r, c)
+	if !ok {
+		return
+	}
+	up := ask.Updating{ID: a.ID, By: c.p.IdentityID, Question: in.Question, OwnersCallReason: in.OwnersCallReason, Answers: in.Answers}
+	if in.Recommended != nil {
+		up.Recommended = &ask.Option{Label: in.Recommended.Label, Why: in.Recommended.Why}
+	}
+	for _, o := range in.Alternatives {
+		up.Alternatives = append(up.Alternatives, ask.Option{Label: o.Label, Why: o.Why})
+	}
+	status := http.StatusOK
+	s.askChange(w, r, c, &status, func(ctx context.Context, d pdb.DBTX, p ask.Ports, now time.Time) (ask.Ask, error) {
+		return ask.Update(ctx, d, p, now, up)
+	})
+}
+
 // askSnooze is PUT /api/asks/:id/snooze: hide an open ask from the caller until a time. A preset is read in the zone `tz`.
 func (s *Server) askSnooze(w http.ResponseWriter, r *http.Request, c *call) {
 	var in wire.AskSnoozeRequest
@@ -365,6 +392,9 @@ func (s *Server) nowScreen(w http.ResponseWriter, r *http.Request, c *call) {
 		out.Asks, err = liveAskViews(ctx, d, dir, waiting.Open, nil)
 	}
 	if err == nil {
+		out.Replied, err = liveAskViews(ctx, d, dir, waiting.Replied, nil)
+	}
+	if err == nil {
 		out.Snoozed, err = liveAskViews(ctx, d, dir, waiting.Snoozed, waiting.Until)
 	}
 	if err == nil {
@@ -405,10 +435,12 @@ func (s *Server) nowScreen(w http.ResponseWriter, r *http.Request, c *call) {
 
 // nowView is the answer of GET /api/now.
 type nowView struct {
-	Now            int64                `json:"now"`
-	PollMS         int64                `json:"poll_ms"`
-	Badge          int                  `json:"badge"`
-	Asks           []wire.AskView       `json:"asks"`
+	Now    int64          `json:"now"`
+	PollMS int64          `json:"poll_ms"`
+	Badge  int            `json:"badge"`
+	Asks   []wire.AskView `json:"asks"`
+	// Replied are the open asks the owner replied to: they wait on the agent's updated ask, newest reply first.
+	Replied        []wire.AskView       `json:"replied"`
 	Snoozed        []wire.AskView       `json:"snoozed"`
 	AnsweredToday  []wire.AskView       `json:"answered_today"`
 	DismissedToday []wire.AskView       `json:"dismissed_today"`

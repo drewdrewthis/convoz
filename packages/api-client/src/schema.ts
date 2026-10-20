@@ -1426,7 +1426,13 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * The asking agent updates its open ask in place, after the owner's questions in its thread. Only the asker, with a lease.
+         * @description Changes the question, the options (recommended and alternatives together), the reason of the owner's call, and carries `answers`, a short
+         *     summary of the answers (at most 1000 characters; required once the owner replied in the thread). The version moves, the owner's reply mark
+         *     and snoozes clear, and the ask pushes like a new one. 400 names the field; 409 when the ask is not open.
+         */
+        patch: operations["updateAsk"];
         trace?: never;
     };
     "/api/asks/{id}/answer": {
@@ -3335,6 +3341,26 @@ export interface components {
             index?: number;
             text?: string;
         };
+        /** @description What the asking agent changes in its open ask. Recommended and alternatives are given together and replace the options. */
+        AskUpdateRequest: {
+            question?: string;
+            recommended?: components["schemas"]["AskOption"];
+            alternatives?: components["schemas"]["AskOption"][];
+            owners_call_reason?: string;
+            answers?: string;
+        };
+        /** @description The owner's latest reply in the thread of an open ask. */
+        AskOwnerReply: {
+            /**
+             * Format: int64
+             * @description The reply message.
+             */
+            id: number;
+            /** @description Its first 100 characters (a voice note's transcript included). */
+            text: string;
+            /** Format: int64 */
+            at: number;
+        };
         /** @description Why only the owner can decide an ask. The card shows it under the question. */
         OwnersCall: {
             /**
@@ -3362,7 +3388,7 @@ export interface components {
         AskHistoryRow: {
             version: number;
             /** @enum {string} */
-            event: "create" | "answer" | "dismiss" | "undismiss" | "withdraw" | "close";
+            event: "create" | "answer" | "dismiss" | "undismiss" | "withdraw" | "close" | "owner_replied" | "updated";
             /** @enum {string} */
             to_state: "open" | "answered" | "dismissed" | "closed";
             by?: components["schemas"]["Person"];
@@ -3413,6 +3439,14 @@ export interface components {
              * @description When the asker saw the result ("Seen by @asker").
              */
             acked_at?: number;
+            /** @description The owner's latest reply in the thread of this open ask; the ask then waits on its agent's updated ask. */
+            owner_reply?: components["schemas"]["AskOwnerReply"];
+            /** @description The short summary of the answers to the owner's questions that the latest update carries. */
+            answers?: string;
+            /** @description 2 after the first update */
+            revision?: number;
+            /** @description What the latest update changed: question, options, owner's call or answers. */
+            changed?: string;
             /** @description Moves by one with every state change; a snooze never moves it. */
             version: number;
             /** Format: int64 */
@@ -3514,6 +3548,8 @@ export interface components {
             badge: number;
             /** @description Open and not snoozed; urgent first, then the newest. */
             asks: components["schemas"]["Ask"][];
+            /** @description Open, not snoozed, and the owner replied in the thread: they wait on the agent's updated ask, the newest reply first. */
+            replied: components["schemas"]["Ask"][];
             /** @description The caller's snoozed open asks, the soonest wake first. */
             snoozed: components["schemas"]["Ask"][];
             /** @description Answered in the last 24 hours */
@@ -5843,6 +5879,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OneAsk"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    updateAsk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AskUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description The ask after the update. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OneAsk"];
+                };
+            };
+            /** @description The ask is not open. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AskConflict"];
                 };
             };
             default: components["responses"]["Error"];

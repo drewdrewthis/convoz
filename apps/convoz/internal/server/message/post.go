@@ -80,9 +80,9 @@ type Places interface {
 	Posted(ctx context.Context, d pdb.DBTX, now time.Time, m Message) error
 }
 
-// AskCloser closes the asks of a thread when its owner replies there (ask module). It returns the identities whose inbox got an
+// AskReplies tells the asks of a thread that their owner replied there (ask module). It returns the identities whose inbox got an
 // item, for the caller to wake after the commit.
-type AskCloser interface {
+type AskReplies interface {
 	OwnerReplied(ctx context.Context, d pdb.DBTX, now time.Time, m Message) (wake []int64, err error)
 }
 
@@ -159,7 +159,7 @@ type Ports struct {
 	Threads       Threads
 	Inbox         InboxFanOut
 	Places        Places
-	Asks          AskCloser
+	Asks          AskReplies
 	Journal       Journal
 	Search        Indexer
 	Uploads       UploadBinder
@@ -273,7 +273,7 @@ func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) 
 		return Posted{}, err
 	}
 	var woken []int64
-	// A reply in words, not an answer to an ask and not the result of an app, ends the asks of its thread.
+	// A reply in words, not an answer to an ask and not the result of an app, is recorded on the open asks of its thread.
 	if p.Asks != nil && draft.ThreadRoot != 0 && draft.AnswersAsk == 0 && draft.ViaApp == nil {
 		if woken, err = p.Asks.OwnerReplied(ctx, d, now, m); err != nil {
 			return Posted{}, err

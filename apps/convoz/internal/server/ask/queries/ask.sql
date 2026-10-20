@@ -11,12 +11,12 @@ UPDATE asks SET sealed = 1 WHERE message_id = sqlc.arg(message_id);
 
 -- name: AskByID :one
 SELECT message_id, conversation_id, asker_id, question, urgent, owners_call_kind, owners_call_reason, draft_text, original_text, original_from, scrubbed_at, state, close_reason, chosen_kind, chosen_index, chosen_text,
-       answer_via, resolved_by, resolved_at, acked_at, version, created_at, updated_at
+       answer_via, resolved_by, resolved_at, acked_at, owner_replied_at, owner_reply_id, answers, changed, version, created_at, updated_at
 FROM asks WHERE message_id = sqlc.arg(message_id);
 
 -- name: AsksByIDs :many
 SELECT message_id, conversation_id, asker_id, question, urgent, owners_call_kind, owners_call_reason, draft_text, original_text, original_from, scrubbed_at, state, close_reason, chosen_kind, chosen_index, chosen_text,
-       answer_via, resolved_by, resolved_at, acked_at, version, created_at, updated_at
+       answer_via, resolved_by, resolved_at, acked_at, owner_replied_at, owner_reply_id, answers, changed, version, created_at, updated_at
 FROM asks WHERE message_id IN (sqlc.slice(ids));
 
 -- name: OptionsOf :many
@@ -103,3 +103,15 @@ WHERE message_id = sqlc.arg(message_id) AND scrubbed_at IS NULL;
 
 -- name: DeleteOptionsOf :exec
 DELETE FROM ask_options WHERE message_id = sqlc.arg(message_id);
+
+-- name: MarkOwnerReplied :execrows
+-- The owner replied in the thread of an open ask: it stays open and remembers the latest reply.
+UPDATE asks SET owner_replied_at = CAST(sqlc.arg(now) AS INTEGER), owner_reply_id = CAST(sqlc.arg(reply_id) AS INTEGER), version = version + 1, updated_at = sqlc.arg(now)
+WHERE message_id = sqlc.arg(message_id) AND version = sqlc.arg(version) AND state = 'open';
+
+-- name: UpdateAsk :execrows
+-- The asking agent updated its open ask in place: the content it may change, the summary of the answers and what changed; the owner's reply mark clears.
+UPDATE asks
+SET question = sqlc.arg(question), owners_call_reason = sqlc.narg(owners_call_reason), answers = sqlc.narg(answers), changed = CAST(sqlc.arg(changed) AS TEXT),
+    owner_replied_at = NULL, owner_reply_id = NULL, version = version + 1, updated_at = sqlc.arg(now)
+WHERE message_id = sqlc.arg(message_id) AND version = sqlc.arg(version) AND state = 'open';

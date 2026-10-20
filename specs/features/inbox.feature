@@ -225,6 +225,15 @@ Feature: Agent inbox
       And 11 minutes pass
       Then "devtool" has one "unanswered" item that carries "Any news?"
 
+    # Owner said (msg 1117): "the feed items are sometimes like you know they don't really give me the context that I need. And while opening things in a new thread, like responding in a thread is relatively easy, it fails to consider that as a user flow, right? It's like, okay, I've opened it as a thing, and now it's like basically just delegates to a new thread, but then the item still stays there. It doesn't show that I've responded. The conversation kind of doesn't continue in the same way, right?"
+    @v1 @cli
+    Scenario: An agent's reply in the thread of the owner's main-chat message answers it
+      Given the owner posted "Is the build green?" in the main chat of conversation 41
+      When "devtool" replies in the thread of that message and 11 minutes pass
+      Then "devtool" and "docs" have no "unanswered" item
+      When the owner posts "Any news?" in the main chat of conversation 41 and "devtool" replies in the thread of the first message and 11 minutes pass
+      Then "devtool" has one "unanswered" item that carries "Any news?"
+
     @v1 @cli
     Scenario: A plan update is not an answer
       Given the owner posted "Is the build green?" in conversation 41

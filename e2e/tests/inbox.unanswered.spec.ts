@@ -67,6 +67,33 @@ scenario("An agent's message in the same place clears the reminder", { tag: ["@c
   expect((await unanswered(p, p.dev)).map((i) => i.message.body)).toEqual(["Any news?"]);
 });
 
+// Owner msg 1117: "...It doesn't show that I've responded. The conversation kind of doesn't continue in the same way, right?"
+scenario("An agent's reply in the thread of the owner's main-chat message answers it", { tag: ["@cli"] }, async ({ server, testApi }) => {
+  const p = await planWorld(server);
+  const reply = async (root: number, text: string) => {
+    const res = await convoz(p.w.box, p.dev.sid, ["reply", "--fyi", String(root), text]);
+    expect(res.code, res.stderr).toBe(0);
+  };
+  // Given the owner posted "Is the build green?" in the main chat of conversation 41
+  const first = await ownerSays(p.w.owner, p.conv, "Is the build green?");
+
+  // When "devtool" replies in the thread of that message and 11 minutes pass
+  await reply(first, "Yes, checking the last job");
+  await testApi(p.w.srv).advanceClock(11 * MIN);
+
+  // Then "devtool" and "docs" have no "unanswered" item
+  expect(await unanswered(p, p.dev)).toEqual([]);
+  expect(await unanswered(p, p.docs)).toEqual([]);
+
+  // When the owner posts "Any news?" in the main chat of conversation 41 and "devtool" replies in the thread of the first message and 11 minutes pass
+  await ownerSays(p.w.owner, p.conv, "Any news?");
+  await reply(first, "Still the same job");
+  await testApi(p.w.srv).advanceClock(11 * MIN);
+
+  // Then "devtool" has one "unanswered" item that carries "Any news?"
+  expect((await unanswered(p, p.dev)).map((i) => i.message.body)).toEqual(["Any news?"]);
+});
+
 scenario("A plan update is not an answer", { tag: ["@cli"] }, async ({ server, testApi }) => {
   const p = await planWorld(server);
   // Given the owner posted "Is the build green?" in conversation 41

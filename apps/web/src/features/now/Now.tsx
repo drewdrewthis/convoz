@@ -9,13 +9,14 @@ import { agentRequests, RequestCard } from "./requests.tsx";
 import { AllClear, NoDecisions } from "./AllClear.tsx";
 import { Folds, type FoldKey } from "./Folds.tsx";
 import { NowAsk } from "./NowAsk.tsx";
+import { NowReplied } from "./NowReplied.tsx";
 import { PendingAdd } from "./PendingAdd.tsx";
 import { Unread, unreadRows } from "./Unread.tsx";
 import { WaitingPlans } from "./WaitingPlans.tsx";
 import { useAskActions } from "./useAskActions.ts";
 import { useNow } from "./store.ts";
 
-/** Now is /: what needs the owner. Open asks first (urgent, then the newest), then the adds agents wait on and the machines waiting
+/** Now is /: what needs the owner. Open asks first (urgent, then the newest), then the ones the owner replied to and the agent has not answered, then the adds agents wait on and the machines waiting
  *  to connect; Snoozed, Answered today and Dismissed today fold away below. With nothing waiting, the wordmark, "All clear" and the folds are centred, in that order. */
 export function Now() {
   const { fail } = useNotice();
@@ -56,6 +57,8 @@ export function Now() {
   const connecting = agentRequests(now);
   const waiting = plain.length + connecting.length;
   const asks = now?.asks ?? [];
+  // Held on the device before the "replied" list existed: none then.
+  const replied = now?.replied ?? [];
   const adds = now?.pending_adds ?? [];
   const items = now?.waiting_plans ?? [];
   const some = Boolean(pending && (waiting || asks.length || adds.length || items.length));
@@ -126,6 +129,7 @@ export function Now() {
           ))}
         </section>
       ) : null}
+      {replied.length ? <NowReplied asks={replied} /> : null}
       {items.length ? <WaitingPlans items={items} /> : null}
       {adds.length ? (
         <section id="adds" className="block" aria-label="Adds to decide">

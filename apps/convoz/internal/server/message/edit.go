@@ -194,3 +194,23 @@ func Purge(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, who Actor, i
 func bump(ctx context.Context, d pdb.DBTX, now time.Time, reply Message) error {
 	return db.New(d).BumpReplies(ctx, db.BumpRepliesParams{ReplyID: nullInt(reply.ID), At: nullInt(now.UnixMilli()), RootID: reply.ThreadRootID})
 }
+
+// SetAskBody writes the updated question of an ask into its message, in the transaction of the ask's update, and indexes it for search again.
+// It leaves no edit history and no "edited" mark: the ask card carries its own history. A message that is not an ask is refused.
+func SetAskBody(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, id int64, body string) error {
+	m, err := load(ctx, d, p, id)
+	if err != nil {
+		return err
+	}
+	if m.Kind != "ask" {
+		return ErrNotEditable
+	}
+	if err := db.New(d).ApplyEdit(ctx, db.ApplyEditParams{ID: id, Body: body, Format: m.Format}); err != nil {
+		return err
+	}
+	m.Body = body
+	if p.Search == nil {
+		return nil
+	}
+	return p.Search.IndexMessage(ctx, d, now, m)
+}

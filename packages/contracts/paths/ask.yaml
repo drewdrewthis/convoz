@@ -54,6 +54,34 @@
           application/json:
             schema: { $ref: "../openapi.yaml#/components/schemas/OneAsk" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
+  patch:
+    x-authz: { auth: human, lease: accept, scope: ask }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
+    operationId: updateAsk
+    summary: The asking agent updates its open ask in place, after the owner's questions in its thread. Only the asker, with a lease.
+    description: |
+      Changes the question, the options (recommended and alternatives together), the reason of the owner's call, and carries `answers`, a short
+      summary of the answers (at most 1000 characters; required once the owner replied in the thread). The version moves, the owner's reply mark
+      and snoozes clear, and the ask pushes like a new one. 400 names the field; 409 when the ask is not open.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "../openapi.yaml#/components/schemas/AskUpdateRequest" }
+    responses:
+      "200":
+        description: The ask after the update.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/OneAsk" }
+      "409":
+        description: The ask is not open.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/AskConflict" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/asks/{id}/answer:
   post:
     x-authz: { auth: human, lease: refuse }

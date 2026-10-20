@@ -212,6 +212,10 @@ ON CONFLICT (conversation_id, thread_root_id) DO UPDATE SET message_id = exclude
 -- name: ClearPlace :exec
 DELETE FROM inbox_unanswered WHERE conversation_id = sqlc.arg(conversation_id) AND thread_root_id = sqlc.arg(thread_root_id);
 
+-- name: ClearMainPlaceOfRoot :exec
+-- A reply in a thread answers the main-chat message that roots it (the thread is where that message was answered), when it is the one tracked.
+DELETE FROM inbox_unanswered WHERE conversation_id = sqlc.arg(conversation_id) AND thread_root_id = 0 AND message_id = sqlc.arg(root_id);
+
 -- name: DuePlaces :many
 SELECT conversation_id, thread_root_id, message_id FROM inbox_unanswered
 WHERE due_at <= sqlc.arg(now) ORDER BY due_at, conversation_id, thread_root_id LIMIT sqlc.arg(max_rows);
