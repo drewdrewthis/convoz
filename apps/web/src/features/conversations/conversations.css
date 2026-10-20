@@ -98,9 +98,9 @@
   .planicon[data-tone="red"] { color: var(--color-danger); }
   .planicon[data-tone="green"] { color: var(--color-success); }
   .planicon svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
-  .planicon .spin { width: 8px; height: 8px; border-radius: 999px; background: currentColor; animation: planpulse 1.6s ease-in-out infinite; }
-  @keyframes planpulse { 50% { opacity: .35; transform: scale(.7); } }
-  @media (prefers-reduced-motion: reduce) { .planicon .spin { animation: none; } }
+  /* Working turns, it does not blink (owner msg 2041): a blinking dot reads as a live connection. */
+  .planicon .spin { box-sizing: border-box; width: 12px; height: 12px; border-radius: 999px; border: 2px solid color-mix(in srgb, currentColor 25%, transparent); border-top-color: currentColor; animation: pdotspin 0.9s linear infinite; }
+  @media (prefers-reduced-motion: reduce) { .planicon .spin { animation: none; border-color: currentColor; } }
   .chatrow .planicon + .count { margin-left: -6px; }
   /* The line keeps the header compact: its 44 px tap target overlaps the title's lower half instead of pushing the bar down. */
   .planline {
