@@ -7,6 +7,9 @@ import { usePlans } from "../../plan/index.ts";
 /** OpenDetails opens the details panel of the conversation; the page provides it, so a row can send the owner there. */
 export const OpenDetails = createContext<() => void>(() => {});
 
+/** The id of the chat's "Waiting on you" cards (PlanSections.tsx): the pill goes there. */
+export const WAITING_HERE = "waiting-here";
+
 /** What a plan.changed line quotes (owner msg 632): the items as the agent wrote them, each optional. */
 interface PlanLineParts {
   identity?: { handle: string };
@@ -20,7 +23,8 @@ const LINES: [keyof PlanLineParts, string][] = [["done", "Done"], ["now", "Now"]
 
 /**
  * PlanNote is a plan update in the chat: one muted row, "@handle updated its plan", with what it does Now cut to one line and, while
- * something waits on the owner, a pill that opens the details panel (msg 632: "not sure what this little text is?"). Tapping the row
+ * something waits on the owner, a pill that goes to its cards above the composer, or opens the details panel when they are not
+ * there (msg 632: "not sure what this little text is?"; Convoz ask 1897). Tapping the row
  * opens Done, Now, Next and Waiting as short labelled lines. The pill counts what waits now (the live board), not what the line quoted.
  */
 export function PlanNote({ message, conversation }: { message: Message; conversation: number }) {
@@ -42,7 +46,7 @@ export function PlanNote({ message, conversation }: { message: Message; conversa
         </span>
       </button>
       {waiting > 0 ? (
-        <button type="button" className="pn-pill" onClick={openDetails}>
+        <button type="button" className="pn-pill" onClick={() => goToWaiting(openDetails)}>
           {`Waiting on you · ${waiting}`}
         </button>
       ) : null}
@@ -58,4 +62,12 @@ export function PlanNote({ message, conversation }: { message: Message; conversa
       ) : null}
     </div>
   );
+}
+
+/** goToWaiting brings the chat's "Waiting on you" cards into view and gives them the focus; without them, it calls fallback. */
+function goToWaiting(fallback: () => void): void {
+  const here = document.getElementById(WAITING_HERE);
+  if (!here) return fallback();
+  here.scrollIntoView({ block: "nearest" });
+  here.focus();
 }

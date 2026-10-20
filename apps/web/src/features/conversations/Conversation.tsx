@@ -19,6 +19,7 @@ import { Details } from "./Details.tsx";
 import { MessageDetails } from "./MessageDetails.tsx";
 import { OpenDetails } from "./messages/PlanNote.tsx";
 import { PlanLine } from "./PlanLine.tsx";
+import { WaitingHere, type PlanActions } from "./PlanSections.tsx";
 import { useFocusReport } from "../notifications/index.ts";
 import { replyingNote, usePresence, useReplying } from "../../shared/presence.ts";
 import { backLabel, useBackCount } from "./backCount.ts";
@@ -274,6 +275,7 @@ export function Conversation() {
   const presence = !agent ? null : working ? ["Working…", "busy"] : agent.online ? ["Online", "on"] : ["Offline", ""];
   const chips = !conversation ? picked : agents.map((p) => p.handle);
   const label = !agent ? "Message" : (conversation ? agents.length : picked.length) > 1 ? "Message" : `Message @${agent.handle}`;
+  const act: PlanActions = { say: (text) => send(text, []), reply: compose };
 
   return (
     <div className="chatframe" id="frame" ref={frame}>
@@ -366,6 +368,7 @@ export function Conversation() {
               newFrom={newFrom}
             />
           </OpenDetails.Provider>
+          <WaitingHere conv={convId} board={board} act={act} />
           <Composer
             agent={agent?.handle ?? null}
             label={label}
@@ -381,7 +384,7 @@ export function Conversation() {
         </p>
       </main>
       <ThreadPane title={title} bubbles={(list, pending) => <ThreadBubbles messages={list} pending={pending} me={me} conversation={convId} onRetry={(cid) => useThreads.getState().retry(cid)} />} />
-      {info && conversation ? <Details row={conversation} onClose={() => setInfo(false)} onInvite={() => setInviting(true)} board={board} act={{ say: (text) => send(text, []), reply: compose }} /> : null}
+      {info && conversation ? <Details row={conversation} onClose={() => setInfo(false)} onInvite={() => setInviting(true)} board={board} act={act} /> : null}
       {inviting && convId ? (
         <Suspense fallback={null}>
           <InviteAgentSheet close={() => setInviting(false)} conversation={{ id: convId, title: stripCf(conversation?.title ?? "") }} />
@@ -391,7 +394,7 @@ export function Conversation() {
     </div>
   );
 
-  /** compose starts a message in the box (the panel's Reply): the box is the composer's own state, so it is set the way typing sets it. */
+  /** compose starts a message in the box (Reply on a plan card): the box is the composer's own state, so it is set the way typing sets it. */
   function compose(text: string) {
     setInfo(false);
     const box = textRef.current;

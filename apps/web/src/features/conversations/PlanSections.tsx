@@ -3,8 +3,10 @@
 import type { Conversation, Person, Plan, PlanAgent, PlanBoard } from "@convoz/api-client";
 import { ChevronIcon } from "@convoz/ui/icons";
 import { useEffect, useRef, useState } from "react";
+import { create } from "zustand";
 import { initials, paletteOf, stripCf } from "../../shared/chat.ts";
 import { TriageBadge } from "../../shared/TriageBadge.tsx";
+import { WAITING_HERE } from "./messages/PlanNote.tsx";
 import { AskInline, useNow } from "../now/index.ts";
 import { ago, clock, dayLabel, span, usePlans, when, type Tone } from "../plan/index.ts";
 
@@ -26,16 +28,82 @@ export function planRequest(handle: string, conv: number, kind: "share" | "updat
 const URL_RE = /https?:\/\/[^\s<>"]+/;
 const serverNow = () => Date.now() + usePlans.getState().skew;
 
+/** One item an agent's plan waits on the owner for. */
+type WaitingItem = Plan["waiting"][number] & { handle: string };
+
+const waitingOf = (board: PlanBoard | undefined): WaitingItem[] => (board?.plans ?? []).flatMap((p) => p.waiting.map((w) => ({ handle: p.handle, ...w })));
+
+/** When the owner tapped "I did it", per conversation, agent and item: the card in the chat and the one in Details fold together. */
+const useDoneByYou = create<Record<string, number>>()(() => ({}));
+
+/**
+ * WaitingCard is one item a plan waits on the owner for, with the action in place: "I did it", "Reply", and "Open" when it has a
+ * link. After "I did it" it folds to "Done by you"; it goes when the agent drops the item from its plan (the live board).
+ */
+export function WaitingCard({ conv, item, act }: { conv: number; item: WaitingItem; act: PlanActions }) {
+  const key = `${conv}|${item.handle}|${item.text}`;
+  const done = useDoneByYou((s) => s[key]);
+  if (done) {
+    return (
+      <div className="pcard wait sent">
+        <p className="psent">{`Done by you · ${clock(done)}`}</p>
+      </div>
+    );
+  }
+  const link = URL_RE.exec(item.text)?.[0];
+  return (
+    <div className="pcard wait">
+      <p className="pmeta">
+        <Ava handle={item.handle} />
+        <b>{`@${item.handle}`}</b>
+        {` · waiting ${span(serverNow() - item.since)}`}
+      </p>
+      <p className="pq">{item.text}</p>
+      <div className="pacts">
+        <button
+          type="button"
+          className="chipbtn go"
+          onClick={() => {
+            act.say(`@${item.handle} I did it: ${item.text}`);
+            useDoneByYou.setState({ [key]: Date.now() });
+          }}
+        >
+          I did it
+        </button>
+        <button type="button" className="chipbtn" onClick={() => act.reply(`@${item.handle} about "${item.text}": `)}>
+          Reply
+        </button>
+        {link ? (
+          <a className="chipbtn" href={link} target="_blank" rel="noopener noreferrer">
+            Open
+          </a>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** WaitingHere is the plan items that wait on the owner, as cards at the foot of the chat, above the composer (Convoz ask 1897). */
+export function WaitingHere({ conv, board, act }: { conv: number; board: PlanBoard | undefined; act: PlanActions }) {
+  const items = waitingOf(board);
+  if (items.length === 0) return null;
+  return (
+    <section id={WAITING_HERE} className="waithere" aria-label="Waiting on you" tabIndex={-1}>
+      {items.map((it) => (
+        <WaitingCard key={`${it.handle}|${it.text}`} conv={conv} item={it} act={act} />
+      ))}
+    </section>
+  );
+}
+
 /** WaitingSection lists what waits on the owner here: the agents' asks, the items their plans wait on, and agents that ask to join. */
 export function WaitingSection({ row, board, act, decide }: { row: Conversation; board: PlanBoard | undefined; act: PlanActions; decide(iid: number, approve: boolean): void }) {
   const asks = (useNow((s) => s.now?.asks) ?? []).filter((a) => a.conversation_id === row.id);
-  const [said, setSaid] = useState<Record<string, number>>({});
   useEffect(() => void useNow.getState().load().catch(() => {}), [row.id]);
-  const items = (board?.plans ?? []).flatMap((p) => p.waiting.map((w) => ({ handle: p.handle, ...w })));
+  const items = waitingOf(board);
   const adds = row.pending ?? [];
   const count = asks.length + items.length + adds.length;
   if (count === 0) return null;
-  const now = serverNow();
   return (
     <section aria-labelledby="det-wait" className="plansec">
       <h3 id="det-wait" className="sechead amber">
@@ -47,44 +115,9 @@ export function WaitingSection({ row, board, act, decide }: { row: Conversation;
           <AskInline ask={a} labelId={`det-ask-${a.id}`} />
         </div>
       ))}
-      {items.map((it) => {
-        const key = `${it.handle}|${it.text}`;
-        const link = URL_RE.exec(it.text)?.[0];
-        return (
-          <div key={key} className={`pcard wait${said[key] ? " sent" : ""}`}>
-            <p className="pmeta">
-              <Ava handle={it.handle} />
-              <b>{`@${it.handle}`}</b>
-              {` · waiting ${span(now - it.since)}`}
-            </p>
-            <p className="pq">{it.text}</p>
-            {said[key] ? (
-              <p className="psent">{`You said it is done · ${clock(said[key])}. It goes when @${it.handle} updates its plan.`}</p>
-            ) : (
-              <div className="pacts">
-                <button
-                  type="button"
-                  className="chipbtn go"
-                  onClick={() => {
-                    act.say(`@${it.handle} I did it: ${it.text}`);
-                    setSaid((s) => ({ ...s, [key]: Date.now() }));
-                  }}
-                >
-                  I did it
-                </button>
-                <button type="button" className="chipbtn" onClick={() => act.reply(`@${it.handle} about "${it.text}": `)}>
-                  Reply
-                </button>
-                {link ? (
-                  <a className="chipbtn" href={link} target="_blank" rel="noopener noreferrer">
-                    Open
-                  </a>
-                ) : null}
-              </div>
-            )}
-          </div>
-        );
-      })}
+      {items.map((it) => (
+        <WaitingCard key={`${it.handle}|${it.text}`} conv={row.id} item={it} act={act} />
+      ))}
       {adds.map((add) => (
         <div key={`p${add.person.handle}`} className="pcard wait">
           <p className="pmeta">

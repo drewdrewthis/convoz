@@ -270,9 +270,9 @@ scenario("The details panel puts what waits on the owner first, then each agent'
   const short = await panel.locator("button, a.chipbtn").evaluateAll((list) => list.filter((b) => b.getBoundingClientRect().height > 0 && b.getBoundingClientRect().height < 43.5).map((b) => b.textContent));
   expect(short).toEqual([]);
 
-  // When the owner taps "I did it", then the chat shows the owner's message and the item shows "You said it is done"
+  // When the owner taps "I did it", then the chat shows the owner's message and the item folds to "Done by you" (Convoz ask 1897)
   await waiting.getByRole("button", { name: "I did it" }).click();
-  await expect(waiting).toContainText("You said it is done");
+  await expect(waiting).toContainText("Done by you");
   await expect.poll(async () => (await messagesOf(p.w.owner, p.conv)).map((m) => m.body)).toContain("@devtool I did it: Paste the prompt to dot");
 });
 
@@ -493,8 +493,35 @@ scenario("A plan update in the chat is one quiet row that expands", { tag: ["@br
 
   // When the owner taps the pill "Waiting on you · 1"
   await pill.click();
-  // Then the details panel opens
-  await expect(detailsPanel(page)).toBeVisible();
+  // Then the "Waiting on you" cards above the composer have the focus (Convoz ask 1897)
+  await expect(page.getByRole("region", { name: "Waiting on you", exact: true })).toBeFocused();
+});
+
+scenario("What waits on the owner is a card in the chat that folds once done", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  const p = await planUi({ server, page, context });
+  // Given "devtool" waits on the owner for "Approve PR 1"
+  await mustPlan(p, p.dev, ["--doing", "Building invites", "--waiting", "Approve PR 1"]);
+
+  // When the owner opens conversation 41
+  await page.goto(`${p.w.srv.origin}/chats/${p.conv}`);
+
+  // Then the chat shows a "Waiting on you" card with "Approve PR 1", "I did it" and "Reply", above the composer (Convoz ask 1897)
+  const here = page.getByRole("region", { name: "Waiting on you", exact: true });
+  await expect(here).toContainText("Approve PR 1");
+  await expect(here.getByRole("button", { name: "I did it" })).toBeVisible();
+  await expect(here.getByRole("button", { name: "Reply" })).toBeVisible();
+  const card = (await here.boundingBox())!;
+  const box = (await page.locator("#composer").boundingBox())!;
+  expect(card.y + card.height).toBeLessThanOrEqual(box.y);
+  await page.screenshot({ path: `/tmp/waiting-card-${info.project.name}.png` });
+
+  // When the owner taps "I did it"
+  await here.getByRole("button", { name: "I did it" }).click();
+
+  // Then the chat has "@devtool I did it: Approve PR 1" and the card folds to "Done by you"
+  await expect.poll(async () => (await messagesOf(p.w.owner, p.conv)).map((m) => m.body)).toContain("@devtool I did it: Approve PR 1");
+  await expect(here).toContainText("Done by you");
+  await expect(here.getByRole("button", { name: "I did it" })).toHaveCount(0);
 });
 
 scenario("Only something new that waits on the owner pushes", { tag: ["@api"] }, async ({ server, dataDir }, info) => {
