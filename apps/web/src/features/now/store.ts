@@ -92,9 +92,21 @@ const params = (id: number) => ({ params: { path: { id } } });
 export const answerAsk = (id: number, body: { choice: "recommended" | "alternative" | "custom"; index?: number; text?: string; if_version: number; via: "now" | "inline" }) =>
   settle(client.POST("/api/asks/{id}/answer", { ...params(id), body }));
 
-export const dismissAsk = (id: number, ifVersion: number) => settle(client.POST("/api/asks/{id}/dismiss", { ...params(id), body: { if_version: ifVersion } }));
+/**
+ * onNewest sends a mark once more with the version the server returned when the first try lost on an old version: a reply in the ask's
+ * thread moves the version, and the card on screen may still hold the one before (msg 1802). It retries only while the ask is still in
+ * the state the mark starts from (`from`); a second loss is returned as it is.
+ */
+async function onNewest(send: (ifVersion: number) => Promise<Settled>, ifVersion: number, from: Ask["state"]): Promise<Settled> {
+  const r = await send(ifVersion);
+  return r.lost && r.ask.state === from ? send(r.ask.version) : r;
+}
 
-export const undismissAsk = (id: number, ifVersion: number) => settle(client.POST("/api/asks/{id}/undismiss", { ...params(id), body: { if_version: ifVersion } }));
+export const dismissAsk = (id: number, ifVersion: number) =>
+  onNewest((v) => settle(client.POST("/api/asks/{id}/dismiss", { ...params(id), body: { if_version: v } })), ifVersion, "open");
+
+export const undismissAsk = (id: number, ifVersion: number) =>
+  onNewest((v) => settle(client.POST("/api/asks/{id}/undismiss", { ...params(id), body: { if_version: v } })), ifVersion, "dismissed");
 
 /** snoozeAsk snoozes for a preset; the zone is the browser's, since "Tonight" and "Tomorrow" are the owner's local times. */
 export const snoozeAsk = (id: number, preset: string) =>
