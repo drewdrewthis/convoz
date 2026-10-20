@@ -328,7 +328,7 @@ func (s *Server) getFile(w http.ResponseWriter, r *http.Request, c *call) {
 
 // mayOpen says whether the caller may read a complete file.
 func (s *Server) mayOpen(ctx context.Context, d pdb.DBTX, c *call, row upload.Row) (bool, error) {
-	floor, visible, err := canSee(ctx, d, c.p, row.ConversationID)
+	floor, visible, err := canRead(ctx, d, c.p, row.ConversationID)
 	switch {
 	case err != nil || !visible:
 		return false, err

@@ -55,6 +55,15 @@ func NewestOfAuthors(ctx context.Context, d pdb.DBTX, conv, root int64, authors 
 	return db.New(d).NewestOfAuthors(ctx, db.NewestOfAuthorsParams{ConversationID: conv, Root: root, Authors: who})
 }
 
+// NewestCountedInMain is the newest message of the main list that counts toward "unanswered" (the inbox's rule); ok is false for none.
+func NewestCountedInMain(ctx context.Context, d pdb.DBTX, conv int64) (Message, bool, error) {
+	r, err := db.New(d).NewestCountedInMain(ctx, conv)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Message{}, false, nil
+	}
+	return fromRow(r), err == nil, err
+}
+
 // LastReplyRunes is how much of the newest reply shows under a reply chip.
 const LastReplyRunes = 120
 

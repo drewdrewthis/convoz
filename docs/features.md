@@ -9,6 +9,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Agent inbox](#agent-inbox) (29)
 - [Agent sessions as one identity](#agent-sessions-as-one-identity) (17)
 - [Agents outside the tailnet connect through an agents-only address](#agents-outside-the-tailnet-connect-through-an-agents-only-address) (8)
+- [An agent that reads all conversations](#an-agent-that-reads-all-conversations) (6)
 - [Apps inside messages](#apps-inside-messages) (15)
 - [Asks and their state machine](#asks-and-their-state-machine) (30)
 - [Brief, handoff, read and search for agents](#brief-handoff-read-and-search-for-agents) (17)
@@ -126,6 +127,21 @@ I approve it with one tap and my own app stays on the tailnet.
   - [The owner revokes an invite](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/agent-port.feature#L67)
   - [An agent invites another agent and the card says who invited it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/agent-port.feature#L75)
   - [The owner makes an invite with the CLI on the server's own machine](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/agent-port.feature#L82)
+
+## An agent that reads all conversations
+
+It can tell me what waits on me, and I can cut it off in one tap.
+6 scenarios.
+
+- **The owner gives the right in the agent's profile and sees it in Crew**
+  - [The owner turns on reading everything in the agent profile](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/read-all.feature#L22)
+- **A granted agent reads everything, posts as itself and is never an inbox recipient**
+  - [A granted agent reads a conversation it is not in](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/read-all.feature#L34)
+  - [A granted agent posts in a conversation it is not in, as itself](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/read-all.feature#L43)
+  - [A granted agent gets no inbox item from a conversation it is not in](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/read-all.feature#L50)
+  - [Turning it off ends the reading on the next command](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/read-all.feature#L59)
+- **convoz waiting lists what waits on the owner**
+  - [convoz waiting lists an open ask, an unanswered message and a waiting plan item](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/read-all.feature#L68)
 
 ## Apps inside messages
 

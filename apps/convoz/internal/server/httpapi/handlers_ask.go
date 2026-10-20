@@ -111,6 +111,15 @@ func (s *Server) postAsk(w http.ResponseWriter, r *http.Request, c *call) {
 
 // askVisible loads the ask of the path and checks the caller may see its conversation (I-6). It writes the refusal itself.
 func (s *Server) askVisible(w http.ResponseWriter, r *http.Request, c *call) (ask.Ask, bool) {
+	return s.askAccess(w, r, c, canSee)
+}
+
+// askReadable is askVisible for a read: an agent with the read-all right may read the ask of any conversation, never change it.
+func (s *Server) askReadable(w http.ResponseWriter, r *http.Request, c *call) (ask.Ask, bool) {
+	return s.askAccess(w, r, c, canRead)
+}
+
+func (s *Server) askAccess(w http.ResponseWriter, r *http.Request, c *call, see func(context.Context, pdb.DBTX, authz.Principal, int64) (int64, bool, error)) (ask.Ask, bool) {
 	id, ok := pathID(w, r)
 	if !ok {
 		return ask.Ask{}, false
@@ -120,7 +129,7 @@ func (s *Server) askVisible(w http.ResponseWriter, r *http.Request, c *call) (as
 	var floor int64
 	var visible bool
 	if err == nil {
-		floor, visible, err = canSee(ctx, d, c.p, a.ConversationID)
+		floor, visible, err = see(ctx, d, c.p, a.ConversationID)
 	}
 	switch {
 	case s.askRefused(w, r, c, err):
@@ -134,7 +143,7 @@ func (s *Server) askVisible(w http.ResponseWriter, r *http.Request, c *call) (as
 
 // getAsk is GET /api/asks/:id: the ask, its options, its state and its history.
 func (s *Server) getAsk(w http.ResponseWriter, r *http.Request, c *call) {
-	a, ok := s.askVisible(w, r, c)
+	a, ok := s.askReadable(w, r, c)
 	if !ok {
 		return
 	}
@@ -472,7 +481,7 @@ func (s *Server) waitingPlans(ctx context.Context, d pdb.DBTX, c *call, dir dire
 		if !found {
 			continue
 		}
-		if _, ok, err2 := canSee(ctx, d, c.p, p.Conversation); err2 != nil {
+		if _, ok, err2 := canRead(ctx, d, c.p, p.Conversation); err2 != nil {
 			return nil, err2
 		} else if !ok {
 			continue

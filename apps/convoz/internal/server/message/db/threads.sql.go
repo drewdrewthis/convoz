@@ -64,6 +64,50 @@ func (q *Queries) CountThreadUnread(ctx context.Context, arg CountThreadUnreadPa
 	return count, err
 }
 
+const newestCountedInMain = `-- name: NewestCountedInMain :one
+SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine, last_reply_at, app_json, via_app_agent_id, app_result_json, via_voice FROM message_rows
+WHERE conversation_id = ?1 AND in_main = 1 AND kind <> 'system' AND deleted_at IS NULL
+  AND via_app_message_id IS NULL AND answers_ask_id IS NULL
+ORDER BY id DESC LIMIT 1
+`
+
+// The newest message of the main list that counts for the unanswered reminder: not a system line, not deleted, not the result of an
+// app and not the answer to an ask (the same ones the inbox ignores).
+func (q *Queries) NewestCountedInMain(ctx context.Context, conversationID int64) (MessageRow, error) {
+	row := q.db.QueryRowContext(ctx, newestCountedInMain, conversationID)
+	var i MessageRow
+	err := row.Scan(
+		&i.ID,
+		&i.ConversationID,
+		&i.AuthorID,
+		&i.Kind,
+		&i.Format,
+		&i.Body,
+		&i.ThreadRootID,
+		&i.Broadcast,
+		&i.InMain,
+		&i.ReplyCount,
+		&i.LastReplyID,
+		&i.CreatedAt,
+		&i.EditedAt,
+		&i.DeletedAt,
+		&i.PurgedAt,
+		&i.SystemJson,
+		&i.SessionID,
+		&i.AnswersAskID,
+		&i.ViaAppMessageID,
+		&i.HasApp,
+		&i.OriginLabel,
+		&i.OriginMachine,
+		&i.LastReplyAt,
+		&i.AppJson,
+		&i.ViaAppAgentID,
+		&i.AppResultJson,
+		&i.ViaVoice,
+	)
+	return i, err
+}
+
 const newestMessageID = `-- name: NewestMessageID :one
 SELECT CAST(COALESCE(MAX(id), 0) AS INTEGER) FROM messages WHERE conversation_id = ?1
 `

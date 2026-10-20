@@ -90,3 +90,14 @@ SELECT handle FROM retired_handles WHERE identity_id <> sqlc.arg(own_id);
 
 -- name: SetAgentDescription :exec
 UPDATE agents SET description = sqlc.arg(description) WHERE identity_id = sqlc.arg(id);
+
+-- name: AgentReadsAll :one
+SELECT EXISTS (SELECT 1 FROM agents a JOIN identities i ON i.id = a.identity_id
+  WHERE a.identity_id = sqlc.arg(id) AND a.can_read_all = 1 AND i.disabled_at IS NULL);
+
+-- name: SetAgentReadAll :execrows
+UPDATE agents SET can_read_all = sqlc.arg(on_) WHERE identity_id = sqlc.arg(id);
+
+-- name: ListReadAll :many
+-- Kept out of ListIdentities, which must run on the schema of every release (it only reads columns of migration 3 and older).
+SELECT a.identity_id FROM agents a WHERE a.can_read_all = 1;

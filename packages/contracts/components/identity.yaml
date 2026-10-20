@@ -52,6 +52,7 @@ Identity:
     online: { type: boolean, description: Agents only. True while the agent has a live session. }
     previous_handles: { type: array, items: { type: string }, description: "Agents only: the handles it had before, newest first. A mention of one still names this agent (I-51)." }
     handle_changed_at: { type: integer, format: int64, description: "Agents only: when the handle last changed." }
+    read_all: { type: boolean, description: "Agents only, absent when off: the owner let this agent read every conversation and thread and post in them as itself." }
     created_by:
       type: object
       required: [kind, name]
@@ -125,3 +126,40 @@ Renamed:
     from: { type: string }
     to: { type: string }
     until: { type: integer, format: int64 }
+WaitingResponse:
+  type: object
+  required: [now, asks, unanswered, plans, unread]
+  description: What waits on the owner across every conversation a read-all agent can read.
+  properties:
+    now: { type: integer, format: int64 }
+    asks: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/WaitingAsk" }, description: Open asks, snoozed ones included. }
+    unanswered: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/WaitingUnanswered" }, description: "Conversations whose newest main-chat message is the owner's and got no answer for 10 minutes. Threads are not scanned." }
+    plans: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/NowWaiting" }, description: Plan items agents wait on the owner for, newest first. }
+    unread: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/WaitingUnread" }, description: The owner's unread count per conversation, for those with some. }
+WaitingAsk:
+  type: object
+  required: [id, conversation, asker, question, urgent, snoozed, created_at, age_ms]
+  properties:
+    id: { type: integer, format: int64 }
+    conversation: { $ref: "../openapi.yaml#/components/schemas/AskConversation" }
+    asker: { $ref: "../openapi.yaml#/components/schemas/Person" }
+    question: { type: string }
+    urgent: { type: boolean }
+    snoozed: { type: boolean }
+    created_at: { type: integer, format: int64 }
+    age_ms: { type: integer, format: int64 }
+WaitingUnanswered:
+  type: object
+  required: [conversation, message_id, excerpt, created_at, age_ms]
+  properties:
+    conversation: { $ref: "../openapi.yaml#/components/schemas/AskConversation" }
+    message_id: { type: integer, format: int64 }
+    excerpt: { type: string }
+    created_at: { type: integer, format: int64 }
+    age_ms: { type: integer, format: int64 }
+WaitingUnread:
+  type: object
+  required: [conversation, unread]
+  properties:
+    conversation: { $ref: "../openapi.yaml#/components/schemas/AskConversation" }
+    unread: { type: integer, format: int64 }

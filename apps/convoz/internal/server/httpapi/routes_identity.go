@@ -10,6 +10,9 @@ var identityRoutes = []Route{
 	{Method: "GET", Pattern: "/api/identities/:id/avatar.svg", Auth: authz.Human, Lease: true, handle: (*Server).avatar},
 	{Method: "POST", Pattern: "/api/crew/agents", Auth: authz.Owner, StepUp: "identity.create", handle: (*Server).createAgent},
 	{Method: "POST", Pattern: "/api/identities/:id/disable", Auth: authz.Owner, handle: (*Server).disableIdentity},
+	// The owner lets an agent read every conversation and post in them (migration 0038); the agent asks what waits on the owner.
+	{Method: "PUT", Pattern: "/api/agents/:id/read-all", Auth: authz.Owner, StepUp: "identity.read_all", handle: (*Server).setReadAll},
+	{Method: "GET", Pattern: "/api/waiting", Auth: authz.Lease, handle: (*Server).waiting},
 	// A handle change (I-51): the agent changes its own with its lease, at once, or the owner changes it in Crew. No step-up.
 	{Method: "POST", Pattern: "/api/me/handle", Auth: authz.Lease, handle: (*Server).changeOwnHandle},
 	{Method: "POST", Pattern: "/api/identities/:id/handle", Auth: authz.Owner, handle: (*Server).changeHandle},

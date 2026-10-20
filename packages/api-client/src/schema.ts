@@ -752,6 +752,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/agents/{id}/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * The owner lets an agent read every conversation and thread, or takes the right back ("Can read all conversations" in Crew).
+         * @description Owner said (msg 784): "give an agent privileges to be able to monitor and review all conversations and threads without being added.
+         *     Not the inbox". Needs a fresh passkey check for `identity.read_all` on this agent. With the right the agent reads any conversation
+         *     that is not in the trash (conversations, messages, threads, edits, plans, asks, files, search) and posts a message or reply in it as
+         *     itself. It cannot add or remove anyone, rename, upload, write a plan, mark read, or answer, dismiss or snooze an ask, and it gets no
+         *     inbox item, mention or "Seen by" for a conversation it is not in. Off takes effect on the agent's next request. Nothing is posted in
+         *     any chat. An agent that is not there or is disabled is 404.
+         */
+        put: operations["setAgentReadAll"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/waiting": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What waits on the owner in every conversation (`convoz waiting`). Only an agent with the read-all right; any other caller is 403. */
+        get: operations["getWaiting"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me/handle": {
         parameters: {
             query?: never;
@@ -2074,7 +2116,7 @@ export interface components {
         /** @description Made once per command and reused on a retry, so a retry never makes a second one. */
         ClientId: string;
         /** @enum {string} */
-        StepUpAction: "passkey.add" | "passkey.remove" | "recovery.regenerate" | "machine.reveal" | "machine.regenerate" | "machine.revoke" | "machine.allow" | "identity.create" | "data.export" | "data.delete" | "message.purge" | "signout.all";
+        StepUpAction: "passkey.add" | "passkey.remove" | "recovery.regenerate" | "machine.reveal" | "machine.regenerate" | "machine.revoke" | "machine.allow" | "identity.create" | "identity.read_all" | "data.export" | "data.delete" | "message.purge" | "signout.all";
         Owner: {
             /** Format: int64 */
             id: number;
@@ -2139,11 +2181,54 @@ export interface components {
              * @description Agents only: when the handle last changed.
              */
             handle_changed_at?: number;
+            /** @description Agents only, absent when off: the owner let this agent read every conversation and thread and post in them as itself. */
+            read_all?: boolean;
             created_by?: {
                 /** @enum {string} */
                 kind: "human" | "machine";
                 name: string;
             };
+        };
+        /** @description What waits on the owner across every conversation a read-all agent can read. */
+        WaitingResponse: {
+            /** Format: int64 */
+            now: number;
+            /** @description Open asks */
+            asks: components["schemas"]["WaitingAsk"][];
+            /** @description Conversations whose newest main-chat message is the owner's and got no answer for 10 minutes. Threads are not scanned. */
+            unanswered: components["schemas"]["WaitingUnanswered"][];
+            /** @description Plan items agents wait on the owner for */
+            plans: components["schemas"]["NowWaiting"][];
+            /** @description The owner's unread count per conversation */
+            unread: components["schemas"]["WaitingUnread"][];
+        };
+        WaitingAsk: {
+            /** Format: int64 */
+            id: number;
+            conversation: components["schemas"]["AskConversation"];
+            asker: components["schemas"]["Person"];
+            question: string;
+            urgent: boolean;
+            snoozed: boolean;
+            /** Format: int64 */
+            created_at: number;
+            /** Format: int64 */
+            age_ms: number;
+        };
+        WaitingUnanswered: {
+            conversation: components["schemas"]["AskConversation"];
+            /** Format: int64 */
+            message_id: number;
+            excerpt: string;
+            /** Format: int64 */
+            created_at: number;
+            /** Format: int64 */
+            age_ms: number;
+        };
+        WaitingUnread: {
+            conversation: components["schemas"]["AskConversation"];
+            /** Format: int64 */
+            unread: number;
         };
         ProfileRequest: {
             display_name?: string;
@@ -4739,6 +4824,61 @@ export interface operations {
         requestBody: components["requestBodies"]["Empty"];
         responses: {
             200: components["responses"]["Empty"];
+            default: components["responses"]["Error"];
+        };
+    };
+    setAgentReadAll: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description The step_up_id of a fresh passkey check for this action. */
+                "X-Convoz-Step-Up": components["parameters"]["StepUp"];
+            };
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    on: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description The right after the change. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        read_all: boolean;
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getWaiting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Open asks, owner messages unanswered for 10 minutes, waiting plan items and the owner's unread counts. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaitingResponse"];
+                };
+            };
             default: components["responses"]["Error"];
         };
     };

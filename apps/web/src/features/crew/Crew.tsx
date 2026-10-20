@@ -188,6 +188,7 @@ function AgentRow({ r }: { r: Row }) {
           <span className="nm">{nameOf(r.who)}</span>
           <span className="st">{r.who.disabled ? "Disabled" : statusLine(r)}</span>
         </span>
+        {r.who.read_all ? <span className="rdall">Reads all</span> : null}
         {asks ? <span className="chip">{`${asks} ${asks === 1 ? "ask" : "asks"}`}</span> : null}
       </a>
     </li>

@@ -1,15 +1,17 @@
 import type { Handoff, Session } from "./types.ts";
 import { useCallback, useEffect, useState } from "react";
-import { call, client, fmtDate, humanError } from "../../shared/api.ts";
+import { call, client, fmtDate, humanError, stepUp } from "../../shared/api.ts";
 import { setRegistry } from "../../shared/chat.ts";
 import { data, useData, useLive } from "../../shared/data.ts";
 import { useNotice } from "../../shared/notice.tsx";
+import { StepUpSheet, useSheets } from "../../shared/sheets.tsx";
 import { Ring } from "./Avatar.tsx";
 import { nameOf } from "./Crew.tsx";
 import { ago, LOOK, shownState } from "./status.ts";
 import { useCrew } from "./store.ts";
 import { Button } from "@convoz/ui/Button";
 import { EmptyState } from "@convoz/ui/EmptyState";
+import { Field } from "@convoz/ui/Field";
 import { List, ListRow } from "@convoz/ui/ListRow";
 
 const TABS = ["Sessions", "Handoffs"] as const;
@@ -25,6 +27,7 @@ export function AgentProfile() {
   const [confirming, setConfirming] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [newHandle, setNewHandle] = useState("");
+  const { sheet, open } = useSheets();
   // A link may name a handle the agent had before (I-51): it still finds the agent, shown under its handle now.
   const who = everyone?.find((p) => p.kind === "agent" && (p.handle === asked || (p.previous_handles ?? []).includes(asked)));
   const handle = who?.handle ?? asked;
@@ -45,6 +48,22 @@ export function AgentProfile() {
   const shown = who.disabled ? "offline" : shownState(who.online, status?.state);
   const together = (conversations ?? []).filter((c) => c.participants.some((p) => p.handle === handle));
   const asks = status?.open_asks ?? [];
+  const machines = [...new Set((everySession ?? []).map((x) => x.machine))];
+  const setReadAll = (on: boolean) =>
+    open((close) => (
+      <StepUpSheet
+        title={on ? "Let this agent read everything" : "Stop reading everything"}
+        intro={on ? `@${handle} will read every conversation and thread, and can post in them as itself. This needs a passkey check.` : `@${handle} will only read the conversations it is in.`}
+        confirm={on ? "Allow" : "Turn off"}
+        action="identity.read_all"
+        target={who.id}
+        close={close}
+        perform={async (stepId) => {
+          await call(client.PUT("/api/agents/{id}/read-all", { params: { path: { id: who.id }, header: stepUp(stepId) }, body: { on } }));
+          await reload();
+        }}
+      />
+    ));
 
   return (
     <div className="crew profile">
@@ -121,6 +140,14 @@ export function AgentProfile() {
             </>
           )}
         </div>
+        {who.disabled ? null : (
+          <div className="readall">
+            <List as="div">
+              <Field type="checkbox" label="Can read all conversations" checked={!!who.read_all} onChange={(e) => setReadAll(e.target.checked)} />
+            </List>
+            <p className="hint">{`Reads every conversation and thread, and can post in them as itself. It can't answer your asks. Any process that can sign in as @${handle} on ${machines.length ? machines.join(", ") : "a machine that allows it"} gets this.`}</p>
+          </div>
+        )}
         {renaming && !who.disabled ? (
           <form
             role="group"
@@ -176,6 +203,7 @@ export function AgentProfile() {
           </div>
         ) : null}
       </section>
+      {sheet}
     </div>
   );
 }

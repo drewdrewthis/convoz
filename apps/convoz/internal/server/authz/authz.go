@@ -109,3 +109,21 @@ func CanSee(ctx context.Context, r ParticipantReader, p Principal, conversationI
 	}
 	return m.JoinedMessageID, true, nil
 }
+
+// ReadAllReader is what CanRead needs: membership, and whether the conversation is open to an agent the owner let read everything.
+type ReadAllReader interface {
+	ParticipantReader
+	// ReadsAll says whether identityID is an agent with the read-all right and conversationID is a live (not trashed) conversation.
+	ReadsAll(ctx context.Context, conversationID, identityID int64) (bool, error)
+}
+
+// CanRead is CanSee plus the read-all right (owner, msg 784): an agent the owner granted it reads every live conversation without being a
+// participant, whole history. Only read paths and posting a message use it; every other act on a conversation stays CanSee, so the right
+// is looked up per call and a revoke takes effect on the next request or stream frame.
+func CanRead(ctx context.Context, r ReadAllReader, p Principal, conversationID int64) (floor int64, ok bool, err error) {
+	if floor, ok, err = CanSee(ctx, r, p, conversationID); err != nil || ok || p.SessionID == 0 {
+		return floor, ok, err
+	}
+	granted, err := r.ReadsAll(ctx, conversationID, p.IdentityID)
+	return 0, granted, err
+}

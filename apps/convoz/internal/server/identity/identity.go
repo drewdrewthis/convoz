@@ -38,6 +38,9 @@ type Entry struct {
 	// Description and Capabilities are an agent's own words about itself (PATCH /api/me/profile); empty for a human.
 	Description  string   `json:"description,omitempty"`
 	Capabilities []string `json:"capabilities,omitempty"`
+	// ReadAll is an agent's owner-given right to read every conversation and thread, and to post in them (migration 0038). List leaves it
+	// false (it must run on every release's schema); ReadAllIDs says who has it.
+	ReadAll bool `json:"read_all,omitempty"`
 	// AvatarURL is where the identity's own SVG avatar is served (I-32); empty for the letter on a tint.
 	AvatarURL string `json:"avatar_url,omitempty"`
 	// PreviousHandles are the handles an agent had before, newest first (I-51); a mention of one still names it.
@@ -171,4 +174,29 @@ func Avatar(ctx context.Context, d pdb.DBTX, id int64) (svg string, ok bool, err
 		return "", false, nil
 	}
 	return v.String, err == nil && v.Valid, err
+}
+
+// ReadsAll says whether id is an enabled agent the owner let read every conversation.
+func ReadsAll(ctx context.Context, d pdb.DBTX, id int64) (bool, error) {
+	return db.New(d).AgentReadsAll(ctx, id)
+}
+
+// SetReadAll turns the read-everything right of an agent on or off. It reports false when there is no such agent.
+func SetReadAll(ctx context.Context, d pdb.DBTX, id int64, on bool) (bool, error) {
+	v := int64(0)
+	if on {
+		v = 1
+	}
+	n, err := db.New(d).SetAgentReadAll(ctx, db.SetAgentReadAllParams{On: v, ID: id})
+	return n > 0, err
+}
+
+// ReadAllIDs is the set of agents that hold the read-all right.
+func ReadAllIDs(ctx context.Context, d pdb.DBTX) (map[int64]bool, error) {
+	ids, err := db.New(d).ListReadAll(ctx)
+	out := make(map[int64]bool, len(ids))
+	for _, id := range ids {
+		out[id] = true
+	}
+	return out, err
 }

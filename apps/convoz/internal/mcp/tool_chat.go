@@ -157,6 +157,12 @@ func init() {
 			return runnerOf(ctx).run("search", "", append(argv, "--", a.Query)...)
 		}})
 
+	Register(Tool{Name: "waiting", Order: 22, Description: "List what waits on the owner in every conversation: open asks, unanswered owner messages, waiting plan items and the owner's unread counts. Needs the read-all right.",
+		InputSchema: object(nil, props{}),
+		Call: func(ctx context.Context, _ json.RawMessage) (any, error) {
+			return runnerOf(ctx).run("waiting", "")
+		}})
+
 	Register(Tool{Name: "post", Order: 8, Description: "Post a message to a conversation you are in. It may carry an app and up to 10 files.",
 		InputSchema: object([]string{"conversation", "text", "needs_you"}, props{
 			"conversation": conv(),

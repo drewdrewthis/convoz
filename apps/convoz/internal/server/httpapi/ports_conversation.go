@@ -11,14 +11,23 @@ import (
 )
 
 // conversationPort answers for the conversation module and for who may post in it.
-type conversationPort struct{ p authz.Principal }
+// readAll lets the read-all right count: for reading a message's history and for the one write a read-all agent may do in a
+// conversation it is not in, posting a message.
+type conversationPort struct {
+	p       authz.Principal
+	readAll bool
+}
 
 func (a conversationPort) Access(ctx context.Context, d pdb.DBTX, conv int64) (message.Access, error) {
 	_, found, err := conversation.Get(ctx, d, conv)
 	if err != nil {
 		return message.Denied, err
 	}
-	_, visible, err := canSee(ctx, d, a.p, conv)
+	see := canSee
+	if a.readAll {
+		see = canRead
+	}
+	_, visible, err := see(ctx, d, a.p, conv)
 	switch {
 	case err != nil:
 		return message.Denied, err

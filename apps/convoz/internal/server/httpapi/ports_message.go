@@ -18,12 +18,20 @@ import (
 func messagePorts(p authz.Principal) message.Ports {
 	search, uploads, apps, unfurls := searchPort{}, uploadPort{}, appPort{}, unfurlPort{}
 	return message.Ports{
-		Conversations: conversationPort{p}, Reads: readsPort{}, Threads: threadsPort{}, Inbox: inboxPort{}, Places: placesPort{owner: p.SessionID == 0 && p.Role == "owner"}, Asks: askReplyPort{owner: p.SessionID == 0 && p.Role == "owner"}, Journal: postJournal{},
+		Conversations: conversationPort{p: p}, Reads: readsPort{}, Threads: threadsPort{}, Inbox: inboxPort{}, Places: placesPort{owner: p.SessionID == 0 && p.Role == "owner"}, Asks: askReplyPort{owner: p.SessionID == 0 && p.Role == "owner"}, Journal: postJournal{},
 		Search: search, Uploads: uploads, Apps: apps, Mentions: mentionsPort{}, Unfurls: unfurls, Audit: postAuditPort{p},
 		Loop: loopPort{}, Events: messageEvents{},
 		// A module that keeps a copy of a message joins the delete and the purge by giving its port the two Cascade methods.
 		Cascades: cascadesOf(search, uploads, apps, unfurls, askCascade{}),
 	}
+}
+
+// readAllPorts is messagePorts where the read-all right counts: posting a message and reading its edits. Edit,
+// delete and every other act keep messagePorts, which asks for a seat.
+func readAllPorts(p authz.Principal) message.Ports {
+	ports := messagePorts(p)
+	ports.Conversations = conversationPort{p: p, readAll: true}
+	return ports
 }
 
 // cascadesOf picks the ports that also hold copies of a message.
