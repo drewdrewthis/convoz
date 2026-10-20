@@ -45,7 +45,7 @@ export function useAskActions({ now, asks, reload, onAnswered }: { now: Now | nu
     try {
       const r = await run();
       if (r.ask.state === "answered") onAnswered();
-      if (r.lost && label) say(lostNote(r.ask, label));
+      if (r.lost) say(label ? lostNote(r.ask, label) : `The ask is ${r.ask.state} now. Nothing was changed.`);
       await reload();
       return r;
     } catch (err) {

@@ -139,6 +139,15 @@ Feature: Asks and their state machine
       When the owner posts "thinking about it" in conversation 41
       Then the ask is still "open" in Now
 
+    # Owner, msg 1802: "I just tried to dismiss this ... in the thread, and nothing happened in the UI". A reply in the thread moves the
+    # ask's version, so the card may still hold the old one.
+    @v1 @browser
+    Scenario: Dismiss on a card with an old version still dismisses
+      Given an open ask of "devtool" in conversation 41, open on screen
+      And the owner replied in its thread, so the card holds an old version
+      When the owner taps "Dismiss" on the card
+      Then the ask is dismissed
+
     # Owner (Drew, msg 716): "this history button seems kind of useless? A better ui would just be the quick buttons"
     # In the conversation the card shows Quick reply, Snooze and Dismiss like Now's (no Open); History is an item in its ⋯ menu.
     @v1 @browser @I-12 @C-6 @AC-29

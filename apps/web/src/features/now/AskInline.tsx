@@ -23,11 +23,12 @@ export function AskInline({ ask, labelId, inThread = false, deleteSheet, replies
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const pinned = useData((s) => Boolean(s.rows[ask.conversation_id]?.pinned?.some((x) => x.id === ask.id)));
-  const run = async (change: () => Promise<{ ask: Ask }>) => {
+  const run = async (change: () => Promise<{ ask: Ask; lost?: boolean }>) => {
     if (busy) return;
     setBusy(true);
     try {
-      const { ask: next } = await change();
+      const { ask: next, lost } = await change();
+      if (lost) fail(`The ask is ${next.state} now. Nothing was changed.`); // never a click that does nothing (msg 1802)
       data.store.setState((s) => {
         const held = s.messages[next.conversation_id];
         if (!held) return s;

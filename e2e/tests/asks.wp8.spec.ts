@@ -12,6 +12,7 @@ import {
   callLine,
   expectState,
   markAsk,
+  ownerRepliesIn,
   nowOf,
   openNow,
   postAsk,
@@ -391,6 +392,33 @@ scenario("A plain message does not answer an ask", { tag: ["@api"] }, async ({ s
   // Then the ask is still "open" in Now
   const now = await nowOf(w.owner);
   expect(now.asks.map((a) => [a.id, a.state])).toEqual([[id, "open"]]);
+});
+
+scenario("Dismiss on a card with an old version still dismisses", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  // Given an open ask of "devtool" in conversation 41, open on screen
+  const w = await browserWorld({ server, page, context }, { agents: ["devtool", "docs"], live: ["devtool"] });
+  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  const id = await agentAsks(w.srv, w.sessions.devtool!.lease, conv);
+  await page.goto(`${w.srv.origin}/chats/${conv}`);
+  const open = askCard(page);
+  await expect(open.getByRole("group", { name: "Ask actions" })).toBeVisible();
+
+  // And the owner replied in its thread, so the card holds an old version (the first dismiss is sent with the version before it)
+  await ownerRepliesIn(w.owner, conv, id, "Let me think");
+  let first = true;
+  await page.route(`**/api/asks/${id}/dismiss`, async (route) => {
+    const body = route.request().postDataJSON() as { if_version: number };
+    const stale = first ? { ...body, if_version: body.if_version - 1 } : body;
+    first = false;
+    await route.continue({ postData: JSON.stringify(stale) });
+  });
+
+  // When the owner taps "Dismiss" on the card
+  await open.getByRole("group", { name: "Ask actions" }).getByRole("button", { name: "Dismiss" }).click();
+
+  // Then the ask is dismissed
+  await expect.poll(async () => (await messagesOf(w.owner, conv)).find((m) => m.id === id)?.ask?.state).toBe("dismissed");
 });
 
 scenario("The ask history shows who dismissed it", { tag: ["@browser"] }, async ({ server, page, context, dataDir, testApi }, info) => {
