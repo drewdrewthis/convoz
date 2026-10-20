@@ -233,6 +233,33 @@ scenario("Cmd+K opens search from anywhere", { tag: ["@browser"] }, async ({ ser
   await expect(box).toBeFocused();
 });
 
+scenario("The owner folds the sidebar and it stays folded", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given the owner has conversation 41 open on a wide screen
+  const u = await railWorld({ server, page, context });
+  await openRail(page, u.w.srv, `/chats/${u.c[41]}`);
+  await expect(page.getByRole("heading", { name: T41, level: 1 })).toBeVisible();
+  const frameLeft = async () => (await page.locator(".chatframe").boundingBox())!.x;
+  const wide = await frameLeft();
+
+  // When the owner clicks "Hide sidebar"
+  await rail(page).getByRole("button", { name: "Hide sidebar" }).click();
+
+  // Then the rail is a thin strip with only "Show sidebar" and the conversation takes the room
+  await expect(rail(page).getByRole("button", { name: "Show sidebar" })).toBeVisible();
+  await expect(rail(page).getByRole("link")).toHaveCount(0);
+  expect(await frameLeft()).toBeLessThan(wide - 150);
+
+  // When the owner reloads the page, then the rail is still folded
+  await page.reload();
+  await expect(rail(page).getByRole("button", { name: "Show sidebar" })).toBeVisible();
+
+  // When the owner presses Cmd+\, then the rail shows the conversations again
+  await page.keyboard.press("Meta+Backslash");
+  await expect(rail(page).getByRole("button", { name: "Hide sidebar" })).toBeVisible();
+  await expect(railGroup(page, "Conversations").locator(".rtitle")).toHaveText([T60, T52, T41]);
+  expect(await frameLeft()).toBe(wide);
+});
+
 scenario("The question mark opens the shortcut list", { tag: ["@browser"] }, async ({ server, page, context }) => {
   const u = await railWorld({ server, page, context });
   await openRail(page, u.w.srv, `/chats/${u.c[41]}`);
@@ -245,7 +272,7 @@ scenario("The question mark opens the shortcut list", { tag: ["@browser"] }, asy
   // Then the "Keyboard shortcuts" dialog lists every key
   const dialog = page.getByRole("dialog", { name: "Keyboard shortcuts" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.locator("kbd")).toHaveText(["Cmd+K", "Cmd+J", "Cmd+[", "Cmd+]", "Alt+ArrowUp", "Alt+ArrowDown", "I", "?", "Escape"]);
+  await expect(dialog.locator("kbd")).toHaveText(["Cmd+K", "Cmd+J", "Cmd+[", "Cmd+]", "Cmd+\\", "Alt+ArrowUp", "Alt+ArrowDown", "I", "?", "Escape"]);
 
   // And Escape closes it and returns focus where it was
   await page.keyboard.press("Escape");
