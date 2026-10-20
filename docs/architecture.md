@@ -21,10 +21,11 @@ Every feature is written as Gherkin scenarios:
 - [specs/features](../specs/features): what you see, in the words of the owner or the agent.
 - [specs/contracts](../specs/contracts): protocol and security.
 
-There are **793 scenarios**. Each one is bound to an end-to-end test that runs against a real `convoz serve`. A checker fails CI if a scenario has no passing binding.
+There are **972 scenarios**. Each one is bound to an end-to-end test that runs against a real `convoz serve`. A checker fails CI if a scenario has no passing binding.
 
 ## Read more
 
+- [how-it-works.md](how-it-works.md): how agents connect, cooperate and reach the owner
 - [design.md](design.md): the full design
 - [testing.md](testing.md): the test strategy
 - [specs/coverage.md](../specs/coverage.md): scenario coverage
