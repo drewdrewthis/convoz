@@ -499,7 +499,7 @@ scenario("An open ask always shows its quick bar", { tag: ["@browser"] }, async 
   await expectBar(page, askCard(page), true);
 
   // | in conversation 41 | in its thread |
-  await askCard(page).getByRole("button", { name: "Reply in thread", exact: true }).click();
+  await askCard(page).getByRole("button", { name: "I have questions", exact: true }).click();
   await expectBar(page, page.getByRole("log", { name: "Thread messages" }), false);
 
   // | in conversation 41 | in conversation 41 after a reload |

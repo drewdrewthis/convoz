@@ -44,16 +44,15 @@ scenario("Asks the owner replied to wait in their own section", { tag: ["@browse
   // Then Now lists the ask of "docs" in the main list
   await expect(page.locator("#asks").getByRole("article", { name: OTHER })).toBeVisible();
 
-  // And under "You replied · waiting on the agent" it lists the ask of "devtool" with its question, "@devtool", the first 100 characters of the reply and its age
+  // And under "You replied · waiting on the agent" it lists the ask of "devtool" with the first 100 characters of the reply, then its question, then "@devtool" and its age
   const replied = page.locator("#replied");
   await expect(replied.getByText("You replied · waiting on the agent", { exact: true })).toBeVisible();
   const row = replied.getByRole("link");
   await expect(row).toHaveCount(1);
-  await expect(row).toContainText(QUESTION);
-  await expect(row).toContainText("@devtool");
-  await expect(row).toContainText(`You: ${LONG.slice(0, 100)}…`);
+  // (the owner's own words lead, msg 2056)
+  await expect(row).toContainText(`${LONG.slice(0, 100)}…On: ${QUESTION}`);
   await expect(row).not.toContainText(LONG.slice(0, 101));
-  await expect(row).toContainText(/@devtool · (now|\d+[mhd])( · \d+ repl(y|ies)(?: · \d+ new)?)?You: /);
+  await expect(row).toContainText(/To Devtool @devtool · (now|\d+[mhd])( · \d+ repl(y|ies)(?: · \d+ new)?)?$/);
 
   // And the ask of "devtool" is not in the main list and does not count in the badge
   await expect(askCard(page, QUESTION)).toHaveCount(0);
@@ -72,7 +71,7 @@ scenario("Asks the owner replied to wait in their own section", { tag: ["@browse
   expect(await sameDocument(page, origin)).toBe(true);
 });
 
-scenario("Reply in thread opens the thread without a page load, and the ask moves on return", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+scenario("I have questions opens the thread without a page load, and the ask moves on return", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
   info.setTimeout(90_000);
   // Given an open ask of "devtool" in Now
   const w = await browserWorld({ server, page, context }, WORLD);
@@ -82,8 +81,8 @@ scenario("Reply in thread opens the thread without a page load, and the ask move
   await expect(askCard(page)).toBeVisible();
   const origin = await mark(page);
 
-  // When the owner taps "Reply in thread" on the ask in Now
-  await askCard(page).getByRole("button", { name: "Reply in thread", exact: true }).click();
+  // When the owner taps "I have questions" on the ask in Now
+  await askCard(page).getByRole("button", { name: "I have questions", exact: true }).click();
 
   // Then the thread opens and its Reply box has focus, and the page was not loaded again
   await threadPane(page).waitFor();
@@ -99,7 +98,7 @@ scenario("Reply in thread opens the thread without a page load, and the ask move
 
   // Then the ask is under "You replied · waiting on the agent" at once, without waiting for a poll
   const replied = page.locator("#replied");
-  await expect(replied.getByRole("link", { name: new RegExp(QUESTION) })).toContainText("You: Which runner?", { timeout: 2_000 });
+  await expect(replied.getByRole("link", { name: new RegExp(QUESTION) })).toContainText("Which runner?On: ", { timeout: 2_000 });
   await expect(askCard(page)).toHaveCount(0);
   expect(await sameDocument(page, origin)).toBe(true);
 });

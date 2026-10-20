@@ -24,7 +24,7 @@ export interface AskCardProps {
   onDismiss(): void;
   onUndismiss(): void;
   onSnooze(preset: string): void;
-  /** "Reply in thread": opens the thread on this ask. No button where the Reply box is already beside the card. */
+  /** "I have questions" (owner, msgs 1117 and 2101): opens the thread on this ask for a Q&A with the agent. No button where the Reply box is already beside the card. */
   onReply?(): void;
   /** The thread "Reply in thread" opens: its replies and how many are new to the viewer. Shown beside the button. */
   replies?: { count?: number; unread?: number };
@@ -276,7 +276,7 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
           : null}
         {onReply ? (
           <Button size="option" variant="dashed" onClick={onReply}>
-            Reply in thread
+            I have questions
             <ReplyCount count={replies?.count} unread={replies?.unread} />
           </Button>
         ) : null}

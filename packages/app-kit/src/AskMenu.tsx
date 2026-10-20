@@ -27,8 +27,11 @@ export function MenuItem({ sheet, quiet, onClick, children }: { sheet?: boolean;
 export function AskMenu({ sheet, holder, shut, children }: { sheet: boolean; holder: Ref<HTMLDivElement>; shut: () => void; children: ReactNode }) {
   if (!sheet)
     return (
-      <div className="mt-6 flex flex-col rounded-[12px] border border-solid border-border bg-raised p-4" role="menu">
-        {children}
+      // A zero-height anchor: the menu floats over the card under its button and pushes nothing down (owner, msg 2101).
+      <div className="relative z-20 h-0">
+        <div className="absolute top-4 right-0 flex min-w-180 flex-col rounded-[12px] border border-solid border-border bg-raised p-4 [box-shadow:var(--float)]" role="menu">
+          {children}
+        </div>
       </div>
     );
   return (

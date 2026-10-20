@@ -109,7 +109,7 @@ scenario("Replying to an ask keeps it open and moves it to You replied", { tag: 
   await streamOpen(now);
 
   // When the owner replies to the ask in its thread
-  await askCard(page).getByRole("button", { name: "Reply in thread" }).click();
+  await askCard(page).getByRole("button", { name: "I have questions" }).click();
   await threadPane(page).waitFor();
   await replyInThread(page, "Use the smaller one");
 

@@ -135,7 +135,7 @@ scenario("The message list carries the reply count and the new replies of the re
   expect(after.get(t.root)).not.toHaveProperty("unread_replies");
 });
 
-scenario("The Reply in thread button of an ask shows the replies", { tag: ["@browser"] }, async ({ server, page, context }) => {
+scenario("The I have questions button of an ask shows the replies", { tag: ["@browser"] }, async ({ server, page, context }) => {
   // Given an open ask of "devtool" in conversation 41 and "docs" replied in its thread
   const w = await browserWorld({ server, page, context }, { agents: ["devtool", "docs"], live: ["devtool", "docs"] });
   const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
@@ -145,11 +145,11 @@ scenario("The Reply in thread button of an ask shows the replies", { tag: ["@bro
   // When the owner opens conversation 41
   await page.goto(`${w.srv.origin}/chats/${conv}`);
 
-  // Then "Reply in thread" on the ask shows "1 reply"
-  await expect(askCard(page).getByRole("button", { name: /^Reply in thread/ })).toHaveText("Reply in thread1 reply");
+  // Then "I have questions" on the ask shows "1 reply"
+  await expect(askCard(page).getByRole("button", { name: /^I have questions/ })).toHaveText("I have questions1 reply");
 });
 
-scenario("Reply in thread on an ask and on a fold row shows the replies", { tag: ["@browser"] }, async ({ server, page, context }) => {
+scenario("I have questions on an ask and on a fold row shows the replies", { tag: ["@browser"] }, async ({ server, page, context }) => {
   // Given an open ask of "devtool" in Now that "docs" replied to twice in its thread, and an answered ask with one reply
   const w = await browserWorld({ server, page, context }, { agents: ["devtool", "docs"], live: ["devtool", "docs"] });
   const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
@@ -165,8 +165,8 @@ scenario("Reply in thread on an ask and on a fold row shows the replies", { tag:
   // When the owner opens Now
   await openNow(page, w.srv);
 
-  // Then "Reply in thread" on the open ask shows "2 replies"
-  await expect(askCard(page, QUESTION).getByRole("button", { name: /^Reply in thread/ })).toHaveText("Reply in thread2 replies");
+  // Then "I have questions" on the open ask shows "2 replies"
+  await expect(askCard(page, QUESTION).getByRole("button", { name: /^I have questions/ })).toHaveText("I have questions2 replies");
 
   // When the owner opens the folds in Now
   await openFold(page, "Answered today");
@@ -174,8 +174,8 @@ scenario("Reply in thread on an ask and on a fold row shows the replies", { tag:
   // Then "Reply in thread" on the answered row shows "1 reply"
   await expect(page.locator(".foldrows li").filter({ hasText: "Answered question?" }).getByRole("link", { name: /^Reply in thread/ })).toHaveText("Reply in thread1 reply");
 
-  // And an ask with no reply shows "Reply in thread" with no count
-  await expect(askCard(page, "Plain question?").getByRole("button", { name: "Reply in thread", exact: true })).toHaveText("Reply in thread");
+  // And an ask with no reply shows "I have questions" with no count
+  await expect(askCard(page, "Plain question?").getByRole("button", { name: "I have questions", exact: true })).toHaveText("I have questions");
 });
 
 scenario("A You replied row shows the replies and the new ones, and the new clear when the thread is opened", { tag: ["@browser"] }, async ({ server, page, context }) => {
