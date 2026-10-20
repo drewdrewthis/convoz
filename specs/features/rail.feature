@@ -1,7 +1,7 @@
 # Source: design draft 9 I-14 (unread math), I-21 (rail order), §8.2, §12.1 (BenchmarkRail_FloorZero1M), AC-13.
 # Prototype: groups Starred, Conversations and a collapsed "Older · N" (not starred, not fresh, no message since yesterday),
 # row preview "You: …" / "@agent: …" / "No messages yet", drag to reorder, "Reorder {title}. Alt plus arrow keys move it.",
-# back and forward (Cmd+[ / Cmd+]), Cmd+K search.
+# back and forward (Cmd+[ / Cmd+]), Cmd+K search, Cmd+\ folds the sidebar.
 # Every scenario runs end to end in a browser against a real `convoz serve` on a fresh `mktemp -d` data dir.
 
 Feature: Rail
@@ -98,6 +98,17 @@ Feature: Rail
     Scenario: Cmd+K opens search from anywhere
       When the owner presses Cmd+K in conversation 41
       Then the search box has focus
+
+    # Owner, msg 1791: "I also really want that feature we discussed to be able to collapse the sidebar".
+    @v1 @browser
+    Scenario: The owner folds the sidebar and it stays folded
+      Given the owner has conversation 41 open on a wide screen
+      When the owner clicks "Hide sidebar"
+      Then the rail is a thin strip with only "Show sidebar" and the conversation takes the room
+      When the owner reloads the page
+      Then the rail is still folded
+      When the owner presses Cmd+\
+      Then the rail shows the conversations again
 
     @v1 @browser
     Scenario: The question mark opens the shortcut list

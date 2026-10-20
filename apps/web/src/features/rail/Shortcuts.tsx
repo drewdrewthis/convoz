@@ -2,6 +2,7 @@ import { Sheet } from "@convoz/ui/Sheet";
 import { useEffect } from "react";
 import { create } from "zustand";
 import { Button } from "@convoz/ui/Button";
+import { useFold } from "./fold.ts";
 
 /** Every key the app answers to, for the "Keyboard shortcuts" dialog. Keep it equal to what the handlers below and the pages do. */
 export const SHORTCUTS: readonly { keys: string; does: string }[] = [
@@ -9,6 +10,7 @@ export const SHORTCUTS: readonly { keys: string; does: string }[] = [
   { keys: "Cmd+J", does: "Start a new conversation" },
   { keys: "Cmd+[", does: "Back to the conversation you came from" },
   { keys: "Cmd+]", does: "Forward again" },
+  { keys: "Cmd+\\", does: "Fold or unfold the sidebar" },
   { keys: "Alt+ArrowUp", does: "Move the conversation in focus up the rail" },
   { keys: "Alt+ArrowDown", does: "Move the conversation in focus down the rail" },
   { keys: "I", does: "Show or hide the details of a conversation" },
@@ -22,7 +24,7 @@ const typing = (el: EventTarget | null) => el instanceof HTMLElement && Boolean(
 
 /**
  * useRailShortcuts handles the keys that belong to no page: Cmd+[ and Cmd+] move through the conversations visited (a page is a
- * full load, so this is the browser's own history), and "?" opens the list of keys, unless the person is typing.
+ * full load, so this is the browser's own history), Cmd+\ folds the sidebar, and "?" opens the list of keys, unless the person is typing.
  */
 export function useRailShortcuts(): void {
   useEffect(() => {
@@ -32,6 +34,9 @@ export function useRailShortcuts(): void {
         event.preventDefault();
         if (event.key === "[") history.back();
         else history.forward();
+      } else if (cmd && !event.altKey && !event.shiftKey && event.key === "\\") {
+        event.preventDefault();
+        useFold.getState().toggle();
       } else if (event.key === "?" && !cmd && !event.altKey && !typing(event.target) && !document.querySelector("dialog[open]")) {
         event.preventDefault();
         useHelp.getState().set(true);

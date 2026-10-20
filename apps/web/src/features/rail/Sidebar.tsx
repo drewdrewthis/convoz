@@ -9,9 +9,10 @@ import { toast } from "../pins-stars/index.ts";
 import { useSearchUi } from "../search/index.ts";
 import { startDrag, type Drop } from "./drag.ts";
 import { Logo } from "./Logo.tsx";
-import { BackArrow, ChevronIcon, ComposeGlyph, CrewGlyph, InviteGlyph, ForwardArrow, GripIcon, NowGlyph, SearchGlyph, StarIcon } from "./icons.tsx";
+import { BackArrow, ChevronIcon, ComposeGlyph, CrewGlyph, InviteGlyph, ForwardArrow, GripIcon, PanelGlyph, NowGlyph, SearchGlyph, StarIcon } from "./icons.tsx";
 import { groups, isOlder, rowLabel, titleOf } from "./model.ts";
 import { ThreadRows } from "../threads/index.ts";
+import { useFold } from "./fold.ts";
 import { moveRow, setStar, stepRow } from "./actions.ts";
 
 const openedId = (): number => Number(/^\/chats\/(\d+)$/.exec(location.pathname)?.[1] ?? 0);
@@ -28,6 +29,7 @@ export default function Sidebar() {
   const [said, setSaid] = useState("");
   const [focusId, setFocusId] = useState(0);
   const current = openedId();
+  const { folded, toggle } = useFold();
   useLive(() => void data.loadConversations().catch(() => {}));
   useEffect(() => {
     Promise.all([data.loadMe(), data.loadConversations(), data.loadIdentities()]).catch(() => {});
@@ -116,9 +118,23 @@ export default function Sidebar() {
     </Fragment>
   );
 
+  const foldButton = (
+    <IconButton variant="dim" size={32} glyph="self" label={folded ? "Show sidebar" : "Hide sidebar"} aria-expanded={!folded} aria-keyshortcuts={"Meta+\\"} title={`${folded ? "Show" : "Hide"} sidebar · ⌘\\`} onClick={toggle}>
+      <PanelGlyph />
+    </IconButton>
+  );
+  if (folded) {
+    return (
+      <nav className="rail" aria-label="Conversations" data-testid="rail" data-folded="">
+        {foldButton}
+      </nav>
+    );
+  }
+
   return (
     <nav className="rail" aria-label="Conversations" data-testid="rail">
       <div className="rail-top">
+        {foldButton}
         <a className="brand" href="/">
           <Logo />
         </a>

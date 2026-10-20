@@ -22,3 +22,4 @@ export const CrewGlyph = () => svg(<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-
 export const PinGlyph = ({ size = 14 }: { size?: number }) =>
   svg(<path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />, "none", size);
 export const InviteGlyph = () => svg(<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM19 8v6M22 11h-6" />, "none", 14);
+export const PanelGlyph = () => svg(<><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /></>, "none", 16, 1.8);
