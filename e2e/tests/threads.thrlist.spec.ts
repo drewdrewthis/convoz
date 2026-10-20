@@ -8,8 +8,8 @@ import type { Locator, Page } from "@playwright/test";
 /*
  * THREADS ON THE LIST: specs/features/threads.feature, rule "The Conversations list shows every thread under its conversation"
  * (owner msgs 266-267). Under a conversation row the list shows an indented link "Open thread: <root text>" per thread with a reply,
- * newest reply first, with its own "Unread: N" count; the row of the conversation counts the main list only. Threads quiet since
- * yesterday sit under a per-conversation "Older · n" button.
+ * newest reply first, with its own "Unread: N" count; the row of the conversation counts the main list only. Threads with no unread message
+ * sit under a per-conversation "Older · n" button (owner msg 1855).
  */
 const threadRow = (page: Page, text: string | RegExp) => page.locator("#chats").getByRole("link", { name: typeof text === "string" ? new RegExp(`^Open thread: .*${text}`) : text });
 const convRow = (page: Page) => page.locator("#chats a.chatrow").filter({ has: page.getByRole("heading", { name: "Ship search filters" }) });
@@ -53,13 +53,14 @@ scenario("Thread replies count on the thread's row, not the conversation's", { t
   await openRail(page, t.w.srv.origin);
   await streamOpen(page);
   const row = threadRow(page, ROOT_TEXT);
-  await expect(row).toBeVisible();
+  // thread 900 has nothing unread yet, so it sits under "Older · 1"
+  await expect(page.locator("#chats").getByRole("button", { name: "Older · 1" }).last()).toBeVisible();
 
   // When "devtool" posts 2 replies in thread 900
   await agentReplies(t, t.dev, "Yes, it can");
   await agentReplies(t, t.dev, "I will open the PR");
 
-  // Then without a reload the row of thread 900 shows "Unread: 2" and conversation 41 shows no count
+  // Then without a reload thread 900 leaves Older, its row shows "Unread: 2", and conversation 41 shows no count
   await expect(row.getByText("Unread: 2")).toBeVisible();
   await expect(convRow(page).getByText(/^Unread: /)).toHaveCount(0);
 
@@ -68,33 +69,65 @@ scenario("Thread replies count on the thread's row, not the conversation's", { t
   await expect(threadLog(page).getByRole("article").filter({ hasText: "I will open the PR" })).toBeVisible();
   await page.goto(`${t.w.srv.origin}/chats`);
 
-  // Then the row of thread 900 shows no count
+  // Then thread 900, read now, sits under "Older · 1" and its row shows no count
+  await page.locator("#chats").getByRole("button", { name: "Older · 1" }).last().click();
   await expect(threadRow(page, ROOT_TEXT)).toBeVisible();
   await expect(threadRow(page, ROOT_TEXT).getByText(/^Unread: /)).toHaveCount(0);
 });
 
-scenario("Threads with no reply since yesterday fold into Older under their conversation", { tag: ["@browser", "@I-21"] }, async ({ server, page, context, dataDir }) => {
+scenario("Threads with no unread message fold into Older under their conversation", { tag: ["@browser", "@I-21"] }, async ({ server, page, context, dataDir }) => {
   const t: ThreadWorld = await threadWorld({ server, page, context }, { browser: true });
 
-  // Given thread 900 has a recent reply and thread 901 has no reply since yesterday
+  // Given thread 900 has an unread reply, thread 901 has only the owner's own reply, and thread 902 has an unread reply from 2 days ago
   await agentReplies(t, t.dev, "A fresh reply");
-  const old = await agentSays(t.w.srv, t.dev, t.conv, "The older topic");
-  await agentReplies({ ...t, root: old }, t.docs, "A stale reply");
-  seedDb(dataDir, (db) => db.prepare("UPDATE messages SET created_at = created_at - ? WHERE thread_root_id = ?").run(2 * DAY, old));
+  const read = await agentSays(t.w.srv, t.dev, t.conv, "The read topic");
+  await ownerReplies({ ...t, root: read }, "My own reply");
+  const stale = await agentSays(t.w.srv, t.dev, t.conv, "The stale unread topic");
+  await agentReplies({ ...t, root: stale }, t.docs, "A stale reply");
+  seedDb(dataDir, (db) => db.prepare("UPDATE messages SET created_at = created_at - ? WHERE thread_root_id = ?").run(2 * DAY, stale));
 
   // When the owner opens the Conversations list
   await openRail(page, t.w.srv.origin);
 
-  // Then conversation 41 lists thread 900 and the toggle "Older · 1" under it
+  // Then threads 900 and 902 show, and thread 901 sits under the toggle "Older · 1"
   await expect(threadRow(page, ROOT_TEXT)).toBeVisible();
+  await expect(threadRow(page, "The stale unread topic")).toBeVisible();
   const toggle = page.locator("#chats").getByRole("button", { name: "Older · 1" }).last();
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
-  await expect(threadRow(page, "The older topic")).toHaveCount(0);
+  await expect(threadRow(page, "The read topic")).toHaveCount(0);
 
   // And expanding "Older · 1" shows thread 901
   await toggle.click();
-  await expect(threadRow(page, "The older topic")).toBeVisible();
+  await expect(threadRow(page, "The read topic")).toBeVisible();
   await page.screenshot({ path: test_shot(page) });
+});
+
+scenario("A conversation folds its threads by its chevron, and stays folded after a reload", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  const t = await threadWorld({ server, page, context }, { browser: true });
+
+  // Given "devtool" replied in thread 900 of conversation 41 (owner, msg 1855: a starred conversation's threads flooded the rail)
+  await agentReplies(t, t.dev, "Yes, it can");
+
+  // When the owner opens the Conversations list and taps the chevron of conversation 41
+  await openRail(page, t.w.srv.origin);
+  await expect(threadRow(page, ROOT_TEXT)).toBeVisible();
+  const fold = page.locator("#chats").getByRole("button", { name: "Fold threads of Ship search filters" });
+  await expect(fold).toHaveAttribute("aria-expanded", "true");
+  await fold.click();
+
+  // Then thread 900 is not listed, and the chevron says it shows the threads
+  await expect(threadRow(page, ROOT_TEXT)).toHaveCount(0);
+  const show = page.locator("#chats").getByRole("button", { name: "Show threads of Ship search filters" });
+  await expect(show).toHaveAttribute("aria-expanded", "false");
+
+  // And after a reload the threads stay folded
+  await page.reload();
+  await expect(show).toBeVisible();
+  await expect(threadRow(page, ROOT_TEXT)).toHaveCount(0);
+
+  // And tapping the chevron again lists thread 900
+  await show.click();
+  await expect(threadRow(page, ROOT_TEXT)).toBeVisible();
 });
 
 scenario("A long thread preview stays inside the row and keeps its unread count in view", { tag: ["@browser", "@I-14"] }, async ({ server, page, context }) => {

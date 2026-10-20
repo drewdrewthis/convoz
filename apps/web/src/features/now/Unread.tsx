@@ -94,7 +94,7 @@ export const Unread = memo(function Unread({ rows, me }: { rows: Conversation[];
                 ))}
               </a>
               {/* Only the threads with something new; the rest are in the conversation. */}
-              <ThreadRows c={{ ...c, threads: (c.threads ?? []).filter((t) => t.unread > 0) }} compact />
+              <ThreadRows c={{ ...c, threads: (c.threads ?? []).filter((t) => t.unread > 0) }} compact foldable={false} />
               <div className="flex items-center">
                 <Button variant="text" size="inline" className="-ml-8" href={`/chats/${c.id}#compose`} onClick={(e) => visit(e, `/chats/${c.id}#compose`)}>
                   Reply

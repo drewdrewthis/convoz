@@ -48,7 +48,7 @@ func (s *Server) markRead(w http.ResponseWriter, r *http.Request, c *call) {
 			return err
 		}
 		if in.RootID != 0 {
-			moved, badRoot, err = readThread(ctx, d, now, who, cv, in)
+			moved, badRoot, err = readThread(ctx, d, now, who, c.p.SessionID == 0, cv, in)
 			return err
 		}
 		target := min(in.MainID, cv.LastMainID)
@@ -88,8 +88,10 @@ func (s *Server) markRead(w http.ResponseWriter, r *http.Request, c *call) {
 	}
 }
 
-// readThread moves the reader's position in the thread of in.RootID up to in.ReplyID, at most the thread's newest reply.
-func readThread(ctx context.Context, d pdb.DBTX, now time.Time, who int64, cv conversation.Conversation, in wire.ReadRequest) (moved, badRoot bool, err error) {
+// readThread moves the reader's position in the thread of in.RootID up to in.ReplyID, at most the thread's newest reply. A person
+// who opens a thread it is not in gets a read position there (owner, msg 1855: the rail shows a thread's new replies until it is
+// opened, so opening must mark it read); an agent's read moves an existing position only (DA-3).
+func readThread(ctx context.Context, d pdb.DBTX, now time.Time, who int64, person bool, cv conversation.Conversation, in wire.ReadRequest) (moved, badRoot bool, err error) {
 	root, ok, err := message.Get(ctx, d, in.RootID)
 	if err != nil {
 		return false, false, err
@@ -100,6 +102,11 @@ func readThread(ctx context.Context, d pdb.DBTX, now time.Time, who int64, cv co
 	newest, err := message.NewestReplyID(ctx, d, in.RootID)
 	if err != nil {
 		return false, false, err
+	}
+	if person {
+		if err := readstate.Involve(ctx, d, now, who, cv.ID, in.RootID, 0); err != nil {
+			return false, false, err
+		}
 	}
 	moved, err = readstate.ReadThread(ctx, d, who, cv.ID, in.RootID, min(in.ReplyID, newest))
 	return moved, false, err

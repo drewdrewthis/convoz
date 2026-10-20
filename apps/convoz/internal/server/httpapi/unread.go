@@ -69,8 +69,9 @@ func unreadParts(ctx context.Context, d pdb.DBTX, reader int64, cv conversation.
 // maxThreadRows bounds the threads a conversation row lists.
 const maxThreadRows = 30
 
-// threadRowsOf lists the threads of a conversation for the reader, newest reply first. A thread's unread count is per thread and
-// counts only where the reader is involved (DA-3), by the same rule as unreadParts.
+// threadRowsOf lists the threads of a conversation for the reader, newest reply first. A thread's unread count is per thread: the
+// replies after the reader's position in it, or after the thread floor in a thread it has no position in (owner, msg 1855: a thread
+// with new agent replies shows as new on the rail even where the owner never wrote). The conversation's own count keeps DA-3.
 func threadRowsOf(ctx context.Context, d pdb.DBTX, p authz.Principal, dir directory, cv conversation.Conversation, floor int64) ([]wire.ThreadRow, error) {
 	roots, err := message.ThreadRoots(ctx, d, cv.ID, floor, maxThreadRows)
 	if err != nil || len(roots) == 0 {
@@ -95,12 +96,14 @@ func threadRowsOf(ctx context.Context, d pdb.DBTX, p authz.Principal, dir direct
 			continue
 		}
 		row := wire.ThreadRow{RootID: r.ID, Author: dir.person(r.AuthorID), Preview: message.Preview(r.Body), ReplyCount: r.ReplyCount, LastReply: last, LastReplyAt: last.CreatedAt}
+		after := max(threadFloor, floor)
 		for _, t := range pos {
 			if t.Root == r.ID {
-				if row.Unread, err = message.CountThreadUnread(ctx, d, r.ID, max(t.LastRead, threadFloor, floor), reader); err != nil {
-					return nil, err
-				}
+				after = max(t.LastRead, after)
 			}
+		}
+		if row.Unread, err = message.CountThreadUnread(ctx, d, r.ID, after, reader); err != nil {
+			return nil, err
 		}
 		out = append(out, row)
 	}

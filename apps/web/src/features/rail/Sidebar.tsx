@@ -11,9 +11,12 @@ import { startDrag, type Drop } from "./drag.ts";
 import { Logo } from "./Logo.tsx";
 import { BackArrow, ChevronIcon, ComposeGlyph, CrewGlyph, InviteGlyph, ForwardArrow, GripIcon, PanelGlyph, NowGlyph, SearchGlyph, StarIcon } from "./icons.tsx";
 import { groups, isOlder, rowLabel, titleOf } from "./model.ts";
-import { ThreadRows } from "../threads/index.ts";
+import { ThreadFold, ThreadRows } from "../threads/index.ts";
 import { useFold } from "./fold.ts";
 import { moveRow, setStar, stepRow } from "./actions.ts";
+
+// A row with thread rows carries their fold chevron at its right end, so its star and grip sit 24px further in.
+const folds = (c: Conversation): boolean => (c.threads ?? []).some((t) => t.reply_count > 0);
 
 const openedId = (): number => Number(/^\/chats\/(\d+)$/.exec(location.pathname)?.[1] ?? 0);
 
@@ -87,12 +90,13 @@ export default function Sidebar() {
           </span>
         ) : null}
       </a>
+      <ThreadFold c={c} className="thrfold compact" />
       {/* The star takes the place of the count on hover or focus, so no box moves. */}
       <IconButton
         variant="muted"
         size={28}
         glyph="self"
-        className="absolute top-1/2 right-0 -mt-14 pointer-events-none opacity-0 [transition:opacity_140ms_ease] data-on:text-warning group-hover/rrow:pointer-events-auto group-hover/rrow:opacity-100 group-focus-within/rrow:pointer-events-auto group-focus-within/rrow:opacity-100"
+        className={`absolute top-1/2 ${folds(c) ? "right-24" : "right-0"} -mt-14 pointer-events-none opacity-0 [transition:opacity_140ms_ease] data-on:text-warning group-hover/rrow:pointer-events-auto group-hover/rrow:opacity-100 group-focus-within/rrow:pointer-events-auto group-focus-within/rrow:opacity-100`}
         label={`${c.starred ? "Unstar" : "Star"} conversation ${titleOf(c)}`}
         data-nodrag=""
         data-on={c.starred ? "true" : undefined}
@@ -106,7 +110,7 @@ export default function Sidebar() {
           variant="muted"
           size={28}
           glyph="self"
-          className="absolute top-1/2 right-28 -mt-14 w-22! cursor-grab touch-none pointer-events-none opacity-0 [transition:opacity_140ms_ease] focus-visible:opacity-100"
+          className={`absolute top-1/2 ${folds(c) ? "right-52" : "right-28"} -mt-14 w-22! cursor-grab touch-none pointer-events-none opacity-0 [transition:opacity_140ms_ease] focus-visible:opacity-100`}
           id={`rg-${c.id}`}
           label={`Reorder ${titleOf(c)}. Alt plus arrow keys move it.`}
         >

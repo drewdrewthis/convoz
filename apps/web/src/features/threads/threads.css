@@ -58,5 +58,9 @@
   .thrlist.compact .thrrow a { min-height: 32px; font-size: 13px; padding: 0 8px; }
   .thrlist.compact .thrcount { min-width: 20px; padding: 1px 6px; font-size: 12px; }
   .thrlist.compact .throlder { min-height: 32px; font-size: 12px; padding: 0 8px; }
+  /* the chevron that folds a conversation's thread rows (owner, msg 1855) */
+  .thrfold { flex: none; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--color-muted); font-size: 12px; cursor: pointer; }
+  .thrfold.compact { width: 24px; height: 28px; }
+  @media (hover: hover) { .thrfold:hover { color: var(--color-text); } }
   @media (hover: hover) { .thrrow a:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); } }
 }

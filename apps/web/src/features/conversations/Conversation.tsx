@@ -1,14 +1,14 @@
 import { IconButton } from "@convoz/ui/IconButton";
 import { mentionsOf } from "@convoz/markdown";
 import type { Identity, Message, Upload } from "@convoz/api-client";
-import { AttachIcon, BackIcon, DetailsIcon } from "@convoz/ui/icons";
-import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type RefObject } from "react";
+import { BackIcon, DetailsIcon } from "@convoz/ui/icons";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type RefObject } from "react";
 import { ApiError } from "../../shared/api.ts";
 import { initials, paletteOf, setRegistry, stripCf } from "../../shared/chat.ts";
 import { data, useData, useLive } from "../../shared/data.ts";
 import { navigatedInApp } from "../../shared/navigate.ts";
 import { CallBar, CallButton } from "../call/index.ts";
-import { Composer, useAttachments } from "../composer/index.ts";
+import { Composer, useAttachments, useFileDrop } from "../composer/index.ts";
 import { InviteAgentSheet } from "../crew/index.ts";
 import { usePlans } from "../plan/index.ts";
 import { StarButton } from "../pins-stars/index.ts";
@@ -68,8 +68,9 @@ export function Conversation() {
   const openInfo = useCallback(() => setInfo(true), []);
   const [inviting, setInviting] = useState(false);
   const [inspected, setInspected] = useState<Message | null>(null);
-  const [dragging, setDragging] = useState(false);
   const attachments = useAttachments(convId);
+  // Files dragged onto the conversation attach to the message being written (a new conversation holds them until its first send).
+  const fileDrop = useFileDrop(attachments);
   const threadOpen = useThreads((s) => s.open !== null);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const frame = useRef<HTMLDivElement>(null);
@@ -250,20 +251,6 @@ export function Conversation() {
     actions().send(key, body, files, held);
   };
 
-  // Files dragged onto the conversation attach to the message being written (a new conversation holds them until its first send).
-  const carriesFiles = (event: DragEvent) => Boolean(event.dataTransfer?.types.includes("Files") || event.dataTransfer?.files.length);
-  const dragOver = (event: DragEvent) => {
-    if (!carriesFiles(event)) return;
-    event.preventDefault();
-    setDragging(true);
-  };
-  const drop = (event: DragEvent) => {
-    setDragging(false);
-    if (!carriesFiles(event)) return;
-    event.preventDefault();
-    attachments.add(Array.from(event.dataTransfer.files));
-  };
-
   const pick = (who: Identity) => {
     const next = picked.includes(who.handle) ? picked : [...picked, who.handle];
     setPicked(next);
@@ -335,21 +322,9 @@ export function Conversation() {
           className="convo"
           aria-label="Conversation"
           hidden={gone}
-          onDragEnter={dragOver}
-          onDragOver={dragOver}
-          onDragLeave={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false);
-          }}
-          onDrop={drop}
+          {...fileDrop.handlers}
         >
-          {dragging ? (
-            <div className="dropov" aria-hidden="true">
-              <span>
-                <AttachIcon />
-                Drop to attach
-              </span>
-            </div>
-          ) : null}
+          {fileDrop.overlay}
           <OpenDetails.Provider value={openInfo}>
             <Transcript
               messages={held?.list ?? NONE}

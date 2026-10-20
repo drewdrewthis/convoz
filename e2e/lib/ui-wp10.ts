@@ -49,10 +49,9 @@ export interface FileSpec {
   bytes: Buffer;
 }
 
-/** Drop files on the conversation the way a browser delivers them: dragenter, dragover, drop with a DataTransfer. */
-export async function dropFiles(page: Page, files: FileSpec[]): Promise<void> {
+/** Drop files on the conversation (or on `target`, a thread pane) the way a browser delivers them: dragenter, dragover, drop with a DataTransfer. */
+export async function dropFiles(page: Page, files: FileSpec[], target: Locator = region(page)): Promise<void> {
   const payload = files.map((f) => ({ name: f.name, type: f.type, bytes: [...f.bytes] }));
-  const target = region(page);
   const dt = await page.evaluateHandle((list) => {
     const d = new DataTransfer();
     for (const f of list) d.items.add(new File([new Uint8Array(f.bytes)], f.name, { type: f.type }));

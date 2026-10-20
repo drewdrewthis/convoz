@@ -1,22 +1,43 @@
 import type { Conversation } from "@convoz/api-client";
 import { useState } from "react";
 import { stripCf } from "../../shared/chat.ts";
+import { useThreadFold } from "./fold.ts";
 
 type Thread = NonNullable<Conversation["threads"]>[number];
 
-/** A thread is Older by the conversation rule: no reply since this morning (the viewer's own time zone). */
-const isOldThread = (t: Thread, now = Date.now()): boolean => t.last_reply_at < new Date(now).setHours(0, 0, 0, 0);
+/** A thread is Older when nothing in it is new for the viewer (owner, msg 1855): conversations go Older by time, threads by unread. */
+const isOldThread = (t: Thread): boolean => t.unread === 0;
+
+const listed = (c: Conversation): Thread[] => (c.threads ?? []).filter((t) => t.reply_count > 0);
 
 const rootWords = (t: Thread): string => stripCf(t.preview) || `${t.author.handle}: ${t.last_reply?.preview ?? ""}`;
 
 /**
- * ThreadRows lists the threads of one conversation as indented sub-rows under its row (owner, msgs 266-267): "↳ root text", its own
- * unread count, newest reply first. Threads quiet since yesterday fold under a per-conversation "Older · n" toggle. A tap opens the thread.
+ * ThreadFold is the chevron on a conversation row that folds its thread rows away and back (owner, msg 1855). A conversation with no
+ * thread rows has none. The choice is kept per conversation on this browser.
  */
-export function ThreadRows({ c, compact = false }: { c: Conversation; compact?: boolean }) {
+export function ThreadFold({ c, className = "thrfold" }: { c: Conversation; className?: string }) {
+  const folded = useThreadFold((s) => s.folded.includes(c.id));
+  const toggle = useThreadFold((s) => s.toggle);
+  if (!listed(c).length) return null;
+  const title = stripCf(c.title ?? "") || "New conversation";
+  return (
+    <button type="button" className={className} data-nodrag="" aria-expanded={!folded} aria-label={`${folded ? "Show" : "Fold"} threads of ${title}`} onClick={() => toggle(c.id)}>
+      <span aria-hidden="true">{folded ? "▸" : "▾"}</span>
+    </button>
+  );
+}
+
+/**
+ * ThreadRows lists the threads of one conversation as indented sub-rows under its row (owner, msgs 266-267): "↳ root text", its own
+ * unread count, newest reply first. Threads with no unread message fold under a per-conversation "Older · n" toggle, and the row's
+ * ThreadFold hides them all unless `foldable` is off. A tap opens the thread.
+ */
+export function ThreadRows({ c, compact = false, foldable = true }: { c: Conversation; compact?: boolean; foldable?: boolean }) {
   const [open, setOpen] = useState(false);
-  const all = (c.threads ?? []).filter((t) => t.reply_count > 0);
-  if (!all.length) return null;
+  const folded = useThreadFold((s) => foldable && s.folded.includes(c.id));
+  const all = listed(c);
+  if (!all.length || folded) return null;
   const recent = all.filter((t) => !isOldThread(t));
   const older = all.filter((t) => isOldThread(t));
   const row = (t: Thread) => (

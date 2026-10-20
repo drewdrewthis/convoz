@@ -4,7 +4,7 @@ import { registerHandler, registerResync } from "@convoz/api-client";
 import { useThreads } from "./store.ts";
 
 export { ReplyLine, replyWords, useNewReplies } from "./ReplyLine.tsx";
-export { ThreadRows } from "./ThreadRows.tsx";
+export { ThreadFold, ThreadRows } from "./ThreadRows.tsx";
 export { ThreadPane, type ThreadPaneProps } from "./ThreadPane.tsx";
 export { useThreads, type PendingReply } from "./store.ts";
 

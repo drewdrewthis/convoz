@@ -4,7 +4,7 @@ import type { Message } from "@convoz/api-client";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { stripCf } from "../../shared/chat.ts";
 import { replyingNote, useReplying } from "../../shared/presence.ts";
-import { AttachmentList, keepFocus, pasteFiles, useAttachments } from "../composer/index.ts";
+import { AttachmentList, keepFocus, pasteFiles, useAttachments, useFileDrop } from "../composer/index.ts";
 import { useVoiceNote } from "../voice/index.ts";
 import { useThreads, type PendingReply } from "./store.ts";
 
@@ -47,6 +47,8 @@ export function ThreadPane({ title, bubbles }: ThreadPaneProps) {
   const input = useRef<HTMLInputElement>(null);
   const picker = useRef<HTMLInputElement>(null);
   const attachments = useAttachments(t?.conversation ?? 0);
+  // Files dropped on the thread attach to the reply, like a drop on the conversation does to its message.
+  const fileDrop = useFileDrop(attachments);
   const voice = useVoiceNote(t?.conversation ?? 0, (sent) => reply("", [sent.id]));
   const log = useRef<HTMLDivElement>(null);
   const root = t?.rootId;
@@ -151,11 +153,13 @@ export function ThreadPane({ title, bubbles }: ThreadPaneProps) {
     </>
   );
   return wide ? (
-    <aside className="thread" aria-label={`Thread ${heading}`} onKeyDown={key}>
+    <aside className="thread" aria-label={`Thread ${heading}`} onKeyDown={key} {...fileDrop.handlers}>
+      {fileDrop.overlay}
       {parts}
     </aside>
   ) : (
-    <div className="thread sheet" role="dialog" aria-modal="true" aria-label={`Thread ${heading}`} onKeyDown={key}>
+    <div className="thread sheet" role="dialog" aria-modal="true" aria-label={`Thread ${heading}`} onKeyDown={key} {...fileDrop.handlers}>
+      {fileDrop.overlay}
       {parts}
     </div>
   );

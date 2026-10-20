@@ -41,6 +41,33 @@ scenario("Dropping files attaches them to the next message", { tag: ["@browser"]
   await expect(messageLog(page).getByText("deploy.log")).toBeVisible();
 });
 
+scenario("Dropping files on a thread attaches them to the reply", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given conversation 41 is open with a thread on its first message, and the thread is open (owner, msg 1855: "cannot drop into threads")
+  const u = await voiceWorld({ server, page, context });
+  const root = await ownerSays(u.w.owner, u.conv, FIRST_MESSAGE);
+  await openConversation(page, u.w.srv, u.conv);
+  await expect(messageLog(page).getByText(FIRST_MESSAGE)).toBeVisible();
+  await openThread(page, FIRST_MESSAGE);
+
+  // When the owner drops "chart.png" and "deploy.log" on the thread
+  await dropFiles(page, [chart, logFile], threadPane(page));
+
+  // Then the thread's reply box shows both under "Files to send", and the conversation's composer shows none
+  const inThread = threadPane(page).getByRole("list", { name: "Files to send" });
+  await expect(inThread.getByRole("listitem")).toHaveCount(2);
+  await expect(inThread).toContainText("chart.png");
+  await expect(inThread).toContainText("deploy.log");
+  await expect(filesToSend(page)).toHaveCount(1);
+
+  // And sending posts one reply with both files
+  await expect(page.getByRole("progressbar", { name: /^Uploading / })).toHaveCount(0, { timeout: 20_000 });
+  await sendReply(page).click();
+  await expect(inThread).toHaveCount(0);
+  const repliesOf = async () => must(await u.w.owner.client.get(`/api/messages/${root}/replies`), "thread replies").json().messages as { uploads?: { name: string }[] }[];
+  await expect.poll(async () => (await repliesOf()).length).toBe(1);
+  expect((await repliesOf())[0]!.uploads!.map((x) => x.name)).toEqual(["chart.png", "deploy.log"]);
+});
+
 scenario("The owner removes a file before sending", { tag: ["@browser"] }, async ({ server, page, context }) => {
   // Background
   const u = await voiceWorld({ server, page, context });
