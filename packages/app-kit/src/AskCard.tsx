@@ -1,49 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from "react";
-import { DraftReview, type DraftData } from "./DraftReview.tsx";
+import { Button } from "@convoz/ui/Button";
+import { cx } from "@convoz/ui/cx";
+import { DraftReview } from "./DraftReview.tsx";
+import { AskMenu, MenuItem } from "./AskMenu.tsx";
+import { clock, historyText, stateLine, whoLine, type Answer, type AskData, type SnoozePreset } from "./askData.ts";
 
-/* The ask card: one question an agent put to the owner, with the answers it offers. Now and a conversation draw the same card.
- * The types are local on purpose: this package knows no API client, so the app maps its data to these shapes. */
-
-export interface AskPerson {
-  handle: string;
-  display_name: string;
-  kind: string;
-}
-
-export interface AskHistoryItem {
-  event: string;
-  by?: AskPerson;
-  at: number;
-}
-
-export interface AskData {
-  question: string;
-  urgent: boolean;
-  /** Why only the owner can decide. Absent on an ask from before the field. */
-  owners_call?: { kind: string; reason: string };
-  state: string;
-  close_reason?: string;
-  options: { label: string; why: string }[];
-  /** A draft ask: a message to send in the owner's name. It is answered with Send (the final text) or Don't send. */
-  draft?: DraftData;
-  chosen?: { kind: string };
-  answer?: string;
-  created_at: number;
-  asker: AskPerson;
-  conversation?: { title: string | null };
-  history?: AskHistoryItem[];
-}
-
-export interface SnoozePreset {
-  key: string;
-  label: string;
-}
-
-export interface Answer {
-  choice: "recommended" | "alternative" | "custom";
-  index?: number;
-  text?: string;
-}
+/* The ask card: one question an agent put to the owner, with the answers it offers. Now and a conversation draw the same card. */
 
 export interface AskCardProps {
   ask: AskData;
@@ -75,27 +37,6 @@ export interface AskCardProps {
   dataId?: number;
 }
 
-/** whoLine is how a person is named: "Drew", or "Devtool @devtool" for an agent (an agent is never shown by its name alone). */
-export function whoLine(p: AskPerson): string {
-  if (p.kind === "agent") return p.display_name ? `${p.display_name} @${p.handle}` : `@${p.handle}`;
-  return p.display_name || `@${p.handle}`;
-}
-
-const clock = (at: number) => new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-
-/** stateLine says where a closed ask stands, or "" for an open one. */
-export function stateLine(a: AskData): string {
-  switch (a.state) {
-    case "answered":
-      return `${a.chosen?.kind === "custom" ? "Replied" : "Answered"} · ${a.answer ?? ""}`;
-    case "dismissed":
-      return "Dismissed";
-    case "closed":
-      return a.close_reason === "replied" ? "Answered with a reply" : "Closed";
-  }
-  return "";
-}
-
 /** The phone layout of the app (its single mobile breakpoint): a menu opens as a bottom sheet there. */
 const PHONE = "(max-width: 600px)";
 
@@ -111,19 +52,14 @@ function usePhone(): boolean {
   );
 }
 
-const HISTORY: Record<string, string> = { create: "Asked", answer: "Answered", dismiss: "Dismissed", undismiss: "Reopened", withdraw: "Withdrawn", close: "Closed" };
-
-function historyText(h: AskHistoryItem, a: AskData): string {
-  const who = h.by ? ` by ${whoLine(h.by)}` : "";
-  return `${HISTORY[h.event] ?? h.event}${who}${h.event === "answer" && a.answer ? ` · ${a.answer}` : ""}`;
-}
-
 /** Icon is one 18px stroke icon of the action row. */
 const Icon = ({ d }: { d: string }) => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d={d} />
   </svg>
 );
+
+const URGENT_EDGE = "border-[color-mix(in_srgb,var(--color-danger)_55%,var(--color-border))]";
 
 /** AskCard draws one ask. It keeps only what the eye needs (which panel is open); every change goes up through a callback. */
 export function AskCard({ ask, where, labelId, as = "article", presets, busy, notice, onAnswer, onDismiss, onUndismiss, onSnooze, onReply, onPin, pinned, onDelete, onCopyLink, openHref, dataId }: AskCardProps) {
@@ -136,8 +72,9 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
   const phone = usePhone();
   const open = ask.state === "open";
   const draft = open ? ask.draft : undefined;
+  const now = where === "now";
   // The composer of a thread is the reply there (no onReply), so a thread card has no quick reply of its own.
-  const quickReply = (where === "now" || Boolean(onReply)) && !draft; // a draft is answered by Send or Don't send only
+  const quickReply = (now || Boolean(onReply)) && !draft; // a draft is answered by Send or Don't send only
   const shut = () => {
     setPanel("");
     setOptionsOnSnooze(false);
@@ -184,180 +121,164 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
     shut();
   };
 
-  const menu = (items: ReactNode) =>
-    phone ? (
-      <>
-        <div className="asksheet-scrim" onClick={shut} />
-        <div ref={sheet} className="askmenu asksheet" role="menu">
-          {items}
-          <button role="menuitem" type="button" onClick={shut}>
-            Cancel
-          </button>
-        </div>
-      </>
-    ) : (
-      <div className="askmenu" role="menu">
-        {items}
-      </div>
-    );
-  const presetItems = presets.map((p) => (
-    <button key={p.key} role="menuitem" type="button" onClick={() => (shut(), onSnooze(p.key))}>
-      {p.label}
-    </button>
-  ));
+  const item = (label: string, run: () => void) => (
+    <MenuItem key={label} sheet={phone} onClick={() => (shut(), run())}>
+      {label}
+    </MenuItem>
+  );
+  const presetItems = presets.map((p) => item(p.label, () => onSnooze(p.key)));
+  const menu = (items: ReactNode) => (
+    <AskMenu sheet={phone} holder={sheet} shut={shut}>
+      {items}
+    </AskMenu>
+  );
 
   const optionsMenu =
-    panel === "options" ? (
-      optionsOnSnooze ? (
-        menu(presetItems)
-      ) : (
-        menu(
-          <>
-            {where === "conversation" ? (
-              <button role="menuitem" type="button" onClick={() => setPanel("history")}>
-                History
-              </button>
-            ) : null}
-            {open ? (
-              <>
-                <button role="menuitem" type="button" onClick={() => setOptionsOnSnooze(true)}>
-                  Snooze
-                </button>
-                <button role="menuitem" type="button" onClick={() => (shut(), onDismiss())}>
-                  Dismiss
-                </button>
-              </>
-            ) : null}
-            {ask.state === "dismissed" ? (
-              <button role="menuitem" type="button" onClick={() => (shut(), onUndismiss())}>
-                Reopen
-              </button>
-            ) : null}
-            {onCopyLink ? (
-              <button role="menuitem" type="button" onClick={() => (shut(), onCopyLink())}>
-                Copy link
-              </button>
-            ) : null}
-            {onPin ? (
-              <button role="menuitem" type="button" onClick={() => (shut(), onPin())}>
-                {pinned ? "Unpin" : "Pin"}
-              </button>
-            ) : null}
-            {onDelete ? (
-              <button role="menuitem" type="button" onClick={() => (shut(), onDelete())}>
-                Delete
-              </button>
-            ) : null}
-          </>,
-        )
-      )
-    ) : null;
+    panel !== "options"
+      ? null
+      : menu(
+          optionsOnSnooze ? (
+            presetItems
+          ) : (
+            <>
+              {where === "conversation" ? (
+                <MenuItem sheet={phone} onClick={() => setPanel("history")}>
+                  History
+                </MenuItem>
+              ) : null}
+              {open ? (
+                <>
+                  <MenuItem sheet={phone} onClick={() => setOptionsOnSnooze(true)}>
+                    Snooze
+                  </MenuItem>
+                  {item("Dismiss", onDismiss)}
+                </>
+              ) : null}
+              {ask.state === "dismissed" ? item("Reopen", onUndismiss) : null}
+              {onCopyLink ? item("Copy link", onCopyLink) : null}
+              {onPin ? item(pinned ? "Unpin" : "Pin", onPin) : null}
+              {onDelete ? item("Delete", onDelete) : null}
+            </>
+          ),
+        );
 
-  const Tag = as;
   const urgent = ask.urgent && open;
   const meta = [whoLine(ask.asker), ask.conversation?.title || (ask.conversation ? "Untitled conversation" : ""), clock(ask.created_at)].filter(Boolean).join(" · ");
+  // In Now the text keeps clear of the right edge, where the prototype draws its expand arrow, so the lines break where the prototype's do.
+  const clear = now && "pr-26";
+  const shutState = ask.state === "dismissed" || ask.state === "closed";
+  const replyLast = Boolean(onReply);
   const body = (
     <>
       {where === "conversation" ? (
-        <div className="askbar">
-          <span className="asklabel">Ask</span>
-          {urgent ? <span className="askurgent">· Urgent</span> : null}
-          <span className="askbar-end">
-            <button className="askbtn" type="button" aria-label="Ask options" aria-haspopup="menu" aria-expanded={panel === "options"} onClick={() => (setOptionsOnSnooze(false), toggle("options"))}>
+        <div className="-mx-14 flex min-h-32 items-center gap-8 border-0 border-b border-solid border-border pr-6 pl-14 text-12">
+          <span className="font-bold tracking-[.04em] text-text uppercase">Ask</span>
+          {urgent ? <span className="flex-none font-bold tracking-[.04em] text-danger uppercase">· Urgent</span> : null}
+          <span className="ml-auto flex items-center gap-2">
+            <Button variant="text" size="inline" aria-label="Ask options" aria-haspopup="menu" aria-expanded={panel === "options"} onClick={() => (setOptionsOnSnooze(false), toggle("options"))}>
               <span aria-hidden="true">⋯</span>
-            </button>
+            </Button>
           </span>
         </div>
       ) : null}
       {optionsMenu}
-      <h3 id={labelId} className="askq">
+      <h3 id={labelId} className={cx("m-0 pt-12 pb-3 text-17 leading-[22px] font-semibold [overflow-wrap:anywhere]", clear)}>
         {ask.question}
       </h3>
-      {ask.owners_call ? <p className="askcall">{`Your call · ${ask.owners_call.kind}: ${ask.owners_call.reason}`}</p> : null}
-      {where === "now" ? (
-        <div className="askmeta">
-          {urgent ? <span className="askurgent">Urgent</span> : null}
-          <span className="askmeta-text" title={meta}>
+      {ask.owners_call ? <p className={cx("m-0 mb-2 text-13 leading-[18px] text-muted [overflow-wrap:anywhere]", clear)}>{`Your call · ${ask.owners_call.kind}: ${ask.owners_call.reason}`}</p> : null}
+      {now ? (
+        <div className={cx("flex items-center gap-x-8 text-13 leading-[20px] text-muted", clear)}>
+          {urgent ? <span className="flex-none font-semibold text-danger">Urgent</span> : null}
+          <span className="min-w-0 truncate" title={meta}>
             {meta}
           </span>
         </div>
       ) : null}
       {draft ? null : open ? (
-        <div className="askwhys">
+        <div className={cx("mt-6 mb-9 flex flex-col gap-1 text-13 leading-[18px] text-muted", clear)}>
           {ask.options.map((o, i) => (
-            <p key={i}>
-              <b>{i === 0 ? `Why ${o.label}:` : `Why ${o.label} is on the table:`}</b> {o.why}
+            <p key={i} className="m-0">
+              <b className="font-semibold text-text">{i === 0 ? `Why ${o.label}:` : `Why ${o.label} is on the table:`}</b> {o.why}
             </p>
           ))}
         </div>
       ) : (
         <>
-          <p className={`askstate ${ask.state}`}>{stateLine(ask)}</p>
-          {ask.state === "closed" && ask.close_reason && ask.close_reason !== "replied" ? <p className="asknote">{`Why: ${ask.close_reason.replaceAll("_", " ")}`}</p> : null}
+          <p className={cx("m-0 mt-4 rounded-full px-10 py-px text-14 font-semibold", shutState ? "bg-selection text-muted" : "bg-soft text-accent-text")}>{stateLine(ask)}</p>
+          {ask.state === "closed" && ask.close_reason && ask.close_reason !== "replied" ? <p className="m-0 mt-6 text-13 text-muted">{`Why: ${ask.close_reason.replaceAll("_", " ")}`}</p> : null}
         </>
       )}
       {notice ? (
-        <p className="asknote" role="status">
+        <p className="m-0 mt-6 text-13 text-muted" role="status">
           {notice}
         </p>
       ) : null}
       {open ? (
-        <div className="askacts" role="group" aria-label="Ask actions">
+        <div className="-mx-8 mb-14 flex flex-wrap" role="group" aria-label="Ask actions">
           {quickReply ? (
-            <button className="askbtn" type="button" aria-expanded={panel === "reply"} onClick={() => toggle("reply")}>
+            <Button variant="text" size="inline" aria-expanded={panel === "reply"} onClick={() => toggle("reply")}>
               <Icon d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               Quick reply
-            </button>
+            </Button>
           ) : null}
-          <button className="askbtn" type="button" aria-haspopup="menu" aria-expanded={panel === "snooze"} onClick={() => toggle("snooze")}>
+          <Button variant="text" size="inline" aria-haspopup="menu" aria-expanded={panel === "snooze"} onClick={() => toggle("snooze")}>
             <Icon d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2" />
             Snooze
-          </button>
+          </Button>
           {openHref ? (
-            <a className="askbtn" href={openHref}>
+            <Button variant="text" size="inline" href={openHref}>
               <Icon d="M7 17L17 7M8 7h9v9" />
               Open
-            </a>
+            </Button>
           ) : null}
-          <button className="askbtn" type="button" onClick={onDismiss}>
+          <Button variant="text" size="inline" onClick={onDismiss}>
             <Icon d="M18 6L6 18M6 6l12 12" />
             Dismiss
-          </button>
+          </Button>
         </div>
       ) : null}
       {panel === "snooze" ? menu(presetItems) : null}
       {draft ? <DraftReview draft={draft} busy={busy} onSend={(text) => onAnswer({ choice: "recommended", text })} onDecline={() => onAnswer({ choice: "alternative", index: 1 })} /> : null}
-      <div className="askopts">
+      <div className="flex flex-col gap-8">
         {open && !draft
           ? ask.options.map((o, i) => (
-              <button key={i} className={`askopt${i === 0 ? " rec" : ""}`} type="button" disabled={busy} onClick={() => onAnswer(i === 0 ? { choice: "recommended" } : { choice: "alternative", index: i })}>
+              <Button key={i} size="option" variant={i === 0 ? "primary" : !replyLast && i === ask.options.length - 1 ? "dashed" : undefined} disabled={busy} onClick={() => onAnswer(i === 0 ? { choice: "recommended" } : { choice: "alternative", index: i })}>
                 {o.label}
-              </button>
+              </Button>
             ))
           : null}
         {onReply ? (
-          <button className="askopt" type="button" onClick={onReply}>
+          <Button size="option" variant="dashed" onClick={onReply}>
             Reply in thread
-          </button>
+          </Button>
         ) : null}
       </div>
       {panel === "reply" ? (
         <form
-          className="askreply"
+          className="mt-6 flex items-center gap-8"
           onSubmit={(e) => {
             e.preventDefault();
             send();
           }}
         >
-          <input aria-label="Quick reply" type="text" autoFocus value={text} maxLength={4000} onChange={(e) => setText(e.target.value)} />
-          <button className="askbtn primary" type="submit" disabled={busy || !text.trim()}>
+          {/* eslint-disable-next-line convoz/no-raw-input -- a pill with no visible label (aria-label); Field draws a label above its input */}
+          <input
+            aria-label="Quick reply"
+            type="text"
+            autoFocus
+            value={text}
+            maxLength={4000}
+            onChange={(e) => setText(e.target.value)}
+            className="h-52 w-full min-w-0 flex-auto rounded-full border border-solid border-edge bg-raised px-16 text-16 text-text [font-family:inherit]"
+          />
+          <Button variant="primary" size="inline" type="submit" disabled={busy || !text.trim()}>
             Send
-          </button>
+          </Button>
         </form>
       ) : null}
-      {sheetOpen ? <div ref={gap} className="askgap" aria-hidden="true" /> : null}
+      {sheetOpen ? <div ref={gap} aria-hidden="true" /> : null}
       {panel === "history" ? (
-        <ul className="askhist" aria-label="History">
+        <ul className="m-0 mt-8 flex list-none flex-col gap-4 border-0 border-t border-solid border-border p-0 pt-8 text-13 text-muted" aria-label="History">
           {(ask.history ?? []).map((h, i) => (
             <li key={i}>{`${historyText(h, ask)} · ${clock(h.at)}`}</li>
           ))}
@@ -369,22 +290,22 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
   const hold = (el: HTMLElement | null) => {
     root.current = el;
   };
-  if (Tag === "div") {
+  const classes = cx(
+    "relative min-w-0 rounded-[14px] border border-solid px-14 pt-2 pb-14 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2",
+    shutState ? "bg-surface" : "bg-raised",
+    urgent ? URGENT_EDGE : "border-border",
+    // An open card has always read like the app bar's "2 open" count (muted, 13px, tabular figures): its state class `open` met that rule of app.css. Kept as drawn.
+    open && "text-13 text-muted tabular-nums",
+  );
+  if (as === "div") {
     return (
-      <div ref={hold} className={`askcard ${where} ${ask.state}${ask.urgent && open ? " urgent" : ""}`} data-ask={dataId} onKeyDown={keys}>
+      <div ref={hold} className={classes} data-ask={dataId} onKeyDown={keys}>
         {body}
       </div>
     );
   }
   return (
-    <article
-      ref={hold}
-      className={`askcard ${where} ${ask.state}${ask.urgent && open ? " urgent" : ""}`}
-      aria-labelledby={labelId}
-      tabIndex={-1}
-      data-ask={dataId}
-      onKeyDown={keys}
-    >
+    <article ref={hold} className={classes} aria-labelledby={labelId} tabIndex={-1} data-ask={dataId} onKeyDown={keys}>
       {body}
     </article>
   );

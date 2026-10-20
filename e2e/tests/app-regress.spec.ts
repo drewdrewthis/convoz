@@ -1,13 +1,14 @@
 import type { Locator, Page } from "@playwright/test";
 import { makeBootstrapLink } from "../lib/admin.ts";
-import { agentAsks, snoozeAsk } from "../lib/asks.ts";
-import { agentPost, convoz } from "../lib/chat.ts";
-import { clientId } from "../lib/machines.ts";
+import { QUESTION, agentAsks, answerAsk, markAsk, openFold, snoozeAsk } from "../lib/asks.ts";
+import { agentPost, convoz, createConversation } from "../lib/chat.ts";
+import { clientId, mintSession, requestMachine, seedUserCodes } from "../lib/machines.ts";
 import { webauthn } from "../lib/webauthn-browser.ts";
 import { bootstrapOwner, must } from "../lib/owner.ts";
 import { AGENTS, LIVE, NOT_IDLE, ONLINE_IDLE, reportStatuses, seedOpenAsks, seedPrototype, starAndMute } from "../lib/prototype-seed.ts";
 import { FROZEN_AT, frozenWorld, matchesItself } from "../lib/regress.ts";
 import { expect, scenario, test } from "../lib/scenario.ts";
+import { asAgent } from "../lib/wp3.ts";
 
 /*
  * APP REGRESSION: specs/features/app-regress.feature. The app against its own reviewed frames, so a refactor of the UI code (atoms,
@@ -157,6 +158,92 @@ scenario("Now with a waiting plan item keeps its look", { tag: ["@browser"] }, a
   await page.goto(`${u.w.srv.origin}/`);
   await expect(page.getByRole("region", { name: "Waiting on you" })).toBeVisible();
   await matchesItself(page, info, "now-waiting");
+});
+
+scenario("An empty Now and its open folds keep their look", { tag: ["@browser"] }, async ({ server, page, context, testApi }, info) => {
+  info.setTimeout(240_000);
+  // Background: one conversation with an answered ask, a dismissed ask and a snoozed ask, and nothing else waiting
+  const u = await world({ server, page, context, testApi });
+  const conv = await createConversation(u.w.owner, { title: "Ship search filters", participants: ["devtool"] });
+  const lease = u.sessions.devtool!.lease;
+  must(await answerAsk(u.w.owner, await agentAsks(u.w.srv, lease, conv, { question: "Answered question?" })), "answer");
+  must(await markAsk(u.w.owner, await agentAsks(u.w.srv, lease, conv, { question: "Dismissed question?" }), "dismiss"), "dismiss");
+  must(await snoozeAsk(u.w.owner, await agentAsks(u.w.srv, lease, conv, { question: "Snoozed question?" }), { preset: "tomorrow", tz: "UTC" }), "snooze");
+  must(await u.w.owner.client.post(`/api/conversations/${conv}/read`, { main_id: 0, all: true }), "read it all");
+
+  // When the owner opens Now, Then the all-clear line and the three fold chips match their frame
+  await page.goto(`${u.w.srv.origin}/`);
+  await expect(page.getByText("All clear. Nothing needs you.")).toBeVisible();
+  await matchesItself(page, info, "now-clear");
+
+  // And when the owner opens the three folds, their rows match theirs
+  for (const fold of ["Snoozed", "Answered today", "Dismissed today"]) await openFold(page, fold);
+  await expect(page.locator(".foldrows li")).toHaveCount(3);
+  await matchesItself(page, info, "now-folds-open");
+
+  // And in the conversation the answered and the dismissed ask are drawn with their state line
+  await page.goto(`${u.w.srv.origin}/chats/${conv}`);
+  await expect(page.getByText("Answered · Merge it")).toBeVisible();
+  await expect(page.getByText("Dismissed", { exact: true })).toBeVisible();
+  await matchesItself(page, info, "ask-states");
+});
+
+scenario("Ask cards with a draft, a quick reply and in a conversation keep their look", { tag: ["@browser"] }, async ({ server, page, context, testApi }, info) => {
+  info.setTimeout(240_000);
+  // Background: "devtool" asked a question and asked the owner to review a draft reply; the owner read the conversation
+  const u = await world({ server, page, context, testApi });
+  const conv = await createConversation(u.w.owner, { title: "Ship search filters", participants: ["devtool"] });
+  await agentAsks(u.w.srv, u.sessions.devtool!.lease, conv, {});
+  const draft = await convoz(u.w.box, u.sessions.devtool!.sid, ["ask", "--json", "--draft", "Sounds good, Thursday works.", "--original", "Can we meet Thursday?", "--original-from", "Alex · Slack DM", String(conv), "Send this reply to Alex?"]);
+  expect({ code: draft.code, stderr: draft.stderr }).toEqual({ code: 0, stderr: "" });
+  must(await u.w.owner.client.post(`/api/conversations/${conv}/read`, { main_id: 0, all: true }), "read it all");
+
+  // When the owner opens Now, Then the question with its owner's call and the draft review match their frame
+  await page.goto(`${u.w.srv.origin}/`);
+  const card = page.getByRole("article", { name: QUESTION });
+  await expect(card).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Draft" })).toBeVisible();
+  await matchesItself(page, info, "now-ask-draft");
+
+  // And when the owner opens the quick reply and types, the reply field and the Send button match theirs
+  await card.getByRole("group", { name: "Ask actions" }).getByRole("button", { name: "Quick reply" }).click();
+  await card.getByRole("textbox", { name: "Quick reply" }).fill("Yes, go ahead");
+  await matchesItself(page, info, "now-quick-reply");
+
+  // And in the conversation the same asks are drawn with their bar, and the options menu and the history match theirs
+  await page.goto(`${u.w.srv.origin}/chats/${conv}`);
+  const options = page.getByRole("button", { name: "Ask options" }).first();
+  await expect(options).toBeVisible();
+  await matchesItself(page, info, "ask-conversation");
+  await options.click();
+  await expect(page.getByRole("menuitem", { name: "History" })).toBeVisible();
+  await matchesItself(page, info, "ask-options");
+  await page.getByRole("menuitem", { name: "History" }).click();
+  await expect(page.getByRole("list", { name: "History" })).toBeVisible();
+  await matchesItself(page, info, "ask-history");
+});
+
+scenario("Now with an add to decide and connect requests keeps its look", { tag: ["@browser"] }, async ({ server, page, context, testApi }, info) => {
+  info.setTimeout(240_000);
+  // Background: "devtool" asked to add "release-bot" to a conversation, a machine "box-9" waits with a code, and an agent asks to connect as "dev-ci"
+  const u = await world({ server, page, context, testApi });
+  const conv = await createConversation(u.w.owner, { title: "Ship search filters", participants: ["devtool"] });
+  must(await asAgent(u.w.srv, u.sessions.devtool!.lease, "POST", `/api/conversations/${conv}/participants`, { handle: "release-bot" }), "request the add", 201);
+  await seedUserCodes(u.w.srv, ["PLRT-HXCV"]);
+  await requestMachine(u.w.srv, u.w.owner, "box-9");
+  must(await mintSession(u.w.srv, u.w.box2.key, { as: "dev-ci", create: { description: "Runs CI" } }), "identity request", 202);
+  must(await u.w.owner.client.post(`/api/conversations/${conv}/read`, { main_id: 0, all: true }), "read it all");
+
+  // When the owner opens Now, Then the add card, the machine request and the agent request match their frame
+  await page.goto(`${u.w.srv.origin}/`);
+  await expect(page.getByRole("article", { name: "box-2 wants to connect as @dev-ci", exact: true })).toBeVisible();
+  await expect(page.getByRole("article", { name: /wants to add/ })).toBeVisible();
+  await matchesItself(page, info, "now-requests");
+
+  // And when the owner approves the agent, the joined card matches its frame
+  await page.getByRole("article", { name: "box-2 wants to connect as @dev-ci", exact: true }).getByRole("button", { name: "Approve", exact: true }).click();
+  await expect(page.getByRole("article", { name: "@dev-ci joined", exact: true })).toBeVisible();
+  await matchesItself(page, info, "now-joined");
 });
 
 scenario("Crew keeps its look", { tag: ["@browser"] }, async ({ server, page, context, testApi }, info) => {

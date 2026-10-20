@@ -13,10 +13,11 @@ export function Attention({ conversation }: { conversation: number }) {
   const replying = replyingNote(useReplying(conversation));
   if (!seen && !replying) return null;
   return (
-    <div className="attn">
-      {seen ? <span className="seen">{seen}</span> : null}
+    <div className="-mt-2 mx-4 flex flex-wrap items-center gap-x-14 gap-y-4">
+      {seen ? <span className="text-12 text-muted">{seen}</span> : null}
       {replying ? (
-        <span className="working" role="status">
+        // `working` is the replying line of the transcript (with its pulsing dot); here it sits flush in the row.
+        <span className="working m-0 text-12 text-muted" role="status">
           {replying}
         </span>
       ) : null}

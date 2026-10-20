@@ -1,35 +1,31 @@
-import type { Ask, Me, NowPendingAdd } from "@convoz/api-client";
-import { AskCard, whoLine, stateLine, type Answer } from "@convoz/app-kit";
-import { Wordmark } from "@convoz/ui/Wordmark";
-import { TickIcon } from "@convoz/ui/icons";
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import type { Me } from "@convoz/api-client";
+import { Button } from "@convoz/ui/Button";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { call, client, humanError } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { markUseful } from "../../shared/perf.ts";
 import { data, useData, useLive } from "../../shared/data.ts";
-import { toast } from "../pins-stars/index.ts";
-import { answerAsk, dismissAsk, snoozeAsk, undismissAsk, unsnoozeAsk, useNow, type Settled } from "./store.ts";
 import { agentRequests, RequestCard } from "./requests.tsx";
-import { presetsAt } from "./presets.ts";
-import { AskApp } from "./AskApp.tsx";
-import { Attention } from "./Attention.tsx";
+import { AllClear, NoDecisions } from "./AllClear.tsx";
+import { Folds, type FoldKey } from "./Folds.tsx";
+import { NowAsk } from "./NowAsk.tsx";
+import { PendingAdd } from "./PendingAdd.tsx";
 import { Unread, unreadRows } from "./Unread.tsx";
-import { Button } from "@convoz/ui/Button";
+import { WaitingPlans } from "./WaitingPlans.tsx";
+import { useAskActions } from "./useAskActions.ts";
+import { useNow } from "./store.ts";
 
 /** Now is /: what needs the owner. Open asks first (urgent, then the newest), then the adds agents wait on and the machines waiting
  *  to connect; Snoozed, Answered today and Dismissed today fold away below. With nothing waiting, the wordmark, "All clear" and the folds are centred, in that order. */
 export function Now() {
-  const { say, fail } = useNotice();
+  const { fail } = useNotice();
   const load = useNow((s) => s.load);
   const now = useNow((s) => s.now);
-  const skew = useNow((s) => s.skew);
   const [me, setMe] = useState<Me | null>(null);
   const [onePasskey, setOnePasskey] = useState(false);
-  const [busy, setBusy] = useState<ReadonlySet<number>>(new Set());
   const [folds, setFolds] = useState({ snoozed: false, answered: false, dismissed: false });
   // Agents the owner approved from this feed: each keeps a "@name joined" card with a way to message it.
   const [joined, setJoined] = useState<readonly string[]>([]);
-  const focusAfter = useRef<number | null>(null);
   const deepLinked = useRef(false);
 
   useEffect(() => {
@@ -61,65 +57,12 @@ export function Now() {
   const waiting = plain.length + connecting.length;
   const asks = now?.asks ?? [];
   const adds = now?.pending_adds ?? [];
-  const snoozed = now?.snoozed ?? [];
-  const answered = now?.answered_today ?? [];
-  const dismissed = now?.dismissed_today ?? [];
   const items = now?.waiting_plans ?? [];
   const some = Boolean(pending && (waiting || asks.length || adds.length || items.length));
-
-  // After a card leaves the list the next one takes the focus, so the keys go on working.
-  useEffect(() => {
-    if (focusAfter.current === null) return;
-    document.querySelector<HTMLElement>(`[data-ask="${focusAfter.current}"]`)?.focus();
-    focusAfter.current = null;
-  }, [now]);
+  const clear = Boolean(now) && !some && conversations !== null && unread.length === 0;
 
   const reload = useCallback(() => load().then(() => undefined), [load]);
-  const presets = presetsAt(Date.now() + skew);
-
-  /** act runs one change of an ask once at a time. Where the card goes away, focus moves to its neighbour. */
-  const act = async (ask: Ask, leaves: boolean, run: () => Promise<Settled>, label?: string): Promise<Settled | null> => {
-    if (busy.has(ask.id)) return null;
-    setBusy((b) => new Set(b).add(ask.id));
-    if (leaves) {
-      const at = asks.findIndex((a) => a.id === ask.id);
-      focusAfter.current = (asks[at + 1] ?? asks[at - 1])?.id ?? null;
-    }
-    try {
-      const r = await run();
-      if (r.ask.state === "answered") setFolds((f) => ({ ...f, answered: true }));
-      if (r.lost && label) say(lostNote(r.ask, label));
-      await reload();
-      return r;
-    } catch (err) {
-      fail(humanError(err));
-      return null;
-    } finally {
-      setBusy((b) => {
-        const next = new Set(b);
-        next.delete(ask.id);
-        return next;
-      });
-    }
-  };
-
-  /** undoing reverses only the change the toast announced; if the ask moved on meanwhile, the server says so and nothing changes. */
-  const undo = (run: () => Promise<Settled>) => () => run().then(reload, (err) => fail(humanError(err)));
-
-  const dismiss = async (ask: Ask) => {
-    const r = await act(ask, true, () => dismissAsk(ask.id, ask.version));
-    if (r && !r.lost) toast("Dismissed", undo(() => undismissAsk(ask.id, r.ask.version)));
-  };
-
-  const snooze = async (ask: Ask, preset: string) => {
-    const r = await act(ask, true, () => snoozeAsk(ask.id, preset));
-    if (!r || r.lost) return;
-    const label = presets.find((p) => p.key === preset)?.label ?? preset;
-    toast(`Snoozed until ${label}, ${clockText(r.ask.snoozed_until ?? 0)}`, undo(() => unsnoozeAsk(ask.id)));
-  };
-
-  const answer = (ask: Ask, a: Answer) =>
-    act(ask, true, () => answerAsk(ask.id, { ...a, if_version: ask.version, via: "now" }), a.choice === "custom" || (ask.draft && a.choice === "recommended") ? (a.text ?? "") : (ask.options[a.choice === "alternative" ? (a.index ?? 1) : 0]?.label ?? ""));
+  const { busy, presets, answer, dismiss, snooze, unsnooze, reopen } = useAskActions({ now, asks, reload, onAnswered: () => setFolds((f) => ({ ...f, answered: true })) });
 
   const moveFocus = (e: KeyboardEvent<HTMLElement>) => {
     const step = e.key === "j" ? 1 : e.key === "k" ? -1 : 0;
@@ -164,59 +107,26 @@ export function Now() {
           </div>
         ) : null}
       </div>
-      <div id="allclear" hidden={!now || some || conversations === null || unread.length > 0}>
-        <div className="wordmark">
-          <Wordmark />
-        </div>
-        <div className="allclear">
-          <span className="tick" aria-hidden="true">
-            <TickIcon />
-          </span>
-          <span>All clear. Nothing needs you.</span>
-        </div>
-      </div>
-      {now && !some && unread.length ? (
-        // With something unread the wordmark would push the digest below the fold on a phone (owner, conv 1, msg 562), so the line is plain and left-aligned.
-        <p id="nodecisions" className="nodecisions">
-          <span className="tick" aria-hidden="true">
-            <TickIcon />
-          </span>
-          <span>No decisions waiting</span>
-        </p>
-      ) : null}
+      <AllClear hidden={!clear} />
+      {now && !some && unread.length ? <NoDecisions /> : null}
       <Folds
-        snoozed={snoozed}
-        answered={answered}
-        dismissed={dismissed}
+        snoozed={now?.snoozed ?? []}
+        answered={now?.answered_today ?? []}
+        dismissed={now?.dismissed_today ?? []}
         open={folds}
-        toggle={(k) => setFolds((f) => ({ ...f, [k]: !f[k] }))}
-        unsnooze={(ask) => void act(ask, false, () => unsnoozeAsk(ask.id))}
-        reopen={(ask) => void act(ask, false, () => undismissAsk(ask.id, ask.version))}
+        toggle={(k: FoldKey) => setFolds((f) => ({ ...f, [k]: !f[k] }))}
+        unsnooze={unsnooze}
+        reopen={reopen}
+        centered={clear}
       />
       {asks.length ? (
-        <section id="asks" className="asks" onKeyDown={moveFocus}>
+        <section id="asks" className="mb-8 flex flex-col gap-8" onKeyDown={moveFocus}>
           {asks.map((ask) => (
             <NowAsk key={ask.id} ask={ask} busy={busy.has(ask.id)} presets={presets} answer={answer} dismiss={dismiss} snooze={snooze} />
           ))}
         </section>
       ) : null}
-      {items.length ? (
-        <section id="waiting-plans" className="block" aria-labelledby="waiting-plans-heading">
-          <div className="block-head">
-            <h2 id="waiting-plans-heading">Waiting on you</h2>
-          </div>
-          <ul className="foldrows">
-            {items.map((it) => (
-              <li key={`${it.conversation.id}|${it.agent.handle}|${it.text}`}>
-                <a className="waitrow" href={`/chats/${it.conversation.id}#plan`}>
-                  <span className="foldq">{it.text}</span>
-                  <span className="foldwho">{`${whoLine(it.agent)} · ${it.conversation.title || "Untitled conversation"}`}</span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+      {items.length ? <WaitingPlans items={items} /> : null}
       {adds.length ? (
         <section id="adds" className="block" aria-label="Adds to decide">
           {adds.map((add) => (
@@ -254,147 +164,5 @@ export function Now() {
       </section>
       {unread.length ? <Unread rows={unread} me={mine ?? ""} /> : null}
     </>
-  );
-}
-
-/** lostNote tells a person whose answer lost the race what the ask says now. */
-function lostNote(won: Ask, tried: string): string {
-  const how = won.state === "answered" ? `Already ${won.chosen?.kind === "custom" ? "replied" : "answered"}: ${won.answer ?? ""}.` : `The ask is ${won.state} now.`;
-  return `${how} Your answer "${tried}" was not used.`;
-}
-
-/** clockText is a time of day as the owner reads it: "6:00 PM". */
-const clockText = (at: number): string => new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-
-/** untilText is a snooze end as the owner reads it: the time today, else the weekday and the time. */
-function untilText(at: number): string {
-  const d = new Date(at);
-  const today = new Date().toDateString() === d.toDateString();
-  return d.toLocaleString([], today ? { hour: "numeric", minute: "2-digit" } : { weekday: "short", hour: "numeric", minute: "2-digit" });
-}
-
-function NowAsk({ ask, busy, presets, answer, dismiss, snooze }: { ask: Ask; busy: boolean; presets: { key: string; label: string }[]; answer: (ask: Ask, a: Answer) => void; dismiss: (ask: Ask) => void; snooze: (ask: Ask, preset: string) => void }) {
-  const id = useId();
-  return (
-    <>
-    <AskCard
-      ask={ask}
-      where="now"
-      labelId={id}
-      presets={presets}
-      busy={busy}
-      dataId={ask.id}
-      openHref={`/chats/${ask.conversation_id}`}
-      onAnswer={(a) => answer(ask, a)}
-      onDismiss={() => dismiss(ask)}
-      onUndismiss={() => undefined}
-      onSnooze={(preset) => snooze(ask, preset)}
-      onReply={() => location.assign(`/chats/${ask.conversation_id}#reply=${ask.thread_root_id ?? ask.id}`)}
-    />
-    <AskApp ask={ask} />
-    <Attention conversation={ask.conversation_id} />
-    </>
-  );
-}
-
-type FoldKey = "snoozed" | "answered" | "dismissed";
-
-/** Folds are the chips under the top bar ("Snoozed · 1", "Answered today · 3", "Dismissed today · 1") and, when one is open, its rows. A chip is not there when it has no rows. */
-function Folds({ snoozed, answered, dismissed, open, toggle, unsnooze, reopen }: { snoozed: Ask[]; answered: Ask[]; dismissed: Ask[]; open: Record<FoldKey, boolean>; toggle: (k: FoldKey) => void; unsnooze: (ask: Ask) => void; reopen: (ask: Ask) => void }) {
-  const id = useId();
-  if (!snoozed.length && !answered.length && !dismissed.length) return null;
-  const chip = (key: FoldKey, name: string, rows: Ask[]) =>
-    rows.length ? (
-      <button className="foldbtn" type="button" onMouseDown={(e) => e.preventDefault()} aria-expanded={open[key]} aria-controls={`${id}-${key}`} onClick={() => toggle(key)}>
-        <span>{name}</span>
-        <span aria-hidden="true">·</span>
-        <span>{rows.length}</span>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M6 9l6 6 6-6" />
-        </svg>
-      </button>
-    ) : null;
-  const rowsOf = (key: FoldKey, rows: Ask[], tail: (ask: Ask) => React.ReactNode) =>
-    open[key] && rows.length ? (
-      <ul id={`${id}-${key}`} className="foldrows">
-        {rows.map((ask) => (
-          <li key={ask.id}>
-            <a className="foldq" href={`/chats/${ask.conversation_id}#m${ask.id}`}>
-              {ask.question}
-            </a>
-            <span className="foldwho">{`${whoLine(ask.asker)} · ${ask.conversation?.title || "Untitled conversation"}`}</span>
-            <div className="foldacts">
-              {tail(ask)}
-              <a className="askbtn" href={`/chats/${ask.conversation_id}#reply=${ask.thread_root_id ?? ask.id}`}>
-                Reply in thread
-              </a>
-              <a className="askbtn" href={`/chats/${ask.conversation_id}#m${ask.id}`}>
-                Jump to conversation
-              </a>
-            </div>
-          </li>
-        ))}
-      </ul>
-    ) : null;
-  return (
-    <div className="folds">
-      <div className="foldchips">
-        {chip("snoozed", "Snoozed", snoozed)}
-        {chip("answered", "Answered today", answered)}
-        {chip("dismissed", "Dismissed today", dismissed)}
-      </div>
-      {rowsOf("snoozed", snoozed, (ask) => (
-        <>
-          <span className="foldstate">{`Snoozed until ${untilText(ask.snoozed_until ?? 0)}`}</span>
-          <button className="askbtn" type="button" onClick={() => unsnooze(ask)}>
-            Unsnooze
-          </button>
-        </>
-      ))}
-      {rowsOf("answered", answered, (ask) => (
-        <span className="foldstate">{stateLine(ask)}</span>
-      ))}
-      {rowsOf("dismissed", dismissed, (ask) => (
-        <>
-          <span className="foldstate">Dismissed</span>
-          <button className="askbtn" type="button" onClick={() => reopen(ask)}>
-            Reopen
-          </button>
-        </>
-      ))}
-    </div>
-  );
-}
-
-/** PendingAdd is an agent asking to bring another one into a conversation; the owner decides here or in the conversation. */
-function PendingAdd({ add, reload }: { add: NowPendingAdd; reload: () => Promise<void> }) {
-  const { fail } = useNotice();
-  const id = useId();
-  const [working, setWorking] = useState(false);
-  const who = add.requested_by ? whoLine(add.requested_by) : "An agent";
-  const decide = async (approve: boolean) => {
-    setWorking(true);
-    try {
-      const path = approve ? "/api/conversations/{id}/participants/{iid}/approve" : "/api/conversations/{id}/participants/{iid}/decline";
-      await call(client.POST(path, { params: { path: { id: add.conversation.id, iid: add.person.id! } }, body: {} }));
-      await reload();
-    } catch (err) {
-      fail(humanError(err));
-      setWorking(false);
-    }
-  };
-  return (
-    <article className="card" aria-labelledby={id}>
-      <h3 id={id}>{`${who} wants to add ${whoLine(add.person)}`}</h3>
-      <p className="text-13 text-muted">{add.conversation.title || "Untitled conversation"}</p>
-      <div className="btns">
-        <Button variant="primary" disabled={working} onClick={() => void decide(true)}>
-          Approve
-        </Button>
-        <Button disabled={working} onClick={() => void decide(false)}>
-          Decline
-        </Button>
-      </div>
-    </article>
   );
 }

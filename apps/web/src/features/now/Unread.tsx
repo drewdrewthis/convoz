@@ -69,14 +69,14 @@ export const Unread = memo(function Unread({ rows, me }: { rows: Conversation[];
   return (
     <section id="unread" className="block" aria-labelledby="unread-head">
       <p id="unread-head" className="ghdr">{`${total} unread in ${rows.length} ${rows.length === 1 ? "conversation" : "conversations"}`}</p>
-      <ul className="ucards" role="list" aria-label="Unread conversations">
+      <ul className="m-0 mb-8 flex list-none flex-col gap-8 p-0" role="list" aria-label="Unread conversations">
         {rows.map((c) => {
           const n = c.main_unread ?? c.unread;
           return (
-            <li key={c.id} className="ucard" data-id={c.id}>
-              <a className="uhead" href={`/chats/${c.id}`}>
-                <span className="utop">
-                  <h2 className="rowtitle">{titleOf(c)}</h2>
+            <li key={c.id} className="flex flex-col rounded-[14px] border border-solid border-border bg-raised px-14 pt-4 pb-2 [&_.thrlist]:pl-0" data-id={c.id}>
+              <a className="flex flex-col gap-2 pt-8 pb-4 text-inherit no-underline" href={`/chats/${c.id}`}>
+                <span className="flex items-center gap-8">
+                  <h2 className="rowtitle min-w-0 flex-auto font-semibold">{titleOf(c)}</h2>
                   <time className="when">{ago(c.last_activity_at)}</time>
                   {n > 0 ? (
                     <span className="count">
@@ -86,16 +86,17 @@ export const Unread = memo(function Unread({ rows, me }: { rows: Conversation[];
                   ) : null}
                 </span>
                 {(lines[c.id] ?? []).map((m) => (
-                  <span key={m.id} className="uline">
-                    <b>{m.author.handle}</b> {words(m)}
+                  // uline is the hook of the e2e specs that read the lines of a card.
+                  <span key={m.id} className="uline truncate text-13 leading-[20px] text-muted">
+                    <b className="font-semibold text-text">{m.author.handle}</b> {words(m)}
                   </span>
                 ))}
               </a>
               {/* Only the threads with something new; the rest are in the conversation. */}
               <ThreadRows c={{ ...c, threads: (c.threads ?? []).filter((t) => t.unread > 0) }} compact />
-              <button className="askbtn" type="button" disabled={busy} aria-label={`Mark ${titleOf(c)} read`} onClick={() => void run([c.id], "Marked read")}>
+              <Button variant="text" size="inline" className="-ml-8 self-start" disabled={busy} aria-label={`Mark ${titleOf(c)} read`} onClick={() => void run([c.id], "Marked read")}>
                 Mark read
-              </button>
+              </Button>
             </li>
           );
         })}

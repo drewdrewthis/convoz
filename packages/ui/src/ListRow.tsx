@@ -71,9 +71,10 @@ export function ListRow({ as = "li", tone, stacked, chevron, unread, selected, l
 }
 
 /** List is the raised box that holds ListRows (or `li`s of them): rounded, edged, with a line between the rows. */
-export function List({ as: Tag = "ul", className, ...rest }: { as?: "ul" | "ol" | "div" | "section" } & AllHTMLAttributes<HTMLElement>) {
+export function List({ as: Tag = "ul", flush, className, ...rest }: { as?: "ul" | "ol" | "div" | "section"; /** No space below the list: the caller sets its margins. */ flush?: boolean } & AllHTMLAttributes<HTMLElement>) {
   const classes = cx(
-    "m-0 mb-16 p-0 list-none overflow-hidden rounded-[14px] border border-solid border-border bg-raised",
+    flush ? "m-0" : "m-0 mb-16",
+    "p-0 list-none overflow-hidden rounded-[14px] border border-solid border-border bg-raised",
     "[&>*]:[border-top:1px_solid_var(--color-border)] [&>:first-child]:border-t-0",
     className,
   );
