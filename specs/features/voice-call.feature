@@ -51,6 +51,49 @@ Feature: Voice call
       When "dot" posts "Yes, deployed at 14:02."
       Then the call hears "AGENT REPLY from dot: Yes, deployed at 14:02."
 
+  Rule: The agent may answer in the thread of the question
+
+    # Owner said (msg 1331): "it just kept saying the same thing. i hope there are logs for this"
+    # The call posted the owner's question as message 1321; the agent answered 45 s later in the thread of 1321 (msg 1327), and the call never heard it.
+    @v1 @browser
+    Scenario: An agent's reply in the thread of the question reaches the call
+      Given the owner is on a call in conversation 41
+      And the call posted "@dot is the deploy done?"
+      When "dot" answers "Yes, deployed at 14:02." in the thread of that message
+      Then the call hears "AGENT REPLY from dot: Yes, deployed at 14:02." once
+
+  Rule: After a question the call waits quietly
+
+    # Owner said (msg 1335): "it just kept saying something like \"I completely understand, i'll get back to you something something\""
+    @v1 @browser
+    Scenario: The model does not repeat itself while it waits
+      Given the owner is on a call in conversation 41
+      And the model asked dot "is the deploy done?" and the call told it to say one short line and then stay silent
+      When the model says "Sent to dot, waiting" and then two more things, with no new word from the owner
+      Then the first line is played and the two repeats are muted
+      And once the owner speaks again the model's next answer is played
+
+    @v1 @browser
+    Scenario: The call says once that no answer came in two minutes
+      Given the owner is on a call in conversation 41
+      And the model asked dot "is the deploy done?"
+      When two minutes pass and "dot" has not answered
+      Then the call tells the model to say "No answer yet from @dot" once, and the call says it too
+      And five more minutes bring no second notice
+      And the model's line is played, not muted
+
+  Rule: A finished call leaves a log
+
+    # Owner said (msg 1331): "i hope there are logs for this"
+    @v1 @browser @cli
+    Scenario: A finished call leaves its log in the conversation, closed, and agents can read it
+      Given the owner is on a call in conversation 41
+      And the model asked dot "is the deploy done?" and dot answered in the thread
+      When the owner taps Hang up
+      Then conversation 41 shows one closed "Call log" row, which opens to the words and the events with times
+      And "dot" reads the log with "convoz read 41"
+      And the log woke nobody and holds no audio
+
   Rule: Only the owner can make the call post
 
     @v1 @browser

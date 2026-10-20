@@ -40,7 +40,8 @@ export async function runTool(deps: ToolDeps, name: string, args: Record<string,
       } catch {
         return { response: { error: "could not post" } };
       }
-      return { response: { posted: true }, cue: `Asked @${agent}` };
+      // The answer is the model's only prompt to speak after a SILENT tool response, so it carries the waiting rule too (waiting.ts).
+      return { response: { posted: true, next: `Say one short line like "Sent to @${agent}, waiting", then say nothing until the owner speaks or an AGENT REPLY arrives.` }, cue: `Asked @${agent}` };
     }
     case "read_recent": {
       const n = Math.min(20, Math.max(1, Math.trunc(Number(args?.n)) || 5));

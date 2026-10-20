@@ -91,6 +91,7 @@ type Draft struct {
 	UploadIDs    []string // public ids of the uploads the message carries; nil for none
 	ViaApp       *ViaApp  // set when the owner sends the result of an app (I-46)
 	ViaVoice     bool     // the owner's voice call posts it: readers see "via voice call"
+	Quiet        bool     // the call log: no mention, no inbox item for any agent
 }
 
 // ViaApp says which app message a result came through, the agent that wrote it and the result (app-result.v1).

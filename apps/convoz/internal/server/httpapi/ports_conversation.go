@@ -40,10 +40,10 @@ func (a conversationPort) Access(ctx context.Context, d pdb.DBTX, conv int64) (m
 }
 
 // RecordMainPost moves the counters, then brings in the agents a person's message @mentions (I-18); an agent's @mention
-// never adds anyone. The loop breaker is not here: message.Post counts every post toward it (I-16).
-func (a conversationPort) RecordMainPost(ctx context.Context, d pdb.DBTX, now time.Time, conv, messageID int64, body string) (int64, error) {
+// never adds anyone, and neither does a quiet one (the call log). The loop breaker is not here: message.Post counts every post toward it (I-16).
+func (a conversationPort) RecordMainPost(ctx context.Context, d pdb.DBTX, now time.Time, conv, messageID int64, body string, quiet bool) (int64, error) {
 	prev, err := conversation.RecordMainPost(ctx, d, now, conv, messageID, body)
-	if err != nil || a.p.SessionID != 0 {
+	if err != nil || a.p.SessionID != 0 || quiet {
 		return prev, err
 	}
 	m, ok, err := message.Get(ctx, d, messageID)

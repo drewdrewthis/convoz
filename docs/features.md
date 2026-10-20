@@ -36,7 +36,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [The convoz CLI and MCP server for agents](#the-convoz-cli-and-mcp-server-for-agents) (55)
 - [The server hands out its own CLI](#the-server-hands-out-its-own-cli) (5)
 - [Threads](#threads) (27)
-- [Voice call](#voice-call) (7)
+- [Voice call](#voice-call) (11)
 - [Voice notes](#voice-notes) (11)
 
 ## A triage agent
@@ -987,7 +987,7 @@ Busy conversations stay readable.
 ## Voice call
 
 I can ask and hear answers while my hands are busy.
-7 scenarios.
+11 scenarios.
 
 - **The Call button shows only when a call can work**
   - [The Call button is hidden when voice is off](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L23)
@@ -995,11 +995,18 @@ I can ask and hear answers while my hands are busy.
 - **The owner talks and the agent answers**
   - [What the owner asks is posted to the agent, marked as a voice call](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L42)
   - [An agent's answer reaches the call](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L49)
+- **The agent may answer in the thread of the question**
+  - [An agent's reply in the thread of the question reaches the call](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L59)
+- **After a question the call waits quietly**
+  - [The model does not repeat itself while it waits](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L69)
+  - [The call says once that no answer came in two minutes](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L77)
+- **A finished call leaves a log**
+  - [A finished call leaves its log in the conversation, closed, and agents can read it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L89)
 - **Only the owner can make the call post**
-  - [An instruction inside an agent's reply is refused](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L57)
-  - [Asking an agent that is not in the conversation is refused](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L65)
+  - [An instruction inside an agent's reply is refused](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L100)
+  - [Asking an agent that is not in the conversation is refused](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L108)
 - **Hanging up ends everything**
-  - [Hanging up closes the microphone and the connection](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L74)
+  - [Hanging up closes the microphone and the connection](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L117)
 
 ## Voice notes
 

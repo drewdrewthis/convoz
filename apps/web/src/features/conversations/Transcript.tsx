@@ -2,7 +2,7 @@ import type { Message } from "@convoz/api-client";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { AppHost, ViaAppMark } from "../apps-host/index.ts";
-import { ViaVoiceMark } from "../call/index.ts";
+import { CallLogRow, splitCallLog, ViaVoiceMark } from "../call/index.ts";
 import { AskInline } from "../now/index.ts";
 import { clock, initials, paletteOf, stripCf } from "../../shared/chat.ts";
 import { useData } from "../../shared/data.ts";
@@ -356,6 +356,9 @@ function RowBody({ row, threaded, me, paused, conversation, onRetry, onDetails, 
   }
   if (m?.deleted) {
     return <Article person={m.author} me={me} first={row.first} stamp={clock(m.created_at)} body={<div className="text tombstone">Message deleted</div>} />;
+  }
+  if (m?.via_voice && !m.deleted && splitCallLog(m.body)) {
+    return <Article person={m.author} me={me} first={row.first} stamp={clock(m.created_at)} body={<CallLogRow body={m.body} />} mid={m.id} marked={hl === m.id} />;
   }
   if (m) {
     const text = stripCf(m.body);

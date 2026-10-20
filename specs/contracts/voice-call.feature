@@ -79,3 +79,14 @@ Feature: Voice call (contracts)
       When the owner posts "@dot is the deploy done?" marked as sent by a voice call
       Then reading conversation 41 shows that message with the mark
       And the same message without the mark shows none
+
+  Rule: The call log is quiet
+
+    @v1 @api
+    Scenario: Only the owner's voice call posts a quiet message, and it wakes no agent
+      When "dot" posts a quiet message
+      Then the server answers 403 naming "quiet"
+      When the owner posts a quiet message that is not marked as sent by a voice call
+      Then the server answers 403 naming "quiet"
+      When the owner's voice call posts a quiet message that mentions "@dot"
+      Then the message is stored and "dot" has no inbox item for it
