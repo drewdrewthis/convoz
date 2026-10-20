@@ -40,6 +40,12 @@
   .ptxt .pstate { font-weight: 600; }
   .profile .crow.plain { min-height: 44px; padding: 8px 12px; }
   .keyrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 12px; min-height: 32px; font-size: 13px; color: var(--color-muted); }
+  .keyrow :is(button, a) { white-space: nowrap; }
+  /* On a phone the Details text takes the whole line and the buttons sit below it; beside it they squeezed the letters onto two lines. */
+  @media (max-width: 899px) {
+    .keyrow { flex-wrap: wrap; justify-content: flex-start; padding-block: 4px; }
+    .keyrow > span { flex: 1 1 100%; }
+  }
   .revoke { display: flex; flex-direction: column; gap: 6px; margin: 6px 12px 0; padding: 10px; border-radius: 14px; border: 1px solid var(--color-danger); background: color-mix(in srgb, var(--color-danger) 8%, transparent); font-size: 13px; }
   .triageset .hint { margin: 0; padding: 0 12px; font-size: 13px; color: var(--color-muted); }
   .revoke .btns { display: flex; gap: 6px; }
@@ -53,7 +59,9 @@
   .docklist { display: contents; }
   @media (min-width: 900px) {
     .appbar .crewn { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 22px; margin-left: 8px; padding: 0 8px; box-sizing: border-box; border-radius: 999px; background: var(--color-selection); font-family: var(--font-mono); color: var(--color-text); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
-    body[data-desk] main:has(.crew) { overflow: hidden; max-width: 760px; padding: 0 8px 8px; }
+    body[data-desk] main:has(.crew) { max-width: 760px; padding: 0 8px 8px; }
+    /* Only the list page holds still (its #crew list scrolls inside it). The profile is a plain long page: main scrolls it, or its last row, the Triage switch, is out of reach. */
+    body[data-desk] main:has(#crew) { overflow: hidden; }
     body[data-desk] main:has(.crew) #view { min-height: 0; }
     #crew { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: var(--color-surface); }
     #crew .crew-top, #crew .crew-head { flex: none; background: var(--color-surface); }

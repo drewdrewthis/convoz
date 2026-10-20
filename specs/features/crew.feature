@@ -252,6 +252,18 @@ Feature: Crew: identities, machines and sessions
       Then "Waiting on you · 2" and "Conversations together" list them
       And "New conversation with @devtool" starts a conversation with "devtool" in it
 
+  Rule: A long agent profile scrolls to its last row
+
+    # Owner said (msg 1263): "that page with that button can't scroll". Wide windows (a computer, a phone held sideways) kept the profile still,
+    # so the Triage agent switch at its foot could not be reached; only the Crew list holds still, its own list scrolls inside it.
+    @v1 @browser
+    Scenario: A long agent profile scrolls to its Triage agent switch
+      Given "devtool" has 14 live sessions and 14 handoff notes
+      When the owner opens the profile of "devtool" and scrolls down, on the Sessions tab
+      Then the Triage agent switch is in view, clear of the tab bar, and it can be switched on
+      And the same on the Handoffs tab
+      And the same on a phone held sideways (932 wide: the wide layout), on each tab
+
   Rule: On a computer Crew is a page in the right pane, like a conversation
 
     # Owner said (conv 15 msg 315): "this is weird UI". Crew was a floating card in a blank page, with a back arrow in an empty bar and a x on the card,
