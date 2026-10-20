@@ -93,6 +93,11 @@ func hydrateThread(ctx context.Context, s *Server, c *call, dir directory, ev ev
 	} else if lr != nil {
 		frame["last_reply"] = lr
 	}
+	unread, err := unreadRepliesOf(ctx, s.reader(), c.p.Identity(), ev.Conversation, []int64{p.RootID})
+	if err != nil {
+		return "thread.updated", nil, err
+	}
+	frame["unread_replies"] = unread[p.RootID]
 	data, err := json.Marshal(frame)
 	return "thread.updated", data, err
 }

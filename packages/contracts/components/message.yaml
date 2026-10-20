@@ -21,6 +21,7 @@ Message:
     thread_root_id: { type: integer, format: int64 }
     broadcast: { type: boolean }
     reply_count: { type: integer, format: int64 }
+    unread_replies: { type: integer, format: int64, description: "For a thread root: the replies the reader has not read, only in a thread the reader is in. Absent for none. Per reader." }
     last_reply_at: { type: integer, format: int64, description: When the newest reply came, for a thread root. }
     last_reply:
       type: object

@@ -31,6 +31,19 @@ Feature: Threads (contracts)
         | a message in conversation 52              |
         | a system line in conversation 41          |
 
+  # Owner said (msg 1202, relayed in msg 1204): "wherever a message shows 'Reply in thread', add a small count of the replies, and of the new ones. Then you can tell at a glance that a thread exists and has something new."
+  Rule: A thread root carries its reply count and the reader's new replies
+
+    @v1 @api
+    Scenario: The message list carries the reply count and the new replies of the reader
+      Given the owner replied in thread 900, then "devtool" and "docs" answered
+      And "docs" replied in thread 901, a message of "devtool" the owner is not in
+      When the owner reads the messages of conversation 41
+      Then message 900 has reply_count 3 and unread_replies 2
+      And message 901 has reply_count 1 and no unread_replies
+      When the owner reads thread 900
+      Then message 900 has reply_count 3 and no unread_replies
+
   Rule: Thread replies count as unread only where the owner is involved (DA-3)
 
     @v1 @browser @I-14

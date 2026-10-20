@@ -11,7 +11,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Agents outside the tailnet connect through an agents-only address](#agents-outside-the-tailnet-connect-through-an-agents-only-address) (8)
 - [An agent that reads all conversations](#an-agent-that-reads-all-conversations) (6)
 - [Apps inside messages](#apps-inside-messages) (15)
-- [Asks and their state machine](#asks-and-their-state-machine) (34)
+- [Asks and their state machine](#asks-and-their-state-machine) (35)
 - [Brief, handoff, read and search for agents](#brief-handoff-read-and-search-for-agents) (17)
 - [Composer](#composer) (26)
 - [Console on a phone](#console-on-a-phone) (28)
@@ -22,7 +22,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Machine login with a device flow](#machine-login-with-a-device-flow) (23)
 - [Messages and their types](#messages-and-their-types) (17)
 - [Notifications](#notifications) (21)
-- [Now](#now) (34)
+- [Now](#now) (36)
 - [Onboarding and sign in](#onboarding-and-sign-in) (16)
 - [One command serves an agent's inbox with a short-lived process per item](#one-command-serves-an-agents-inbox-with-a-short-lived-process-per-item) (6)
 - [Pins, stars and mute](#pins-stars-and-mute) (7)
@@ -35,7 +35,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Settings](#settings) (9)
 - [The convoz CLI and MCP server for agents](#the-convoz-cli-and-mcp-server-for-agents) (55)
 - [The server hands out its own CLI](#the-server-hands-out-its-own-cli) (5)
-- [Threads](#threads) (23)
+- [Threads](#threads) (27)
 - [Voice call](#voice-call) (7)
 - [Voice notes](#voice-notes) (11)
 
@@ -172,7 +172,7 @@ I can see and decide without leaving Convoz, while no app can act for me.
 ## Asks and their state machine
 
 I can decide in one tap and the agent gets a clear, final answer.
-34 scenarios.
+35 scenarios.
 
 - **An ask has a question, a recommendation and at least one alternative, each with a reason**
   - [A complete ask opens](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L23)
@@ -191,34 +191,35 @@ I can decide in one tap and the agent gets a clear, final answer.
 - **Answers are explicit and idempotent**
   - [A quick reply answers with custom text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L97)
   - [An ask has a Reply in thread button](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L104)
-  - [The ask menu opens once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L115)
-  - [A double tap on an option answers once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L123)
-  - [A plain message does not answer an ask](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L130)
-  - [The ask history shows who dismissed it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L138)
+  - [The Reply in thread button of an ask shows the replies](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L116)
+  - [The ask menu opens once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L122)
+  - [A double tap on an option answers once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L130)
+  - [A plain message does not answer an ask](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L137)
+  - [The ask history shows who dismissed it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L145)
 - **Snooze is a personal overlay that never changes the ask**
-  - [Answering removes the snooze](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L147)
-  - [Only an open ask can be snoozed](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L159)
+  - [Answering removes the snooze](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L154)
+  - [Only an open ask can be snoozed](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L166)
 - **An app on an ask shows on its card**
-  - [An app on an ask shows on its card in Now and in the conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L167)
+  - [An app on an ask shows on its card in Now and in the conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L174)
 - **A withdrawn ask closes on every open page, even when the stream was cut meanwhile**
-  - [A withdrawn ask leaves Now and its card shows closed at once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L177)
-  - [After the stream was cut, an ask withdrawn meanwhile shows closed with no reload](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L183)
+  - [A withdrawn ask leaves Now and its card shows closed at once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L184)
+  - [After the stream was cut, an ask withdrawn meanwhile shows closed with no reload](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L190)
 - **Snooze opens as a bottom sheet on a phone and covers no button of the card**
-  - [Snoozing on a phone opens a sheet that covers no button](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L193)
+  - [Snoozing on a phone opens a sheet that covers no button](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L200)
 - **A reply to an ask is a question: the ask stays open, the agent answers in the thread and updates the same ask**
-  - [Replying to an ask keeps it open and moves it to You replied](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L212)
-  - [An agent's reply does not close an ask](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L219)
-  - [An agent is told to answer in the thread and update the same ask](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L226)
-  - [The agent updates the ask in place with the answers](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L234)
-  - [An update needs the answers, the asker and an open ask](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L242)
-  - [The rules tell an agent to pre-answer the owner's obvious questions](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L252)
-  - [The updated ask shows in Now with the answers, and leaves You replied](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L258)
+  - [Replying to an ask keeps it open and moves it to You replied](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L219)
+  - [An agent's reply does not close an ask](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L226)
+  - [An agent is told to answer in the thread and update the same ask](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L233)
+  - [The agent updates the ask in place with the answers](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L241)
+  - [An update needs the answers, the asker and an open ask](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L249)
+  - [The rules tell an agent to pre-answer the owner's obvious questions](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L259)
+  - [The updated ask shows in Now with the answers, and leaves You replied](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L265)
 - **Anything sent in the owner's name is a draft ask that the owner reviews and may edit**
-  - [An agent asks the owner to review a draft and gets back the edited text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L271)
-  - [Don't send returns send false and no text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L283)
-  - [A draft ask is reviewed inside the conversation too](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L290)
-  - [A draft ask needs no owner's-call reason](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L296)
-  - [A long original is cut and a long draft is refused](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L305)
+  - [An agent asks the owner to review a draft and gets back the edited text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L278)
+  - [Don't send returns send false and no text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L290)
+  - [A draft ask is reviewed inside the conversation too](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L297)
+  - [A draft ask needs no owner's-call reason](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L303)
+  - [A long original is cut and a long draft is refused](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L312)
 
 ## Brief, handoff, read and search for agents
 
@@ -592,7 +593,7 @@ My phone is useful and not noisy.
 ## Now
 
 I can clear my queue from my phone in a few taps.
-34 scenarios.
+36 scenarios.
 
 - **Now lists what waits on the owner, most urgent first**
   - [Urgent asks come before other asks](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L20)
@@ -614,26 +615,28 @@ I can clear my queue from my phone in a few taps.
   - [Reopen puts a dismissed ask back on a phone](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L148)
   - [An open ask always shows its quick bar](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L156)
   - [An answered ask in the feed lets the owner follow up in its thread or jump to its conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L173)
-  - [The ask bar works from the keyboard](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L183)
-  - [A losing answer shows what won](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L190)
+  - [Reply in thread on an ask and on a fold row shows the replies](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L184)
+  - [The ask bar works from the keyboard](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L193)
+  - [A losing answer shows what won](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L200)
 - **Asks the owner replied to wait under You replied, and the thread opens inside the app**
-  - [Asks the owner replied to wait in their own section](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L200)
-  - [Reply in thread opens the thread without a page load, and the ask moves on return](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L210)
-  - [An unread conversation in Now has a Reply action that focuses the composer](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L218)
+  - [Asks the owner replied to wait in their own section](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L210)
+  - [A You replied row shows the replies and the new ones, and the new clear when the thread is opened](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L221)
+  - [Reply in thread opens the thread without a page load, and the ask moves on return](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L229)
+  - [An unread conversation in Now has a Reply action that focuses the composer](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L237)
 - **Snooze hides an ask until its time**
-  - [A snoozed ask returns at its time](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L226)
-  - [Snooze shows an Undo toast and Undo puts the ask back](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L234)
-  - [Unsnooze returns an ask at once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L242)
-  - [Snooze presets set the right wake time](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L250)
-  - [The count updates in every open tab](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L262)
-  - [Tonight is not offered from 6:00 PM](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L268)
+  - [A snoozed ask returns at its time](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L245)
+  - [Snooze shows an Undo toast and Undo puts the ask back](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L253)
+  - [Unsnooze returns an ask at once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L261)
+  - [Snooze presets set the right wake time](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L269)
+  - [The count updates in every open tab](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L281)
+  - [Tonight is not offered from 6:00 PM](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L287)
 - **Agent adds wait for a human (pending adds)**
-  - [Approving a pending add lets the agent in from the request](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L277)
-  - [Declining a pending add keeps the agent out](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L284)
+  - [Approving a pending add lets the agent in from the request](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L296)
+  - [Declining a pending add keeps the agent out](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L303)
 - **Machine requests are approved from Now**
-  - [Now shows an agent's connect request as one card with Approve and Decline](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L294)
-  - [A machine request deep link brings its card into view](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L302)
-  - [An expired machine request leaves Now](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L308)
+  - [Now shows an agent's connect request as one card with Approve and Decline](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L313)
+  - [A machine request deep link brings its card into view](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L321)
+  - [An expired machine request leaves Now](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L327)
 
 ## Onboarding and sign in
 
@@ -933,7 +936,7 @@ The agent runs the same version as the server, with nothing to build and no root
 ## Threads
 
 Busy conversations stay readable.
-23 scenarios.
+27 scenarios.
 
 - **A thread hangs off one top-level message**
   - [The owner replies in a thread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L23)
@@ -956,13 +959,18 @@ Busy conversations stay readable.
   - [One tap on the peek opens the thread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L142)
   - [The thread pane has no Also send to conversation box](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L148)
   - [The chip has a dot while the last reply is unread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L154)
+- **Every Reply in thread shows how many replies the thread has and how many are new**
+  - [The reply chip and the message menu show the replies and the new ones](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L164)
+  - [Opening the thread clears the new count](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L172)
+  - [A message with no replies shows no count](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L179)
+  - [A new reply brings the new count live](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L184)
 - **The Conversations list shows every thread under its conversation**
-  - [Each conversation lists its threads under it, and a thread opens from its row](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L167)
-  - [Thread replies count on the thread's row, not the conversation's](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L175)
-  - [Threads with no reply since yesterday fold into Older under their conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L184)
-  - [A long thread preview stays inside the row and keeps its unread count in view](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L191)
-  - [A long link in a thread stays inside its bubble](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L200)
-  - [The message actions button does not cover the time](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L207)
+  - [Each conversation lists its threads under it, and a thread opens from its row](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L196)
+  - [Thread replies count on the thread's row, not the conversation's](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L204)
+  - [Threads with no reply since yesterday fold into Older under their conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L213)
+  - [A long thread preview stays inside the row and keeps its unread count in view](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L220)
+  - [A long link in a thread stays inside its bubble](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L229)
+  - [The message actions button does not cover the time](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L236)
 
 ## Voice call
 

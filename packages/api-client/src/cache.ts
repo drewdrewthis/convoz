@@ -66,7 +66,7 @@ const askMoved = (a: Message, b: Message) => (b.ask?.version ?? 0) > (a.ask?.ver
  *  later state, with other words (a system line names people as of the read, so a rename changes it), or with files that changed
  *  (a transcript came; the local copy made at send time is replaced by the server's). */
 const changed = (a: Message, b: Message) =>
-  a.edited_at !== b.edited_at || !!a.deleted !== !!b.deleted || !!a.purged !== !!b.purged || a.reply_count !== b.reply_count || a.last_reply_at !== b.last_reply_at || a.last_reply?.id !== b.last_reply?.id || !!a.last_reply?.unread !== !!b.last_reply?.unread ||
+  a.edited_at !== b.edited_at || !!a.deleted !== !!b.deleted || !!a.purged !== !!b.purged || a.reply_count !== b.reply_count || (a.unread_replies ?? 0) !== (b.unread_replies ?? 0) || a.last_reply_at !== b.last_reply_at || a.last_reply?.id !== b.last_reply?.id || !!a.last_reply?.unread !== !!b.last_reply?.unread ||
   askMoved(a, b) || a.text !== b.text || JSON.stringify(a.uploads) !== JSON.stringify(b.uploads);
 
 function merge(have: Message[], more: Message[]): Message[] {
@@ -170,10 +170,10 @@ export function createDataCache(source: DataSource): DataCache {
           break;
         }
         case "thread.updated": {
-          const { conversation_id: conv, root_id, reply_count, last_reply_at, last_reply } = frame.data;
+          const { conversation_id: conv, root_id, reply_count, unread_replies, last_reply_at, last_reply } = frame.data;
           setList(conv, (m) => ({
             ...m,
-            list: m.list.map((x) => (x.id === root_id ? { ...x, reply_count, last_reply_at: last_reply_at ?? x.last_reply_at, last_reply: last_reply ?? x.last_reply } : x)),
+            list: m.list.map((x) => (x.id === root_id ? { ...x, reply_count, unread_replies: unread_replies ?? x.unread_replies, last_reply_at: last_reply_at ?? x.last_reply_at, last_reply: last_reply ?? x.last_reply } : x)),
           }));
           break; // the list rows follow: thread rows and their counts
         }

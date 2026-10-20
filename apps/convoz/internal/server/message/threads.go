@@ -3,6 +3,7 @@ package message
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message/db"
@@ -23,6 +24,31 @@ func NewestReplyID(ctx context.Context, d pdb.DBTX, root int64) (int64, error) {
 // (a broadcast counts once, in the main list), stopping at MaxUnread.
 func CountThreadUnread(ctx context.Context, d pdb.DBTX, root, after, reader int64) (int64, error) {
 	return db.New(d).CountThreadUnread(ctx, db.CountThreadUnreadParams{RootID: nullInt(root), After: after, ReaderID: nullInt(reader), MaxRows: MaxUnread})
+}
+
+// ReadPoint is a reader's position in one thread: the replies after After are unread.
+type ReadPoint struct{ Root, After int64 }
+
+// CountThreadsUnread is CountThreadUnread for many threads in one query, each at its own read point, by root. A thread with
+// nothing unread is not in the map. The count stops at MaxUnread.
+func CountThreadsUnread(ctx context.Context, d pdb.DBTX, points []ReadPoint, reader int64) (map[int64]int64, error) {
+	if len(points) == 0 {
+		return nil, nil
+	}
+	pairs := make([][2]int64, len(points))
+	for i, p := range points {
+		pairs[i] = [2]int64{p.Root, p.After}
+	}
+	raw, err := json.Marshal(pairs)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.New(d).CountThreadUnreadByRoot(ctx, db.CountThreadUnreadByRootParams{Pairs: string(raw), ReaderID: nullInt(reader)})
+	out := make(map[int64]int64, len(rows))
+	for _, r := range rows {
+		out[r.RootID.Int64] = min(r.Unread, MaxUnread)
+	}
+	return out, err
 }
 
 // CountBroadcastRead counts the broadcast replies to root in (after, upTo] that someone else wrote: the ones the reader read

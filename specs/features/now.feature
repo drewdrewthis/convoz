@@ -179,6 +179,16 @@ Feature: Now
       When the owner taps "Jump to conversation" on the answered row
       Then conversation 41 opens with the ask in view and the ask is still answered
 
+    # Owner said (msg 1202, relayed in msg 1204): "wherever a message shows 'Reply in thread', add a small count of the replies, and of the new ones. Then you can tell at a glance that a thread exists and has something new."
+    @v1 @browser
+    Scenario: Reply in thread on an ask and on a fold row shows the replies
+      Given an open ask of "devtool" in Now that "docs" replied to twice in its thread, and an answered ask with one reply
+      When the owner opens Now
+      Then "Reply in thread" on the open ask shows "2 replies"
+      When the owner opens the folds in Now
+      Then "Reply in thread" on the answered row shows "1 reply"
+      And an ask with no reply shows "Reply in thread" with no count
+
     @v1 @browser
     Scenario: The ask bar works from the keyboard
       Given an open ask of "devtool" has focus in Now
@@ -205,6 +215,15 @@ Feature: Now
       And the ask of "devtool" is not in the main list and does not count in the badge
       When the owner taps the row
       Then the thread of the ask opens
+
+    # Owner said (msg 1202, relayed in msg 1204): "wherever a message shows 'Reply in thread', add a small count of the replies, and of the new ones. Then you can tell at a glance that a thread exists and has something new."
+    @v1 @browser
+    Scenario: A You replied row shows the replies and the new ones, and the new clear when the thread is opened
+      Given an open ask of "devtool" that the owner replied to, and "devtool" replied in its thread
+      When the owner opens Now
+      Then the row under "You replied · waiting on the agent" shows "2 replies · 1 new"
+      When the owner opens the thread from the row and goes back to Now
+      Then the row shows "2 replies" with no "new"
 
     @v1 @browser
     Scenario: Reply in thread opens the thread without a page load, and the ask moves on return

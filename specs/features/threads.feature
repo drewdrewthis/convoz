@@ -157,6 +157,35 @@ Feature: Threads
       When the owner reads the thread
       Then the dot is gone, and a newer reply brings it back
 
+  # Owner said (msg 1202, relayed in msg 1204): "wherever a message shows 'Reply in thread', add a small count of the replies, and of the new ones. Then you can tell at a glance that a thread exists and has something new."
+  Rule: Every Reply in thread shows how many replies the thread has and how many are new
+
+    @v1 @browser
+    Scenario: The reply chip and the message menu show the replies and the new ones
+      Given the owner replied in thread 900, then "devtool" and "docs" answered
+      When the owner opens conversation 41
+      Then the chip of message 900 reads "3 replies · @docs · 2 new"
+      When the owner opens the message actions of message 900
+      Then "Reply in thread" shows "3 replies · 2 new"
+
+    @v1 @browser
+    Scenario: Opening the thread clears the new count
+      Given the owner replied in thread 900, then "devtool" and "docs" answered
+      And the owner has conversation 41 open
+      When the owner opens the thread and closes it again
+      Then the chip of message 900 reads "3 replies · @docs" and "Reply in thread" shows "3 replies" with no "new"
+
+    @v1 @browser
+    Scenario: A message with no replies shows no count
+      When the owner opens conversation 41 and the message actions of message 900
+      Then "Reply in thread" shows no count
+
+    @v1 @browser
+    Scenario: A new reply brings the new count live
+      Given the owner replied in thread 900, then "devtool" answered, and the owner read the thread
+      When "docs" replies in thread 900
+      Then without a reload the chip reads "3 replies · @docs · 1 new"
+
   Rule: The Conversations list shows every thread under its conversation
 
     # Owner, 2026-10-19 (msg 266, on the row "Convoz feedback with Cl... 5"): "This is confusing, right -- I guess this means that there are

@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"maps"
 	"strings"
 	"time"
 
@@ -58,10 +59,13 @@ func (dir directory) askBase(a ask.Ask) wire.AskView {
 
 // askViews builds the views of asks for one reader: each with the conversation it is in (id and title) and the thread it was
 // asked in. Nothing is hidden by canSee here: the caller has already decided that the reader may see these asks.
-// snoozed is the reader's own snooze by ask id; nil for a reader who has none (an agent).
-func askViews(ctx context.Context, d pdb.DBTX, dir directory, list []ask.Ask, snoozed map[int64]int64) ([]wire.AskView, error) {
+// snoozed is the reader's own snooze by ask id; nil for a reader who has none (an agent). reader is the person (0 for an agent):
+// it decides the unread replies of each ask's thread, which are counted in one query per conversation.
+func askViews(ctx context.Context, d pdb.DBTX, dir directory, list []ask.Ask, snoozed map[int64]int64, reader int64) ([]wire.AskView, error) {
 	titles := map[int64]*wire.AskConversation{}
 	out := make([]wire.AskView, 0, len(list))
+	rootsOf := map[int64][]int64{} // the thread roots to count, by conversation
+	rootOf := make([]int64, 0, len(list))
 	for _, a := range list {
 		v, err := dir.askWithReply(ctx, d, a)
 		if err != nil {
@@ -84,9 +88,33 @@ func askViews(ctx context.Context, d pdb.DBTX, dir directory, list []ask.Ask, sn
 			return nil, err
 		} else if found {
 			v.ThreadRootID, v.App = m.ThreadRootID, appView(m.App)
+			root := m
+			if m.ThreadRootID != 0 {
+				if root, _, err = message.GetAny(ctx, d, m.ThreadRootID); err != nil {
+					return nil, err
+				}
+			}
+			v.ReplyCount = root.ReplyCount
+			if root.ReplyCount > 0 {
+				rootsOf[a.ConversationID] = append(rootsOf[a.ConversationID], root.ID)
+			}
+			rootOf = append(rootOf, root.ID)
+		} else {
+			rootOf = append(rootOf, 0)
 		}
 		v.SnoozedUntil = snoozed[a.ID]
 		out = append(out, v)
+	}
+	unread := map[int64]int64{}
+	for conv, roots := range rootsOf {
+		counts, err := unreadRepliesOf(ctx, d, reader, conv, roots)
+		if err != nil {
+			return nil, err
+		}
+		maps.Copy(unread, counts)
+	}
+	for i := range out {
+		out[i].UnreadReplies = unread[rootOf[i]]
 	}
 	return out, nil
 }
@@ -100,7 +128,7 @@ func (s *Server) oneAskView(ctx context.Context, d pdb.DBTX, dir directory, a as
 			return wire.AskView{}, err
 		}
 	}
-	list, err := askViews(ctx, d, dir, []ask.Ask{a}, snoozed)
+	list, err := askViews(ctx, d, dir, []ask.Ask{a}, snoozed, person)
 	if err != nil {
 		return wire.AskView{}, err
 	}

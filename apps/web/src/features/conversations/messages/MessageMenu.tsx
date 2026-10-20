@@ -2,7 +2,8 @@ import type { Message } from "@convoz/api-client";
 import { Sheet } from "@convoz/ui/Sheet";
 import { useEffect, useRef, useState } from "react";
 import { humanError } from "../../../shared/api.ts";
-import { useThreads } from "../../threads/index.ts";
+import { ReplyCount } from "@convoz/app-kit";
+import { useNewReplies, useThreads } from "../../threads/index.ts";
 import { useData } from "../../../shared/data.ts";
 import { pinMessage, toast, unpinMessage } from "../../pins-stars/index.ts";
 import { deleteMessage, editHistory, editMessage, transcribeAgain } from "./actions.ts";
@@ -27,6 +28,7 @@ export function MessageMenu({ message, mine, conversation }: { message: Message;
     wasFailed.current = redoFailed;
   }, [redoFailed]);
   const rootId = message.thread_root_id ?? message.id;
+  const fresh = useNewReplies(message);
   const inOpenThread = useThreads((s) => s.open?.rootId === rootId);
 
   useEffect(() => {
@@ -54,6 +56,7 @@ export function MessageMenu({ message, mine, conversation }: { message: Message;
           {inOpenThread ? null : (
             <button role="menuitem" type="button" onClick={() => (setOpen(false), void useThreads.getState().openThread(conversation, rootId, message.thread_root_id ? undefined : message))}>
               Reply in thread
+              {message.thread_root_id ? null : <ReplyCount count={message.reply_count} unread={fresh} />}
             </button>
           )}
           <button

@@ -64,6 +64,50 @@ func (q *Queries) CountThreadUnread(ctx context.Context, arg CountThreadUnreadPa
 	return count, err
 }
 
+const countThreadUnreadByRoot = `-- name: CountThreadUnreadByRoot :many
+SELECT m.thread_root_id AS root_id, COUNT(*) AS unread
+FROM json_each(?1) p
+JOIN messages m ON m.thread_root_id = json_extract(p.value, '$[0]')
+WHERE m.broadcast = 0 AND m.kind <> 'system' AND m.deleted_at IS NULL
+  AND m.id > json_extract(p.value, '$[1]') AND m.author_id <> ?2
+GROUP BY m.thread_root_id
+`
+
+type CountThreadUnreadByRootParams struct {
+	Pairs    interface{}
+	ReaderID sql.NullInt64
+}
+
+type CountThreadUnreadByRootRow struct {
+	RootID sql.NullInt64
+	Unread int64
+}
+
+// Unread replies of many threads in one go, each thread with its own read point: pairs is a JSON array of [root_id, after].
+// Counts what CountThreadUnread counts, without its stop at MaxUnread.
+func (q *Queries) CountThreadUnreadByRoot(ctx context.Context, arg CountThreadUnreadByRootParams) ([]CountThreadUnreadByRootRow, error) {
+	rows, err := q.db.QueryContext(ctx, countThreadUnreadByRoot, arg.Pairs, arg.ReaderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountThreadUnreadByRootRow
+	for rows.Next() {
+		var i CountThreadUnreadByRootRow
+		if err := rows.Scan(&i.RootID, &i.Unread); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const newestCountedInMain = `-- name: NewestCountedInMain :one
 SELECT id, conversation_id, author_id, kind, format, body, thread_root_id, broadcast, in_main, reply_count, last_reply_id, created_at, edited_at, deleted_at, purged_at, system_json, session_id, answers_ask_id, via_app_message_id, has_app, origin_label, origin_machine, last_reply_at, app_json, via_app_agent_id, app_result_json, via_voice FROM message_rows
 WHERE conversation_id = ?1 AND in_main = 1 AND kind <> 'system' AND deleted_at IS NULL

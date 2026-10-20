@@ -53,7 +53,7 @@ scenario("Asks the owner replied to wait in their own section", { tag: ["@browse
   await expect(row).toContainText("@devtool");
   await expect(row).toContainText(`You: ${LONG.slice(0, 100)}…`);
   await expect(row).not.toContainText(LONG.slice(0, 101));
-  await expect(row).toContainText(/@devtool · (now|\d+[mhd])You: /);
+  await expect(row).toContainText(/@devtool · (now|\d+[mhd])( · \d+ repl(y|ies)(?: · \d+ new)?)?You: /);
 
   // And the ask of "devtool" is not in the main list and does not count in the badge
   await expect(askCard(page, QUESTION)).toHaveCount(0);

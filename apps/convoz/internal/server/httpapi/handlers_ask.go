@@ -398,19 +398,19 @@ func (s *Server) nowScreen(w http.ResponseWriter, r *http.Request, c *call) {
 	}
 	out := nowView{Now: now.UnixMilli(), PollMS: s.interval().Milliseconds()}
 	if err == nil {
-		out.Asks, err = liveAskViews(ctx, d, dir, waiting.Open, nil)
+		out.Asks, err = liveAskViews(ctx, d, dir, waiting.Open, nil, c.p.Identity())
 	}
 	if err == nil {
-		out.Replied, err = liveAskViews(ctx, d, dir, waiting.Replied, nil)
+		out.Replied, err = liveAskViews(ctx, d, dir, waiting.Replied, nil, c.p.Identity())
 	}
 	if err == nil {
-		out.Snoozed, err = liveAskViews(ctx, d, dir, waiting.Snoozed, waiting.Until)
+		out.Snoozed, err = liveAskViews(ctx, d, dir, waiting.Snoozed, waiting.Until, c.p.Identity())
 	}
 	if err == nil {
-		out.AnsweredToday, err = liveAskViews(ctx, d, dir, waiting.Answered, nil)
+		out.AnsweredToday, err = liveAskViews(ctx, d, dir, waiting.Answered, nil, c.p.Identity())
 	}
 	if err == nil {
-		out.DismissedToday, err = liveAskViews(ctx, d, dir, waiting.Dismissed, nil)
+		out.DismissedToday, err = liveAskViews(ctx, d, dir, waiting.Dismissed, nil, c.p.Identity())
 	}
 	if err == nil {
 		out.PendingAdds, err = pendingAdds(ctx, d, dir)
@@ -462,7 +462,7 @@ type nowView struct {
 }
 
 // liveAskViews is askViews without the asks of a conversation that is in the trash or gone.
-func liveAskViews(ctx context.Context, d pdb.DBTX, dir directory, list []ask.Ask, snoozed map[int64]int64) ([]wire.AskView, error) {
+func liveAskViews(ctx context.Context, d pdb.DBTX, dir directory, list []ask.Ask, snoozed map[int64]int64, reader int64) ([]wire.AskView, error) {
 	live := make([]ask.Ask, 0, len(list))
 	for _, a := range list {
 		if _, found, err := conversation.Get(ctx, d, a.ConversationID); err != nil {
@@ -471,7 +471,7 @@ func liveAskViews(ctx context.Context, d pdb.DBTX, dir directory, list []ask.Ask
 			live = append(live, a)
 		}
 	}
-	return askViews(ctx, d, dir, live, snoozed)
+	return askViews(ctx, d, dir, live, snoozed, reader)
 }
 
 // pendingAdds lists the adds agents wait on, in the conversations that are not in the trash.

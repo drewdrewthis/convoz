@@ -2567,6 +2567,11 @@ export interface components {
             reply_count?: number;
             /**
              * Format: int64
+             * @description For a thread root: the replies the reader has not read, only in a thread the reader is in. Absent for none. Per reader.
+             */
+            unread_replies?: number;
+            /**
+             * Format: int64
              * @description When the newest reply came
              */
             last_reply_at?: number;
@@ -3495,6 +3500,16 @@ export interface components {
              * @description The thread the ask was asked in.
              */
             thread_root_id?: number;
+            /**
+             * Format: int64
+             * @description The replies in the thread that Reply in thread opens on this ask: its own, or the one it was asked in. Absent for none.
+             */
+            reply_count?: number;
+            /**
+             * Format: int64
+             * @description Of those, the ones the reader has not read, only in a thread the reader is in. Per reader. Absent for none.
+             */
+            unread_replies?: number;
             asker: components["schemas"]["Person"];
             /** @description Empty after a purge. */
             question: string;
