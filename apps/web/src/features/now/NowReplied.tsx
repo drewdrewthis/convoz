@@ -9,7 +9,8 @@ const threadOf = (ask: Ask) => `/chats/${ask.conversation_id}#reply=${ask.thread
 
 /**
  * NowReplied is "You replied · waiting on the agent" (owner, msg 1131): the open asks the owner answered with questions in the thread
- * instead of a choice. They wait on the agent's updated ask, so they leave the list of what needs the owner. A row opens the thread.
+ * instead of a choice. They wait on the agent's updated ask, so they leave the list of what needs the owner. A row leads with the owner's
+ * reply, then the ask it answers; it opens the thread.
  */
 export function NowReplied({ asks }: { asks: Ask[] }) {
   return (
@@ -18,13 +19,14 @@ export function NowReplied({ asks }: { asks: Ask[] }) {
       <List flush>
         {asks.map((ask) => (
           <ListRow key={ask.id} as="a" href={threadOf(ask)} onClick={(e) => visit(e, threadOf(ask))} stacked data-replied={ask.id}>
-            <span className="text-15 font-semibold [overflow-wrap:anywhere]">{ask.question}</span>
+            {/* The owner's own words lead (msg 2056): the section is about what they said; the ask is the context under it. */}
+            <span className="text-15 font-semibold [overflow-wrap:anywhere] line-clamp-3">{ask.owner_reply?.text || ask.question}</span>
+            {ask.owner_reply?.text ? <span className="text-13 text-muted truncate">{`On: ${ask.question}`}</span> : null}
             <span className="text-13 text-muted">
-              {`${whoLine(ask.asker)} · ${ago(ask.owner_reply?.at ?? ask.created_at)}`}
+              {`To ${whoLine(ask.asker)} · ${ago(ask.owner_reply?.at ?? ask.created_at)}`}
               {ask.reply_count ? " · " : null}
               <ReplyCount count={ask.reply_count} unread={ask.unread_replies} />
             </span>
-            {ask.owner_reply?.text ? <span className="text-13 text-muted [overflow-wrap:anywhere]">{`You: ${ask.owner_reply.text}`}</span> : null}
           </ListRow>
         ))}
       </List>
