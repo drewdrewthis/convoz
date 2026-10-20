@@ -72,6 +72,11 @@ func (s *Server) markRead(w http.ResponseWriter, r *http.Request, c *call) {
 	case err != nil:
 		s.internalError(w, r, err)
 	case !visible:
+		// `convoz read` moves the cursor after every read. A read-all agent has no seat, so no cursor: the move is a quiet success.
+		if _, reads, err := canRead(r.Context(), s.reader(), c.p, id); err == nil && reads {
+			writeJSON(w, http.StatusOK, map[string]any{})
+			return
+		}
 		notVisible(w, c)
 	case badRoot:
 		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "root_id", "root_id is a top-level message of this conversation.")
@@ -116,7 +121,7 @@ func (s *Server) listReplies(w http.ResponseWriter, r *http.Request, c *call) {
 	var floor int64
 	var visible bool
 	if err == nil && found {
-		floor, visible, err = canSee(ctx, d, c.p, root.ConversationID)
+		floor, visible, err = canRead(ctx, d, c.p, root.ConversationID)
 	}
 	if err != nil {
 		s.internalError(w, r, err)

@@ -56,3 +56,11 @@ LEFT JOIN messages b ON b.id = (
   WHERE p.conversation_id = m.conversation_id AND p.id < m.id AND p.kind <> 'system' AND p.deleted_at IS NULL
     AND ((m.thread_root_id IS NULL AND p.in_main = 1) OR (m.thread_root_id IS NOT NULL AND (p.thread_root_id = m.thread_root_id OR p.id = m.thread_root_id))))
 WHERE m.id IN (sqlc.slice(ids));
+
+-- name: NewestCountedInMain :one
+-- The newest message of the main list that counts for the unanswered reminder: not a system line, not deleted, not the result of an
+-- app and not the answer to an ask (the same ones the inbox ignores).
+SELECT * FROM message_rows
+WHERE conversation_id = sqlc.arg(conversation_id) AND in_main = 1 AND kind <> 'system' AND deleted_at IS NULL
+  AND via_app_message_id IS NULL AND answers_ask_id IS NULL
+ORDER BY id DESC LIMIT 1;

@@ -119,6 +119,55 @@
     responses:
       "200": { $ref: "../openapi.yaml#/components/responses/Empty" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/agents/{id}/read-all:
+  put:
+    x-authz: { auth: owner, step_up: identity.read_all }
+    operationId: setAgentReadAll
+    summary: The owner lets an agent read every conversation and thread, or takes the right back ("Can read all conversations" in Crew).
+    description: |
+      Owner said (msg 784): "give an agent privileges to be able to monitor and review all conversations and threads without being added.
+      Not the inbox". Needs a fresh passkey check for `identity.read_all` on this agent. With the right the agent reads any conversation
+      that is not in the trash (conversations, messages, threads, edits, plans, asks, files, search) and posts a message or reply in it as
+      itself. It cannot add or remove anyone, rename, upload, write a plan, mark read, or answer, dismiss or snooze an ask, and it gets no
+      inbox item, mention or "Seen by" for a conversation it is not in. Off takes effect on the agent's next request. Nothing is posted in
+      any chat. An agent that is not there or is disabled is 404.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+      - $ref: "../openapi.yaml#/components/parameters/StepUp"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [on]
+            properties:
+              on: { type: boolean }
+    responses:
+      "200":
+        description: The right after the change.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [read_all]
+              properties:
+                read_all: { type: boolean }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/waiting:
+  get:
+    x-authz: { auth: lease }
+    security: [{ leaseBearer: [] }]
+    operationId: getWaiting
+    summary: What waits on the owner in every conversation (`convoz waiting`). Only an agent with the read-all right; any other caller is 403.
+    responses:
+      "200":
+        description: Open asks, owner messages unanswered for 10 minutes, waiting plan items and the owner's unread counts.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/WaitingResponse" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/me/handle:
   post:
     x-authz: { auth: lease }

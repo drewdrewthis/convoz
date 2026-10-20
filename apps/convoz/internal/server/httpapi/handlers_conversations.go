@@ -21,7 +21,7 @@ import (
 )
 
 // listConversations is GET /api/conversations: latest activity first. The owner sees every conversation, an agent
-// only those it takes part in. ?deleted=1 lists the trash instead (the owner only).
+// only those it takes part in, unless the owner let it read all (migration 0038). ?deleted=1 lists the trash instead (the owner only).
 func (s *Server) listConversations(w http.ResponseWriter, r *http.Request, c *call) {
 	ctx, d := r.Context(), s.reader()
 	trash := r.URL.Query().Get("deleted") == "1"
@@ -36,10 +36,15 @@ func (s *Server) listConversations(w http.ResponseWriter, r *http.Request, c *ca
 		return
 	}
 	var list []conversation.Conversation
+	all := c.p.Role == "owner"
+	if !all && !trash {
+		all, err = readsAll(ctx, d, c.p) // an agent the owner let read everything lists everything
+	}
 	switch {
+	case err != nil:
 	case trash:
 		list, err = conversation.Trash(ctx, d)
-	case c.p.Role == "owner":
+	case all:
 		list, err = conversation.ListAll(ctx, d)
 	default:
 		list, err = conversation.ListOf(ctx, d, c.p.Identity())
@@ -50,7 +55,7 @@ func (s *Server) listConversations(w http.ResponseWriter, r *http.Request, c *ca
 	}
 	out := make([]wire.Conversation, 0, len(list))
 	for _, cv := range list {
-		floor, ok, err := canSee(ctx, d, c.p, cv.ID)
+		floor, ok, err := canRead(ctx, d, c.p, cv.ID)
 		if err == nil && ok {
 			var v wire.Conversation
 			if v, err = conversationView(ctx, d, c.p, dir, cv, floor); err == nil {
@@ -108,7 +113,7 @@ func (s *Server) visibleView(ctx context.Context, d pdb.DBTX, p authz.Principal,
 	if err != nil || !ok {
 		return wire.Conversation{}, false, err
 	}
-	floor, ok, err := canSee(ctx, d, p, id)
+	floor, ok, err := canRead(ctx, d, p, id)
 	if err != nil || !ok {
 		return wire.Conversation{}, false, err
 	}
@@ -128,7 +133,7 @@ func (s *Server) visibleDetail(ctx context.Context, d pdb.DBTX, p authz.Principa
 	if err != nil || !ok {
 		return wire.Conversation{}, false, err
 	}
-	floor, ok, err := canSee(ctx, d, p, id)
+	floor, ok, err := canRead(ctx, d, p, id)
 	if err != nil || !ok {
 		return wire.Conversation{}, false, err
 	}

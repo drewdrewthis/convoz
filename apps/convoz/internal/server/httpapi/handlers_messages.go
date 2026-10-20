@@ -91,7 +91,7 @@ func (s *Server) postMessage(w http.ResponseWriter, r *http.Request, c *call) {
 	}
 	var posted message.Posted
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) (err error) {
-		posted, err = message.Post(ctx, tx.DBTX(), messagePorts(c.p), now, draft)
+		posted, err = message.Post(ctx, tx.DBTX(), readAllPorts(c.p), now, draft)
 		return err
 	})
 	if s.messageRefused(w, err) {
@@ -288,7 +288,7 @@ func (s *Server) listMessages(w http.ResponseWriter, r *http.Request, c *call) {
 	var floor int64
 	var visible bool
 	if err == nil && found {
-		floor, visible, err = canSee(ctx, d, c.p, id)
+		floor, visible, err = canRead(ctx, d, c.p, id)
 	}
 	if err != nil {
 		s.internalError(w, r, err)
@@ -374,7 +374,7 @@ func (s *Server) listEdits(w http.ResponseWriter, r *http.Request, c *call) {
 		return
 	}
 	ctx, d := r.Context(), s.reader()
-	list, err := message.History(ctx, d, messagePorts(c.p), id)
+	list, err := message.History(ctx, d, readAllPorts(c.p), id)
 	var dir directory
 	if err == nil {
 		dir, err = loadDirectory(ctx, d)

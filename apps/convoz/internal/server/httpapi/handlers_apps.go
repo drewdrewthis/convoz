@@ -91,7 +91,7 @@ func (s *Server) appOf(w http.ResponseWriter, r *http.Request, c *call, id int64
 	var floor int64
 	var visible bool
 	if err == nil && found {
-		floor, visible, err = canSee(ctx, d, c.p, m.ConversationID)
+		floor, visible, err = canRead(ctx, d, c.p, m.ConversationID)
 	}
 	if err != nil {
 		s.internalError(w, r, err)

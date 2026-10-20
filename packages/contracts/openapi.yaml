@@ -69,6 +69,8 @@ paths:
   /api/identities/{id}/avatar.svg: { $ref: "paths/identity.yaml#/~1api~1identities~1{id}~1avatar.svg" }
   /api/crew/agents: { $ref: "paths/identity.yaml#/~1api~1crew~1agents" }
   /api/identities/{id}/disable: { $ref: "paths/identity.yaml#/~1api~1identities~1{id}~1disable" }
+  /api/agents/{id}/read-all: { $ref: "paths/identity.yaml#/~1api~1agents~1{id}~1read-all" }
+  /api/waiting: { $ref: "paths/identity.yaml#/~1api~1waiting" }
   /api/me/handle: { $ref: "paths/identity.yaml#/~1api~1me~1handle" }
   /api/identities/{id}/handle: { $ref: "paths/identity.yaml#/~1api~1identities~1{id}~1handle" }
   # ---- inbox
@@ -294,6 +296,10 @@ components:
     Owner: { $ref: "components/identity.yaml#/Owner" }
     Me: { $ref: "components/identity.yaml#/Me" }
     Identity: { $ref: "components/identity.yaml#/Identity" }
+    WaitingResponse: { $ref: "components/identity.yaml#/WaitingResponse" }
+    WaitingAsk: { $ref: "components/identity.yaml#/WaitingAsk" }
+    WaitingUnanswered: { $ref: "components/identity.yaml#/WaitingUnanswered" }
+    WaitingUnread: { $ref: "components/identity.yaml#/WaitingUnread" }
     ProfileRequest: { $ref: "components/identity.yaml#/ProfileRequest" }
     Profile: { $ref: "components/identity.yaml#/Profile" }
     HandleChangeBody: { $ref: "components/identity.yaml#/HandleChangeBody" }

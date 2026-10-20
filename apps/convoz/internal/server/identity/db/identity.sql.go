@@ -42,6 +42,18 @@ func (q *Queries) ActiveSkeletons(ctx context.Context) ([]ActiveSkeletonsRow, er
 	return items, nil
 }
 
+const agentReadsAll = `-- name: AgentReadsAll :one
+SELECT EXISTS (SELECT 1 FROM agents a JOIN identities i ON i.id = a.identity_id
+  WHERE a.identity_id = ?1 AND a.can_read_all = 1 AND i.disabled_at IS NULL)
+`
+
+func (q *Queries) AgentReadsAll(ctx context.Context, id int64) (bool, error) {
+	row := q.db.QueryRowContext(ctx, agentReadsAll, id)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const allSkeletons = `-- name: AllSkeletons :many
 SELECT handle, display_skeleton FROM identities
 `
@@ -435,6 +447,34 @@ func (q *Queries) ListIdentities(ctx context.Context) ([]ListIdentitiesRow, erro
 	return items, nil
 }
 
+const listReadAll = `-- name: ListReadAll :many
+SELECT a.identity_id FROM agents a WHERE a.can_read_all = 1
+`
+
+// Kept out of ListIdentities, which must run on the schema of every release (it only reads columns of migration 3 and older).
+func (q *Queries) ListReadAll(ctx context.Context) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listReadAll)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var identity_id int64
+		if err := rows.Scan(&identity_id); err != nil {
+			return nil, err
+		}
+		items = append(items, identity_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const retiredHandles = `-- name: RetiredHandles :many
 SELECT handle FROM retired_handles WHERE identity_id <> ?1
 `
@@ -475,6 +515,23 @@ type SetAgentDescriptionParams struct {
 func (q *Queries) SetAgentDescription(ctx context.Context, arg SetAgentDescriptionParams) error {
 	_, err := q.db.ExecContext(ctx, setAgentDescription, arg.Description, arg.ID)
 	return err
+}
+
+const setAgentReadAll = `-- name: SetAgentReadAll :execrows
+UPDATE agents SET can_read_all = ?1 WHERE identity_id = ?2
+`
+
+type SetAgentReadAllParams struct {
+	On int64
+	ID int64
+}
+
+func (q *Queries) SetAgentReadAll(ctx context.Context, arg SetAgentReadAllParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setAgentReadAll, arg.On, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const setAvatarSVG = `-- name: SetAvatarSVG :exec

@@ -18,6 +18,16 @@ import (
 // participantPort answers authz's question "is this identity in that conversation?" from the conversation module.
 type participantPort struct{ d pdb.DBTX }
 
+// ReadsAll answers authz.ReadAllReader: the agent holds the right and the conversation is not in the trash.
+func (p participantPort) ReadsAll(ctx context.Context, conversationID, identityID int64) (bool, error) {
+	granted, err := identity.ReadsAll(ctx, p.d, identityID)
+	if err != nil || !granted {
+		return false, err
+	}
+	_, live, err := conversation.Get(ctx, p.d, conversationID)
+	return live, err
+}
+
 func (p participantPort) Membership(ctx context.Context, conversationID, identityID int64) (authz.Member, bool, error) {
 	m, found, err := conversation.Membership(ctx, p.d, conversationID, identityID)
 	return authz.Member{Active: m.Active, JoinedMessageID: m.JoinedMessageID}, found, err
@@ -26,6 +36,19 @@ func (p participantPort) Membership(ctx context.Context, conversationID, identit
 // canSee is authz.CanSee over d. Every read of a conversation, a message or an inbox item goes through it.
 func canSee(ctx context.Context, d pdb.DBTX, p authz.Principal, conversationID int64) (floor int64, ok bool, err error) {
 	return authz.CanSee(ctx, participantPort{d}, p, conversationID)
+}
+
+// canRead is authz.CanRead over d: canSee plus the read-all right. Use it only on read paths (and posting); a change stays canSee.
+func canRead(ctx context.Context, d pdb.DBTX, p authz.Principal, conversationID int64) (floor int64, ok bool, err error) {
+	return authz.CanRead(ctx, participantPort{d}, p, conversationID)
+}
+
+// readsAll says whether the caller is an agent holding the read-all right.
+func readsAll(ctx context.Context, d pdb.DBTX, p authz.Principal) (bool, error) {
+	if p.SessionID == 0 {
+		return false, nil
+	}
+	return identity.ReadsAll(ctx, d, p.IdentityID)
 }
 
 // directory maps identity ids to their entries, for turning ids into handles and names.

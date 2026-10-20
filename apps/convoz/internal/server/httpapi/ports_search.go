@@ -53,9 +53,15 @@ func plainText(ctx context.Context, d pdb.DBTX, m message.Message) string {
 func searchScope(ctx context.Context, d pdb.DBTX, p authz.Principal, dir directory) (search.Scope, []conversation.Conversation, error) {
 	var list []conversation.Conversation
 	var err error
-	if p.Role == "owner" {
+	all := p.Role == "owner"
+	if !all {
+		all, err = readsAll(ctx, d, p)
+	}
+	switch {
+	case err != nil:
+	case all:
 		list, err = conversation.ListAll(ctx, d)
-	} else {
+	default:
 		list, err = conversation.ListOf(ctx, d, p.Identity())
 	}
 	if err != nil {
@@ -68,7 +74,7 @@ func searchScope(ctx context.Context, d pdb.DBTX, p authz.Principal, dir directo
 	}
 	var seen []conversation.Conversation
 	for _, cv := range list {
-		floor, ok, err := canSee(ctx, d, p, cv.ID)
+		floor, ok, err := canRead(ctx, d, p, cv.ID)
 		if err != nil {
 			return search.Scope{}, nil, err
 		}

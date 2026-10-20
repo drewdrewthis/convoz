@@ -23,6 +23,7 @@ var StepUpActions = map[string]bool{
 	"machine.revoke":      true,
 	"machine.allow":       true,
 	"identity.create":     true,
+	"identity.read_all":   true,
 	"message.purge":       true,
 	"data.export":         true,
 	"data.delete":         true,
