@@ -644,6 +644,8 @@ func historyLine(h wire.AskHistoryRow, a wire.AskView) string {
 		return "Replied in the thread by " + who
 	case "replace":
 		return "Replaced by an updated ask"
+	case "updated":
+		return "Updated by " + who
 	}
 	return "Closed (" + strings.ReplaceAll(a.CloseReason, "_", " ") + ")"
 }
