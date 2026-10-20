@@ -6,60 +6,26 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"syscall"
 )
 
-// defaultTools is what a Claude-mode item may use with no --allow: the same tools a normal agent has. Only key holders can post
-// an item, so the key is the security; a narrower list only kept agents from following the Convoz rules.
-var defaultTools = []string{
-	"Read", "Grep", "Glob", "Bash", "Edit", "Write", "WebFetch", "WebSearch", "Skill", "Agent",
-}
-
-// denyTools is empty: attaching a file or app is a normal convoz command.
-var denyTools []string
-
-var writeTools = []string{"Edit(./**)", "Write(./**)"}
-
-// allowedTools is the default list, plus the write tools with --write, plus each --allow; a rule is listed once.
-func allowedTools(extra []string, write bool) []string {
-	out := append([]string{}, defaultTools...)
-	if write {
-		out = append(out, writeTools...)
-	}
-	for _, e := range extra {
-		if !slices.Contains(out, e) {
-			out = append(out, e)
-		}
-	}
-	return out
-}
-
 // claudeCall is one `claude -p` run.
 type claudeCall struct {
-	Allow, Deny []string
-	Budget      string // --max-budget-usd, dollars
-	Session     string
-	Resume      bool // the session has a transcript: --resume, else --session-id (a session never written cannot be resumed)
-	Prompt      string
+	Budget  string // --max-budget-usd, dollars
+	Session string
+	Resume  bool // the session has a transcript: --resume, else --session-id (a session never written cannot be resumed)
+	Prompt  string
 }
 
-// args is the argv after `claude`. The prompt comes before --allowedTools and --disallowedTools: those take a list, and would
-// swallow a prompt that followed them. Allow-all is never passed: without --allowedTools, dontAsk refuses every tool.
+// args is the argv after `claude`. The run is a plain wrapper: bypassPermissions gives the child every tool a normal agent has,
+// with no allow-list. Only key holders can post an item, so the key is the security.
 func (c claudeCall) args() []string {
 	flag := "--session-id"
 	if c.Resume {
 		flag = "--resume"
 	}
-	out := []string{"-p", "--permission-mode", "dontAsk", "--max-budget-usd", c.Budget, flag, c.Session, c.Prompt}
-	if len(c.Allow) > 0 {
-		out = append(out, "--allowedTools", strings.Join(c.Allow, ","))
-	}
-	if len(c.Deny) > 0 {
-		out = append(out, "--disallowedTools", strings.Join(c.Deny, ","))
-	}
-	return out
+	return []string{"-p", "--permission-mode", "bypassPermissions", "--max-budget-usd", c.Budget, flag, c.Session, c.Prompt}
 }
 
 // itemMarker starts the item text in a prompt; what comes after it is the chat message, not the operator's words.

@@ -169,7 +169,7 @@ scenario("A second convoz run for the same agent on the same machine is refused"
   }
 });
 
-scenario("Claude mode builds a claude command with a normal agent's tools and keeps one session", { tag: ["@cli"] }, async ({ server }) => {
+scenario("Claude mode builds a claude command with every tool and keeps one session", { tag: ["@cli"] }, async ({ server }) => {
   test.setTimeout(90_000);
   // Given a stub "claude" command on PATH that records its argv and replies to the item
   const w = await chatWorld(server, { agents: ["devtool"] });
@@ -211,18 +211,18 @@ execFileSync(${JSON.stringify(convozBin)}, ["reply", "--fyi", m[2], "answered"])
       await expect.poll(() => threadOf(w.owner, conv, id), { timeout: 15_000 }).toEqual(["devtool: answered"]);
     }
 
-    // Then the stub was given a normal agent's tools, a spend limit and the "dontAsk" mode every time
+    // Then the stub was given the "bypassPermissions" mode and a spend limit every time
     const calls: string[][] = fs.readFileSync(log, "utf8").trim().split("\n").map((l) => JSON.parse(l));
     const asks = calls.filter((c) => !c.some((a) => a.includes("one-line summary")));
     expect(asks).toHaveLength(3);
     for (const c of asks) {
       const flag = (n: string) => c[c.indexOf(n) + 1] ?? "";
       expect(c[0]).toBe("-p");
-      expect(flag("--permission-mode")).toBe("dontAsk");
+      expect(flag("--permission-mode")).toBe("bypassPermissions");
       expect(flag("--max-budget-usd")).toBe("2.00");
-      expect(flag("--allowedTools").split(",")).toEqual(["Read", "Grep", "Glob", "Bash", "Edit", "Write", "WebFetch", "WebSearch", "Skill", "Agent"]);
 
-      // And the stub got no deny-list
+      // And the stub got no tool list
+      expect(c).not.toContain("--allowedTools");
       expect(c).not.toContain("--disallowedTools");
     }
 
