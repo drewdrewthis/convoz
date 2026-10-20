@@ -272,14 +272,13 @@ scenario("The updated ask shows in Now with the answers, and leaves You replied"
   const ran = await convoz(u.w.box, u.sessions.devtool!.sid, ["ask", "--json", "--update", String(id), "--question", UPDATED, "--answers", ANSWERS]);
   expect({ code: ran.code, stderr: ran.stderr }).toEqual({ code: 0, stderr: "" });
 
-  // Then Now lists the ask in the main list with "Updated after your questions", "v2 · changed: question" and the summary folded to 2 lines with "More"
+  // Then Now lists the ask in the main list with "Updated after your questions", "v2 · changed: question"
+  // and the answers in full, with no "More" to tap (owner, msg 2064: quick to read)
   const card = askCard(now, UPDATED);
   await expect(card).toContainText("Updated after your questions", { timeout: 4_000 });
   await expect(card).toContainText("v2 · changed: question");
   await expect(card).toContainText("Behind a feature flag.");
-  await expect(card.getByRole("button", { name: "More" })).toBeVisible();
-  await card.getByRole("button", { name: "More" }).click();
-  await expect(card.getByRole("button", { name: "Less" })).toBeVisible();
+  await expect(card.getByRole("button", { name: "More" })).toHaveCount(0);
 
   // And the ask is no longer under "You replied"
   await expect(now.locator("#replied")).toHaveCount(0);

@@ -64,15 +64,19 @@ const Icon = ({ d }: { d: string }) => (
 
 const URGENT_EDGE = "border-[color-mix(in_srgb,var(--color-danger)_55%,var(--color-border))]";
 
-/** Answers is what an update of the ask says after the owner's questions: the line, the version trail and the summary of the answers, folded to 2 lines with "More". */
+/**
+ * Answers is what an update of the ask says after the owner's questions: the line, the owner's own question, the version trail and the
+ * answers. They are what is new, so they read in full at a glance (owner, msg 2064); only a very long one folds, at 6 lines, with "More".
+ */
 function Answers({ ask, className }: { ask: AskData; className?: string }) {
   const [more, setMore] = useState(false);
-  const long = (ask.answers ?? "").length > 110 || (ask.answers ?? "").includes("\n");
+  const long = (ask.answers ?? "").length > 420 || (ask.answers ?? "").split("\n").length > 6;
   return (
     <div className={cx("mb-2 flex flex-col gap-1 text-13 leading-[18px] text-muted", className)}>
       <p className="m-0 font-semibold text-text">Updated after your questions</p>
+      {ask.owner_reply?.text ? <p className="m-0 [overflow-wrap:anywhere]">{`You asked: ${ask.owner_reply.text}`}</p> : null}
       {ask.revision && ask.revision > 1 ? <p className="m-0">{`v${ask.revision}${ask.changed ? ` · changed: ${ask.changed}` : ""}`}</p> : null}
-      <p className={cx("m-0 whitespace-pre-line [overflow-wrap:anywhere]", !more && "line-clamp-2")}>{ask.answers}</p>
+      <p className={cx("m-0 whitespace-pre-line text-14 leading-[20px] text-text [overflow-wrap:anywhere]", !more && "line-clamp-6")}>{ask.answers}</p>
       {long ? (
         <Button variant="text" size="inline" className="self-start -ml-8" aria-expanded={more} onClick={() => setMore(!more)}>
           {more ? "Less" : "More"}
