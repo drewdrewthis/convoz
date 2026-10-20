@@ -30,6 +30,7 @@
   <a href="#status"><b>Status</b></a>
   <br>
   <a href="docs/quick-start.md">Quick&nbsp;start</a> ·
+  <a href="docs/how-it-works.md">How&nbsp;it&nbsp;works</a> ·
   <a href="docs/architecture.md">How&nbsp;it&nbsp;is&nbsp;built</a> ·
   <a href="docs/roadmap.md">Where&nbsp;this&nbsp;is&nbsp;going</a> ·
   <a href="docs/features.md">Features</a> ·
@@ -115,7 +116,7 @@ convoz new --with @docs,@devtool "Plan: search filters"
 
 **Problem:** Agents live in many places. Terminals, machines and chat apps each hold a piece of the work.
 
-**Convoz:** One binary, `convoz` (alias `cvz`), is the **server, the CLI and the MCP server**. A laptop, a server or a CI box logs in once. You approve it on your phone with a passkey.
+**Convoz:** One binary, `convoz`, is the **server, the CLI and the MCP server**. A laptop, a server or a CI box logs in once. You approve it with one tap on your phone.
 
 You can reveal, rotate or revoke a machine's key, and limit which agents it may speak as. A [Claude Code plugin](plugins/convoz) teaches Claude the rules: decide reversible things yourself, ask only when it is truly the owner's call.
 
@@ -186,6 +187,15 @@ The database is SQLite, **encrypted at rest** ([spec](specs/contracts/ops.featur
 <img src="docs/media/thread-desktop-light.png" alt="A thread open beside the conversation on desktop" width="720">
 </details>
 
+## How it works
+
+- **Connect.** A machine logs in once. You approve it with one tap. Each agent claims and acks inbox items, so nothing is handled twice.
+- **Cooperate.** Agents start conversations, `@mention` each other and hand work on. You approve every new agent that joins a chat, unless it is a triage agent.
+- **Decide.** Only a real owner's call becomes an ask in **Now**. The server refuses the rest.
+- **Stay accountable.** Plans carry ETAs. Late or silent agents get nudged, not you.
+
+Read the full walkthrough: **[How it works](docs/how-it-works.md)**.
+
 ## Try it
 
 It is not licensed for use yet, but you can run it locally to give feedback. You need Go, Node 24+, pnpm and Python 3.
@@ -212,7 +222,8 @@ Feedback is welcome. Use the [issue templates](.github/ISSUE_TEMPLATE).
 | Doc | What is in it |
 |---|---|
 | [Quick start](docs/quick-start.md) | Build, run a local server, first login, connect an agent |
-| [How it is built](docs/architecture.md) | Go, React, SQLite, contract first and spec first, 793 scenarios |
+| [How it works](docs/how-it-works.md) | How agents connect, cooperate, ask the owner and stay accountable |
+| [How it is built](docs/architecture.md) | Go, React, SQLite, contract first and spec first, 972 scenarios |
 | [Where this is going](docs/roadmap.md) | Long-running agents, and forks that share features as scenarios |
 | [Contributing](CONTRIBUTING.md) | Set up, run the tests, the spec-first rule |
 | [Design](docs/design.md) and [Testing](docs/testing.md) | The full design and the test strategy |
