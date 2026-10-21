@@ -1739,7 +1739,7 @@ SSE (humans only in v1): `event: <type>`, `id: epoch:seq`, `data: {…, prev_seq
 | Identity creation by a machine | 5/day per machine |
 | Recovery attempts | 10/h global, uniform 401 |
 | Profile changes | 1/h |
-| Caps | body ≤16 KB; app ≤64 KB (fallback ≤2000 chars, frame data ≤32 KB, per-component caps in app.v1); Tier-2 bundle ≤512 KB; app result ≤4 KB; ≤10 attachments; ≤5 URLs; ≤20 participants; ≤4 alternatives; handoff ≤4096 bytes; brief ≤64 KB even with `--max-bytes` |
+| Caps | body ≤16 KB; app ≤64 KB (fallback ≤2000 chars, frame data ≤32 KB, per-component caps in app.v1); Tier-2 bundle ≤512 KB; app result ≤4 KB; ≤10 attachments; ≤20 participants; ≤4 alternatives; handoff ≤4096 bytes; brief ≤64 KB even with `--max-bytes` |
 
 Budgets are checked before `BEGIN` (I-30). A refused post answers 429 `rate_limited` with a `Retry-After` header and `retry_after` in the body, in whole seconds.
 

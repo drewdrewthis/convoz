@@ -29,7 +29,6 @@ Feature: Messages and their types (contracts)
         | a body of 16385 bytes    | body        |
         | an app of 65537 bytes    | app         |
         | 11 attachments           | upload_ids  |
-        | 6 URLs                   | body        |
 
     @v1 @api @AC-M1
     Scenario: Every message type has one plain-text form, the same on the server and in the web app

@@ -109,7 +109,7 @@ Version: **v1** = in the first release (slices S0–S12, S-A, S-U). **later** = 
 | Login sets a strict session cookie | Updated → onboarding: after a passkey, cookie `__Host-convoz_sid`. |
 | Foreign Origin rejected · unlisted Host rejected · off the tailnet | Kept → security (missing Origin also rejected; unknown Host → 421). |
 | A rich message cannot reach the network | Updated → apps-host (Tier-2 frame). |
-| Rich body caps | Updated → messages-types (body 16 KB, app 64 KB, 10 attachments, 5 URLs) and asks (≤4 alternatives). |
+| Rich body caps | Updated → messages-types (body 16 KB, app 64 KB, 10 attachments; no URL limit) and asks (≤4 alternatives). |
 | Two agents race to claim an open question · non-open cannot be claimed · non-member cannot claim | Removed with pickup. Owner said: "Nothing claims conversations. I need to tag." |
 | Unknown or revoked token rejected | Updated → security: a revoked machine key. |
 | An agent cannot post under another name · into a conversation it is not in | Kept → messages-types (an extra `author` field is now a 400). |

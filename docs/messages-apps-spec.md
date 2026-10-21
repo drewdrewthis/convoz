@@ -99,7 +99,7 @@ Each entry uses the same rows. "Desktop" = 1280×940 layout, "Phone" = 390×844 
 | Search | FTS of `Project(long)`. Result row: avatar, @author, conversation, time, snippet with match. Spoiler text is not indexed (DEFAULT). |
 | `convoz read` | `#9100 05:52 @devtool  Milestone 1 status:` then the body as plain text, indented 6 spaces. |
 | Plain-text fallback | Markers stripped; link → `text (host)`; image → `[image]`; spoiler → `[spoiler]`; mention kept as `@handle`; task list kept as `- [x] Server`. |
-| Limits | `body` ≤16 384 chars (DB counts characters); ≤5 URLs; ≤50 mentions (DEFAULT). Agent: 1/s, burst 20 (§13.1). |
+| Limits | `body` ≤16 384 chars (DB counts characters); ≤50 mentions (DEFAULT). Agent: 1/s, burst 20 (§13.1). |
 | Agent inbox | `activity` (coalesced per conversation) or `mention`. Item shows `variant:"text"`, `format`, `text` = `Project(long)` cut to 500 chars with `truncated:true`. `convoz read --json` adds raw `body` + `format`. |
 
 ### M-2 Ask

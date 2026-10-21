@@ -46,7 +46,7 @@ import { expect, scenario } from "../lib/scenario.ts";
  *
  * ROUTES
  *   POST /api/conversations/:id/messages  {client_id, body, format?, thread_root_id?, broadcast?, upload_ids?, app?(agent only)}
- *        400 field "body" (over 16384 bytes, or more than 5 links), "app" (over 65536 bytes), "upload_ids" (over 10), "thread_root_id"
+ *        400 field "body" (over 16384 bytes), "app" (over 65536 bytes), "upload_ids" (over 10), "thread_root_id"
  *        (not a top-level message of that conversation; code system_line_no_replies for a system line).
  *        429 code conversation_paused (no Retry-After) while the loop breaker holds the conversation; 429 rate_limited with Retry-After
  *        for the budgets (1/s burst 20, 5000/day per identity, 20000/day per machine).
@@ -489,7 +489,6 @@ scenario("Oversized messages are refused", { tag: ["@api"] }, async ({ server, d
     ["a body of 16385 bytes", { body: "b".repeat(16385) }, "body"],
     ["an app of 65537 bytes", { body: "App", app: appOf(65537) }, "app"],
     ["11 attachments", { body: "Files", upload_ids: Array.from({ length: 11 }, (_, i) => `upl_${i}`) }, "upload_ids"],
-    ["6 URLs", { body: Array.from({ length: 6 }, (_, i) => `https://example.com/${i}`).join(" ") }, "body"],
   ];
   for (const [problem, fields, field] of rows) {
     // When "devtool" posts a message with <problem>
