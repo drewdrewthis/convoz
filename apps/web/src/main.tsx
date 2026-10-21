@@ -7,7 +7,8 @@ import { route } from "./app/routes.tsx";
 import { call, client } from "./shared/api.ts";
 import { dropEarly } from "./shared/early.ts";
 import { afterFirstScreen, noFirstScreen } from "./shared/perf.ts";
-import { registerServiceWorker } from "./sw/index.ts";
+import { pullToRefresh } from "./shared/pull.ts";
+import { refreshApp, registerServiceWorker } from "./sw/index.ts";
 import "./styles/app.css";
 import "./styles/appearance.css";
 
@@ -16,6 +17,7 @@ const def = route(location.pathname, document.documentElement.dataset.status);
 prepare(def);
 if (!def.useful) noFirstScreen();
 registerServiceWorker();
+pullToRefresh(() => void refreshApp());
 void def.load().then((Page) => createRoot(document.getElementById("root")!).render(<Root first={{ path: location.pathname, def, Page }} />));
 // After the first screen: the saved look and the owner's palette. The boot script already painted what this device had.
 void afterFirstScreen()

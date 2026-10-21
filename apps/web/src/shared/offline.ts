@@ -6,8 +6,15 @@ let opened: Promise<CacheDb | null> | undefined;
 /** offline is the one open cache database. */
 export const offline = (): Promise<CacheDb | null> => (opened ??= openOfflineCache());
 
-/** forgetOffline empties it: the person signed out, or the device was revoked. */
-export const forgetOffline = (): Promise<void> => forgetOfflineData(offline());
+/** forgetOffline empties it and this tab's sessionStorage (the unsent drafts): the person signed out, or the device was revoked. */
+export function forgetOffline(): Promise<void> {
+  try {
+    sessionStorage.clear();
+  } catch {
+    // a store that cannot be read holds nothing to forget
+  }
+  return forgetOfflineData(offline());
+}
 
 /** remember keeps one small fact (the last Now, the last sync time) in the `meta` store. A refusing disk loses it, nothing more. */
 export async function remember(key: string, value: unknown): Promise<void> {

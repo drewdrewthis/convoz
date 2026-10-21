@@ -18,6 +18,8 @@ function reloadOnUpdate(): void {
   let controlled = Boolean(navigator.serviceWorker.controller);
   let reloading = false;
   navigator.serviceWorker.addEventListener("controllerchange", () => {
+    // No controller: the worker was removed (sign-out's Clear-Site-Data), not replaced. A reload then would install it again.
+    if (!navigator.serviceWorker.controller) return;
     if (!controlled) return void (controlled = true);
     if (reloading) return;
     const last = Number(sessionStorage.getItem(RELOADED_AT) ?? 0);
@@ -36,6 +38,16 @@ function claimLoosePage(): void {
   void navigator.serviceWorker.ready.then(({ active }) => {
     if (!navigator.serviceWorker.controller) active?.postMessage({ type: "claim" });
   });
+}
+
+/**
+ * refreshApp is the owner's pull to refresh: it looks for a new build, which then takes over and reloads the page by itself; with none,
+ * it reloads the page so every screen fetches its data again. The message box keeps its text either way.
+ */
+export async function refreshApp(): Promise<void> {
+  await registration?.update().catch(() => {});
+  if (registration?.installing) return;
+  location.reload();
 }
 
 /** The worker's registration; it registers /sw.js (scope /) when there is none yet, so a caller never waits on a worker nobody installed. */

@@ -65,5 +65,5 @@ scenario("Logout clears the device", { tag: ["@browser"] }, async ({ server, pag
   // And no cached conversation is left on the device
   const rows = await cacheRows(page);
   expect(Object.values(rows).reduce((a, b) => a + b, 0), JSON.stringify(rows)).toBe(0);
-  expect(await page.evaluate(async () => (await caches.keys()).length)).toBe(0);
+  expect(await page.evaluate(() => caches.keys())).toEqual([]);
 });

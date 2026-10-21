@@ -8,7 +8,7 @@ import { installed, world } from "../lib/wp17.ts";
  * PWA (WP17), installing the app. Settings → Notifications is the "Notifications" row of /settings; the guide is the region named
  * "Add to Home Screen". A new build's worker takes over by itself and the page reloads under it; the worker that runs is told apart by
  * its script URL. The page is never made to message the running worker for it: a message wakes the outgoing worker while the new one
- * takes over, which can stall that hand-over.
+ * takes over, which can stall that hand-over. A pull to refresh is raw CDP touch events: Playwright's touchscreen only taps.
  */
 
 const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
@@ -104,4 +104,47 @@ scenario("A half-written message survives an update", { tag: ["@browser"] }, asy
 
   // And the typed message is still in the box
   await expect(box).toHaveValue("half a thought");
+});
+
+/** A finger pulls straight down by `by` px from (x, y) and lets go: raw touch events, as a phone sends them. */
+async function pullDown(page: Page, x: number, y: number, by: number): Promise<void> {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+  for (let step = 1; step <= 5; step++) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y + (by * step) / 5 }] });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await cdp.detach().catch(() => {}); // the page may already be reloading
+}
+
+scenario("A pull down at the top of a list refreshes the app", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
+  // Every look for a new build is noted with the page that asked (its time origin), in storage that outlives a reload.
+  await context.addInitScript(() => {
+    const update = ServiceWorkerRegistration.prototype.update;
+    ServiceWorkerRegistration.prototype.update = function () {
+      const asked = JSON.parse(sessionStorage.getItem("e2e.updates") ?? "[]") as number[];
+      sessionStorage.setItem("e2e.updates", JSON.stringify([...asked, performance.timeOrigin]));
+      return update.call(this);
+    };
+  });
+  const u = await world({ server, page, context });
+
+  // Given the app is open on a phone
+  await page.goto(`${u.w.srv.origin}/chats`);
+  await installed(page);
+  // The owner has no conversation yet: the list is its empty state, which a pull refreshes all the same.
+  const list = page.getByRole("main");
+  await expect(list.getByText("No conversations yet")).toBeVisible();
+  const first = await page.evaluate(() => performance.timeOrigin);
+  const asked = () => page.evaluate(() => JSON.parse(sessionStorage.getItem("e2e.updates") ?? "[]") as number[]).catch(() => []);
+  const before = (await asked()).filter((o) => o === first).length;
+  let reloaded = false;
+  page.on("load", () => (reloaded = true));
+
+  // When the owner pulls down at the top of the conversations list
+  const box = (await list.boundingBox())!;
+  await pullDown(page, box.x + box.width / 2, box.y + 20, 150);
+
+  // Then the app looks for a new build and reloads
+  await expect.poll(() => reloaded, { timeout: 10_000 }).toBe(true);
+  expect((await asked()).filter((o) => o === first).length).toBeGreaterThan(before);
+  await expect(list.getByText("No conversations yet")).toBeVisible();
 });

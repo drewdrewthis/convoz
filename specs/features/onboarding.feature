@@ -105,6 +105,12 @@ Feature: Onboarding and sign in
       Then the new version runs without a tap
       And the typed message is still in the box
 
+    @v1 @browser @phone
+    Scenario: A pull down at the top of a list refreshes the app
+      Given the app is open on a phone
+      When the owner pulls down at the top of the conversations list
+      Then the app looks for a new build and reloads
+
     @v1 @browser @phone @needs-owner
     Scenario: The owner sets up Convoz on a real phone
       Given a bootstrap link made on the server box
