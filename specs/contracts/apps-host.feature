@@ -128,6 +128,13 @@ Feature: Apps inside messages (contracts)
         | the owner's browser       | without "Sec-Fetch-Dest: iframe"          | 400    |
         | the owner's browser       | for a deleted message                     | 404    |
 
+    @v1 @api @I-46
+    Scenario: A Tier-2 app on an ask opens, in the conversation and in its thread
+      Given "devtool" asked "Ship it?" with a Tier-2 app
+      When the owner's browser asks for the frame of the ask
+      Then the server answers 200 with the bundle
+      And the ask card in the ask's thread carries the app
+
     @v1 @browser @I-46 @unimplemented
     Scenario: A frame document is cached by its hash
       Given the owner opened a Tier-2 app once

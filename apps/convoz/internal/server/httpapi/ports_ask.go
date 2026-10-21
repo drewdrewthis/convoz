@@ -37,6 +37,7 @@ func (m askMessages) PostAsk(ctx context.Context, d pdb.DBTX, now time.Time, a a
 	posted, err := message.Post(ctx, d, messagePorts(m.p), now, message.Draft{
 		Conversation: a.Conversation, Author: a.Author, Session: a.Session, Origin: message.Origin{Label: a.OriginLabel, Machine: a.OriginMachine},
 		ClientID: a.ClientID, Body: a.Question, Format: "plain", ThreadRoot: a.ThreadRoot, Kind: "ask", App: a.App,
+		UploadIDs: appUploadIDs(a.App), // the app's files join the ask message, as a post's do: the frame route serves only a bound bundle
 	})
 	if err != nil {
 		return 0, false, err

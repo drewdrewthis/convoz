@@ -367,6 +367,27 @@ scenario("The frame route serves only the right bundle to the right caller", { t
   expect((await frame(hash, iframe)).status).toBe(404);
 });
 
+scenario("A Tier-2 app on an ask opens, in the conversation and in its thread", { tag: ["@api"] }, async ({ server }) => {
+  // Background
+  const a = await appsWorld({ server });
+
+  // Given "devtool" asked "Ship it?" with a Tier-2 app
+  const html = frameHtml("<p>proposal</p>");
+  const app = frameApp(await stored(a.w.srv, a.devtool.lease, Buffer.from(html)), { title: "Proposal" });
+  const askId = Number(must(await postAsk(a.w.srv, a.devtool.lease, { ...askBody(a.conv, { question: "Ship it?" }), app }), "ask with a frame", 201).json().ask.id);
+
+  // When the owner's browser asks for the frame of the ask
+  const frame = await a.w.owner.client.get(`/api/apps/${askId}/frame?h=${sha256(html)}`, { headers: { "Sec-Fetch-Dest": "iframe" } });
+
+  // Then the server answers 200 with the bundle
+  expect(frame.status).toBe(200);
+  expect(frame.text).toBe(html);
+
+  // And the ask card in the ask's thread carries the app
+  const replies = must(await a.w.owner.client.get(`/api/messages/${askId}/replies`), "the ask's thread", 200).json();
+  expect(replies.root.ask?.app).toMatchObject({ type: "frame", title: "Proposal" });
+});
+
 // ---- Rule: Tier-1 apps are our own components fed with data (apps-host.feature) -------------------------------
 
 scenario("A Tier-1 app renders from its data", { tag: ["@browser"] }, async ({ server, page, context }, info) => {

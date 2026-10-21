@@ -338,7 +338,6 @@ func (s *Server) listMessages(w http.ResponseWriter, r *http.Request, c *call) {
 	out := viewMessages(dir, page)
 	for i, m := range page {
 		if v, ok := asks[m.ID]; ok {
-			v.App = out[i].App
 			out[i].AttachAsk(v)
 		}
 	}
@@ -353,12 +352,15 @@ func (s *Server) listMessages(w http.ResponseWriter, r *http.Request, c *call) {
 	writeJSON(w, http.StatusOK, wire.MessagesResponse{Messages: out, AsOfSeq: seq})
 }
 
-// askViewsOf reads the asks that the messages of a page carry, by message id: each with its options and history.
+// askViewsOf reads the asks that the messages of a page carry, by message id: each with its options, history and app (every page
+// that shows an ask card, a thread's root included, shows the app under it).
 func askViewsOf(ctx context.Context, d pdb.DBTX, dir directory, page []message.Message) (map[int64]wire.AskView, error) {
 	var ids []int64
+	apps := map[int64][]byte{}
 	for _, m := range page {
 		if m.Kind == "ask" {
 			ids = append(ids, m.ID)
+			apps[m.ID] = m.App
 		}
 	}
 	asks, err := ask.Views(ctx, d, ids)
@@ -367,9 +369,12 @@ func askViewsOf(ctx context.Context, d pdb.DBTX, dir directory, page []message.M
 		return nil, err
 	}
 	for id, a := range asks {
-		if out[id], err = dir.askWithReply(ctx, d, a); err != nil {
+		v, err := dir.askWithReply(ctx, d, a)
+		if err != nil {
 			return nil, err
 		}
+		v.App = appView(apps[id])
+		out[id] = v
 	}
 	return out, nil
 }
