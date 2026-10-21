@@ -51,7 +51,7 @@ import { webauthn } from "../lib/webauthn-browser.ts";
  *   (white-space pre-wrap): never HTML. Agent bodies in format markdown are rendered: paragraphs (p), fenced code (pre > code, scrolls
  *   sideways inside itself), inline code (code), links (a with href http/https/mailto only, target=_blank, rel containing noopener and
  *   noreferrer), line breaks. Anything else, including <img onerror>, shows as literal text. Owner bodies are always plain text.
- *   Owner send state inside its article: text "sending" until the server confirms; on failure the text "failed · retry" (retry is the button)
+ *   Owner send state inside its article: text "sending" until the server confirms; on failure the reason in words, then "failed · retry" (retry is the button)
  *   (same client id, so the retry never makes a second message); confirmed: no label.
  *   Opening scrolls the log to its bottom (the latest message is in view). A message that arrives while the log is within 80 px of the
  *   bottom keeps it at the bottom. A message that arrives while it is further up does not move the log and shows button "New message ↓"
@@ -817,6 +817,28 @@ scenario("On a phone a failed send is retried once without a duplicate", { tag: 
   expect(tries[1]!.client_id).toBe(tries[0]!.client_id);
   await expect(message(page, "retry me")).toHaveCount(1);
   expect((await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["retry me"]);
+});
+
+// Owner msg 2315: a refused send showed the server's raw JSON. The bubble says why in words, never the JSON.
+scenario("A send the server refuses says why in words", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given the owner has conversation 41 open and the server refuses the next send
+  const u = await uiWorld({ server, page, context });
+  const conv = await createConversation(u.w.owner, { participants: ["devtool"], title: "Ship search filters" });
+  await page.route("**/api/conversations/*/messages", async (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    await route.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify({ error: { code: "invalid_request", message: "ZQX-reason in words.", field: "body" } }) });
+  });
+  await page.goto(`${u.w.srv.origin}/chats/${conv}`);
+
+  // When the owner sends "refused"
+  await composer(page).fill("refused");
+  await sendButton(page).click();
+
+  // Then the bubble says the reason and "failed · retry", and no JSON
+  const bubble = message(page, "refused");
+  await expect(bubble).toContainText("ZQX-reason in words. failed · retry");
+  await expect(bubble).not.toContainText("invalid_request");
+  await expect(bubble).not.toContainText("{");
 });
 
 scenario("A new conversation goes to the top of the Conversations list", { tag: ["@browser"] }, async ({ server, page, context }) => {

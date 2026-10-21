@@ -386,7 +386,7 @@ function RowBody({ row, threaded, me, paused, conversation, onRetry, onDetails, 
   const state =
     p!.state === "failed" ? (
       <div className="sendstate bad">
-        failed ·{" "}
+        {p!.reason ? `${p!.reason} ` : ""}failed ·{" "}
         <button className="retry" type="button" onClick={() => onRetry(p!.cid)}>
           retry
         </button>

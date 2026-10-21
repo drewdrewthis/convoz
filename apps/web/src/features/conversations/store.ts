@@ -3,7 +3,7 @@
 import type { Message, Upload } from "@convoz/api-client";
 import { coalesce, maxId } from "@convoz/api-client";
 import { create } from "zustand";
-import { ApiError } from "../../shared/api.ts";
+import { ApiError, humanError } from "../../shared/api.ts";
 import { newId } from "../../shared/chat.ts";
 import { data, outbox, source, sync } from "../../shared/data.ts";
 import { asUpload, uploadFile } from "../../shared/uploads.ts";
@@ -16,6 +16,8 @@ export interface PendingSend {
   cid: string;
   body: string;
   state: "sending" | "failed";
+  /** Why a failed send failed, in the owner's words (msg 2315: the raw server answer is never shown). */
+  reason?: string;
   base: number;
   /** The finished uploads the message carries. */
   uploadIds?: string[];
@@ -86,7 +88,7 @@ export const useConversations = create<ConversationsState>()((set, get) => {
     });
 
   async function deliver(key: string, cid: string) {
-    const setState = (state: PendingSend["state"]) => patch(key, (t) => ({ pending: t.pending.map((p) => (p.cid === cid ? { ...p, state } : p)) }));
+    const setState = (state: PendingSend["state"], reason?: string) => patch(key, (t) => ({ pending: t.pending.map((p) => (p.cid === cid ? { ...p, state, reason } : p)) }));
     setState("sending");
     let queued = false;
     for (;;) {
@@ -120,7 +122,7 @@ export const useConversations = create<ConversationsState>()((set, get) => {
         return;
       } catch (err) {
         if (err instanceof ApiError && err.handled) return;
-        if (!linkDown(err)) return setState("failed");
+        if (!linkDown(err)) return setState("failed", humanError(err));
         await backOnline(); // the same client id goes out again, so a send that did arrive is not made twice (I-24)
       }
     }
