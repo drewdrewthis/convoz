@@ -174,3 +174,37 @@ Feature: A triage agent
       Given "docs" asked to join conversation 41
       When the owner opens Now and taps "Deny" on the card "@docs wants to join"
       Then the card goes away and "docs" is not a participant of conversation 41
+
+  # Source: conv 72 (msgs 2220, 2222, 2226, 2228), asked by Drew through "dot". A story to plan, not built yet: every scenario is @later.
+  # Gap found on 2026-10-21: POST /api/conversations/:id/read moves the caller's own cursor (c.p.Identity()), so an agent marks its
+  # own read state, never the owner's, and a triage agent not in the chat gets a quiet success. No owner-targeted read marker exists.
+  # Open choices (not decided): a "last briefing" checkpoint, and opaque public ids for conversations next to the numbers.
+  Rule: The owner asks the triage agent what is new since the last briefing
+
+    @later @cli
+    Scenario: A triage agent finds every conversation, joined or not
+      Given the owner made "triage" a triage agent
+      When "triage" lists the conversations with "convoz conversations"
+      Then it sees conversation 41 "Ship search filters" with its link, marked as not joined
+      And it finds the same messages with "convoz search" that the owner finds in the app
+
+    @later @cli
+    Scenario: A briefing tells settled and superseded work apart from open work
+      Given the owner made "triage" a triage agent
+      And "drew" asked a question in conversation 41 and "devtool" answered it in a thread
+      And "devtool" has an open ask in conversation 41 and a later message that makes an older ask out of date
+      When "triage" runs "convoz waiting"
+      Then the question shows as answered in a thread, with a link to the reply
+      And the older ask shows as superseded, with a link to the later message
+      And the open ask shows as waiting on the owner
+      And nothing was marked read, answered or dismissed
+
+    @later @cli
+    Scenario: The triage agent marks only settled material read for the owner, when the owner allowed it
+      Given the owner made "triage" a triage agent and allowed it to mark settled material read
+      And conversation 41 has a settled thread and an open ask
+      When "triage" marks the owner read up to the last message of the settled thread
+      Then the owner's unread count for conversation 41 drops by that thread only
+      And the open ask still waits in Now
+      And the owner's audit log names "triage", the conversation, and the old and new read position
+      And the owner can undo it

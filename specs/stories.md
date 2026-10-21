@@ -52,6 +52,7 @@ Version: **v1** = in the first release (slices S0–S12, S-A, S-U). **later** = 
 | US-25 | As the owner I want CI to refuse work that breaks the module boundaries, budgets or accessibility, so that agents driving the build cannot lower the bar. | v1 | quality-gates | — | AC-1 AC-9 AC-16 AC-17 |
 | US-26 | Removed (pickup). Owner said: "Nothing claims conversations. I need to tag." | removed | — | — | — |
 | US-27 | As the owner I want to answer an ask from the lock screen, off by default, so that I can decide without opening the app. | later | notifications | I-35 | — |
+| US-28 | As the owner I want to ask my triage agent what is new or changed since my last briefing, and get progress, blockers and my real decisions with links, settled and superseded work told apart from open work, so that I only reread what still needs me. Source: conv 72, msgs 2220-2228. | later | triage | — | — |
 
 ## Agent session (one Claude session acting as one identity)
 
