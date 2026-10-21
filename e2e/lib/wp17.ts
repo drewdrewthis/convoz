@@ -6,9 +6,9 @@ import type { ServerHandle, ServerOptions } from "./fixtures.ts";
 /*
  * Helpers for the PWA and poor-network scenarios (WP17). The contract they lean on:
  *   - the service worker is /sw.js; it precaches the build, opens the app from the cache when the server does not answer in
- *     150 ms, never answers an /api route (so Cache Storage holds no API response), and waits for a tap before an update runs.
+ *     150 ms, never answers an /api route (so Cache Storage holds no API response), and a new build takes over and reloads the page by itself.
  *   - the offline copy is IndexedDB "convoz": stores `messages`, `conversations`, `me`, `outbox`, `meta` (syncedAt, now, cursor).
- *   - the banner "Offline · last synced <time>" (role status) shows while the link is down; "Update ready · Reload" while an update waits.
+ *   - the banner "Offline · last synced <time>" (role status) shows while the link is down.
  */
 
 export type Fx = { server: (o?: ServerOptions) => Promise<ServerHandle>; page: Page; context: BrowserContext };

@@ -8,6 +8,7 @@ import { initials, paletteOf, stripCf } from "../../shared/chat.ts";
 import { TriageBadge } from "../../shared/TriageBadge.tsx";
 import { useVoiceNote } from "../voice/index.ts";
 import { AttachmentList } from "./AttachmentList.tsx";
+import { loadDraft, saveDraft } from "./draft.ts";
 import { pasteFiles, type Attachments } from "./attachments.ts";
 import { enterSends } from "./enterToSend.ts";
 import { keepFocus } from "./keepFocus.ts";
@@ -37,7 +38,7 @@ export interface ComposerProps {
  * microphone (in Send's place while there is nothing to send) swaps the box for the recording bar.
  */
 export function Composer({ agent, label, conversationId, attachments, onSend, textRef, mentions }: ComposerProps) {
-  const [text, setText] = useState("");
+  const [text, setText] = useState(() => loadDraft(location.pathname));
   const [menu, setMenu] = useState<{ shown: Identity[]; active: number } | null>(null);
   const picker = useRef<HTMLInputElement>(null);
   const voice = useVoiceNote(conversationId, (sent) => onSend("", [sent]));
@@ -46,6 +47,9 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
   // A crew agent typed by hand (outside code and quotes) counts like a pick: the server brings it in when the message arrives (I-18).
   const named = Boolean(mentions) && mentionsOf(text).some((h) => mentions!.crew.some((p) => p.handle === h));
   const canSend = (Boolean(agent) || named) && !empty && files.every((f) => f.state === "done" || f.state === "held");
+
+  // Every change is kept at once: an update can reload the page at any moment (sw/index.ts), and the box is filled again from it.
+  useEffect(() => saveDraft(location.pathname, text), [text]);
 
   useLayoutEffect(() => {
     const box = textRef.current;
@@ -161,6 +165,7 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
           const sent = files.filter((f) => f.upload).map((f) => f.upload!);
           const held = files.filter((f) => f.state === "held").map((f) => f.file);
           setText("");
+          saveDraft(location.pathname, ""); // now: the first send of a new conversation moves the page to its URL before the effect runs
           attachments.clear();
           textRef.current?.focus(); // the keyboard stays up
           onSend(body, sent, held);

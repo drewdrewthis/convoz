@@ -23,7 +23,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Messages and their types](#messages-and-their-types) (17)
 - [Notifications](#notifications) (21)
 - [Now](#now) (36)
-- [Onboarding and sign in](#onboarding-and-sign-in) (16)
+- [Onboarding and sign in](#onboarding-and-sign-in) (15)
 - [One command serves an agent's inbox with a short-lived process per item](#one-command-serves-an-agents-inbox-with-a-short-lived-process-per-item) (6)
 - [Pins, stars and mute](#pins-stars-and-mute) (7)
 - [Plans: what each agent is doing, what is next and what waits on the owner](#plans-what-each-agent-is-doing-what-is-next-and-what-waits-on-the-owner) (24)
@@ -656,7 +656,7 @@ I can clear my queue from my phone in a few taps.
 ## Onboarding and sign in
 
 Only I can get in, and I can never lock myself out.
-16 scenarios.
+15 scenarios.
 
 - **The first passkey comes from a break-glass link made on the server box (AC-2)**
   - [A bootstrap link registers the first passkey and makes the owner](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/onboarding.feature#L17)
@@ -673,12 +673,11 @@ Only I can get in, and I can never lock myself out.
   - [Logout clears the device](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/onboarding.feature#L81)
 - **Installing the app**
   - [iPhone users get an Add to Home Screen guide](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/onboarding.feature#L90)
-  - [An update waits for the owner's tap](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/onboarding.feature#L96)
-  - [An update applies itself when the app is in the background](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/onboarding.feature#L102)
-  - [An update waits while a message is half-written](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/onboarding.feature#L109)
-  - [The owner sets up Convoz on a real phone](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/onboarding.feature#L119)
+  - [An update takes over by itself](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/onboarding.feature#L96)
+  - [A half-written message survives an update](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/onboarding.feature#L102)
+  - [The owner sets up Convoz on a real phone](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/onboarding.feature#L109)
 - **The invite prompt teaches the agent**
-  - [The invite prompt tells a new agent to install the skill](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/onboarding.feature#L127)
+  - [The invite prompt tells a new agent to install the skill](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/onboarding.feature#L117)
 
 ## One command serves an agent's inbox with a short-lived process per item
 

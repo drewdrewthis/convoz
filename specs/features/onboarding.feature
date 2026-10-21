@@ -93,27 +93,17 @@ Feature: Onboarding and sign in
       Then a guide card explains "Share → Add to Home Screen" before push can be turned on
 
     @v1 @browser
-    Scenario: An update waits for the owner's tap
+    Scenario: An update takes over by itself
       Given a new build is deployed while the app is open
-      Then the app shows "Update ready · Reload"
-      And the new version runs only after the owner taps Reload
-
-    @v1 @browser
-    Scenario: An update applies itself when the app is in the background
-      Given a new build is deployed while the app is open
-      When the app goes to the background
       Then the new version runs without a tap
-      And the "Update ready" bar does not stay
+      And the page reloads once
 
     @v1 @browser
-    Scenario: An update waits while a message is half-written
-      Given a new build is deployed while the app is open
-      And the owner has typed a message and not sent it
-      When the app comes back to the screen
-      Then the app still shows "Update ready · Reload" and the old version runs
+    Scenario: A half-written message survives an update
+      Given the owner has typed a message and not sent it
+      When a new build is deployed while the app is open
+      Then the new version runs without a tap
       And the typed message is still in the box
-      When the owner clears the box and the app comes back to the screen again
-      Then the new version runs without a tap
 
     @v1 @browser @phone @needs-owner
     Scenario: The owner sets up Convoz on a real phone
