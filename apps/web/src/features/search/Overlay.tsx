@@ -47,6 +47,9 @@ const plainParts = (text: string): SearchPart[] => (text ? [{ text }] : []);
 /** tokensOf splits the text as the server does: a filter with a quoted value is one token. */
 const tokensOf = (q: string): string[] => q.match(/(?:in|from):"[^"]*"|"[^"]*"|\S+/gi) ?? [];
 
+/** pickingAgent is the text after a lone "@": then the box lists the agents to start a conversation with. A space after it searches with the from filter. */
+const pickingAgent = (q: string): string | null => /^@(\S*)$/.exec(q.trimStart())?.[1]?.toLowerCase() ?? null;
+
 /** The search overlay: one box over agents, conversations, messages and asks, with the filters as chips. */
 export default function Overlay() {
   const hide = useSearchUi((s) => s.hide);
@@ -57,7 +60,8 @@ export default function Overlay() {
   const [q, setQ] = useState("");
   const [at, setAt] = useState(0);
   const [all, setAll] = useState<Record<string, boolean>>({});
-  const found = useAnswer(q);
+  const pick = pickingAgent(q);
+  const found = useAnswer(pick === null ? q : "");
   const wide = useWide();
 
   useEffect(() => {
@@ -92,6 +96,21 @@ export default function Overlay() {
       }
       out.push({ key, label, count: String(list.length), rows });
     };
+    const agentRow = (p: NonNullable<typeof identities>[number], words: string[]): Row => ({
+      id: `agent-${p.handle}`,
+      title: marked(p.handle, words),
+      sub: plainParts(p.display_name),
+      tag: p.online ? "Online" : "Offline",
+      badge: { kind: "avatar", handle: p.handle },
+      run: () => open(`/chats/new?with=${encodeURIComponent(p.handle)}`),
+    });
+    if (pick !== null) {
+      // A disabled agent is left out: the new conversation would not take it.
+      const agents = (identities ?? []).filter((p) => p.kind === "agent" && !p.disabled && `${p.handle} ${p.display_name}`.toLowerCase().includes(pick));
+      const rows = agents.sort((a, b) => Number(b.handle.startsWith(pick)) - Number(a.handle.startsWith(pick))).map((p) => agentRow(p, [pick]));
+      if (rows.length) out.push({ key: "agents", label: "Start a conversation with", count: String(rows.length), rows });
+      return out;
+    }
     if (browse) {
       const byId = new Map((conversations ?? []).map((c) => [c.id, c]));
       const recent = recentChats()
@@ -122,14 +141,7 @@ export default function Overlay() {
         "Agents",
         agents
           .sort((a, b) => Number(b.handle.startsWith(terms[0] ?? "")) - Number(a.handle.startsWith(terms[0] ?? "")))
-          .map((p) => ({
-            id: `agent-${p.handle}`,
-            title: marked(p.handle, terms),
-            sub: plainParts(p.display_name),
-            tag: p.online ? "Online" : "Offline",
-            badge: { kind: "avatar", handle: p.handle },
-            run: () => open(`/chats/new?with=${encodeURIComponent(p.handle)}`),
-          })),
+          .map((p) => agentRow(p, terms)),
       );
     }
     group(
@@ -176,7 +188,7 @@ export default function Overlay() {
         })),
     );
     return out;
-  }, [browse, found.answer, chips, terms, all, identities, conversations, me]);
+  }, [pick, browse, found.answer, chips, terms, all, identities, conversations, me]);
 
   const flat = sections.flatMap((s) => s.rows);
   const active = Math.min(at, Math.max(flat.length - 1, 0));
@@ -268,12 +280,13 @@ export default function Overlay() {
               ))}
             </div>
           ))}
-          {!browse && found.answer && flat.length === 0 ? <p className="srnone">{`No results for “${q.trim()}”. Try fewer words or remove a filter.`}</p> : null}
+          {pick !== null && identities && flat.length === 0 ? <p className="srnone">{`No agent matches “@${pick}”.`}</p> : null}
+          {pick === null && !browse && found.answer && flat.length === 0 ? <p className="srnone">{`No results for “${q.trim()}”. Try fewer words or remove a filter.`}</p> : null}
           {found.error ? <p className="srnone">Search did not answer. Try again.</p> : null}
         </div>
         <div className="srmeta">
           <span role="status" aria-live="polite">
-            {browse ? FILTERS_HELP : found.answer ? `${total} ${total === 1 ? "result" : "results"} · ${found.ms < 10 ? found.ms.toFixed(1) : Math.round(found.ms)} ms` : ""}
+            {pick !== null ? "Enter starts a conversation with the agent" : browse ? FILTERS_HELP : found.answer ? `${total} ${total === 1 ? "result" : "results"} · ${found.ms < 10 ? found.ms.toFixed(1) : Math.round(found.ms)} ms` : ""}
           </span>
         </div>
       </div>

@@ -55,6 +55,15 @@ Feature: Search
       When the owner searches "rollback" and chooses the message result
       Then Find anything is closed and that message is highlighted
 
+  Rule: A lone @ starts a conversation with an agent (owner Drew: "from the quick menu, if i type @ it should give me a list of agents and let me short cut to starting a convo with it")
+
+    @v1 @browser
+    Scenario: Typing @ lists the agents and starts a conversation with one
+      When the owner types "@" in Find anything
+      Then the agents "devtool" and "docs" are listed
+      When the owner types "@doc" and presses Enter
+      Then a new conversation with "docs" opens with the cursor in the composer and Find anything is closed
+
   Rule: Filters narrow the results (AC-13)
 
     @v1 @api @AC-13

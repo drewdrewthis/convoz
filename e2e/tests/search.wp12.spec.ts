@@ -177,6 +177,34 @@ scenario("Choosing a result for the conversation you are already in closes Find 
   await expect(log.getByRole("article").filter({ hasText: "rollback if the filters slow the page" })).toHaveAttribute("data-hl", "true");
 });
 
+scenario("Typing @ lists the agents and starts a conversation with one", { tag: ["@browser"] }, async ({ server, dataDir, page, context }) => {
+  // Background
+  const w = await browserSearchWorld({ server, dataDir, page, context });
+  await page.goto(`${w.srv.origin}/chats`);
+  await expect(page.getByRole("heading", { name: "Conversations", exact: true })).toBeVisible();
+
+  // When the owner types "@" in Find anything
+  await typeSearch(page, "@");
+
+  // Then the agents "devtool" and "docs" are listed
+  const agents = searchDialog(page).getByRole("group", { name: "Start a conversation with" }).getByRole("option");
+  await expect(agents.filter({ hasText: "devtool" })).toBeVisible();
+  await expect(agents.filter({ hasText: "docs" })).toBeVisible();
+  await expect(searchDialog(page).getByRole("group", { name: "Messages" })).toHaveCount(0);
+
+  // When the owner types "@doc" and presses Enter
+  await searchBox(page).fill("@doc");
+  await expect(agents).toHaveCount(1);
+  await expect(agents.first()).toContainText("docs");
+  await searchBox(page).press("Enter");
+
+  // Then a new conversation with "docs" opens with the cursor in the composer and Find anything is closed
+  await expect(page).toHaveURL(/\/chats\/new\?with=docs$/);
+  await expect(searchDialog(page)).toHaveCount(0);
+  await expect(page.locator("textarea:focus")).toBeVisible();
+  await expect(page.getByText("@docs").first()).toBeVisible();
+});
+
 scenario("Each filter narrows the results", { tag: ["@api"] }, async ({ server, dataDir }) => {
   // Background
   const w = await searchWorld({ server, dataDir });

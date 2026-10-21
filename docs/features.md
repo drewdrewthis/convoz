@@ -30,7 +30,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Platform rules every module relies on](#platform-rules-every-module-relies-on) (2)
 - [Poor connections](#poor-connections) (11)
 - [Rail](#rail) (13)
-- [Search](#search) (11)
+- [Search](#search) (12)
 - [Security walls](#security-walls) (12)
 - [Settings](#settings) (9)
 - [The convoz CLI and MCP server for agents](#the-convoz-cli-and-mcp-server-for-agents) (55)
@@ -805,7 +805,7 @@ Things stay where I put them and unread work stands out.
 ## Search
 
 I can get back to a decision without scrolling.
-11 scenarios.
+12 scenarios.
 
 - **Search finds what was just written, newest first**
   - [A new message is searchable at once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/search.feature#L19)
@@ -815,13 +815,15 @@ I can get back to a decision without scrolling.
 - **Choosing a result always closes Find anything (owner msg 548: "for the command K find anything -- clicking a thread in the list should open it, and if you're already on the conversation, you should still be able to click and have it close the modal")**
   - [Choosing a thread result opens that thread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/search.feature#L43)
   - [Choosing a result for the conversation you are already in closes Find anything](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/search.feature#L51)
+- **A lone @ starts a conversation with an agent (owner Drew: "from the quick menu, if i type @ it should give me a list of agents and let me short cut to starting a convo with it")**
+  - [Typing @ lists the agents and starts a conversation with one](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/search.feature#L61)
 - **Filters narrow the results (AC-13)**
-  - [Each filter narrows the results](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/search.feature#L61)
-  - [Filter chips show and can be removed](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/search.feature#L77)
+  - [Each filter narrows the results](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/search.feature#L70)
+  - [Filter chips show and can be removed](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/search.feature#L86)
 - **Search shows only what the searcher can see (I-6)**
-  - [Deleted and purged messages are not found](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/search.feature#L85)
-  - [A conversation in the trash is not found](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/search.feature#L91)
-  - [An agent finds only conversations it is in](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/search.feature#L97)
+  - [Deleted and purged messages are not found](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/search.feature#L94)
+  - [A conversation in the trash is not found](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/search.feature#L100)
+  - [An agent finds only conversations it is in](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/search.feature#L106)
 
 ## Security walls
 
