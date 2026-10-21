@@ -839,6 +839,23 @@ scenario("A send the server refuses says why in words", { tag: ["@browser"] }, a
   await expect(bubble).toContainText("ZQX-reason in words. failed · retry");
   await expect(bubble).not.toContainText("invalid_request");
   await expect(bubble).not.toContainText("{");
+
+  // And the refused send is not kept to be sent again, so a reload does not pin it at the bottom (owner msg 2326)
+  const kept = () =>
+    page.evaluate(
+      () =>
+        new Promise<number>((done) => {
+          const open = indexedDB.open("convoz");
+          open.onsuccess = () => {
+            const count = open.result.transaction("outbox").objectStore("outbox").count();
+            count.onsuccess = () => done(count.result);
+          };
+        }),
+    );
+  await expect.poll(kept).toBe(0);
+  await page.reload();
+  await expect(composer(page)).toBeVisible();
+  await expect(message(page, "refused")).toHaveCount(0);
 });
 
 scenario("A new conversation goes to the top of the Conversations list", { tag: ["@browser"] }, async ({ server, page, context }) => {
