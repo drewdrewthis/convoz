@@ -114,6 +114,10 @@ func TestPostRefusesABodyOrFormatItCannotStore(t *testing.T) {
 	if _, err := post(t, s, &fakes{}, draft("client-06", strings.Repeat("x", message.MaxBodyBytes))); err != nil {
 		t.Errorf("exactly 16384 bytes is allowed: %v", err)
 	}
+	// Owner msg 2315: a list of links is a normal message. Only the first link gets a preview card, so there is no link limit.
+	if _, err := post(t, s, &fakes{}, draft("client-07", strings.Repeat("https://example.com/x ", 20))); err != nil {
+		t.Errorf("20 links are allowed: %v", err)
+	}
 }
 
 func TestAMessageOfFilesAloneNeedsNoWordsButAnEmptyOneStillFails(t *testing.T) {

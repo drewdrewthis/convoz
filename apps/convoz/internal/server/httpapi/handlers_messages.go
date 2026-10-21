@@ -192,8 +192,6 @@ func (s *Server) messageRefused(w http.ResponseWriter, err error) bool {
 		writeFieldErr(w, http.StatusBadRequest, "too_large", "app", "An app has at most 65536 bytes.")
 	case errors.Is(err, message.ErrTooManyUploads):
 		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "upload_ids", "A message carries at most 10 attachments.")
-	case errors.Is(err, message.ErrTooManyURLs):
-		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "body", "A message has at most 5 links.")
 	case errors.Is(err, message.ErrFormat):
 		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "format", "The format is markdown, markdownv2 or plain.")
 	case errors.Is(err, message.ErrNUL):

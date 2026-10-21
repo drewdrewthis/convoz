@@ -7,7 +7,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"regexp"
 	"strings"
 	"time"
 
@@ -20,7 +19,6 @@ const (
 	MaxBodyBytes = 16384
 	MaxAppBytes  = 65536
 	MaxUploads   = 10
-	MaxURLs      = 5
 	MaxPage      = 100
 	DefaultPage  = 50
 	// MaxUnread is where the unread count stops ("99+" in the UI shows at 100).
@@ -36,7 +34,6 @@ var (
 	ErrClientIDConflict = errors.New("that client id was used for a different message")
 	ErrAppTooLarge      = errors.New("the app is over 65536 bytes")
 	ErrTooManyUploads   = errors.New("a message carries at most 10 attachments")
-	ErrTooManyURLs      = errors.New("a message has at most 5 links")
 	ErrBadRoot          = errors.New("a reply goes under a top-level message of the same conversation")
 	ErrSystemRoot       = errors.New("a system line cannot have replies")
 )
@@ -135,8 +132,6 @@ func fromRows(rows []db.MessageRow, reverse bool) []Message {
 	return out
 }
 
-var urlRE = regexp.MustCompile(`(?i)\bhttps?://[^\s<>]`)
-
 // checkText validates a body and format. It is the same check for a new message and an edit.
 func checkText(body, format string) error {
 	switch {
@@ -148,8 +143,6 @@ func checkText(body, format string) error {
 		return ErrEmpty
 	case strings.ContainsRune(body, 0):
 		return ErrNUL
-	case len(urlRE.FindAllStringIndex(body, MaxURLs+1)) > MaxURLs:
-		return ErrTooManyURLs
 	}
 	return nil
 }
