@@ -122,7 +122,10 @@ export const useConversations = create<ConversationsState>()((set, get) => {
         return;
       } catch (err) {
         if (err instanceof ApiError && err.handled) return;
-        if (!linkDown(err)) return setState("failed", humanError(err));
+        if (!linkDown(err)) {
+          void outbox.remove(cid); // a refusal comes back on every open if kept, and a retry cannot change it
+          return setState("failed", humanError(err));
+        }
         await backOnline(); // the same client id goes out again, so a send that did arrive is not made twice (I-24)
       }
     }
