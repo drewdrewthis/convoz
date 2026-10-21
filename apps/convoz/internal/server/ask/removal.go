@@ -84,12 +84,13 @@ func CloseForAgent(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, agen
 	return closeAll(ctx, d, p, now, ids, ReasonRevoked, false)
 }
 
-// OwnerReplied records the owner's reply in a thread on the open asks of that thread (the ask whose message roots it, and the asks
-// asked inside it; snoozed ones are open). The ask stays open: it remembers the reply (time and message), the history grows and the
-// asking agent is told to answer in the thread and update the same ask. A second reply moves the reply on and tells the agent again.
+// OwnerReplied records the owner's reply in a thread on the one open ask that thread is for (the ask whose message roots it, else
+// the newest ask asked inside it; snoozed ones are open), so a thread shared by two asks never lists the reply twice. The ask stays
+// open: it remembers the reply (time and message), the history grows and the asking agent is told to answer in the thread and update
+// the same ask. A second reply moves the reply on and tells the agent again.
 func OwnerReplied(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, conversationID, threadRoot, replyID, by int64) error {
 	q := db.New(d)
-	ids, err := q.OpenAsksOfThread(ctx, db.OpenAsksOfThreadParams{ConversationID: conversationID, ThreadRoot: threadRoot})
+	ids, err := q.OpenAskOfThread(ctx, db.OpenAskOfThreadParams{ConversationID: conversationID, ThreadRoot: threadRoot})
 	if err != nil || len(ids) == 0 {
 		return err
 	}

@@ -204,7 +204,9 @@ Feature: Now
 
   # Owner said (msg 1117): "the feed items are sometimes like you know they don't really give me the context that I need. And while opening things in a new thread, like responding in a thread is relatively easy, it fails to consider that as a user flow, right? It's like, okay, I've opened it as a thing, and now it's like basically just delegates to a new thread, but then the item still stays there. It doesn't show that I've responded. The conversation kind of doesn't continue in the same way, right?"
   # Owner said (msg 1131): "update this ask so it has all of my QA answered ... that's the way to do it."
-  Rule: Asks the owner replied to wait under You replied, and the thread opens inside the app
+  # An ask waits under You replied only while the owner's reply is the last word in its thread: once the agent (or anyone else) posts
+  # after it, the ask is back in the main list and its card no longer says "You replied · waiting on @agent". One reply counts for one ask.
+  Rule: Asks where the owner's reply is the last word wait under You replied, and the thread opens inside the app
 
     @v1 @browser
     Scenario: Asks the owner replied to wait in their own section
@@ -219,11 +221,11 @@ Feature: Now
     # Owner said (msg 1202, relayed in msg 1204): "wherever a message shows 'Reply in thread', add a small count of the replies, and of the new ones. Then you can tell at a glance that a thread exists and has something new."
     @v1 @browser
     Scenario: A You replied row shows the replies and the new ones, and the new clear when the thread is opened
-      Given an open ask of "devtool" that the owner replied to, and "devtool" replied in its thread
+      Given an open ask of "devtool" that the owner replied to, "devtool" replied in its thread, and the owner replied again
       When the owner opens Now
-      Then the row under "You replied · waiting on the agent" shows "2 replies · 1 new"
+      Then the row under "You replied · waiting on the agent" shows "3 replies · 1 new"
       When the owner opens the thread from the row and goes back to Now
-      Then the row shows "2 replies" with no "new"
+      Then the row shows "3 replies" with no "new"
 
     @v1 @browser
     Scenario: Reply in thread opens the thread without a page load, and the ask moves on return

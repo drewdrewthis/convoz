@@ -135,10 +135,11 @@ func (s *Server) oneAskView(ctx context.Context, d pdb.DBTX, dir directory, a as
 	return list[0], nil
 }
 
-// askWithReply is askBase plus the owner's latest reply on an open ask, which is read from its message.
+// askWithReply is askBase plus the owner's latest reply on an ask that waits on the agent, which is read from its message.
+// Once someone else posted after that reply, the ask no longer waits, so the card drops "You replied · waiting on @agent".
 func (dir directory) askWithReply(ctx context.Context, d pdb.DBTX, a ask.Ask) (wire.AskView, error) {
 	v := dir.askBase(a)
-	if a.State != ask.Open || a.OwnerReplyID == 0 {
+	if !a.WaitingOnAgent() || a.OwnerReplyID == 0 {
 		return v, nil
 	}
 	reply, err := ownerReplyOf(ctx, d, a)

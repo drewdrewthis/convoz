@@ -141,6 +141,82 @@ func TestOwnerReplied_LeavesOtherThreadsAndSettledAsksAlone(t *testing.T) {
 	}
 }
 
+// post adds a message to thread root of conversation 10: an ask when q is a question, else a text reply.
+func post(t *testing.T, s *pdb.Store, id, root, author int64, q string) {
+	t.Helper()
+	if q == "" {
+		dbtest.Exec(t, s, fmt.Sprintf(`INSERT INTO messages (id, conversation_id, author_id, kind, body, thread_root_id, created_at) VALUES (%d,10,%d,'text','hm',%d,2)`, id, author, root))
+		return
+	}
+	dbtest.Exec(t, s,
+		fmt.Sprintf(`INSERT INTO messages (id, conversation_id, author_id, kind, body, thread_root_id, created_at) VALUES (%d,10,%d,'ask','%s',%d,2)`, id, author, q, root),
+		fmt.Sprintf(`INSERT INTO asks (message_id, conversation_id, asker_id, question, state, version, created_at, updated_at) VALUES (%d,10,%d,'%s','open',1,2,2)`, id, author, q))
+}
+
+func waiting(t *testing.T, s *pdb.Store) (open, replied []int64) {
+	t.Helper()
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error {
+		w, err := ask.ForNow(ctx, d, 1, t0, 0)
+		for _, a := range w.Open {
+			open = append(open, a.ID)
+		}
+		for _, a := range w.Replied {
+			replied = append(replied, a.ID)
+		}
+		return err
+	})
+	return
+}
+
+func TestForNow_TheAskWaitsOnTheAgentOnlyWhileTheOwnersReplyIsTheLastWordInItsThread(t *testing.T) {
+	s := world(t)
+	p := ask.Ports{Conversations: &fakeConversations{}, Inbox: &fakeInbox{}, Journal: &fakeJournal{}}
+	post(t, s, 60, 6, 1, "")
+	ownerReplied(t, s, p, 6, 60)
+	if open, replied := waiting(t, s); !slices.Equal(replied, []int64{7}) || slices.Contains(open, 7) || !get(t, s, 7).WaitingOnAgent() {
+		t.Fatalf("after the owner's reply: open %v, replied %v; want ask 7 replied and waiting on the agent", open, replied)
+	}
+
+	post(t, s, 61, 6, 2, "") // the agent answers in the thread but does not update the ask
+	if open, replied := waiting(t, s); len(replied) != 0 || !slices.Contains(open, 7) || get(t, s, 7).WaitingOnAgent() {
+		t.Errorf("after the agent's answer: open %v, replied %v; want ask 7 back in open and no longer waiting on the agent", open, replied)
+	}
+
+	post(t, s, 62, 6, 1, "")
+	ownerReplied(t, s, p, 6, 62)
+	if _, replied := waiting(t, s); !slices.Equal(replied, []int64{7}) || !get(t, s, 7).WaitingOnAgent() {
+		t.Errorf("after the owner's second reply: replied %v, want ask 7 waiting on the agent again", replied)
+	}
+}
+
+func TestOwnerReplied_OneReplyCountsForOneAskOfASharedThread(t *testing.T) {
+	s := world(t)
+	post(t, s, 13, 6, 2, "Review 2 of 3?") // a second ask inside thread 6, next to ask 7
+	post(t, s, 14, 5, 2, "Review 3 of 3?") // an ask inside the thread of ask 5
+	inbox := &fakeInbox{}
+	p := ask.Ports{Conversations: &fakeConversations{}, Inbox: inbox, Journal: &fakeJournal{}}
+	post(t, s, 60, 6, 1, "")
+	ownerReplied(t, s, p, 6, 60)
+	post(t, s, 50, 5, 1, "")
+	ownerReplied(t, s, p, 5, 50)
+
+	// the root's own ask takes a reply in its thread; inside a thread of a plain message, the newest ask does
+	for id, want := range map[int64]int64{5: 50, 14: 0, 7: 0, 13: 60} {
+		if got := get(t, s, id).OwnerReplyID; got != want {
+			t.Errorf("ask %d remembers reply %d, want %d", id, got, want)
+		}
+	}
+	slices.Sort(inbox.told)
+	if !slices.Equal(inbox.told, []int64{5, 13}) {
+		t.Errorf("the asking agents were told of %v, want asks 5 and 13", inbox.told)
+	}
+	_, replied := waiting(t, s)
+	slices.Sort(replied)
+	if !slices.Equal(replied, []int64{5, 13}) {
+		t.Errorf("replied %v, want each reply under one ask: 5 and 13", replied)
+	}
+}
+
 type fakeMessages struct{}
 
 func (*fakeMessages) PostAsk(context.Context, pdb.DBTX, time.Time, ask.AskMessage) (int64, bool, error) {

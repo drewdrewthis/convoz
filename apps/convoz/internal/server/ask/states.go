@@ -62,6 +62,15 @@ func Views(ctx context.Context, d pdb.DBTX, ids []int64) (map[int64]Ask, error) 
 		a.History = append(a.History, Transition{Version: h.Version, Event: h.Event, ToState: h.ToState, By: h.ByIdentity.Int64, At: h.At})
 		out[h.MessageID] = a
 	}
+	answered, err := q.RepliesAnsweredOf(ctx, have)
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range answered {
+		a := out[id]
+		a.ReplyAnswered = true
+		out[id] = a
+	}
 	return out, nil
 }
 
@@ -90,8 +99,8 @@ func fromRow(r askRow) Ask {
 
 // Waiting is what Now lists for one person.
 type Waiting struct {
-	Open      []Ask           // open, not snoozed and not replied to by the owner: urgent first, then the newest
-	Replied   []Ask           // open, not snoozed, and the owner replied in its thread: waiting on the agent, the newest reply first
+	Open      []Ask           // open, not snoozed and not waiting on the agent: urgent first, then the newest
+	Replied   []Ask           // open, not snoozed, and the owner's reply is the last word in its thread: waiting on the agent, the newest reply first
 	Snoozed   []Ask           // open and snoozed by this person: the soonest wake first
 	Until     map[int64]int64 // the snooze time of each snoozed ask
 	Answered  []Ask           // answered since the cut: newest first
@@ -130,7 +139,7 @@ func ForNow(ctx context.Context, d pdb.DBTX, person int64, now time.Time, since 
 	for _, id := range open {
 		if _, hidden := until[id]; hidden {
 			w.Snoozed = append(w.Snoozed, byID[id])
-		} else if byID[id].OwnerRepliedAt > 0 {
+		} else if byID[id].WaitingOnAgent() {
 			w.Replied = append(w.Replied, byID[id])
 		} else {
 			w.Open = append(w.Open, byID[id])

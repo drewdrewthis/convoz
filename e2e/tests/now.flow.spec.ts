@@ -6,7 +6,7 @@ import { browserWorld } from "../lib/wp3.ts";
 import type { Page } from "@playwright/test";
 
 /*
- * NOW, THE QUESTIONS-ASKED FLOW (owner, msgs 1117 and 1131; migration 0039): the bindings of the rule "Asks the owner replied to wait
+ * NOW, THE QUESTIONS-ASKED FLOW (owner, msgs 1117 and 1131; migration 0039): the bindings of the rule "Asks where the owner's reply is the last word wait
  * under You replied, and the thread opens inside the app" of specs/features/now.feature. The page contract (role, text and id locators):
  *   "You replied · waiting on the agent"   the heading of #replied; each row is a link holding the question, "Display Name @handle · <age>"
  *                                          and "You: <the first 100 characters of the reply>".

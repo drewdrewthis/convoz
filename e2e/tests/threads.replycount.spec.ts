@@ -179,20 +179,22 @@ scenario("I have questions on an ask and on a fold row shows the replies", { tag
 });
 
 scenario("A You replied row shows the replies and the new ones, and the new clear when the thread is opened", { tag: ["@browser"] }, async ({ server, page, context }) => {
-  // Given an open ask of "devtool" that the owner replied to, and "devtool" replied in its thread
+  // Given an open ask of "devtool" that the owner replied to, "devtool" replied in its thread, and the owner replied again
   const w = await browserWorld({ server, page, context }, { agents: ["devtool"], live: ["devtool"] });
   const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool"] });
   const lease = w.sessions.devtool!.lease;
   const id = await agentAsks(w.srv, lease, conv);
   await ownerRepliesIn(w.owner, conv, id, "Which runner?");
   must(await agentPost(w.srv, lease, conv, "The small one", { thread_root_id: id }), "devtool replies in the thread of the ask", 201);
+  // (the owner's reply must be the last word, or the ask leaves You replied)
+  await ownerRepliesIn(w.owner, conv, id, "Why that one?");
 
   // When the owner opens Now
   await openNow(page, w.srv);
 
-  // Then the row under "You replied · waiting on the agent" shows "2 replies · 1 new"
+  // Then the row under "You replied · waiting on the agent" shows "3 replies · 1 new"
   const row = page.locator("#replied").getByRole("link", { name: new RegExp(QUESTION) });
-  await expect(row).toContainText("2 replies · 1 new");
+  await expect(row).toContainText("3 replies · 1 new");
 
   // When the owner opens the thread from the row and goes back to Now
   const read = page.waitForResponse((r) => r.request().method() === "POST" && new URL(r.url()).pathname === `/api/conversations/${conv}/read` && Boolean(r.request().postData()?.includes("root_id")));
@@ -200,7 +202,7 @@ scenario("A You replied row shows the replies and the new ones, and the new clea
   await read;
   await page.goBack();
 
-  // Then the row shows "2 replies" with no "new"
+  // Then the row shows "3 replies" with no "new"
   await expect(page.locator("#replied .replynew")).toHaveCount(0, { timeout: 10_000 });
-  await expect(page.locator("#replied").getByRole("link", { name: new RegExp(QUESTION) })).toContainText("2 replies");
+  await expect(page.locator("#replied").getByRole("link", { name: new RegExp(QUESTION) })).toContainText("3 replies");
 });

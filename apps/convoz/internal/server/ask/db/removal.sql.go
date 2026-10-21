@@ -44,20 +44,23 @@ func (q *Queries) AsksToCloseOnRemoval(ctx context.Context, arg AsksToCloseOnRem
 	return items, nil
 }
 
-const openAsksOfThread = `-- name: OpenAsksOfThread :many
+const openAskOfThread = `-- name: OpenAskOfThread :many
 SELECT a.message_id FROM asks a JOIN messages m ON m.id = a.message_id
 WHERE a.conversation_id = ?1 AND a.state = 'open' AND (a.message_id = ?2 OR m.thread_root_id = ?2)
-ORDER BY a.message_id
+ORDER BY m.thread_root_id IS NULL DESC, a.message_id DESC
+LIMIT 1
 `
 
-type OpenAsksOfThreadParams struct {
+type OpenAskOfThreadParams struct {
 	ConversationID int64
 	ThreadRoot     int64
 }
 
-// The open asks (snoozed ones are open) of a thread: the ask whose message is the thread's root, and the asks asked inside the thread.
-func (q *Queries) OpenAsksOfThread(ctx context.Context, arg OpenAsksOfThreadParams) ([]int64, error) {
-	rows, err := q.db.QueryContext(ctx, openAsksOfThread, arg.ConversationID, arg.ThreadRoot)
+// The one open ask (snoozed ones are open) a reply in a thread is for: the ask whose message is the thread's root (it sits in the main
+// list, so its own thread_root_id is NULL), else the newest ask asked inside the thread. One reply counts for one ask, never for every
+// ask that shares the thread.
+func (q *Queries) OpenAskOfThread(ctx context.Context, arg OpenAskOfThreadParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, openAskOfThread, arg.ConversationID, arg.ThreadRoot)
 	if err != nil {
 		return nil, err
 	}
