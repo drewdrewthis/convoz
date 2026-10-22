@@ -1,4 +1,4 @@
-import { peekFor } from "../lib/chat.ts";
+import { createConversation, peekFor } from "../lib/chat.ts";
 import { agentAsks, QUESTION } from "../lib/asks.ts";
 import { messageLog } from "../lib/chat-ui.ts";
 import { callButton, callPill, callStatus, callWorld, CALLS_TITLE, fakeMic, fakeModel, KEY, micStates, nowCallLogs, onANowCall, openConversation, ownerPosts, searchDialog, startNowCallFromSearch, tokenRequests, trackMicrophone, visibleLink, voiceKey } from "../lib/call.ts";
@@ -42,6 +42,30 @@ scenario("A Now call starts from the search overlay", { tag: ["@browser"] }, asy
   const content = (await page.locator("main").boundingBox())!;
   const pill = (await callPill(page).boundingBox())!;
   expect(pill.y).toBeGreaterThanOrEqual(content.y + content.height);
+});
+
+// Owner polish (relayed 2026-10-22): "Call" sat under five Recent rows, below the fold of a short window and under a phone's keyboard.
+scenario("Call is in view as soon as the search overlay opens", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  // Given the owner has 5 recent conversations
+  const u = await callWorld({ server, page, context });
+  await voiceKey(u.w, KEY);
+  const ids: number[] = [];
+  for (let i = 1; i <= 5; i++) ids.push(await createConversation(u.w.owner, { participants: ["dot"], title: `Recent conversation ${i}` }));
+  if (info.project.name === "chromium") await page.setViewportSize({ width: 1280, height: 700 });
+  await page.goto(`${u.w.srv.origin}/`);
+  await page.evaluate((list) => localStorage.setItem("convoz.recent-chats", JSON.stringify(list)), ids);
+  await page.reload();
+  await page.getByRole("heading", { name: "Now", exact: true }).waitFor();
+
+  // When the owner opens the search overlay with Cmd+K, on a 1280 by 700 window and on a phone
+  await page.keyboard.press("ControlOrMeta+K");
+
+  // Then "Quick actions" comes before "Recent" and the option "Call" is wholly in view
+  const groups = searchDialog(page).getByRole("group");
+  await expect(groups).toHaveCount(2);
+  expect(await groups.evaluateAll((list) => list.map((g) => g.getAttribute("aria-label")))).toEqual(["Quick actions", "Recent"]);
+  await expect(searchDialog(page).getByRole("group", { name: "Recent" }).getByRole("option")).toHaveCount(5);
+  await expect(searchDialog(page).getByRole("option", { name: /^Call\b/ })).toBeInViewport({ ratio: 1 });
 });
 
 scenario("The call pill stays on every screen while the owner moves around", { tag: ["@browser"] }, async ({ server, page, context }) => {

@@ -319,8 +319,7 @@ scenario("An ask has a I have questions button", { tag: ["@browser"] }, async ({
   await expect(page.getByRole("textbox", { name: "Reply in thread" })).toBeFocused();
 
   // And the answered ask has no option buttons and keeps "I have questions"
-  // a thread is beside the chat from 900px (Close thread) and a full screen below it (Back)
-  await page.getByRole("button", { name: (page.viewportSize()?.width ?? 0) >= 900 ? "Close thread" : "Back", exact: true }).last().click();
+  await page.getByRole("button", { name: "Cancel reply", exact: true }).click();
   const answered = askCard(page, "Answered question?");
   await expect(answered.getByRole("button", { name: "Merge it", exact: true })).toHaveCount(0);
   await expect(answered.getByRole("button", { name: "I have questions", exact: true })).toBeVisible();
@@ -350,10 +349,12 @@ scenario("The ask menu opens once", { tag: ["@browser"] }, async ({ server, page
   // And the ask has no second "Message actions" button
   await expect(card.getByRole("button", { name: "Message actions" })).toHaveCount(0);
 
-  // And the ask at the top of its own thread has no "I have questions" button
+  // And the thread under the ask does not draw the ask again
   await page.keyboard.press("Escape");
   await card.getByRole("button", { name: "I have questions", exact: true }).click();
-  await expect(page.getByRole("log", { name: "Thread messages" }).getByRole("button", { name: "I have questions", exact: true })).toHaveCount(0);
+  const thread = page.getByRole("region", { name: /^Thread: / });
+  await expect(thread.getByRole("textbox", { name: "Reply in thread" })).toBeVisible();
+  await expect(thread.getByRole("button", { name: "I have questions", exact: true })).toHaveCount(0);
 });
 
 scenario("A double tap on an option answers once", { tag: ["@browser"] }, async ({ server, page, context, dataDir, testApi }, info) => {

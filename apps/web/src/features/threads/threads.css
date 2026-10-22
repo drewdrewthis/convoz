@@ -1,45 +1,35 @@
-/* Threads: the reply line under a root, the thread pane (a panel at the right edge on a wide screen, the whole screen on a phone),
-   and the tag over a reply that is in the main list too. Prototype v41. */
+/* Threads: the replies drawn inline under their root (issue 61), its reply box, and the tag over a reply that is in the main list too. */
 @layer components {
-  .replybox { align-self: flex-start; max-width: 100%; display: flex; flex-direction: column; align-items: flex-start; margin: 4px 0 0; }
-  /* design B (owner, 2026-10-18): a bold accent chip with a faded peek of the last reply under it; one tap on either opens the thread */
-  .replyline {
-    position: relative; min-height: 44px; max-width: 100%; display: inline-flex; align-items: center; gap: 8px; padding: 2px 6px 2px 0; border: 0; background: transparent;
-    color: var(--color-accent-text); font-size: 14px; font-weight: 700; line-height: normal; text-align: left;
-  }
-  .replyline::before { content: "\21B3"; font-weight: 700; }
-  .replyline > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .replynew { flex: none; font-weight: 700; white-space: nowrap; }
-  .replydot { flex: none; width: 9px; height: 9px; border-radius: 999px; background: var(--color-accent); }
-  .replypeek {
-    min-height: 44px; max-width: 100%; display: block; margin-top: -10px; padding: 0 0 0 18px; border: 0; background: transparent; color: var(--color-muted); opacity: .8;
-    font-size: 13px; font-weight: 400; line-height: 44px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  .replypeek .who { font-weight: 600; }
-  @media (hover: hover) { .replyline:hover > span, .replypeek:hover { text-decoration: underline; } }
-  .msg .tag { font-size: 12px; color: var(--color-muted); }
-
-  .thread {
-    position: absolute; top: 0; right: 0; bottom: 0; z-index: 7; width: 360px; max-width: 100%; display: flex; flex-direction: column; min-height: 0;
-    background: var(--color-surface); border-left: 1px solid var(--color-border); box-shadow: var(--float);
-  }
-  .thread.sheet { left: 0; width: auto; z-index: 9; border-left: 0; box-shadow: none; }
-  /* the same floating header as a conversation (owner ruling 2026-10-18): no bar, circles over the messages, which scroll under a fade */
-  .threadbar {
-    position: absolute; top: 0; left: 0; right: 0; z-index: 2; display: flex; align-items: flex-start; gap: 8px; padding: calc(var(--top) + 8px) 12px 16px; border-bottom: 0; pointer-events: none;
-    background: linear-gradient(to bottom, var(--color-surface) 0, color-mix(in srgb, var(--color-surface) 94%, transparent) 62%, transparent 100%);
-  }
-  .threadbar .titles { align-items: center; text-align: center; padding: 0 4px; min-height: 44px; }
-  .threadbar h2 { margin: 0; font-size: 16px; font-weight: 700; }
-  .threadlog { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; padding: calc(var(--top) + 68px) 0 12px; }
-  .threadcount { display: flex; align-items: center; gap: 10px; padding: 6px 10px 2px; font-size: 12px; color: var(--color-muted); }
-  .threadcount .rule { flex: 1 1 auto; border-top: 1px solid var(--color-border); }
-  .threadform { flex: none; display: flex; flex-direction: column; gap: 0; padding: 4px 12px 4px; }
-  .thread.sheet .threadform { padding: 4px 12px calc(var(--bottom) + 2px); }
-  .thread .thrcomposer { min-height: 48px; border-radius: 999px; border-color: var(--color-edge); box-shadow: var(--float); }
-  .thread .thrcomposer input[id] {
+  /* indented under the root, in the same 760 px column, with a rule down its left edge; the replies are smaller than the main list */
+  .ithread { box-sizing: border-box; width: 100%; max-width: 760px; margin: 0 auto; padding: 0 12px 6px 28px; }
+  .ithbody { display: flex; flex-direction: column; border-left: 2px solid var(--color-border); }
+  .ithread .msg { padding: 8px 4px 2px 12px; }
+  .ithread .msg:not(.first) { padding-top: 2px; }
+  .ithread .msg .who { font-size: 13.5px; }
+  .ithread .msg .byline .ava { width: 20px; height: 20px; font-size: 11px; }
+  .ithread .msg .text { font-size: 14px; line-height: 1.45; }
+  .ithread .msg.mine .main > .text { padding: 6px 12px; }
+  /* folded: each reply is one line, and what hangs under it (seen, link previews) waits for the unfolded thread */
+  .ithread.folded .msg .main > :not(.byline) { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; }
+  /* a file or a card has no lines to count: it is cut to one line's height (the text's own clamp keeps the owner's bubble padding) */
+  .ithread.folded .msg .main > :not(.byline, .text) { max-height: 1.6em; }
+  .ithread.folded .msg .main > .seen { display: none; }
+  .ithbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0 4px; padding: 0 0 0 4px; }
+  .ithnew { margin-left: -4px; font-weight: 700; white-space: pre; } /* the button's gap would double the space before " · N new" */
+  .ithreply svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .ithworking { padding: 2px 12px; }
+  .ithform { display: flex; flex-direction: column; gap: 0; padding: 6px 0 0 12px; }
+  .ithform .ithcancel { align-self: flex-start; }
+  .ithread .thrcomposer { min-height: 44px; border-radius: 999px; border-color: var(--color-edge); }
+  .ithread .thrcomposer input[id] {
     flex: 1 1 auto; min-width: 0; width: auto; height: auto; min-height: 44px; padding: 0 12px; border: 0; border-radius: 0; outline: none; background: transparent;
     color: var(--color-text); font-size: 14px;
+  }
+  .msg .tag { font-size: 12px; color: var(--color-muted); }
+  /* On a touch screen a ⋯ on every reply crowded the thread (and sat left of the owner's bubble): a long press on a reply still opens
+     its menu, and the root keeps its ⋯. No :hover here. */
+  @media (hover: none) {
+    .ithread .msg-actions-btn { display: none; }
   }
 
   /* thread sub-rows under a conversation (owner, msgs 266-267) */

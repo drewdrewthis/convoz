@@ -162,7 +162,7 @@ Feature: Now
         | before                   | where                            | buttons                         |
         | in Now                   | in Now                           | Quick reply, Snooze, Dismiss    |
         | in conversation 41       | in conversation 41               | Quick reply, Snooze, Dismiss    |
-        | in conversation 41       | in its thread                    | Snooze, Dismiss                 |
+        | in conversation 41       | with its reply box open          | Quick reply, Snooze, Dismiss    |
         | that was dismissed       | in Now after "Reopen"            | Quick reply, Snooze, Dismiss    |
         | that was snoozed         | in Now after "Unsnooze"          | Quick reply, Snooze, Dismiss    |
         | in Now                   | in Now after a reload            | Quick reply, Snooze, Dismiss    |

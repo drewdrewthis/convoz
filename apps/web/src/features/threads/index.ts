@@ -1,15 +1,14 @@
-// Threads: replies under a message, the thread pane and its read state.
+// Threads: replies drawn inline under their message, the reply box and their read state.
 // Owned by the threads work package. It draws inside a conversation, not at a URL of its own.
 import { registerHandler, registerResync } from "@convoz/api-client";
 import { useThreads } from "./store.ts";
 
-export { ReplyLine, replyWords, useNewReplies } from "./ReplyLine.tsx";
+export { InlineThread, useNewReplies } from "./InlineThread.tsx";
 export { ThreadFold, ThreadRows, rowUnread } from "./ThreadRows.tsx";
 export { useThreadFold } from "./fold.ts";
-export { ThreadPane, type ThreadPaneProps } from "./ThreadPane.tsx";
 export { useThreads, type PendingReply } from "./store.ts";
 
-// A reply of the open thread comes by the stream: taken in, changed or shown as deleted.
+// A reply of a thread on screen comes by the stream: taken in, changed or shown as deleted.
 registerHandler("message.", (frame) => {
   if (frame.name === "message.created" || frame.name === "message.edited" || frame.name === "message.deleted" || frame.name === "message.purged") {
     useThreads.getState().received(frame.data, frame.data.conversation_id);
@@ -17,7 +16,7 @@ registerHandler("message.", (frame) => {
 });
 registerResync(() => void useThreads.getState().refresh());
 
-// A voice reply gets its words later: the frame carries the message as it is now, so the open thread takes it in like an edit.
+// A voice reply gets its words later: the frame carries the message as it is now, so its thread takes it in like an edit.
 registerHandler("upload.transcribed", (frame) => {
   if (frame.name === "upload.transcribed") useThreads.getState().received(frame.data, frame.data.conversation_id);
 });

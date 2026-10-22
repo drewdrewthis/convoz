@@ -1,6 +1,6 @@
 import type { Message } from "@convoz/api-client";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { AppHost, ViaAppMark } from "../apps-host/index.ts";
 import { CallLogRow, splitCallLog, ViaVoiceMark } from "../call/index.ts";
 import { AskInline } from "../now/index.ts";
@@ -15,7 +15,7 @@ import { DeleteSheet, EditedMark, MessageMenu } from "./messages/MessageMenu.tsx
 import { NoticeRow, pausedNow } from "./messages/Notice.tsx";
 import { PendingFiles, Uploads } from "./messages/Uploads.tsx";
 import { SeenLine } from "./messages/SeenLine.tsx";
-import { ReplyLine, useNewReplies } from "../threads/index.ts";
+import { InlineThread, useNewReplies, useThreads, type PendingReply } from "../threads/index.ts";
 import { TriageBadge } from "../../shared/TriageBadge.tsx";
 import { Button } from "@convoz/ui/Button";
 import { EmptyState } from "@convoz/ui/EmptyState";
@@ -126,6 +126,8 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, hint, co
   const [settled, setSettled] = useState(false);
   const rows = useMemo(() => rowsOf(messages, pending, me, newFrom), [messages, pending, me, newFrom]);
   const paused = useMemo(() => pausedNow(messages), [messages]);
+  // Not before the first page is in: a part of the list would make an older root the latest for a moment, and its thread would be read.
+  const latest = useMemo(() => (opened ? latestRoot(messages) : 0), [opened, messages]);
   const focusAt = focus ? rows.findIndex((r) => r.message?.id === focus) : -1;
   const shape = rows.map((r) => r.key + (r.pending?.state ?? "")).join();
 
@@ -254,11 +256,11 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, hint, co
 
   const body =
     virtual ? (
-      <VirtualItems rows={rows} me={me} paused={paused} conversation={conversation} log={log} items={items} onRetry={onRetry} onDetails={onDetails} hl={hl} focusAt={opened ? focusAt : -1} />
+      <VirtualItems rows={rows} me={me} paused={paused} latest={latest} conversation={conversation} log={log} items={items} onRetry={onRetry} onDetails={onDetails} hl={hl} focusAt={opened ? focusAt : -1} />
     ) : (
       <div ref={items} id="items" className="items">
         {rows.map((r) => (
-          <MessageRow key={r.key} row={r} me={me} paused={paused} conversation={conversation} onRetry={onRetry} onDetails={onDetails} hl={hl} />
+          <MessageRow key={r.key} row={r} me={me} paused={paused} latest={latest} conversation={conversation} onRetry={onRetry} onDetails={onDetails} hl={hl} />
         ))}
       </div>
     );
@@ -287,7 +289,7 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, hint, co
   );
 }
 
-function VirtualItems({ rows, me, paused, conversation, log, items, onRetry, onDetails, hl, focusAt }: { rows: Row[]; me: string; paused: number; conversation: number; log: RefObject<HTMLDivElement | null>; items: RefObject<HTMLDivElement | null>; onRetry(cid: string): void; onDetails?(m: Message): void; hl: number | null; focusAt: number }) {
+function VirtualItems({ rows, me, paused, latest, conversation, log, items, onRetry, onDetails, hl, focusAt }: { rows: Row[]; me: string; paused: number; latest: number; conversation: number; log: RefObject<HTMLDivElement | null>; items: RefObject<HTMLDivElement | null>; onRetry(cid: string): void; onDetails?(m: Message): void; hl: number | null; focusAt: number }) {
   const [margin, setMargin] = useState(0);
   useLayoutEffect(() => {
     const el = log.current;
@@ -309,7 +311,7 @@ function VirtualItems({ rows, me, paused, conversation, log, items, onRetry, onD
     <div ref={items} id="items" className="items" style={{ position: "relative", height: v.getTotalSize() }}>
       {v.getVirtualItems().map((item) => (
         <div key={item.key} data-index={item.index} ref={v.measureElement} style={{ position: "absolute", top: 0, left: 0, right: 0, transform: `translateY(${item.start - margin}px)` }}>
-          <MessageRow row={rows[item.index]!} me={me} paused={paused} conversation={conversation} onRetry={onRetry} onDetails={onDetails} hl={hl} />
+          <MessageRow row={rows[item.index]!} me={me} paused={paused} latest={latest} conversation={conversation} onRetry={onRetry} onDetails={onDetails} hl={hl} />
         </div>
       ))}
     </div>
@@ -318,8 +320,10 @@ function VirtualItems({ rows, me, paused, conversation, log, items, onRetry, onD
 
 interface RowProps {
   row: Row;
-  /** In the thread pane: no reply line and no "replied to a thread" tag. */
+  /** A reply drawn inside its thread: no thread under it and no "replied to a thread" tag. */
   threaded?: boolean;
+  /** The id of the newest root with a thread (see `latestRoot`), 0 for none. */
+  latest?: number;
   me: string;
   /** The id of the pause line that still holds, 0 for none. */
   paused: number;
@@ -332,7 +336,7 @@ interface RowProps {
 
 /** A row that did not change keeps its node, so a selection in it survives. */
 const sameRow = (a: RowProps, b: RowProps) =>
-  a.me === b.me && a.threaded === b.threaded && a.paused === b.paused && a.onDetails === b.onDetails && (a.hl === a.row.message?.id) === (b.hl === b.row.message?.id) && a.row.fresh === b.row.fresh && a.row.key === b.row.key && a.row.first === b.row.first && a.row.message === b.row.message && a.row.pending?.state === b.row.pending?.state;
+  a.me === b.me && a.threaded === b.threaded && a.latest === b.latest && a.paused === b.paused && a.onDetails === b.onDetails && (a.hl === a.row.message?.id) === (b.hl === b.row.message?.id) && a.row.fresh === b.row.fresh && a.row.key === b.row.key && a.row.first === b.row.first && a.row.message === b.row.message && a.row.pending?.state === b.row.pending?.state;
 
 const MessageRow = memo(function MessageRow(props: RowProps) {
   return (
@@ -343,9 +347,29 @@ const MessageRow = memo(function MessageRow(props: RowProps) {
         </div>
       ) : null}
       <RowBody {...props} />
+      {props.row.message ? <ThreadUnder {...props} message={props.row.message} /> : null}
     </>
   );
 }, sameRow);
+
+/** The thread of a top-level message, drawn under it (issue 61). A reply, a notice and a row inside a thread have none. */
+function ThreadUnder({ message: m, threaded, latest, me, conversation }: RowProps & { message: Message }) {
+  const bubbles = useCallback(
+    (list: Message[], pending: PendingReply[]) => <ThreadBubbles messages={list} pending={pending} me={me} conversation={conversation} onRetry={(cid) => useThreads.getState().retry(m.id, cid)} />,
+    [me, conversation, m.id],
+  );
+  if (threaded || m.thread_root_id || m.kind === "system" || m.author.kind === "system") return null;
+  return <InlineThread root={m} conversation={conversation} latest={m.id === latest} bubbles={bubbles} />;
+}
+
+/** latestRoot is the newest top-level message with replies: its thread shows in full (owner, conv 112: "If it's the latest message, the thread is fully expanded"). */
+function latestRoot(messages: Message[]): number {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]!;
+    if (!m.thread_root_id && m.kind !== "system" && (m.reply_count ?? 0) > 0) return m.id;
+  }
+  return 0;
+}
 
 function RowBody({ row, threaded, me, paused, conversation, onRetry, onDetails, hl }: RowProps) {
   const { message: m, pending: p } = row;
@@ -379,9 +403,8 @@ function RowBody({ row, threaded, me, paused, conversation, onRetry, onDetails, 
     // The ask card has its own ⋯; a second one over the same corner was the "another three dots".
     const menu = askCard ? undefined : <MessageMenu message={m} mine={m.author.handle === me} conversation={conversation} />;
     const detail = onDetails && m.author.kind === "agent" ? () => onDetails(m) : undefined;
-    const replies = threaded || m.thread_root_id ? null : <ReplyLine message={m} conversation={conversation} />;
     const tag = !threaded && m.thread_root_id ? "replied to a thread" : undefined;
-    return <Article person={m.author} me={me} first={row.first} stamp={clock(m.created_at)} tag={tag} onStamp={detail} body={body} extra={<>{m.kind !== "ask" && hasLink(text) ? <LinkPreview id={m.id} /> : null}{pinned ? <PinMark /> : null}{edited}{replies}{m.author.handle === me ? <SeenLine conversation={conversation} message={m} threaded={threaded} /> : null}</>} menu={menu} mid={m.id} marked={hl === m.id} labelledBy={m.kind === "ask" && m.ask ? label : undefined} />;
+    return <Article person={m.author} me={me} first={row.first} stamp={clock(m.created_at)} tag={tag} onStamp={detail} body={body} extra={<>{m.kind !== "ask" && hasLink(text) ? <LinkPreview id={m.id} /> : null}{pinned ? <PinMark /> : null}{edited}{m.author.handle === me ? <SeenLine conversation={conversation} message={m} threaded={threaded} /> : null}</>} menu={menu} mid={m.id} marked={hl === m.id} labelledBy={m.kind === "ask" && m.ask ? label : undefined} />;
   }
   const state =
     p!.state === "failed" ? (
@@ -445,8 +468,8 @@ function Article({ person, me, first, stamp, tag, onStamp, body, extra, menu, mi
   );
 }
 
-/** The messages of an open thread drawn as the main list draws them, for the thread pane: a pending reply shows "sending" or "failed · retry". */
-export function ThreadBubbles({ messages, pending, me, conversation, onRetry }: { messages: Message[]; pending: PendingSend[]; me: string; conversation: number; onRetry(cid: string): void }) {
+/** The replies of a thread drawn as the main list draws messages, inline under their root: a pending reply shows "sending" or "failed · retry". */
+function ThreadBubbles({ messages, pending, me, conversation, onRetry }: { messages: Message[]; pending: PendingSend[]; me: string; conversation: number; onRetry(cid: string): void }) {
   const rows = useMemo(() => rowsOf(messages, pending, me), [messages, pending, me]);
   return (
     <>

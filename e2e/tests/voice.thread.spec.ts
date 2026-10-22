@@ -5,8 +5,8 @@ import { ROOT_TEXT, mainList, openThread, threadLog, threadPane, threadWorld } f
 import { scratch, setEngine, wav } from "../lib/uploads-wp10.ts";
 
 /*
- * VOICE NOTES IN A THREAD: specs/features/voice.feature, rule "Voice notes work in a thread". The reply box of the thread pane has the
- * same microphone as the main composer: a button "Record a voice message" inside the pane, the bar "Recording a voice message" in
+ * VOICE NOTES IN A THREAD: specs/features/voice.feature, rule "Voice notes work in a thread". The reply box of the thread has the
+ * same microphone as the main composer: a button "Record a voice message" inside the thread, the bar "Recording a voice message" in
  * place of the box, and "Send voice message".
  */
 
@@ -38,7 +38,7 @@ scenario("The owner can record a voice note in a thread", { tag: ["@browser"] },
   await notes.first().getByRole("button", { name: "Transcript" }).click();
   await expect(notes.first().getByText("ship the filters on Thursday")).toBeVisible();
 
-  // And the main list of conversation 41 shows no new message
+  // And the main list of conversation 41 shows no new message: the one voice note in the log is the reply in the thread
   expect((await mainList(t.w.owner, t.conv)).map((m) => m.body)).toEqual([ROOT_TEXT]);
-  await expect(page.getByRole("log", { name: "Messages", exact: true }).getByRole("article").filter({ has: page.getByRole("button", { name: /^(Play|Pause) voice message$/ }) })).toHaveCount(0);
+  await expect(page.getByRole("log", { name: "Messages", exact: true }).getByRole("article").filter({ has: page.getByRole("button", { name: /^(Play|Pause) voice message$/ }) })).toHaveCount(1);
 });

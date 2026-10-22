@@ -36,7 +36,7 @@ scenario("Each conversation lists its threads under it, and a thread opens from 
   // When the owner taps the row of thread 900
   await row.click();
 
-  // Then the thread pane is open with the replies
+  // Then the conversation opens with the thread under message 900 unfolded and its reply box open
   await expect(threadPane(page)).toBeVisible();
   await expect(threadLog(page).getByRole("article").filter({ hasText: "Same here." })).toBeVisible();
 });
@@ -202,13 +202,13 @@ scenario("A long link in a thread stays inside its bubble", { tag: ["@browser"] 
       };
     }, tag);
 
-  // When the owner opens the conversation and the thread at 1280 and 390 px wide
+  // When the owner opens the conversation and the reply box of the thread at 1280 and 390 px wide
   for (const width of [1280, 390]) {
     await page.setViewportSize({ width, height: 800 });
     await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
     await expect(message(page, ROOT_TEXT)).toBeVisible();
 
-    // Then every long link ends inside the bubble, the bubble ends inside the pane, and the page does not scroll sideways
+    // Then every long link ends inside the bubble, the bubble ends inside the thread, and the page does not scroll sideways
     for (const tag of ["owner_main", "agent_main"]) {
       const m = await fits(messageLog(page), tag);
       expect(m.rows, `${tag} rows at ${width}`).toBe(1);
@@ -251,7 +251,7 @@ scenario("The message actions button does not cover the time", { tag: ["@browser
     await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
     await expect(message(page, "Mine in the list")).toBeVisible();
 
-    // Then no message's actions button sits over its time, in the conversation and in the thread pane
+    // Then no message's actions button sits over its time, in the conversation and in the thread
     for (const text of ["Mine in the list", "Theirs in the list"]) expect(await overlap(messageLog(page), text), `${text} at ${width}`).toBe(false);
     await openThread(page, ROOT_TEXT);
     expect(await overlap(threadLog(page), "On it"), `thread reply at ${width}`).toBe(false);

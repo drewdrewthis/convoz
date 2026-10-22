@@ -254,6 +254,27 @@ scenario("A new conversation starts blank and takes a title from its first messa
   expect((await listConversations(u.w.owner))[0]?.title).toBe("Plan the search filters launch");
 });
 
+// Owner report (conv 112 msg 2893, issue 62): a newly created conversation showed no star and no details buttons until a reload.
+scenario("A new conversation has the star and details buttons from its first send", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  const u = await uiWorld({ server, page, context });
+  await page.goto(`${u.w.srv.origin}/chats/new`);
+
+  // When the owner starts a new conversation and sends "Plan the search filters launch"
+  await chooseAgent(page, "devtool");
+  await composer(page).fill("Plan the search filters launch");
+  await sendButton(page).click();
+  await expect(page).toHaveURL(/\/chats\/\d+$/);
+
+  // Then without a reload the title bar shows "Star conversation" and "Show details"
+  const bar = page.getByRole("banner");
+  await expect(bar.getByRole("button", { name: "Star conversation", exact: true })).toBeVisible();
+  await expect(bar.getByRole("button", { name: "Show details", exact: true })).toBeVisible();
+
+  // And "Show details" opens the details
+  await bar.getByRole("button", { name: "Show details", exact: true }).click();
+  await expect(bar.getByRole("button", { name: "Show details", exact: true })).toHaveAttribute("aria-pressed", "true");
+});
+
 scenario("On a phone a new conversation takes its title from the first message and goes to the top of Conversations", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
   // Given the owner has conversations "Ship search filters" and "Deploy alerts runbook" on a phone
   const u = await uiWorld({ server, page, context });

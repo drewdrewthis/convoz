@@ -8,6 +8,8 @@ import { useData } from "../../../shared/data.ts";
 import { pinMessage, toast, unpinMessage } from "../../pins-stars/index.ts";
 import { deleteMessage, editHistory, editMessage, transcribeAgain } from "./actions.ts";
 import { Button } from "@convoz/ui/Button";
+import { IconButton } from "@convoz/ui/IconButton";
+import { ReplyIcon } from "@convoz/ui/icons";
 
 /**
  * MessageMenu is the "Message actions" button of one message and what it opens. The button is invisible until the row is
@@ -28,7 +30,8 @@ export function MessageMenu({ message, mine, conversation }: { message: Message;
   }, [redoFailed]);
   const rootId = message.thread_root_id ?? message.id;
   const fresh = useNewReplies(message);
-  const inOpenThread = useThreads((s) => s.open?.rootId === rootId);
+  const inOpenThread = useThreads((s) => s.replying === rootId);
+  const replyHere = () => useThreads.getState().startReply(conversation, rootId);
 
   // A phone never hovers, so there the button stays invisible and only a 44 px corner took the long press: the owner could not find a
   // way into a thread (conv 9, msg 2708). The whole message takes it now.
@@ -82,6 +85,13 @@ export function MessageMenu({ message, mine, conversation }: { message: Message;
 
   return (
     <span className="msg-actions" ref={root}>
+      {/* The reply arrow beside ⋯ shows where a pointer hovers; a touch screen reaches Reply in thread through ⋯ and a long press. A reply
+          has none: its thread has its own Reply. */}
+      {inOpenThread || message.thread_root_id ? null : (
+        <IconButton variant="muted" glyph={18} stroke={2} className="msg-reply-btn" label="Reply in thread" title="Reply in thread" onClick={replyHere}>
+          <ReplyIcon />
+        </IconButton>
+      )}
       <button
         className="msg-actions-btn"
         type="button"
@@ -93,7 +103,7 @@ export function MessageMenu({ message, mine, conversation }: { message: Message;
       {open ? (
         <div className="msg-menu" role="menu">
           {inOpenThread ? null : (
-            <button role="menuitem" type="button" onClick={() => (setOpen(false), void useThreads.getState().openThread(conversation, rootId, message.thread_root_id ? undefined : message))}>
+            <button role="menuitem" type="button" onClick={() => (setOpen(false), replyHere())}>
               Reply in thread
               {message.thread_root_id ? null : <ReplyCount count={message.reply_count} unread={fresh} />}
             </button>

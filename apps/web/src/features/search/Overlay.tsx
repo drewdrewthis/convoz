@@ -129,7 +129,6 @@ export default function Overlay() {
           badge: { kind: "icon", path: ICON_CHAT },
           run: () => open(`/chats/${c.id}`),
         }));
-      if (recent.length) out.push({ key: "recent", label: "Recent", count: "", rows: recent });
       const quick: Row[] = [
         { id: "quick-new", title: plainParts("New conversation"), sub: plainParts("Starts blank. Type @ to bring in an agent"), tag: "⌘J", badge: { kind: "icon", path: ICON_NEW }, run: () => open("/chats/new") },
         { id: "quick-crew", title: plainParts("Crew"), sub: plainParts("Every agent and what it is doing"), badge: { kind: "icon", path: ICON_CREW }, run: () => open("/crew") },
@@ -147,7 +146,9 @@ export default function Overlay() {
           },
         });
       }
+      // Quick actions come first: below Recent, Call fell under the fold of a short window and under a phone's keyboard.
       out.push({ key: "quick", label: "Quick actions", count: "", rows: quick });
+      if (recent.length) out.push({ key: "recent", label: "Recent", count: "", rows: recent });
       return out;
     }
     const answer = found.answer;

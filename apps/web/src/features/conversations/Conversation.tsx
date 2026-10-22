@@ -13,7 +13,7 @@ import { InviteAgentSheet } from "../crew/index.ts";
 import { usePlans } from "../plan/index.ts";
 import { StarButton } from "../pins-stars/index.ts";
 import { rememberChat } from "../search/index.ts";
-import { ThreadPane, useThreads } from "../threads/index.ts";
+import { useThreads } from "../threads/index.ts";
 import { resume } from "./actions.ts";
 import { Details } from "./Details.tsx";
 import { MessageDetails } from "./MessageDetails.tsx";
@@ -25,7 +25,7 @@ import { replyingNote, usePresence, useReplying } from "../../shared/presence.ts
 import { backLabel, useBackCount } from "./backCount.ts";
 import { useConversations, type PendingSend } from "./store.ts";
 import { keyboardOpen, virtualKeyboard, type Screen } from "./keyboard.ts";
-import { firstUnread, ThreadBubbles, Transcript, type TranscriptControl } from "./Transcript.tsx";
+import { firstUnread, Transcript, type TranscriptControl } from "./Transcript.tsx";
 import { Button } from "@convoz/ui/Button";
 
 const NEW = "new";
@@ -38,11 +38,8 @@ const NO_SENDS: PendingSend[] = [];
  * composer pinned to the bottom of the visible screen. New conversation starts blank; "@" brings in an agent, and the first
  * send makes the conversation and moves the URL to it.
  */
-/** Now's "Reply in thread" lands on a conversation with #reply=<ask id>: open that thread. */
-function openReplyLink(conv: number): void {
-  const reply = Number(/^#reply=(\d+)$/.exec(location.hash)?.[1] ?? 0);
-  if (reply) void useThreads.getState().openThread(conv, reply);
-}
+/** The root a #reply=<id> link names (Now's "Reply in thread", a thread row of the list, a thread search result), 0 for none. */
+const replyLink = (): number => Number(/^#reply=(\d+)$/.exec(location.hash)?.[1] ?? 0);
 
 export function Conversation() {
   const [isNew] = useState(() => location.pathname === "/chats/new");
@@ -71,12 +68,11 @@ export function Conversation() {
   const attachments = useAttachments(convId);
   // Files dragged onto the conversation attach to the message being written (a new conversation holds them until its first send).
   const fileDrop = useFileDrop(attachments);
-  const threadOpen = useThreads((s) => s.open !== null);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const frame = useRef<HTMLDivElement>(null);
   const control = useRef<TranscriptControl>(null);
-  // A search result opens the conversation at its message: /chats/<id>#m<message id>.
-  const [target] = useState(() => Number(/^#m(\d+)$/.exec(location.hash)?.[1] ?? 0));
+  // A search result opens the conversation at its message: /chats/<id>#m<message id>; a reply link at the root of its thread.
+  const [target] = useState(() => Number(/^#m(\d+)$/.exec(location.hash)?.[1] ?? 0) || replyLink());
   // The message the log is scrolled to now: the one the link named, then each later search result for this same conversation.
   const [focus, setFocus] = useState(target);
 
@@ -99,14 +95,8 @@ export function Conversation() {
   const attention = board?.attention.find((a) => a.conversation_id === convId);
   const fit = useFitFrame(frame);
 
-  // The details and a thread share the right edge: opening one closes the other. A thread belongs to this page.
-  useEffect(() => {
-    if (threadOpen) setInfo(false);
-  }, [threadOpen]);
-  useEffect(() => {
-    if (info) useThreads.getState().close();
-  }, [info]);
-  useEffect(() => () => useThreads.getState().close(), []);
+  // The threads drawn under the messages belong to this page.
+  useEffect(() => () => useThreads.getState().reset(), []);
 
   // "I" shows or hides the details, unless the person is typing.
   useEffect(() => {
@@ -132,8 +122,9 @@ export function Conversation() {
     const follow = () => {
       if (location.hash === "#plan") setInfo(true);
       if (location.hash === "#compose") textRef.current?.focus();
-      openReplyLink(convId);
-      const wanted = Number(/^#m(\d+)$/.exec(location.hash)?.[1] ?? 0);
+      const root = replyLink();
+      if (root) useThreads.getState().startReply(convId, root);
+      const wanted = Number(/^#m(\d+)$/.exec(location.hash)?.[1] ?? 0) || root;
       if (!wanted) return;
       setFocus(0); // the same message chosen twice must scroll and mark again
       void loadUntil(actions(), key, convId, wanted).then(() => setFocus(wanted));
@@ -181,7 +172,8 @@ export function Conversation() {
         throw err;
       }
       if (target) await loadUntil(s, key, id, target);
-      openReplyLink(id);
+      const root = replyLink();
+      if (root) useThreads.getState().startReply(id, root);
       rememberChat(id);
       const who = data.store.getState().rows[id]!.participants.find((p) => p.kind === "agent") ?? { handle: "agent" };
       setAgentHandle(who.handle);
@@ -288,9 +280,10 @@ export function Conversation() {
             ) : null}
           </p>
         </div>
-        {conversation && !isNew ? <CallButton conversationId={convId} /> : null}
-        {conversation && !isNew ? <StarButton id={convId} starred={conversation.starred} /> : null}
-        {conversation && !isNew ? (
+        {/* not gated on isNew: that is the URL at mount, and the first send makes /chats/new a real conversation without a reload (issue 62) */}
+        {conversation ? <CallButton conversationId={convId} /> : null}
+        {conversation ? <StarButton id={convId} starred={conversation.starred} /> : null}
+        {conversation ? (
           <IconButton variant="float" label="Show details" aria-pressed={info} aria-keyshortcuts="I" title="Show details · I" onClick={() => setInfo((on) => !on)}>
             <DetailsIcon />
           </IconButton>
@@ -358,7 +351,6 @@ export function Conversation() {
           {error}
         </p>
       </main>
-      <ThreadPane title={title} bubbles={(list, pending) => <ThreadBubbles messages={list} pending={pending} me={me} conversation={convId} onRetry={(cid) => useThreads.getState().retry(cid)} />} />
       {info && conversation ? <Details row={conversation} onClose={() => setInfo(false)} onInvite={() => setInviting(true)} board={board} act={act} /> : null}
       {inviting && convId ? (
         <Suspense fallback={null}>

@@ -4,12 +4,16 @@ import { backButton, message, messageLog, unreadDot } from "../lib/chat-ui.ts";
 import { send } from "../lib/http.ts";
 import { agentDeletes, agentPostWith, ownerPostWith } from "../lib/messages-wp4.ts";
 import { must } from "../lib/owner.ts";
-import { expect, scenario } from "../lib/scenario.ts";
+import { expect, scenario, test } from "../lib/scenario.ts";
 import {
+  NEWER_TEXT,
   ROOT_TEXT,
   agentReplies,
   closeThread,
+  foldToggle,
+  inlineThread,
   mainList,
+  newerThread,
   openThread,
   ownerHasRead,
   ownerReplies,
@@ -18,9 +22,6 @@ import {
   railState,
   replyBox,
   replyInThread,
-  replyLine,
-  replyPeek,
-  sendReply,
   threadLog,
   threadOf,
   threadPane,
@@ -44,15 +45,19 @@ import { seedDb } from "../lib/wp3.ts";
  *   Its own, system and deleted messages never count. A broadcast reply counts once, in the main list, and is read there once it is
  *   read in its thread. Opening a conversation moves the main cursor only. The rail row is bold with an "Unread: N" pill (99+ above 99).
  *
- * THE PAGE (locators are role, name and text only)
- *   Under a thread root in the main list a bold reply chip, a button "Open thread, N replies · @handle" (N reply, 1 reply; "you" for the
- *   viewer, ", unread" after it when the last reply is past the viewer's read point), and under it a faded peek, a button "Last reply by
- *   handle: preview". One tap on either opens the thread. A thread root carries last_reply {id, author, preview (at most 120 characters),
- *   created_at, unread?} in the messages list and in the thread.updated frame. "Reply in thread" is an item
- *   of the "Message actions" menu of a message without replies. The thread opens as a dialog "Thread in <title>" on a phone and as a
- *   complementary "Thread in <title>" beside the chat on a wide screen. Inside: a log "Thread messages" (the root, then the replies), a
- *   textbox "Reply in thread" (placeholder "Reply…"), a button "Send reply" (no "Also send to conversation" box), and "Close thread"
- *   (wide) or "Back" (phone). A reply that is also in the main list reads "replied to a thread" above it there.
+ * THE PAGE (locators are role, name and text only; issue 61, owner conv 112 msg 2893: the thread drawer is gone)
+ *   Under a top-level message with replies, inside the log "Messages", a region "Thread: <the root's text, first 60 characters>" holds the
+ *   replies as articles (smaller text, indented), oldest first. The thread of the newest root with replies shows every reply; any other
+ *   is folded: its first 3 replies, one line each, and a button "Show all N replies" ("Show the whole reply" for one), with " · K new"
+ *   when K replies are past the viewer's read point. Unfolded by hand it offers "Show fewer replies" (more than 3 replies). A thread
+ *   shown in full is read (POST read root_id+reply_id); a folded one is not. The region has a button "Reply in thread" (text "Reply",
+ *   at least 44 px). It opens the reply box in the region: a textbox "Reply in thread" (placeholder "Reply…"), "Send reply",
+ *   "Attach a file to the reply", "Record a voice message", and "Cancel reply" (Escape too); no "Also send to conversation" box. One
+ *   box is open at a time. "Reply in thread" is also an item of the "Message actions" menu of every message, and an arrow button
+ *   "Reply in thread" beside "Message actions" on a hovered message (not on a touch screen). A link /chats/:id#reply=<root> opens the
+ *   conversation at the root with its thread unfolded and the box open and focused. A reply that is also in the main list (broadcast)
+ *   reads "replied to a thread" above it there. A thread root carries reply_count, unread_replies and last_reply {id, author, preview
+ *   (at most 120 characters), created_at, unread?} in the messages list and in the thread.updated frame.
  */
 
 /** The data file's read cursor of the owner for a conversation, where the scenarios look at what the main list does not do. */
@@ -80,21 +85,18 @@ scenario("The owner replies in a thread", { tag: ["@browser"] }, async ({ server
   await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
   await expect(message(page, ROOT_TEXT)).toBeVisible();
 
-  // When the owner opens the thread of message 900 and replies "Can step 1 ship on its own?"
+  // When the owner opens the reply box of message 900 and replies "Can step 1 ship on its own?"
   await openThread(page, ROOT_TEXT);
   await replyInThread(page, "Can step 1 ship on its own?");
 
-  // Then the thread pane shows the reply
-  await expect(threadLog(page).getByRole("article").filter({ hasText: "Can step 1 ship on its own?" })).toBeVisible();
+  // Then the reply shows in the thread under message 900
+  const thread = inlineThread(page, ROOT_TEXT);
+  await expect(thread.getByRole("article").filter({ hasText: "Can step 1 ship on its own?" })).toBeVisible();
   await expect(replyBox(page)).toHaveValue("");
 
-  // And message 900 shows "1 reply" in the main list
-  await closeThread(page);
-  await expect(replyLine(message(page, ROOT_TEXT))).toContainText("1 reply");
-
-  // And the main list does not show the reply itself
-  await expect(messageLog(page).getByRole("article")).toHaveCount(1);
-  await expect(replyPeek(message(page, ROOT_TEXT))).toHaveText("you: Can step 1 ship on its own?"); // owner design B: the root peeks at it, it is no message of the list
+  // And the main list has no message of its own for the reply: the root and, in its thread, the reply
+  await expect(messageLog(page).getByRole("article")).toHaveCount(2);
+  await expect(thread.getByRole("article")).toHaveCount(1);
   expect((await mainList(t.w.owner, t.conv)).map((m) => m.body)).toEqual([ROOT_TEXT]);
   expect((await threadOf(t.w.owner, t.root)).messages.map((m) => m.body)).toEqual(["Can step 1 ship on its own?"]);
 });
@@ -113,8 +115,8 @@ scenario("Replies in a thread the owner is not in never make the conversation bo
   // When "docs" posts 5 replies in thread 900
   for (let i = 1; i <= 5; i++) await agentReplies(t, t.docs, `docs reply ${i}`);
 
-  // And message 900 shows "5 replies" with the last replier
-  await expect(replyLine(message(page, ROOT_TEXT))).toHaveText("5 replies · @docs");
+  // And the thread under message 900 shows the 5 replies
+  await expect(inlineThread(page, ROOT_TEXT).getByRole("article")).toHaveCount(5);
 
   // Then conversation 41 is not bold in the rail
   await backButton(page).click();
@@ -166,7 +168,7 @@ scenario("A mention in a thread makes the owner involved", { tag: ["@browser", "
   expect(await unread(t)).toBe(1);
 });
 
-scenario("Opening the conversation does not clear thread replies", { tag: ["@browser", "@I-14"] }, async ({ server, page, context }) => {
+scenario("Opening the conversation does not clear the replies of a folded thread", { tag: ["@browser", "@I-14"] }, async ({ server, page, context }) => {
   // Background
   const t = await threadWorld({ server, page, context }, { browser: true });
 
@@ -175,13 +177,15 @@ scenario("Opening the conversation does not clear thread replies", { tag: ["@bro
   await ownerReplies(t, "Can step 1 ship on its own?");
   await agentReplies(t, t.dev, "Yes, it can");
   await agentReplies(t, t.dev, "I will open the PR");
+  // And a newer message 901 has a thread, so thread 900 is folded
+  await newerThread(t);
   await agentSays(t.w.srv, t.dev, t.conv, "A note in the main list"); // main unread too: opening the conversation reads this one only
   expect(await unread(t)).toBe(3);
 
-  // When the owner opens conversation 41 but not the thread
+  // When the owner opens conversation 41 but does not unfold thread 900
   await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
   await expect(message(page, "A note in the main list")).toBeVisible();
-  await expect(replyLine(message(page, ROOT_TEXT))).toContainText("3 replies");
+  await expect(foldToggle(inlineThread(page, ROOT_TEXT))).toHaveText("Show all 3 replies · 2 new");
 
   // Owner msgs 266-267 (2026-10-19): "I guess this means that there are 5 unviewed items hidden in threads somewhere?" / "so I should
   // actually see all the threads on the lists". The conversation badge is the main chat only; thread replies count on the thread's row.
@@ -192,12 +196,11 @@ scenario("Opening the conversation does not clear thread replies", { tag: ["@bro
   expect(await railState(page)).toEqual({ bold: false, unread: "" });
   await expect(threadPill(page, ROOT_TEXT)).toHaveText("Unread: 2");
 
-  // And opening thread 900 clears them
+  // And unfolding thread 900 clears them
   await rail(page).locator("a.chatrow").click();
-  await openThread(page, ROOT_TEXT);
-  await expect(threadLog(page).getByRole("article").filter({ hasText: "I will open the PR" })).toBeVisible();
+  await foldToggle(inlineThread(page, ROOT_TEXT)).click();
+  await expect(inlineThread(page, ROOT_TEXT).getByRole("article").filter({ hasText: "I will open the PR" })).toBeVisible();
   await expect.poll(() => unread(t)).toBe(0);
-  await closeThread(page);
   await backButton(page).click();
   await freshRail(page, t);
   expect(await railState(page)).toEqual({ bold: false, unread: "" });
@@ -220,16 +223,14 @@ scenario("A broadcast reply read in its thread is read in the main list", { tag:
     await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
   });
 
-  // When the owner reads it in the thread pane
+  // When the owner reads it in the thread under message 900 (the latest thread: it shows in full)
   await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
-  await expect(message(page, "Yes, and the main list should know").filter({ hasText: "replied to a thread" })).toBeVisible(); // the root's peek shows the text too
-  await openThread(page, ROOT_TEXT);
-  await expect(threadLog(page).getByRole("article").filter({ hasText: "Yes, and the main list should know" })).toBeVisible();
+  await expect(message(page, "Yes, and the main list should know").filter({ hasText: "replied to a thread" })).toBeVisible(); // the thread shows the text too
+  await expect(inlineThread(page, ROOT_TEXT).getByRole("article").filter({ hasText: "Yes, and the main list should know" })).toBeVisible();
 
   // Then conversation 41 shows no unread for it in the main list
   await expect.poll(() => unread(t)).toBe(0);
   expect(mainCursor(dataDir, t.conv)).toBeLessThan(broadcast); // read in the thread, not by the main cursor
-  await closeThread(page);
   await page.unroute("**/api/conversations/*/read");
   await backButton(page).click();
   await freshRail(page, t);
@@ -292,8 +293,8 @@ scenario("The owner sees an agent replying in a thread", { tag: ["@browser"] }, 
     // Then the thread shows "@devtool is replying…" within 3 seconds
     await expect(threadPane(page).getByRole("status").filter({ hasText: "@devtool is replying…" })).toBeVisible({ timeout: 3_000 });
 
-    // And the conversation shows no replying note
-    await expect(page.getByRole("log", { name: "Messages", exact: true }).getByRole("status").filter({ hasText: "replying" })).toHaveCount(0);
+    // And the conversation shows no replying note: the one note in the log is the thread's
+    await expect(page.getByRole("log", { name: "Messages", exact: true }).getByRole("status").filter({ hasText: "replying" })).toHaveCount(1);
   } finally {
     watch.stop();
   }
@@ -304,14 +305,14 @@ scenario("Following a reply link to the conversation that is already open opens 
   const t = await threadWorld({ server, page, context }, { browser: true });
   await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
   await expect(message(page, ROOT_TEXT)).toBeVisible();
-  await expect(threadPane(page)).toHaveCount(0);
+  await expect(replyBox(page)).toHaveCount(0);
 
   // When the owner follows the link "/chats/41#reply=900" without reloading
   await page.evaluate((hash) => (location.hash = hash), `#reply=${t.root}`);
 
-  // Then the thread pane is open on message 900
-  await expect(threadPane(page)).toBeVisible();
-  await expect(threadLog(page).getByRole("article").filter({ hasText: ROOT_TEXT })).toBeVisible();
+  // Then the thread under message 900 is unfolded with its reply box open and focused
+  await expect(inlineThread(page, ROOT_TEXT).getByRole("textbox", { name: "Reply in thread" })).toBeFocused();
+  await expect(message(page, ROOT_TEXT)).toBeInViewport();
 });
 
 scenario("A watch line from a thread names the thread root", { tag: ["@cli"] }, async ({ server }) => {
@@ -417,111 +418,98 @@ scenario("The unread count caps at 99+", { tag: ["@browser", "@I-14"] }, async (
 });
 
 // Owner ruling 2026-10-18 (iPhone, Chrome): "Also opening it requires a double click."
-scenario("One tap on the reply chip opens the thread pane", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
+scenario("One tap on Reply under a thread opens its reply box", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
   // Given conversation 41 is open on a phone with a thread on its first message
   const t = await threadWorld({ server, page, context }, { browser: true });
   await agentReplies(t, t.dev, "Can step 1 ship on its own?");
   await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
-  const chip = replyLine(message(page, ROOT_TEXT));
-  await expect(chip).toBeVisible();
+  const reply = inlineThread(page, ROOT_TEXT).getByRole("button", { name: "Reply in thread", exact: true });
+  await expect(reply).toBeVisible();
 
-  // When the owner taps the reply chip once
-  await chip.tap();
+  // When the owner taps "Reply" under the thread once
+  await reply.tap();
 
-  // Then the thread pane is open
-  await expect(threadPane(page)).toBeVisible({ timeout: 2000 });
-  // And the reply chip is at least 44 px tall
+  // Then the reply box is open
+  await expect(replyBox(page)).toBeVisible({ timeout: 2000 });
+  // And "Reply" is at least 44 px tall
   await closeThread(page);
-  expect((await chip.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  expect((await reply.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+
+  // And the replies show no "Message actions" button while message 900 keeps its own (a long press still opens a reply's menu)
+  await expect(inlineThread(page, ROOT_TEXT).getByRole("button", { name: "Message actions" })).toHaveCount(0);
+  await expect(message(page, ROOT_TEXT).getByRole("button", { name: "Message actions" })).toHaveCSS("opacity", "1");
 });
 
-// ---- Rule: A thread root shows its last reply in the main list -----------------------------------------------
-// Owner decision 2026-10-18, design B in the mini app: "Replies stay in the thread. The message gets a bold reply chip and a faded peek of
-// the last reply. Tap the chip to open the thread." Earlier, verbatim: "'also reply in the conversation' I think this is dumb. I want a
-// better ui. Should be clear in the main, and easy to jump into a thread."
+// ---- Rule: A thread shows in the conversation under its root -------------------------------------------------
+// Owner, conv 112 msg 2893 (issue 61): "if there's a reply/thread, it should still be visible in the main conversation. If it's the latest
+// message, the thread is fully expanded (maybe smaller text) ... If it's not the latest message, the reply can be collapsed: show at least
+// three lines when collapsed, but you should be able to expand the whole thread in the conversation view."
 
-scenario("The reply chip shows the count and the last replier", { tag: ["@browser"] }, async ({ server, page, context }) => {
-  // Given "devtool" and "docs" replied in thread 900, "docs" last
+scenario("The latest thread shows every reply and an older one folds to its first three", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given thread 900 has 5 replies and a newer message 901 has a thread with 4 replies
   const t = await threadWorld({ server, page, context }, { browser: true });
-  await agentReplies(t, t.dev, "Fixing it to open on one tap.");
-  await agentReplies(t, t.docs, "Looks right to me.");
+  for (let i = 1; i <= 5; i++) await agentReplies(t, t.docs, `docs on step 1, reply ${i} `.repeat(i === 2 ? 12 : 1).trim());
+  await newerThread(t, 4);
 
   // When the owner opens conversation 41
   await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
 
-  // Then message 900 has a chip "2 replies · @docs" at least 44 px tall
-  const chip = replyLine(message(page, ROOT_TEXT));
-  await expect(chip).toHaveText("2 replies · @docs");
-  expect((await chip.boundingBox())!.height).toBeGreaterThanOrEqual(44);
-  // And the server sent the last reply with the root
-  const root = (await mainList(t.w.owner, t.conv)).find((m) => m.id === t.root);
-  expect(root?.last_reply).toMatchObject({ author: { handle: "docs", kind: "agent" }, preview: "Looks right to me." });
+  // Then the thread under message 901 shows all 4 replies in smaller text than the main list, indented under its root
+  const newer = inlineThread(page, NEWER_TEXT);
+  await expect(newer.getByRole("article")).toHaveCount(4);
+  await expect(foldToggle(newer)).toHaveCount(0);
+  const size = async (l: import("@playwright/test").Locator) => Number.parseFloat(await l.evaluate((e) => getComputedStyle(e).fontSize));
+  const rootText = message(page, NEWER_TEXT).getByText(NEWER_TEXT);
+  const replyText = newer.getByRole("article").first().getByText("docs on step 2, 1");
+  expect(await size(replyText)).toBeLessThan(await size(rootText));
+  expect((await replyText.boundingBox())!.x).toBeGreaterThan((await rootText.boundingBox())!.x);
 
-  // And a reply of the owner reads "you"
-  await ownerReplies(t, "Ship it.");
-  await expect(chip).toHaveText("3 replies · you");
+  // And the thread under message 900 shows its first 3 replies, one line each, and "Show all 5 replies"
+  const older = inlineThread(page, ROOT_TEXT);
+  await expect(older.getByRole("article")).toHaveCount(3);
+  const long = older.getByRole("article").nth(1).getByText(/docs on step 1, reply 2/);
+  const line = await long.evaluate((e) => Number.parseFloat(getComputedStyle(e).lineHeight));
+  expect((await long.boundingBox())!.height).toBeLessThanOrEqual(line * 1.6);
+  await expect(foldToggle(older)).toHaveText("Show all 5 replies");
+  await expect(foldToggle(older)).toHaveAttribute("aria-expanded", "false");
+
+  // When the owner taps "Show all 5 replies"
+  await foldToggle(older).click();
+
+  // Then the thread under message 900 shows all 5 replies in place
+  await expect(older.getByRole("article")).toHaveCount(5);
+  expect((await long.boundingBox())!.height).toBeGreaterThan(line * 1.6);
+  await expect(page).toHaveURL(`${t.w.srv.origin}/chats/${t.conv}`);
+
+  // And "Show fewer replies" folds it again
+  await expect(foldToggle(older)).toHaveText("Show fewer replies");
+  await foldToggle(older).click();
+  await expect(older.getByRole("article")).toHaveCount(3);
 });
 
-scenario("The peek shows the last reply", { tag: ["@browser"] }, async ({ server, page, context }) => {
-  // Given "devtool" replied "Fixing it to open on one tap." in thread 900 and "docs" replied with a long reply
-  const t = await threadWorld({ server, page, context }, { browser: true });
-  await agentReplies(t, t.dev, "Fixing it to open on one tap.");
-  const long = "docs says this reply is long ".repeat(12);
-  await agentReplies(t, t.docs, `**${long}**`);
-
-  // When the owner opens conversation 41
-  await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
-
-  // Then under the chip one faded line shows "docs: <the reply as plain text>" cut with an ellipsis
-  const peek = replyPeek(message(page, ROOT_TEXT));
-  await expect(peek).toContainText("docs: docs says this reply is long");
-  await expect(peek).not.toContainText("**");
-  await expect(peek).toHaveCSS("text-overflow", "ellipsis");
-  const root = (await mainList(t.w.owner, t.conv)).find((m) => m.id === t.root);
-  expect(root!.last_reply!.preview.length).toBeLessThanOrEqual(120);
-  expect(root!.last_reply!.preview.length).toBeGreaterThan(100);
-});
-
-scenario("A new reply updates the chip live", { tag: ["@browser"] }, async ({ server, page, context }) => {
-  // Given conversation 41 is open and message 900 shows "1 reply · @devtool"
+scenario("A new reply shows live in its thread", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given conversation 41 is open and thread 900 has 1 reply
   const t = await threadWorld({ server, page, context }, { browser: true });
   await agentReplies(t, t.dev, "Fixing it to open on one tap.");
   await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
-  const root = message(page, ROOT_TEXT);
-  await expect(replyLine(root)).toHaveText("1 reply · @devtool");
+  const thread = inlineThread(page, ROOT_TEXT);
+  await expect(thread.getByRole("article")).toHaveCount(1);
 
-  // When "docs" replies in thread 900
+  // When "docs" replies "Same here." in thread 900
   await agentReplies(t, t.docs, "Same here.");
 
-  // Then, without a reload, the chip reads "2 replies · @docs" and the peek "docs: Same here."
-  await expect(replyLine(root)).toHaveText("2 replies · @docs");
-  await expect(replyPeek(root)).toHaveText("docs: Same here.");
+  // Then without a reload the thread under message 900 shows "Same here."
+  await expect(thread.getByRole("article").filter({ hasText: "Same here." })).toBeVisible();
+  await expect(thread.getByRole("article")).toHaveCount(2);
 });
 
-scenario("One tap on the peek opens the thread", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
-  // Given conversation 41 is open on a phone and message 900 has a reply
-  const t = await threadWorld({ server, page, context }, { browser: true });
-  await agentReplies(t, t.dev, "Fixing it to open on one tap.");
-  await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
-  const peek = replyPeek(message(page, ROOT_TEXT));
-  await expect(peek).toBeVisible();
-  expect((await peek.boundingBox())!.height).toBeGreaterThanOrEqual(44);
-
-  // When the owner taps the peek once
-  await peek.tap();
-
-  // Then the thread pane is open with the reply
-  await expect(threadPane(page)).toBeVisible({ timeout: 2000 });
-  await expect(threadLog(page).getByRole("article").filter({ hasText: "Fixing it to open on one tap." })).toBeVisible();
-});
-
-scenario("The thread pane has no Also send to conversation box", { tag: ["@browser"] }, async ({ server, page, context }) => {
-  // Given the owner opened the thread of message 900
+scenario("The reply box has no Also send to conversation box", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given the owner opened the reply box of message 900
   const t = await threadWorld({ server, page, context }, { browser: true });
   await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
   await openThread(page, ROOT_TEXT);
 
-  // Then the pane has a reply box and no "Also send to conversation" box
+  // Then the box has no "Also send to conversation" box
   await expect(replyBox(page)).toBeVisible();
   await expect(threadPane(page).getByRole("checkbox")).toHaveCount(0);
   await expect(threadPane(page)).not.toContainText("Also send to conversation");
@@ -532,26 +520,71 @@ scenario("The thread pane has no Also send to conversation box", { tag: ["@brows
   expect((await mainList(t.w.owner, t.conv)).map((m) => m.body)).toEqual([ROOT_TEXT]);
 });
 
-scenario("The chip has a dot while the last reply is unread", { tag: ["@browser", "@I-14"] }, async ({ server, page, context }) => {
-  // Given the owner replied in thread 900 and "devtool" answered
+scenario("Cancel reply closes the box and the thread stays", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given the owner replied in the thread under message 900
+  const t = await threadWorld({ server, page, context }, { browser: true });
+  await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
+  await openThread(page, ROOT_TEXT);
+  await replyInThread(page, "Step 1 can ship alone");
+  await expect(threadLog(page).getByRole("article").filter({ hasText: "Step 1 can ship alone" })).toBeVisible();
+
+  // When the owner taps "Cancel reply"
+  await closeThread(page);
+
+  // Then the reply box is gone and the thread still shows the reply
+  await expect(replyBox(page)).toHaveCount(0);
+  await expect(inlineThread(page, ROOT_TEXT).getByRole("article").filter({ hasText: "Step 1 can ship alone" })).toBeVisible();
+  // Escape closes it too
+  await openThread(page, ROOT_TEXT);
+  await replyBox(page).press("Escape");
+  await expect(replyBox(page)).toHaveCount(0);
+});
+
+scenario("A folded thread shows its new replies until it is unfolded", { tag: ["@browser", "@I-14"] }, async ({ server, page, context }) => {
+  // Given the owner replied in thread 900 and "devtool" answered, and a newer message 901 has a thread
   const t = await threadWorld({ server, page, context }, { browser: true });
   await ownerReplies(t, "Can step 1 ship on its own?");
   await agentReplies(t, t.dev, "Yes.");
+  const newer = await newerThread(t);
+  // the latest thread (901) is read as it shows in full: once that has gone out, a read of 900 would have too
+  const readNewer = page.waitForRequest((r) => r.url().endsWith(`/api/conversations/${t.conv}/read`) && r.postDataJSON()?.root_id === newer);
   await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
-  const chip = replyLine(message(page, ROOT_TEXT));
+  await readNewer;
+  const toggle = foldToggle(inlineThread(page, ROOT_TEXT));
 
-  // Then the chip shows a dot
-  await expect(chip).toHaveAccessibleName(/, unread$/);
+  // Then the thread under message 900 offers "Show all 2 replies · 1 new"
+  await expect(toggle).toHaveText("Show all 2 replies · 1 new");
   expect((await mainList(t.w.owner, t.conv)).find((m) => m.id === t.root)?.last_reply?.unread).toBe(true);
+  expect(await unread(t), "a folded thread is not read").toBe(1);
 
-  // When the owner reads the thread
-  await chip.click();
-  await expect(threadLog(page).getByRole("article").filter({ hasText: "Yes." })).toBeVisible();
-  await closeThread(page);
+  // When the owner unfolds it
+  await toggle.click();
+  await expect(inlineThread(page, ROOT_TEXT).getByRole("article")).toHaveCount(2);
 
-  // Then the dot is gone, and a newer reply brings it back
-  await expect(chip).not.toHaveAccessibleName(/unread/);
+  // Then the new count is gone, and a newer reply brings it back on the folded thread of a reload
+  await expect.poll(() => unread(t)).toBe(0);
+  // the reply comes while the conversation is closed: on screen, the thread unfolded by hand would read it at once
+  await page.goto(`${t.w.srv.origin}/chats`);
   await agentReplies(t, t.docs, "Another view.");
-  await expect(chip).toHaveText("3 replies · @docs · 1 new");
-  await expect(chip).toHaveAccessibleName(/, unread$/);
+  await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
+  await expect(foldToggle(inlineThread(page, ROOT_TEXT))).toHaveText("Show all 3 replies · 1 new");
+});
+
+// Owner: "The reply icon/placement can be better."
+scenario("On a desktop a reply arrow shows on a hovered message and opens its reply box", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  test.skip(info.project.name !== "chromium", "a touch screen has no hover: the phone scenarios cover it");
+  // Given conversation 41 is open on a desktop and message 900 has no replies
+  const t = await threadWorld({ server, page, context }, { browser: true });
+  await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
+  const root = message(page, ROOT_TEXT);
+  const arrow = root.getByRole("button", { name: "Reply in thread", exact: true });
+  await expect(arrow).toHaveCSS("opacity", "0");
+
+  // When the owner hovers message 900 and taps its "Reply in thread" arrow
+  await root.hover();
+  await expect(arrow).toHaveCSS("opacity", "1");
+  await arrow.click();
+
+  // Then a reply box opens under message 900 and has the focus
+  await expect(inlineThread(page, ROOT_TEXT).getByRole("textbox", { name: "Reply in thread" })).toBeFocused();
 });

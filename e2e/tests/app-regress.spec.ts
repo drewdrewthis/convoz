@@ -67,8 +67,10 @@ scenario("A conversation, its composer and its thread keep their look", { tag: [
 
   // And when the owner opens the thread of "Deploy finished at 5:29. I'm watching the error rate." in "Ops reports", it matches its frame
   await page.goto(`${u.w.srv.origin}/chats/${ops}`);
-  await page.getByRole("button", { name: /^Open thread, 3 replies/ }).click();
-  await expect(page.getByRole("log", { name: "Thread messages" }).getByRole("article")).toHaveCount(4);
+  // the thread is drawn under its root (issue 61): its reply box open, as the drawer was
+  const thread = page.getByRole("region", { name: "Thread: Deploy finished at 5:29" });
+  await thread.getByRole("button", { name: "Reply in thread", exact: true }).click();
+  await expect(thread.getByRole("article")).toHaveCount(3);
   await matchesItself(page, info, "thread");
 });
 

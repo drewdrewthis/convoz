@@ -311,13 +311,16 @@
   .msg .edited { align-self: flex-start; padding: 0; border: 0; background: none; font: inherit; font-size: 13px; color: var(--color-muted); cursor: pointer; }
   .edit-history { margin: 0; padding-left: 20px; white-space: pre-wrap; overflow-wrap: break-word; }
   /* The actions button takes no room (the row looks as drawn) and shows on hover or focus; 44px for a thumb. */
-  .msg-actions { position: absolute; top: 4px; right: 4px; width: 44px; height: 44px; }
+  .msg-actions { position: absolute; top: 4px; right: 4px; display: flex; gap: 2px; height: 44px; }
   /* The owner's time sits at the top right, where that corner was, so on the owner's message the button takes the free left side (owner msg 685: "5:" was cut). */
-  .msg.mine .msg-actions { right: auto; left: 4px; }
+  .msg.mine .msg-actions { right: auto; left: 4px; flex-direction: row-reverse; }
   .msg.mine .msg-menu { right: auto; left: 0; }
-  .msg-actions-btn { width: 100%; height: 100%; padding: 0; border: 0; border-radius: 12px; background: none; opacity: 0; cursor: pointer; }
+  .msg-actions-btn { width: 44px; height: 100%; padding: 0; border: 0; border-radius: 12px; background: none; opacity: 0; cursor: pointer; }
   .msg-actions-btn::before { content: "\22EF"; font-size: 20px; color: var(--color-muted); }
   .msg-actions-btn:focus-visible, .msg-actions-btn[aria-expanded="true"] { opacity: 1; background: var(--color-raised); }
+  /* the reply arrow beside the ⋯ (issue 61): shown with it on hover or focus */
+  .msg-reply-btn { opacity: 0; }
+  .msg-reply-btn:focus-visible { opacity: 1; }
   .msg-menu { position: absolute; top: 44px; right: 0; z-index: 5; display: flex; flex-direction: column; min-width: 8rem; padding: 4px; border-radius: 12px; background: var(--color-raised); border: 1px solid var(--color-border); }
   .msg-menu button { min-height: 44px; padding: 0 12px; border: 0; border-radius: 8px; background: none; color: var(--color-text); font: inherit; text-align: left; cursor: pointer; }
   .msg-menu button:focus-visible { background: var(--color-border); }
@@ -327,11 +330,14 @@
     .msg .text .spoiler:hover { color: inherit; background: var(--color-raised); }
     .msg .edited:hover { text-decoration: underline; }
     .msg:hover .msg-actions-btn { opacity: 1; background: var(--color-raised); }
+    .msg:hover .msg-reply-btn { opacity: 1; }
     .msg-menu button:hover { background: var(--color-border); }
   }
   /* A touch screen never hovers, so the button would never show there: the owner found no way into a thread (conv 9, msg 2708). No :hover here. */
+  /* The reply arrow stays off a touch screen: there the ⋯ and a long press hold Reply in thread, and a thread has its own Reply. */
   @media (hover: none) {
     .msg-actions-btn { opacity: 1; }
+    .msg-reply-btn { display: none; }
   }
   .notice-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 12px 3px 60px; color: var(--color-muted); font-size: 13.5px; line-height: 1.4; }
   /* the bullet hangs off the text itself: as its own flex item, a text too long for the row wrapped below it and left the bullet alone */

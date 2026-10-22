@@ -124,7 +124,7 @@ Feature: Asks and their state machine
       When the owner taps "Ask options" on the ask
       Then one menu opens with "Snooze", "Dismiss", "Copy link", "Pin" and "Delete"
       And the ask has no second "Message actions" button
-      And the ask at the top of its own thread has no "Reply in thread" button
+      And the thread under the ask does not draw the ask again
 
     @v1 @browser @I-24 @C-4
     Scenario: A double tap on an option answers once

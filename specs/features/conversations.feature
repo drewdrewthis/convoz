@@ -20,6 +20,14 @@ Feature: Conversations
       When the owner starts a new conversation with Cmd+J and sends "Plan the search filters launch"
       Then the Conversations list shows the conversation at the top titled "Plan the search filters launch"
 
+    # Owner report (conv 112 msg 2893, https://github.com/drewdrewthis/convoz/issues/62): a newly created conversation showed no star and
+    # no details buttons in its title bar until a reload.
+    @v1 @browser
+    Scenario: A new conversation has the star and details buttons from its first send
+      When the owner starts a new conversation and sends "Plan the search filters launch"
+      Then without a reload the title bar shows "Star conversation" and "Show details"
+      And "Show details" opens the details
+
     @v1 @browser @phone
     Scenario: On a phone the first page after sign-in is Now
       Given the owner has a passkey on a phone

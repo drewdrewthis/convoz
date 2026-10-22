@@ -33,7 +33,7 @@ scenario("On a phone a long press on a message opens Reply in thread", { tag: ["
   // And taps "Reply in thread"
   await item.tap();
 
-  // Then the thread pane is open
+  // Then the reply box is open under message 900
   await expect(threadPane(page)).toBeVisible({ timeout: 2000 });
 
   // When the owner taps the reply box, types a reply and taps "Send reply"
@@ -60,6 +60,6 @@ scenario("On a phone the message actions button shows and a tap on it opens Repl
   await actions.tap();
   await page.getByRole("menuitem", { name: /^Reply in thread/ }).tap();
 
-  // Then the thread pane is open
+  // Then the reply box is open under message 900
   await expect(threadPane(page)).toBeVisible({ timeout: 2000 });
 });

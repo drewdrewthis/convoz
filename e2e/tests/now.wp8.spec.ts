@@ -498,9 +498,10 @@ scenario("An open ask always shows its quick bar", { tag: ["@browser"] }, async 
   await page.goto(`${w.srv.origin}/chats/${a.conv}`);
   await expectBar(page, askCard(page), true);
 
-  // | in conversation 41 | in its thread |
+  // | in conversation 41 | with its reply box open | (the thread is under the ask, which stays in the main list: issue 61)
   await askCard(page).getByRole("button", { name: "I have questions", exact: true }).click();
-  await expectBar(page, page.getByRole("log", { name: "Thread messages" }), false);
+  await expect(page.getByRole("textbox", { name: "Reply in thread" })).toBeVisible();
+  await expectBar(page, askCard(page), true);
 
   // | in conversation 41 | in conversation 41 after a reload |
   await page.goto(`${w.srv.origin}/chats/${a.conv}`);

@@ -132,6 +132,14 @@ Feature: Voice call
       Then the call pill shows that the call is live, with the time, Mute and Hang up
       And the pill sits below the page's content, covering none of it
 
+    # Owner polish (relayed by the coordinator, 2026-10-22): "Call" sat under five Recent rows, below the fold of a short window and
+    # under a phone's keyboard.
+    @v1 @browser
+    Scenario: Call is in view as soon as the search overlay opens
+      Given the owner has 5 recent conversations
+      When the owner opens the search overlay with Cmd+K, on a 1280 by 700 window and on a phone
+      Then "Quick actions" comes before "Recent" and the option "Call" is wholly in view
+
     @v1 @browser
     Scenario: The call pill stays on every screen while the owner moves around
       Given the owner is on a Now call

@@ -10,9 +10,8 @@ import { useThreads } from "../threads/index.ts";
 import { presetsAt } from "./presets.ts";
 import { answerAsk, dismissAsk, snoozeAsk, undismissAsk, useNow } from "./store.ts";
 
-// The thread pane loads by the Reply that opens it (ThreadPane is lazy). The store is a static import: the feature is in the main bundle
-// anyway (Unread, Row), so a dynamic import of it moved nothing and made the bundle carry a namespace helper that a lazy chunk (the call's SDK) then owned.
-const openThread = (conversation: number, root: number) => useThreads.getState().openThread(conversation, root);
+// "I have questions" opens the reply box of the ask's thread, under the ask in the conversation.
+const replyInThread = (conversation: number, root: number) => useThreads.getState().startReply(conversation, root);
 
 /** AskInline is the ask card inside a conversation. Its changes go to the same routes as Now's, and the message that holds the ask
  *  takes the new state at once (the stream frame brings the same state a moment later). */
@@ -55,7 +54,7 @@ export function AskInline({ ask, labelId, inThread = false, deleteSheet, replies
       onUndismiss={() => void run(() => undismissAsk(ask.id, ask.version))}
       onSnooze={(preset) => void run(() => snoozeAsk(ask.id, preset))}
       replies={replies ?? { count: ask.reply_count, unread: ask.unread_replies }}
-      onReply={inThread ? undefined : () => void openThread(ask.conversation_id, ask.thread_root_id ?? ask.id)}
+      onReply={inThread ? undefined : () => replyInThread(ask.conversation_id, ask.thread_root_id ?? ask.id)}
       pinned={pinned}
       onPin={() => void (pinned ? unpinMessage : pinMessage)(ask.conversation_id, ask.id).catch((err) => toast(humanError(err)))}
       onDelete={() => setDeleting(true)}

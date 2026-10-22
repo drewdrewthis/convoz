@@ -25,6 +25,7 @@ export const MicIcon = icon(<path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0
 export const PhoneIcon = icon(<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" />);
 export const FileIcon = icon(<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6" />);
 export const CloseIcon = icon(<path d="M18 6L6 18M6 6l12 12" />);
+export const ReplyIcon = icon(<path d="M9 14L4 9l5-5M4 9h11a5 5 0 0 1 5 5v6" />);
 export const ArrowIcon = icon(<path d="M5 12h14M13 6l6 6-6 6" />);
 export const ChevronIcon = icon(<path d="M9 6l6 6-6 6" />);
 /** PlayIcon and PauseIcon are filled shapes: their wrapper sets fill to currentColor. */

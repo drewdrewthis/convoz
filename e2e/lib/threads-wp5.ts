@@ -51,6 +51,23 @@ export async function agentReplies(t: ThreadWorld, lease: string, body: string, 
   return Number(must(res, `reply ${JSON.stringify(body)}`, 201).json().id);
 }
 
+/** The text of message 901, a newer root with a thread: it is the latest thread, so the thread of 900 is folded. */
+export const NEWER_TEXT = "Step 2 is the API";
+
+/** "A newer message 901 has a thread": "devtool" posts 901 and "docs" replies under it `n` times; the owner then reads the main list. Returns 901's id. */
+export async function newerThread(t: ThreadWorld, n = 1): Promise<number> {
+  const id = Number(must(await agentPost(t.w.srv, t.dev, t.conv, NEWER_TEXT), "devtool posts message 901", 201).json().id);
+  for (let i = 1; i <= n; i++) must(await agentPost(t.w.srv, t.docs, t.conv, `docs on step 2, ${i}`, { thread_root_id: id }), `reply ${i} under 901`, 201);
+  await ownerHasRead(t);
+  return id;
+}
+
+/** The owner read thread 900 (from another device): its position at the newest reply. */
+export async function ownerReadsThread(t: ThreadWorld): Promise<void> {
+  const replies = (await threadOf(t.w.owner, t.root)).messages;
+  must(await t.w.owner.client.post(`/api/conversations/${t.conv}/read`, { root_id: t.root, reply_id: replies[replies.length - 1]!.id }), "owner reads thread 900");
+}
+
 /** A reply by the owner (from "another device": the API client). Returns the message id. */
 export async function ownerReplies(t: ThreadWorld, body: string, broadcast = false): Promise<number> {
   const res = await t.w.owner.client.post(`/api/conversations/${t.conv}/messages`, {
@@ -81,40 +98,41 @@ export async function mainList(owner: Owner, conv: number): Promise<{ id: number
   return must(await owner.client.get(`/api/conversations/${conv}/messages?limit=100`), "read the main list").json().messages;
 }
 
-// ---- the thread pane ----------------------------------------------------------------------------------
+// ---- the thread, inline under its root -----------------------------------------------------------------
 
-/** The pane of the open thread: a full-screen sheet on a phone, a panel beside the chat on a wide screen. */
-export const threadPane = (page: Page): Locator => page.getByRole("dialog", { name: /^Thread / }).or(page.getByRole("complementary", { name: /^Thread / }));
-export const threadLog = (page: Page): Locator => threadPane(page).getByRole("log", { name: "Thread messages" });
-export const replyBox = (page: Page): Locator => threadPane(page).getByRole("textbox", { name: "Reply in thread" });
+/** The thread under the message with this text, in the conversation (issue 61): a region "Thread: <root text>". */
+export const inlineThread = (page: Page, text: string): Locator => page.getByRole("region", { name: `Thread: ${text}` });
+/** The thread whose reply box is open (one at a time). */
+export const threadPane = (page: Page): Locator => page.getByRole("region", { name: /^Thread: / }).filter({ has: page.getByRole("button", { name: "Cancel reply" }) });
+/** The replies of the thread whose reply box is open: its articles. */
+export const threadLog = threadPane;
+export const replyBox = (page: Page): Locator => page.getByRole("textbox", { name: "Reply in thread" });
 export const sendReply = (page: Page): Locator => threadPane(page).getByRole("button", { name: "Send reply" });
-/** The reply chip under a thread root in the main list: "↳ 5 replies · @docs" (the last replier, or "you"). */
-export const replyLine = (root: Locator): Locator => root.getByRole("button", { name: /^Open thread, / });
-/** The faded peek under the chip: "docs: Looks right to me." (the last reply). */
-export const replyPeek = (root: Locator): Locator => root.getByRole("button", { name: /^Last reply by / });
+/** The fold toggle of a thread: "Show all N replies[ · K new]" on a folded thread, "Show fewer replies" on one unfolded by hand. */
+export const foldToggle = (thread: Locator): Locator => thread.getByRole("button", { name: /^(Show all \d+ replies|Show the whole reply|Show fewer replies)/ });
 
-/** Open the thread of the message with this text: its reply line when it has replies, else "Reply in thread" in its menu. */
+/** Open the reply box of the message with this text: the Reply of its thread when it has one, else "Reply in thread" in its menu. */
 export async function openThread(page: Page, text: string): Promise<void> {
   const root = message(page, text);
   await root.waitFor();
-  const line = replyLine(root);
-  if (await line.count()) {
-    await line.click();
+  const thread = inlineThread(page, text);
+  if (await thread.count()) {
+    await thread.getByRole("button", { name: "Reply in thread", exact: true }).click();
   } else {
     await root.hover();
     await root.getByRole("button", { name: "Message actions" }).click();
-    await page.getByRole("menuitem", { name: "Reply in thread" }).click();
+    await page.getByRole("menuitem", { name: /^Reply in thread/ }).click();
   }
-  await threadPane(page).waitFor();
+  await replyBox(page).waitFor();
 }
 
-/** Close the pane: "Close thread" beside the chat, "Back" on a phone. */
+/** Close the reply box ("Cancel reply"); the thread stays in the conversation. */
 export async function closeThread(page: Page): Promise<void> {
-  await threadPane(page).getByRole("button", { name: /^(Close thread|Back)$/ }).click();
-  await threadPane(page).waitFor({ state: "detached" });
+  await threadPane(page).getByRole("button", { name: "Cancel reply" }).click();
+  await replyBox(page).waitFor({ state: "detached" });
 }
 
-/** Write a reply in the open pane and send it with the button (Enter in the field does the same). */
+/** Write a reply in the open reply box and send it with the button (Enter in the field does the same). */
 export async function replyInThread(page: Page, text: string): Promise<void> {
   await replyBox(page).fill(text);
   await sendReply(page).click();

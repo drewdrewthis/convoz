@@ -4,14 +4,14 @@ import { message } from "../lib/chat-ui.ts";
 import { QUESTION, agentAsks, answerAsk, askCard, openFold, openNow, ownerRepliesIn } from "../lib/asks.ts";
 import { must } from "../lib/owner.ts";
 import { expect, scenario } from "../lib/scenario.ts";
-import { ROOT_TEXT, agentReplies, closeThread, openThread, ownerReplies, replyLine, threadOf, threadWorld, type ThreadWorld } from "../lib/threads-wp5.ts";
+import { ROOT_TEXT, agentReplies, foldToggle, inlineThread, newerThread, ownerReadsThread, ownerReplies, threadOf, threadWorld, type ThreadWorld } from "../lib/threads-wp5.ts";
 import { browserWorld } from "../lib/wp3.ts";
 
 /*
  * REPLY COUNTS (owner, msg 1202 relayed in msg 1204): every "Reply in thread" shows a small count of the replies and of the new ones.
  * A thread root of a message list carries reply_count and the reader's unread_replies (absent for none), and so does the thread.updated
  * frame. An ask in Now carries the same two for the thread "Reply in thread" opens on it. The count is a span "N reply|replies" with
- * a bold " · M new" after it, beside the label of the button or menu item; the reply chip gets " · M new" after the last replier.
+ * a bold " · M new" after it, beside the label of the button or menu item; a folded thread's "Show all N replies" gets " · M new".
  * The bindings of the rule "Every Reply in thread shows how many replies the thread has and how many are new" of threads.feature, the
  * rule "A thread root carries its reply count and the reader's new replies" of the contracts, and one scenario each of now and asks.
  */
@@ -31,16 +31,17 @@ async function replyItem(page: Page, text: string) {
   return page.getByRole("menuitem", { name: /^Reply in thread/ });
 }
 
-scenario("The reply chip and the message menu show the replies and the new ones", { tag: ["@browser"] }, async ({ server, page, context }) => {
-  // Given the owner replied in thread 900, then "devtool" and "docs" answered
+scenario("A folded thread and the message menu show the replies and the new ones", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given the owner replied in thread 900, then "devtool" and "docs" answered, and a newer message 901 has a thread
   const t = await threadWorld({ server, page, context }, { browser: true });
   await threeReplies(t);
+  await newerThread(t);
 
   // When the owner opens conversation 41
   await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
 
-  // Then the chip of message 900 reads "3 replies · @docs · 2 new"
-  await expect(replyLine(message(page, ROOT_TEXT))).toHaveText("3 replies · @docs · 2 new");
+  // Then the thread under message 900 offers "Show all 3 replies · 2 new"
+  await expect(foldToggle(inlineThread(page, ROOT_TEXT))).toHaveText("Show all 3 replies · 2 new");
 
   // When the owner opens the message actions of message 900
   const item = await replyItem(page, ROOT_TEXT);
@@ -50,23 +51,22 @@ scenario("The reply chip and the message menu show the replies and the new ones"
   await expect(item.locator(".replynew")).toHaveText("· 2 new");
 });
 
-scenario("Opening the thread clears the new count", { tag: ["@browser"] }, async ({ server, page, context }) => {
-  // Given the owner replied in thread 900, then "devtool" and "docs" answered
+scenario("Unfolding the thread clears the new count", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given the owner replied in thread 900, then "devtool" and "docs" answered, and a newer message 901 has a thread
   const t = await threadWorld({ server, page, context }, { browser: true });
   await threeReplies(t);
+  await newerThread(t);
 
   // And the owner has conversation 41 open
   await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
-  const chip = replyLine(message(page, ROOT_TEXT));
-  await expect(chip).toHaveText("3 replies · @docs · 2 new");
+  const thread = inlineThread(page, ROOT_TEXT);
+  await expect(foldToggle(thread)).toHaveText("Show all 3 replies · 2 new");
 
-  // When the owner opens the thread and closes it again
-  await chip.click();
-  await expect(page.getByRole("log", { name: "Thread messages" }).getByRole("article").filter({ hasText: "Another view." })).toBeVisible();
-  await closeThread(page);
+  // When the owner unfolds thread 900
+  await foldToggle(thread).click();
+  await expect(thread.getByRole("article").filter({ hasText: "Another view." })).toBeVisible();
 
-  // Then the chip of message 900 reads "3 replies · @docs" and "Reply in thread" shows "3 replies" with no "new"
-  await expect(chip).toHaveText("3 replies · @docs");
+  // Then "Reply in thread" shows "3 replies" with no "new"
   const item = await replyItem(page, ROOT_TEXT);
   await expect(item).toHaveText("Reply in thread3 replies");
 });
@@ -83,22 +83,21 @@ scenario("A message with no replies shows no count", { tag: ["@browser"] }, asyn
 });
 
 scenario("A new reply brings the new count live", { tag: ["@browser"] }, async ({ server, page, context }) => {
-  // Given the owner replied in thread 900, then "devtool" answered, and the owner read the thread
+  // Given the owner replied in thread 900, then "devtool" answered, the owner read the thread, and a newer message 901 has a thread
   const t = await threadWorld({ server, page, context }, { browser: true });
   await ownerReplies(t, "Can step 1 ship on its own?");
   await agentReplies(t, t.dev, "Yes.");
+  await ownerReadsThread(t);
+  await newerThread(t);
   await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
-  const chip = replyLine(message(page, ROOT_TEXT));
-  await expect(chip).toHaveText("2 replies · @devtool · 1 new");
-  await openThread(page, ROOT_TEXT);
-  await closeThread(page);
-  await expect(chip).toHaveText("2 replies · @devtool");
+  const toggle = foldToggle(inlineThread(page, ROOT_TEXT));
+  await expect(toggle).toHaveText("Show all 2 replies");
 
   // When "docs" replies in thread 900
   await agentReplies(t, t.docs, "Another view.");
 
-  // Then without a reload the chip reads "3 replies · @docs · 1 new"
-  await expect(chip).toHaveText("3 replies · @docs · 1 new");
+  // Then without a reload the folded thread under message 900 offers "Show all 3 replies · 1 new"
+  await expect(toggle).toHaveText("Show all 3 replies · 1 new");
 });
 
 scenario("The message list carries the reply count and the new replies of the reader", { tag: ["@api"] }, async ({ server, page, context }) => {

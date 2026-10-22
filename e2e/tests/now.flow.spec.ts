@@ -63,9 +63,9 @@ scenario("Asks the owner replied to wait in their own section", { tag: ["@browse
   const origin = await mark(page);
   await row.click();
 
-  // Then the thread of the ask opens
+  // Then the thread of the ask opens, under the ask
   await threadPane(page).waitFor();
-  await expect(threadPane(page)).toContainText(QUESTION);
+  await expect(page.getByRole("log", { name: "Messages" })).toContainText(QUESTION);
   await expect(threadPane(page)).toContainText("which checks pass");
   expect(page.url()).toContain(`/chats/${conv}`);
   expect(await sameDocument(page, origin)).toBe(true);

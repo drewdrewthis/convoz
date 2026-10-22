@@ -1,9 +1,16 @@
 # Source: design draft 9 §8 (I-8, I-14), §8.2 (unread math, involvement rule DA-3), §13 replies route.
 # Prototype: thread pane with "Reply…", agents answer inside the thread, a thread reply stays unread until that thread is opened.
-# Owner decision 2026-10-18 (design B, mini app): "Replies stay in the thread. The message gets a bold reply chip and a faded peek of the
+# Owner decision 2026-10-18 (design B, mini app; its chip, peek and drawer gave way to the inline thread of 2026-10-22, below): "Replies stay in the thread. The message gets a bold reply chip and a faded peek of the
 # last reply. Tap the chip to open the thread." Earlier, verbatim: "'also reply in the conversation' I think this is dumb. I want a
 # better ui. Should be clear in the main, and easy to jump into a thread." The "Also send to conversation" box is gone from the web;
 # the API still takes broadcast (the CLI and agents use it).
+# Owner decision 2026-10-22 (conv 112 msg 2893, https://github.com/drewdrewthis/convoz/issues/61), verbatim: "if there's a reply/thread,
+# it should still be visible in the main conversation. If it's the latest message, the thread is fully expanded (maybe smaller text). The
+# reply icon/placement can be better. If it's not the latest message, the reply can be collapsed: show at least three lines when
+# collapsed, but you should be able to expand the whole thread in the conversation view. Then you can upgrade it to a full conversation.
+# The thread in the drawer doesn't make sense." The thread drawer is gone: a thread is drawn under its root, and a reply is written in a
+# small box there. A thread shown in full is read; a folded one stays unread until it is unfolded. "Upgrade to a conversation" waits on
+# the server (https://github.com/drewdrewthis/convoz/issues/32).
 # Every scenario runs end to end in a browser or through the API against a real `convoz serve` on a fresh `mktemp -d` data dir.
 
 Feature: Threads
@@ -21,16 +28,15 @@ Feature: Threads
 
     @v1 @browser
     Scenario: The owner replies in a thread
-      When the owner opens the thread of message 900 and replies "Can step 1 ship on its own?"
-      Then the thread pane shows the reply
-      And message 900 shows "1 reply" in the main list
-      And the main list does not show the reply itself
+      When the owner opens the reply box of message 900 and replies "Can step 1 ship on its own?"
+      Then the reply shows in the thread under message 900
+      And the main list has no message of its own for the reply
 
     @v1 @browser
     Scenario: Following a reply link to the conversation that is already open opens the thread
       Given conversation 41 is open
       When the owner follows the link "/chats/41#reply=900" without reloading
-      Then the thread pane is open on message 900
+      Then the thread under message 900 is unfolded with its reply box open and focused
 
     @v1 @cli
     Scenario: A watch line from a thread names the thread root
@@ -53,7 +59,7 @@ Feature: Threads
       Given the owner has read conversation 41
       When "docs" posts 5 replies in thread 900
       Then conversation 41 is not bold in the rail
-      And message 900 shows "5 replies · @docs"
+      And the thread under message 900 shows the 5 replies
 
     # Owner, 2026-10-19 (msg 266, on the row "Convoz feedback with Cl... 5"): "This is confusing, right -- I guess this means that there are
     # 5 unviewed items hidden in threads somewhere?" Msg 267: "that's what I was saying we needed to update -- so I could more easily see
@@ -80,17 +86,18 @@ Feature: Threads
     # hidden threads, and jump back in. Basically a conversation is the main thread, but then there are sub-threads right, so I should
     # actually see all the threads on the lists." The conversation badge counts the main chat only; thread replies count on the thread's row.
     @v1 @browser @I-14
-    Scenario: Opening the conversation does not clear thread replies
+    Scenario: Opening the conversation does not clear the replies of a folded thread
       Given the owner replied in thread 900 and "devtool" then posted 2 replies there
-      When the owner opens conversation 41 but not the thread
+      And a newer message 901 has a thread, so thread 900 is folded
+      When the owner opens conversation 41 but does not unfold thread 900
       Then the row of thread 900 still shows 2 unread and conversation 41 shows no count
-      And opening thread 900 clears them
+      And unfolding thread 900 clears them
 
     @v1 @browser @I-14
     Scenario: A broadcast reply read in its thread is read in the main list
       Given the owner replied in thread 900
       And "devtool" posted a broadcast reply in thread 900
-      When the owner reads it in the thread pane
+      When the owner reads it in the thread under message 900
       Then conversation 41 shows no unread for it in the main list
 
     @v1 @browser @I-14
@@ -105,15 +112,62 @@ Feature: Threads
         | a system line "@docs joined"                       |
         | a message from "devtool" that it deletes at once   |
 
-  Rule: One tap opens a thread on a phone
+  Rule: A thread shows in the conversation under its root
+
+    # Owner, conv 112 msg 2893: "If it's the latest message, the thread is fully expanded (maybe smaller text) ... If it's not the latest
+    # message, the reply can be collapsed: show at least three lines when collapsed, but you should be able to expand the whole thread".
+    @v1 @browser
+    Scenario: The latest thread shows every reply and an older one folds to its first three
+      Given thread 900 has 5 replies and a newer message 901 has a thread with 4 replies
+      When the owner opens conversation 41
+      Then the thread under message 901 shows all 4 replies in smaller text than the main list, indented under its root
+      And the thread under message 900 shows its first 3 replies, one line each, and "Show all 5 replies"
+      When the owner taps "Show all 5 replies"
+      Then the thread under message 900 shows all 5 replies in place
+      And "Show fewer replies" folds it again
+
+    @v1 @browser
+    Scenario: A new reply shows live in its thread
+      Given conversation 41 is open and thread 900 has 1 reply
+      When "docs" replies "Same here." in thread 900
+      Then without a reload the thread under message 900 shows "Same here."
+
+    @v1 @browser
+    Scenario: The reply box has no Also send to conversation box
+      Given the owner opened the reply box of message 900
+      Then the box has no "Also send to conversation" box
+      And a reply stays in the thread
+
+    @v1 @browser
+    Scenario: Cancel reply closes the box and the thread stays
+      Given the owner replied in the thread under message 900
+      When the owner taps "Cancel reply"
+      Then the reply box is gone and the thread still shows the reply
+
+    @v1 @browser @I-14
+    Scenario: A folded thread shows its new replies until it is unfolded
+      Given the owner replied in thread 900 and "devtool" answered, and a newer message 901 has a thread
+      Then the thread under message 900 offers "Show all 2 replies · 1 new"
+      When the owner unfolds it
+      Then the new count is gone, and a reply that comes while the conversation is closed brings it back on the folded thread
+
+    # Owner: "The reply icon/placement can be better."
+    @v1 @browser
+    Scenario: On a desktop a reply arrow shows on a hovered message and opens its reply box
+      Given conversation 41 is open on a desktop and message 900 has no replies
+      When the owner hovers message 900 and taps its "Reply in thread" arrow
+      Then a reply box opens under message 900 and has the focus
+
+  Rule: A thread is one tap away on a phone
 
     # Owner ruling 2026-10-18 (iPhone, Chrome): "Also opening it requires a double click."
     @v1 @browser @phone
-    Scenario: One tap on the reply chip opens the thread pane
+    Scenario: One tap on Reply under a thread opens its reply box
       Given conversation 41 is open on a phone with a thread on its first message
-      When the owner taps the reply chip once
-      Then the thread pane is open
-      And the reply chip is at least 44 px tall
+      When the owner taps "Reply" under the thread once
+      Then the reply box is open
+      And "Reply" is at least 44 px tall
+      And the replies show no "Message actions" button while message 900 keeps its own
 
     # Owner, conv 9 msg 2708: on his phone he could not open the thread of msg 2691 to reply in it.
     @v1 @browser @phone
@@ -121,7 +175,7 @@ Feature: Threads
       Given conversation 41 is open on a phone and message 900 has no replies
       When the owner long presses the text of message 900
       And taps "Reply in thread"
-      Then the thread pane is open
+      Then the reply box is open under message 900
       When the owner taps the reply box, types a reply and taps "Send reply"
       Then the thread shows the reply
 
@@ -130,67 +184,25 @@ Feature: Threads
       Given conversation 41 is open on a phone and message 900 has no replies
       Then the "Message actions" button of message 900 shows without a hover
       When the owner taps it and taps "Reply in thread"
-      Then the thread pane is open
-
-  Rule: A thread root shows its last reply in the main list
-
-    # Owner decision 2026-10-18, design B: "Replies stay in the thread. The message gets a bold reply chip and a faded peek of the last reply.
-    # Tap the chip to open the thread." and "Should be clear in the main, and easy to jump into a thread."
-    @v1 @browser
-    Scenario: The reply chip shows the count and the last replier
-      Given "devtool" and "docs" replied in thread 900, "docs" last
-      When the owner opens conversation 41
-      Then message 900 has a chip "2 replies · @docs" at least 44 px tall
-      And a reply of the owner reads "you" in the chip
-
-    @v1 @browser
-    Scenario: The peek shows the last reply
-      Given "docs" replied with a long reply in thread 900
-      When the owner opens conversation 41
-      Then under the chip one faded line shows "docs: " and the reply as plain text, cut with an ellipsis
-
-    @v1 @browser
-    Scenario: A new reply updates the chip live
-      Given conversation 41 is open and message 900 shows "1 reply · @devtool"
-      When "docs" replies in thread 900
-      Then without a reload the chip reads "2 replies · @docs" and the peek "docs: Same here."
-
-    @v1 @browser @phone
-    Scenario: One tap on the peek opens the thread
-      Given conversation 41 is open on a phone and message 900 has a reply
-      When the owner taps the peek once
-      Then the thread pane is open with the reply
-
-    @v1 @browser
-    Scenario: The thread pane has no Also send to conversation box
-      Given the owner opened the thread of message 900
-      Then the pane has a reply box and no "Also send to conversation" box
-      And a reply stays in the thread
-
-    @v1 @browser @I-14
-    Scenario: The chip has a dot while the last reply is unread
-      Given the owner replied in thread 900 and "devtool" answered
-      Then the chip shows a dot
-      When the owner reads the thread
-      Then the dot is gone, and a newer reply brings it back
+      Then the reply box is open under message 900
 
   # Owner said (msg 1202, relayed in msg 1204): "wherever a message shows 'Reply in thread', add a small count of the replies, and of the new ones. Then you can tell at a glance that a thread exists and has something new."
   Rule: Every Reply in thread shows how many replies the thread has and how many are new
 
     @v1 @browser
-    Scenario: The reply chip and the message menu show the replies and the new ones
-      Given the owner replied in thread 900, then "devtool" and "docs" answered
+    Scenario: A folded thread and the message menu show the replies and the new ones
+      Given the owner replied in thread 900, then "devtool" and "docs" answered, and a newer message 901 has a thread
       When the owner opens conversation 41
-      Then the chip of message 900 reads "3 replies · @docs · 2 new"
+      Then the thread under message 900 offers "Show all 3 replies · 2 new"
       When the owner opens the message actions of message 900
       Then "Reply in thread" shows "3 replies · 2 new"
 
     @v1 @browser
-    Scenario: Opening the thread clears the new count
-      Given the owner replied in thread 900, then "devtool" and "docs" answered
+    Scenario: Unfolding the thread clears the new count
+      Given the owner replied in thread 900, then "devtool" and "docs" answered, and a newer message 901 has a thread
       And the owner has conversation 41 open
-      When the owner opens the thread and closes it again
-      Then the chip of message 900 reads "3 replies · @docs" and "Reply in thread" shows "3 replies" with no "new"
+      When the owner unfolds thread 900
+      Then "Reply in thread" shows "3 replies" with no "new"
 
     @v1 @browser
     Scenario: A message with no replies shows no count
@@ -199,9 +211,9 @@ Feature: Threads
 
     @v1 @browser
     Scenario: A new reply brings the new count live
-      Given the owner replied in thread 900, then "devtool" answered, and the owner read the thread
+      Given the owner replied in thread 900, then "devtool" answered, the owner read the thread, and a newer message 901 has a thread
       When "docs" replies in thread 900
-      Then without a reload the chip reads "3 replies · @docs · 1 new"
+      Then without a reload the folded thread under message 900 offers "Show all 3 replies · 1 new"
 
   Rule: The Conversations list shows every thread under its conversation
 
@@ -215,7 +227,7 @@ Feature: Threads
       When the owner opens the Conversations list
       Then conversation 41 lists thread 900 under it as an indented row with its root text
       When the owner taps the row of thread 900
-      Then the thread pane is open with the replies
+      Then the conversation opens with the thread under message 900 unfolded and its reply box open
 
     @v1 @browser @I-14
     Scenario: Thread replies count on the thread's row, not the conversation's
@@ -245,12 +257,12 @@ Feature: Threads
     @v1 @browser
     Scenario: A long link in a thread stays inside its bubble
       Given the owner and "devtool" posted a message that is one very long link, in the thread and in the conversation
-      When the owner opens the conversation and the thread at 1280 and 390 px wide
-      Then every long link ends inside the bubble, the bubble ends inside the pane, and the page does not scroll sideways
+      When the owner opens the conversation and the reply box of the thread at 1280 and 390 px wide
+      Then every long link ends inside the bubble, the bubble ends inside the thread, and the page does not scroll sideways
 
     # Owner (Drew, msg 685 screenshot): the ⋯ button covered the time ("5:" cut)
     @v1 @browser
     Scenario: The message actions button does not cover the time
       Given the owner replied in thread 900, and the owner and "devtool" each posted in the conversation
       When the owner looks at the messages at 1280 and 390 px wide
-      Then no message's actions button sits over its time, in the conversation and in the thread pane
+      Then no message's actions button sits over its time, in the conversation and in the thread

@@ -124,10 +124,11 @@ scenario("Choosing a thread result opens that thread", { tag: ["@browser"] }, as
   // Given "devtool" replied "spikereply is the answer" in a thread of conversation 41
   const root = must(await agentPostWith(w.srv, w.devtool, w.conv, { body: "which step ships first" }), "root", 201).json().id as number;
   must(await agentPostWith(w.srv, w.devtool, w.conv, { body: "spikereply is the answer", thread_root_id: root }), "reply", 201);
-  const thread = page.getByRole("dialog", { name: /^Thread / }).or(page.getByRole("complementary", { name: /^Thread / }));
+  const thread = page.getByRole("region", { name: "Thread: which step ships first" });
   const opened = async () => {
     await expect(searchDialog(page)).toBeHidden();
-    await expect(thread.getByRole("log", { name: "Thread messages" }).getByRole("article").filter({ hasText: "spikereply is the answer" })).toBeVisible();
+    await expect(thread.getByRole("article").filter({ hasText: "spikereply is the answer" })).toBeVisible();
+    await expect(thread.getByRole("textbox", { name: "Reply in thread" })).toBeFocused();
   };
 
   // When the owner searches "spikereply" and chooses the thread result

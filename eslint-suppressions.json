@@ -197,17 +197,9 @@
       "count": 2
     }
   },
-  "apps/web/src/features/threads/ReplyLine.tsx": {
-    "convoz/no-raw-button": {
-      "count": 2
-    }
-  },
-  "apps/web/src/features/threads/ThreadPane.tsx": {
+  "apps/web/src/features/threads/InlineThread.tsx": {
     "convoz/no-raw-input": {
       "count": 2
-    },
-    "react-hooks/exhaustive-deps": {
-      "count": 1
     }
   },
   "apps/web/src/features/threads/ThreadRows.tsx": {
