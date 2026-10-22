@@ -109,18 +109,19 @@ func (q *Queries) CountThreadUnreadByRoot(ctx context.Context, arg CountThreadUn
 }
 
 const inThread = `-- name: InThread :many
-SELECT id FROM messages WHERE id IN (/*SLICE:ids*/?) AND thread_root_id = ?2 ORDER BY id
+SELECT id FROM messages WHERE thread_root_id = ?1 AND id IN (/*SLICE:ids*/?) ORDER BY id
 `
 
 type InThreadParams struct {
-	Ids    []int64
 	RootID sql.NullInt64
+	Ids    []int64
 }
 
 // Of these messages, the ones posted inside the thread of root.
 func (q *Queries) InThread(ctx context.Context, arg InThreadParams) ([]int64, error) {
 	query := inThread
 	var queryParams []interface{}
+	queryParams = append(queryParams, arg.RootID)
 	if len(arg.Ids) > 0 {
 		for _, v := range arg.Ids {
 			queryParams = append(queryParams, v)
@@ -129,7 +130,6 @@ func (q *Queries) InThread(ctx context.Context, arg InThreadParams) ([]int64, er
 	} else {
 		query = strings.Replace(query, "/*SLICE:ids*/?", "NULL", 1)
 	}
-	queryParams = append(queryParams, arg.RootID)
 	rows, err := q.db.QueryContext(ctx, query, queryParams...)
 	if err != nil {
 		return nil, err

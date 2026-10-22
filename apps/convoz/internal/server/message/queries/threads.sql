@@ -77,7 +77,7 @@ ORDER BY r.id;
 
 -- name: InThread :many
 -- Of these messages, the ones posted inside the thread of root.
-SELECT id FROM messages WHERE id IN (sqlc.slice(ids)) AND thread_root_id = sqlc.arg(root_id) ORDER BY id;
+SELECT id FROM messages WHERE thread_root_id = sqlc.arg(root_id) AND id IN (sqlc.slice(ids)) ORDER BY id;
 
 -- name: CountThreadUnreadByRoot :many
 -- Unread replies of many threads in one go, each thread with its own read point: pairs is a JSON array of [root_id, after].
