@@ -92,6 +92,7 @@ paths:
   /api/conversations/{id}/participants/{iid}/decline: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}~1participants~1{iid}~1decline" }
   /api/conversations/{id}/leave: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}~1leave" }
   /api/conversations/{id}/resume: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}~1resume" }
+  /api/conversations/{id}/stale: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}~1stale" }
   # ---- readstate
   /api/conversations/{id}/read: { $ref: "paths/readstate.yaml#/~1api~1conversations~1{id}~1read" }
   # ---- message
@@ -389,6 +390,7 @@ components:
     PlanAttention: { $ref: "components/plan.yaml#/PlanAttention" }
     PlanBoard: { $ref: "components/plan.yaml#/PlanBoard" }
     PlanChangedFrame: { $ref: "components/plan.yaml#/PlanChangedFrame" }
+    ConversationChangedFrame: { $ref: "components/conversation.yaml#/ConversationChangedFrame" }
     SearchPart: { $ref: "components/search.yaml#/SearchPart" }
     SearchResult: { $ref: "components/search.yaml#/SearchResult" }
     SearchConversation: { $ref: "components/search.yaml#/SearchConversation" }

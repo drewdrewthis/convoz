@@ -146,6 +146,7 @@ func conversationView(ctx context.Context, d pdb.DBTX, p authz.Principal, dir di
 		}
 		if ok {
 			out.Last = &wire.LastMessage{ID: m.ID, AuthorHandle: dir[m.AuthorID].Handle, Preview: message.Preview(previewWords(ctx, d, m))}
+			out.OwnerLast = isOwner(dir, m.AuthorID)
 		}
 	}
 	mainUnread, threadUnread, err := unreadParts(ctx, d, p.Identity(), cv, floor)
@@ -156,7 +157,10 @@ func conversationView(ctx context.Context, d pdb.DBTX, p authz.Principal, dir di
 	if out.Threads, err = threadRowsOf(ctx, d, p, dir, cv, floor); err != nil {
 		return wire.Conversation{}, err
 	}
-	out.Paused = cv.Paused()
+	out.Paused, out.Stale = cv.Paused(), cv.Stale()
+	if out.Stale {
+		out.StaleReason = cv.StaleReason
+	}
 	if cv.DeletedAt != 0 {
 		out.DeletedAt, out.PurgesAt = ptr(cv.DeletedAt), ptr(cv.DeletedAt+conversation.TrashRetention.Milliseconds())
 	}
@@ -164,6 +168,18 @@ func conversationView(ctx context.Context, d pdb.DBTX, p authz.Principal, dir di
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// isOwner says whether the identity is the owner. A conversation where the owner wrote the newest message never goes Older (#42).
+func isOwner(dir directory, id int64) bool { return dir[id].Role == "owner" }
+
+// ownerWroteLast reports whether the owner wrote the newest message of the main list.
+func ownerWroteLast(ctx context.Context, d pdb.DBTX, dir directory, cv conversation.Conversation) (bool, error) {
+	if cv.LastMessageID == 0 {
+		return false, nil
+	}
+	m, ok, err := message.Get(ctx, d, cv.LastMessageID)
+	return ok && isOwner(dir, m.AuthorID), err
+}
 
 // publishWorking sends the live-only "agent.working" frame: an agent started or stopped on a conversation.
 // A working frame carries until (unix ms), the end of the agent's claim, and is sent again when a renewal moves it.

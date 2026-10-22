@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { chatRow, isBold } from "../lib/chat-ui.ts";
-import { ownerSays } from "../lib/chat.ts";
+import { convoz, ownerSays } from "../lib/chat.ts";
 import { agentSays, apiRailWorld, between, desktopWindow, dragTo, openRail, patchPrefs, railGroup, railRow, railRows, railTitles, railWorld, rail, sectionOrder, setPrefs, signInWith, TITLES } from "../lib/rail-wp9.ts";
 import { expect, scenario } from "../lib/scenario.ts";
 import { seedDb } from "../lib/wp3.ts";
@@ -128,11 +128,11 @@ scenario("Many drags between the same two rows keep a stable order", { tag: ["@b
   await expect(railGroup(page, "Conversations").locator(".rtitle")).toHaveText(made.map((id) => names.get(id)!));
 });
 
-scenario("Conversations with no message since yesterday fold into Older", { tag: ["@browser"] }, async ({ server, page, context, dataDir }) => {
+scenario("Conversations with no message for 48 hours fold into Older", { tag: ["@browser"] }, async ({ server, page, context, dataDir }) => {
   const u = await railWorld({ server, page, context });
 
-  // Given conversation 41 is not starred and its last message was yesterday
-  ageOf(dataDir, u.c[41], 1);
+  // Given conversation 41 is not starred and its last message was 2 days ago
+  ageOf(dataDir, u.c[41], 2);
 
   // When the owner opens the rail
   await openRail(page, u.w.srv);
@@ -149,13 +149,23 @@ scenario("Conversations with no message since yesterday fold into Older", { tag:
   await expect(railGroup(page, "Older").locator(".rtitle")).toHaveText([T41]);
 });
 
-scenario("Only unstarred conversations with no message today fold into Older", { tag: ["@browser"] }, async ({ server, page, context, dataDir }) => {
+scenario("Only unstarred conversations with no message for 48 hours fold into Older", { tag: ["@browser"] }, async ({ server, page, context, dataDir }) => {
   const u = await railWorld({ server, page, context });
 
   // Given conversation 52 is not starred and its last message was today
 
   // When the owner opens the rail
   await openRail(page, u.w.srv);
+
+  // Then conversation 52 is in the Conversations group
+  await expect(railGroup(page, "Conversations").locator(".rtitle")).toHaveText([T60, T52, T41]);
+  await expect(rail(page).getByRole("button", { name: /^Older/ })).toHaveCount(0);
+
+  // Given conversation 52 is not starred and its last message was 1 day ago
+  ageOf(dataDir, u.c[52], 1);
+
+  // When the owner opens the rail
+  await page.reload();
 
   // Then conversation 52 is in the Conversations group
   await expect(railGroup(page, "Conversations").locator(".rtitle")).toHaveText([T60, T52, T41]);
@@ -170,6 +180,56 @@ scenario("Only unstarred conversations with no message today fold into Older", {
 
   // Then conversation 52 is in the Starred group
   await expect(railGroup(page, "Starred").locator(".rtitle")).toHaveText([T52]);
+  await expect(rail(page).getByRole("button", { name: /^Older/ })).toHaveCount(0);
+});
+
+scenario("An agent marks a conversation stale and the next message brings it back", { tag: ["@browser", "@cli"] }, async ({ server, page, context }) => {
+  const u = await railWorld({ server, page, context });
+
+  // Given the owner has the rail open and conversation 41 had a message today
+  await agentSays(u.w, "devtool", u.c[41], "Tests are green");
+  await openRail(page, u.w.srv);
+  await expect(railGroup(page, "Conversations").locator(".rtitle")).toHaveText([T60, T52, T41]);
+
+  // When "devtool" marks conversation 41 stale with the reason "Shipped"
+  const res = await convoz(u.w.box, u.w.sessions.devtool!.sid, ["stale", String(u.c[41]), "--reason", "Shipped"]);
+  expect(res.code, res.stderr).toBe(0);
+
+  // Then 41 moves into the collapsed group "Older · 1" without a reload
+  const older = rail(page).getByRole("button", { name: "Older · 1" });
+  await expect(older).toBeVisible();
+  await expect(railGroup(page, "Conversations").locator(".rtitle")).toHaveText([T60, T52]);
+
+  // When "devtool" posts in conversation 41
+  await agentSays(u.w, "devtool", u.c[41], "One more thing");
+
+  // Then 41 is back in the Conversations group
+  await expect(railGroup(page, "Conversations").locator(".rtitle")).toHaveText([T60, T52, T41]);
+  await expect(rail(page).getByRole("button", { name: /^Older/ })).toHaveCount(0);
+});
+
+scenario("A conversation where the owner wrote last never goes Older", { tag: ["@browser", "@cli"] }, async ({ server, page, context, dataDir }) => {
+  const u = await railWorld({ server, page, context });
+
+  // Given the owner wrote the last message in conversation 41, 3 days ago
+  await ownerSays(u.w.owner, u.c[41], "Can you check the flaky test?");
+  ageOf(dataDir, u.c[41], 3);
+
+  // When the owner opens the rail
+  await openRail(page, u.w.srv);
+
+  // Then conversation 41 is in the Conversations group
+  await expect(railGroup(page, "Conversations").locator(".rtitle")).toHaveText([T60, T52, T41]);
+  await expect(rail(page).getByRole("button", { name: /^Older/ })).toHaveCount(0);
+
+  // When "devtool" marks conversation 41 stale
+  const res = await convoz(u.w.box, u.w.sessions.devtool!.sid, ["stale", String(u.c[41])]);
+
+  // Then the CLI says the owner spoke last and conversation 41 stays in the Conversations group
+  expect(res.code).not.toBe(0);
+  expect(res.stderr).toContain("The owner wrote the last message");
+  await page.reload();
+  await expect(railGroup(page, "Conversations").locator(".rtitle")).toHaveText([T60, T52, T41]);
   await expect(rail(page).getByRole("button", { name: /^Older/ })).toHaveCount(0);
 });
 

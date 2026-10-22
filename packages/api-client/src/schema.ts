@@ -1146,6 +1146,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/conversations/{id}/stale": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * An agent in the conversation marks it stale (`convoz stale`). The rail folds it into Older at once; the next message brings it back.
+         * @description Only an agent that is a participant may mark it (403 otherwise); a person has no stale action. While the owner wrote the last
+         *     message the conversation waits on the agents and cannot go stale: 409 owner_spoke_last. The reason, when given, is kept with
+         *     the mark (stale_reason). Marking it again moves the time of the mark and replaces the reason. No system line is written.
+         */
+        post: operations["markStale"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/conversations/{id}/read": {
         parameters: {
             query?: never;
@@ -2519,6 +2541,8 @@ export interface components {
              *     rank is first; activity never changes it (I-21).
              */
             rank: number;
+            /** @description The owner wrote the newest message of the main list: the conversation waits on the agents, so it never goes Older (#42). Absent when not. */
+            owner_last?: boolean;
             started_by?: components["schemas"]["Person"];
             /** @description The linked pull request (https). */
             link_url?: string;
@@ -2545,6 +2569,10 @@ export interface components {
              * @description The caller's read cursor in the main list when the row was built; absent when it has none. The single-conversation route only. The page keeps the value from when it opened
              */
             last_read?: number;
+            /** @description An agent in it marked it stale (`convoz stale`) and no message came since. The rail folds it into Older. Absent when not. */
+            stale?: boolean;
+            /** @description Why */
+            stale_reason?: string;
             /**
              * Format: int64
              * @description In the trash since.
@@ -3362,6 +3390,13 @@ export interface components {
         };
         /** @description SSE plan.changed (people who can see the conversation); read the plans of the conversation again. */
         PlanChangedFrame: {
+            /** Format: int64 */
+            conversation_id: number;
+            /** Format: int64 */
+            prev_seq_for_you?: number;
+        };
+        /** @description SSE conversation.changed (people who can see the conversation); its row changed, for one an agent marked it stale. Read the list again. */
+        ConversationChangedFrame: {
             /** Format: int64 */
             conversation_id: number;
             /** Format: int64 */
@@ -5533,6 +5568,39 @@ export interface operations {
         };
         responses: {
             200: components["responses"]["Empty"];
+            default: components["responses"]["Error"];
+        };
+    };
+    markStale: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description Why it is stale */
+                    reason?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The conversation as the agent now sees it. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        conversation: components["schemas"]["Conversation"];
+                    };
+                };
+            };
+            409: components["responses"]["Error"];
             default: components["responses"]["Error"];
         };
     };

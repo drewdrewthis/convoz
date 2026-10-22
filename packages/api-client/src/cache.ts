@@ -195,7 +195,7 @@ export function createDataCache(source: DataSource): DataCache {
           cache.applyPrefs(frame.data);
           return true;
       }
-      // the list follows message.created, read.moved and conversation.created, a burst at a time
+      // the list follows message.created, read.moved, conversation.created and conversation.changed, a burst at a time
       if (get().conversations) {
         clearTimeout(listTimer);
         listTimer = setTimeout(() => void reloadList(), LIST_DEBOUNCE_MS);

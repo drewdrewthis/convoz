@@ -124,3 +124,6 @@ SELECT EXISTS (
 
 -- name: AddOpenAsks :exec
 UPDATE conversations SET open_ask_count = max(open_ask_count + sqlc.arg(delta), 0) WHERE id = sqlc.arg(id);
+
+-- name: MarkStale :exec
+UPDATE conversations SET stale_at = sqlc.arg(at), stale_reason = sqlc.arg(reason) WHERE id = sqlc.arg(id);

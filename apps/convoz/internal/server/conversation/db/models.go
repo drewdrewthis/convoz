@@ -28,6 +28,8 @@ type Conversation struct {
 	DeletedAt      sql.NullInt64
 	DeletedBy      sql.NullInt64
 	TitleSetBy     string
+	StaleAt        int64
+	StaleReason    string
 }
 
 type Participant struct {

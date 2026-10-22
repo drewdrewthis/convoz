@@ -50,6 +50,13 @@ func eventVisible(ctx context.Context, d pdb.DBTX, c *call, ev event.Event) (boo
 	case event.ConversationCreated:
 		_, ok, err := canSee(ctx, d, c.p, ev.Conversation)
 		return ok, err
+	case eventConversationChanged:
+		// A row changed (an agent marked it stale): a person's client reads the list again. Agents read conversations themselves.
+		if c.p.SessionID != 0 {
+			return false, nil
+		}
+		_, ok, err := canSee(ctx, d, c.p, ev.Conversation)
+		return ok, err
 	case event.ReadMoved:
 		return ev.Audience == c.p.Identity(), nil
 	}

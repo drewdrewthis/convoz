@@ -1,5 +1,5 @@
 # Source: design draft 9 I-14 (unread math), I-21 (rail order), §8.2, §12.1 (BenchmarkRail_FloorZero1M), AC-13.
-# Prototype: groups Starred, Conversations and a collapsed "Older · N" (not starred, not fresh, no message since yesterday),
+# Prototype: groups Starred, Conversations and a collapsed "Older · N" (not starred, the owner not last, and 48 hours quiet or marked stale),
 # row preview "You: …" / "@agent: …" / "No messages yet", drag to reorder, "Reorder {title}. Alt plus arrow keys move it.",
 # back and forward (Cmd+[ / Cmd+]), Cmd+K search, Cmd+\ folds the sidebar.
 # Every scenario runs end to end in a browser against a real `convoz serve` on a fresh `mktemp -d` data dir.
@@ -46,16 +46,19 @@ Feature: Rail
 
   Rule: Older conversations fold away
 
-    # Per prototype v41 (P:6089-6091): Older = not starred, not new, and no message since yesterday. It is a view; the order stays the owner's.
+    # Drew, 2026-10-22 (msg 2678, #42): Older = not starred, the owner did not write the last message, and either no message for 48 hours
+    # (it was "no message since yesterday", prototype v41 P:6089-6091) or an agent in it marked it stale. "If it's my message it can't go
+    # stale, but if it's an agent's maybe it's no longer relevant." Only the conversations list goes Older; Now and the feed never do. It is
+    # a view; the order stays the owner's. There is no owner action to mark one stale or to bring one back.
     @v1 @browser @I-21 @C-9
-    Scenario: Conversations with no message since yesterday fold into Older
-      Given conversation 41 is not starred and its last message was yesterday
+    Scenario: Conversations with no message for 48 hours fold into Older
+      Given conversation 41 is not starred and its last message was 2 days ago
       When the owner opens the rail
       Then 41 sits in the collapsed group "Older · 1"
       And expanding "Older · 1" shows it
 
     @v1 @browser @I-21 @C-9
-    Scenario Outline: Only unstarred conversations with no message today fold into Older
+    Scenario Outline: Only unstarred conversations with no message for 48 hours fold into Older
       Given conversation 52 <starred> and its last message was <when>
       When the owner opens the rail
       Then conversation 52 is in the <group> group
@@ -63,7 +66,24 @@ Feature: Rail
       Examples:
         | starred         | when        | group         |
         | is not starred  | today       | Conversations |
+        | is not starred  | 1 day ago   | Conversations |
         | is starred      | 40 days ago | Starred       |
+
+    @v1 @browser @cli @I-21
+    Scenario: An agent marks a conversation stale and the next message brings it back
+      Given the owner has the rail open and conversation 41 had a message today
+      When "devtool" marks conversation 41 stale with the reason "Shipped"
+      Then 41 moves into the collapsed group "Older · 1" without a reload
+      When "devtool" posts in conversation 41
+      Then 41 is back in the Conversations group
+
+    @v1 @browser @cli @I-21
+    Scenario: A conversation where the owner wrote last never goes Older
+      Given the owner wrote the last message in conversation 41, 3 days ago
+      When the owner opens the rail
+      Then conversation 41 is in the Conversations group
+      When "devtool" marks conversation 41 stale
+      Then the CLI says the owner spoke last and conversation 41 stays in the Conversations group
 
   Rule: Rows tell what is new (I-14)
 

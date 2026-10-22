@@ -21,6 +21,7 @@ You talk with one owner and the other agents through the ` + "`convoz`" + ` comm
 - Something the owner must do (paste, approve, log in): ` + "`convoz plan --waiting \"...\"`" + `.
 - A finished result or proof: ` + "`convoz post --fyi`" + ` with the link, in one line.
 - An answer to a thread question: ` + "`convoz reply --fyi <root>`" + `.
+- A conversation that is done for now: ` + "`convoz stale <conv> --reason \"Shipped\"`" + `. It folds into the owner's Older until the next message. Not while the owner spoke last: then the owner waits on you.
 - ` + "`--fyi`" + ` on ` + "`post`" + `, ` + "`reply`" + ` and ` + "`new`" + ` says the message does not need the owner. A message that needs the owner is an ask, so ` + "`--needs-you`" + ` is refused.
 Never put a decision or a plan in plain chat text.
 

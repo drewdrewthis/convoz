@@ -159,7 +159,7 @@ func (q *Queries) EndParticipant(ctx context.Context, arg EndParticipantParams) 
 }
 
 const getConversation = `-- name: GetConversation :one
-SELECT id, title, title_source, created_by, created_at, link_url, last_message_id, last_main_id, last_activity_at, message_count, open_ask_count, agent_streak, paused_at, pickup_opened_at, pickup_opened_by, assign_version, deleted_at, deleted_by, title_set_by FROM conversations WHERE id = ?1 AND deleted_at IS NULL
+SELECT id, title, title_source, created_by, created_at, link_url, last_message_id, last_main_id, last_activity_at, message_count, open_ask_count, agent_streak, paused_at, pickup_opened_at, pickup_opened_by, assign_version, deleted_at, deleted_by, title_set_by, stale_at, stale_reason FROM conversations WHERE id = ?1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetConversation(ctx context.Context, id int64) (Conversation, error) {
@@ -185,12 +185,14 @@ func (q *Queries) GetConversation(ctx context.Context, id int64) (Conversation, 
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.TitleSetBy,
+		&i.StaleAt,
+		&i.StaleReason,
 	)
 	return i, err
 }
 
 const getConversationAny = `-- name: GetConversationAny :one
-SELECT id, title, title_source, created_by, created_at, link_url, last_message_id, last_main_id, last_activity_at, message_count, open_ask_count, agent_streak, paused_at, pickup_opened_at, pickup_opened_by, assign_version, deleted_at, deleted_by, title_set_by FROM conversations WHERE id = ?1
+SELECT id, title, title_source, created_by, created_at, link_url, last_message_id, last_main_id, last_activity_at, message_count, open_ask_count, agent_streak, paused_at, pickup_opened_at, pickup_opened_by, assign_version, deleted_at, deleted_by, title_set_by, stale_at, stale_reason FROM conversations WHERE id = ?1
 `
 
 func (q *Queries) GetConversationAny(ctx context.Context, id int64) (Conversation, error) {
@@ -216,6 +218,8 @@ func (q *Queries) GetConversationAny(ctx context.Context, id int64) (Conversatio
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.TitleSetBy,
+		&i.StaleAt,
+		&i.StaleReason,
 	)
 	return i, err
 }
@@ -361,7 +365,7 @@ func (q *Queries) ListActiveParticipants(ctx context.Context, conversationID int
 }
 
 const listAllConversations = `-- name: ListAllConversations :many
-SELECT id, title, title_source, created_by, created_at, link_url, last_message_id, last_main_id, last_activity_at, message_count, open_ask_count, agent_streak, paused_at, pickup_opened_at, pickup_opened_by, assign_version, deleted_at, deleted_by, title_set_by FROM conversations WHERE deleted_at IS NULL
+SELECT id, title, title_source, created_by, created_at, link_url, last_message_id, last_main_id, last_activity_at, message_count, open_ask_count, agent_streak, paused_at, pickup_opened_at, pickup_opened_by, assign_version, deleted_at, deleted_by, title_set_by, stale_at, stale_reason FROM conversations WHERE deleted_at IS NULL
 ORDER BY last_activity_at DESC, id DESC LIMIT ?1
 `
 
@@ -394,6 +398,8 @@ func (q *Queries) ListAllConversations(ctx context.Context, maxRows int64) ([]Co
 			&i.DeletedAt,
 			&i.DeletedBy,
 			&i.TitleSetBy,
+			&i.StaleAt,
+			&i.StaleReason,
 		); err != nil {
 			return nil, err
 		}
@@ -409,7 +415,7 @@ func (q *Queries) ListAllConversations(ctx context.Context, maxRows int64) ([]Co
 }
 
 const listConversationsOfIdentity = `-- name: ListConversationsOfIdentity :many
-SELECT c.id, c.title, c.title_source, c.created_by, c.created_at, c.link_url, c.last_message_id, c.last_main_id, c.last_activity_at, c.message_count, c.open_ask_count, c.agent_streak, c.paused_at, c.pickup_opened_at, c.pickup_opened_by, c.assign_version, c.deleted_at, c.deleted_by, c.title_set_by FROM conversations c JOIN participants p ON p.conversation_id = c.id
+SELECT c.id, c.title, c.title_source, c.created_by, c.created_at, c.link_url, c.last_message_id, c.last_main_id, c.last_activity_at, c.message_count, c.open_ask_count, c.agent_streak, c.paused_at, c.pickup_opened_at, c.pickup_opened_by, c.assign_version, c.deleted_at, c.deleted_by, c.title_set_by, c.stale_at, c.stale_reason FROM conversations c JOIN participants p ON p.conversation_id = c.id
 WHERE p.identity_id = ?1 AND p.status = 'active' AND c.deleted_at IS NULL
 ORDER BY c.last_activity_at DESC, c.id DESC LIMIT ?2
 `
@@ -448,6 +454,8 @@ func (q *Queries) ListConversationsOfIdentity(ctx context.Context, arg ListConve
 			&i.DeletedAt,
 			&i.DeletedBy,
 			&i.TitleSetBy,
+			&i.StaleAt,
+			&i.StaleReason,
 		); err != nil {
 			return nil, err
 		}
@@ -549,7 +557,7 @@ func (q *Queries) ListPendingOfConversations(ctx context.Context) ([]ListPending
 }
 
 const listTrash = `-- name: ListTrash :many
-SELECT id, title, title_source, created_by, created_at, link_url, last_message_id, last_main_id, last_activity_at, message_count, open_ask_count, agent_streak, paused_at, pickup_opened_at, pickup_opened_by, assign_version, deleted_at, deleted_by, title_set_by FROM conversations WHERE deleted_at IS NOT NULL
+SELECT id, title, title_source, created_by, created_at, link_url, last_message_id, last_main_id, last_activity_at, message_count, open_ask_count, agent_streak, paused_at, pickup_opened_at, pickup_opened_by, assign_version, deleted_at, deleted_by, title_set_by, stale_at, stale_reason FROM conversations WHERE deleted_at IS NOT NULL
 ORDER BY deleted_at DESC, id DESC LIMIT ?1
 `
 
@@ -582,6 +590,8 @@ func (q *Queries) ListTrash(ctx context.Context, maxRows int64) ([]Conversation,
 			&i.DeletedAt,
 			&i.DeletedBy,
 			&i.TitleSetBy,
+			&i.StaleAt,
+			&i.StaleReason,
 		); err != nil {
 			return nil, err
 		}
@@ -594,6 +604,21 @@ func (q *Queries) ListTrash(ctx context.Context, maxRows int64) ([]Conversation,
 		return nil, err
 	}
 	return items, nil
+}
+
+const markStale = `-- name: MarkStale :exec
+UPDATE conversations SET stale_at = ?1, stale_reason = ?2 WHERE id = ?3
+`
+
+type MarkStaleParams struct {
+	At     int64
+	Reason string
+	ID     int64
+}
+
+func (q *Queries) MarkStale(ctx context.Context, arg MarkStaleParams) error {
+	_, err := q.db.ExecContext(ctx, markStale, arg.At, arg.Reason, arg.ID)
+	return err
 }
 
 const purgeTrashBefore = `-- name: PurgeTrashBefore :execrows

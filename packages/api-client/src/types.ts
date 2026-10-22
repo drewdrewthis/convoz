@@ -35,6 +35,7 @@ export type PlanBoard = S["PlanBoard"];
 export type PlanAgent = S["PlanAgent"];
 export type PlanAttention = S["PlanAttention"];
 export type PlanChangedFrame = S["PlanChangedFrame"];
+export type ConversationChangedFrame = S["ConversationChangedFrame"];
 export type SyncEvent = S["SyncEvent"];
 export type SyncAnswer = S["SyncAnswer"];
 export type SyncDelta = S["SyncDelta"];
@@ -90,6 +91,8 @@ export interface StreamFrames {
   "agent.status_changed": AgentStatusChangedFrame;
   /** A plan in a conversation changed, or an agent's liveness there did: read the plans again. */
   "plan.changed": PlanChangedFrame;
+  /** A conversation's row changed (an agent marked it stale): read the list again. */
+  "conversation.changed": ConversationChangedFrame;
 }
 export type FrameName = keyof StreamFrames;
 /** One frame: its name and its payload, so a switch on `name` narrows `data`. */
@@ -112,4 +115,5 @@ export const FRAME_NAMES = [
   "pin.changed",
   "agent.status_changed",
   "plan.changed",
+  "conversation.changed",
 ] as const satisfies readonly FrameName[];

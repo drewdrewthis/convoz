@@ -48,10 +48,15 @@ type Conversation struct {
 	PausedAt       int64
 	DeletedAt      int64
 	DeletedBy      int64
+	StaleAt        int64  // when an agent marked it stale; it counts only while no message came after (see Stale)
+	StaleReason    string // the agent's why with the last mark; may be empty
 }
 
 // Paused reports whether the loop breaker has stopped the agents (I-16).
 func (c Conversation) Paused() bool { return c.PausedAt != 0 }
+
+// Stale reports whether an agent's stale mark still holds: no message moved the conversation since it was marked.
+func (c Conversation) Stale() bool { return c.StaleAt != 0 && c.StaleAt >= c.LastActivityAt }
 
 // Participant is an active member and the first message it may see (0 = all history).
 type Participant struct {
@@ -97,7 +102,7 @@ func fromRow(r db.Conversation) Conversation {
 		ID: r.ID, Title: r.Title.String, TitleManual: r.TitleSource == "manual", TitleSetBy: r.TitleSetBy, CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, LinkURL: r.LinkUrl.String,
 		LastMessageID: r.LastMessageID, LastMainID: r.LastMainID, LastActivityAt: r.LastActivityAt, MessageCount: r.MessageCount,
 		AgentStreak: r.AgentStreak, PausedAt: r.PausedAt.Int64,
-		DeletedAt: r.DeletedAt.Int64, DeletedBy: r.DeletedBy.Int64,
+		DeletedAt: r.DeletedAt.Int64, DeletedBy: r.DeletedBy.Int64, StaleAt: r.StaleAt, StaleReason: r.StaleReason,
 	}
 }
 
@@ -231,6 +236,15 @@ func NameFromFile(ctx context.Context, d pdb.DBTX, id int64, filename string) er
 // Touch moves the conversation up the list without counting a message (a system line).
 func Touch(ctx context.Context, d pdb.DBTX, now time.Time, id int64) error {
 	return db.New(d).TouchActivity(ctx, db.TouchActivityParams{At: now.UnixMilli(), ID: id})
+}
+
+// MaxStaleReasonRunes is the longest reason a stale mark keeps.
+const MaxStaleReasonRunes = 200
+
+// MarkStale records that an agent called the conversation done for now, and why (reason may be empty, at most MaxStaleReasonRunes,
+// cleaned like an agent's title); the rail folds it into Older until the next message.
+func MarkStale(ctx context.Context, d pdb.DBTX, now time.Time, id int64, reason string) error {
+	return db.New(d).MarkStale(ctx, db.MarkStaleParams{At: now.UnixMilli(), Reason: reason, ID: id})
 }
 
 // Rename sets a title that by (TitleHuman or TitleAgent) chose. Later messages never change it (the source is "manual").

@@ -16,4 +16,5 @@ var conversationRoutes = []Route{
 	{Method: "DELETE", Pattern: "/api/conversations/:id/participants/:iid", Auth: authz.Human, Lease: true, handle: (*Server).removeParticipant},
 	{Method: "POST", Pattern: "/api/conversations/:id/join-requests", Auth: authz.Lease, handle: (*Server).requestJoin},
 	{Method: "POST", Pattern: "/api/conversations/:id/leave", Auth: authz.Human, Lease: true, handle: (*Server).leaveConversation},
+	{Method: "POST", Pattern: "/api/conversations/:id/stale", Auth: authz.Lease, Scope: "post", handle: (*Server).markStale},
 }

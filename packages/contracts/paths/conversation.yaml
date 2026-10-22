@@ -205,6 +205,37 @@
     responses:
       "200": { $ref: "../openapi.yaml#/components/responses/Empty" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/conversations/{id}/stale:
+  post:
+    x-authz: { auth: lease, scope: post }
+    security: [{ leaseBearer: [] }]
+    operationId: markStale
+    summary: An agent in the conversation marks it stale (`convoz stale`). The rail folds it into Older at once; the next message brings it back.
+    description: |
+      Only an agent that is a participant may mark it (403 otherwise); a person has no stale action. While the owner wrote the last
+      message the conversation waits on the agents and cannot go stale: 409 owner_spoke_last. The reason, when given, is kept with
+      the mark (stale_reason). Marking it again moves the time of the mark and replaces the reason. No system line is written.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody:
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              reason: { type: string, maxLength: 200, description: Why it is stale, in a few words. Control and bidi characters are dropped. }
+    responses:
+      "200":
+        description: The conversation as the agent now sees it.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [conversation]
+              properties:
+                conversation: { $ref: "../openapi.yaml#/components/schemas/Conversation" }
+      "409": { $ref: "../openapi.yaml#/components/responses/Error" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/conversations/{id}/resume:
   post:
     x-authz: { auth: human, lease: refuse }

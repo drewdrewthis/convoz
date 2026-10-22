@@ -52,17 +52,20 @@ type Conversation struct {
 	Threads        []ThreadRow  `json:"threads,omitempty"` // the threads with a reply, newest reply first
 	Starred        bool         `json:"starred"`
 	Rank           float64      `json:"rank"`
+	OwnerLast      bool         `json:"owner_last,omitempty"` // the owner wrote the newest message of the main list: it never goes Older (#42)
 
-	StartedBy  *Person      `json:"started_by,omitempty"`
-	LinkURL    *string      `json:"link_url,omitempty"`
-	MutedUntil *int64       `json:"muted_until,omitempty"`
-	Pinned     *[]Message   `json:"pinned,omitempty"`
-	Paused     bool         `json:"paused,omitempty"`
-	Pending    []PendingAdd `json:"pending,omitempty"`
-	Seen       []Seen       `json:"seen,omitempty"`      // agents that saw the newest message a person wrote in the main list
-	LastRead   *int64       `json:"last_read,omitempty"` // the caller's read cursor in the main list, as it stands now
-	DeletedAt  *int64       `json:"deleted_at,omitempty"`
-	PurgesAt   *int64       `json:"purges_at,omitempty"`
+	StartedBy   *Person      `json:"started_by,omitempty"`
+	LinkURL     *string      `json:"link_url,omitempty"`
+	MutedUntil  *int64       `json:"muted_until,omitempty"`
+	Pinned      *[]Message   `json:"pinned,omitempty"`
+	Paused      bool         `json:"paused,omitempty"`
+	Stale       bool         `json:"stale,omitempty"`        // an agent marked it stale and no message came since: the rail folds it into Older
+	StaleReason string       `json:"stale_reason,omitempty"` // why, when the agent said so (only while Stale)
+	Pending     []PendingAdd `json:"pending,omitempty"`
+	Seen        []Seen       `json:"seen,omitempty"`      // agents that saw the newest message a person wrote in the main list
+	LastRead    *int64       `json:"last_read,omitempty"` // the caller's read cursor in the main list, as it stands now
+	DeletedAt   *int64       `json:"deleted_at,omitempty"`
+	PurgesAt    *int64       `json:"purges_at,omitempty"`
 }
 
 // Message is one message of a page. The fields after CreatedAt are set only when they apply (a system line, a reply, an

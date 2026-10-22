@@ -29,7 +29,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Plans: what each agent is doing, what is next and what waits on the owner](#plans-what-each-agent-is-doing-what-is-next-and-what-waits-on-the-owner) (24)
 - [Platform rules every module relies on](#platform-rules-every-module-relies-on) (2)
 - [Poor connections](#poor-connections) (11)
-- [Rail](#rail) (13)
+- [Rail](#rail) (15)
 - [Search](#search) (12)
 - [Security walls](#security-walls) (12)
 - [Settings](#settings) (9)
@@ -782,7 +782,7 @@ I can trust it from anywhere.
 ## Rail
 
 Things stay where I put them and unread work stands out.
-13 scenarios.
+15 scenarios.
 
 - **Order is the owner's, never the activity's (I-21)**
   - [A new conversation goes to the top](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L20)
@@ -791,16 +791,18 @@ Things stay where I put them and unread work stands out.
   - [The keyboard can reorder the rail](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L36)
   - [Many drags between the same two rows keep a stable order](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L42)
 - **Older conversations fold away**
-  - [Conversations with no message since yesterday fold into Older](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L51)
-  - [Only unstarred conversations with no message today fold into Older](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L58)
+  - [Conversations with no message for 48 hours fold into Older](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L54)
+  - [Only unstarred conversations with no message for 48 hours fold into Older](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L61)
+  - [An agent marks a conversation stale and the next message brings it back](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L73)
+  - [A conversation where the owner wrote last never goes Older](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L81)
 - **Rows tell what is new (I-14)**
-  - [The row preview names the last writer](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L71)
-  - [Unread conversations are bold with a count](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L83)
+  - [The row preview names the last writer](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L91)
+  - [Unread conversations are bold with a count](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L103)
 - **The rail is quick to move around**
-  - [Back and forward move between visited conversations](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L92)
-  - [Cmd+K opens search from anywhere](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L98)
-  - [The owner folds the sidebar and it stays folded](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L104)
-  - [The question mark opens the shortcut list](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L114)
+  - [Back and forward move between visited conversations](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L112)
+  - [Cmd+K opens search from anywhere](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L118)
+  - [The owner folds the sidebar and it stays folded](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L124)
+  - [The question mark opens the shortcut list](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L134)
 
 ## Search
 

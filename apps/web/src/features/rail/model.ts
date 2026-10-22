@@ -11,13 +11,16 @@ export interface Groups {
 /** A section keeps the owner's order: the higher rank first, activity never matters (I-21). */
 export const byRank = (a: Conversation, b: Conversation): number => b.rank - a.rank || b.id - a.id;
 
+/** How long a conversation may go without a message before it folds into Older (Drew, 2026-10-22). */
+export const OLDER_AFTER_MS = 48 * 3_600_000;
+
 /**
- * isOlder is the prototype v41 rule: not starred, and no message since yesterday (its last activity is before this morning, in the
- * owner's own time zone). A new conversation with no message yet was made today, so it is never Older.
+ * isOlder: not starred, the owner did not write the newest message (that one waits on the agents, #42), and either no message for
+ * 48 hours or an agent in it marked it stale since its last message (the server says so in `stale`; the next message clears it). A
+ * new conversation with no message yet counts from when it was made.
  */
 export function isOlder(c: Conversation, now = Date.now()): boolean {
-  const morning = new Date(now).setHours(0, 0, 0, 0);
-  return !c.starred && c.last_activity_at < morning;
+  return !c.starred && !c.owner_last && (c.stale === true || c.last_activity_at < now - OLDER_AFTER_MS);
 }
 
 /** groups splits the list into Starred, Conversations and Older. Every group is in the owner's order (desktop and phone alike). */
