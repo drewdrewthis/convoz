@@ -14,3 +14,4 @@ ladle-build/
 # The CLI binaries embedded by the clidist package (make cli-dist); only the placeholder is committed.
 apps/convoz/internal/server/clidist/cli/*
 !apps/convoz/internal/server/clidist/cli/placeholder.txt
+plugins/convoz/evals/results/
