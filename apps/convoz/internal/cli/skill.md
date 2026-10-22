@@ -1,6 +1,6 @@
 ---
 name: convoz
-description: REQUIRED for all Convoz work. Load this BEFORE you run any `convoz` command, and whenever a Convoz watch line, inbox item or @mention reaches you. It tells you to read the current Convoz rules first. Agents that skip it bury the owner's decisions in chat.
+description: REQUIRED for all Convoz work. Load it BEFORE any `convoz` command, and when a Convoz watch line, inbox item or @mention reaches you; it tells you to read the current rules first. How to use it - send every reply and update through Convoz (post, reply, plan, status), never only in your terminal; put an owner decision in `convoz ask`, never in plain chat; for a complex idea, build a mini app (`convoz app init`) or ask the owner if they want one; clean up after yourself - mark finished conversations stale and leave no open ask, plan or stray file behind.
 ---
 
 # Convoz
