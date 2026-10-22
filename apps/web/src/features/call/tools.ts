@@ -37,10 +37,11 @@ const MOST_TEXT = 2000;
 const MOST_QUERY = 200;
 
 /**
- * The triage call's writes: each only plans, reads back and holds, which changes nothing, so it runs after a read too ("find X and post
- * Y" is one sentence). confirm_action runs the held one only after the owner's yes (writes.ts).
+ * The triage call's writes. Each plans first, which changes nothing, so it can follow a read ("find X and post Y" is one sentence). It
+ * then runs at once when the owner's own words are the latest input to the model (no message text read since, OwnerIntent.spend);
+ * otherwise it reads back and holds, and confirm_action runs it only after the owner's yes (writes.ts).
  */
-const PLANNED = new Set(["post_message", "reply_in_thread", "answer_ask", "snooze_ask", "mark_stale", "star_conversation"]);
+const PLANNED = new Set(["post_message", "reply_in_thread", "answer_ask", "snooze_ask", "mark_stale", "star_conversation", "start_conversation", "message_agent"]);
 /**
  * The tools that change something at once. Each runs only when the owner's own speech is the latest input to the model (OwnerIntent):
  * an agent's words (a reply, or a read that returns them) clear it. confirm_action also needs a word from him after the read-back
@@ -106,6 +107,19 @@ export async function runTool(deps: ToolDeps, name: string, args: Record<string,
       const text = words(args?.text);
       return root && text ? plan(deps, turn, (p) => p.reply(root, text)) : { response: { error: "name the message and the words" } };
     }
+    case "start_conversation": {
+      const title = String(args?.title ?? "").trim();
+      const text = words(args?.text);
+      const handles = agentsOf(deps, args?.agents);
+      if (!handles) return { response: { error: "no such agent" } };
+      return title && text ? plan(deps, turn, (p) => p.start(title, handles, text)) : { response: { error: "name the conversation and the first message" } };
+    }
+    case "message_agent": {
+      const handle = agentsOf(deps, [args?.handle])?.[0];
+      const text = words(args?.text);
+      if (!handle) return { response: { error: "no such agent" } };
+      return text ? plan(deps, turn, (p) => p.messageAgent(handle, text)) : { response: { error: "nothing to say" } };
+    }
     case "answer_ask": {
       const ask = idOf(args?.ask_id);
       const option = idOf(args?.option) ?? 0;
@@ -169,18 +183,30 @@ async function read<A extends unknown[]>(intent: OwnerIntent, run: ((...a: A) =>
   }
 }
 
+/** The known agents a tool names, as the deps spell them; null when any name is not an agent. */
+function agentsOf(deps: ToolDeps, named: unknown): string[] | null {
+  const known = deps.agents();
+  const found = (Array.isArray(named) ? named : []).map((h) => known.find((a) => a.toLowerCase() === clean(h)));
+  return found.every((a): a is string => Boolean(a)) ? found : null;
+}
+
 const idOf = (v: unknown): number | undefined => Math.trunc(Number(v)) || undefined;
 /** Not cut: a plan refuses words too long to read back whole (writes.ts MOST_SAID). */
 const words = (v: unknown): string => String(v ?? "").trim();
 
 /**
- * plan reads what one write names and holds it for the owner's yes; the model gets the read-back to say. A failed read says why in
- * words, and holds nothing. `turn` is the one runTool dropped into, so a cancel that came during the read wins.
+ * plan reads what one write names. If the owner's own words are still the latest input to the model it runs at once and the model gets
+ * what was done to say; otherwise the owner hears the read-back and the write is held for his yes. A failed read says why in words, and
+ * holds nothing. `turn` is the one runTool dropped into, so a cancel that came during the read wins.
  */
 async function plan(deps: ToolDeps, turn: number | undefined, make: (p: Plans) => Promise<Planned>): Promise<ToolResult> {
   if (!deps.plans || !deps.held || turn === undefined) return { response: { error: "no such tool" } };
   try {
     const planned = await make(deps.plans);
+    if (deps.intent.spend()) {
+      const done = await planned.run();
+      return { response: { done, next: "Tell the owner what was done in one short sentence. Do not ask him to confirm." }, cue: done };
+    }
     if (!deps.held.hold(turn, planned, deps.intent.spoken)) return { response: { error: "dropped: a newer word from the owner came first" } };
     return { response: { pending: true, read_back: planned.readBack, next: READ_BACK } };
   } catch (err) {

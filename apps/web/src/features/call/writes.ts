@@ -74,6 +74,8 @@ const MOST_QUOTE = 120;
 const quote = (text: string): string => `"${text.length > MOST_QUOTE ? text.slice(0, MOST_QUOTE - 1) + "…" : text}"`;
 /** The most characters the call writes in the owner's name: he hears every one of them read back before his yes. */
 export const MOST_SAID = 300;
+/** The most characters of a new conversation's title when the call has none to give (message_agent with no conversation yet). */
+const MOST_TITLE = 60;
 /** The words the write sends, whole; longer than MOST_SAID they are refused, never cut: what is read back is what is sent. */
 const said = (text: string): string => {
   if (text.length > MOST_SAID) throw new Spoken("That is too long to read back. Say it in fewer words.");
@@ -101,18 +103,38 @@ async function openAsk(id: number) {
   return { ask, where: (await conversation(ask.conversation_id, "")).title, what: `@${ask.asker.handle}'s ask ${quote(ask.question)}` };
 }
 
+/** The agents tagged at the start of a message ("@dot @ops text"): a tag wakes the agent. */
+const tagged = (handles: string[], text: string): string => [...handles.map((h) => `@${h}`), text].join(" ");
+const names = (handles: string[]): string => handles.map((h) => `@${h}`).join(" and ");
+
+/** A new conversation with these agents, and its first message from @voice. */
+function startPlan(title: string, handles: string[], text: string): Planned {
+  const quoted = said(text);
+  const who = handles.length ? ` with ${names(handles)}` : "";
+  return {
+    readBack: `I will start "${title}"${who} and post ${quoted}. Say yes to send.`,
+    run: async () => {
+      const { conversation: made } = await call(client.POST("/api/conversations", { body: { client_id: newId(), title, participants: handles } }));
+      await postAsVoice(made.id, tagged(handles, text));
+      return `Started "${title}"${who} and posted ${quoted}.`;
+    },
+  };
+}
+
 /** The writes a triage call can plan; each reads what it names first, so the read-back says the title and the words. */
 export const plans = {
   async post(id: number | undefined, title: string, text: string): Promise<Planned> {
     const c = await conversation(id, title);
-    return { readBack: `I will post ${said(text)} in ${c.title}. Say yes to send.`, run: () => postAsVoice(c.id, text).then(() => `Posted in ${c.title}.`) };
+    const quoted = said(text);
+    return { readBack: `I will post ${quoted} in ${c.title}. Say yes to send.`, run: () => postAsVoice(c.id, text).then(() => `Posted ${quoted} in ${c.title}.`) };
   },
 
   async reply(root: number, text: string): Promise<Planned> {
     const thread = await call(client.GET("/api/messages/{id}/replies", { params: { path: { id: root }, query: { limit: 1 } } }));
     const c = await conversation(thread.conversation_id, "");
     const of = `@${thread.root.author.handle}'s message ${quote(thread.root.body ?? "")}`;
-    return { readBack: `I will reply ${said(text)} to ${of} in ${c.title}. Say yes to send.`, run: () => postAsVoice(c.id, text, root).then(() => `Replied in ${c.title}.`) };
+    const quoted = said(text);
+    return { readBack: `I will reply ${quoted} to ${of} in ${c.title}. Say yes to send.`, run: () => postAsVoice(c.id, text, root).then(() => `Replied ${quoted} in ${c.title}.`) };
   },
 
   /** option 1 is the recommended one, 2 and on the alternatives; words instead answer in the owner's own words. */
@@ -128,6 +150,25 @@ export const plans = {
         if (r.lost) throw new Spoken("That ask changed meanwhile, so it was not answered. Read it again.");
         return `Answered in ${where}.`;
       },
+    };
+  },
+
+  async start(title: string, handles: string[], text: string): Promise<Planned> {
+    return startPlan(title, handles, text);
+  },
+
+  /** In the newest conversation the agent is in, tagging it; a new conversation when there is none. */
+  async messageAgent(handle: string, text: string): Promise<Planned> {
+    const { conversations } = await call(client.GET("/api/conversations"));
+    const found = conversations
+      .filter((c) => c.participants.some((p) => p.kind === "agent" && p.handle === handle))
+      .sort((a, b) => b.last_activity_at - a.last_activity_at)[0];
+    if (!found) return startPlan(text.slice(0, MOST_TITLE), [handle], text);
+    const quoted = said(text);
+    const where = found.title || "the conversation with no title";
+    return {
+      readBack: `I will post ${quoted} to @${handle} in ${where}. Say yes to send.`,
+      run: () => postAsVoice(found.id, tagged([handle], text)).then(() => `Posted ${quoted} to @${handle} in ${where}.`),
     };
   },
 

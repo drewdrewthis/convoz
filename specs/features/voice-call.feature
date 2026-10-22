@@ -187,13 +187,14 @@ Feature: Voice call
       Then no conversation shows a message to "@dot"
       And the call answers the model that there is no such tool
 
-    # Phase 2 (convoz#43): a write the model asks for does nothing at once. The call reads it back ("I will post 'X' in Y. Say yes to
-    # send.") and holds it; confirm_action after the owner's yes runs it once. cancel_action, or any new write, drops it. A refusal of
+    # Phase 2 (convoz#43): a write the owner asked for in his own words runs at once and the model says what was done (owner, first call
+    # 2026-10-22: "you don't need to ask for confirmation every time"). When the model read message text after his last words, the write
+    # does nothing at once: the call reads it back ("I will post 'X' in Y. Say yes to send.") and holds it; confirm_action after the owner's yes runs it once. cancel_action, or any new write, drops it. A refusal of
     # the server comes back to the model as one short sentence it can say, never as a crash of the call.
     @v1 @browser
-    Scenario: The model posts in a conversation only after the owner says yes
+    Scenario: The model posts in a conversation only after the owner says yes to its read-back
       Given the owner is on a Now call
-      When the owner says "post ship it in search filters" and the model asks for post_message with "Ship it" in "search filters"
+      When the owner says "post ship it in search filters", the model reads the conversations and asks for post_message with "Ship it" in "search filters"
       Then the answer to the model reads back "I will post "Ship it" in Ship search filters. Say yes to send."
       And @voice has posted nothing in conversation 41
       When the owner says "yes" and the model asks for confirm_action
@@ -203,10 +204,10 @@ Feature: Voice call
       And conversation 41 holds @voice's "Ship it" once
 
     @v1 @browser
-    Scenario: The model replies in a thread only after the owner says yes
+    Scenario: The model replies in a thread only after the owner says yes to its read-back
       Given "dot" posted "Deploy is at 14:00" in conversation 41
       And the owner is on a Now call
-      When the owner says "reply thanks" and the model asks for reply_in_thread on that message with "Thanks"
+      When the owner says "reply thanks", the model reads the conversations and asks for reply_in_thread on that message with "Thanks"
       Then the answer to the model reads back the reply "Thanks", the message "Deploy is at 14:00" from "dot" and "Ship search filters"
       And the thread of that message has no reply
       When the owner says "yes" and the model asks for confirm_action
@@ -216,7 +217,7 @@ Feature: Voice call
     Scenario: Cancel drops a write the owner has not said yes to
       Given "dot" posted "Deploy is at 14:00" in conversation 41
       And the owner is on a Now call
-      When the owner says "reply thanks" and the model asks for reply_in_thread on that message with "Thanks"
+      When the owner says "reply thanks", the model reads the conversations and asks for reply_in_thread on that message with "Thanks"
       And the owner says "no" and the model asks for cancel_action
       And the model asks for confirm_action
       Then the answer to the model says nothing waits for a yes
@@ -226,18 +227,18 @@ Feature: Voice call
     Scenario: The model answers an ask only after the owner says yes, and a new write drops the one before
       Given "dot" asked "Merge #415 on its own?" in conversation 41, with "Merge it" recommended and "Hold it" the alternative
       And the owner is on a Now call
-      When the owner says "merge it" and the model asks for answer_ask on that ask with option 1
+      When the owner says "merge it", the model reads the conversations and asks for answer_ask on that ask with option 1
       Then the answer to the model reads back "Merge #415 on its own?", "Ship search filters" and "Merge it"
       And the ask is still open
-      When the owner says "no, hold it" and the model asks for answer_ask on that ask with option 2
+      When the owner says "no, hold it", the model reads the conversations and asks for answer_ask on that ask with option 2
       And the owner says "yes" and the model asks for confirm_action
       Then the ask is answered with "Hold it"
 
     @v1 @browser
-    Scenario: The model marks a conversation stale only after the owner says yes
+    Scenario: The model marks a conversation stale only after the owner says yes to its read-back
       Given "dot" posted "Shipped, nothing left" in conversation 41
       And the owner is on a Now call
-      When the owner says "search filters is done" and the model asks for mark_stale on "search filters"
+      When the owner says "search filters is done", the model reads the conversations and asks for mark_stale on "search filters"
       Then the answer to the model reads back "I will mark Ship search filters stale. Say yes to mark it."
       And conversation 41 is not stale
       When the owner says "yes" and the model asks for confirm_action
@@ -247,10 +248,53 @@ Feature: Voice call
     Scenario: A write the server refuses comes back as a short sentence
       Given the owner wrote the last message in conversation 41
       And the owner is on a Now call
-      When the owner says "search filters is done" and the model asks for mark_stale on "search filters"
+      When the owner says "search filters is done", the model reads the conversations and asks for mark_stale on "search filters"
       And the owner says "yes" and the model asks for confirm_action
       Then the answer to the model is the error "You wrote the last message there, so it cannot go stale."
       And conversation 41 is not stale and the call is still live
+
+    @v1 @browser
+    Scenario: A write the owner asked for directly runs at once
+      Given the owner is on a Now call
+      When the owner says "post ship it in search filters" and the model asks for post_message with "Ship it" in "search filters"
+      Then the answer to the model is done: Posted "Ship it" in Ship search filters.
+      And @voice's message "Ship it" is in conversation 41
+
+    @v1 @browser
+    Scenario: The owner's words pay for one write only
+      Given the owner is on a Now call
+      When the owner says "post ship it in search filters" and the model asks for post_message twice
+      Then the first answer is done and the second reads back and holds the write
+      And conversation 41 holds @voice's "Ship it" once
+
+    @v1 @browser
+    Scenario: A read after a new reply sees the reply
+      Given the owner is on a Now call
+      When the model reads the conversation "search filters" and "dot" then posts "Merged" there
+      And the model reads the conversation "search filters" again
+      Then the second answer holds "Merged" and the first does not
+
+    @v1 @browser
+    Scenario: The model starts a conversation and tags an agent in its first message
+      Given the owner is on a Now call
+      When the owner says "start wired up with dot" and the model asks for start_conversation titled "Wired up" with "we wired it up" and the agent "dot"
+      Then the answer to the model is done: Started "Wired up" with @dot and posted "we wired it up".
+      And the conversation "Wired up" holds @voice's message "@dot we wired it up" and has "dot" in it
+
+    @v1 @browser
+    Scenario: The model messages an agent in its newest conversation, or in a new one
+      Given the owner is on a Now call
+      When the owner says "tell dot it is wired" and the model asks for message_agent to "dot" with "it is wired"
+      Then conversation 41 holds @voice's message "@dot it is wired"
+      When the owner says "tell ops hi" and the model asks for message_agent to "ops" with "hi"
+      Then a new conversation holds @voice's message "@ops hi" and has "ops" in it
+      And a name that is not an agent is answered with no such agent
+
+    @v1 @browser
+    Scenario: The model speaks after a tool answer
+      Given the owner is on a Now call
+      When the model asks for list_conversations
+      Then the answer is sent to the model with the scheduling WHEN_IDLE, so that it speaks next instead of waiting for the owner
 
     # The owner's yes is enforced in code, not left to the model: confirm_action runs a held write only when the owner has spoken
     # since it was read back, and after a read that returns agents' words (it clears the owner's order). Holding a write changes
@@ -258,8 +302,8 @@ Feature: Voice call
     @v1 @browser
     Scenario: A confirm in the same model turn as its write is refused
       Given the owner is on a Now call
-      When the owner says "post ship it in search filters" and the model, in one turn, asks for post_message with "Ship it" in "search filters" and then confirm_action
-      Then the answer to confirm_action is that the owner has not said yes since the read-back
+      When the owner says "post ship it in search filters", the model reads the conversations, and in one turn asks for post_message with "Ship it" in "search filters" and then confirm_action
+      Then the answer to confirm_action is that only the owner can ask
       And @voice has posted nothing in conversation 41
       When the owner says "yes" and the model asks for confirm_action
       Then @voice's message "Ship it" is in conversation 41
@@ -279,9 +323,9 @@ Feature: Voice call
     @v1 @browser
     Scenario: Words are read back whole, and words too long to read back are refused
       Given the owner is on a Now call
-      When the owner says "post the notes in search filters" and the model asks for post_message with 300 characters in "search filters"
+      When the owner says "post the notes in search filters", the model reads the conversations and asks for post_message with 300 characters in "search filters"
       Then the answer to the model reads back all 300 characters
-      When the owner says "longer" and the model asks for post_message with 301 characters in "search filters"
+      When the owner says "longer", the model reads the conversations and asks for post_message with 301 characters in "search filters"
       Then the answer to the model is the error "That is too long to read back. Say it in fewer words."
       And when the owner says "yes" and the model asks for confirm_action, nothing waits for a yes
       And @voice has posted nothing in conversation 41
@@ -320,7 +364,7 @@ Feature: Voice call
     @v1 @browser
     Scenario: A message the call sends comes from @voice, not the owner
       Given the owner is on a Now call
-      When the owner says "post ship it in search filters" and the model asks for post_message with "Ship it" in "search filters"
+      When the owner says "post ship it in search filters", the model reads the conversations and asks for post_message with "Ship it" in "search filters"
       And the owner says "yes" and the model asks for confirm_action
       Then conversation 41 shows "Ship it" from "Voice" @voice, with no "via voice call" mark
       And the server holds "Ship it" from the agent "voice", and the owner has posted nothing in conversation 41

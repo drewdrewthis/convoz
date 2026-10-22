@@ -17,7 +17,7 @@ test.use({ launchOptions: fakeMic });
 const GOOGLE = "generativelanguage.googleapis.com";
 /** The tools of a Now call: its reads, then its writes (each held for the owner's yes, voice-call-writes.spec.ts). */
 const READS = ["read_now", "list_conversations", "search_messages", "read_conversation", "agent_status"];
-const WRITES = ["post_message", "reply_in_thread", "answer_ask", "snooze_ask", "mark_stale", "star_conversation", "confirm_action", "cancel_action"];
+const WRITES = ["post_message", "start_conversation", "message_agent", "reply_in_thread", "answer_ask", "snooze_ask", "mark_stale", "star_conversation", "confirm_action", "cancel_action"];
 
 // ---- the feature ---------------------------------------------------------------------------------------
 
@@ -296,7 +296,7 @@ scenario("The owner gets a Now token that locks the triage instructions and tool
 
   // And the instructions tell the model to say each read-back and to call confirm_action only on the owner's yes
   expect(words).toMatch(/read_back to him word for word/);
-  expect(words).toMatch(/Call confirm_action only when he says yes/);
+  expect(words).toMatch(/[Cc]all confirm_action only when he says yes/);
 
   // And no "ask_agent" is offered
   expect(names).not.toContain("ask_agent");

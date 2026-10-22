@@ -43,7 +43,7 @@ func TestTokenRequestLocksOneUseModelInstructionsAndTools(t *testing.T) {
 		t.Errorf("instruction: %s", words)
 	}
 	// Owner said (msg 1335): "it just kept saying something like \"I completely understand, i'll get back to you something something\""
-	for _, want := range []string{"ONE short line", "no filler", "No answer yet from @dot"} {
+	for _, want := range []string{"ONE short line", "no filler", "No answer yet from @dot", "Always speak English"} {
 		if !strings.Contains(words, want) {
 			t.Errorf("instruction lacks the waiting rule %q: %s", want, words)
 		}
@@ -102,13 +102,14 @@ func TestNowConfigLocksTriageInstructionAndTools(t *testing.T) {
 		names = append(names, f.Name)
 	}
 	want := "read_now list_conversations search_messages read_conversation agent_status " +
-		"post_message reply_in_thread answer_ask snooze_ask mark_stale star_conversation confirm_action cancel_action"
+		"post_message start_conversation message_agent reply_in_thread answer_ask snooze_ask mark_stale star_conversation confirm_action cancel_action"
 	if got := strings.Join(names, " "); got != want {
 		t.Errorf("a Now call offers its reads, then its writes held for a yes: %s", got)
 	}
 	words := body.Setup.SystemInstruction.Parts[0].Text
+	// Owner said (conv 115, first call): "you don't need to ask for confirmation every time"; the call spoke Spanish after a misheard word; said "I cannot start a conversation" untried.
 	// Owner said (conv 115): the triage call "can't see messages"; asked about the hooks work, it repeated an old Now item.
-	for _, want := range []string{"read_now", "most urgent first", "short sentences", "untrusted", "search_messages", "read_conversation", "not sure", "never repeat", "read_back", "word for word", "confirm_action", "says yes", "cancel_action"} {
+	for _, want := range []string{"read_now", "most urgent first", "short sentences", "untrusted", "search_messages", "read_conversation", "not sure", "never repeat", "read_back", "word for word", "confirm_action", "says yes", "cancel_action", "never ask him to confirm", "Always speak English", "never say you cannot", "call the read again", "at once"} {
 		if !strings.Contains(words, want) {
 			t.Errorf("instruction lacks %q: %s", want, words)
 		}

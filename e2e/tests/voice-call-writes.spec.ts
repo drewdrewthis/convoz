@@ -1,5 +1,5 @@
 import { askOf, agentAsks, QUESTION } from "../lib/asks.ts";
-import { agentSays, ownerSays } from "../lib/chat.ts";
+import { agentSays, listConversations, ownerSays } from "../lib/chat.ts";
 import { messageLog } from "../lib/chat-ui.ts";
 import { callStatus, callWorld, fakeMic, KEY, onANowCall, openConversation, ownerPosts, voiceKey, voicePosts, type CallWorld, type FakeModel, type Post } from "../lib/call.ts";
 import { must } from "../lib/owner.ts";
@@ -24,6 +24,12 @@ async function ownerThen(model: FakeModel, words: string, name: string, args: Re
   return model.responses()[before].response;
 }
 
+/** The owner speaks, the model reads (message text clears the owner's order), then asks for a write: it is read back and held for a yes. */
+async function heldThen(model: FakeModel, words: string, name: string, args: Record<string, unknown> = {}): Promise<any> {
+  await ownerThen(model, words, "list_conversations");
+  return ownerThen(model, "", name, args);
+}
+
 /** The replies in the thread of one message, as the server holds them. */
 async function repliesOf(u: CallWorld, root: number): Promise<Post[]> {
   return must(await u.w.owner.client.get(`/api/messages/${root}/replies`), "read the thread").json().messages;
@@ -35,7 +41,7 @@ async function isStale(u: CallWorld, conv: number): Promise<boolean> {
   return rows.find((c) => c.id === conv)?.stale === true;
 }
 
-scenario("The model posts in a conversation only after the owner says yes", { tag: ["@browser"] }, async ({ server, page, context }) => {
+scenario("The model posts in a conversation only after the owner says yes to its read-back", { tag: ["@browser"] }, async ({ server, page, context }) => {
   // Background
   const u = await callWorld({ server, page, context });
   await voiceKey(u.w, KEY);
@@ -43,7 +49,7 @@ scenario("The model posts in a conversation only after the owner says yes", { ta
   const model = await onANowCall(page, u.w.srv);
 
   // When the owner says "post ship it in search filters" and the model asks for post_message with "Ship it" in "search filters"
-  const planned = await ownerThen(model, "post ship it in search filters", "post_message", { title: "search filters", text: "Ship it" });
+  const planned = await heldThen(model, "post ship it in search filters", "post_message", { title: "search filters", text: "Ship it" });
 
   // Then the answer to the model reads back "I will post "Ship it" in Ship search filters. Say yes to send."
   expect(planned).toMatchObject({ pending: true, read_back: 'I will post "Ship it" in Ship search filters. Say yes to send.' });
@@ -52,7 +58,7 @@ scenario("The model posts in a conversation only after the owner says yes", { ta
   expect(await voicePosts(u.w, u.conv)).toEqual([]);
 
   // When the owner says "yes" and the model asks for confirm_action
-  expect(await ownerThen(model, "yes", "confirm_action")).toEqual({ done: "Posted in Ship search filters." });
+  expect(await ownerThen(model, "yes", "confirm_action")).toEqual({ done: 'Posted "Ship it" in Ship search filters.' });
 
   // Then @voice's message "Ship it" is in conversation 41
   await expect.poll(() => voicePosts(u.w, u.conv)).toEqual([expect.objectContaining({ body: "Ship it" })]);
@@ -65,7 +71,7 @@ scenario("The model posts in a conversation only after the owner says yes", { ta
   expect((await voicePosts(u.w, u.conv)).filter((m) => m.body === "Ship it")).toHaveLength(1);
 });
 
-scenario("The model replies in a thread only after the owner says yes", { tag: ["@browser"] }, async ({ server, page, context }) => {
+scenario("The model replies in a thread only after the owner says yes to its read-back", { tag: ["@browser"] }, async ({ server, page, context }) => {
   // Background
   const u = await callWorld({ server, page, context });
   await voiceKey(u.w, KEY);
@@ -75,7 +81,7 @@ scenario("The model replies in a thread only after the owner says yes", { tag: [
   const model = await onANowCall(page, u.w.srv);
 
   // When the owner says "reply thanks" and the model asks for reply_in_thread on that message with "Thanks"
-  const planned = await ownerThen(model, "reply thanks", "reply_in_thread", { message_id: root, text: "Thanks" });
+  const planned = await heldThen(model, "reply thanks", "reply_in_thread", { message_id: root, text: "Thanks" });
 
   // Then the answer to the model reads back the reply "Thanks", the message "Deploy is at 14:00" from "dot" and "Ship search filters"
   expect(planned.read_back).toBe('I will reply "Thanks" to @dot\'s message "Deploy is at 14:00" in Ship search filters. Say yes to send.');
@@ -84,7 +90,7 @@ scenario("The model replies in a thread only after the owner says yes", { tag: [
   expect(await repliesOf(u, root)).toEqual([]);
 
   // When the owner says "yes" and the model asks for confirm_action
-  expect(await ownerThen(model, "yes", "confirm_action")).toEqual({ done: "Replied in Ship search filters." });
+  expect(await ownerThen(model, "yes", "confirm_action")).toEqual({ done: 'Replied "Thanks" in Ship search filters.' });
 
   // Then the thread of that message holds @voice's reply "Thanks"
   await expect.poll(() => repliesOf(u, root)).toEqual([expect.objectContaining({ author: expect.objectContaining({ handle: "voice", kind: "agent" }), body: "Thanks" })]);
@@ -101,7 +107,7 @@ scenario("Cancel drops a write the owner has not said yes to", { tag: ["@browser
   const model = await onANowCall(page, u.w.srv);
 
   // When the owner says "reply thanks" and the model asks for reply_in_thread on that message with "Thanks"
-  expect(await ownerThen(model, "reply thanks", "reply_in_thread", { message_id: root, text: "Thanks" })).toMatchObject({ pending: true });
+  expect(await heldThen(model, "reply thanks", "reply_in_thread", { message_id: root, text: "Thanks" })).toMatchObject({ pending: true });
 
   // And the owner says "no" and the model asks for cancel_action
   expect(await ownerThen(model, "no", "cancel_action")).toEqual({ cancelled: true });
@@ -124,7 +130,7 @@ scenario("The model answers an ask only after the owner says yes, and a new writ
   const model = await onANowCall(page, u.w.srv);
 
   // When the owner says "merge it" and the model asks for answer_ask on that ask with option 1
-  const planned = await ownerThen(model, "merge it", "answer_ask", { ask_id: ask, option: 1 });
+  const planned = await heldThen(model, "merge it", "answer_ask", { ask_id: ask, option: 1 });
 
   // Then the answer to the model reads back "Merge #415 on its own?", "Ship search filters" and "Merge it"
   expect(planned.read_back).toBe(`I will answer @dot's ask "${QUESTION}" in Ship search filters with "Merge it". Say yes to send.`);
@@ -133,7 +139,7 @@ scenario("The model answers an ask only after the owner says yes, and a new writ
   expect((await askOf(u.w.owner, ask)).state).toBe("open");
 
   // When the owner says "no, hold it" and the model asks for answer_ask on that ask with option 2
-  expect(await ownerThen(model, "no, hold it", "answer_ask", { ask_id: ask, option: 2 })).toMatchObject({ pending: true, read_back: expect.stringContaining('with "Hold it"') });
+  expect(await heldThen(model, "no, hold it", "answer_ask", { ask_id: ask, option: 2 })).toMatchObject({ pending: true, read_back: expect.stringContaining('with "Hold it"') });
 
   // And the owner says "yes" and the model asks for confirm_action
   expect(await ownerThen(model, "yes", "confirm_action")).toEqual({ done: "Answered in Ship search filters." });
@@ -142,7 +148,7 @@ scenario("The model answers an ask only after the owner says yes, and a new writ
   expect(await askOf(u.w.owner, ask)).toMatchObject({ state: "answered", chosen: { kind: "alternative", index: 1 }, answer: "Hold it" });
 });
 
-scenario("The model marks a conversation stale only after the owner says yes", { tag: ["@browser"] }, async ({ server, page, context }) => {
+scenario("The model marks a conversation stale only after the owner says yes to its read-back", { tag: ["@browser"] }, async ({ server, page, context }) => {
   // Background
   const u = await callWorld({ server, page, context });
   await voiceKey(u.w, KEY);
@@ -152,7 +158,7 @@ scenario("The model marks a conversation stale only after the owner says yes", {
   const model = await onANowCall(page, u.w.srv);
 
   // When the owner says "search filters is done" and the model asks for mark_stale on "search filters"
-  const planned = await ownerThen(model, "search filters is done", "mark_stale", { title: "search filters" });
+  const planned = await heldThen(model, "search filters is done", "mark_stale", { title: "search filters" });
 
   // Then the answer to the model reads back "I will mark Ship search filters stale. Say yes to mark it."
   expect(planned).toMatchObject({ pending: true, read_back: "I will mark Ship search filters stale. Say yes to mark it." });
@@ -178,7 +184,7 @@ scenario("A write the server refuses comes back as a short sentence", { tag: ["@
   const model = await onANowCall(page, u.w.srv);
 
   // When the owner says "search filters is done" and the model asks for mark_stale on "search filters"
-  expect(await ownerThen(model, "search filters is done", "mark_stale", { title: "search filters" })).toMatchObject({ pending: true });
+  expect(await heldThen(model, "search filters is done", "mark_stale", { title: "search filters" })).toMatchObject({ pending: true });
 
   // And the owner says "yes" and the model asks for confirm_action
   const answer = await ownerThen(model, "yes", "confirm_action");
@@ -200,10 +206,10 @@ scenario("A message the call sends comes from @voice, not the owner", { tag: ["@
   const model = await onANowCall(page, u.w.srv);
 
   // When the owner says "post ship it in search filters" and the model asks for post_message with "Ship it" in "search filters"
-  expect(await ownerThen(model, "post ship it in search filters", "post_message", { title: "search filters", text: "Ship it" })).toMatchObject({ pending: true });
+  expect(await heldThen(model, "post ship it in search filters", "post_message", { title: "search filters", text: "Ship it" })).toMatchObject({ pending: true });
 
   // And the owner says "yes" and the model asks for confirm_action
-  expect(await ownerThen(model, "yes", "confirm_action")).toEqual({ done: "Posted in Ship search filters." });
+  expect(await ownerThen(model, "yes", "confirm_action")).toEqual({ done: 'Posted "Ship it" in Ship search filters.' });
 
   // Then conversation 41 shows "Ship it" from "Voice" @voice, with no "via voice call" mark
   await openConversation(page, u.w.srv, u.conv);
@@ -225,23 +231,23 @@ scenario("A confirm in the same model turn as its write is refused", { tag: ["@b
   // Given the owner is on a Now call
   const model = await onANowCall(page, u.w.srv);
 
-  // When the owner says "post ship it in search filters" and the model, in one turn, asks for post_message with "Ship it" in "search filters" and then confirm_action
-  model.hear("post ship it in search filters");
+  // When the owner says "post ship it in search filters", the model reads the conversations, and in one turn asks for post_message with "Ship it" in "search filters" and then confirm_action
+  await ownerThen(model, "post ship it in search filters", "list_conversations");
   model.callAll([
     { name: "post_message", args: { title: "search filters", text: "Ship it" } },
     { name: "confirm_action", args: {} },
   ]);
-  await expect.poll(() => model.responses().length).toBe(2);
-  expect(model.responses()[0].response).toMatchObject({ pending: true });
+  await expect.poll(() => model.responses().length).toBe(3);
+  expect(model.responses()[1].response).toMatchObject({ pending: true });
 
-  // Then the answer to confirm_action is that the owner has not said yes since the read-back
-  expect(model.responses()[1].response).toEqual({ error: "refused: the owner has not said yes since the read-back" });
+  // Then the answer to confirm_action is that only the owner can ask
+  expect(model.responses()[2].response).toEqual({ error: "refused: only the owner can ask" });
 
   // And @voice has posted nothing in conversation 41
   expect(await voicePosts(u.w, u.conv)).toEqual([]);
 
   // When the owner says "yes" and the model asks for confirm_action
-  expect(await ownerThen(model, "yes", "confirm_action")).toEqual({ done: "Posted in Ship search filters." });
+  expect(await ownerThen(model, "yes", "confirm_action")).toEqual({ done: 'Posted "Ship it" in Ship search filters.' });
 
   // Then @voice's message "Ship it" is in conversation 41
   await expect.poll(() => voicePosts(u.w, u.conv)).toEqual([expect.objectContaining({ body: "Ship it" })]);
@@ -282,13 +288,13 @@ scenario("Words are read back whole, and words too long to read back are refused
 
   // When the owner says "post the notes in search filters" and the model asks for post_message with 300 characters in "search filters"
   const notes = "Notes. ".repeat(43).slice(0, 300);
-  const planned = await ownerThen(model, "post the notes in search filters", "post_message", { title: "search filters", text: notes });
+  const planned = await heldThen(model, "post the notes in search filters", "post_message", { title: "search filters", text: notes });
 
   // Then the answer to the model reads back all 300 characters
   expect(planned).toMatchObject({ pending: true, read_back: `I will post "${notes}" in Ship search filters. Say yes to send.` });
 
   // When the owner says "longer" and the model asks for post_message with 301 characters in "search filters"
-  const answer = await ownerThen(model, "longer", "post_message", { title: "search filters", text: notes + "!" });
+  const answer = await heldThen(model, "longer", "post_message", { title: "search filters", text: notes + "!" });
 
   // Then the answer to the model is the error "That is too long to read back. Say it in fewer words."
   expect(answer).toEqual({ error: "That is too long to read back. Say it in fewer words." });
@@ -298,4 +304,118 @@ scenario("Words are read back whole, and words too long to read back are refused
 
   // And @voice has posted nothing in conversation 41
   expect(await voicePosts(u.w, u.conv)).toEqual([]);
+});
+
+scenario("A write the owner asked for directly runs at once", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Background
+  const u = await callWorld({ server, page, context });
+  await voiceKey(u.w, KEY);
+  // Given the owner is on a Now call
+  const model = await onANowCall(page, u.w.srv);
+
+  // When the owner says "post ship it in search filters" and the model asks for post_message with "Ship it" in "search filters"
+  const answer = await ownerThen(model, "post ship it in search filters", "post_message", { title: "search filters", text: "Ship it" });
+
+  // Then the answer to the model is done: Posted "Ship it" in Ship search filters.
+  expect(answer).toMatchObject({ done: 'Posted "Ship it" in Ship search filters.' });
+  expect(answer.pending).toBeUndefined();
+
+  // And @voice's message "Ship it" is in conversation 41
+  await expect.poll(() => voicePosts(u.w, u.conv)).toEqual([expect.objectContaining({ body: "Ship it" })]);
+});
+
+scenario("The owner's words pay for one write only", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Background
+  const u = await callWorld({ server, page, context });
+  await voiceKey(u.w, KEY);
+  // Given the owner is on a Now call
+  const model = await onANowCall(page, u.w.srv);
+
+  // When the owner says "post ship it in search filters" and the model asks for post_message twice
+  const first = await ownerThen(model, "post ship it in search filters", "post_message", { title: "search filters", text: "Ship it" });
+  const second = await ownerThen(model, "", "post_message", { title: "search filters", text: "Ship it" });
+
+  // Then the first answer is done and the second reads back and holds the write
+  expect(first).toMatchObject({ done: 'Posted "Ship it" in Ship search filters.' });
+  expect(second).toMatchObject({ pending: true });
+
+  // And conversation 41 holds @voice's "Ship it" once
+  expect((await voicePosts(u.w, u.conv)).filter((m) => m.body === "Ship it")).toHaveLength(1);
+});
+
+scenario("A read after a new reply sees the reply", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Background
+  const u = await callWorld({ server, page, context });
+  await voiceKey(u.w, KEY);
+  // Given the owner is on a Now call
+  const model = await onANowCall(page, u.w.srv);
+
+  // When the model reads the conversation "search filters" and "dot" then posts "Merged" there
+  const before = await ownerThen(model, "is there a reply?", "read_conversation", { title: "search filters" });
+  await agentSays(u.w.srv, u.dot.lease, u.conv, "Merged");
+
+  // And the model reads the conversation "search filters" again
+  const after = await ownerThen(model, "and now?", "read_conversation", { title: "search filters" });
+
+  // Then the second answer holds "Merged" and the first does not
+  expect(JSON.stringify(before)).not.toContain("Merged");
+  expect(JSON.stringify(after)).toContain("Merged");
+});
+
+scenario("The model starts a conversation and tags an agent in its first message", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Background
+  const u = await callWorld({ server, page, context });
+  await voiceKey(u.w, KEY);
+  // Given the owner is on a Now call
+  const model = await onANowCall(page, u.w.srv);
+
+  // When the owner says "start wired up with dot" and the model asks for start_conversation titled "Wired up" with "we wired it up" and the agent "dot"
+  const answer = await ownerThen(model, "start wired up with dot", "start_conversation", { title: "Wired up", text: "we wired it up", agents: ["dot"] });
+
+  // Then the answer to the model is done: Started "Wired up" with @dot and posted "we wired it up".
+  expect(answer).toMatchObject({ done: 'Started "Wired up" with @dot and posted "we wired it up".' });
+
+  // And the conversation "Wired up" holds @voice's message "@dot we wired it up" and has "dot" in it
+  const made = (await listConversations(u.w.owner)).find((c) => c.title === "Wired up");
+  expect(made?.participants.map((p) => p.handle)).toContain("dot");
+  await expect.poll(() => voicePosts(u.w, made!.id)).toEqual([expect.objectContaining({ body: "@dot we wired it up" })]);
+});
+
+scenario("The model messages an agent in its newest conversation, or in a new one", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Background
+  const u = await callWorld({ server, page, context });
+  await voiceKey(u.w, KEY);
+  // Given the owner is on a Now call
+  const model = await onANowCall(page, u.w.srv);
+
+  // When the owner says "tell dot it is wired" and the model asks for message_agent to "dot" with "it is wired"
+  expect(await ownerThen(model, "tell dot it is wired", "message_agent", { handle: "dot", text: "it is wired" })).toMatchObject({ done: 'Posted "it is wired" to @dot in Ship search filters.' });
+
+  // Then conversation 41 holds @voice's message "@dot it is wired"
+  await expect.poll(() => voicePosts(u.w, u.conv)).toEqual([expect.objectContaining({ body: "@dot it is wired" })]);
+
+  // When the owner says "tell ops hi" and the model asks for message_agent to "ops" with "hi"
+  expect(await ownerThen(model, "tell ops hi", "message_agent", { handle: "ops", text: "hi" })).toMatchObject({ done: expect.stringContaining('Started "hi" with @ops') });
+
+  // Then a new conversation holds @voice's message "@ops hi" and has "ops" in it
+  const made = (await listConversations(u.w.owner)).find((c) => c.title === "hi");
+  expect(made?.participants.map((p) => p.handle)).toContain("ops");
+  await expect.poll(() => voicePosts(u.w, made!.id)).toEqual([expect.objectContaining({ body: "@ops hi" })]);
+
+  // And a name that is not an agent is answered with no such agent
+  expect(await ownerThen(model, "tell nobody hi", "message_agent", { handle: "nobody", text: "hi" })).toEqual({ error: "no such agent" });
+});
+
+scenario("The model speaks after a tool answer", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Background
+  const u = await callWorld({ server, page, context });
+  await voiceKey(u.w, KEY);
+  // Given the owner is on a Now call
+  const model = await onANowCall(page, u.w.srv);
+
+  // When the model asks for list_conversations
+  await ownerThen(model, "what do I have?", "list_conversations");
+
+  // Then the answer is sent to the model with the scheduling WHEN_IDLE, so that it speaks next instead of waiting for the owner
+  expect(model.responses()[0]).toMatchObject({ name: "list_conversations", scheduling: "WHEN_IDLE" });
 });

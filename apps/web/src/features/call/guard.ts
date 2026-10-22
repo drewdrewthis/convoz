@@ -26,4 +26,14 @@ export class OwnerIntent {
   allows(): boolean {
     return this.spoke;
   }
+
+  /**
+   * Uses up the owner's words for one write that runs at once: true when they were the latest input to the model. A second write from the
+   * same words (or after a read) is not his order, so it is held for his yes instead.
+   */
+  spend(): boolean {
+    const had = this.spoke;
+    this.spoke = false;
+    return had;
+  }
 }

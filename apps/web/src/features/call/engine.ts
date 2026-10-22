@@ -115,7 +115,7 @@ class Call implements CallControl {
         model: token.model,
         config: token.config as Parameters<typeof ai.live.connect>[0]["config"],
         callbacks: {
-          onmessage: (m) => void this.onMessage(m, FunctionResponseScheduling.SILENT),
+          onmessage: (m) => void this.onMessage(m, FunctionResponseScheduling),
           onerror: () => this.fail("The call dropped.", true),
           onclose: () => this.fail("Call ended"),
         },
@@ -195,7 +195,7 @@ class Call implements CallControl {
     });
   }
 
-  private async onMessage(m: LiveServerMessage, silent: FunctionResponseScheduling): Promise<void> {
+  private async onMessage(m: LiveServerMessage, scheduling: typeof FunctionResponseScheduling): Promise<void> {
     if (this.closed) return;
     if (m.setupComplete) {
       this.ready = true;
@@ -220,9 +220,14 @@ class Call implements CallControl {
     }
     if (m.goAway) this.o.say("The call is about to end.");
     for (const fc of m.toolCall?.functionCalls ?? []) {
+      const began = Date.now();
       const { response, cue } = await runTool(this.tools(), fc.name ?? "", fc.args);
+      this.log.event(`tool ${fc.name} took ${Date.now() - began}ms`);
       if (cue) this.o.say(cue);
-      if (!this.closed) this.session?.sendToolResponse({ functionResponses: [{ id: fc.id, name: fc.name, response, scheduling: silent }] });
+      // SILENT adds the answer to the model's context and triggers nothing, so the model stayed mute for a minute after every read or
+      // write until the owner spoke again (call of 2026-10-22). Only the question to an agent keeps the quiet: waiting.ts and its answer say so.
+      const when = fc.name === "ask_agent" ? scheduling.SILENT : scheduling.WHEN_IDLE;
+      if (!this.closed) this.session?.sendToolResponse({ functionResponses: [{ id: fc.id, name: fc.name, response, scheduling: when }] });
     }
   }
 
