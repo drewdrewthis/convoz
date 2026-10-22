@@ -86,16 +86,6 @@ SELECT message_id, until_at FROM ask_snoozes WHERE identity_id = sqlc.arg(identi
 -- What waits for a person: urgent first, then the newest (the asks_now index).
 SELECT message_id FROM asks WHERE state = 'open' ORDER BY urgent DESC, message_id DESC;
 
--- name: RepliesAnsweredOf :many
--- Of these asks, the ones whose thread had a message by someone other than the owner after the owner's reply: the reply was answered,
--- so the ask no longer waits on the agent even when the agent did not update it.
-SELECT a.message_id FROM asks a JOIN messages r ON r.id = a.owner_reply_id
-WHERE a.message_id IN (sqlc.slice(ids)) AND EXISTS (
-  SELECT 1 FROM messages m
-  WHERE m.conversation_id = r.conversation_id AND m.thread_root_id = r.thread_root_id AND m.id > r.id
-    AND m.author_id <> r.author_id AND m.deleted_at IS NULL
-);
-
 -- name: AnsweredSince :many
 SELECT message_id FROM asks WHERE state = 'answered' AND resolved_at >= sqlc.arg(since) ORDER BY resolved_at DESC, message_id DESC LIMIT 50;
 

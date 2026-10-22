@@ -62,16 +62,35 @@ func Views(ctx context.Context, d pdb.DBTX, ids []int64) (map[int64]Ask, error) 
 		a.History = append(a.History, Transition{Version: h.Version, Event: h.Event, ToState: h.ToState, By: h.ByIdentity.Int64, At: h.At})
 		out[h.MessageID] = a
 	}
-	answered, err := q.RepliesAnsweredOf(ctx, have)
-	if err != nil {
-		return nil, err
-	}
-	for _, id := range answered {
-		a := out[id]
-		a.ReplyAnswered = true
-		out[id] = a
-	}
 	return out, nil
+}
+
+// MarkReplyAnswered sets ReplyAnswered on the asks of list whose owner reply someone else answered after (the thread's rule is
+// Threads.RepliesAnswered). It is kept off Views so a caller that reads asks in bulk pays one thread query for all of them.
+func MarkReplyAnswered(ctx context.Context, d pdb.DBTX, t Threads, list []Ask) error {
+	var replies []int64
+	for _, a := range list {
+		if a.OwnerReplyID != 0 {
+			replies = append(replies, a.OwnerReplyID)
+		}
+	}
+	if len(replies) == 0 {
+		return nil
+	}
+	answered, err := t.RepliesAnswered(ctx, d, replies)
+	if err != nil {
+		return err
+	}
+	done := make(map[int64]bool, len(answered))
+	for _, id := range answered {
+		done[id] = true
+	}
+	for i := range list {
+		if done[list[i].OwnerReplyID] {
+			list[i].ReplyAnswered = true
+		}
+	}
+	return nil
 }
 
 // askRow is the columns of an ask as the queries read them.
@@ -108,7 +127,7 @@ type Waiting struct {
 }
 
 // ForNow reads the asks that wait for a person at now, and the ones answered since `since`.
-func ForNow(ctx context.Context, d pdb.DBTX, person int64, now time.Time, since int64) (Waiting, error) {
+func ForNow(ctx context.Context, d pdb.DBTX, t Threads, person int64, now time.Time, since int64) (Waiting, error) {
 	q := db.New(d)
 	open, err := q.OpenAsks(ctx)
 	if err != nil {
@@ -135,14 +154,21 @@ func ForNow(ctx context.Context, d pdb.DBTX, person int64, now time.Time, since 
 	if err != nil {
 		return Waiting{}, err
 	}
-	w := Waiting{Until: until}
+	openAsks := make([]Ask, 0, len(open))
 	for _, id := range open {
-		if _, hidden := until[id]; hidden {
-			w.Snoozed = append(w.Snoozed, byID[id])
-		} else if byID[id].WaitingOnAgent() {
-			w.Replied = append(w.Replied, byID[id])
+		openAsks = append(openAsks, byID[id])
+	}
+	if err := MarkReplyAnswered(ctx, d, t, openAsks); err != nil {
+		return Waiting{}, err
+	}
+	w := Waiting{Until: until}
+	for _, a := range openAsks {
+		if _, hidden := until[a.ID]; hidden {
+			w.Snoozed = append(w.Snoozed, a)
+		} else if a.WaitingOnAgent() {
+			w.Replied = append(w.Replied, a)
 		} else {
-			w.Open = append(w.Open, byID[id])
+			w.Open = append(w.Open, a)
 		}
 	}
 	sort.SliceStable(w.Replied, func(i, j int) bool { return w.Replied[i].OwnerRepliedAt > w.Replied[j].OwnerRepliedAt })

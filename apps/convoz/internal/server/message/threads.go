@@ -152,3 +152,19 @@ func Excerpt(body string) string {
 	}
 	return string(r[:ContextRunes-1]) + "…"
 }
+
+// RepliesAnswered returns, of these replies, the ones someone other than their author posted after in the same thread.
+func RepliesAnswered(ctx context.Context, d pdb.DBTX, ids []int64) ([]int64, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	return db.New(d).RepliesAnswered(ctx, ids)
+}
+
+// InThread returns, of these messages, the ones posted inside the thread of root.
+func InThread(ctx context.Context, d pdb.DBTX, root int64, ids []int64) ([]int64, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	return db.New(d).InThread(ctx, db.InThreadParams{Ids: ids, RootID: nullInt(root)})
+}

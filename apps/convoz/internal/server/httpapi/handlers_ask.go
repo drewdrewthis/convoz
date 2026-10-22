@@ -391,7 +391,7 @@ func (s *Server) nowScreen(w http.ResponseWriter, r *http.Request, c *call) {
 		s.Log.Printf("snooze wake: %v", err)
 	}
 	now := s.Clock.Now()
-	waiting, err := ask.ForNow(ctx, d, c.p.HumanID, now, now.Add(-answeredWindow).UnixMilli())
+	waiting, err := ask.ForNow(ctx, d, askThreads{}, c.p.HumanID, now, now.Add(-answeredWindow).UnixMilli())
 	var dir directory
 	if err == nil {
 		dir, err = loadDirectory(ctx, d)

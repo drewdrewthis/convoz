@@ -24,7 +24,19 @@ type askEffects struct{ wake []int64 }
 func askPorts(p authz.Principal, fx *askEffects) ask.Ports {
 	return ask.Ports{
 		Messages: askMessages{p, fx}, Conversations: askConversations{}, Inbox: askInbox{fx}, Journal: askJournal{}, Notify: askNotify{},
+		Threads: askThreads{},
 	}
+}
+
+// askThreads reads the threads of asks through the message module.
+type askThreads struct{}
+
+func (askThreads) RepliesAnswered(ctx context.Context, d pdb.DBTX, replies []int64) ([]int64, error) {
+	return message.RepliesAnswered(ctx, d, replies)
+}
+
+func (askThreads) InThread(ctx context.Context, d pdb.DBTX, root int64, ids []int64) ([]int64, error) {
+	return message.InThread(ctx, d, root, ids)
 }
 
 // askMessages writes the two kinds of message an ask has, through message.Post.

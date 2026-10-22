@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -66,6 +67,10 @@ func askViews(ctx context.Context, d pdb.DBTX, dir directory, list []ask.Ask, sn
 	out := make([]wire.AskView, 0, len(list))
 	rootsOf := map[int64][]int64{} // the thread roots to count, by conversation
 	rootOf := make([]int64, 0, len(list))
+	list = slices.Clone(list)
+	if err := ask.MarkReplyAnswered(ctx, d, askThreads{}, list); err != nil {
+		return nil, err
+	}
 	for _, a := range list {
 		v, err := dir.askWithReply(ctx, d, a)
 		if err != nil {
@@ -117,6 +122,13 @@ func askViews(ctx context.Context, d pdb.DBTX, dir directory, list []ask.Ask, sn
 		out[i].UnreadReplies = unread[rootOf[i]]
 	}
 	return out, nil
+}
+
+// markedAsk is the ask a with its reply answered flag set, for a caller that reads one ask (askViews marks a list).
+func markedAsk(ctx context.Context, d pdb.DBTX, a ask.Ask) (ask.Ask, error) {
+	list := []ask.Ask{a}
+	err := ask.MarkReplyAnswered(ctx, d, askThreads{}, list)
+	return list[0], err
 }
 
 // oneAskView is the view of a single ask for a reader, with the reader's snooze when the reader is a person.

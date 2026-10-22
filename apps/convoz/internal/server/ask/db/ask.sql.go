@@ -751,50 +751,6 @@ func (q *Queries) OptionsOf(ctx context.Context, ids []int64) ([]AskOption, erro
 	return items, nil
 }
 
-const repliesAnsweredOf = `-- name: RepliesAnsweredOf :many
-SELECT a.message_id FROM asks a JOIN messages r ON r.id = a.owner_reply_id
-WHERE a.message_id IN (/*SLICE:ids*/?) AND EXISTS (
-  SELECT 1 FROM messages m
-  WHERE m.conversation_id = r.conversation_id AND m.thread_root_id = r.thread_root_id AND m.id > r.id
-    AND m.author_id <> r.author_id AND m.deleted_at IS NULL
-)
-`
-
-// Of these asks, the ones whose thread had a message by someone other than the owner after the owner's reply: the reply was answered,
-// so the ask no longer waits on the agent even when the agent did not update it.
-func (q *Queries) RepliesAnsweredOf(ctx context.Context, ids []int64) ([]int64, error) {
-	query := repliesAnsweredOf
-	var queryParams []interface{}
-	if len(ids) > 0 {
-		for _, v := range ids {
-			queryParams = append(queryParams, v)
-		}
-		query = strings.Replace(query, "/*SLICE:ids*/?", strings.Repeat(",?", len(ids))[1:], 1)
-	} else {
-		query = strings.Replace(query, "/*SLICE:ids*/?", "NULL", 1)
-	}
-	rows, err := q.db.QueryContext(ctx, query, queryParams...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []int64
-	for rows.Next() {
-		var message_id int64
-		if err := rows.Scan(&message_id); err != nil {
-			return nil, err
-		}
-		items = append(items, message_id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const scrubAsk = `-- name: ScrubAsk :exec
 UPDATE asks SET scrubbed_at = CAST(?1 AS INTEGER), question = '', owners_call_reason = CASE WHEN owners_call_reason IS NULL THEN NULL ELSE '' END,
     draft_text = CASE WHEN draft_text IS NULL THEN NULL ELSE '' END, original_text = CASE WHEN original_text IS NULL THEN NULL ELSE '' END, original_from = CASE WHEN original_from IS NULL THEN NULL ELSE '' END, chosen_text = CASE WHEN chosen_text IS NULL THEN NULL ELSE '' END
