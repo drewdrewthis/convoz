@@ -13,7 +13,9 @@ export async function readNow(): Promise<Record<string, unknown>> {
   const now = await call(client.GET("/api/now"));
   return {
     asks: now.asks.map((a) => ({
+      ask_id: a.id,
       question: a.question.slice(0, MOST_ASK),
+      options: a.options.map((o) => o.label),
       from: a.asker.handle,
       conversation: a.conversation?.title ?? "",
       conversation_id: a.conversation_id,

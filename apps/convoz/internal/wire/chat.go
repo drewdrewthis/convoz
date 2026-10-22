@@ -174,6 +174,8 @@ type PostRequest struct {
 	App        json.RawMessage `json:"app,omitempty"`       // agents only
 	ViaApp     *ViaAppRequest  `json:"via_app,omitempty"`   // the owner only
 	ViaVoice   bool            `json:"via_voice,omitempty"` // the owner's voice call posts this; the owner only
+	// AsVoice is a message the owner's voice call writes for him: its author is @voice, not the owner. The owner only.
+	AsVoice bool `json:"as_voice,omitempty"`
 	// Quiet is the call log: stored and shown like a message, but no agent gets an inbox item or a mention from it. Only with via_voice.
 	Quiet bool `json:"quiet,omitempty"`
 	// NeedsYou says whether the post needs the owner. An agent sends false for news: true is refused on a plain post, because a message

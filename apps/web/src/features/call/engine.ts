@@ -10,12 +10,13 @@ import { CallLog } from "./log.ts";
 import { callsConversation, readNow } from "./now.ts";
 import { listConversations, readConversation, searchMessages } from "./reads.ts";
 import { runTool, type ToolDeps } from "./tools.ts";
+import { Held, plans, postAsVoice, VOICE } from "./writes.ts";
 import type { CallTarget } from "./store.ts";
 import { Waiting } from "./waiting.ts";
 import workletUrl from "./worklet.js?url&no-inline";
 
 export interface CallOptions {
-  /** A conversation, or Now (the triage call: it reads, posts nothing, and leaves its log in now.ts CALLS_TITLE). */
+  /** A conversation, or Now (the triage call: it reads, writes only what the owner said yes to, and leaves its log in now.ts CALLS_TITLE). */
   target: CallTarget;
   gesture: Gesture;
   /** The status line. */
@@ -64,6 +65,8 @@ class Call implements CallControl {
   private session: Session | undefined;
   private player: Player;
   private intent = new OwnerIntent();
+  /** The triage call's one write that waits for the owner's yes; it lives as long as the call. */
+  private held = new Held();
   private seen = 0;
   private readonly delivered = new Set<number>();
   /** The messages this call posted, by id: the answer may come in the main chat or in their threads. */
@@ -308,29 +311,30 @@ class Call implements CallControl {
         search: searchMessages,
         conversations: listConversations,
         conversation: readConversation,
+        plans,
+        held: this.held,
       };
     }
     return {
       intent: this.intent,
       agents: () => (state().rows[conversation]?.participants ?? []).filter((p) => p.kind === "agent").map((p) => p.handle),
-      post: async (handle, text) => this.asking(handle, await postAsOwner(conversation, `@${handle} ${text}`)),
+      post: async (handle, text) => this.asking(handle, await postAsk(conversation, `@${handle} ${text}`)),
       recent: (n) => (state().messages[conversation]?.list ?? []).slice(-n).map((m) => ({ author: m.author.handle, text: (m.body ?? "").slice(0, 500) })),
       status,
     };
   }
 }
 
-/** An agent's words, for the model: nothing for the owner's own messages, system lines, deleted ones and files without words. */
+/** An agent's words, for the model: nothing for the owner's own messages, @voice's (the call's own), system lines, deleted ones and files without words. */
 function replyText(m: Message): string {
-  if (m.author.kind !== "agent" || m.deleted || m.kind === "system") return "";
+  if (m.author.kind !== "agent" || m.author.handle === VOICE.handle || m.deleted || m.kind === "system") return "";
   return (m.body ?? "").trim().slice(0, MOST_REPLY);
 }
 
-/** postAsOwner posts what the owner asked, marked "via voice call", and shows it at once. */
-async function postAsOwner(conversation: number, body: string): Promise<number> {
-  const sent = await call(client.POST("/api/conversations/{id}/messages", { params: { path: { id: conversation } }, body: { client_id: newId(), body, via_voice: true } }));
-  const me = data.store.getState().me!.identity;
-  data.putMessages(conversation, [{ id: sent.id, author: { handle: me.handle, display_name: me.display_name, kind: "human" }, body, format: "markdown", created_at: sent.created_at, via_voice: true }]);
+/** postAsk posts what the owner asked as @voice, and shows it at once. */
+async function postAsk(conversation: number, body: string): Promise<number> {
+  const sent = await postAsVoice(conversation, body);
+  data.putMessages(conversation, [{ id: sent.id, author: VOICE, body, format: "markdown", created_at: sent.created_at }]);
   return sent.id;
 }
 

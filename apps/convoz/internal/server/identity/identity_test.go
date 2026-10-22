@@ -73,3 +73,36 @@ func errOnFalse(ok bool, err error) error {
 	}
 	return err
 }
+
+// @voice is made once and found after; nobody makes or renames to its handle, and it cannot be renamed away (it is the built-in
+// author of the owner's voice call).
+func TestVoiceIsMadeOnceAndItsHandleIsReserved(t *testing.T) {
+	s := dbtest.Store(t)
+	now := time.Unix(1_800_000_000, 0)
+	if err := dbtest.TxErr(t, s, func(ctx context.Context, d pdb.DBTX) error {
+		owner, err := CreateOwner(ctx, d, "drew", "Drew", now)
+		if err != nil {
+			return err
+		}
+		first, err := Voice(ctx, d, owner.ID, now)
+		if err != nil {
+			return err
+		}
+		again, err := Voice(ctx, d, owner.ID, now)
+		if err != nil {
+			return err
+		}
+		if first.ID != again.ID || !IsBuiltin(again) || again.DisplayName != "Voice" {
+			t.Errorf("first %+v, again %+v: want one built-in @voice named Voice", first, again)
+		}
+		if _, err := CreateAgent(ctx, d, NewAgent{Handle: "voice", DisplayName: "Not Voice", ByHuman: owner.ID}, now); !errors.Is(err, ErrInvalidHandle) {
+			t.Errorf("an agent made as @voice: %v, want ErrInvalidHandle", err)
+		}
+		if _, err := CheckHandleChange(ctx, d, first.ID, "secretary", now); !errors.Is(err, ErrNotRenamable) {
+			t.Errorf("@voice renamed: %v, want ErrNotRenamable", err)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}

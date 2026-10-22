@@ -93,7 +93,7 @@ func CheckHandleChange(ctx context.Context, d pdb.DBTX, id int64, to string, now
 	if err != nil {
 		return "", err
 	}
-	if st.Kind != "agent" || st.DisabledAt.Valid {
+	if st.Kind != "agent" || st.DisabledAt.Valid || st.Handle == VoiceHandle {
 		return "", ErrNotRenamable
 	}
 	recent, err := db.New(d).RecentHandleChanges(ctx, db.RecentHandleChangesParams{ID: id, Since: now.Add(-HandleWindow).UnixMilli()})

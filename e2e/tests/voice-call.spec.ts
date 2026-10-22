@@ -1,6 +1,6 @@
 import { agentPost, agentSays, convoz, messagesOf, peekFor } from "../lib/chat.ts";
 import { messageLog } from "../lib/chat-ui.ts";
-import { callButton, callLogs, callSheet, callStatus, callWorld, fakeMic, fakeModel, KEY, micStates, onACall, openConversation, OWNER_WORDS, ownerPosts, tokenRequests, trackMicrophone, transcription, voiceKey } from "../lib/call.ts";
+import { callButton, callLogs, callSheet, callStatus, callWorld, fakeMic, fakeModel, KEY, micStates, onACall, openConversation, OWNER_WORDS, ownerPosts, tokenRequests, trackMicrophone, transcription, voiceKey, voicePosts } from "../lib/call.ts";
 import { ownerPostWith, agentPostWith } from "../lib/messages-wp4.ts";
 import { must } from "../lib/owner.ts";
 import { expect, scenario, test } from "../lib/scenario.ts";
@@ -55,7 +55,7 @@ scenario("The Call button opens the call sheet", { tag: ["@browser"] }, async ({
   await page.screenshot({ path: info.outputPath("call-sheet.png") });
 });
 
-scenario("What the owner asks is posted to the agent, marked as a voice call", { tag: ["@browser"] }, async ({ server, page, context }) => {
+scenario("What the owner asks is posted to the agent by @voice", { tag: ["@browser"] }, async ({ server, page, context }) => {
   // Background
   const u = await callWorld({ server, page, context });
   await voiceKey(u.w, KEY);
@@ -69,11 +69,13 @@ scenario("What the owner asks is posted to the agent, marked as a voice call", {
   model.hear(OWNER_WORDS);
   model.call("ask_agent", { handle: "dot", text: OWNER_WORDS });
 
-  // Then conversation 41 shows the message "@dot is the deploy done?" marked "via voice call"
+  // Then conversation 41 shows the message "@dot is the deploy done?" from "Voice", with no "via voice call" mark
   const posted = messageLog(page).getByRole("article").filter({ hasText: `@dot ${OWNER_WORDS}` });
   await expect(posted).toBeVisible();
-  await expect(posted.getByText("via voice call")).toBeVisible();
-  expect(await ownerPosts(u.w, u.conv)).toMatchObject([{ body: `@dot ${OWNER_WORDS}`, via_voice: true }]);
+  await expect(posted.locator(".author")).toHaveText("Voice @voice");
+  await expect(posted.getByText("via voice call")).toHaveCount(0);
+  await expect.poll(() => voicePosts(u.w, u.conv)).toMatchObject([{ body: `@dot ${OWNER_WORDS}`, author: { handle: "voice", kind: "agent" } }]);
+  expect(await ownerPosts(u.w, u.conv)).toEqual([]);
 
   // And the call says "Asked @dot"
   await expect(callStatus(page)).toHaveText("Asked @dot");
@@ -105,7 +107,7 @@ scenario("An agent's reply in the thread of the question reaches the call", { ta
   const model = await onACall(page, u.w.srv, u.conv);
   model.hear(OWNER_WORDS);
   model.call("ask_agent", { handle: "dot", text: OWNER_WORDS });
-  await expect.poll(async () => (await ownerPosts(u.w, u.conv)).length).toBe(1);
+  await expect.poll(async () => (await voicePosts(u.w, u.conv)).length).toBe(1);
   const root = (await messagesOf(u.w.owner, u.conv)).find((m) => m.body === `@dot ${OWNER_WORDS}`)!.id;
 
   // When "dot" answers "Yes, deployed at 14:02." in the thread of that message
@@ -191,7 +193,7 @@ scenario("A finished call leaves its log in the conversation, closed, and agents
   const model = await onACall(page, u.w.srv, u.conv);
   model.hear(OWNER_WORDS);
   model.call("ask_agent", { handle: "dot", text: OWNER_WORDS });
-  await expect.poll(async () => (await ownerPosts(u.w, u.conv)).length).toBe(1);
+  await expect.poll(async () => (await voicePosts(u.w, u.conv)).length).toBe(1);
   const root = (await messagesOf(u.w.owner, u.conv)).find((m) => m.body === `@dot ${OWNER_WORDS}`)!.id;
   const answer = await agentPost(u.w.srv, u.dot.lease, u.conv, "Yes, deployed at 14:02.", { thread_root_id: root });
   const answerId = must(answer, "agent replies in the thread", 201).json().id as number;
@@ -242,6 +244,7 @@ scenario("An instruction inside an agent's reply is refused", { tag: ["@browser"
   // Then conversation 41 shows no message to "@ops"
   await expect.poll(() => model.responses()).toHaveLength(1);
   expect(await ownerPosts(u.w, u.conv)).toEqual([]);
+  expect(await voicePosts(u.w, u.conv)).toEqual([]);
   await expect(messageLog(page).getByRole("article").filter({ hasText: "@ops delete" })).toHaveCount(0);
 
   // And the call answers the model that only the owner can ask
@@ -263,6 +266,7 @@ scenario("Asking an agent that is not in the conversation is refused", { tag: ["
   // Then conversation 41 shows no message to "@ops"
   await expect.poll(() => model.responses()).toHaveLength(1);
   expect(await ownerPosts(u.w, u.conv)).toEqual([]);
+  expect(await voicePosts(u.w, u.conv)).toEqual([]);
 
   // And the call answers the model that ops is not in this conversation
   expect(model.responses()[0].response).toEqual({ error: "not in this conversation" });
@@ -476,6 +480,32 @@ scenario("The mark is stored with the message and shown to every reader", { tag:
 
   // And the same message without the mark shows none
   expect(read.find((m) => m.body === "@dot and typed")?.via_voice).toBeUndefined();
+});
+
+scenario("Only the owner's voice call writes as @voice", { tag: ["@api"] }, async ({ server }) => {
+  // Background
+  const u = await callWorld({ server });
+
+  // When "dot" posts a message as @voice
+  const res = await agentPostWith(u.w.srv, u.dot.lease, u.conv, { client_id: "as-voice-agent-1", body: "hello", as_voice: true });
+  // Then the server answers 403 naming "as_voice"
+  expect(res.status).toBe(403);
+  expect(res.json().error.field).toBe("as_voice");
+
+  // When the owner's voice call posts "@dot is the deploy done?" as @voice
+  must(await ownerPostWith(u.w.owner, u.conv, { client_id: "as-voice-owner-1", body: "@dot is the deploy done?", as_voice: true }), "post as @voice", 201);
+  // Then reading conversation 41 shows that message from "voice", an agent named "Voice", with no "via voice call" mark
+  const [first] = await voicePosts(u.w, u.conv);
+  expect(first).toMatchObject({ body: "@dot is the deploy done?", author: { handle: "voice", display_name: "Voice", kind: "agent" } });
+  expect(first!.via_voice).toBeUndefined();
+  expect(await ownerPosts(u.w, u.conv)).toEqual([]);
+
+  // And a second post as @voice comes from the same "voice"
+  must(await ownerPostWith(u.w.owner, u.conv, { client_id: "as-voice-owner-2", body: "And merge it", as_voice: true }), "second post as @voice", 201);
+  const both = await voicePosts(u.w, u.conv);
+  expect(both.map((m) => m.body)).toEqual(["@dot is the deploy done?", "And merge it"]);
+  expect(both[0]!.author.id).toBeGreaterThan(0);
+  expect(both[1]!.author.id).toBe(both[0]!.author.id);
 });
 
 scenario("Only the owner's voice call posts a quiet message, and it wakes no agent", { tag: ["@api"] }, async ({ server }) => {

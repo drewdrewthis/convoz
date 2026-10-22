@@ -80,6 +80,17 @@ Feature: Voice call (contracts)
       Then reading conversation 41 shows that message with the mark
       And the same message without the mark shows none
 
+  # Owner decision (Drew, 2026-10-22): what the call writes comes from @voice, the server's built-in agent, not from the owner.
+  Rule: Only the owner's voice call writes as @voice
+
+    @v1 @api
+    Scenario: Only the owner's voice call writes as @voice
+      When "dot" posts a message as @voice
+      Then the server answers 403 naming "as_voice"
+      When the owner's voice call posts "@dot is the deploy done?" as @voice
+      Then reading conversation 41 shows that message from "voice", an agent named "Voice", with no "via voice call" mark
+      And a second post as @voice comes from the same "voice"
+
   Rule: The call log is quiet
 
     @v1 @api
@@ -91,17 +102,18 @@ Feature: Voice call (contracts)
       When the owner's voice call posts a quiet message that mentions "@dot"
       Then the message is stored and "dot" has no inbox item for it
 
-  # Issue https://github.com/drewdrewthis/convoz/issues/43, phase 1: the triage call from Now.
-  Rule: A Now token reads only
+  # Issue https://github.com/drewdrewthis/convoz/issues/43: the triage call from Now. Phase 1 read; phase 2 writes, each held for a yes.
+  Rule: A Now token reads, and writes only what the owner said yes to
 
     @v1 @api
-    Scenario: The owner gets a Now token that locks the triage instructions and read-only tools
+    Scenario: The owner gets a Now token that locks the triage instructions and tools
       Given voice is on with the key "TESTONLY-gemini"
       When the owner asks for a voice token with the scope "now"
       Then the server answers 200 with a token, the model, the socket address and an expiry
-      And it was asked to lock the model "gemini-3.8-live", the triage instructions and the tools "read_now", "list_conversations", "search_messages", "read_conversation" and "agent_status"
+      And it was asked to lock the model "gemini-3.8-live", the triage instructions, the reads "read_now", "list_conversations", "search_messages", "read_conversation" and "agent_status", and the writes held for a yes
       And the instructions tell the model to search and read before it answers about a topic, and to say when it is not sure
-      And no tool that writes is offered: no "ask_agent"
+      And the instructions tell the model to say each read-back and to call confirm_action only on the owner's yes
+      And no "ask_agent" is offered
       And the key "TESTONLY-gemini" is nowhere in the answer
 
     @v1 @api
@@ -119,7 +131,7 @@ Feature: Voice call (contracts)
       Then the server answers 400 naming "scope"
       And the token service was not asked
       When the owner asks for a voice token with no conversation and no scope
-      Then the server answers 200 and the token locks the tools "read_now", "list_conversations", "search_messages", "read_conversation" and "agent_status"
+      Then the server answers 200 and the token locks the same triage reads and writes
 
     @v1 @api
     Scenario: Now tokens count against the same 20 an hour

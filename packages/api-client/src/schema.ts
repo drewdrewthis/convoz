@@ -1157,7 +1157,7 @@ export interface paths {
         put?: never;
         /**
          * An agent in the conversation marks it stale (`convoz stale`). The rail folds it into Older at once; the next message brings it back.
-         * @description Only an agent that is a participant may mark it (403 otherwise); a person has no stale action. While the owner wrote the last
+         * @description An agent that is a participant may mark it (403 otherwise), and so may the owner (his voice call does). While the owner wrote the last
          *     message the conversation waits on the agents and cannot go stale: 409 owner_spoke_last. The reason, when given, is kept with
          *     the mark (stale_reason). Marking it again moves the time of the mark and replaces the reason. No system line is written.
          */
@@ -5706,6 +5706,8 @@ export interface operations {
                     via_app?: components["schemas"]["ViaAppRequest"];
                     /** @description The owner's voice call posts this (a lease answers 403 naming via_voice): readers see "via voice call". */
                     via_voice?: boolean;
+                    /** @description The owner's voice call writes this for him: its author is the built-in agent @voice, not the owner, and it has no "via voice call" mark. The owner only (anyone else, a lease or a post with via_app answers 403 naming as_voice); @voice turned off answers 409 voice_unavailable. */
+                    as_voice?: boolean;
                     /** @description The owner's voice call posts its call log with this (needs via_voice; a lease or a post without via_voice answers 403 naming quiet): the message is stored and shown, but no agent gets a mention or an inbox item from it. Read it with convoz read. */
                     quiet?: boolean;
                     /** @description Whether the post needs the owner. Required for agents from the next release; true is refused on a plain post (422 needs_you_is_an_ask, with the convoz ask command and the agent's text), because a message that needs the owner is an ask. This release an agent that leaves it out is accepted as false, with a Convoz-Warning header. The owner's value is ignored. */

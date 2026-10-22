@@ -16,6 +16,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/event"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/upload"
@@ -60,6 +61,10 @@ func (s *Server) postMessage(w http.ResponseWriter, r *http.Request, c *call) {
 		writeFieldErr(w, http.StatusForbidden, "forbidden", "quiet", "Only the owner's voice call posts a quiet message.")
 		return
 	}
+	if in.AsVoice && (isAgent || c.p.Role != "owner" || in.ViaApp != nil) {
+		writeFieldErr(w, http.StatusForbidden, "forbidden", "as_voice", "Only the owner's voice call writes as @voice.")
+		return
+	}
 	if isAgent && !needsYouAllowed(w, in) {
 		return
 	}
@@ -95,9 +100,18 @@ func (s *Server) postMessage(w http.ResponseWriter, r *http.Request, c *call) {
 	}
 	var posted message.Posted
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) (err error) {
+		if in.AsVoice {
+			if draft.Author, err = voiceAuthor(ctx, tx.DBTX(), who, now); err != nil {
+				return err
+			}
+		}
 		posted, err = message.Post(ctx, tx.DBTX(), triagePorts(c.p), now, draft)
 		return err
 	})
+	if errors.Is(err, errVoiceOff) {
+		writeFieldErr(w, http.StatusConflict, "voice_unavailable", "as_voice", "@voice is turned off, or another identity holds its name.")
+		return
+	}
 	if s.messageRefused(w, err) {
 		return
 	}
@@ -116,6 +130,20 @@ func (s *Server) postMessage(w http.ResponseWriter, r *http.Request, c *call) {
 		}
 	}
 	writeJSON(w, status, wire.PostResponse{ID: posted.Message.ID, ConversationID: convID, CreatedAt: posted.Message.CreatedAt})
+}
+
+// errVoiceOff is a post as @voice when @voice cannot write: the owner turned it off, or an identity made before the handle was
+// reserved holds its handle or name.
+var errVoiceOff = errors.New("@voice cannot write")
+
+// voiceAuthor is @voice, made the first time the owner's call writes (identity.Voice). The post keeps the owner's own access and side
+// effects (his reminders, his answers on a thread's asks); only the author is @voice.
+func voiceAuthor(ctx context.Context, d pdb.DBTX, owner int64, now time.Time) (int64, error) {
+	v, err := identity.Voice(ctx, d, owner, now)
+	if errors.Is(err, identity.ErrHandleTaken) || (err == nil && v.Disabled) {
+		return 0, errVoiceOff
+	}
+	return v.ID, err
 }
 
 // needsYouWarning is the Convoz-Warning header of an agent post that leaves needs_you out. A later release refuses such a post.

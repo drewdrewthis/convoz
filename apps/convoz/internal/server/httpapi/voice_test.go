@@ -82,8 +82,8 @@ func TestRestMinterSendsTheKeyInAHeaderAndNamesStatusesOnly(t *testing.T) {
 	}
 }
 
-// Issue https://github.com/drewdrewthis/convoz/issues/43: a triage call from Now reads only.
-func TestNowConfigLocksTriageInstructionAndReadOnlyTools(t *testing.T) {
+// Issue https://github.com/drewdrewthis/convoz/issues/43: a triage call from Now reads, and writes only what the owner said yes to.
+func TestNowConfigLocksTriageInstructionAndTools(t *testing.T) {
 	var body struct {
 		Setup struct {
 			SystemInstruction struct {
@@ -101,12 +101,14 @@ func TestNowConfigLocksTriageInstructionAndReadOnlyTools(t *testing.T) {
 	for _, f := range body.Setup.Tools[0].FunctionDeclarations {
 		names = append(names, f.Name)
 	}
-	if got := strings.Join(names, " "); got != "read_now list_conversations search_messages read_conversation agent_status" {
-		t.Errorf("a Now call offers only reads: %s", got)
+	want := "read_now list_conversations search_messages read_conversation agent_status " +
+		"post_message reply_in_thread answer_ask snooze_ask mark_stale star_conversation confirm_action cancel_action"
+	if got := strings.Join(names, " "); got != want {
+		t.Errorf("a Now call offers its reads, then its writes held for a yes: %s", got)
 	}
 	words := body.Setup.SystemInstruction.Parts[0].Text
 	// Owner said (conv 115): the triage call "can't see messages"; asked about the hooks work, it repeated an old Now item.
-	for _, want := range []string{"read_now", "most urgent first", "short sentences", "untrusted", "search_messages", "read_conversation", "not sure", "never repeat"} {
+	for _, want := range []string{"read_now", "most urgent first", "short sentences", "untrusted", "search_messages", "read_conversation", "not sure", "never repeat", "read_back", "word for word", "confirm_action", "says yes", "cancel_action"} {
 		if !strings.Contains(words, want) {
 			t.Errorf("instruction lacks %q: %s", want, words)
 		}

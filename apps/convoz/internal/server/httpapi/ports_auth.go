@@ -48,7 +48,7 @@ var flowPorts = auth.Ports{Agents: agentPort{}, Journal: journalPort{}, Conversa
 type agentPort struct{}
 
 func agentOf(p identity.Principal) auth.Agent {
-	return auth.Agent{ID: p.ID, Kind: p.Kind, Handle: p.Handle, DisplayName: p.DisplayName, Disabled: p.Disabled}
+	return auth.Agent{ID: p.ID, Kind: p.Kind, Handle: p.Handle, DisplayName: p.DisplayName, Disabled: p.Disabled, Builtin: identity.IsBuiltin(p)}
 }
 
 func (agentPort) ValidHandle(s string) bool { return identity.ValidHandle(s) }

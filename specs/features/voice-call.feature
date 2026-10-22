@@ -39,10 +39,10 @@ Feature: Voice call
   Rule: The owner talks and the agent answers
 
     @v1 @browser
-    Scenario: What the owner asks is posted to the agent, marked as a voice call
+    Scenario: What the owner asks is posted to the agent by @voice
       Given the owner is on a call in conversation 41
       When the owner says "is the deploy done?" and the model asks dot "is the deploy done?"
-      Then conversation 41 shows the message "@dot is the deploy done?" marked "via voice call"
+      Then conversation 41 shows the message "@dot is the deploy done?" from "Voice", with no "via voice call" mark
       And the call says "Asked @dot"
 
     @v1 @browser
@@ -121,9 +121,9 @@ Feature: Voice call
       And the call sheet is gone
 
   # Issue https://github.com/drewdrewthis/convoz/issues/43, phase 1: a triage call from anywhere. It is the same call, aimed at Now
-  # instead of one conversation: it reads what waits on the owner and posts nothing. No new agent, no new handle.
-  # Owner said (conv 108 msg 2846): "the voice should be triage by default". Write tools (answer an ask once he says yes, post,
-  # assign) come in the next phase.
+  # instead of one conversation: it reads what waits on the owner. What it sends comes from @voice (see the rule below).
+  # Owner said (conv 108 msg 2846): "the voice should be triage by default". Phase 2: he manages his whole Convoz by voice, so it
+  # writes too (post, reply in a thread, answer or snooze an ask, mark stale, star), each only after he hears it read back and says yes.
   Rule: The owner can call Now from anywhere to hear what waits on him
 
     @v1 @browser
@@ -181,11 +181,76 @@ Feature: Voice call
       Then the answer to the model lists "Ship search filters" with the unread count the server holds and its last activity
 
     @v1 @browser
-    Scenario: A Now call cannot post
+    Scenario: A Now call cannot ask an agent
       Given the owner is on a Now call
       When the owner says "ask dot to merge it" and the model asks dot "merge it"
       Then no conversation shows a message to "@dot"
       And the call answers the model that there is no such tool
+
+    # Phase 2 (convoz#43): a write the model asks for does nothing at once. The call reads it back ("I will post 'X' in Y. Say yes to
+    # send.") and holds it; confirm_action after the owner's yes runs it once. cancel_action, or any new write, drops it. A refusal of
+    # the server comes back to the model as one short sentence it can say, never as a crash of the call.
+    @v1 @browser
+    Scenario: The model posts in a conversation only after the owner says yes
+      Given the owner is on a Now call
+      When the owner says "post ship it in search filters" and the model asks for post_message with "Ship it" in "search filters"
+      Then the answer to the model reads back "I will post "Ship it" in Ship search filters. Say yes to send."
+      And @voice has posted nothing in conversation 41
+      When the owner says "yes" and the model asks for confirm_action
+      Then @voice's message "Ship it" is in conversation 41
+      When the model asks for confirm_action again
+      Then the answer to the model says nothing waits for a yes
+      And conversation 41 holds @voice's "Ship it" once
+
+    @v1 @browser
+    Scenario: The model replies in a thread only after the owner says yes
+      Given "dot" posted "Deploy is at 14:00" in conversation 41
+      And the owner is on a Now call
+      When the owner says "reply thanks" and the model asks for reply_in_thread on that message with "Thanks"
+      Then the answer to the model reads back the reply "Thanks", the message "Deploy is at 14:00" from "dot" and "Ship search filters"
+      And the thread of that message has no reply
+      When the owner says "yes" and the model asks for confirm_action
+      Then the thread of that message holds @voice's reply "Thanks"
+
+    @v1 @browser
+    Scenario: Cancel drops a write the owner has not said yes to
+      Given "dot" posted "Deploy is at 14:00" in conversation 41
+      And the owner is on a Now call
+      When the owner says "reply thanks" and the model asks for reply_in_thread on that message with "Thanks"
+      And the owner says "no" and the model asks for cancel_action
+      And the model asks for confirm_action
+      Then the answer to the model says nothing waits for a yes
+      And the thread of that message has no reply
+
+    @v1 @browser
+    Scenario: The model answers an ask only after the owner says yes, and a new write drops the one before
+      Given "dot" asked "Merge #415 on its own?" in conversation 41, with "Merge it" recommended and "Hold it" the alternative
+      And the owner is on a Now call
+      When the owner says "merge it" and the model asks for answer_ask on that ask with option 1
+      Then the answer to the model reads back "Merge #415 on its own?", "Ship search filters" and "Merge it"
+      And the ask is still open
+      When the owner says "no, hold it" and the model asks for answer_ask on that ask with option 2
+      And the owner says "yes" and the model asks for confirm_action
+      Then the ask is answered with "Hold it"
+
+    @v1 @browser
+    Scenario: The model marks a conversation stale only after the owner says yes
+      Given "dot" posted "Shipped, nothing left" in conversation 41
+      And the owner is on a Now call
+      When the owner says "search filters is done" and the model asks for mark_stale on "search filters"
+      Then the answer to the model reads back "I will mark Ship search filters stale. Say yes to mark it."
+      And conversation 41 is not stale
+      When the owner says "yes" and the model asks for confirm_action
+      Then conversation 41 is stale
+
+    @v1 @browser
+    Scenario: A write the server refuses comes back as a short sentence
+      Given the owner wrote the last message in conversation 41
+      And the owner is on a Now call
+      When the owner says "search filters is done" and the model asks for mark_stale on "search filters"
+      And the owner says "yes" and the model asks for confirm_action
+      Then the answer to the model is the error "You wrote the last message there, so it cannot go stale."
+      And conversation 41 is not stale and the call is still live
 
     @v1 @browser
     Scenario: Typing "@voice" does not open the microphone
@@ -212,3 +277,16 @@ Feature: Voice call
       Given the owner is on a Now call and the model read Now
       When the owner reloads the page
       Then the conversation "Calls with @voice" holds one "Call log" message that says the call ended
+
+  # Owner decision (Drew, 2026-10-22): a message or reply the call writes must not look like the owner's own "via voice". It comes
+  # from @voice, the server's built-in agent: a secretary between him and his agents. Answers, snoozes, stale marks and stars stay
+  # his own acts. Only the owner's call writes as @voice; no person, lease or machine session can.
+  Rule: What the call sends comes from @voice, not the owner
+
+    @v1 @browser
+    Scenario: A message the call sends comes from @voice, not the owner
+      Given the owner is on a Now call
+      When the owner says "post ship it in search filters" and the model asks for post_message with "Ship it" in "search filters"
+      And the owner says "yes" and the model asks for confirm_action
+      Then conversation 41 shows "Ship it" from "Voice" @voice, with no "via voice call" mark
+      And the server holds "Ship it" from the agent "voice", and the owner has posted nothing in conversation 41

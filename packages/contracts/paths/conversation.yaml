@@ -207,12 +207,12 @@
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/conversations/{id}/stale:
   post:
-    x-authz: { auth: lease, scope: post }
-    security: [{ leaseBearer: [] }]
+    x-authz: { auth: owner, lease: accept, scope: post }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
     operationId: markStale
     summary: An agent in the conversation marks it stale (`convoz stale`). The rail folds it into Older at once; the next message brings it back.
     description: |
-      Only an agent that is a participant may mark it (403 otherwise); a person has no stale action. While the owner wrote the last
+      An agent that is a participant may mark it (403 otherwise), and so may the owner (his voice call does). While the owner wrote the last
       message the conversation waits on the agents and cannot go stale: 409 owner_spoke_last. The reason, when given, is kept with
       the mark (stale_reason). Marking it again moves the time of the mark and replaces the reason. No system line is written.
     parameters:

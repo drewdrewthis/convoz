@@ -129,7 +129,7 @@ func sessionIdentity(ctx context.Context, d pdb.DBTX, p Ports, m Machine, in Min
 		found = false
 	}
 	if found {
-		if who.Kind != "agent" || who.Disabled {
+		if who.Kind != "agent" || who.Disabled || who.Builtin {
 			return Agent{}, nil, ForbiddenError("That identity cannot start a session.")
 		}
 		if in.Create != nil && !m.Allow.Covers(who.ID, handle) {

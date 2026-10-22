@@ -16,7 +16,7 @@ import (
 // Reserved handles (design I-3): they name things the product itself uses.
 var Reserved = map[string]bool{
 	"owner": true, "system": true, "all": true, "here": true, "everyone": true, "channel": true,
-	"admin": true, "convoz": true, "cvz": true, "inbox": true, "brief": true,
+	"admin": true, "convoz": true, "cvz": true, "inbox": true, "brief": true, VoiceHandle: true,
 }
 
 // Errors CreateAgent returns; the HTTP layer maps each to a field of the request.

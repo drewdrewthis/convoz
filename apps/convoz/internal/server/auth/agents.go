@@ -15,6 +15,7 @@ type Agent struct {
 	Handle      string
 	DisplayName string
 	Disabled    bool
+	Builtin     bool // an identity only the server acts as (@voice): no session starts as it
 }
 
 // NewAgent is a request to make an agent identity, by the owner or by a machine.

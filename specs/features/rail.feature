@@ -49,7 +49,7 @@ Feature: Rail
     # Drew, 2026-10-22 (msg 2678, #42): Older = not starred, the owner did not write the last message, and either no message for 48 hours
     # (it was "no message since yesterday", prototype v41 P:6089-6091) or an agent in it marked it stale. "If it's my message it can't go
     # stale, but if it's an agent's maybe it's no longer relevant." Only the conversations list goes Older; Now and the feed never do. It is
-    # a view; the order stays the owner's. There is no owner action to mark one stale or to bring one back.
+    # a view; the order stays the owner's. The rail has no action to mark one stale or to bring one back (his voice call can mark one: voice-call.feature).
     @v1 @browser @I-21 @C-9
     Scenario: Conversations with no message for 48 hours fold into Older
       Given conversation 41 is not starred and its last message was 2 days ago

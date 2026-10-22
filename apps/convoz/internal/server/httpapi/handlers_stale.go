@@ -11,7 +11,8 @@ import (
 )
 
 // markStale is POST /api/conversations/:id/stale: an agent in the conversation says it is done for now, so the owner's rail folds it into
-// Older at once (Drew, 2026-10-22). The next message brings it back; nothing clears the mark. Only a participant may mark it, and not
+// Older at once (Drew, 2026-10-22). The owner may mark it too, from his voice call (features/call/writes.ts, convoz#43). The next
+// message brings it back; nothing clears the mark. Only a participant may mark it, and not
 // while the owner wrote the last message: that conversation waits on the agents, so it never goes stale (#42, Drew msg 2678). No
 // system line is written: a line would be a message after the mark. The reason is kept with the mark and shown with the conversation.
 func (s *Server) markStale(w http.ResponseWriter, r *http.Request, c *call) {

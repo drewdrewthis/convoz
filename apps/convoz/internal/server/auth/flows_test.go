@@ -272,6 +272,10 @@ func TestMintSessionRules(t *testing.T) {
 	if _, err := mint(t, s, ports, MintRequest{MachineKey: maker, As: "drew", ClientID: "client-001"}); !errors.As(err, &forbidden) {
 		t.Errorf("a human cannot start a session: %v", err)
 	}
+	ports.Agents.(*fakeAgents).byHandle["voice"] = Agent{ID: 99, Kind: "agent", Handle: "voice", DisplayName: "Voice", Builtin: true}
+	if _, err := mint(t, s, ports, MintRequest{MachineKey: maker, As: "voice", ClientID: "client-001"}); !errors.As(err, &forbidden) {
+		t.Errorf("no machine starts a session as @voice, even one that may act as anyone: %v", err)
+	}
 	if _, err := mint(t, s, ports, MintRequest{MachineKey: "cvz_m_TESTONLYnone", As: "alpha", ClientID: "client-001"}); !errors.Is(err, ErrMachineGone) {
 		t.Errorf("an unknown key: %v", err)
 	}

@@ -144,14 +144,26 @@ export async function onACall(page: Page, srv: ServerHandle, conv: number): Prom
   return model;
 }
 
-/** The posts of the owner in a conversation, as the server holds them. */
-export async function ownerPosts(w: World, conv: number): Promise<{ body: string; via_voice?: boolean }[]> {
-  const res = must(await w.owner.client.get(`/api/conversations/${conv}/messages`), "read the conversation");
-  return (res.json().messages as { author: { handle: string }; body: string; via_voice?: boolean }[]).filter((m) => m.author.handle === "drew");
+export interface Post {
+  id: number;
+  author: { id?: number; handle: string; display_name: string; kind: string };
+  body: string;
+  via_voice?: boolean;
 }
 
+async function postsBy(w: World, conv: number, handle: string): Promise<Post[]> {
+  const res = must(await w.owner.client.get(`/api/conversations/${conv}/messages`), "read the conversation");
+  return (res.json().messages as Post[]).filter((m) => m.author.handle === handle);
+}
+
+/** The posts of the owner in a conversation, as the server holds them. */
+export const ownerPosts = (w: World, conv: number): Promise<Post[]> => postsBy(w, conv, "drew");
+
+/** The posts of @voice in a conversation: what the call wrote for the owner (owner decision 2026-10-22), as the server holds them. */
+export const voicePosts = (w: World, conv: number): Promise<Post[]> => postsBy(w, conv, "voice");
+
 /** The call logs in a conversation as the server holds them: the owner's messages marked "via voice call" that start with "Call log". */
-export async function callLogs(w: World, conv: number): Promise<{ body: string; via_voice?: boolean }[]> {
+export async function callLogs(w: World, conv: number): Promise<Post[]> {
   return (await ownerPosts(w, conv)).filter((m) => m.via_voice && m.body.startsWith("Call log"));
 }
 
@@ -184,7 +196,7 @@ export async function onANowCall(page: Page, srv: ServerHandle): Promise<FakeMod
 }
 
 /** The conversations titled "Calls with @voice" and the call logs in them, as the server holds them. */
-export async function nowCallLogs(w: World): Promise<{ conversations: number[]; logs: { body: string; via_voice?: boolean }[] }> {
+export async function nowCallLogs(w: World): Promise<{ conversations: number[]; logs: Post[] }> {
   const conversations = (await listConversations(w.owner)).filter((c) => c.title === CALLS_TITLE).map((c) => c.id);
   const logs = [];
   for (const id of conversations) logs.push(...(await callLogs(w, id)));

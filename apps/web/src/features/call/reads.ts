@@ -49,8 +49,8 @@ export async function listConversations(): Promise<Record<string, unknown>> {
   };
 }
 
-/** Which conversation read_conversation names: the id, or the newest-active one whose title holds the words; others that match too. */
-async function pick(id: number | undefined, title: string): Promise<{ id: number; title: string; also: string[] } | null> {
+/** Which conversation read_conversation (or a write, writes.ts) names: the id, or the newest-active one whose title holds the words; others that match too. */
+export async function pick(id: number | undefined, title: string): Promise<{ id: number; title: string; also: string[] } | null> {
   const { conversations } = await call(client.GET("/api/conversations"));
   if (id) {
     const c = conversations.find((x) => x.id === id);

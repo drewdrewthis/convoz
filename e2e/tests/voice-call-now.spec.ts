@@ -1,7 +1,7 @@
 import { createConversation, peekFor } from "../lib/chat.ts";
 import { agentAsks, QUESTION } from "../lib/asks.ts";
 import { messageLog } from "../lib/chat-ui.ts";
-import { callButton, callPill, callStatus, callWorld, CALLS_TITLE, fakeMic, fakeModel, KEY, micStates, nowCallLogs, onANowCall, openConversation, ownerPosts, searchDialog, startNowCallFromSearch, tokenRequests, trackMicrophone, visibleLink, voiceKey } from "../lib/call.ts";
+import { callButton, callPill, callStatus, callWorld, CALLS_TITLE, fakeMic, fakeModel, KEY, micStates, nowCallLogs, onANowCall, openConversation, ownerPosts, searchDialog, startNowCallFromSearch, tokenRequests, trackMicrophone, visibleLink, voiceKey, voicePosts } from "../lib/call.ts";
 import { must } from "../lib/owner.ts";
 import { expect, scenario, test } from "../lib/scenario.ts";
 import { raw } from "../lib/uploads-wp10.ts";
@@ -9,14 +9,15 @@ import { raw } from "../lib/uploads-wp10.ts";
 /*
  * THE NOW CALL: specs/features/voice-call.feature and specs/contracts/voice-call.feature, the rules on calling Now
  * (issue https://github.com/drewdrewthis/convoz/issues/43, phase 1). The same call as in a conversation, aimed at Now: it reads what
- * waits on the owner and posts nothing. The fakes are those of voice-call.spec.ts; the page contract is the block atop lib/call.ts.
+ * waits on the owner; its writes are in voice-call-writes.spec.ts. The fakes are those of voice-call.spec.ts; the page contract is the block atop lib/call.ts.
  */
 
 test.use({ launchOptions: fakeMic });
 
 const GOOGLE = "generativelanguage.googleapis.com";
-/** The tools of a Now call: reads only. */
+/** The tools of a Now call: its reads, then its writes (each held for the owner's yes, voice-call-writes.spec.ts). */
 const READS = ["read_now", "list_conversations", "search_messages", "read_conversation", "agent_status"];
+const WRITES = ["post_message", "reply_in_thread", "answer_ask", "snooze_ask", "mark_stale", "star_conversation", "confirm_action", "cancel_action"];
 
 // ---- the feature ---------------------------------------------------------------------------------------
 
@@ -123,7 +124,7 @@ scenario("The model reads Now and the answer holds the asks that wait", { tag: [
   await page.screenshot({ path: info.outputPath("now-call-pill.png") });
 });
 
-scenario("A Now call cannot post", { tag: ["@browser"] }, async ({ server, page, context }) => {
+scenario("A Now call cannot ask an agent", { tag: ["@browser"] }, async ({ server, page, context }) => {
   // Background
   const u = await callWorld({ server, page, context });
   await voiceKey(u.w, KEY);
@@ -138,6 +139,7 @@ scenario("A Now call cannot post", { tag: ["@browser"] }, async ({ server, page,
   // Then no conversation shows a message to "@dot"
   await expect.poll(() => model.responses()).toHaveLength(1);
   expect(await ownerPosts(u.w, u.conv)).toEqual([]);
+  expect(await voicePosts(u.w, u.conv)).toEqual([]);
 
   // And the call answers the model that there is no such tool
   expect(model.responses()[0].response).toEqual({ error: "no such tool" });
@@ -256,7 +258,7 @@ scenario("A Now call that ends with a reload still leaves its log", { tag: ["@br
 
 // ---- the contracts ---------------------------------------------------------------------------------------
 
-scenario("The owner gets a Now token that locks the triage instructions and read-only tools", { tag: ["@api"] }, async ({ server }) => {
+scenario("The owner gets a Now token that locks the triage instructions and tools", { tag: ["@api"] }, async ({ server }) => {
   // Background
   const u = await callWorld({ server });
 
@@ -273,14 +275,14 @@ scenario("The owner gets a Now token that locks the triage instructions and read
   expect(out.ws_url).toMatch(new RegExp(`^wss://${GOOGLE}/`));
   expect(out.expires_at).toBeGreaterThan(0);
 
-  // And it was asked to lock the model "gemini-3.8-live", the triage instructions and the tools "read_now", "list_conversations", "search_messages", "read_conversation" and "agent_status"
+  // And it was asked to lock the model "gemini-3.8-live", the triage instructions, the reads "read_now", "list_conversations", "search_messages", "read_conversation" and "agent_status", and the writes held for a yes
   const asked = await tokenRequests(u.w);
   expect(asked).toHaveLength(1);
   const setup = asked[0]!.body.bidiGenerateContentSetup;
   expect(asked[0]!.body.uses).toBe(1);
   expect(setup.model).toBe("models/gemini-3.8-live");
   const names = setup.tools[0].functionDeclarations.map((f: { name: string }) => f.name);
-  expect(names).toEqual(READS);
+  expect(names).toEqual([...READS, ...WRITES]);
   expect(out.config.tools).toEqual(setup.tools);
   const words = setup.systemInstruction.parts[0].text as string;
   expect(words).toContain("read_now");
@@ -292,7 +294,11 @@ scenario("The owner gets a Now token that locks the triage instructions and read
   expect(words).toMatch(/call search_messages .* then read_conversation/);
   expect(words).toMatch(/not sure/);
 
-  // And no tool that writes is offered: no "ask_agent"
+  // And the instructions tell the model to say each read-back and to call confirm_action only on the owner's yes
+  expect(words).toMatch(/read_back to him word for word/);
+  expect(words).toMatch(/Call confirm_action only when he says yes/);
+
+  // And no "ask_agent" is offered
   expect(names).not.toContain("ask_agent");
 
   // And the key "TESTONLY-gemini" is nowhere in the answer
@@ -334,8 +340,8 @@ scenario("A token request without a conversation is the triage call, and one nam
   // When the owner asks for a voice token with no conversation and no scope
   // Owner said (conv 108 msg 2846): "the voice should be triage by default"
   const neither = must(await u.w.owner.client.post("/api/voice/token", {}), "default token");
-  // Then the server answers 200 and the token locks the tools "read_now", "list_conversations", "search_messages", "read_conversation" and "agent_status"
-  expect(neither.json().config.tools[0].functionDeclarations.map((f: { name: string }) => f.name)).toEqual(READS);
+  // Then the server answers 200 and the token locks the same triage reads and writes
+  expect(neither.json().config.tools[0].functionDeclarations.map((f: { name: string }) => f.name)).toEqual([...READS, ...WRITES]);
 });
 
 scenario("Now tokens count against the same 20 an hour", { tag: ["@api"] }, async ({ server }) => {

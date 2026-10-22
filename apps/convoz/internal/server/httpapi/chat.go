@@ -169,8 +169,12 @@ func conversationView(ctx context.Context, d pdb.DBTX, p authz.Principal, dir di
 
 func ptr[T any](v T) *T { return &v }
 
-// isOwner says whether the identity is the owner. A conversation where the owner wrote the newest message never goes Older (#42).
-func isOwner(dir directory, id int64) bool { return dir[id].Role == "owner" }
+// isOwner says whether the identity is the owner, or @voice writing his words for him. A conversation where the owner wrote the
+// newest message never goes Older (#42).
+func isOwner(dir directory, id int64) bool {
+	e := dir[id]
+	return e.Role == "owner" || (e.Kind == "agent" && e.Handle == identity.VoiceHandle)
+}
 
 // ownerWroteLast reports whether the owner wrote the newest message of the main list.
 func ownerWroteLast(ctx context.Context, d pdb.DBTX, dir directory, cv conversation.Conversation) (bool, error) {
