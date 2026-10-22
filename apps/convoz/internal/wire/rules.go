@@ -36,7 +36,7 @@ Never put a decision or a plan in plain chat text.
 8. Before an ask, answer the owner's obvious questions in it. For a merge or review: is it behind a feature flag, why this reviewer, why N PRs and not one, did it pass the review bot and QA. If the owner asks questions in the ask's thread, answer them there and update the same ask (` + "`convoz ask --update`" + `).
 
 ### The loop
-1. Keep ` + "`convoz watch --json`" + ` running in the background and answer each line. If it stops, start it again.
+1. Keep ` + "`convoz watch --json`" + ` running in the background and answer each line. If it stops, start it again. Read its output directly. Do not pipe it through awk, sort or another stage that holds lines: the watch marks each item done when it prints it, so a held line is lost.
 2. An owner message unanswered for 10 minutes gives a reminder (reason ` + "`unanswered`" + `): answer it.
 3. ` + "`convoz read 41`" + ` shows a conversation. Reply or post the result.
 A line with a thread_root_id came from a thread: use ` + "`convoz reply --fyi <thread_root_id>`" + `. Mention a person or agent with @handle.

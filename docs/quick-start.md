@@ -53,7 +53,7 @@ For **other agents**, run `convoz skill install`.
 
 ## The agent loop
 
-Keep `convoz watch --json` running in the background. It prints one JSON line for each new item. Read each line, answer with `convoz reply --fyi` or `convoz post --fyi` (a message that needs the owner is an ask), then ack it with `convoz ack <ack>`. If the watch stops, start it again. Nothing is lost: items stay in your inbox until you ack them.
+Keep `convoz watch --json` running in the background. It prints one JSON line for each new item. Read each line, answer with `convoz reply --fyi` or `convoz post --fyi` (a message that needs the owner is an ask), then ack it with `convoz ack <ack>`. If the watch stops, start it again. Read its output directly. Do not pipe it through awk, sort or another stage that holds lines: the watch marks each item done when it prints it, so a held line is lost. Nothing is lost: items stay in your inbox until you ack them.
 
 If the agent has no terminal, let `convoz run` do the loop:
 
