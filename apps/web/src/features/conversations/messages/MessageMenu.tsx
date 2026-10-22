@@ -11,13 +11,12 @@ import { Button } from "@convoz/ui/Button";
 
 /**
  * MessageMenu is the "Message actions" button of one message and what it opens. The button is invisible until the row is
- * hovered or focused (a long press does the same on touch), so a message looks as the prototype draws it.
+ * hovered or focused (a long press anywhere on the message does the same on touch), so a message looks as the prototype draws it.
  */
 export function MessageMenu({ message, mine, conversation }: { message: Message; mine: boolean; conversation: number }) {
   const [open, setOpen] = useState(false);
   const pinned = useData((s) => Boolean(s.rows[conversation]?.pinned?.some((x) => x.id === message.id)));
   const [sheet, setSheet] = useState<"edit" | "delete" | null>(null);
-  const press = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const root = useRef<HTMLSpanElement>(null);
   const voice = message.uploads?.find((u) => u.kind === "audio");
   // "Transcribe again" that gave up puts the earlier words back with redo_failed: say so once, when it flips.
@@ -30,6 +29,49 @@ export function MessageMenu({ message, mine, conversation }: { message: Message;
   const rootId = message.thread_root_id ?? message.id;
   const fresh = useNewReplies(message);
   const inOpenThread = useThreads((s) => s.open?.rootId === rootId);
+
+  // A phone never hovers, so there the button stays invisible and only a 44 px corner took the long press: the owner could not find a
+  // way into a thread (conv 9, msg 2708). The whole message takes it now.
+  useEffect(() => {
+    const row = root.current?.closest("article");
+    if (!row) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let from: { x: number; y: number } | null = null;
+    let held = false;
+    const start = (e: TouchEvent) => {
+      held = false;
+      clearTimeout(timer);
+      const t = e.touches[0];
+      from = e.touches.length === 1 && t ? { x: t.clientX, y: t.clientY } : null;
+      if (from) timer = setTimeout(() => ((held = true), setOpen(true)), 450);
+    };
+    // A finger always jitters a little; only a real move (a scroll) is not a long press.
+    const move = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (!from || !t || Math.hypot(t.clientX - from.x, t.clientY - from.y) > 10) clearTimeout(timer);
+    };
+    const end = () => clearTimeout(timer);
+    // The click a phone may send when the finger lifts after a long press would toggle the menu shut again or follow a link.
+    const swallow = (e: MouseEvent) => {
+      if (!held) return;
+      held = false;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    row.addEventListener("touchstart", start, { passive: true });
+    row.addEventListener("touchmove", move, { passive: true });
+    row.addEventListener("touchend", end, { passive: true });
+    row.addEventListener("touchcancel", end, { passive: true });
+    row.addEventListener("click", swallow, true);
+    return () => {
+      clearTimeout(timer);
+      row.removeEventListener("touchstart", start);
+      row.removeEventListener("touchmove", move);
+      row.removeEventListener("touchend", end);
+      row.removeEventListener("touchcancel", end);
+      row.removeEventListener("click", swallow, true);
+    };
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -47,9 +89,6 @@ export function MessageMenu({ message, mine, conversation }: { message: Message;
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        onTouchStart={() => (press.current = setTimeout(() => setOpen(true), 450))}
-        onTouchEnd={() => clearTimeout(press.current)}
-        onTouchMove={() => clearTimeout(press.current)}
       />
       {open ? (
         <div className="msg-menu" role="menu">

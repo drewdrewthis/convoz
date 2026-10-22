@@ -329,6 +329,10 @@
     .msg:hover .msg-actions-btn { opacity: 1; background: var(--color-raised); }
     .msg-menu button:hover { background: var(--color-border); }
   }
+  /* A touch screen never hovers, so the button would never show there: the owner found no way into a thread (conv 9, msg 2708). No :hover here. */
+  @media (hover: none) {
+    .msg-actions-btn { opacity: 1; }
+  }
   .notice-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 12px 3px 60px; color: var(--color-muted); font-size: 13.5px; line-height: 1.4; }
   /* the bullet hangs off the text itself: as its own flex item, a text too long for the row wrapped below it and left the bullet alone */
   .notice-text::before { content: "\2022"; display: inline-block; width: 16px; margin-left: -24px; margin-right: 8px; text-align: center; }

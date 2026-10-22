@@ -115,6 +115,23 @@ Feature: Threads
       Then the thread pane is open
       And the reply chip is at least 44 px tall
 
+    # Owner, conv 9 msg 2708: on his phone he could not open the thread of msg 2691 to reply in it.
+    @v1 @browser @phone
+    Scenario: On a phone a long press on a message opens Reply in thread
+      Given conversation 41 is open on a phone and message 900 has no replies
+      When the owner long presses the text of message 900
+      And taps "Reply in thread"
+      Then the thread pane is open
+      When the owner taps the reply box, types a reply and taps "Send reply"
+      Then the thread shows the reply
+
+    @v1 @browser @phone
+    Scenario: On a phone the message actions button shows and a tap on it opens Reply in thread
+      Given conversation 41 is open on a phone and message 900 has no replies
+      Then the "Message actions" button of message 900 shows without a hover
+      When the owner taps it and taps "Reply in thread"
+      Then the thread pane is open
+
   Rule: A thread root shows its last reply in the main list
 
     # Owner decision 2026-10-18, design B: "Replies stay in the thread. The message gets a bold reply chip and a faded peek of the last reply.
