@@ -357,7 +357,7 @@ func (s *Server) avatar(w http.ResponseWriter, r *http.Request, _ *call) {
 	h.Set("Content-Type", "image/svg+xml")
 	h.Set("Content-Security-Policy", "default-src 'none'; sandbox")
 	h.Set("Cache-Control", "private, no-cache")
-	h.Set("ETag", `"`+strconv.Itoa(len(svg))+"-"+hex.EncodeToString([]byte(svg[:min(len(svg), 16)]))+`"`)
+	h.Set("ETag", `"`+identity.AvatarVersion(svg)+`"`)
 	_, _ = w.Write([]byte(svg))
 }
 
@@ -385,8 +385,5 @@ func (s *Server) setAvatar(w http.ResponseWriter, r *http.Request, c *call, raw 
 		return "", false
 	}
 	s.Bus.Notify()
-	if svg != "" {
-		url = "/api/identities/" + strconv.FormatInt(who, 10) + "/avatar.svg"
-	}
-	return url, true
+	return identity.AvatarURL(who, svg), true
 }

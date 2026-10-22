@@ -24,7 +24,7 @@ WHERE i.handle = sqlc.arg(handle);
 
 -- name: ListIdentities :many
 SELECT i.id, i.kind, i.handle, i.display_name, CAST(COALESCE(h.role, 'agent') AS TEXT) AS role, i.created_at, i.disabled_at,
-  a.created_by_human, a.created_by_machine, CAST(COALESCE(a.description, '') AS TEXT) AS description, CAST(COALESCE(a.capabilities_json, '[]') AS TEXT) AS capabilities_json, CAST(i.avatar_svg IS NOT NULL AS INTEGER) AS has_avatar,
+  a.created_by_human, a.created_by_machine, CAST(COALESCE(a.description, '') AS TEXT) AS description, CAST(COALESCE(a.capabilities_json, '[]') AS TEXT) AS capabilities_json, CAST(COALESCE(i.avatar_svg, '') AS TEXT) AS avatar_svg,
   -- An agent's handles retire only by a change (I-51), so its newest retired_at is when the handle last changed. Both read only
   -- retired_handles (migration 3), so the list works on every schema. A deleted member's old handle stays out (delete my data).
   CAST(CASE WHEN i.kind = 'agent' THEN (SELECT COALESCE(MAX(r.retired_at), 0) FROM retired_handles r WHERE r.identity_id = i.id) ELSE 0 END AS INTEGER) AS handle_changed_at,

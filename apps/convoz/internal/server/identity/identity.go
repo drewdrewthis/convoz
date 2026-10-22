@@ -154,12 +154,26 @@ func List(ctx context.Context, d pdb.DBTX) ([]Entry, error) {
 		if len(e.PreviousHandles) == 0 {
 			e.PreviousHandles = nil
 		}
-		if r.HasAvatar == 1 {
-			e.AvatarURL = fmt.Sprintf("/api/identities/%d/avatar.svg", r.ID)
-		}
+		e.AvatarURL = AvatarURL(r.ID, r.AvatarSvg)
 		out = append(out, e)
 	}
 	return out, nil
+}
+
+// AvatarURL is where an identity's avatar is served, "" when it has none. The version in the query changes with the SVG, so a
+// changed avatar is a new URL and no page keeps showing the old picture from its image cache.
+func AvatarURL(id int64, svg string) string {
+	if svg == "" {
+		return ""
+	}
+	return fmt.Sprintf("/api/identities/%d/avatar.svg?v=%s", id, AvatarVersion(svg))
+}
+
+// AvatarVersion names one SVG avatar: two different avatars get different names.
+func AvatarVersion(svg string) string {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(svg))
+	return fmt.Sprintf("%016x", h.Sum64())
 }
 
 // SetAvatar stores an identity's sanitized SVG avatar (the caller cleaned it, I-32); an empty string clears it.

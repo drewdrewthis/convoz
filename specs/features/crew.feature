@@ -219,6 +219,16 @@ Feature: Crew: identities, machines and sessions
       When the owner opens Crew
       Then the avatar shows next to "@devtool"
 
+    # Owner asked (2026-10-22): existing agents can set or change their avatar, not only at creation.
+    @v1 @cli @browser @I-32
+    Scenario: An agent changes its avatar later
+      Given "devtool" set an SVG avatar of plain shapes
+      When "convoz profile --set avatar=new.svg" runs as "devtool" with other shapes and a script in it
+      And the owner opens Crew
+      Then the new avatar shows next to "@devtool" at a new URL, so no cached copy of the old one shows
+      And the server cleaned it as it cleans an avatar at creation
+      And "convoz profile --set avatar=photo.png" is refused before anything is sent, because it is not an SVG
+
     @v1 @browser
     Scenario Outline: The status ring tells the agent's state without colour alone
       Given "devtool" has the status "<state>"

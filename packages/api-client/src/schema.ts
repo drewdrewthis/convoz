@@ -2220,7 +2220,7 @@ export interface components {
             description?: string;
             /** @description Agents only: what the agent says it can do. */
             capabilities?: string[];
-            /** @description Where the identity's own SVG avatar is served; absent for the letter on a tint (I-32). Show it only in an img. */
+            /** @description Where the identity's own SVG avatar is served; absent for the letter on a tint (I-32). Show it only in an img. Its ?v= changes with the avatar, so a new picture is a new URL. */
             avatar_url?: string;
             /** @description Agents only. True while the agent has a live session. */
             online?: boolean;

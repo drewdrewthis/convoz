@@ -39,16 +39,29 @@ func (f introFlags) intro(handle, displayName string) (*wire.IdentityIntro, erro
 	}
 	out := &wire.IdentityIntro{Handle: handle, DisplayName: displayName, Description: *f.description, ConversationID: *f.conversation}
 	if *f.avatar != "" {
-		raw, err := os.ReadFile(*f.avatar)
+		svg, err := readAvatar(*f.avatar)
 		if err != nil {
-			return nil, fmt.Errorf("--avatar: %v", err)
+			return nil, fmt.Errorf("--avatar: %w", err)
 		}
-		if len(raw) > maxAvatarFile {
-			return nil, fmt.Errorf("--avatar %s is bigger than %d KB", *f.avatar, maxAvatarFile>>10)
-		}
-		out.AvatarSVG = string(raw)
+		out.AvatarSVG = svg
 	}
 	return out, nil
+}
+
+// readAvatar reads an SVG file for an avatar. The server cleans it (I-32); this only refuses a file that is too big or is no SVG
+// at all, so the agent hears it before anything is sent.
+func readAvatar(path string) (string, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	if len(raw) > maxAvatarFile {
+		return "", fmt.Errorf("%s is bigger than %d KB", path, maxAvatarFile>>10)
+	}
+	if !strings.Contains(strings.ToLower(string(raw)), "<svg") {
+		return "", fmt.Errorf("%s is not an SVG file", path)
+	}
+	return string(raw), nil
 }
 
 // given reports whether any identity flag was set.

@@ -1,16 +1,19 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { agentPostWith, pageOf } from "../lib/messages-wp4.ts";
 import { send } from "../lib/http.ts";
 import { expect, scenario } from "../lib/scenario.ts";
 import { dropFiles, filesToSend, openConversation, pasteFiles, voiceWorld } from "../lib/ui-wp10.ts";
 import { messageLog } from "../lib/chat-ui.ts";
-import { ownerSays } from "../lib/chat.ts";
+import { convoz, ownerSays } from "../lib/chat.ts";
 import { openThread, replyBox, sendReply, threadPane } from "../lib/threads-wp5.ts";
 import { must } from "../lib/owner.ts";
 import { png, uploadWhole } from "../lib/uploads-wp10.ts";
 
 /*
  * FILES IN THE COMPOSER (WP10): specs/features/composer.feature "Files attach by button or drop and bind once", the own-upload image of
- * security.feature and the agent avatar of crew.feature. The page contract is the block atop lib/ui-wp10.ts.
+ * security.feature and the agent avatar scenarios of crew.feature. The page contract is the block atop lib/ui-wp10.ts.
  */
 
 const chart = { name: "chart.png", type: "image/png", bytes: png(16, 16, true) };
@@ -224,7 +227,51 @@ scenario("An agent's own avatar shows safely", { tag: ["@browser"] }, async ({ s
   const img = page.locator('img[alt="@devtool avatar"]').first();
   await expect(img).toBeVisible();
   await expect.poll(() => img.evaluate((e: HTMLImageElement) => e.naturalWidth)).toBeGreaterThan(0);
-  expect(await img.getAttribute("src")).toMatch(/^\/api\/identities\/\d+\/avatar\.svg$/);
+  expect(await img.getAttribute("src")).toMatch(/^\/api\/identities\/\d+\/avatar\.svg\?v=[0-9a-f]+$/);
+});
+
+scenario("An agent changes its avatar later", { tag: ["@cli", "@browser"] }, async ({ server, page, context }) => {
+  // Background
+  const u = await voiceWorld({ server, page, context });
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "convoz-av-"));
+
+  // Given "devtool" set an SVG avatar of plain shapes
+  const old = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="5" fill="#2a7"/></svg>';
+  must(await send(u.w.srv.target, "PATCH", "/api/me/profile", { json: { avatar_svg: old }, headers: { Authorization: `Bearer ${u.devtool.lease}` } }), "set avatar");
+  await page.goto(`${u.w.srv.origin}/crew`);
+  const img = page.locator('img[alt="@devtool avatar"]').first();
+  await expect(img).toBeVisible();
+  const before = (await img.getAttribute("src"))!;
+
+  // When "convoz profile --set avatar=new.svg" runs as "devtool" with other shapes and a script in it
+  const fresh = path.join(dir, "new.svg");
+  fs.writeFileSync(fresh, '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><script>alert(1)</script><rect width="10" height="10" fill="#c33"/></svg>');
+  const res = await convoz(u.w.box, u.devtool.sid, ["profile", "--set", `avatar=${fresh}`]);
+  expect(res.code, res.stderr).toBe(0);
+
+  // And the owner opens Crew
+  await page.goto(`${u.w.srv.origin}/crew`);
+
+  // Then the new avatar shows next to "@devtool" at a new URL, so no cached copy of the old one shows
+  await expect(img).toBeVisible();
+  await expect(img).not.toHaveAttribute("src", before);
+  await expect.poll(() => img.evaluate((e: HTMLImageElement) => e.naturalWidth)).toBeGreaterThan(0);
+  const served = await page.request.get(u.w.srv.origin + (await img.getAttribute("src"))!);
+  const text = await served.text();
+  expect(text).toContain("#c33");
+
+  // And the server cleaned it as it cleans an avatar at creation
+  expect(text).not.toContain("script");
+  expect(served.headers()["content-security-policy"]).toBe("default-src 'none'; sandbox");
+
+  // And "convoz profile --set avatar=photo.png" is refused before anything is sent, because it is not an SVG
+  const photo = path.join(dir, "photo.png");
+  fs.writeFileSync(photo, png(4, 4, true));
+  const refused = await convoz(u.w.box, u.devtool.sid, ["profile", "--set", `avatar=${photo}`]);
+  expect(refused.code).toBe(2);
+  expect(refused.stderr).toContain("not an SVG");
+  const still = await page.request.get(u.w.srv.origin + (await img.getAttribute("src"))!);
+  expect(await still.text()).toContain("#c33");
 });
 
 scenario("Pending attachments show as previews before send", { tag: ["@browser"] }, async ({ server, page, context }) => {

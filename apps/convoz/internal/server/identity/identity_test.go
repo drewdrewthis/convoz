@@ -3,6 +3,7 @@ package identity
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -100,6 +101,56 @@ func TestVoiceIsMadeOnceAndItsHandleIsReserved(t *testing.T) {
 		}
 		if _, err := CheckHandleChange(ctx, d, first.ID, "secretary", now); !errors.Is(err, ErrNotRenamable) {
 			t.Errorf("@voice renamed: %v, want ErrNotRenamable", err)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// An agent changes its avatar later (crew.feature): the listed URL changes with the SVG, so no page shows the old picture from its
+// image cache, and it goes away with the avatar.
+func TestAChangedAvatarIsANewURL(t *testing.T) {
+	s := dbtest.Store(t)
+	now := time.Unix(1_800_000_000, 0)
+	urlOf := func(ctx context.Context, d pdb.DBTX) string {
+		all, err := List(ctx, d)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, e := range all {
+			if e.Handle == "dot" {
+				return e.AvatarURL
+			}
+		}
+		t.Fatal("dot is not listed")
+		return ""
+	}
+	if err := dbtest.TxErr(t, s, func(ctx context.Context, d pdb.DBTX) error {
+		owner, err := CreateOwner(ctx, d, "drew", "Drew", now)
+		if err != nil {
+			return err
+		}
+		a, err := CreateAgent(ctx, d, NewAgent{Handle: "dot", DisplayName: "Dot", ByHuman: owner.ID}, now)
+		if err != nil {
+			return err
+		}
+		if err := SetAvatar(ctx, d, a.ID, `<svg><circle r="4" fill="#c33"/></svg>`); err != nil {
+			return err
+		}
+		first := urlOf(ctx, d)
+		if err := SetAvatar(ctx, d, a.ID, `<svg><circle r="4" fill="#33c"/></svg>`); err != nil {
+			return err
+		}
+		second := urlOf(ctx, d)
+		if !strings.HasPrefix(first, "/api/identities/") || !strings.Contains(first, "/avatar.svg?v=") || first == second {
+			t.Errorf("a changed avatar must be a new URL: %q then %q", first, second)
+		}
+		if err := SetAvatar(ctx, d, a.ID, ""); err != nil {
+			return err
+		}
+		if gone := urlOf(ctx, d); gone != "" {
+			t.Errorf("a removed avatar has no URL, got %q", gone)
 		}
 		return nil
 	}); err != nil {

@@ -11,22 +11,23 @@ import (
 
 // Profile runs `convoz profile` to show the agent's own profile, or `convoz profile --set name=... description=...
 // capabilities=a,b` to change it (once an hour). An agent changes only its own profile. `handle=new` renames the agent at once, no
-// approval (I-51); the old handle keeps reaching it for 30 days.
+// approval (I-51); the old handle keeps reaching it for 30 days. `avatar=FILE.svg` changes its picture at any time; the server
+// cleans the SVG as it does at creation (I-32).
 func Profile(args []string, io IO) int {
 	f := newChatFlags("profile", io)
-	set := f.fs.Bool("set", false, "change the profile; the fields follow as name=..., description=..., capabilities=a,b, handle=...")
+	set := f.fs.Bool("set", false, "change the profile; the fields follow as name=..., description=..., capabilities=a,b, handle=..., avatar=FILE.svg")
 	pos, ok := f.parse(args, io)
 	if !ok {
 		return ExitUsage
 	}
 	if len(pos) > 0 && !*set {
-		return usageError(io, "usage: convoz profile [--set name=... description=... capabilities=a,b handle=...]")
+		return usageError(io, "usage: convoz profile [--set name=... description=... capabilities=a,b handle=... avatar=FILE.svg]")
 	}
 	var req wire.ProfileRequest
 	var handle string
 	if *set {
 		if len(pos) == 0 {
-			return usageError(io, "--set needs at least one of name=..., description=..., capabilities=..., handle=...")
+			return usageError(io, "--set needs at least one of name=..., description=..., capabilities=..., handle=..., avatar=...")
 		}
 		for _, p := range pos {
 			key, value, ok := strings.Cut(p, "=")
@@ -49,18 +50,24 @@ func Profile(args []string, io IO) int {
 				if handle = strings.ToLower(strings.TrimPrefix(strings.TrimSpace(value), "@")); handle == "" {
 					return usageError(io, "handle= needs the new handle")
 				}
+			case key == "avatar":
+				svg, err := readAvatar(value)
+				if err != nil {
+					return usageError(io, "avatar=: "+err.Error())
+				}
+				req.AvatarSVG, _ = json.Marshal(svg)
 			default:
-				return usageError(io, fmt.Sprintf("%q is not a profile field: name, description, capabilities or handle", key))
+				return usageError(io, fmt.Sprintf("%q is not a profile field: name, description, capabilities, handle or avatar", key))
 			}
 		}
 	}
-	words := req.DisplayName != nil || req.Description != nil || req.Capabilities != nil
+	change := req.DisplayName != nil || req.Description != nil || req.Capabilities != nil || req.AvatarSVG != nil
 	k, code := f.open(io)
 	if k == nil {
 		return code
 	}
 	var out wire.ProfileResponse
-	if *set && words {
+	if change {
 		if err := k.callRetry("PATCH", wire.RouteProfile, req, &out); err != nil {
 			return k.fail(err)
 		}
@@ -68,12 +75,12 @@ func Profile(args []string, io IO) int {
 	if handle != "" {
 		return k.changeHandle(handle)
 	}
-	if !*set {
+	if out.Handle == "" { // nothing changed, or only the avatar, whose answer carries no words
 		var me wire.MeResponse
 		if err := k.callRetry("GET", wire.RouteMe, nil, &me); err != nil {
 			return k.fail(err)
 		}
-		out = wire.ProfileResponse{Handle: me.Identity.Handle, DisplayName: me.Identity.DisplayName, Description: me.Identity.Description, Capabilities: me.Identity.Capabilities}
+		out = wire.ProfileResponse{Handle: me.Identity.Handle, DisplayName: me.Identity.DisplayName, Description: me.Identity.Description, Capabilities: me.Identity.Capabilities, AvatarURL: out.AvatarURL}
 	}
 	if out.Capabilities == nil {
 		out.Capabilities = []string{}
@@ -83,6 +90,9 @@ func Profile(args []string, io IO) int {
 		return ExitOK
 	}
 	fmt.Fprintf(k.io.Stdout, "%s @%s\n%s\ncapabilities: %s\n", plain(out.DisplayName), out.Handle, plain(out.Description), plain(strings.Join(out.Capabilities, ", ")))
+	if out.AvatarURL != "" {
+		fmt.Fprintln(k.io.Stdout, "avatar changed")
+	}
 	return ExitOK
 }
 

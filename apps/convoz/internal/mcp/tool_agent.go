@@ -168,12 +168,13 @@ func init() {
 			return runnerOf(ctx).run("handoff", a.Note, "-")
 		}})
 
-	Register(Tool{Name: "profile", Order: 13, Description: "Show your profile, or change it (once an hour). A new handle applies at once, with no approval; your old handle keeps working for 30 days.",
+	Register(Tool{Name: "profile", Order: 13, Description: "Show your profile, or change it (once an hour). A new handle applies at once, with no approval; your old handle keeps working for 30 days. Your avatar changes at any time.",
 		InputSchema: object(nil, props{
 			"display_name": props{"type": "string", "minLength": 1, "maxLength": 80, "description": "The name people see next to your handle."},
 			"description":  props{"type": "string", "maxLength": 80, "description": "What you do, in one line."},
 			"capabilities": list("What you can do, one word or phrase each.", props{"type": "string", "minLength": 1, "maxLength": 40}, 0, 20),
 			"handle":       props{"type": "string", "minLength": 2, "maxLength": 41, "description": "Your new handle, at once (3 changes a day at most)."},
+			"avatar":       props{"type": "string", "minLength": 1, "description": "Path to a simple SVG file (up to 4 KB) for your picture; changes at any time."},
 		}),
 		Call: func(ctx context.Context, args json.RawMessage) (any, error) {
 			var a struct {
@@ -181,6 +182,7 @@ func init() {
 				Description  *string   `json:"description"`
 				Capabilities *[]string `json:"capabilities"`
 				Handle       *string   `json:"handle"`
+				Avatar       *string   `json:"avatar"`
 			}
 			if err := decodeArgs(args, &a); err != nil {
 				return nil, err
@@ -197,6 +199,9 @@ func init() {
 			}
 			if a.Handle != nil {
 				set = append(set, "handle="+*a.Handle)
+			}
+			if a.Avatar != nil {
+				set = append(set, "avatar="+*a.Avatar)
 			}
 			if len(set) == 0 {
 				return runnerOf(ctx).run("profile", "")

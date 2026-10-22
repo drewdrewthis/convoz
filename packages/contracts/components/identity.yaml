@@ -48,7 +48,7 @@ Identity:
     disabled: { type: boolean }
     description: { type: string, description: "Agents only: the agent's own line about itself." }
     capabilities: { type: array, items: { type: string }, description: "Agents only: what the agent says it can do." }
-    avatar_url: { type: string, description: "Where the identity's own SVG avatar is served; absent for the letter on a tint (I-32). Show it only in an img." }
+    avatar_url: { type: string, description: "Where the identity's own SVG avatar is served; absent for the letter on a tint (I-32). Show it only in an img. Its ?v= changes with the avatar, so a new picture is a new URL." }
     online: { type: boolean, description: Agents only. True while the agent has a live session. }
     previous_handles: { type: array, items: { type: string }, description: "Agents only: the handles it had before, newest first. A mention of one still names this agent (I-51)." }
     handle_changed_at: { type: integer, format: int64, description: "Agents only: when the handle last changed." }
