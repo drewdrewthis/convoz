@@ -36,10 +36,17 @@ const MOST_TEXT = 2000;
 /** The server's search takes at most 200 characters. */
 const MOST_QUERY = 200;
 
-/** The triage call's writes: each only plans and reads back; confirm_action runs it after the owner's yes (writes.ts). */
+/**
+ * The triage call's writes: each only plans, reads back and holds, which changes nothing, so it runs after a read too ("find X and post
+ * Y" is one sentence). confirm_action runs the held one only after the owner's yes (writes.ts).
+ */
 const PLANNED = new Set(["post_message", "reply_in_thread", "answer_ask", "snooze_ask", "mark_stale", "star_conversation"]);
-/** The tools that write. Each runs only when the owner's own speech is the latest input to the model (OwnerIntent). */
-export const WRITES = new Set(["ask_agent", "confirm_action", ...PLANNED]);
+/**
+ * The tools that change something at once. Each runs only when the owner's own speech is the latest input to the model (OwnerIntent):
+ * an agent's words (a reply, or a read that returns them) clear it. confirm_action also needs a word from him after the read-back
+ * (Held.heardSince).
+ */
+export const WRITES = new Set(["ask_agent", "confirm_action"]);
 /** What a plan tells the model to do next; the server's instruction says the same (voice.go, nowInstruction). */
 const READ_BACK = "Say read_back to the owner word for word and wait. Call confirm_action only after he says yes; if he says no, call cancel_action.";
 const UNTILS: Until[] = ["1h", "tonight", "tomorrow"];
@@ -47,7 +54,7 @@ const clean = (h: unknown): string => String(h ?? "").trim().replace(/^@/, "").t
 
 /**
  * runTool runs one tool the model asked for, with the owner's session. A tool in WRITES runs only when the owner's own speech is the
- * latest input to the model (OwnerIntent); ask_agent names an agent of this conversation, and a triage write runs only on
+ * latest input to the model (OwnerIntent); ask_agent names an agent of this conversation, and a triage write only holds until
  * confirm_action. Its answer is the model's only way to learn of a refusal or a failure: it never throws.
  */
 export async function runTool(deps: ToolDeps, name: string, args: Record<string, unknown> | undefined): Promise<ToolResult> {
@@ -73,21 +80,22 @@ export async function runTool(deps: ToolDeps, name: string, args: Record<string,
     case "read_recent": {
       if (!deps.recent) return { response: { error: "no such tool" } };
       const n = Math.min(20, Math.max(1, Math.trunc(Number(args?.n)) || 5));
+      deps.intent.quoted(); // agents' words go to the model
       return { response: { messages: deps.recent(n) } };
     }
     case "read_now":
-      return read(deps.now);
+      return read(deps.intent, deps.now);
     case "list_conversations":
-      return read(deps.conversations);
+      return read(deps.intent, deps.conversations);
     case "search_messages": {
       const query = String(args?.query ?? "").trim().slice(0, MOST_QUERY);
-      return query || !deps.search ? read(deps.search, query) : { response: { error: "nothing to search" } };
+      return query || !deps.search ? read(deps.intent, deps.search, query) : { response: { error: "nothing to search" } };
     }
     case "read_conversation": {
       const id = Math.trunc(Number(args?.conversation_id)) || undefined;
       const title = String(args?.title ?? "").trim();
       const limit = Math.min(READ_MOST, Math.max(1, Math.trunc(Number(args?.limit)) || READ_DEFAULT));
-      return id || title || !deps.conversation ? read(deps.conversation, id, title, limit) : { response: { error: "name the conversation by id or title" } };
+      return id || title || !deps.conversation ? read(deps.intent, deps.conversation, id, title, limit) : { response: { error: "name the conversation by id or title" } };
     }
     case "post_message": {
       const text = words(args?.text);
@@ -106,15 +114,21 @@ export async function runTool(deps: ToolDeps, name: string, args: Record<string,
     }
     case "snooze_ask": {
       const ask = idOf(args?.ask_id);
-      const until = UNTILS.find((u) => u === args?.until) ?? "1h";
+      const until = UNTILS.find((u) => u === args?.until);
+      if (!until) return { response: { error: 'say how long: "1h", "tonight" or "tomorrow"' } };
       return ask ? plan(deps, turn, (p) => p.snooze(ask, until)) : { response: { error: "name the ask" } };
     }
     case "mark_stale":
       return plan(deps, turn, (p) => p.stale(idOf(args?.conversation_id), String(args?.title ?? "").trim()));
-    case "star_conversation":
-      return plan(deps, turn, (p) => p.star(idOf(args?.conversation_id), String(args?.title ?? "").trim(), args?.starred !== false));
+    case "star_conversation": {
+      const on = args?.starred;
+      if (typeof on !== "boolean") return { response: { error: "say star or unstar: starred true or false" } };
+      return plan(deps, turn, (p) => p.star(idOf(args?.conversation_id), String(args?.title ?? "").trim(), on));
+    }
     case "confirm_action": {
       if (!deps.held) return { response: { error: "no such tool" } };
+      // The read-back is still held: the model says it to him and waits; only his own word after it makes this his yes.
+      if (deps.held.waiting && !deps.held.heardSince(deps.intent.spoken)) return { response: { error: "refused: the owner has not said yes since the read-back" } };
       const held = deps.held.take();
       if (!held) return { response: { error: "nothing waits for a yes" } };
       try {
@@ -140,18 +154,24 @@ export async function runTool(deps: ToolDeps, name: string, args: Record<string,
   }
 }
 
-/** read runs one read the call offers; a read this call does not offer is no such tool, and a failed one says so. */
-async function read<A extends unknown[]>(run: ((...a: A) => Promise<Record<string, unknown>>) | undefined, ...args: A): Promise<ToolResult> {
+/**
+ * read runs one read the call offers; a read this call does not offer is no such tool, and a failed one says so. What it returns holds
+ * agents' words (messages, asks, titles), so like an AGENT REPLY it clears the owner's order (OwnerIntent.quoted).
+ */
+async function read<A extends unknown[]>(intent: OwnerIntent, run: ((...a: A) => Promise<Record<string, unknown>>) | undefined, ...args: A): Promise<ToolResult> {
   if (!run) return { response: { error: "no such tool" } };
   try {
-    return { response: await run(...args) };
+    const response = await run(...args);
+    intent.quoted();
+    return { response };
   } catch {
     return { response: { error: "could not read" } };
   }
 }
 
 const idOf = (v: unknown): number | undefined => Math.trunc(Number(v)) || undefined;
-const words = (v: unknown): string => String(v ?? "").trim().slice(0, MOST_TEXT);
+/** Not cut: a plan refuses words too long to read back whole (writes.ts MOST_SAID). */
+const words = (v: unknown): string => String(v ?? "").trim();
 
 /**
  * plan reads what one write names and holds it for the owner's yes; the model gets the read-back to say. A failed read says why in
@@ -161,7 +181,7 @@ async function plan(deps: ToolDeps, turn: number | undefined, make: (p: Plans) =
   if (!deps.plans || !deps.held || turn === undefined) return { response: { error: "no such tool" } };
   try {
     const planned = await make(deps.plans);
-    if (!deps.held.hold(turn, planned)) return { response: { error: "dropped: a newer word from the owner came first" } };
+    if (!deps.held.hold(turn, planned, deps.intent.spoken)) return { response: { error: "dropped: a newer word from the owner came first" } };
     return { response: { pending: true, read_back: planned.readBack, next: READ_BACK } };
   } catch (err) {
     return { response: { error: spoken(err) } };

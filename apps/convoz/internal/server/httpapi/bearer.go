@@ -8,6 +8,7 @@ import (
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
 
@@ -61,6 +62,15 @@ func (s *Server) authenticateLease(w http.ResponseWriter, r *http.Request, token
 		writeErr(w, http.StatusUnauthorized, "session_ended", sessionEndedMessage(dead.Reason))
 		return nil, errAnswered
 	case !ok:
+		unauthorized(w)
+		return nil, errAnswered
+	}
+	// No session acts as @voice: auth mints none, and a lease made before its handle was reserved stops here.
+	who, _, err := identity.ByID(ctx, s.reader(), l.IdentityID)
+	if err != nil {
+		return nil, err
+	}
+	if identity.IsBuiltin(who) {
 		unauthorized(w)
 		return nil, errAnswered
 	}

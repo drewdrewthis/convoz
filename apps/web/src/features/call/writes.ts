@@ -1,5 +1,6 @@
-// The triage call's writes. None runs when the model asks: each is planned, read back to the owner and held; only confirm_action after
-// his yes runs it (tools.ts). A model that reads agents' words can be talked into asking for a write; a held write it cannot send itself.
+// The triage call's writes. None runs when the model asks: each is planned, read back to the owner and held; confirm_action runs it only
+// when the owner has spoken since the read-back (Held, tools.ts). A model that reads agents' words can be talked into asking for a write
+// and for its confirm; it cannot make the owner speak, so a held write waits for his own voice.
 import { answerAsk, snoozeAsk } from "../now/index.ts";
 import { setStar } from "../rail/index.ts";
 import { ApiError, call, client, humanError } from "../../shared/api.ts";
@@ -14,11 +15,13 @@ export interface Planned {
 
 /**
  * Held is the one write that waits for the owner's yes. A new plan or a cancel drops it; confirm takes it, so a second yes does nothing.
- * A plan made after a newer drop is not held: the owner's later word wins over a slow read.
+ * A plan made after a newer drop is not held: the owner's later word wins over a slow read. It notes how often the owner had spoken
+ * (OwnerIntent.spoken) when it was held: a confirm with no word from him since is not his yes.
  */
 export class Held {
   private planned: Planned | null = null;
   private turn = 0;
+  private spokenAt = 0;
 
   get waiting(): boolean {
     return this.planned !== null;
@@ -30,10 +33,16 @@ export class Held {
     return ++this.turn;
   }
 
-  hold(turn: number, p: Planned): boolean {
+  hold(turn: number, p: Planned, spoken: number): boolean {
     if (turn !== this.turn) return false;
     this.planned = p;
+    this.spokenAt = spoken;
     return true;
+  }
+
+  /** Whether the owner has spoken since the write was held; `spoken` is OwnerIntent.spoken now. */
+  heardSince(spoken: number): boolean {
+    return spoken > this.spokenAt;
   }
 
   take(): Planned | null {
@@ -61,7 +70,15 @@ export function spoken(err: unknown): string {
 export type Until = "1h" | "tonight" | "tomorrow";
 const UNTIL: Record<Until, string> = { "1h": "for an hour", tonight: "until tonight", tomorrow: "until tomorrow" };
 const MOST_QUOTE = 120;
+/** Someone else's words the read-back names (an ask, the message replied to): cut, since the write does not send them. */
 const quote = (text: string): string => `"${text.length > MOST_QUOTE ? text.slice(0, MOST_QUOTE - 1) + "…" : text}"`;
+/** The most characters the call writes in the owner's name: he hears every one of them read back before his yes. */
+export const MOST_SAID = 300;
+/** The words the write sends, whole; longer than MOST_SAID they are refused, never cut: what is read back is what is sent. */
+const said = (text: string): string => {
+  if (text.length > MOST_SAID) throw new Spoken("That is too long to read back. Say it in fewer words.");
+  return `"${text}"`;
+};
 
 async function conversation(id: number | undefined, title: string): Promise<{ id: number; title: string }> {
   // No id and no title would match every title: a write never guesses its conversation.
@@ -88,14 +105,14 @@ async function openAsk(id: number) {
 export const plans = {
   async post(id: number | undefined, title: string, text: string): Promise<Planned> {
     const c = await conversation(id, title);
-    return { readBack: `I will post ${quote(text)} in ${c.title}. Say yes to send.`, run: () => postAsVoice(c.id, text).then(() => `Posted in ${c.title}.`) };
+    return { readBack: `I will post ${said(text)} in ${c.title}. Say yes to send.`, run: () => postAsVoice(c.id, text).then(() => `Posted in ${c.title}.`) };
   },
 
   async reply(root: number, text: string): Promise<Planned> {
     const thread = await call(client.GET("/api/messages/{id}/replies", { params: { path: { id: root }, query: { limit: 1 } } }));
     const c = await conversation(thread.conversation_id, "");
     const of = `@${thread.root.author.handle}'s message ${quote(thread.root.body ?? "")}`;
-    return { readBack: `I will reply ${quote(text)} to ${of} in ${c.title}. Say yes to send.`, run: () => postAsVoice(c.id, text, root).then(() => `Replied in ${c.title}.`) };
+    return { readBack: `I will reply ${said(text)} to ${of} in ${c.title}. Say yes to send.`, run: () => postAsVoice(c.id, text, root).then(() => `Replied in ${c.title}.`) };
   },
 
   /** option 1 is the recommended one, 2 and on the alternatives; words instead answer in the owner's own words. */
@@ -105,7 +122,7 @@ export const plans = {
     if (!label) throw new Spoken(`That ask has ${ask.options.length} options.`);
     const choice = words ? { choice: "custom" as const, text: words } : option === 1 ? { choice: "recommended" as const } : { choice: "alternative" as const, index: option - 1 };
     return {
-      readBack: `I will answer ${what} in ${where} with ${quote(label)}. Say yes to send.`,
+      readBack: `I will answer ${what} in ${where} with ${words ? said(words) : quote(label)}. Say yes to send.`,
       run: async () => {
         const r = await answerAsk(id, { ...choice, if_version: ask.version, via: "now" });
         if (r.lost) throw new Spoken("That ask changed meanwhile, so it was not answered. Read it again.");

@@ -83,6 +83,8 @@ export interface FakeModel {
   hear(text: string): void;
   /** The model asks the page to run a tool. */
   call(name: string, args: Record<string, unknown>, id?: string): void;
+  /** The model asks the page to run several tools in one turn (one tool call message), in order. */
+  callAll(calls: { name: string; args: Record<string, unknown> }[]): void;
   /** The model speaks one turn: a piece of voice, its text transcription and the end of the turn. */
   speak(text: string): void;
   /** The tool answers the page sent back. */
@@ -120,6 +122,7 @@ export async function fakeModel(page: Page): Promise<FakeModel> {
     hear: (text) => say({ serverContent: { inputTranscription: { text } } }),
     speak: (text) => say({ serverContent: { modelTurn: { parts: [{ inlineData: { mimeType: "audio/pcm;rate=24000", data: SILENCE } }] }, outputTranscription: { text }, turnComplete: true } }),
     call: (name, args, id = `call-${++n}`) => say({ toolCall: { functionCalls: [{ id, name, args }] } }),
+    callAll: (calls) => say({ toolCall: { functionCalls: calls.map((c) => ({ id: `call-${++n}`, ...c })) } }),
     responses: () => sent.filter((m) => m.toolResponse).flatMap((m) => m.toolResponse.functionResponses),
     turns: () => sent.filter((m) => m.clientContent).flatMap((m) => m.clientContent.turns.flatMap((t: any) => t.parts.map((p: any) => p.text))),
   };

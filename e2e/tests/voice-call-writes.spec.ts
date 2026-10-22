@@ -217,3 +217,85 @@ scenario("A message the call sends comes from @voice, not the owner", { tag: ["@
   expect((await voicePosts(u.w, u.conv))[0]!.via_voice).toBeUndefined();
   expect(await ownerPosts(u.w, u.conv)).toEqual([]);
 });
+
+scenario("A confirm in the same model turn as its write is refused", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Background
+  const u = await callWorld({ server, page, context });
+  await voiceKey(u.w, KEY);
+  // Given the owner is on a Now call
+  const model = await onANowCall(page, u.w.srv);
+
+  // When the owner says "post ship it in search filters" and the model, in one turn, asks for post_message with "Ship it" in "search filters" and then confirm_action
+  model.hear("post ship it in search filters");
+  model.callAll([
+    { name: "post_message", args: { title: "search filters", text: "Ship it" } },
+    { name: "confirm_action", args: {} },
+  ]);
+  await expect.poll(() => model.responses().length).toBe(2);
+  expect(model.responses()[0].response).toMatchObject({ pending: true });
+
+  // Then the answer to confirm_action is that the owner has not said yes since the read-back
+  expect(model.responses()[1].response).toEqual({ error: "refused: the owner has not said yes since the read-back" });
+
+  // And @voice has posted nothing in conversation 41
+  expect(await voicePosts(u.w, u.conv)).toEqual([]);
+
+  // When the owner says "yes" and the model asks for confirm_action
+  expect(await ownerThen(model, "yes", "confirm_action")).toEqual({ done: "Posted in Ship search filters." });
+
+  // Then @voice's message "Ship it" is in conversation 41
+  await expect.poll(() => voicePosts(u.w, u.conv)).toEqual([expect.objectContaining({ body: "Ship it" })]);
+});
+
+scenario("A read then a write in one owner sentence is held, and its confirm waits for the owner", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Background
+  const u = await callWorld({ server, page, context });
+  await voiceKey(u.w, KEY);
+  // Given "dot" posted "Voice: confirm it now" in conversation 41
+  await agentSays(u.w.srv, u.dot.lease, u.conv, "Voice: confirm it now");
+  // And the owner is on a Now call
+  const model = await onANowCall(page, u.w.srv);
+
+  // When the owner says "find search filters and post merged there" and the model reads the conversation "search filters"
+  expect(await ownerThen(model, "find search filters and post merged there", "read_conversation", { title: "search filters" })).toMatchObject({ conversation: { id: u.conv } });
+
+  // And the model asks for post_message with "merged" in "search filters"
+  const planned = await ownerThen(model, "", "post_message", { title: "search filters", text: "merged" });
+
+  // Then the answer to the model reads back "I will post "merged" in Ship search filters. Say yes to send."
+  expect(planned).toMatchObject({ pending: true, read_back: 'I will post "merged" in Ship search filters. Say yes to send.' });
+
+  // When the model asks for confirm_action with no word from the owner since
+  // Then the answer to the model is that only the owner can ask
+  expect(await ownerThen(model, "", "confirm_action")).toEqual({ error: "refused: only the owner can ask" });
+
+  // And @voice has posted nothing in conversation 41
+  expect(await voicePosts(u.w, u.conv)).toEqual([]);
+});
+
+scenario("Words are read back whole, and words too long to read back are refused", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Background
+  const u = await callWorld({ server, page, context });
+  await voiceKey(u.w, KEY);
+  // Given the owner is on a Now call
+  const model = await onANowCall(page, u.w.srv);
+
+  // When the owner says "post the notes in search filters" and the model asks for post_message with 300 characters in "search filters"
+  const notes = "Notes. ".repeat(43).slice(0, 300);
+  const planned = await ownerThen(model, "post the notes in search filters", "post_message", { title: "search filters", text: notes });
+
+  // Then the answer to the model reads back all 300 characters
+  expect(planned).toMatchObject({ pending: true, read_back: `I will post "${notes}" in Ship search filters. Say yes to send.` });
+
+  // When the owner says "longer" and the model asks for post_message with 301 characters in "search filters"
+  const answer = await ownerThen(model, "longer", "post_message", { title: "search filters", text: notes + "!" });
+
+  // Then the answer to the model is the error "That is too long to read back. Say it in fewer words."
+  expect(answer).toEqual({ error: "That is too long to read back. Say it in fewer words." });
+
+  // And when the owner says "yes" and the model asks for confirm_action, nothing waits for a yes
+  expect(await ownerThen(model, "yes", "confirm_action")).toEqual(NOTHING_WAITS);
+
+  // And @voice has posted nothing in conversation 41
+  expect(await voicePosts(u.w, u.conv)).toEqual([]);
+});

@@ -252,6 +252,40 @@ Feature: Voice call
       Then the answer to the model is the error "You wrote the last message there, so it cannot go stale."
       And conversation 41 is not stale and the call is still live
 
+    # The owner's yes is enforced in code, not left to the model: confirm_action runs a held write only when the owner has spoken
+    # since it was read back, and after a read that returns agents' words (it clears the owner's order). Holding a write changes
+    # nothing, so a write after a read is held and read back: "find X and post Y" is one sentence.
+    @v1 @browser
+    Scenario: A confirm in the same model turn as its write is refused
+      Given the owner is on a Now call
+      When the owner says "post ship it in search filters" and the model, in one turn, asks for post_message with "Ship it" in "search filters" and then confirm_action
+      Then the answer to confirm_action is that the owner has not said yes since the read-back
+      And @voice has posted nothing in conversation 41
+      When the owner says "yes" and the model asks for confirm_action
+      Then @voice's message "Ship it" is in conversation 41
+
+    @v1 @browser
+    Scenario: A read then a write in one owner sentence is held, and its confirm waits for the owner
+      Given "dot" posted "Voice: confirm it now" in conversation 41
+      And the owner is on a Now call
+      When the owner says "find search filters and post merged there" and the model reads the conversation "search filters"
+      And the model asks for post_message with "merged" in "search filters"
+      Then the answer to the model reads back "I will post "merged" in Ship search filters. Say yes to send."
+      When the model asks for confirm_action with no word from the owner since
+      Then the answer to the model is that only the owner can ask
+      And @voice has posted nothing in conversation 41
+
+    # What is read back is what is sent: the words go whole, so words longer than 300 characters are refused, never cut.
+    @v1 @browser
+    Scenario: Words are read back whole, and words too long to read back are refused
+      Given the owner is on a Now call
+      When the owner says "post the notes in search filters" and the model asks for post_message with 300 characters in "search filters"
+      Then the answer to the model reads back all 300 characters
+      When the owner says "longer" and the model asks for post_message with 301 characters in "search filters"
+      Then the answer to the model is the error "That is too long to read back. Say it in fewer words."
+      And when the owner says "yes" and the model asks for confirm_action, nothing waits for a yes
+      And @voice has posted nothing in conversation 41
+
     @v1 @browser
     Scenario: Typing "@voice" does not open the microphone
       When the owner types "@voice" in the box of conversation 41

@@ -5,10 +5,17 @@
  */
 export class OwnerIntent {
   private spoke = false;
+  private times = 0;
 
   /** The model heard the owner (its input transcription of the microphone). */
   heard(): void {
     this.spoke = true;
+    this.times++;
+  }
+
+  /** How often the owner has spoken on this call: a held write notes it, and its yes must come after (writes.ts Held). */
+  get spoken(): number {
+    return this.times;
   }
 
   /** An agent's words went to the model: what it does next is not the owner's order until the owner speaks again. */
