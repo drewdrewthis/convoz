@@ -93,12 +93,12 @@ export default function Sidebar() {
         ) : null}
       </a>
       <ThreadFold c={c} className="thrfold compact" />
-      {/* The star takes the place of the count on hover or focus, so no box moves. */}
+      {/* The star takes the place of the count on hover or focus, so no box moves. A touch screen never hovers, so there it always shows (no :hover: iOS double-tap). */}
       <IconButton
         variant="muted"
         size={28}
         glyph="self"
-        className={`absolute top-1/2 ${folds(c) ? "right-24" : "right-0"} -mt-14 pointer-events-none opacity-0 [transition:opacity_140ms_ease] data-on:text-warning group-hover/rrow:pointer-events-auto group-hover/rrow:opacity-100 group-focus-within/rrow:pointer-events-auto group-focus-within/rrow:opacity-100`}
+        className={`absolute top-1/2 ${folds(c) ? "right-24" : "right-0"} -mt-14 pointer-events-none opacity-0 [transition:opacity_140ms_ease] data-on:text-warning [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100 group-hover/rrow:pointer-events-auto group-hover/rrow:opacity-100 group-focus-within/rrow:pointer-events-auto group-focus-within/rrow:opacity-100`}
         label={`${c.starred ? "Unstar" : "Star"} conversation ${titleOf(c)}`}
         data-nodrag=""
         data-on={c.starred ? "true" : undefined}

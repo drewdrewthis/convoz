@@ -69,6 +69,10 @@
   /* The star takes the place of the count on hover or focus, so no box moves; the grip is for the keyboard and shows on focus only. */
   .rrow:hover .rcnt, .rrow:focus-within .rcnt { opacity: 0; }
   .rrow > .rgo:not(:has(.rcnt, .planicon)) { padding-right: 36px; }
+  /* A touch screen never hovers, so the star always shows and the count and status icon stay too: every row keeps the room the star needs, and they sit left of it. */
+  @media (hover: none) {
+    .rrow > .rgo { padding-right: 36px; }
+  }
   /* the status icon sits by the count (or alone in its place) and gives way to the star on hover, as the count does */
   .rgo .planicon { width: 18px; height: 18px; transition: opacity 140ms ease; }
   .rgo .planicon + .rcnt { margin-left: -4px; }
