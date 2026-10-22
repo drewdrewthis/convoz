@@ -1,14 +1,20 @@
 import type { OwnerIntent } from "./guard.ts";
 
-/** What the tools need from the page: the people of the conversation and the owner's own way to post and read. */
+/**
+ * What the tools need from the page: the agents the call may name and the owner's own way to read and post. A call in a conversation
+ * has `post`; a Now call has `now` and no `post`, so nothing in it writes even if the model asks for a tool its token does not offer.
+ */
 export interface ToolDeps {
   intent: OwnerIntent;
-  /** The handles of the agents in this conversation. */
+  /** The handles of the agents the call may name: those of the conversation, or every agent in a Now call. */
   agents(): string[];
   /** Post "@handle text" as the owner, marked "via voice call". */
-  post(handle: string, text: string): Promise<void>;
-  recent(n: number): { author: string; text: string }[];
+  post?(handle: string, text: string): Promise<void>;
+  /** The last n messages of the conversation; a Now call names which one. */
+  recent(n: number, conversation?: number): Promise<{ author: string; text: string }[]> | { author: string; text: string }[];
   status(handle: string): { handle: string; online: boolean };
+  /** What waits for the owner (GET /api/now), cut down for the model. */
+  now?(): Promise<Record<string, unknown>>;
 }
 
 export interface ToolResult {
@@ -19,6 +25,12 @@ export interface ToolResult {
 }
 
 const MOST_TEXT = 2000;
+
+/**
+ * The tools that write. Each runs only when the owner's own speech is the latest input to the model (OwnerIntent). The triage call
+ * has none yet; its next ones (answer an ask once the owner says yes, post, assign) join this set and get their deps here.
+ */
+export const WRITES = new Set(["ask_agent"]);
 const clean = (h: unknown): string => String(h ?? "").trim().replace(/^@/, "").toLowerCase();
 
 /**
@@ -27,9 +39,10 @@ const clean = (h: unknown): string => String(h ?? "").trim().replace(/^@/, "").t
  * model's only way to learn of a refusal.
  */
 export async function runTool(deps: ToolDeps, name: string, args: Record<string, unknown> | undefined): Promise<ToolResult> {
+  if (WRITES.has(name) && !deps.intent.allows()) return { response: { error: "refused: only the owner can ask" } };
   switch (name) {
     case "ask_agent": {
-      if (!deps.intent.allows()) return { response: { error: "refused: only the owner can ask" } };
+      if (!deps.post) return { response: { error: "no such tool" } };
       const handle = clean(args?.handle);
       const text = String(args?.text ?? "").trim().slice(0, MOST_TEXT);
       const agent = deps.agents().find((a) => a.toLowerCase() === handle);
@@ -45,12 +58,25 @@ export async function runTool(deps: ToolDeps, name: string, args: Record<string,
     }
     case "read_recent": {
       const n = Math.min(20, Math.max(1, Math.trunc(Number(args?.n)) || 5));
-      return { response: { messages: deps.recent(n) } };
+      const conversation = Math.trunc(Number(args?.conversation_id)) || undefined;
+      try {
+        return { response: { messages: await deps.recent(n, conversation) } };
+      } catch {
+        return { response: { error: "could not read" } };
+      }
+    }
+    case "read_now": {
+      if (!deps.now) return { response: { error: "no such tool" } };
+      try {
+        return { response: await deps.now() };
+      } catch {
+        return { response: { error: "could not read" } };
+      }
     }
     case "agent_status": {
       const handle = clean(args?.handle);
       const agent = deps.agents().find((a) => a.toLowerCase() === handle);
-      return { response: agent ? deps.status(agent) : { error: "not in this conversation" } };
+      return { response: agent ? deps.status(agent) : { error: deps.now ? "no such agent" : "not in this conversation" } };
     }
     default:
       return { response: { error: "no such tool" } };

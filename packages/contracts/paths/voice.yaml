@@ -15,10 +15,11 @@
   post:
     x-authz: { auth: owner, lease: refuse }
     operationId: voiceToken
-    summary: A one-use Gemini token for a call in a conversation the owner can see, 20 an hour.
+    summary: A one-use Gemini token for the triage call (the default), or for a call in a conversation the owner can see; 20 an hour.
     description: |
       The token opens one live session within 2 minutes and lives 30 minutes; it locks the model, the instructions and the tools, which
       the answer also carries as `config` (the SDK's own shape). With no key or with transcription off it is 404 `voice_off`; an agent is 403.
+      Without a conversation (or with `scope: now`) it is the triage call: its tools are read_now, read_recent and agent_status, nothing that writes.
     requestBody:
       required: true
       content:

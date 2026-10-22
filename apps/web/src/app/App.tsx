@@ -3,6 +3,7 @@ import { page } from "../shared/api.ts";
 import { ToastHost } from "../features/pins-stars/index.ts";
 import { Sidebar, ShortcutsHost, useRailShortcuts } from "../features/rail/index.ts";
 import { SearchHost, useSearchShortcut } from "../features/search/index.ts";
+import { useCallLinks } from "./callLinks.ts";
 import { FocusFrame, ShellFrame } from "./frames.tsx";
 import type { PageDef } from "./routes.tsx";
 import { Status } from "./Status.tsx";
@@ -58,11 +59,12 @@ function useDesk(): boolean {
   return wide;
 }
 
-/** Desk is what every signed-in page shares: the sidebar when wide, the keys no page owns, search, and the toast. */
+/** Desk is what every signed-in page shares: the sidebar when wide, the keys no page owns, search, the toast, and the links that keep a Now call on. */
 function Desk() {
   const wide = useDesk();
   useSearchShortcut();
   useRailShortcuts();
+  useCallLinks();
   return (
     <>
       {wide ? (

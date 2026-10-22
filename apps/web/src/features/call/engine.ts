@@ -7,12 +7,15 @@ import { Player, toBase64 } from "./audio.ts";
 import { release, type Gesture } from "./gesture.ts";
 import { OwnerIntent } from "./guard.ts";
 import { CallLog } from "./log.ts";
+import { callsConversation, readNow, readRecent } from "./now.ts";
 import { runTool, type ToolDeps } from "./tools.ts";
+import type { CallTarget } from "./store.ts";
 import { Waiting } from "./waiting.ts";
 import workletUrl from "./worklet.js?url&no-inline";
 
 export interface CallOptions {
-  conversation: number;
+  /** A conversation, or Now (the triage call: it reads, posts nothing, and leaves its log in now.ts CALLS_TITLE). */
+  target: CallTarget;
   gesture: Gesture;
   /** The status line. */
   say(status: string): void;
@@ -69,26 +72,41 @@ class Call implements CallControl {
   private readonly waiting = new Waiting();
   private readonly log = new CallLog();
   private stop: (() => void)[] = [];
+  /**
+   * Where the log goes, known before the hang-up: then the log's post leaves at once with keepalive and survives a reload or a closed
+   * tab. A conversation call's own conversation; a Now call's is looked up (or made) as soon as the token comes.
+   */
+  private logHome: number | Promise<number> | null;
   private readonly hangUpOnLeave = () => this.close();
 
   constructor(private readonly o: CallOptions) {
+    this.logHome = o.target === "now" ? null : o.target;
     this.player = new Player(o.gesture.ctx);
     addEventListener("pagehide", this.hangUpOnLeave);
   }
 
+  /** The conversation of a call in one; null for a Now call. */
+  private get conversation(): number | null {
+    return this.o.target === "now" ? null : this.o.target;
+  }
+
   async open(): Promise<void> {
-    const { gesture, conversation } = this.o;
+    const { gesture } = this.o;
+    const conversation = this.conversation;
     try {
       const stream = await gesture.mic.catch(() => Promise.reject(new Error("Microphone is off. Allow it in Settings, then call again.")));
       if (this.closed) return;
-      const token = await call(client.POST("/api/voice/token", { body: { conversation_id: conversation } })).catch((err) => {
+      const body = conversation === null ? { scope: "now" as const } : { conversation_id: conversation };
+      const token = await call(client.POST("/api/voice/token", { body })).catch((err) => {
         throw new Error(REFUSALS[err instanceof ApiError ? (err.code ?? "") : ""] ?? "The call could not start.");
       });
+      if (this.logHome === null) void this.findLogHome();
       if (this.closed) return;
       const { GoogleGenAI, FunctionResponseScheduling } = await import("@google/genai");
       if (this.closed) return;
       const ai = new GoogleGenAI({ apiKey: token.token, httpOptions: { apiVersion: "v1alpha" } });
-      this.seen = Math.max(0, ...(data.store.getState().messages[conversation]?.list ?? []).map((m) => m.id));
+      if (conversation !== null) this.seen = Math.max(0, ...(data.store.getState().messages[conversation]?.list ?? []).map((m) => m.id));
+      else void data.loadIdentities().catch(() => {}); // agent_status names any agent
       this.session = await ai.live.connect({
         model: token.model,
         config: token.config as Parameters<typeof ai.live.connect>[0]["config"],
@@ -100,7 +118,7 @@ class Call implements CallControl {
       });
       if (this.closed) return this.session.close();
       await this.listen(stream);
-      this.stop.push(data.store.subscribe(() => this.passOnReplies()));
+      if (conversation !== null) this.stop.push(data.store.subscribe(() => this.passOnReplies()));
     } catch (err) {
       this.fail(err instanceof Error ? err.message : "The call could not start.", true);
     }
@@ -119,7 +137,7 @@ class Call implements CallControl {
     for (const t of this.awaiting.values()) clearTimeout(t);
     this.awaiting.clear();
     this.log.event(`ended: ${reason}`);
-    void saveCallLog(this.o.conversation, this.log);
+    void saveCallLog(this.logHome ?? this.findLogHome(), this.log);
     this.player.interrupt();
     try {
       this.session?.close();
@@ -127,6 +145,21 @@ class Call implements CallControl {
       /* already closed */
     }
     release(this.o.gesture);
+  }
+
+  /** A Now call's log home, once: the id replaces the promise when it comes, so the hang-up need not wait on it. */
+  private findLogHome(): Promise<number> {
+    const home = callsConversation();
+    this.logHome = home;
+    home.then(
+      (id) => {
+        this.logHome = id;
+      },
+      () => {
+        if (this.logHome === home) this.logHome = null; // the hang-up tries again
+      },
+    );
+    return home;
   }
 
   /** The other end closed the call, or it failed: free everything and tell the owner. */
@@ -196,7 +229,7 @@ class Call implements CallControl {
    */
   private passOnReplies(): void {
     const state = data.store.getState();
-    for (const m of state.messages[this.o.conversation]?.list ?? []) {
+    for (const m of state.messages[this.conversation ?? -1]?.list ?? []) {
       if (m.id > this.seen) {
         this.seen = m.id;
         this.deliver(m);
@@ -211,7 +244,7 @@ class Call implements CallControl {
     if (thread.fetching) return;
     thread.fetching = true;
     try {
-      const count = data.store.getState().messages[this.o.conversation]?.list.find((m) => m.id === root)?.reply_count ?? 0;
+      const count = data.store.getState().messages[this.conversation ?? -1]?.list.find((m) => m.id === root)?.reply_count ?? 0;
       const { messages } = await call(client.GET("/api/messages/{id}/replies", { params: { path: { id: root }, query: { after: thread.lastReply, limit: 100 } } }));
       thread.replies = Math.max(thread.replies, count);
       for (const m of messages) {
@@ -262,14 +295,24 @@ class Call implements CallControl {
   }
 
   private tools(): ToolDeps {
-    const conversation = this.o.conversation;
+    const conversation = this.conversation;
     const state = () => data.store.getState();
+    const status = (handle: string) => ({ handle, online: Boolean(state().identities?.find((p) => p.handle === handle)?.online) });
+    if (conversation === null) {
+      return {
+        intent: this.intent,
+        agents: () => (state().identities ?? []).filter((p) => p.kind === "agent").map((p) => p.handle),
+        recent: (n, id) => (id ? readRecent(id, n) : Promise.reject(new Error("no conversation"))),
+        status,
+        now: readNow,
+      };
+    }
     return {
       intent: this.intent,
       agents: () => (state().rows[conversation]?.participants ?? []).filter((p) => p.kind === "agent").map((p) => p.handle),
       post: async (handle, text) => this.asking(handle, await postAsOwner(conversation, `@${handle} ${text}`)),
       recent: (n) => (state().messages[conversation]?.list ?? []).slice(-n).map((m) => ({ author: m.author.handle, text: (m.body ?? "").slice(0, 500) })),
-      status: (handle) => ({ handle, online: Boolean(state().identities?.find((p) => p.handle === handle)?.online) }),
+      status,
     };
   }
 }
@@ -288,10 +331,15 @@ async function postAsOwner(conversation: number, body: string): Promise<number> 
   return sent.id;
 }
 
-/** The log of a finished call goes to the conversation as one quiet message (no agent is woken, the main list shows it collapsed). */
-async function saveCallLog(conversation: number, log: CallLog): Promise<void> {
+/**
+ * The log of a finished call goes to its conversation (a Now call's to CALLS_TITLE, now.ts) as one quiet message: no agent is woken,
+ * and the main list shows it collapsed. With the conversation's id at hand the post leaves before anything else is awaited, so a page that is
+ * going away still sends it (keepalive).
+ */
+async function saveCallLog(home: number | Promise<number>, log: CallLog): Promise<void> {
   if (log.empty) return;
   try {
+    const conversation = typeof home === "number" ? home : await home;
     await client.POST("/api/conversations/{id}/messages", { params: { path: { id: conversation } }, body: { client_id: newId(), body: log.render(), format: "plain", via_voice: true, quiet: true }, keepalive: true });
   } catch {
     /* the call is over; a log that cannot be saved is lost, not shown as an error */

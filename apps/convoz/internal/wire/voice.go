@@ -6,9 +6,11 @@ type VoiceState struct {
 	Why string `json:"why,omitempty"`
 }
 
-// VoiceTokenRequest is POST /api/voice/token: the conversation the call is in.
+// VoiceTokenRequest is POST /api/voice/token: the conversation the call is in; without one (or with the scope "now") it is the
+// triage call, the default.
 type VoiceTokenRequest struct {
-	ConversationID int64 `json:"conversation_id"`
+	ConversationID int64  `json:"conversation_id,omitempty"`
+	Scope          string `json:"scope,omitempty"`
 }
 
 // VoiceToken is what the browser needs to open its one live session with Google: the one-use token (Google's name for it), the

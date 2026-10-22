@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNod
 import { call, client } from "../../shared/api.ts";
 import { initials, paletteOf, stripCf, whenLabel } from "../../shared/chat.ts";
 import { data, useData } from "../../shared/data.ts";
+import { navigate } from "../../shared/navigate.ts";
+import { nowCallLive, startNowCall, useVoiceOn } from "../call/index.ts";
 import { recentChats } from "./recent.ts";
 import { useSearchUi } from "./store.ts";
 
@@ -41,6 +43,7 @@ const ICON_ASK = "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM9.1 9a3 3 0 0 1 5.8 
 const ICON_NEW = "M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z";
 const ICON_CREW = "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75";
 const ICON_MORE = "M6 9l6 6 6-6";
+const ICON_CALL = "M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z";
 
 const plainParts = (text: string): SearchPart[] => (text ? [{ text }] : []);
 
@@ -63,6 +66,7 @@ export default function Overlay() {
   const pick = pickingAgent(q);
   const found = useAnswer(pick === null ? q : "");
   const wide = useWide();
+  const voice = useVoiceOn();
 
   useEffect(() => {
     input.current?.focus();
@@ -75,7 +79,8 @@ export default function Overlay() {
   const open = (href: string) => {
     hide();
     const [path = "", hash = ""] = href.split("#");
-    if (location.pathname !== path) return location.assign(href);
+    // A document load would end a Now call, so while one is on the app draws the page itself.
+    if (location.pathname !== path) return nowCallLive() ? navigate(href) : location.assign(href);
     const same = location.hash === (hash && `#${hash}`);
     location.hash = hash;
     // The same hash again fires no hashchange, and the page listens to that event to open a thread or scroll to a message.
@@ -129,6 +134,19 @@ export default function Overlay() {
         { id: "quick-new", title: plainParts("New conversation"), sub: plainParts("Starts blank. Type @ to bring in an agent"), tag: "⌘J", badge: { kind: "icon", path: ICON_NEW }, run: () => open("/chats/new") },
         { id: "quick-crew", title: plainParts("Crew"), sub: plainParts("Every agent and what it is doing"), badge: { kind: "icon", path: ICON_CREW }, run: () => open("/crew") },
       ];
+      // The tap itself starts the call: the microphone may only be asked for inside it (features/call/gesture.ts).
+      if (voice) {
+        quick.push({
+          id: "quick-call",
+          title: plainParts("Call"),
+          sub: plainParts("Hear what waits on you, by voice"),
+          badge: { kind: "icon", path: ICON_CALL },
+          run: () => {
+            hide();
+            startNowCall();
+          },
+        });
+      }
       out.push({ key: "quick", label: "Quick actions", count: "", rows: quick });
       return out;
     }
@@ -188,7 +206,7 @@ export default function Overlay() {
         })),
     );
     return out;
-  }, [pick, browse, found.answer, chips, terms, all, identities, conversations, me]);
+  }, [pick, browse, found.answer, chips, terms, all, identities, conversations, me, voice]);
 
   const flat = sections.flatMap((s) => s.rows);
   const active = Math.min(at, Math.max(flat.length - 1, 0));

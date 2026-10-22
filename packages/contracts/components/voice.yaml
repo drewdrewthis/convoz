@@ -7,9 +7,10 @@ VoiceState:
     why: { type: string, description: "Why it is off: \"no voice key\" or \"transcription is off\"." }
 VoiceTokenRequest:
   type: object
-  required: [conversation_id]
+  description: "Empty, or scope now, is the triage call (the default); conversation_id is a call in that conversation. Never both."
   properties:
-    conversation_id: { type: integer, format: int64 }
+    conversation_id: { type: integer, format: int64, description: "A call in this conversation." }
+    scope: { type: string, enum: [now], description: "The triage call: it reads what waits for the owner and, in phase 1, writes nothing." }
 VoiceToken:
   type: object
   required: [token, model, ws_url, expires_at, config]

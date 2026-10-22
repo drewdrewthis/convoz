@@ -90,3 +90,39 @@ Feature: Voice call (contracts)
       Then the server answers 403 naming "quiet"
       When the owner's voice call posts a quiet message that mentions "@dot"
       Then the message is stored and "dot" has no inbox item for it
+
+  # Issue https://github.com/drewdrewthis/convoz/issues/43, phase 1: the triage call from Now.
+  Rule: A Now token reads only
+
+    @v1 @api
+    Scenario: The owner gets a Now token that locks the triage instructions and read-only tools
+      Given voice is on with the key "TESTONLY-gemini"
+      When the owner asks for a voice token with the scope "now"
+      Then the server answers 200 with a token, the model, the socket address and an expiry
+      And it was asked to lock the model "gemini-3.8-live", the triage instructions and the tools "read_now", "read_recent" and "agent_status"
+      And no tool that writes is offered: no "ask_agent"
+      And the key "TESTONLY-gemini" is nowhere in the answer
+
+    @v1 @api
+    Scenario: An agent cannot get a Now token
+      Given voice is on with the key "TESTONLY-gemini"
+      When "dot" asks for a voice token with the scope "now"
+      Then the server answers 403
+      And the token service was not asked
+
+    # Owner said (conv 108 msg 2846): "the voice should be triage by default"
+    @v1 @api
+    Scenario: A token request without a conversation is the triage call, and one naming both is refused
+      Given voice is on with the key "TESTONLY-gemini"
+      When the owner asks for a voice token with the scope "now" and conversation 41
+      Then the server answers 400 naming "scope"
+      And the token service was not asked
+      When the owner asks for a voice token with no conversation and no scope
+      Then the server answers 200 and the token locks the tools "read_now", "read_recent" and "agent_status"
+
+    @v1 @api
+    Scenario: Now tokens count against the same 20 an hour
+      Given voice is on with the key "TESTONLY-gemini"
+      When the owner asks for 20 voice tokens for conversation 41
+      And the owner asks for a voice token with the scope "now"
+      Then the server answers 429 with a Retry-After header

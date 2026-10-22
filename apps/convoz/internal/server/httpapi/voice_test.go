@@ -81,3 +81,33 @@ func TestRestMinterSendsTheKeyInAHeaderAndNamesStatusesOnly(t *testing.T) {
 		t.Errorf("a refusal names the status only: %v", err)
 	}
 }
+
+// Issue https://github.com/drewdrewthis/convoz/issues/43: a triage call from Now reads only.
+func TestNowConfigLocksTriageInstructionAndReadOnlyTools(t *testing.T) {
+	var body struct {
+		Setup struct {
+			SystemInstruction struct {
+				Parts []struct{ Text string } `json:"parts"`
+			} `json:"systemInstruction"`
+			Tools []struct {
+				FunctionDeclarations []struct{ Name string } `json:"functionDeclarations"`
+			} `json:"tools"`
+		} `json:"bidiGenerateContentSetup"`
+	}
+	if err := json.Unmarshal(tokenRequest(time.Now(), nowConfig()), &body); err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, f := range body.Setup.Tools[0].FunctionDeclarations {
+		names = append(names, f.Name)
+	}
+	if got := strings.Join(names, " "); got != "read_now read_recent agent_status" {
+		t.Errorf("a Now call offers only reads: %s", got)
+	}
+	words := body.Setup.SystemInstruction.Parts[0].Text
+	for _, want := range []string{"read_now", "most urgent first", "short sentences", "untrusted"} {
+		if !strings.Contains(words, want) {
+			t.Errorf("instruction lacks %q: %s", want, words)
+		}
+	}
+}

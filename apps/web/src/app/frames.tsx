@@ -7,6 +7,7 @@ import { signOut } from "../shared/api.ts";
 import { keepForOffline } from "../shared/data.ts";
 import { Banners, useNoticeState } from "../shared/notice.tsx";
 import { PageHeadContext, type PageHead } from "../shared/page-head.tsx";
+import { CallPill } from "../features/call/index.ts";
 import { PushBanner } from "../features/notifications/index.ts";
 import { openCount, useNow } from "../features/now/index.ts";
 import { SearchButton } from "../features/search/index.ts";
@@ -99,6 +100,7 @@ export function ShellFrame({ def, children }: { def: PageDef; children: ReactNod
           </a>
         ) : null}
       </div>
+      <CallPill />
       <nav className="tabbar glass" aria-label="Main">
         {TABS.map(({ tab, href, label, Icon, badge }) => (
           <a key={tab} href={href} aria-current={def.tab === tab ? "page" : undefined}>

@@ -35,8 +35,8 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Settings](#settings) (9)
 - [The convoz CLI and MCP server for agents](#the-convoz-cli-and-mcp-server-for-agents) (55)
 - [The server hands out its own CLI](#the-server-hands-out-its-own-cli) (5)
-- [Threads](#threads) (27)
-- [Voice call](#voice-call) (11)
+- [Threads](#threads) (29)
+- [Voice call](#voice-call) (19)
 - [Voice notes](#voice-notes) (11)
 
 ## A triage agent
@@ -956,7 +956,7 @@ The agent runs the same version as the server, with nothing to build and no root
 ## Threads
 
 Busy conversations stay readable.
-27 scenarios.
+29 scenarios.
 
 - **A thread hangs off one top-level message**
   - [The owner replies in a thread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L23)
@@ -972,30 +972,32 @@ Busy conversations stay readable.
   - [Messages that never count as unread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L97)
 - **One tap opens a thread on a phone**
   - [One tap on the reply chip opens the thread pane](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L112)
+  - [On a phone a long press on a message opens Reply in thread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L120)
+  - [On a phone the message actions button shows and a tap on it opens Reply in thread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L129)
 - **A thread root shows its last reply in the main list**
-  - [The reply chip shows the count and the last replier](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L123)
-  - [The peek shows the last reply](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L130)
-  - [A new reply updates the chip live](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L136)
-  - [One tap on the peek opens the thread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L142)
-  - [The thread pane has no Also send to conversation box](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L148)
-  - [The chip has a dot while the last reply is unread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L154)
+  - [The reply chip shows the count and the last replier](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L140)
+  - [The peek shows the last reply](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L147)
+  - [A new reply updates the chip live](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L153)
+  - [One tap on the peek opens the thread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L159)
+  - [The thread pane has no Also send to conversation box](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L165)
+  - [The chip has a dot while the last reply is unread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L171)
 - **Every Reply in thread shows how many replies the thread has and how many are new**
-  - [The reply chip and the message menu show the replies and the new ones](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L164)
-  - [Opening the thread clears the new count](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L172)
-  - [A message with no replies shows no count](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L179)
-  - [A new reply brings the new count live](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L184)
+  - [The reply chip and the message menu show the replies and the new ones](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L181)
+  - [Opening the thread clears the new count](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L189)
+  - [A message with no replies shows no count](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L196)
+  - [A new reply brings the new count live](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L201)
 - **The Conversations list shows every thread under its conversation**
-  - [Each conversation lists its threads under it, and a thread opens from its row](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L196)
-  - [Thread replies count on the thread's row, not the conversation's](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L204)
-  - [Threads with no reply since yesterday fold into Older under their conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L213)
-  - [A long thread preview stays inside the row and keeps its unread count in view](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L220)
-  - [A long link in a thread stays inside its bubble](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L229)
-  - [The message actions button does not cover the time](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L236)
+  - [Each conversation lists its threads under it, and a thread opens from its row](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L213)
+  - [Thread replies count on the thread's row, not the conversation's](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L221)
+  - [Threads with no reply since yesterday fold into Older under their conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L230)
+  - [A long thread preview stays inside the row and keeps its unread count in view](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L237)
+  - [A long link in a thread stays inside its bubble](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L246)
+  - [The message actions button does not cover the time](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L253)
 
 ## Voice call
 
 I can ask and hear answers while my hands are busy.
-11 scenarios.
+19 scenarios.
 
 - **The Call button shows only when a call can work**
   - [The Call button is hidden when voice is off](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L23)
@@ -1015,6 +1017,15 @@ I can ask and hear answers while my hands are busy.
   - [Asking an agent that is not in the conversation is refused](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L108)
 - **Hanging up ends everything**
   - [Hanging up closes the microphone and the connection](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L117)
+- **The owner can call Now from anywhere to hear what waits on him**
+  - [A Now call starts from the search overlay](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L130)
+  - [The call pill stays on every screen while the owner moves around](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L136)
+  - [The model reads Now and the answer holds the asks that wait](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L143)
+  - [A Now call cannot post](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L150)
+  - [Typing "@voice" does not open the microphone](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L157)
+  - [Hanging up a Now call ends the microphone and the connection](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L162)
+  - [A Now call leaves its log once, in "Calls with @voice", and wakes nobody](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L169)
+  - [A Now call that ends with a reload still leaves its log](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice-call.feature#L177)
 
 ## Voice notes
 

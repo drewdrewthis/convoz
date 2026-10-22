@@ -1,5 +1,5 @@
 import type { BrowserContext, Locator, Page, WebSocketRoute } from "@playwright/test";
-import { chatWorld, createConversation, startSession, type World } from "./chat.ts";
+import { chatWorld, createConversation, listConversations, startSession, type World } from "./chat.ts";
 import { expect } from "./fixtures.ts";
 import type { ServerHandle, ServerOptions } from "./fixtures.ts";
 import { Client } from "./http.ts";
@@ -12,6 +12,9 @@ import { messageLog } from "./chat-ui.ts";
  *   button "Call" in the conversation's top bar, only when voice is on; it opens the region "Call" (not modal: the conversation stays
  *   readable behind it) that holds a status line (role status: "Connecting…", "Live", "Asked @dot", "Call ended"), a button "Mute"
  *   (then "Unmute") and a button "Hang up". A message the call posted shows the words "via voice call".
+ * A Now call (issue https://github.com/drewdrewthis/convoz/issues/43) starts from the option "Call" in the group "Quick actions" of the
+ * search dialog (Ctrl/Cmd+K, shown only when voice is on). Its pill is the same region "Call", on every signed-in page while the call
+ * is on, with the same status, Mute and Hang up, and a timer "Time on the call" ("0:07"). Its log goes to "Calls with @voice".
  * The server's side is /api/voice and /api/voice/token; the test build keeps the token service of Google as a fake (/__test/voice).
  */
 
@@ -150,4 +153,40 @@ export async function ownerPosts(w: World, conv: number): Promise<{ body: string
 /** The call logs in a conversation as the server holds them: the owner's messages marked "via voice call" that start with "Call log". */
 export async function callLogs(w: World, conv: number): Promise<{ body: string; via_voice?: boolean }[]> {
   return (await ownerPosts(w, conv)).filter((m) => m.via_voice && m.body.startsWith("Call log"));
+}
+
+/** The conversation that holds the logs of Now calls. */
+export const CALLS_TITLE = "Calls with @voice";
+
+/** The pill of a Now call: the same region "Call" as the sheet, drawn over every page. */
+export const callPill = callSheet;
+
+export const searchDialog = (page: Page): Locator => page.getByRole("dialog", { name: "Search" });
+
+/** The first visible link of that name: the sidebar on a wide screen, the tab bar on a phone. */
+export const visibleLink = (page: Page, name: string | RegExp): Locator => page.getByRole("link", { name }).filter({ visible: true }).first();
+
+/** Open search with the keys and pick the quick action "Call". */
+export async function startNowCallFromSearch(page: Page): Promise<void> {
+  await page.keyboard.press("ControlOrMeta+K");
+  await searchDialog(page).getByRole("group", { name: "Quick actions" }).getByRole("option", { name: /^Call\b/ }).click();
+}
+
+/** Given the owner is on a Now call: Now is open, Call picked in search, the model's socket answered. */
+export async function onANowCall(page: Page, srv: ServerHandle): Promise<FakeModel> {
+  const model = await fakeModel(page);
+  await trackMicrophone(page);
+  await page.goto(`${srv.origin}/`);
+  await page.getByRole("heading", { name: "Now", exact: true }).waitFor();
+  await startNowCallFromSearch(page);
+  await expect(callStatus(page)).toHaveText("Live");
+  return model;
+}
+
+/** The conversations titled "Calls with @voice" and the call logs in them, as the server holds them. */
+export async function nowCallLogs(w: World): Promise<{ conversations: number[]; logs: { body: string; via_voice?: boolean }[] }> {
+  const conversations = (await listConversations(w.owner)).filter((c) => c.title === CALLS_TITLE).map((c) => c.id);
+  const logs = [];
+  for (const id of conversations) logs.push(...(await callLogs(w, id)));
+  return { conversations, logs };
 }

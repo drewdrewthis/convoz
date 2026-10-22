@@ -1759,9 +1759,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * A one-use Gemini token for a call in a conversation the owner can see, 20 an hour.
+         * A one-use Gemini token for the triage call (the default), or for a call in a conversation the owner can see; 20 an hour.
          * @description The token opens one live session within 2 minutes and lives 30 minutes; it locks the model, the instructions and the tools, which
          *     the answer also carries as `config` (the SDK's own shape). With no key or with transcription off it is 404 `voice_off`; an agent is 403.
+         *     Without a conversation (or with `scope: now`) it is the triage call: its tools are read_now, read_recent and agent_status, nothing that writes.
          */
         post: operations["voiceToken"];
         delete?: never;
@@ -2815,9 +2816,18 @@ export interface components {
             /** @description Why it is off: "no voice key" or "transcription is off". */
             why?: string;
         };
+        /** @description Empty, or scope now, is the triage call (the default); conversation_id is a call in that conversation. Never both. */
         VoiceTokenRequest: {
-            /** Format: int64 */
-            conversation_id: number;
+            /**
+             * Format: int64
+             * @description A call in this conversation.
+             */
+            conversation_id?: number;
+            /**
+             * @description The triage call: it reads what waits for the owner and, in phase 1, writes nothing.
+             * @enum {string}
+             */
+            scope?: "now";
         };
         VoiceToken: {
             /** @description Google's name for the one-use token; the browser gives it to the SDK as its key. */
