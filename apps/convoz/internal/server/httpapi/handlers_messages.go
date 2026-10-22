@@ -3,8 +3,10 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"maps"
 	"math"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -396,13 +398,17 @@ func askViewsOf(ctx context.Context, d pdb.DBTX, dir directory, page []message.M
 	if err != nil {
 		return nil, err
 	}
-	for id, a := range asks {
+	list := slices.Collect(maps.Values(asks))
+	if err := ask.MarkReplyAnswered(ctx, d, askThreads{}, list); err != nil {
+		return nil, err
+	}
+	for _, a := range list {
 		v, err := dir.askWithReply(ctx, d, a)
 		if err != nil {
 			return nil, err
 		}
-		v.App = appView(apps[id])
-		out[id] = v
+		v.App = appView(apps[a.ID])
+		out[a.ID] = v
 	}
 	return out, nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -41,6 +42,59 @@ func (f *fakeJournal) Write(_ context.Context, _ pdb.DBTX, _ time.Time, c ask.Ch
 
 // world: conversation 10; ask 5 in the main list (a thread root of its own), ask 7 asked inside thread 6, ask 9 asked inside thread 8,
 // ask 11 in the main list and snoozed; asks 5 and 7 are devtool's, 9 and 11 are docs'. Ask 12 is dismissed.
+// threads answers the thread questions of the ask module with the message module's SQL, run through d: the ask module may not
+// import the message module, so a test states the same rules.
+type threads struct{}
+
+func (threads) RepliesAnswered(ctx context.Context, d pdb.DBTX, replies []int64) ([]int64, error) {
+	if len(replies) == 0 {
+		return nil, nil
+	}
+	return idsOf(ctx, d, `SELECT r.id FROM messages r WHERE r.id IN (`+marks(len(replies))+`) AND EXISTS (
+  SELECT 1 FROM messages m
+  WHERE m.conversation_id = r.conversation_id AND m.thread_root_id = r.thread_root_id AND m.id > r.id
+    AND m.author_id <> r.author_id AND m.deleted_at IS NULL
+) ORDER BY r.id`, anys(replies)...)
+}
+
+func (threads) InThread(ctx context.Context, d pdb.DBTX, root int64, ids []int64) ([]int64, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	return idsOf(ctx, d, `SELECT id FROM messages WHERE id IN (`+marks(len(ids))+`) AND thread_root_id = ? ORDER BY id`, append(anys(ids), root)...)
+}
+
+// idsOf runs a query that selects one id column and returns the ids in row order.
+func idsOf(ctx context.Context, d pdb.DBTX, query string, args ...any) ([]int64, error) {
+	rows, err := d.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
+
+// marks is the placeholders of an IN list of n values.
+func marks(n int) string {
+	return strings.TrimSuffix(strings.Repeat("?,", n), ",")
+}
+
+func anys(ids []int64) []any {
+	out := make([]any, len(ids))
+	for i, id := range ids {
+		out[i] = id
+	}
+	return out
+}
+
 func world(t *testing.T) *pdb.Store {
 	s := dbtest.Store(t)
 	stmts := []string{
@@ -88,7 +142,12 @@ func get(t *testing.T, s *pdb.Store, id int64) (a ask.Ask) {
 	t.Helper()
 	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error {
 		var err error
-		a, err = ask.Get(ctx, d, id)
+		if a, err = ask.Get(ctx, d, id); err != nil {
+			return err
+		}
+		list := []ask.Ask{a}
+		err = ask.MarkReplyAnswered(ctx, d, threads{}, list)
+		a = list[0]
 		return err
 	})
 	return
@@ -97,7 +156,7 @@ func get(t *testing.T, s *pdb.Store, id int64) (a ask.Ask) {
 func TestOwnerReplied_KeepsTheOpenAsksOfTheThreadOpenAndRemembersTheReply(t *testing.T) {
 	s := world(t)
 	cv, inbox, journal := &fakeConversations{open: 4}, &fakeInbox{}, &fakeJournal{}
-	p := ask.Ports{Conversations: cv, Inbox: inbox, Journal: journal}
+	p := ask.Ports{Threads: threads{}, Conversations: cv, Inbox: inbox, Journal: journal}
 	for reply, root := range map[int64]int64{50: 5, 60: 6, 110: 11} { // the ask's own thread, the thread it was asked in, a snoozed ask's thread
 		ownerReplied(t, s, p, root, reply)
 	}
@@ -128,7 +187,7 @@ func TestOwnerReplied_KeepsTheOpenAsksOfTheThreadOpenAndRemembersTheReply(t *tes
 
 func TestOwnerReplied_LeavesOtherThreadsAndSettledAsksAlone(t *testing.T) {
 	s := world(t)
-	p := ask.Ports{Conversations: &fakeConversations{}, Inbox: &fakeInbox{}, Journal: &fakeJournal{}}
+	p := ask.Ports{Threads: threads{}, Conversations: &fakeConversations{}, Inbox: &fakeInbox{}, Journal: &fakeJournal{}}
 	ownerReplied(t, s, p, 6, 60)
 	ownerReplied(t, s, p, 12, 120)
 	for id, want := range map[int64]int64{5: 0, 7: 60, 9: 0, 11: 0, 12: 0} {
@@ -156,7 +215,7 @@ func post(t *testing.T, s *pdb.Store, id, root, author int64, q string) {
 func waiting(t *testing.T, s *pdb.Store) (open, replied []int64) {
 	t.Helper()
 	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error {
-		w, err := ask.ForNow(ctx, d, 1, t0, 0)
+		w, err := ask.ForNow(ctx, d, threads{}, 1, t0, 0)
 		for _, a := range w.Open {
 			open = append(open, a.ID)
 		}
@@ -170,7 +229,7 @@ func waiting(t *testing.T, s *pdb.Store) (open, replied []int64) {
 
 func TestForNow_TheAskWaitsOnTheAgentOnlyWhileTheOwnersReplyIsTheLastWordInItsThread(t *testing.T) {
 	s := world(t)
-	p := ask.Ports{Conversations: &fakeConversations{}, Inbox: &fakeInbox{}, Journal: &fakeJournal{}}
+	p := ask.Ports{Threads: threads{}, Conversations: &fakeConversations{}, Inbox: &fakeInbox{}, Journal: &fakeJournal{}}
 	post(t, s, 60, 6, 1, "")
 	ownerReplied(t, s, p, 6, 60)
 	if open, replied := waiting(t, s); !slices.Equal(replied, []int64{7}) || slices.Contains(open, 7) || !get(t, s, 7).WaitingOnAgent() {
@@ -194,7 +253,7 @@ func TestOwnerReplied_OneReplyCountsForOneAskOfASharedThread(t *testing.T) {
 	post(t, s, 13, 6, 2, "Review 2 of 3?") // a second ask inside thread 6, next to ask 7
 	post(t, s, 14, 5, 2, "Review 3 of 3?") // an ask inside the thread of ask 5
 	inbox := &fakeInbox{}
-	p := ask.Ports{Conversations: &fakeConversations{}, Inbox: inbox, Journal: &fakeJournal{}}
+	p := ask.Ports{Threads: threads{}, Conversations: &fakeConversations{}, Inbox: inbox, Journal: &fakeJournal{}}
 	post(t, s, 60, 6, 1, "")
 	ownerReplied(t, s, p, 6, 60)
 	post(t, s, 50, 5, 1, "")
@@ -232,7 +291,7 @@ func (*fakeMessages) PostAnswer(context.Context, pdb.DBTX, time.Time, ask.Answer
 func TestUpdate_ChangesTheAskInPlaceAfterTheOwnersQuestions(t *testing.T) {
 	s := world(t)
 	cv := &fakeConversations{open: 4}
-	p := ask.Ports{Messages: &fakeMessages{}, Conversations: cv, Inbox: &fakeInbox{}, Journal: &fakeJournal{}}
+	p := ask.Ports{Threads: threads{}, Messages: &fakeMessages{}, Conversations: cv, Inbox: &fakeInbox{}, Journal: &fakeJournal{}}
 	ownerReplied(t, s, p, 6, 60)
 	update := func(in ask.Updating) (a ask.Ask, err error) {
 		dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error { a, err = ask.Update(ctx, d, p, t0, in); return nil })

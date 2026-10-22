@@ -126,7 +126,7 @@ func (s *Server) waitingOn(ctx context.Context, d pdb.DBTX, c *call) (wire.Waiti
 			})
 		}
 	}
-	waiting, err := ask.ForNow(ctx, d, owner.ID, now, now.UnixMilli()) // nothing is answered after now, so only the open asks come back
+	waiting, err := ask.ForNow(ctx, d, askThreads{}, owner.ID, now, now.UnixMilli()) // nothing is answered after now, so only the open asks come back
 	if err != nil {
 		return out, err
 	}

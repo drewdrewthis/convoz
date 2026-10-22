@@ -2,6 +2,7 @@ package message_test
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
 
@@ -95,6 +96,35 @@ func TestThreadCountsLeaveOutOwnSystemDeletedAndBroadcastReplies(t *testing.T) {
 		}
 		if newest, err := message.NewestReplyID(ctx, d, 20); err != nil || newest != 24 {
 			t.Errorf("newest reply %d err=%v", newest, err)
+		}
+		return nil
+	})
+}
+
+func TestInThreadAndRepliesAnsweredWorkWithAnyNumberOfIDs(t *testing.T) {
+	s := seeded(t)
+	dbtest.Exec(t, s,
+		`INSERT INTO messages (id, conversation_id, author_id, kind, body, created_at) VALUES (20,10,2,'text','root',1),(30,10,1,'text','main',1)`,
+		`INSERT INTO messages (id, conversation_id, author_id, kind, body, thread_root_id, created_at) VALUES
+		   (21,10,3,'text','a reply',20,2), (22,10,1,'text','owner answers',20,3), (23,10,1,'text','owner again, nobody answers',20,4)`)
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error {
+		for _, c := range []struct {
+			name string
+			ids  []int64
+			want []int64
+		}{
+			{"one reply", []int64{21}, []int64{21}},
+			{"one message outside the thread", []int64{30}, nil},
+			{"three ids: the root, a reply, a main message", []int64{30, 20, 21}, []int64{21}},
+			{"three replies", []int64{23, 21, 22}, []int64{21, 22, 23}},
+		} {
+			got, err := message.InThread(ctx, d, 20, c.ids)
+			if err != nil || !reflect.DeepEqual(got, c.want) {
+				t.Errorf("InThread %s: %v err=%v, want %v", c.name, got, err, c.want)
+			}
+		}
+		if got, err := message.RepliesAnswered(ctx, d, []int64{21, 22, 23}); err != nil || !reflect.DeepEqual(got, []int64{21}) {
+			t.Errorf("answered replies %v err=%v: only 21 has a later reply by someone else (22); 22 and 23 have none", got, err)
 		}
 		return nil
 	})

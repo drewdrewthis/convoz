@@ -52,6 +52,9 @@ func hydrateMessage(name string) hydrator {
 				return name, nil, err
 			}
 			if err == nil {
+				if a, err = markedAsk(ctx, d, a); err != nil {
+					return name, nil, err
+				}
 				base, err := dir.askWithReply(ctx, d, a)
 				if err != nil {
 					return name, nil, err

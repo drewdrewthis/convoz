@@ -2,6 +2,7 @@ package ask
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/ask/db"
@@ -90,9 +91,24 @@ func CloseForAgent(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, agen
 // the same ask. A second reply moves the reply on and tells the agent again.
 func OwnerReplied(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, conversationID, threadRoot, replyID, by int64) error {
 	q := db.New(d)
-	ids, err := q.OpenAskOfThread(ctx, db.OpenAskOfThreadParams{ConversationID: conversationID, ThreadRoot: threadRoot})
-	if err != nil || len(ids) == 0 {
+	open, err := q.OpenAsksOfConversation(ctx, conversationID)
+	if err != nil {
 		return err
+	}
+	var ids []int64
+	if slices.Contains(open, threadRoot) {
+		ids = []int64{threadRoot}
+	} else {
+		inThread, err := p.Threads.InThread(ctx, d, threadRoot, open)
+		if err != nil {
+			return err
+		}
+		if len(inThread) > 0 {
+			ids = inThread[len(inThread)-1:] // ascending: the newest ask asked inside the thread is the last
+		}
+	}
+	if len(ids) == 0 {
+		return nil
 	}
 	asks, err := Views(ctx, d, ids)
 	if err != nil {

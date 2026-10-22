@@ -65,6 +65,20 @@ WHERE conversation_id = sqlc.arg(conversation_id) AND in_main = 1 AND kind <> 's
   AND via_app_message_id IS NULL AND answers_ask_id IS NULL
 ORDER BY id DESC LIMIT 1;
 
+-- name: RepliesAnswered :many
+-- Of these replies, the ones someone other than their author posted after in the same thread.
+SELECT r.id FROM messages r
+WHERE r.id IN (sqlc.slice(ids)) AND EXISTS (
+  SELECT 1 FROM messages m
+  WHERE m.conversation_id = r.conversation_id AND m.thread_root_id = r.thread_root_id AND m.id > r.id
+    AND m.author_id <> r.author_id AND m.deleted_at IS NULL
+)
+ORDER BY r.id;
+
+-- name: InThread :many
+-- Of these messages, the ones posted inside the thread of root.
+SELECT id FROM messages WHERE thread_root_id = sqlc.arg(root_id) AND id IN (sqlc.slice(ids)) ORDER BY id;
+
 -- name: CountThreadUnreadByRoot :many
 -- Unread replies of many threads in one go, each thread with its own read point: pairs is a JSON array of [root_id, after].
 -- Counts what CountThreadUnread counts, without its stop at MaxUnread.

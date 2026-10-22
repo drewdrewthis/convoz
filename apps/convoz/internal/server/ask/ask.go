@@ -90,6 +90,7 @@ type Ask struct {
 	// OwnerRepliedAt and OwnerReplyID are the latest reply of the owner in the thread of this open ask; 0 when there is none.
 	OwnerRepliedAt, OwnerReplyID int64
 	// ReplyAnswered is someone other than the owner posting in the thread after the owner's reply (the agent answered in words).
+	// MarkReplyAnswered sets it, not Views.
 	ReplyAnswered bool
 	// Answers is the summary of the answers the latest update carries, and Changed what that update changed ("question, options"); empty before any update.
 	Answers, Changed     string
@@ -154,6 +155,15 @@ type Ports struct {
 	Inbox         Inbox
 	Journal       Journal
 	Notify        Notifier
+	Threads       Threads
+}
+
+// Threads reads the threads of asks, which the message module owns.
+type Threads interface {
+	// RepliesAnswered returns, of these replies, the ones someone other than their author posted after in the same thread.
+	RepliesAnswered(ctx context.Context, d pdb.DBTX, replies []int64) ([]int64, error)
+	// InThread returns, of these messages, the ones posted inside the thread of root.
+	InThread(ctx context.Context, d pdb.DBTX, root int64, ids []int64) ([]int64, error)
 }
 
 // AskMessage is the ask message to write.
