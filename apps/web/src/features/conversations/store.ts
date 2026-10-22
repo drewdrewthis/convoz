@@ -5,7 +5,7 @@ import { coalesce, maxId } from "@convoz/api-client";
 import { create } from "zustand";
 import { ApiError, humanError } from "../../shared/api.ts";
 import { newId } from "../../shared/chat.ts";
-import { data, outbox, source, sync } from "../../shared/data.ts";
+import { data, offlineReady, outbox, source, sync } from "../../shared/data.ts";
 import { asUpload, uploadFile } from "../../shared/uploads.ts";
 
 /** A send waiting for the link looks again this often even if no `online` event comes. */
@@ -39,8 +39,12 @@ export interface Thread {
 
 export interface ConversationsState {
   threads: Record<string, Thread>;
-  /** Open an existing conversation under `key`: its row and newest page. Throws ApiError 404 when it is not the owner's. */
-  openThread(key: string, convId: number): Promise<void>;
+  /**
+   * Open an existing conversation under `key`. It resolves at once when the offline copy holds its row and messages, so the page
+   * draws them; else after the row and newest page come. `fresh` is the refresh from the server followed by restoring the queued sends: it rejects with ApiError 404 when
+   * the conversation is not the owner's (and then the call itself rejects too when nothing was held).
+   */
+  openThread(key: string, convId: number): Promise<{ fresh: Promise<void> }>;
   /** Start a new conversation with these agents (maybe none) under `key`; nothing is made on the server until the first send. */
   startThread(key: string, handles: string[]): void;
   loadEarlier(key: string): Promise<void>;
@@ -152,9 +156,18 @@ export const useConversations = create<ConversationsState>()((set, get) => {
     threads: {},
     openThread: async (key, convId) => {
       set((s) => ({ threads: { ...s.threads, [key]: s.threads[key] ?? emptyThread(convId) } }));
-      await data.loadConversation(convId);
-      await data.loadNewest(convId);
-      await restoreSends(key, convId);
+      await offlineReady();
+      const fresh = (async () => {
+        await data.loadConversation(convId);
+        await data.loadNewest(convId);
+      })();
+      const { rows, messages } = data.store.getState();
+      // the held copy draws now (design §9): the server's answer lands in the cache when it comes; the queued sends wait for it, so
+      // a conversation the server says is gone gets none
+      const sent = fresh.then(() => restoreSends(key, convId));
+      if (rows[convId] && messages[convId]?.list.length) sent.catch(() => {});
+      else await sent;
+      return { fresh: sent };
     },
     startThread: (key, handles) => {
       set((s) => ({ threads: { ...s.threads, [key]: { ...emptyThread(0), start: { handles, clientId: newId() } } } }));

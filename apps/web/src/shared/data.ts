@@ -77,6 +77,8 @@ export const data: DataCache = createDataCache(readable);
 // network answers; the sync cursor is kept with it, so a warm start reads only the delta (design §9). The stored messages, the
 // largest read, wait until the first screen shows (Now and the list do not show them; a conversation page has no mark to wait for).
 const ready = startOfflineCache(data, offline(), { messagesAfter: afterFirstScreen() });
+/** offlineReady resolves once the IndexedDB copy is in the cache: a page draws from it at once and does not wait for the network. */
+export const offlineReady = (): Promise<unknown> => ready;
 export const sync = createSync(data, readable, { cursor: cursorStore(offline()) });
 /** The sends the server has not confirmed; they survive a closed page and go out again with the same client id. */
 export const outbox = idbOutbox(offline());
