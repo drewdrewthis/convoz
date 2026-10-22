@@ -15,6 +15,8 @@ import { raw } from "../lib/uploads-wp10.ts";
 test.use({ launchOptions: fakeMic });
 
 const GOOGLE = "generativelanguage.googleapis.com";
+/** The tools of a Now call: reads only. */
+const READS = ["read_now", "list_conversations", "search_messages", "read_conversation", "agent_status"];
 
 // ---- the feature ---------------------------------------------------------------------------------------
 
@@ -271,20 +273,24 @@ scenario("The owner gets a Now token that locks the triage instructions and read
   expect(out.ws_url).toMatch(new RegExp(`^wss://${GOOGLE}/`));
   expect(out.expires_at).toBeGreaterThan(0);
 
-  // And it was asked to lock the model "gemini-3.8-live", the triage instructions and the tools "read_now", "read_recent" and "agent_status"
+  // And it was asked to lock the model "gemini-3.8-live", the triage instructions and the tools "read_now", "list_conversations", "search_messages", "read_conversation" and "agent_status"
   const asked = await tokenRequests(u.w);
   expect(asked).toHaveLength(1);
   const setup = asked[0]!.body.bidiGenerateContentSetup;
   expect(asked[0]!.body.uses).toBe(1);
   expect(setup.model).toBe("models/gemini-3.8-live");
   const names = setup.tools[0].functionDeclarations.map((f: { name: string }) => f.name);
-  expect(names).toEqual(["read_now", "read_recent", "agent_status"]);
+  expect(names).toEqual(READS);
   expect(out.config.tools).toEqual(setup.tools);
   const words = setup.systemInstruction.parts[0].text as string;
   expect(words).toContain("read_now");
   expect(words).toMatch(/most urgent first/);
   expect(words).toMatch(/untrusted/i);
   expect(out.config.systemInstruction).toBe(words);
+
+  // And the instructions tell the model to search and read before it answers about a topic, and to say when it is not sure
+  expect(words).toMatch(/call search_messages .* then read_conversation/);
+  expect(words).toMatch(/not sure/);
 
   // And no tool that writes is offered: no "ask_agent"
   expect(names).not.toContain("ask_agent");
@@ -328,8 +334,8 @@ scenario("A token request without a conversation is the triage call, and one nam
   // When the owner asks for a voice token with no conversation and no scope
   // Owner said (conv 108 msg 2846): "the voice should be triage by default"
   const neither = must(await u.w.owner.client.post("/api/voice/token", {}), "default token");
-  // Then the server answers 200 and the token locks the tools "read_now", "read_recent" and "agent_status"
-  expect(neither.json().config.tools[0].functionDeclarations.map((f: { name: string }) => f.name)).toEqual(["read_now", "read_recent", "agent_status"]);
+  // Then the server answers 200 and the token locks the tools "read_now", "list_conversations", "search_messages", "read_conversation" and "agent_status"
+  expect(neither.json().config.tools[0].functionDeclarations.map((f: { name: string }) => f.name)).toEqual(READS);
 });
 
 scenario("Now tokens count against the same 20 an hour", { tag: ["@api"] }, async ({ server }) => {

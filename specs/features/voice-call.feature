@@ -154,6 +154,32 @@ Feature: Voice call
       When the model asks for read_now
       Then the answer to the model holds "Merge #415 on its own?" from "dot" in "Ship search filters"
 
+    # Owner said (conv 115, a live call log): the triage call "can't see messages". Asked about the hooks work, it had only the Now
+    # summaries and repeated an old item. So it can search the messages and read a conversation before it answers about a topic.
+    @v1 @browser
+    Scenario: The model searches the messages and the answer holds the hits
+      Given "dot" posted "The hooks work is merged, next is the retry" in conversation 41
+      And the owner is on a Now call
+      When the model asks for search_messages with "hooks"
+      Then the answer to the model holds that message from "dot" in "Ship search filters", with its time and its message id
+
+    @v1 @browser
+    Scenario: The model reads a conversation named by a part of its title, with its thread replies
+      Given "dot" posted "Deploy is at 14:00" in conversation 41 and replied "Done at 14:02" in its thread
+      And "dot" posted a message of 3000 characters in conversation 41
+      And the owner is on a Now call
+      When the model asks for read_conversation with the title "search filters"
+      Then the answer to the model names conversation 41 "Ship search filters"
+      And it holds "Deploy is at 14:00" with the reply "Done at 14:02" under it
+      And no message in it is longer than 300 characters
+
+    @v1 @browser
+    Scenario: The model lists the open conversations with their unread counts
+      Given "dot" posted 2 messages in conversation 41 that the owner has not read
+      And the owner is on a Now call
+      When the model asks for list_conversations
+      Then the answer to the model lists "Ship search filters" with the unread count the server holds and its last activity
+
     @v1 @browser
     Scenario: A Now call cannot post
       Given the owner is on a Now call

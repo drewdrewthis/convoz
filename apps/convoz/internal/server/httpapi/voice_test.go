@@ -101,11 +101,12 @@ func TestNowConfigLocksTriageInstructionAndReadOnlyTools(t *testing.T) {
 	for _, f := range body.Setup.Tools[0].FunctionDeclarations {
 		names = append(names, f.Name)
 	}
-	if got := strings.Join(names, " "); got != "read_now read_recent agent_status" {
+	if got := strings.Join(names, " "); got != "read_now list_conversations search_messages read_conversation agent_status" {
 		t.Errorf("a Now call offers only reads: %s", got)
 	}
 	words := body.Setup.SystemInstruction.Parts[0].Text
-	for _, want := range []string{"read_now", "most urgent first", "short sentences", "untrusted"} {
+	// Owner said (conv 115): the triage call "can't see messages"; asked about the hooks work, it repeated an old Now item.
+	for _, want := range []string{"read_now", "most urgent first", "short sentences", "untrusted", "search_messages", "read_conversation", "not sure", "never repeat"} {
 		if !strings.Contains(words, want) {
 			t.Errorf("instruction lacks %q: %s", want, words)
 		}

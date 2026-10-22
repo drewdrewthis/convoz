@@ -99,7 +99,8 @@ Feature: Voice call (contracts)
       Given voice is on with the key "TESTONLY-gemini"
       When the owner asks for a voice token with the scope "now"
       Then the server answers 200 with a token, the model, the socket address and an expiry
-      And it was asked to lock the model "gemini-3.8-live", the triage instructions and the tools "read_now", "read_recent" and "agent_status"
+      And it was asked to lock the model "gemini-3.8-live", the triage instructions and the tools "read_now", "list_conversations", "search_messages", "read_conversation" and "agent_status"
+      And the instructions tell the model to search and read before it answers about a topic, and to say when it is not sure
       And no tool that writes is offered: no "ask_agent"
       And the key "TESTONLY-gemini" is nowhere in the answer
 
@@ -118,7 +119,7 @@ Feature: Voice call (contracts)
       Then the server answers 400 naming "scope"
       And the token service was not asked
       When the owner asks for a voice token with no conversation and no scope
-      Then the server answers 200 and the token locks the tools "read_now", "read_recent" and "agent_status"
+      Then the server answers 200 and the token locks the tools "read_now", "list_conversations", "search_messages", "read_conversation" and "agent_status"
 
     @v1 @api
     Scenario: Now tokens count against the same 20 an hour

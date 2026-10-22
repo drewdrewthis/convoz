@@ -1,4 +1,5 @@
 import type { Conversation } from "@convoz/api-client";
+import { Button } from "@convoz/ui/Button";
 import { useState } from "react";
 import { stripCf } from "../../shared/chat.ts";
 import { useThreadFold } from "./fold.ts";
@@ -26,9 +27,9 @@ export function ThreadFold({ c, className = "thrfold" }: { c: Conversation; clas
   if (!listed(c).length) return null;
   const title = stripCf(c.title ?? "") || "New conversation";
   return (
-    <button type="button" className={className} data-nodrag="" aria-expanded={!folded} aria-label={`${folded ? "Show" : "Fold"} threads of ${title}`} onClick={() => toggle(c.id)}>
+    <Button variant="text" size="inline" type="button" className={className} data-nodrag="" aria-expanded={!folded} aria-label={`${folded ? "Show" : "Fold"} threads of ${title}`} onClick={() => toggle(c.id)}>
       <span aria-hidden="true">{folded ? "▸" : "▾"}</span>
-    </button>
+    </Button>
   );
 }
 
@@ -64,10 +65,10 @@ export function ThreadRows({ c, compact = false, foldable = true }: { c: Convers
       {older.length ? (
         <>
           <li className="throlderli">
-            <button type="button" className="olderbtn throlder" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+            <Button variant="text" size="inline" type="button" className="olderbtn throlder" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
               <span aria-hidden="true">{open ? "▾" : "▸"}</span>
               <span>{`Older · ${older.length}`}</span>
-            </button>
+            </Button>
           </li>
           {open ? older.map(row) : null}
         </>

@@ -42,12 +42,49 @@ def main():
     if base is None:
         print(f"{NAME}: no base to compare with, nothing to check")
         return 0
-    before = counts(base)
-    rises = [f"{path}: {rule} {before.get((path, rule), 0)} -> {n}" for (path, rule), n in sorted(now.items()) if n > before.get((path, rule), 0)]
+    rises, moves = settle(counts(base), now)
+    for path, rule, frm in moves:
+        print(f"{NAME}: {path}: {rule} moved from deleted {frm}, not a rise against {where}")
     for line in rises:
         print(f"{NAME} rose against {where}: {line}")
     return 1 if rises else 0
 
 
+def settle(before, now):
+    """Return (rises, moves). A count may rise only by what files deleted since the base released for the same rule, each spent once."""
+    released = {}
+    for (path, rule), n in sorted(before.items()):
+        if (path, rule) not in now:
+            released.setdefault(rule, []).append([path, n])
+    rises, moves = [], []
+    for (path, rule), n in sorted(now.items()):
+        base_n = before.get((path, rule), 0)
+        need = n - base_n
+        if need <= 0:
+            continue
+        pool = released.get(rule, [])
+        for source in pool:
+            if need <= 0:
+                break
+            spend = min(need, source[1])
+            if spend:
+                source[1] -= spend
+                need -= spend
+                moves.append((path, rule, source[0]))
+        if need > 0:
+            rises.append(f"{path}: {rule} {base_n} -> {n}")
+    return rises, moves
+
+
+def self_test():
+    """Two cases: a count moved from a deleted file is allowed, a count with no released source is still a rise."""
+    rises, moves = settle({("old.tsx", "r"): 2}, {("new.tsx", "r"): 2})
+    assert rises == [] and moves == [("new.tsx", "r", "old.tsx")], (rises, moves)
+    rises, moves = settle({("keep.tsx", "r"): 1}, {("keep.tsx", "r"): 2})
+    assert rises == ["keep.tsx: r 1 -> 2"] and moves == [], (rises, moves)
+    print("check_suppressions self-test: ok")
+    return 0
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(self_test() if "--self-test" in sys.argv else main())

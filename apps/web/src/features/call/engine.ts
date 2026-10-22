@@ -7,7 +7,8 @@ import { Player, toBase64 } from "./audio.ts";
 import { release, type Gesture } from "./gesture.ts";
 import { OwnerIntent } from "./guard.ts";
 import { CallLog } from "./log.ts";
-import { callsConversation, readNow, readRecent } from "./now.ts";
+import { callsConversation, readNow } from "./now.ts";
+import { listConversations, readConversation, searchMessages } from "./reads.ts";
 import { runTool, type ToolDeps } from "./tools.ts";
 import type { CallTarget } from "./store.ts";
 import { Waiting } from "./waiting.ts";
@@ -302,9 +303,11 @@ class Call implements CallControl {
       return {
         intent: this.intent,
         agents: () => (state().identities ?? []).filter((p) => p.kind === "agent").map((p) => p.handle),
-        recent: (n, id) => (id ? readRecent(id, n) : Promise.reject(new Error("no conversation"))),
         status,
         now: readNow,
+        search: searchMessages,
+        conversations: listConversations,
+        conversation: readConversation,
       };
     }
     return {

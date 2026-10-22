@@ -4,11 +4,6 @@
       "count": 1
     }
   },
-  "apps/web/src/app/Status.tsx": {
-    "convoz/no-raw-button": {
-      "count": 1
-    }
-  },
   "apps/web/src/app/frames.tsx": {
     "convoz/no-raw-button": {
       "count": 1
@@ -200,11 +195,6 @@
   "apps/web/src/features/threads/InlineThread.tsx": {
     "convoz/no-raw-input": {
       "count": 2
-    }
-  },
-  "apps/web/src/features/threads/ThreadRows.tsx": {
-    "convoz/no-raw-button": {
-      "count": 1
     }
   },
   "apps/web/src/features/voice/VoiceNote.tsx": {
