@@ -13,7 +13,7 @@ import { installed, stored } from "../lib/wp17.ts";
  * The phone is the "mobile" project's 390 px touch window in a context of its own that holds only the owner's cookie, so no test
  * script runs in its pages; its CPU is slowed 4 times and its link (the page's and its service worker's) is Fast-3G or lossy (lib/perf.ts).
  * A phone has two first screens, and both are measured: Now at /, and the rail, which on a phone is the conversation list at /chats
- * (prototype v41; "On a phone the rail matches the prototype"). The time is the app's `tfus` mark, set when the screen holds its data.
+ * (prototype v41). The time is the app's `tfus` mark, set when the screen holds its data.
  * A cold load gets that data from the server during the load: its API answer, or the data block of the cold page (design §12.2).
  * The phone reaches the server the way it does in prod: over TLS and HTTP/2 through a front (lib/h2-front.ts), the stand-in for
  * `tailscale serve`. The document's nextHopProtocol is asserted, so the budget can never be measured on HTTP/1.1 by accident.
