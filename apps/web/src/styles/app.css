@@ -351,7 +351,7 @@
   .pn-now { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pn-chev svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s; }
   .pn-main[aria-expanded="true"] .pn-chev svg { transform: rotate(90deg); }
-  .pn-pill { position: relative; flex: none; min-height: 28px; padding: 0 10px; border: 1px solid color-mix(in srgb, var(--color-warning) 45%, var(--color-border)); border-radius: 999px; background: none; color: var(--color-warning); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+  .pn-pill { position: relative; flex: none; display: inline-flex; align-items: center; text-decoration: none; min-height: 28px; padding: 0 10px; border: 1px solid color-mix(in srgb, var(--color-warning) 45%, var(--color-border)); border-radius: 999px; background: none; color: var(--color-warning); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
   .pn-pill::after { content: ""; position: absolute; inset: -8px -2px; }
   .pn-lines { flex-basis: 100%; display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 0 0 8px 23px; font-size: 13px; }
   .pn-lines div { display: contents; }
@@ -360,7 +360,6 @@
   .msg .sendstate { margin-top: 2px; text-align: right; color: var(--color-muted); font-size: 12px; }
   .msg .seen { margin-top: 2px; text-align: right; color: var(--color-muted); font-size: 12px; }
   .msg .sendstate.bad { color: var(--color-danger); font-weight: 600; }
-  .msg .retry { min-height: 32px; margin-left: 8px; padding: 0 12px; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-raised); color: var(--color-text); font: inherit; font-weight: 600; cursor: pointer; }
   .working { display: flex; align-items: center; gap: 8px; box-sizing: border-box; width: calc(100% - 24px); max-width: 736px; margin: 10px auto 2px; color: var(--color-muted); font-size: 13px; }
   .working::before { content: ""; box-sizing: border-box; width: 10px; height: 10px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--color-accent) 25%, transparent); border-top-color: var(--color-accent); animation: workspin 0.9s linear infinite; }
   @keyframes workspin { to { transform: rotate(360deg); } }
@@ -436,6 +435,12 @@
   /* The prototype's rows, tabs and names are buttons, whose line height is the font's own, not the page's 1.4. */
   .chatrow, .crow, .tabbar a, .fab, .msg .who, .agentbtn, .titles h1, .count { line-height: normal; }
 }
+
+/* The retry pill and the rows of the "@" menus are Buttons styled here. They sit outside the layers: a layered rule loses to every
+   Tailwind utility of Button whatever its specificity, and these keep their own size, edge and left alignment. */
+.msg .sendstate .retry { min-height: 32px; margin-left: 8px; padding: 0 12px; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-raised); color: var(--color-text); font: inherit; font-weight: 600; cursor: pointer; }
+.pop .agentbtn { display: flex; justify-content: flex-start; gap: 10px; width: 100%; min-height: 48px; padding: 4px 8px; border: 0; border-radius: 12px; background: transparent; color: var(--color-text); font: inherit; font-size: 14px; line-height: normal; text-align: left; }
+.pop .agentbtn[aria-selected="true"], .pop .agentbtn:hover { background: var(--color-selection); }
 
 /* iOS zooms a page when a text box under 16 px takes focus, and the viewport does not allow it to stay zoomed: a phone text box is 16 px or more. */
 @media (max-width: 600px) {

@@ -17,9 +17,8 @@ import { useThreads } from "../threads/index.ts";
 import { resume } from "./actions.ts";
 import { Details } from "./Details.tsx";
 import { MessageDetails } from "./MessageDetails.tsx";
-import { OpenDetails } from "./messages/PlanNote.tsx";
 import { PlanLine } from "./PlanLine.tsx";
-import { WaitingHere, type PlanActions } from "./PlanSections.tsx";
+import type { PlanActions } from "./PlanSections.tsx";
 import { useFocusReport } from "../notifications/index.ts";
 import { replyingNote, usePresence, useReplying } from "../../shared/presence.ts";
 import { backLabel, useBackCount } from "./backCount.ts";
@@ -33,14 +32,16 @@ const GONE = "This conversation does not exist, or it is not yours.";
 const NONE: Message[] = [];
 const NO_SENDS: PendingSend[] = [];
 
+/** The root a #reply=<id> link names (Now's "Reply in thread", a thread row of the list, a thread search result), 0 for none. */
+const replyLink = (): number => Number(/^#reply=(\d+)$/.exec(location.hash)?.[1] ?? 0);
+/** The hashes that open the details panel: #plan, and #plan-<handle> on that agent's card. */
+const PLAN_HASH = /^#plan(-[a-z0-9-]+)?$/;
+
 /**
  * Conversation is /chats/:id and /chats/new: a full-screen chat with Back and the agent in the top bar, the log, and the
  * composer pinned to the bottom of the visible screen. New conversation starts blank; "@" brings in an agent, and the first
  * send makes the conversation and moves the URL to it.
  */
-/** The root a #reply=<id> link names (Now's "Reply in thread", a thread row of the list, a thread search result), 0 for none. */
-const replyLink = (): number => Number(/^#reply=(\d+)$/.exec(location.hash)?.[1] ?? 0);
-
 export function Conversation() {
   const [isNew] = useState(() => location.pathname === "/chats/new");
   const [key] = useState(() => (isNew ? NEW : location.pathname.split("/")[2]!));
@@ -60,9 +61,8 @@ export function Conversation() {
   const [newFrom, setNewFrom] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [gone, setGone] = useState(false);
-  // /chats/<id>#plan (a row of Now) opens with the plan panel showing.
-  const [info, setInfo] = useState(() => location.hash === "#plan");
-  const openInfo = useCallback(() => setInfo(true), []);
+  // /chats/<id>#plan, or #plan-<handle> (the pill of a plan update), opens with the plan panel showing.
+  const [info, setInfo] = useState(() => PLAN_HASH.test(location.hash));
   const [inviting, setInviting] = useState(false);
   const [inspected, setInspected] = useState<Message | null>(null);
   const attachments = useAttachments(convId);
@@ -120,7 +120,11 @@ export function Conversation() {
   useEffect(() => {
     if (!convId) return;
     const follow = () => {
-      if (location.hash === "#plan") setInfo(true);
+      if (PLAN_HASH.test(location.hash)) {
+        setInfo(true);
+        // The panel draws on this render: the card of #plan-<handle> is there on the next frame.
+        requestAnimationFrame(() => document.getElementById(location.hash.slice(1))?.scrollIntoView({ block: "nearest" }));
+      }
       if (location.hash === "#compose") textRef.current?.focus();
       const root = replyLink();
       if (root) useThreads.getState().startReply(convId, root);
@@ -318,25 +322,23 @@ export function Conversation() {
           {...fileDrop.handlers}
         >
           {fileDrop.overlay}
-          <OpenDetails.Provider value={openInfo}>
-            <Transcript
-              messages={held?.list ?? NONE}
-              pending={thread?.pending ?? NO_SENDS}
-              hasEarlier={Boolean(held?.hasEarlier)}
-              me={me}
-              opened={opened}
-              hint={isNew && !agent && !gone}
-              conversation={convId}
-              working={note}
-              control={control}
-              onEarlier={() => actions().loadEarlier(key)}
-              onRetry={retry}
-              onDetails={setInspected}
-              focus={focus || undefined}
-              newFrom={newFrom}
-            />
-          </OpenDetails.Provider>
-          <WaitingHere conv={convId} board={board} act={act} />
+          <Transcript
+            messages={held?.list ?? NONE}
+            pending={thread?.pending ?? NO_SENDS}
+            hasEarlier={Boolean(held?.hasEarlier)}
+            me={me}
+            opened={opened}
+            hint={isNew && !agent && !gone}
+            conversation={convId}
+            working={note}
+            control={control}
+            onEarlier={() => actions().loadEarlier(key)}
+            onRetry={retry}
+            onDiscard={(cid) => actions().discard(key, cid)}
+            onDetails={setInspected}
+            focus={focus || undefined}
+            newFrom={newFrom}
+          />
           <Composer
             agent={agent?.handle ?? null}
             label={label}

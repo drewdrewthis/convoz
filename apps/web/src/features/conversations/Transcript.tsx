@@ -48,6 +48,7 @@ export interface TranscriptProps {
   control: RefObject<TranscriptControl | null>;
   onEarlier(): Promise<void>;
   onRetry(cid: string): void;
+  onDiscard(cid: string): void;
   /** Open the details of an agent's message (its time is the button). */
   onDetails?(m: Message): void;
   /** The first message that was unread when the chat opened (see `firstUnread`): the "New messages" divider goes above it. Absent: no divider. */
@@ -108,7 +109,7 @@ export function firstUnread(messages: Message[], readAt: number | undefined, me:
  * Transcript is the log "Messages": the page itself does not scroll, the log does. It opens at the newest message, follows new
  * ones while it is at the bottom, and otherwise shows "New message ↓" instead of jumping.
  */
-export function Transcript({ messages, pending, hasEarlier, me, opened, hint, conversation, working, control, onEarlier, onRetry, onDetails, focus, newFrom }: TranscriptProps) {
+export function Transcript({ messages, pending, hasEarlier, me, opened, hint, conversation, working, control, onEarlier, onRetry, onDiscard, onDetails, focus, newFrom }: TranscriptProps) {
   const log = useRef<HTMLDivElement>(null);
   const items = useRef<HTMLDivElement>(null);
   // Opened at a search result, the log never starts at the newest end: rows that arrive (and a list virtualizer that measures them)
@@ -256,11 +257,11 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, hint, co
 
   const body =
     virtual ? (
-      <VirtualItems rows={rows} me={me} paused={paused} latest={latest} conversation={conversation} log={log} items={items} onRetry={onRetry} onDetails={onDetails} hl={hl} focusAt={opened ? focusAt : -1} />
+      <VirtualItems rows={rows} me={me} paused={paused} latest={latest} conversation={conversation} log={log} items={items} onRetry={onRetry} onDiscard={onDiscard} onDetails={onDetails} hl={hl} focusAt={opened ? focusAt : -1} />
     ) : (
       <div ref={items} id="items" className="items">
         {rows.map((r) => (
-          <MessageRow key={r.key} row={r} me={me} paused={paused} latest={latest} conversation={conversation} onRetry={onRetry} onDetails={onDetails} hl={hl} />
+          <MessageRow key={r.key} row={r} me={me} paused={paused} latest={latest} conversation={conversation} onRetry={onRetry} onDiscard={onDiscard} onDetails={onDetails} hl={hl} />
         ))}
       </div>
     );
@@ -289,7 +290,7 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, hint, co
   );
 }
 
-function VirtualItems({ rows, me, paused, latest, conversation, log, items, onRetry, onDetails, hl, focusAt }: { rows: Row[]; me: string; paused: number; latest: number; conversation: number; log: RefObject<HTMLDivElement | null>; items: RefObject<HTMLDivElement | null>; onRetry(cid: string): void; onDetails?(m: Message): void; hl: number | null; focusAt: number }) {
+function VirtualItems({ rows, me, paused, latest, conversation, log, items, onRetry, onDiscard, onDetails, hl, focusAt }: { rows: Row[]; me: string; paused: number; latest: number; conversation: number; log: RefObject<HTMLDivElement | null>; items: RefObject<HTMLDivElement | null>; onRetry(cid: string): void; onDiscard(cid: string): void; onDetails?(m: Message): void; hl: number | null; focusAt: number }) {
   const [margin, setMargin] = useState(0);
   useLayoutEffect(() => {
     const el = log.current;
@@ -311,7 +312,7 @@ function VirtualItems({ rows, me, paused, latest, conversation, log, items, onRe
     <div ref={items} id="items" className="items" style={{ position: "relative", height: v.getTotalSize() }}>
       {v.getVirtualItems().map((item) => (
         <div key={item.key} data-index={item.index} ref={v.measureElement} style={{ position: "absolute", top: 0, left: 0, right: 0, transform: `translateY(${item.start - margin}px)` }}>
-          <MessageRow row={rows[item.index]!} me={me} paused={paused} latest={latest} conversation={conversation} onRetry={onRetry} onDetails={onDetails} hl={hl} />
+          <MessageRow row={rows[item.index]!} me={me} paused={paused} latest={latest} conversation={conversation} onRetry={onRetry} onDiscard={onDiscard} onDetails={onDetails} hl={hl} />
         </div>
       ))}
     </div>
@@ -329,6 +330,7 @@ interface RowProps {
   paused: number;
   conversation: number;
   onRetry(cid: string): void;
+  onDiscard(cid: string): void;
   onDetails?(m: Message): void;
   /** The id of the message that is marked, if any. */
   hl?: number | null;
@@ -355,7 +357,7 @@ const MessageRow = memo(function MessageRow(props: RowProps) {
 /** The thread of a top-level message, drawn under it (issue 61). A reply, a notice and a row inside a thread have none. */
 function ThreadUnder({ message: m, threaded, latest, me, conversation }: RowProps & { message: Message }) {
   const bubbles = useCallback(
-    (list: Message[], pending: PendingReply[]) => <ThreadBubbles messages={list} pending={pending} me={me} conversation={conversation} onRetry={(cid) => useThreads.getState().retry(m.id, cid)} />,
+    (list: Message[], pending: PendingReply[]) => <ThreadBubbles messages={list} pending={pending} me={me} conversation={conversation} onRetry={(cid) => useThreads.getState().retry(m.id, cid)} onDiscard={(cid) => useThreads.getState().discard(m.id, cid)} />,
     [me, conversation, m.id],
   );
   if (threaded || m.thread_root_id || m.kind === "system" || m.author.kind === "system") return null;
@@ -371,7 +373,7 @@ function latestRoot(messages: Message[]): number {
   return 0;
 }
 
-function RowBody({ row, threaded, me, paused, conversation, onRetry, onDetails, hl }: RowProps) {
+function RowBody({ row, threaded, me, paused, conversation, onRetry, onDiscard, onDetails, hl }: RowProps) {
   const { message: m, pending: p } = row;
   const pinned = useData((s) => Boolean(m && s.rows[conversation]?.pinned?.some((x) => x.id === m.id)));
   const fresh = useNewReplies(m);
@@ -410,9 +412,13 @@ function RowBody({ row, threaded, me, paused, conversation, onRetry, onDetails, 
     p!.state === "failed" ? (
       <div className="sendstate bad">
         {p!.reason ? `${p!.reason} ` : ""}failed ·{" "}
-        <button className="retry" type="button" onClick={() => onRetry(p!.cid)}>
+        <Button size="inline" className="retry" onClick={() => onRetry(p!.cid)}>
           retry
-        </button>
+        </Button>
+        {" · "}
+        <Button size="inline" className="retry" aria-label="Discard failed message" onClick={() => onDiscard(p!.cid)}>
+          discard
+        </Button>
       </div>
     ) : (
       <div className="sendstate">sending</div>
@@ -469,12 +475,12 @@ function Article({ person, me, first, stamp, tag, onStamp, body, extra, menu, mi
 }
 
 /** The replies of a thread drawn as the main list draws messages, inline under their root: a pending reply shows "sending" or "failed · retry". */
-function ThreadBubbles({ messages, pending, me, conversation, onRetry }: { messages: Message[]; pending: PendingSend[]; me: string; conversation: number; onRetry(cid: string): void }) {
+function ThreadBubbles({ messages, pending, me, conversation, onRetry, onDiscard }: { messages: Message[]; pending: PendingSend[]; me: string; conversation: number; onRetry(cid: string): void; onDiscard(cid: string): void }) {
   const rows = useMemo(() => rowsOf(messages, pending, me), [messages, pending, me]);
   return (
     <>
       {rows.map((r) => (
-        <MessageRow key={r.key} row={r} me={me} paused={0} conversation={conversation} onRetry={onRetry} threaded />
+        <MessageRow key={r.key} row={r} me={me} paused={0} conversation={conversation} onRetry={onRetry} onDiscard={onDiscard} threaded />
       ))}
     </>
   );

@@ -35,7 +35,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Settings](#settings) (9)
 - [The convoz CLI and MCP server for agents](#the-convoz-cli-and-mcp-server-for-agents) (55)
 - [The server hands out its own CLI](#the-server-hands-out-its-own-cli) (5)
-- [Threads](#threads) (29)
+- [Threads](#threads) (31)
 - [Voice call](#voice-call) (39)
 - [Voice notes](#voice-notes) (11)
 
@@ -729,27 +729,27 @@ I know which conversations are active, and an agent that went quiet is noticed.
 - **One line under the title shows the most urgent state across the agents**
   - [The line under the title shows the most urgent state](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L78)
   - [Times show in the owner's time zone with "~" for an estimate](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L92)
-- **Tapping the line opens the details panel: what waits on the owner, then one card per agent, then the settings**
-  - [The details panel puts what waits on the owner first, then each agent's plan, then the settings](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L103)
-  - [Ask for a plan tells the agent the command that sets it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L122)
-  - [The plan card puts Remove in a menu and shows the step as a bar](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L131)
-  - [The card and the line show each parallel Now item with its own estimate](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L142)
-  - [The panel says when an agent is late or blocked](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L150)
+- **Tapping the line opens the details panel: the asks and joins that wait on the owner, then one card per agent, then the settings**
+  - [The details panel shows each agent's plan, then the settings, and no plan item that waits on the owner](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L104)
+  - [Ask for a plan tells the agent the command that sets it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L120)
+  - [The plan card puts Remove in a menu and shows the step as a bar](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L129)
+  - [The card and the line show each parallel Now item with its own estimate](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L140)
+  - [The panel says when an agent is late or blocked](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L148)
 - **Each row of the Conversations list shows a small status icon next to its count**
-  - [Each conversation row shows a status icon next to its count and the list never reorders](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L162)
+  - [Each conversation row shows a status icon next to its count and the list never reorders](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L160)
 - **Updates come live; only something new that waits on the owner pushes**
-  - [A plan update in the chat is one quiet row that expands](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L180)
-  - [The line and the panel update live, and a quiet line marks a finished item](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L191)
-  - [Only something new that waits on the owner pushes](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L200)
+  - [A plan update in the chat is one quiet row that expands](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L178)
+  - [The line and the panel update live, and a quiet line marks a finished item](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L189)
+  - [Only something new that waits on the owner pushes](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L198)
 - **An agent that goes quiet is nudged, and the owner sees it without a push**
-  - [A late agent is nudged once to update its plan, and the owner is not pushed](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L215)
-  - [A working agent with no update for 2 hours is nudged](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L229)
-  - [An agent that does not pick up a message shows as not responding](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L236)
-  - [An agent whose machine key was revoked shows as logged out](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L248)
-- **What an agent waits on the owner for shows in Now**
-  - [A plan item waiting on the owner shows in Now](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L258)
-  - [A waiting item leaves Now when the agent finishes it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L267)
-  - [A waiting item missed while offline shows after reconnect](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L273)
+  - [A late agent is nudged once to update its plan, and the owner is not pushed](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L213)
+  - [A working agent with no update for 2 hours is nudged](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L227)
+  - [An agent that does not pick up a message shows as not responding](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L234)
+  - [An agent whose machine key was revoked shows as logged out](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L246)
+- **What an agent waits on the owner for shows in the conversation**
+  - [What waits on the owner shows only as the plan, the line under the title and the row icon, with no card or button](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L256)
+  - [A waiting item that names someone else is refused](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L275)
+  - [A waiting item missed while offline shows after reconnect](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L284)
 
 ## Platform rules every module relies on
 
@@ -958,7 +958,7 @@ The agent runs the same version as the server, with nothing to build and no root
 ## Threads
 
 Busy conversations stay readable.
-29 scenarios.
+31 scenarios.
 
 - **A thread hangs off one top-level message**
   - [The owner replies in a thread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L30)
@@ -995,6 +995,9 @@ Busy conversations stay readable.
   - [A long thread preview stays inside the row and keeps its unread count in view](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L249)
   - [A long link in a thread stays inside its bubble](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L258)
   - [The message actions button does not cover the time](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L265)
+- **An @mention in a thread works as in the main chat**
+  - [Typing @ in the reply box lists the agents and a pick mentions one](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L274)
+  - [An agent @mentioned in a thread joins the conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L283)
 
 ## Voice call
 

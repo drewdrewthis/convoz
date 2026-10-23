@@ -50,6 +50,8 @@ export interface ConversationsState {
   /** Send a message; `files` are finished uploads and `held` are files to upload once the conversation exists (the body may then be empty). */
   send(key: string, body: string, files?: Upload[], held?: File[]): void;
   retry(key: string, cid: string): void;
+  /** Drop a failed send the owner does not want to retry. */
+  discard(key: string, cid: string): void;
   markRead(key: string): Promise<void>;
   /** Send the unconfirmed sends of conversations no page has open (the outbox), after the link came back. */
   drainOutbox(): Promise<void>;
@@ -192,6 +194,10 @@ export const useConversations = create<ConversationsState>()((set, get) => {
       void enqueue(key, cid);
     },
     retry: (key, cid) => void enqueue(key, cid),
+    discard: (key, cid) => {
+      patch(key, (t) => ({ pending: t.pending.filter((p) => p.cid !== cid) }));
+      void outbox.remove(cid);
+    },
     markRead: (key) => {
       let job = readJobs.get(key);
       if (!job) {

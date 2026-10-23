@@ -13,6 +13,9 @@ export const ChevronIcon = ({ open }: { open: boolean }) => (
     <path d="M9 6l6 6-6 6" />
   </svg>
 );
+/** Chevrons pointing in when the button folds the threads away, out when it shows them. */
+export const FoldAllGlyph = ({ folding }: { folding: boolean }) =>
+  svg(folding ? <path d="M7 4l5 5 5-5M7 20l5-5 5 5" /> : <path d="M7 9l5-5 5 5M7 15l5 5 5-5" />, "none", 14);
 export const BackArrow = () => svg(<path d="M15 18l-6-6 6-6" />, "none", 18, 2.2);
 export const ForwardArrow = () => svg(<path d="M9 18l6-6-6-6" />, "none", 18, 2.2);
 export const SearchGlyph = () => svg(<path d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3" />);

@@ -33,6 +33,8 @@ type Conversations interface {
 	// RecordMainPost moves the counters for a new main message, names a nameless conversation and returns the
 	// newest main message id from before this one.
 	RecordMainPost(ctx context.Context, d pdb.DBTX, now time.Time, conv, messageID int64, body string, quiet bool) (prevLastMain int64, err error)
+	// RecordReplyPost is the conversation side of a new thread reply that stays out of the main list: a person's @mention brings the agent in (I-18).
+	RecordReplyPost(ctx context.Context, d pdb.DBTX, now time.Time, conv, messageID int64, quiet bool) error
 	// NoteAgentPost records the session of an agent that posted, for the inbox's session preference.
 	NoteAgentPost(ctx context.Context, d pdb.DBTX, conv, author, session int64) error
 	// AgentRecipients lists the enabled agent participants other than author: the identities that get an inbox item.
@@ -229,6 +231,8 @@ func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) 
 		if prevMain, err = p.Conversations.RecordMainPost(ctx, d, now, draft.Conversation, m.ID, m.Body, draft.Quiet); err != nil {
 			return Posted{}, err
 		}
+	} else if err := p.Conversations.RecordReplyPost(ctx, d, now, draft.Conversation, m.ID, draft.Quiet); err != nil {
+		return Posted{}, err
 	}
 	if draft.ThreadRoot != 0 {
 		if err := bumpReplies(ctx, d, p, now, m); err != nil {

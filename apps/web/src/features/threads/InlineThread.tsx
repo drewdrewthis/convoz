@@ -2,10 +2,11 @@ import { Button } from "@convoz/ui/Button";
 import { IconButton } from "@convoz/ui/IconButton";
 import { AttachIcon, MicIcon, ReplyIcon, SendIcon } from "@convoz/ui/icons";
 import type { Message } from "@convoz/api-client";
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { stripCf } from "../../shared/chat.ts";
+import { useData } from "../../shared/data.ts";
 import { replyingNote, useReplying } from "../../shared/presence.ts";
-import { AttachmentList, keepFocus, pasteFiles, useAttachments, useFileDrop } from "../composer/index.ts";
+import { AttachmentList, MentionMenu, keepFocus, pasteFiles, useAttachments, useFileDrop, useMentionMenu } from "../composer/index.ts";
 import { useVoiceNote } from "../voice/index.ts";
 import { useThreads, type PendingReply } from "./store.ts";
 
@@ -105,7 +106,7 @@ export function InlineThread({ root, conversation, latest, bubbles }: InlineThre
   );
 }
 
-/** The thread with its reply box open: files dropped on it attach to the reply, and Escape closes the box. */
+/** The thread with its reply box open: files dropped on it attach to the reply, "@" lists the agents as in the main chat, and Escape closes the box (or the open "@" menu). */
 function ReplyingThread({ rootId, conversation, label, parts, toggle }: { rootId: number; conversation: number; label: string; parts: ReactNode; toggle: ReactNode }) {
   const { reply, stopReply } = useThreads.getState();
   const [text, setText] = useState("");
@@ -114,6 +115,10 @@ function ReplyingThread({ rootId, conversation, label, parts, toggle }: { rootId
   const attachments = useAttachments(conversation);
   const fileDrop = useFileDrop(attachments);
   const voice = useVoiceNote(conversation, (sent) => reply(rootId, "", [sent.id]));
+  const people = useData((s) => s.identities);
+  const crew = useMemo(() => (people ?? []).filter((p) => p.kind === "agent" && !p.disabled), [people]);
+  // Sending the reply brings a picked agent that is not in the conversation in (I-18, issue 35), as the main composer does.
+  const mention = useMentionMenu({ text, setText, crew, focus: () => input.current?.focus() });
 
   useEffect(() => {
     input.current?.focus({ preventScroll: true });
@@ -163,7 +168,24 @@ function ReplyingThread({ rootId, conversation, label, parts, toggle }: { rootId
             <label htmlFor="thr-composer" className="sr">
               Reply in thread
             </label>
-            <input ref={input} id="thr-composer" value={text} onChange={(e) => { setText(e.target.value); voice.clearNote(); }} onPaste={(e) => pasteFiles(e, attachments)} placeholder="Reply…" autoComplete="off" enterKeyHint="send" />
+            <MentionMenu mention={mention} crew={crew} invites={false} idPrefix="thr-" />
+            <input
+              ref={input}
+              id="thr-composer"
+              value={text}
+              onChange={(e) => {
+                setText(e.target.value);
+                voice.clearNote();
+                mention.changed(e.target.value);
+              }}
+              onKeyDown={(e) => {
+                if (mention.keyDown(e) && e.key === "Escape") e.stopPropagation(); // Escape closes the menu, not the reply box
+              }}
+              onPaste={(e) => pasteFiles(e, attachments)}
+              placeholder="Reply… Type @ to add an agent."
+              autoComplete="off"
+              enterKeyHint="send"
+            />
             <span className="sendslot">
               {/* Send stays in the page (and disabled) under the microphone while there is nothing to send. */}
               <IconButton type="submit" variant="send" glyph={18} stroke={2} className={empty ? "opacity-0 pointer-events-none" : undefined} label="Send reply" disabled={!canSend} onMouseDown={keepFocus}>
