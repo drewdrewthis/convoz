@@ -228,6 +228,8 @@
   .rowbody { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .rowtop { display: flex; align-items: baseline; gap: 8px; }
   .chatlist > li > .chatrow { grid-area: 1 / 1; padding: 8px 4px 8px 12px; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; row-gap: 2px; align-items: center; }
+  /* no fold: the link takes the empty 36px column too, padding keeps the time and count on the same right edge */
+  .chatlist > li:not(:has(> .thrfold)) > .chatrow { grid-column: 1 / 3; padding-right: 40px; }
   .chatrow .rowbody, .chatrow .rowtop { display: contents; }
   .chatrow .rowtitle { grid-area: 1 / 1; }
   .chatrow .sp { display: none; }
