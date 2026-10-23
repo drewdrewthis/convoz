@@ -36,15 +36,18 @@ scenario("A dropped event stream resumes with no gap", { tag: ["@browser", "@los
 
     // Then the browser reconnects with Last-Event-ID
     await expect.poll(() => proxy.streams.length, { timeout: 20_000 }).toBe(2);
-    expect(proxy.streams[1]!.lastEventId).toBe(lastBefore.id);
+    // Frames still on the slow link at the snapshot can land before the cut, so the browser resumes from that frame or a later one
+    const resumedFrom = proxy.streams[1]!.lastEventId!;
+    expect(seqOf(resumedFrom)).toBeGreaterThanOrEqual(seqOf(lastBefore.id));
 
     // And the HAR shows no skipped sequence number and all 5 messages appear
     await expect(messageLog(page).getByRole("article")).toHaveText(
       [/before the cut/, /during the cut 1\b/, /during the cut 2\b/, /during the cut 3\b/, /during the cut 4\b/, /during the cut 5\b/],
       { timeout: 20_000 },
     );
+    await expect.poll(async () => (await framesOf(page)).length, { timeout: 20_000 }).toBeGreaterThanOrEqual(6);
     const frames = await framesOf(page);
-    expect(frames.length).toBeGreaterThanOrEqual(6);
+    expect(frames.map((f) => f.id), "the browser resumed from a frame it had").toContain(resumedFrom);
     frames.slice(1).forEach((f, i) => expect(f.prev, `frame ${f.id} names the frame before it`).toBe(seqOf(frames[i]!.id)));
   } finally {
     await proxy.close();
