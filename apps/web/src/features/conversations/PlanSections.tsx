@@ -1,5 +1,6 @@
 // The plan parts of the details panel (the UX pass approved for phase 1): "Waiting on you" (asks and joins) with the action in place, then one card per
 // agent (its state, Now with the estimate, Next numbered, Done folded). The "Conversation" settings follow in Details.tsx.
+import { Button } from "@convoz/ui/Button";
 import type { Conversation, Person, Plan, PlanAgent, PlanBoard } from "@convoz/api-client";
 import { ChevronIcon } from "@convoz/ui/icons";
 import { useEffect, useRef, useState } from "react";
@@ -22,6 +23,16 @@ export interface PlanActions {
 export function planRequest(handle: string, conv: number, kind: "share" | "update"): string {
   const ask = kind === "share" ? "please set your plan for this conversation" : "please update your plan for this conversation";
   return `@${handle}, ${ask}. Use \`convoz plan ${conv}\`, not a chat message, so it shows in the panel:\n\n\`\`\`\nconvoz plan ${conv} --doing "what you do now" --eta 30m --next "then this" --next "then that" --done "what you finished"\n\`\`\`\n\nAdd \`--waiting "what you need from me"\` or \`--blocked "what stops you"\` if any. Up to 3 things at once? Repeat \`--doing\`, each with its own \`--eta\` and \`--step\`. Keep it current as you work. With MCP, use the \`plan\` tool. See \`convoz plan --help\`.`;
+}
+
+/** planUpdateRequest is the message "Request plan update" posts: the agent brings its plan in the panel up to date. */
+export function planUpdateRequest(handle: string, conv: number): string {
+  return `@${handle}, please update your plan for this conversation with \`convoz plan ${conv}\`: what you do now (with \`--eta\`), what comes next, what you finished, and \`--waiting\` or \`--blocked\` if any. See \`convoz plan --help\`.`;
+}
+
+/** miniAppRequest is the message "Request mini app" posts: what a mini app is, when it helps, and how to make a good one. */
+export function miniAppRequest(handle: string): string {
+  return `@${handle}, please make a mini app for this instead of more text.\n\nA mini app is a small web page you post in the chat; it opens in place. It beats a wall of text when I must compare options, see a layout or a flow, check numbers, or click through choices.\n\nHow:\n\n\`\`\`\nconvoz app init ./my-app      # makes the starter files\nconvoz app build ./my-app     # builds app.html and app.json\nconvoz app validate ./my-app/dist/app.html\n\`\`\`\n\nThen post it in this conversation. See \`convoz app --help\`.\n\nGood looks like: one question per app, the answer or recommendation at the top, real data (no lorem ipsum), plain words, works on a phone, and one clear action for me if you need a decision.`;
 }
 
 const serverNow = () => Date.now() + usePlans.getState().skew;
@@ -164,6 +175,16 @@ function AgentCard({ person, plan, agent, conv, act, onRemove }: { person: Perso
       ) : (
         <PlanBody plan={plan} now={now} />
       )}
+      <div className="pacts">
+        {plan ? (
+          <Button type="button" className="chipbtn" onClick={() => act.say(planUpdateRequest(h, conv))}>
+            Request plan update
+          </Button>
+        ) : null}
+        <Button type="button" className="chipbtn" onClick={() => act.say(miniAppRequest(h))}>
+          Request mini app
+        </Button>
+      </div>
       {late ? (
         <div className="pacts">
           <button type="button" className="chipbtn" onClick={() => act.say(planRequest(h, conv, "update"))}>

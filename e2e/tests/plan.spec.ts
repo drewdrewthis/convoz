@@ -285,6 +285,25 @@ scenario("Ask for a plan tells the agent the command that sets it", { tag: ["@br
   expect(await sent()).toContain("convoz plan --help");
 });
 
+scenario("Request plan update and Request mini app post their requests to the agent", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  const p = await planUi({ server, page, context });
+  // Given "devtool" has a plan in conversation 41
+  await mustPlan(p, p.dev, ["--doing", "Switch on the internet door", "--eta", "15m"]);
+  // When the owner opens the details of conversation 41 and taps "Request plan update" on the card of "@devtool"
+  await page.goto(`${p.w.srv.origin}/chats/${p.conv}`);
+  const panel = await showDetails(page);
+  const dev = panel.getByRole("region", { name: "Agents · 2" }).getByRole("listitem").filter({ hasText: "@devtool" }).first();
+  await dev.getByRole("button", { name: "Request plan update" }).click();
+  // Then the chat shows the owner's message to "@devtool" with "convoz plan 41"
+  const sent = async (start: string) => (await messagesOf(p.w.owner, p.conv)).map((m) => m.body).find((b) => b.startsWith(start)) ?? "";
+  await expect.poll(() => sent("@devtool, please update your plan")).toContain(`convoz plan ${p.conv}`);
+  // When the owner taps "Request mini app" on the card of "@devtool"
+  await dev.getByRole("button", { name: "Request mini app" }).click();
+  // Then the chat shows the owner's message to "@devtool" with "convoz app init" and "Good looks like"
+  await expect.poll(() => sent("@devtool, please make a mini app")).toContain("convoz app init");
+  expect(await sent("@devtool, please make a mini app")).toContain("Good looks like");
+});
+
 scenario("The plan card puts Remove in a menu and shows the step as a bar", { tag: ["@browser"] }, async ({ server, page, context }) => {
   const p = await planUi({ server, page, context });
   // Given "devtool" finished "One-time invites" and planned Doing "Switch on the internet door" at step 2 of 3 ready in 15 minutes and Next "Reply chip"

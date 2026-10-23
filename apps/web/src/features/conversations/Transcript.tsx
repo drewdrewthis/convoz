@@ -6,6 +6,7 @@ import { CallLogRow, splitCallLog, ViaVoiceMark } from "../call/index.ts";
 import { AskInline } from "../now/index.ts";
 import { clock, initials, paletteOf, stripCf } from "../../shared/chat.ts";
 import { useData } from "../../shared/data.ts";
+import { dayOf } from "../../shared/days.ts";
 import { PinMark } from "../pins-stars/index.ts";
 import type { PendingSend } from "./store.ts";
 import { Markdown } from "./Markdown.tsx";
@@ -69,25 +70,32 @@ interface Row {
   first: boolean;
   /** The "New messages" divider goes above this row: the first message that was unread when the chat opened. */
   fresh?: boolean;
+  /** The day label ("Today", "Wed 21 Oct") that goes above this row: the first message of a new local day in the main list. */
+  day?: string;
   message?: Message;
   pending?: PendingSend;
 }
 
 /** rows lays the messages out the prototype's way: a run of messages by one author shows the avatar and name once. */
-function rowsOf(messages: Message[], pending: PendingSend[], me: string, newFrom?: number | null): Row[] {
+function rowsOf(messages: Message[], pending: PendingSend[], me: string, newFrom?: number | null, days = false): Row[] {
   const out: Row[] = [];
   let prev: string | null = null;
   let prevAt = 0;
+  let prevDay = "";
+  const now = Date.now();
   for (const m of messages) {
+    const day = days ? dayOf(m.created_at, now) : "";
+    const newDay = day !== prevDay ? day : undefined;
+    prevDay = day;
     if (m.kind === "system") {
-      out.push({ key: `m${m.id}`, author: "", first: false, message: m });
+      out.push({ key: `m${m.id}`, author: "", first: false, day: newDay, message: m });
       prev = null; // a notice ends a run: the next message shows its author again
       continue;
     }
     const fresh = m.id === newFrom;
     // a reply that is also in the main list says so in its header, so it always has one
-    const first = prev !== m.author.handle || m.created_at - prevAt > GROUP_GAP_MS || fresh || Boolean(m.thread_root_id);
-    out.push({ key: `m${m.id}`, author: m.author.handle, first, fresh, message: m });
+    const first = prev !== m.author.handle || m.created_at - prevAt > GROUP_GAP_MS || fresh || Boolean(m.thread_root_id) || Boolean(newDay);
+    out.push({ key: `m${m.id}`, author: m.author.handle, first, fresh, day: newDay, message: m });
     prev = m.author.handle;
     prevAt = m.created_at;
   }
@@ -125,7 +133,7 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, hint, co
   const [hl, setHl] = useState<number | null>(null);
   /** The opening snap is over: after the frame that follows the first one at the newest end, nothing moves the log by itself any more. */
   const [settled, setSettled] = useState(false);
-  const rows = useMemo(() => rowsOf(messages, pending, me, newFrom), [messages, pending, me, newFrom]);
+  const rows = useMemo(() => rowsOf(messages, pending, me, newFrom, true), [messages, pending, me, newFrom]);
   const paused = useMemo(() => pausedNow(messages), [messages]);
   // Not before the first page is in: a part of the list would make an older root the latest for a moment, and its thread would be read.
   const latest = useMemo(() => (opened ? latestRoot(messages) : 0), [opened, messages]);
@@ -338,11 +346,16 @@ interface RowProps {
 
 /** A row that did not change keeps its node, so a selection in it survives. */
 const sameRow = (a: RowProps, b: RowProps) =>
-  a.me === b.me && a.threaded === b.threaded && a.latest === b.latest && a.paused === b.paused && a.onDetails === b.onDetails && (a.hl === a.row.message?.id) === (b.hl === b.row.message?.id) && a.row.fresh === b.row.fresh && a.row.key === b.row.key && a.row.first === b.row.first && a.row.message === b.row.message && a.row.pending?.state === b.row.pending?.state;
+  a.me === b.me && a.threaded === b.threaded && a.latest === b.latest && a.paused === b.paused && a.onDetails === b.onDetails && (a.hl === a.row.message?.id) === (b.hl === b.row.message?.id) && a.row.fresh === b.row.fresh && a.row.key === b.row.key && a.row.first === b.row.first && a.row.day === b.row.day && a.row.message === b.row.message && a.row.pending?.state === b.row.pending?.state;
 
 const MessageRow = memo(function MessageRow(props: RowProps) {
   return (
     <>
+      {props.row.day ? (
+        <div className="dayline" role="separator" aria-label={props.row.day}>
+          <span>{props.row.day}</span>
+        </div>
+      ) : null}
       {props.row.fresh ? (
         <div className="newline" role="separator" aria-label="New messages">
           <span>New</span>

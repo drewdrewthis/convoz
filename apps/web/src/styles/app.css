@@ -276,6 +276,8 @@
   .earlier { display: flex; justify-content: center; }
   /* A message (prototype v42): no avatar column. An agent's message is the full width of a centred 760 px column, under one author line
      (avatar, name, handle, time); the owner's is a compact bubble on the right, with the time above it. */
+  .dayline { position: sticky; top: 0; z-index: 2; display: flex; justify-content: center; box-sizing: border-box; width: 100%; max-width: 760px; margin: 12px auto 0; padding: 0 12px; pointer-events: none; }
+  .dayline span { padding: 2px 10px; border-radius: 999px; background: var(--color-surface, #fff); border: 1px solid var(--color-border, #ddd); color: var(--color-muted); font-size: 12px; font-weight: 700; }
   .msg { position: relative; display: block; box-sizing: border-box; width: 100%; max-width: 760px; margin-inline: auto; padding: 16px 12px 3px; border-radius: 12px; }
   .msg:not(.first) { padding-top: 3px; }
   .msg .byline .ava { width: 24px; height: 24px; font-size: 12px; }
@@ -339,7 +341,7 @@
     .msg-actions-btn { opacity: 1; }
     .msg-reply-btn { display: none; }
   }
-  .notice-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 12px 3px 60px; color: var(--color-muted); font-size: 13.5px; line-height: 1.4; }
+  .notice-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; box-sizing: border-box; width: 100%; max-width: 760px; margin-inline: auto; padding: 12px 12px 3px 60px; color: var(--color-muted); font-size: 13.5px; line-height: 1.4; }
   /* the bullet hangs off the text itself: as its own flex item, a text too long for the row wrapped below it and left the bullet alone */
   .notice-text::before { content: "\2022"; display: inline-block; width: 16px; margin-left: -24px; margin-right: 8px; text-align: center; }
   .notice-line[data-t="conversation.paused"] .notice-text::before { content: "\23F8"; }

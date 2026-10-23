@@ -118,6 +118,9 @@ export function MessageMenu({ message, mine, conversation }: { message: Message;
           >
             {pinned ? "Unpin" : "Pin"}
           </button>
+          <Button role="menuitem" type="button" onClick={() => (setOpen(false), copyLink(conversation, message.id))}>
+            Copy link
+          </Button>
           {voice ? (
             <button
               role="menuitem"
@@ -246,4 +249,12 @@ export function EditedMark({ id }: { id: number }) {
       ) : null}
     </>
   );
+}
+
+/** copyLink puts the full link of a message on the clipboard; when the browser refuses, it shows the link to copy by hand. */
+export function copyLink(conversation: number, id: number) {
+  const url = `${location.origin}/chats/${conversation}#m${id}`;
+  const byHand = () => window.prompt("Copy this link", url);
+  if (!navigator.clipboard) return void byHand();
+  navigator.clipboard.writeText(url).then(() => toast("Link copied"), byHand);
 }

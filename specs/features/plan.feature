@@ -123,6 +123,15 @@ Feature: Plans: what each agent is doing, what is next and what waits on the own
       Then the chat shows the owner's message to "@docs" with "convoz plan 41 --doing" and "not a chat message"
       And it names the MCP "plan" tool and "convoz plan --help"
 
+    # Owner-approved UX plan, msgs 4343/4350/4351: two more message options on the agent card.
+    @v1 @browser
+    Scenario: Request plan update and Request mini app post their requests to the agent
+      Given "devtool" has a plan in conversation 41
+      When the owner opens the details of conversation 41 and taps "Request plan update" on the card of "@devtool"
+      Then the chat shows the owner's message to "@devtool" with "convoz plan 41"
+      When the owner taps "Request mini app" on the card of "@devtool"
+      Then the chat shows the owner's message to "@devtool" with "convoz app init" and "Good looks like"
+
     # Owner (Drew), msg 646: "improve the UI on this card". The header keeps the name, the state and the age; Remove is in a menu; Now is
     # one tinted block, with the step as a small bar; Next is quieter; Done is a plain fold row.
     @v1 @browser
