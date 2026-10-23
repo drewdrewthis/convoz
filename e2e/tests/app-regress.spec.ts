@@ -172,7 +172,7 @@ scenario("Now with a replied ask and an updated ask keeps its look", { tag: ["@b
 
   // When the owner opens Now, Then it matches its frame, with the section "You replied · waiting on the agent" and the updated ask with its answers
   await page.goto(`${u.w.srv.origin}/`);
-  await expect(page.getByRole("article", { name: "Close the incident?" })).toContainText("Updated after your questions");
+  await expect(page.getByRole("article", { name: "Close the incident?" })).toContainText("Your questions, answered");
   await expect(page.locator("#replied")).toContainText("Push the 8642 fix to staging?");
   // And the row leads with the owner's own reply, the ask under it (owner, msg 2056)
   await expect(page.locator("#replied [data-replied] > span").first()).toHaveText("Is it behind a flag, and who reviewed it? Why one PR and not two?");

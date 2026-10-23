@@ -274,9 +274,54 @@ Feature: Asks and their state machine
     Scenario: The updated ask shows in Now with the answers, and leaves You replied
       Given an open ask of "devtool" that the owner replied to, and the owner has the conversation and Now open in two pages
       When "devtool" updates the ask with its answers
-      Then Now lists the ask in the main list with "Updated after your questions", "v2 · changed: question" and the summary folded to 2 lines with "More"
+      Then Now lists the ask in the main list with "Your questions, answered" and the answers in full: with no "More" to tap on a wide screen, behind "More" on a phone
       And the ask is no longer under "You replied"
       And the card in the conversation shows the same, and its history has the update
+
+  # Drew, conv 179 msg 4342 (the Q&A on the feed item): the question read gray under a white answer, "v2 · changed: answers" was jargon,
+  # Q and A ran on in one paragraph, raw links wrapped mid-word and the long answer pushed the options off the screen.
+  # Spec /tmp/convoz-ux/qa-feeditem.md: the card gets a Q/A section (conv 1 msg 2362), read in full at a glance (conv 1 msg 2064).
+  Rule: An updated ask shows the owner's questions and the agent's answers as their own section under the question
+
+    @v1 @browser
+    Scenario: An updated ask shows each question and its answer in a section under a bright question
+      Given an open ask of "devtool" that the owner replied to with "It was deployed?"
+      When "devtool" updates the ask with the answers "Q: It was deployed? A: Yes. The block was lifted."
+      Then the card in Now and the card in the conversation show the question in the text color, not the muted one
+      And under it, 8 px or more below and with an accent edge on its left, a section "Your questions, answered"
+      And the section shows "It was deployed?" muted and "Yes. The block was lifted." in the text color, as two rows with no "Q:" and no "A:"
+
+    @v1 @browser
+    Scenario: Answers with no Q and A marks show in full, and an ask never updated shows no section
+      Given an open ask of "devtool" updated with answers that carry no "Q:" and no "A:"
+      And an open ask of "devtool" that was never updated
+      When the owner opens Now
+      Then the updated card shows the whole text as one answer, the same text as the agent sent
+      And the card never updated has no section "Your questions, answered" and its question keeps its muted color
+
+    @v1 @browser
+    Scenario: The version of an update is in History, not on the card
+      Given an open ask of "devtool" that the owner replied to and "devtool" updated with its answers
+      When the owner opens Now and the conversation
+      Then neither card shows "v2" or "changed:"
+      And the History of the card in the conversation shows "Updated by Devtool @devtool · v2, changed answers"
+
+    @v1 @browser
+    Scenario: A link in an answer is a short link to the full address
+      Given an open ask of "devtool" updated with an answer that names a run, a PR and a page by their full addresses
+      When the owner opens Now
+      Then the answer shows the links "run 39923502587", "PR 1382" and "example.com", each to its full address and on one line
+      And no full address shows as text
+
+    @v1 @browser @phone
+    Scenario: On a phone a long answer folds so the first option stays on the first screen of the card
+      Given an open ask of "devtool" updated with an answer of 900 characters
+      When the owner opens Now on a phone (390 x 844)
+      Then the answer is folded to 3 lines and the first option is inside the screen when the top of the card is at the top of the screen
+      When the owner taps "More"
+      Then the full answer shows
+      When the owner taps "Less"
+      Then the answer folds to 3 lines again
 
   # Drew, conv 32 msg 650: "ship a standard 'review a draft' mini app with Convoz, so agents don't hand-build one for every message
   # they draft for him. It shows the original message being answered (who, where, text) and the agent's draft in an editable box, with

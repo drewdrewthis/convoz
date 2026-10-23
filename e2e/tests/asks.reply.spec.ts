@@ -272,12 +272,14 @@ scenario("The updated ask shows in Now with the answers, and leaves You replied"
   const ran = await convoz(u.w.box, u.sessions.devtool!.sid, ["ask", "--json", "--update", String(id), "--question", UPDATED, "--answers", ANSWERS]);
   expect({ code: ran.code, stderr: ran.stderr }).toEqual({ code: 0, stderr: "" });
 
-  // Then Now lists the ask in the main list with "Updated after your questions", "v2 · changed: question"
-  // and the answers in full, with no "More" to tap (owner, msg 2064: quick to read)
+  // Then Now lists the ask in the main list with "Your questions, answered" and the answers in full, with no "More" to tap on a wide screen
+  // (owner, msg 2064: quick to read); a phone folds an answer at 3 lines so the options stay on screen (conv 179 msg 4342), and "More" shows the rest
   const card = askCard(now, UPDATED);
-  await expect(card).toContainText("Updated after your questions", { timeout: 4_000 });
-  await expect(card).toContainText("v2 · changed: question");
-  await expect(card).toContainText("Behind a feature flag.");
+  await expect(card).toContainText("Your questions, answered", { timeout: 4_000 });
+  const more = card.getByRole("button", { name: "More" });
+  if (now.viewportSize()!.width > 600) await expect(more).toHaveCount(0);
+  else if (await more.count()) await more.click();
+  await expect(card.locator("[data-a]")).toHaveText(ANSWERS);
   await expect(card.getByRole("button", { name: "More" })).toHaveCount(0);
 
   // And the ask is no longer under "You replied"
@@ -286,8 +288,7 @@ scenario("The updated ask shows in Now with the answers, and leaves You replied"
 
   // And the card in the conversation shows the same, and its history has the update
   const inline = askCard(page, UPDATED).first();
-  await expect(inline).toContainText("Updated after your questions", { timeout: 4_000 });
-  await expect(inline).toContainText("v2 · changed: question");
+  await expect(inline).toContainText("Your questions, answered", { timeout: 4_000 });
   await inline.getByRole("button", { name: "Ask options" }).click();
   await page.getByRole("menuitem", { name: "History" }).click();
   await expect(inline.getByRole("list", { name: "History" })).toContainText("Updated by Devtool @devtool");
