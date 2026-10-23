@@ -1,4 +1,4 @@
-import type { Locator } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { agentPosts, appReturns, agentChoice, chooseAgent, openMentions, backButton, chatList, chatRow, chatsHeading, composer, nowHeading, dropStreams, fromBottom, hasBubble, isBold, mainNav, message, messageLog, newChat, newMessagePill, pushFrame, rowTitles, sendButton, smallChatTargets, streamOpen, uiWorld, unreadDot, workingNote } from "../lib/chat-ui.ts";
 import { agentAsks, askCard, openNow } from "../lib/asks.ts";
 import { convoz, createConversation, listConversations, messagesOf, ownerSays, peekFor, startWatch, unreadOf, watchLines, chatWorld } from "../lib/chat.ts";
@@ -76,6 +76,22 @@ import { webauthn } from "../lib/webauthn-browser.ts";
  */
 
 const VIEW = { width: 390, height: 844 };
+
+/** outboxCount is how many sends the page keeps in its IndexedDB outbox; it rejects when the database cannot open or count. */
+const outboxCount = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<number>((done, fail) => {
+        const open = indexedDB.open("convoz");
+        open.onerror = () => fail(open.error);
+        open.onblocked = () => fail(new Error("the convoz database is blocked"));
+        open.onsuccess = () => {
+          const count = open.result.transaction("outbox").objectStore("outbox").count();
+          count.onsuccess = () => done(count.result);
+          count.onerror = () => fail(count.error);
+        };
+      }),
+  );
 const FIRST = "Is the build green?";
 
 scenario("On a phone the first page after sign-in is Now", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
@@ -862,18 +878,33 @@ scenario("A send the server refuses says why in words", { tag: ["@browser"] }, a
   await expect(bubble).not.toContainText("{");
 
   // And the refused send is not kept to be sent again, so a reload does not pin it at the bottom (owner msg 2326)
-  const kept = () =>
-    page.evaluate(
-      () =>
-        new Promise<number>((done) => {
-          const open = indexedDB.open("convoz");
-          open.onsuccess = () => {
-            const count = open.result.transaction("outbox").objectStore("outbox").count();
-            count.onsuccess = () => done(count.result);
-          };
-        }),
-    );
-  await expect.poll(kept).toBe(0);
+  await expect.poll(() => outboxCount(page)).toBe(0);
+  await page.reload();
+  await expect(composer(page)).toBeVisible();
+  await expect(message(page, "refused")).toHaveCount(0);
+});
+
+// Issue 40: a failed send could only be retried; the owner can now drop it.
+scenario("A failed send can be discarded", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given the owner has conversation 41 open and the server refuses the next send
+  const u = await uiWorld({ server, page, context });
+  const conv = await createConversation(u.w.owner, { participants: ["devtool"], title: "Ship search filters" });
+  await page.route("**/api/conversations/*/messages", async (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    await route.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify({ error: { code: "invalid_request", message: "ZQX-reason in words.", field: "body" } }) });
+  });
+  await page.goto(`${u.w.srv.origin}/chats/${conv}`);
+  await composer(page).fill("refused");
+  await sendButton(page).click();
+  const bubble = message(page, "refused");
+  await expect(bubble).toContainText("failed · retry · discard");
+
+  // When the owner discards it
+  await bubble.getByRole("button", { name: "Discard failed message" }).click();
+
+  // Then the bubble is gone without a reload, nothing is kept in the outbox, and it stays gone after a reload
+  await expect(message(page, "refused")).toHaveCount(0);
+  await expect.poll(() => outboxCount(page)).toBe(0);
   await page.reload();
   await expect(composer(page)).toBeVisible();
   await expect(message(page, "refused")).toHaveCount(0);

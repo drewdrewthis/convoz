@@ -180,20 +180,6 @@ scenario("Now with a replied ask and an updated ask keeps its look", { tag: ["@b
   await matchesItself(page, info, "now-replied");
 });
 
-scenario("Now with a waiting plan item keeps its look", { tag: ["@browser"] }, async ({ server, page, context, testApi }, info) => {
-  info.setTimeout(240_000);
-  // Background: the prototype's agents and conversations. Given "devtool" waits on the owner for "Approve the staging push"
-  const u = await world({ server, page, context, testApi });
-  const ids = await seedPrototype(u);
-  const dev = await convoz(u.w.box, u.sessions.devtool!.sid, ["plan", String(ids["Bug #8642 · null check fix"]!), "--doing", "Fixing the null check", "--waiting", "Approve the staging push"]);
-  expect({ code: dev.code, stderr: dev.stderr }).toEqual({ code: 0, stderr: "" });
-
-  // When the owner opens Now, Then it matches its frame
-  await page.goto(`${u.w.srv.origin}/`);
-  await expect(page.getByRole("region", { name: "Waiting on you" })).toBeVisible();
-  await matchesItself(page, info, "now-waiting");
-});
-
 scenario("An empty Now and its open folds keep their look", { tag: ["@browser"] }, async ({ server, page, context, testApi }, info) => {
   info.setTimeout(240_000);
   // Background: one conversation with an answered ask, a dismissed ask and a snoozed ask, and nothing else waiting

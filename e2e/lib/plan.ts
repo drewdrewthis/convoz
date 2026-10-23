@@ -19,7 +19,10 @@ import { messageLog, recordStreams } from "./chat-ui.ts";
  *   `convoz plan <conv> [--doing D] [--step N/M] [--eta 30m|HH:MM] [--next N]... [--waiting W]... [--done D]...` prints the plan.
  *   Inbox reason "status_due": the agent is asked to update its plan (conversation set, message is a system text).
  * Page contract: the line under a conversation's title is a button whose name starts with the line's text ("Working · …"); it carries a
- * dot with data-tone green|amber|red|grey. The details panel has the regions "Waiting on you · N" and "Agents · N" (a list
+ * dot with data-tone green|amber|red|grey. A plan item that waits on the owner shows only as that line ("Waiting on you: …"), the pill
+ * "Waiting on you · N" of the chat's plan row (it opens #plan-<handle>, the agent's card in the details panel) and the row icon: no card,
+ * no button, no row in Now, and Now does not count it; it clears when the agent sends a plan without it (conv 151). The
+ * details panel has the regions "Waiting on you · N" (the asks and join requests, while there are some) and "Agents · N" (a list
  * "Agents" of one card per agent; the owner is the row "You" under "Conversation") before "Conversation". A Conversations row carries an icon (role img, named by the state:
  * "Working", "Waiting on you", "Blocked", "Late", "Not responding") next to its unread count.
  */

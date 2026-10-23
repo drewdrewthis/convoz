@@ -39,6 +39,9 @@ func (f *fakes) RecordMainPost(context.Context, pdb.DBTX, time.Time, int64, int6
 	f.recorded++
 	return f.prevMain, nil
 }
+func (f *fakes) RecordReplyPost(context.Context, pdb.DBTX, time.Time, int64, int64, bool) error {
+	return nil
+}
 func (f *fakes) AgentRecipients(context.Context, pdb.DBTX, int64, int64) ([]int64, error) {
 	return f.recipients, nil
 }

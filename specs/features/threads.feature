@@ -266,3 +266,21 @@ Feature: Threads
       Given the owner replied in thread 900, and the owner and "devtool" each posted in the conversation
       When the owner looks at the messages at 1280 and 390 px wide
       Then no message's actions button sits over its time, in the conversation and in the thread
+
+  Rule: An @mention in a thread works as in the main chat
+
+    # Issue 35 (https://github.com/drewdrewthis/convoz/issues/35): "Mentions do not work in threads".
+    @v1 @browser @I-18
+    Scenario: Typing @ in the reply box lists the agents and a pick mentions one
+      When the owner opens the reply box of message 900 and types "@"
+      Then the "Agents" list shows above the reply box
+      When the owner picks "docs"
+      Then the reply box holds "@docs " and keeps the focus
+      When the owner types "hi" and sends
+      Then the reply shows in the thread and "docs" gets a mention item
+
+    @v1 @browser @I-18
+    Scenario: An agent @mentioned in a thread joins the conversation
+      Given "release-bot" is an agent that is not in conversation 41
+      When the owner picks "release-bot" from the "Agents" list of the reply box of message 900 and sends "please review"
+      Then "release-bot" is a participant of conversation 41
