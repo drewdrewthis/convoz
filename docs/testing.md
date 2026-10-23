@@ -143,6 +143,7 @@ Done = every listed scenario is bound, was red first, is green; parity passes; e
 ## 12. What changed from v1
 
 **Removed as required:** layer pyramid, coverage floors, component suites, Ladle diffs, pixel snapshots, general property suites.
+**No snapshot tests at this stage** (owner decision, 2026-10-23): no `toHaveScreenshot`, prototype-parity or reference-frame comparison. Screenshots are taken only as use-proof attachments.
 **Replaced:** invariant and scenario gates become one parity checker; contract, migration, backup, scrub and security layers become scenarios.
 **Kept:** bounds, fake tokens, flake policy, `@needs-owner`, negative control, perf budgets, stall proxy.
 **Shrunk:** property and fuzz targets become X-2 and X-3.

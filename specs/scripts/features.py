@@ -3,7 +3,7 @@
 
 Usage: python3 -I specs/scripts/features.py --write | --check
 --check exits 1 when docs/features.md is out of date. Output is deterministic.
-Reuses the parser in check_specs.py. Prototype-parity and app-regress files are tests, not features, so they are left out.
+Reuses the parser in check_specs.py.
 """
 import importlib.util
 import os
@@ -14,7 +14,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 OUT = os.path.join(ROOT, "docs", "features.md")
 BLOB = "https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/"
-SKIP_PREFIX = ("prototype-parity", "app-regress")
+SKIP_PREFIX = ()
 HIDDEN_TAGS = {"@later", "@wip", "@manual"}
 
 
