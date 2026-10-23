@@ -42,7 +42,8 @@ export function Now({ compact = false, current = 0 }: NowProps = {}) {
       // The passkey count only shapes a hint: with no link it is left out, and Now still shows what the device kept.
       const passkeys = compact ? null : await call(client.GET("/api/me/passkeys")).then((r) => r.passkeys, () => null);
       if (passkeys) setOnePasskey(passkeys.length === 1);
-      await load();
+      // The rail's start() below makes the first load; a second one here could let an older answer land last.
+      if (!compact) await load();
     })().catch((err) => fail(humanError(err)));
   }, [load, fail, compact]);
   useEffect(() => (compact ? useNow.getState().start() : undefined), [compact]);
