@@ -97,6 +97,12 @@ scenario("The badge counts open asks that are not snoozed", { tag: ["@browser", 
     (window as unknown as { __badge: number[] }).__badge = calls;
     Object.defineProperty(navigator, "setAppBadge", { configurable: true, value: (n?: number) => (calls.push(n ?? 0), Promise.resolve()) });
     Object.defineProperty(navigator, "clearAppBadge", { configurable: true, value: () => (calls.push(0), Promise.resolve()) });
+    // And this browser last had Now in the desktop rail (rail.feature, "On a wide screen Now is a view of the rail")
+    try {
+      localStorage.setItem("convoz.rail.mode", "now");
+    } catch {
+      // an opaque origin (about:blank) has no storage; the app's own pages do
+    }
   });
   const w = await browserWorld({ server, page, context }, WORLD);
   const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
@@ -105,9 +111,17 @@ scenario("The badge counts open asks that are not snoozed", { tag: ["@browser", 
   must(await snoozeAsk(w.owner, ids[0]!, { preset: "1h" }), "snooze one");
   expect((await nowOf(w.owner)).badge).toBe(2);
 
-  // When the installed app is in the background
+  // When the owner opens Now on the phone
   await openNow(page, w.srv);
   await expect(page.getByRole("article")).toHaveCount(2);
+
+  // Then Now is the full-screen page with no rail and no Now toggle button
+  await expect(page.getByRole("navigation", { name: "Conversations" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Now\b/ })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Main" })).toBeVisible();
+  expect((await page.locator("#view").boundingBox())!.x).toBeLessThan(40);
+
+  // When the installed app is in the background
   await page.evaluate(() => {
     Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
     Object.defineProperty(document, "hidden", { configurable: true, get: () => true });

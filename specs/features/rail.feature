@@ -175,10 +175,3 @@ Feature: Rail
       And the owner has conversation 41 open with Now in the rail
       When the owner reloads the page
       Then the rail still lists the ask "Merge #415 on its own?" and is about 360 px wide
-
-    @v1 @browser @phone
-    Scenario: On a phone Now is still the full-screen page
-      Given "devtool" asks "Merge #415 on its own?" in conversation 52
-      And this browser last had Now in the rail
-      When the owner opens Now on a phone
-      Then Now is the full-screen page with the ask and there is no rail

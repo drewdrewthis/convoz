@@ -1,5 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
-import { QUESTION, agentAsks, openNow } from "../lib/asks.ts";
+import { QUESTION, agentAsks } from "../lib/asks.ts";
 import { TITLES, openRail, rail, railGroup, railWorld } from "../lib/rail-wp9.ts";
 import { expect, scenario } from "../lib/scenario.ts";
 
@@ -10,7 +10,8 @@ import { expect, scenario } from "../lib/scenario.ts";
  *   "Conversations" that switches back; Escape with the focus in the rail and Cmd+. switch too. The page keeps the open conversation.
  *   Each open ask of the list is an article named by its question inside an item [data-conv=<conversation id>]; the item of the
  *   conversation open in the page has aria-current="page". The mode is kept in localStorage "convoz.rail.mode" ("now" | "conversations").
- *   Under 900 px there is no rail and Now is the full-screen page at /, whatever the stored mode.
+ *   Under 900 px there is no rail and Now is the full-screen page at /, whatever the stored mode (bound in now.wp8.spec.ts,
+ *   "The badge counts open asks that are not snoozed").
  */
 
 const [T41, , T60] = TITLES;
@@ -135,20 +136,4 @@ scenario("The rail stays in Now after a reload", { tag: ["@browser"] }, async ({
   await expect(nowButton(page)).toHaveAttribute("aria-pressed", "true");
   await expect.poll(() => railWidth(page)).toBe(360);
   await expect(openHeading(page, T41)).toBeVisible();
-});
-
-scenario("On a phone Now is still the full-screen page", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
-  // Given an ask in conversation 52, and this browser last had Now in the rail
-  const u = await waitingWorld({ server, page, context });
-  await page.goto(`${u.w.srv.origin}/`);
-  await page.evaluate(() => localStorage.setItem("convoz.rail.mode", "now"));
-
-  // When the owner opens Now on a phone
-  await openNow(page, u.w.srv);
-
-  // Then Now is the full-screen page with the ask and there is no rail
-  await expect(page.getByRole("article", { name: QUESTION })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Conversations" })).toHaveCount(0);
-  await expect(page.getByRole("navigation", { name: "Main" })).toBeVisible();
-  expect((await page.locator("#view").boundingBox())!.x).toBeLessThan(40);
 });
