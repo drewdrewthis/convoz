@@ -143,7 +143,7 @@ func (r *runner) loop(ctx context.Context) int {
 		if first {
 			hold = 0 // answers at once, so a refusal (409) is known before "serving" is said
 		}
-		items, err := r.poll(ctx, hold)
+		items, err := r.poll(ctx, hold, 1+r.lane.count())
 		switch {
 		case ctx.Err() != nil:
 			return ExitOK
@@ -164,13 +164,25 @@ func (r *runner) loop(ctx context.Context) int {
 			first = false
 			fmt.Fprintf(r.io.Stdout, "convoz run: serving @%s (pid %d)\n", r.handle, os.Getpid())
 		}
-		if len(items) > 0 {
+		if it, ok := r.next(items); ok {
 			r.lane.setBusy(true)
-			r.serve(ctx, items[0]) // the rest stay held and come back on the next poll
+			r.serve(ctx, it) // the rest stay held and come back on the next poll
 			r.lane.setBusy(false)
+		} else if len(items) > 0 {
+			sleepCtx(ctx, laneEvery) // only the lane's items are held: a poll would answer at once
 		}
 	}
 	return ExitOK
+}
+
+// next is the first item the owner lane does not have.
+func (r *runner) next(items []wire.InboxItem) (wire.InboxItem, bool) {
+	for _, it := range items {
+		if !r.lane.owns(it.ID) {
+			return it, true
+		}
+	}
+	return wire.InboxItem{}, false
 }
 
 // heldElsewhere prints the server's refusal of a poll because another runner or watch holds the agent, and says it was one.
@@ -183,8 +195,8 @@ func heldElsewhere(io IO, err error) (int, bool) {
 }
 
 // poll claims at most one item (the held one first, so a failed item comes back) and says it is a runner polling.
-func (r *runner) poll(ctx context.Context, hold int) ([]wire.InboxItem, error) {
-	q := url.Values{"wait": {strconv.Itoa(hold)}, "claim": {"1"}, "runner": {"1"}}
+func (r *runner) poll(ctx context.Context, hold, n int) ([]wire.InboxItem, error) {
+	q := url.Values{"wait": {strconv.Itoa(hold)}, "claim": {strconv.Itoa(n)}, "runner": {"1"}}
 	var out wire.InboxResponse
 	err := r.k.c.withTimeout((wire.MaxHoldSeconds+15)*time.Second).call(ctx, "GET", wire.RouteInbox+"?"+q.Encode(), r.k.lease, nil, &out)
 	return out.Items, err

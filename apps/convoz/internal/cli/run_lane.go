@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -22,11 +23,13 @@ type ownerLane struct {
 	claim  func(context.Context) ([]wire.InboxItem, error) // claims ready items, never the one the main loop holds
 	serve  func(context.Context, wire.InboxItem)
 	busy   atomic.Bool // the main loop is serving an item
-	active atomic.Bool // the extra call is taken
+	mu     sync.Mutex
+	mine   map[int64]bool // items the lane claimed and has not finished: they are held for this session too, so the main loop skips them
+	active atomic.Bool    // the extra call is taken
 }
 
 func newOwnerLane(claim func(context.Context) ([]wire.InboxItem, error), serve func(context.Context, wire.InboxItem)) *ownerLane {
-	return &ownerLane{claim: claim, serve: serve}
+	return &ownerLane{claim: claim, serve: serve, mine: map[int64]bool{}}
 }
 
 // setBusy is safe on a nil lane (the lane is off).
@@ -34,6 +37,26 @@ func (l *ownerLane) setBusy(b bool) {
 	if l != nil {
 		l.busy.Store(b)
 	}
+}
+
+// owns says whether the lane has the item. Safe on a nil lane.
+func (l *ownerLane) owns(id int64) bool {
+	if l == nil {
+		return false
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.mine[id]
+}
+
+// count is how many items the lane has, so the main loop asks for enough items to get past them.
+func (l *ownerLane) count() int {
+	if l == nil {
+		return 0
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return len(l.mine)
 }
 
 func (l *ownerLane) run(ctx context.Context, every time.Duration) {
@@ -66,10 +89,18 @@ func (l *ownerLane) tick(ctx context.Context) {
 		l.active.Store(false)
 		return
 	}
+	l.mu.Lock()
+	for _, it := range owner {
+		l.mine[it.ID] = true
+	}
+	l.mu.Unlock()
 	go func() {
 		defer l.active.Store(false)
 		for _, it := range owner {
 			l.serve(ctx, it)
+			l.mu.Lock()
+			delete(l.mine, it.ID)
+			l.mu.Unlock()
 		}
 	}()
 }
