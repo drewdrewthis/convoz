@@ -123,6 +123,15 @@ Feature: Plans: what each agent is doing, what is next and what waits on the own
       Then the chat shows the owner's message to "@docs" with "convoz plan 41 --doing" and "not a chat message"
       And it names the MCP "plan" tool and "convoz plan --help"
 
+    # Owner-approved UX plan, msgs 4343/4350/4351: the owner can ask an agent to bring its plan up to date even when it is not late.
+    # A late plan keeps its one "Ask for an update" button, so the card never shows two buttons that post the same message.
+    @v1 @browser
+    Scenario: Request plan update asks the agent to update its plan
+      Given "devtool" has a plan in conversation 41 that is not late
+      When the owner opens the details of conversation 41 and taps "Request plan update" on the card of "@devtool"
+      Then the chat shows the owner's message to "@devtool" with "convoz plan 41"
+      And the card of "@devtool" has no "Ask for an update"
+
     # Owner (Drew), msg 646: "improve the UI on this card". The header keeps the name, the state and the age; Remove is in a menu; Now is
     # one tinted block, with the step as a small bar; Next is quieter; Done is a plain fold row.
     @v1 @browser

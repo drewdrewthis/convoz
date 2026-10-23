@@ -284,3 +284,14 @@ Feature: Threads
       Given "release-bot" is an agent that is not in conversation 41
       When the owner picks "release-bot" from the "Agents" list of the reply box of message 900 and sends "please review"
       Then "release-bot" is a participant of conversation 41
+
+  # Owner-approved UX plan, msgs 4343/4350/4351: from an agent's message the owner can ask for a mini app in place of more text. The
+  # request is a reply in that message's thread, so it is clear which message to turn into an app.
+  Rule: Request mini app asks the agent in the thread of its message
+
+    @v1 @browser
+    Scenario: Request mini app replies to the agent in the thread of its message
+      Given the owner posted "Owner note here" in conversation 41
+      When the owner opens the message actions of message 900 and taps "Request mini app"
+      Then the thread of message 900 gets the owner's reply to "@devtool" with "convoz app init" and "Good looks like"
+      And the message actions of "Owner note here" have no "Request mini app"

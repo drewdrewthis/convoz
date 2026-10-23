@@ -1,5 +1,5 @@
 import { message } from "../lib/chat-ui.ts";
-import { convoz, ownerSays } from "../lib/chat.ts";
+import { convoz, messagesOf, ownerSays } from "../lib/chat.ts";
 import { send } from "../lib/http.ts";
 import { agentSays, apiRailWorld, openRail, railGroup, railRow, railWorld, setPrefs, signInWith, TITLES } from "../lib/rail-wp9.ts";
 import { expect, scenario } from "../lib/scenario.ts";
@@ -124,6 +124,40 @@ scenario("Unpinning removes it from the list", { tag: ["@browser"] }, async ({ s
   await expect(panel.getByRole("heading", { name: "Pinned in this conversation" })).toBeVisible();
   await expect(panel.getByRole("list", { name: "Pinned messages" })).toHaveCount(0);
   await expect(panel.getByText(RUNBOOK)).toHaveCount(0);
+});
+
+scenario("Copy link puts the message link on the clipboard and the link opens that message", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  const u = await railWorld({ server, page, context });
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: u.w.srv.origin });
+
+  // Given "devtool" posted "Runbook: https://docs.acme.dev/runbooks/deploy-alerts" in conversation 52, then 40 later messages followed
+  await agentSays(u.w, "devtool", u.c[52], RUNBOOK);
+  const id = (await messagesOf(u.w.owner, u.c[52])).find((m) => m.body === RUNBOOK)!.id;
+  for (let i = 0; i < 40; i++) await ownerSays(u.w.owner, u.c[52], `later note ${i}`);
+  await page.goto(`${u.w.srv.origin}/chats/${u.c[52]}`);
+  const row = message(page, "Runbook:");
+
+  // When the owner opens the message actions of that message and taps "Copy link"
+  await row.scrollIntoViewIfNeeded();
+  await row.hover();
+  await row.getByRole("button", { name: "Message actions" }).click();
+  await page.getByRole("menuitem", { name: "Copy link", exact: true }).click();
+
+  // Then a toast says "Link copied"
+  await expect(toastSays(page, "Link copied")).toBeVisible();
+
+  // And the clipboard holds "/chats/52#m" and the id of that message
+  const link = await page.evaluate(() => navigator.clipboard.readText());
+  expect(link).toBe(`${u.w.srv.origin}/chats/${u.c[52]}#m${id}`);
+
+  // When the owner opens that link
+  await page.goto("about:blank"); // a new load, as from another tab: a hash change alone keeps the page
+  await page.goto(link);
+
+  // Then conversation 52 opens scrolled to that message with it highlighted
+  await expect(row).toHaveAttribute("data-hl", "true");
+  await expect(row).toBeInViewport({ ratio: 1 });
+  await expect(message(page, "later note 39")).not.toBeInViewport();
 });
 
 scenario("A muted conversation shows Muted and sends no push", { tag: ["@browser"] }, async ({ server, page, context }) => {

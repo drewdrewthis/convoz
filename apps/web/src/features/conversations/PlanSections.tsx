@@ -164,10 +164,11 @@ function AgentCard({ person, plan, agent, conv, act, onRemove }: { person: Perso
       ) : (
         <PlanBody plan={plan} now={now} />
       )}
-      {late ? (
+      {/* A late plan asks for an update; any other plan can be asked to catch up too, with the same message (owner msgs 4343/4350). */}
+      {late || plan ? (
         <div className="pacts">
           <button type="button" className="chipbtn" onClick={() => act.say(planRequest(h, conv, "update"))}>
-            Ask for an update
+            {late ? "Ask for an update" : "Request plan update"}
           </button>
         </div>
       ) : null}
