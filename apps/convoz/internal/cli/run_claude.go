@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"syscall"
 )
 
@@ -17,7 +16,6 @@ type claudeCall struct {
 	Session string
 	Resume  bool // the session has a transcript: --resume, else --session-id (a session never written cannot be resumed)
 	Prompt  string
-	Fork    bool // with Resume: continue in a copy of the session, so the session itself is not written over
 }
 
 // args is the argv after `claude`. The run is a plain wrapper: bypassPermissions gives the child every tool a normal agent has,
@@ -27,11 +25,7 @@ func (c claudeCall) args() []string {
 	if c.Resume {
 		flag = "--resume"
 	}
-	a := []string{"-p", "--permission-mode", "bypassPermissions", "--max-budget-usd", c.Budget, flag, c.Session}
-	if c.Resume && c.Fork {
-		a = append(a, "--fork-session")
-	}
-	return append(a, c.Prompt)
+	return []string{"-p", "--permission-mode", "bypassPermissions", "--max-budget-usd", c.Budget, flag, c.Session, c.Prompt}
 }
 
 // itemMarker starts the item text in a prompt; what comes after it is the chat message, not the operator's words.
@@ -61,21 +55,6 @@ type runState struct {
 	Summary   string `json:"summary,omitempty"` // of the session before, for the first prompt of this one
 	// Tries counts failures by "<item>:<claim token>": the same claim comes back as held until it is acked.
 	Tries map[string]int `json:"tries"`
-
-	mu sync.Mutex // the owner lane and the main loop both write the state
-}
-
-// update changes the state under its lock.
-func (s *runState) update(f func(*runState)) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	f(s)
-}
-
-func (s *runState) session() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.SessionID
 }
 
 func loadRunState(path string) *runState {
@@ -90,8 +69,6 @@ func loadRunState(path string) *runState {
 }
 
 func (s *runState) save(path string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	raw, err := json.Marshal(s)
 	if err != nil {
 		return err
@@ -101,8 +78,6 @@ func (s *runState) save(path string) error {
 
 // failed counts one more failure of the claim and returns how many it has.
 func (s *runState) failed(key string) int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.Tries == nil {
 		s.Tries = map[string]int{}
 	}
@@ -110,11 +85,7 @@ func (s *runState) failed(key string) int {
 	return s.Tries[key]
 }
 
-func (s *runState) forget(key string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.Tries, key)
-}
+func (s *runState) forget(key string) { delete(s.Tries, key) }
 
 // lockRun takes the machine-local lock of one runner: a second `convoz run --as <handle>` here is refused. The kernel drops the
 // lock when the process dies, so a crash leaves nothing to clean up. The lock file holds the pid of its owner for the message.

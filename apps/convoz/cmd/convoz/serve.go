@@ -33,6 +33,16 @@ var hostRE = regexp.MustCompile(`^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$`)
 // agentMaxConns caps the open connections of the agent listener; the per-address cap on requests being served is in httpapi.
 const agentMaxConns = 256
 
+var extensionOriginRE = regexp.MustCompile(`^chrome-extension://[a-p]{32}$`)
+
+// validateExtensionOrigin accepts empty (off) or one exact Chrome extension origin: no path, no wildcard.
+func validateExtensionOrigin(o string) error {
+	if o != "" && !extensionOriginRE.MatchString(o) {
+		return fmt.Errorf("--extension-origin must be chrome-extension://<32-letter id>, got %q", o)
+	}
+	return nil
+}
+
 // serve runs the server and returns the process exit code.
 func serve(args []string) int {
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
@@ -46,6 +56,7 @@ func serve(args []string) int {
 	tailscaleBin := fs.String("tailscale-bin", "tailscale", "the tailscale command")
 	tailscaleMode := fs.String("tailscale", "check", "check: read tailscale status at start and refuse if funnel is on; off: skip (development)")
 	transcribe := fs.String("transcribe", "auto", "voice transcription: auto uses the keys in $CREDENTIALS_DIRECTORY (groq_api_key, openai_api_key, gemini_api_key) in that order, none turns it off; audio then goes to the service that answers")
+	extensionOrigin := fs.String("extension-origin", os.Getenv("CONVOZ_EXTENSION_ORIGIN"), "one extra Origin allowed to write: chrome-extension://<32-letter id> (default $CONVOZ_EXTENSION_ORIGIN; empty = off)")
 	readyFile := fs.String("ready-file", "", "write {listen,admin,pid} here once listening")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -55,6 +66,10 @@ func serve(args []string) int {
 	}
 	if *dataDir == "" || (*tailscaleMode != "check" && *tailscaleMode != "off") || (*transcribe != "auto" && *transcribe != "none") {
 		usage()
+	}
+
+	if err := validateExtensionOrigin(*extensionOrigin); err != nil {
+		return fail(exitUsage, err)
 	}
 
 	// The wall comes first: a server that would be open never touches the data dir.
@@ -142,7 +157,7 @@ func serve(args []string) int {
 		}
 	}
 
-	cfg := httpapi.Config{Host: name, Unix: spec.unix, PublicPort: publicPort, Version: version, TailscaleBin: *tailscaleBin, TailscaleOn: *tailscaleMode == "check", DataDir: dir, BlobKey: blobDEK}
+	cfg := httpapi.Config{Host: name, Unix: spec.unix, PublicPort: publicPort, Version: version, TailscaleBin: *tailscaleBin, TailscaleOn: *tailscaleMode == "check", DataDir: dir, BlobKey: blobDEK, ExtensionOrigin: *extensionOrigin}
 	if !spec.unix {
 		cfg.Port = pub.Addr().(*net.TCPAddr).Port
 	}
