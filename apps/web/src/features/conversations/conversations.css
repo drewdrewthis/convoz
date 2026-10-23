@@ -133,11 +133,6 @@
   .pmeta { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; color: var(--color-muted); }
   .pmeta .ava { width: 24px; height: 24px; font-size: 12px; }
   .pmeta b { color: var(--color-text); font-weight: 600; }
-  .pq { margin: 4px 0 10px; font-size: 15px; font-weight: 600; line-height: 1.35; }
-  .pcard.sent { padding-block: 0; }
-  /* the chat's "Waiting on you" cards, above the composer: a long list scrolls, so the messages keep the most of the screen */
-  .waithere { flex: none; display: flex; flex-direction: column; gap: 6px; max-height: 40vh; overflow-y: auto; padding: 4px 12px; outline: none; }
-  .psent { margin: 0; min-height: 44px; display: flex; align-items: center; font-size: 13px; color: var(--color-muted); }
   .pacts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
   .chipbtn {
     min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text);

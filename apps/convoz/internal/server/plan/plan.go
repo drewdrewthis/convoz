@@ -172,6 +172,38 @@ func Check(doing []string, blocked string, next, waiting, done []string) (field,
 	return "", "", true
 }
 
+// labelRE is a label at the start of a Waiting item: one to three words, a colon and a space ("Rogerio: Day 10 fix"). The colon of
+// "https://" has no space after it, so a link is no label.
+var labelRE = regexp.MustCompile(`^([^\s:]+(?: [^\s:]+){0,2}): +(\S.*)$`)
+
+// nameRE is a label that reads as a person's name: one or two words of letters only, each starting with a capital ("Rogerio",
+// "Rogerio Silva", "Review"). "Step 2", "Log in" and "Approve deploy" are instructions, not names.
+var nameRE = regexp.MustCompile(`^\p{Lu}\p{L}*(?: \p{Lu}\p{L}*)?$`)
+
+// OwnWaiting keeps Waiting to what the owner must do (conv 151): an item labelled with someone else's name is refused, with why naming
+// the way out, and the owner's own label ("Drew:", "@drew:") is dropped. names are the owner's handle and display name; case and a
+// leading "@" do not matter.
+func OwnWaiting(items []string, names ...string) (out []string, why string) {
+	for _, t := range items {
+		m := labelRE.FindStringSubmatch(t)
+		if m == nil {
+			out = append(out, t)
+			continue
+		}
+		label := m[1]
+		if slices.ContainsFunc(names, func(n string) bool { return n != "" && strings.EqualFold(strings.TrimPrefix(label, "@"), n) }) {
+			out = append(out, m[2])
+			continue
+		}
+		if nameRE.MatchString(label) {
+			return nil, `waiting is only for what the owner must do. "` + label + `: …" names someone else: put it in --blocked "Waiting on ` +
+				label + `: …", or drop the "` + label + `:" label.`
+		}
+		out = append(out, t)
+	}
+	return out, ""
+}
+
 var stepRE = regexp.MustCompile(`^([1-9][0-9]?)/([1-9][0-9]?)$`)
 
 // ParseStep reads "N/M" with 1 <= N <= M <= 99; "" is no step.

@@ -12,7 +12,6 @@ import { NowAsk } from "./NowAsk.tsx";
 import { NowReplied } from "./NowReplied.tsx";
 import { PendingAdd } from "./PendingAdd.tsx";
 import { Unread, unreadRows } from "./Unread.tsx";
-import { WaitingPlans } from "./WaitingPlans.tsx";
 import { useAskActions } from "./useAskActions.ts";
 import { useNow } from "./store.ts";
 
@@ -60,8 +59,7 @@ export function Now() {
   // Held on the device before the "replied" list existed: none then.
   const replied = now?.replied ?? [];
   const adds = now?.pending_adds ?? [];
-  const items = now?.waiting_plans ?? [];
-  const some = Boolean(pending && (waiting || asks.length || adds.length || items.length));
+  const some = Boolean(pending && (waiting || asks.length || adds.length));
   const clear = Boolean(now) && !some && conversations !== null && unread.length === 0;
 
   const reload = useCallback(() => load().then(() => undefined), [load]);
@@ -130,7 +128,6 @@ export function Now() {
         </section>
       ) : null}
       {replied.length ? <NowReplied asks={replied} /> : null}
-      {items.length ? <WaitingPlans items={items} /> : null}
       {adds.length ? (
         <section id="adds" className="block" aria-label="Adds to decide">
           {adds.map((add) => (

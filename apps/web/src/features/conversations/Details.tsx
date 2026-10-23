@@ -76,7 +76,7 @@ export function Details({ row, onClose, onInvite, board, act }: DetailsProps) {
       </header>
       <div className="detailsbody">
         {error ? <p role="alert">{error}</p> : null}
-        <WaitingSection row={row} board={board} act={act} decide={(iid, approve) => void run(() => decideAdd(row.id, iid, approve))} />
+        <WaitingSection row={row} decide={(iid, approve) => void run(() => decideAdd(row.id, iid, approve))} />
         <AgentsSection
           row={row}
           board={board}

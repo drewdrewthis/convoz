@@ -111,7 +111,7 @@ func init() {
 			"eta":     props{"type": "string", "maxLength": 20, "description": "When a single doing text should be done: a duration (30m, 1h30m) or HH:MM on this machine's clock."},
 			"blocked": props{"type": "string", "maxLength": 200, "description": "What blocks you here (not the owner: use waiting)."},
 			"next":    list("What you do next, in order.", props{"type": "string", "minLength": 1, "maxLength": 200}, 0, 5),
-			"waiting": list("What waits on the owner; something new pushes the owner.", props{"type": "string", "minLength": 1, "maxLength": 200}, 0, 5),
+			"waiting": list("What only the owner must do (no name prefix); something new pushes the owner.", props{"type": "string", "minLength": 1, "maxLength": 200}, 0, 5),
 			"done":    list("Items you finished since your last plan.", props{"type": "string", "minLength": 1, "maxLength": 200}, 0, 5),
 		}),
 		Call: func(ctx context.Context, args json.RawMessage) (any, error) {

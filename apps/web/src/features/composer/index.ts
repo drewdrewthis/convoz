@@ -5,3 +5,4 @@ export { useFileDrop } from "./FileDrop.tsx";
 export { pasteFiles, useAttachments, type Attachments } from "./attachments.ts";
 export { ENTER_TO_SEND_KEY, enterSends, enterToSend, type EnterToSend } from "./enterToSend.ts";
 export { keepFocus } from "./keepFocus.ts";
+export { MentionMenu, useMentionMenu, type MentionMenuControl } from "./MentionMenu.tsx";

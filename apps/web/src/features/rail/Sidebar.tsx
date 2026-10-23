@@ -9,7 +9,7 @@ import { toast } from "../pins-stars/index.ts";
 import { useSearchUi } from "../search/index.ts";
 import { startDrag, type Drop } from "./drag.ts";
 import { Logo } from "./Logo.tsx";
-import { BackArrow, ChevronIcon, ComposeGlyph, CrewGlyph, InviteGlyph, ForwardArrow, GripIcon, PanelGlyph, NowGlyph, SearchGlyph, StarIcon } from "./icons.tsx";
+import { BackArrow, ChevronIcon, ComposeGlyph, CrewGlyph, InviteGlyph, FoldAllGlyph, ForwardArrow, GripIcon, PanelGlyph, NowGlyph, SearchGlyph, StarIcon } from "./icons.tsx";
 import { groups, isOlder, rowLabel, titleOf } from "./model.ts";
 import { ThreadFold, ThreadRows, rowUnread, useThreadFold } from "../threads/index.ts";
 import { useFold } from "./fold.ts";
@@ -75,6 +75,8 @@ export default function Sidebar() {
     [fail],
   );
   const foldedIds = useThreadFold((s) => s.folded);
+  const threaded = useMemo(() => (list ?? []).filter(folds).map((c) => c.id), [list]);
+  const allFolded = threaded.length > 0 && threaded.every((id) => foldedIds.includes(id));
   const unreadOf = (c: Conversation) => rowUnread(c, foldedIds.includes(c.id));
   const star = (c: Conversation) =>
     setStar(c.id, !c.starred).then(() => toast(c.starred ? "Unstarred" : "Starred"), fail);
@@ -162,6 +164,11 @@ export default function Sidebar() {
         <IconButton variant="bordered" size={32} glyph="self" href="/crew?invite" label="Invite agent">
           <InviteGlyph />
         </IconButton>
+        {threaded.length ? (
+          <IconButton variant="bordered" size={32} glyph="self" label={allFolded ? "Show all threads" : "Fold all threads"} onClick={() => useThreadFold.getState().toggleAll(threaded)}>
+            <FoldAllGlyph folding={!allFolded} />
+          </IconButton>
+        ) : null}
       </div>
       <div className="rail-scroll" data-rscroll="1">
         <a className="rnav now" href="/" aria-current={location.pathname === "/" ? "page" : undefined}>

@@ -23,7 +23,9 @@ scenario("People an agent lists in a new conversation are pending", { tag: ["@ap
   expect(handlesOf(view)).toEqual(["drew", "devtool"]);
 
   // And "docs" cannot read the conversation until the owner approves
-  expect((await convoz(w.box, docs.sid, ["read", String(conv)])).code).toBe(3);
+  const refused = await convoz(w.box, docs.sid, ["read", String(conv)]);
+  expect(refused.code).toBe(3);
+  expect(refused.stderr).toMatch(new RegExp(`conversation ${conv}\\b`)); // issue 56: the error names which conversation
   must(await w.owner.client.post(`/api/conversations/${conv}/participants/${ids.docs}/approve`), "approve docs");
   expect((await convoz(w.box, docs.sid, ["read", String(conv)])).code).toBe(0);
   expect((await viewOf(w.owner, conv)).pending ?? []).toEqual([]);

@@ -59,12 +59,6 @@ Feature: The app keeps its look while its code is reorganised
       Then it matches its frame, with the section "You replied · waiting on the agent" and the updated ask with its answers
 
     @v1 @browser
-    Scenario: Now with a waiting plan item keeps its look
-      Given "devtool" waits on the owner for "Approve the staging push"
-      When the owner opens Now
-      Then it matches its frame in light and in dark
-
-    @v1 @browser
     Scenario: An empty Now and its open folds keep their look
       Given an answered ask, a dismissed ask and a snoozed ask, and nothing else waits
       When the owner opens Now, and then opens the three folds

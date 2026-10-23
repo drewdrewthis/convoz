@@ -14,16 +14,22 @@ const read = (): number[] => {
 };
 
 /** useThreadFold holds the conversations whose thread rows are folded away in the lists. */
-export const useThreadFold = create<{ folded: number[]; toggle(id: number): void }>()((set, get) => ({
-  folded: read(),
-  toggle: (id) => {
-    const now = get().folded;
-    const folded = now.includes(id) ? now.filter((n) => n !== id) : [...now, id];
+export const useThreadFold = create<{ folded: number[]; toggle(id: number): void; toggleAll(ids: number[]): void }>()((set, get) => {
+  const keep = (folded: number[]) => {
     try {
       localStorage.setItem(KEY, JSON.stringify(folded));
     } catch {
       // private mode: the fold holds for this page only
     }
     set({ folded });
-  },
-}));
+  };
+  return {
+    folded: read(),
+    toggle: (id) => {
+      const now = get().folded;
+      keep(now.includes(id) ? now.filter((n) => n !== id) : [...now, id]);
+    },
+    /** Fold every conversation of `ids`, or show them all again when they are all folded already. */
+    toggleAll: (ids) => keep(ids.every((id) => get().folded.includes(id)) ? [] : ids),
+  };
+});

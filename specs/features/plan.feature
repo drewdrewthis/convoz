@@ -95,25 +95,23 @@ Feature: Plans: what each agent is doing, what is next and what waits on the own
       When the owner opens conversation 41
       Then the line reads "Working · Building invites · ready ~" and the time of the ready estimate in "Pacific/Auckland"
 
-  Rule: Tapping the line opens the details panel: what waits on the owner, then one card per agent, then the settings
+  Rule: Tapping the line opens the details panel: the asks and joins that wait on the owner, then one card per agent, then the settings
 
     # Owner (Drew), on the panel design: "approved with comments: panel: hmm, it's a good start. you could probably as the UI/UX expert
     # about this". The UX pass (phase 1) is what is built: Waiting on you with the action in place, Agents with Now, Next and Done folded.
     @v1 @browser
-    Scenario: The details panel puts what waits on the owner first, then each agent's plan, then the settings
+    # Drew, conv 151: the plan items that wait on the owner show in the line under the title, not in the panel.
+    Scenario: The details panel shows each agent's plan, then the settings, and no plan item that waits on the owner
       Given "devtool" finished "One-time invites", "Reply chip v0", "Invite page", "Rename sheet" and "Search fix"
       And "devtool" planned Doing "Switch on the internet door" at step 2 of 3 ready in 15 minutes, Next "Reply chip" and "Faster first load", Waiting on you "Paste the prompt to dot"
       When the owner opens conversation 41 and taps the line under the title
-      Then the panel shows "Waiting on you · 1", then "Agents · 2", then "Conversation", in that order
-      And "Paste the prompt to dot" shows "I did it" and "Reply" and no "Open", as it has no link
+      Then the panel shows "Agents · 2", then "Conversation", in that order
+      And it does not list "Paste the prompt to dot"
       And the card of "@devtool" shows "Working", Now "Switch on the internet door" with a step bar at 2 of 3 and "ready ~", and Next "Reply chip" and "Faster first load" numbered
       And its Done items are folded as "Done · 5"
       When the owner taps "Done · 5"
       Then all 5 Done items show under "Today"
       And the card of "@docs" shows "No plan yet" and "Ask for a plan"
-      When the owner taps "I did it"
-      Then the chat shows the owner's message "@devtool I did it: Paste the prompt to dot"
-      And the item shows "You said it is done" until "devtool" updates its plan
       And at 320 pixels wide the panel has no sideways scroll and every button is at least 44 pixels tall
 
     # Owner (Drew), msg 594: "The asking for a plan button is nice -- however, it' just posts a message asing for a plan, but no
@@ -185,7 +183,7 @@ Feature: Plans: what each agent is doing, what is next and what waits on the own
       When the owner taps the row
       Then it shows the labelled lines "Done" "One-time invites", "Now" "Switch on the internet door" and "Waiting" "Approve the dot card"
       When the owner taps the pill "Waiting on you · 1"
-      Then the details panel opens
+      Then the details panel opens on the plan card of "@devtool"
 
     @v1 @browser
     Scenario: The line and the panel update live, and a quiet line marks a finished item
@@ -250,27 +248,40 @@ Feature: Plans: what each agent is doing, what is next and what waits on the own
       When the owner revokes the key of machine "box-2" and 10 minutes pass
       Then the line under the title of conversation 41 reads "Logged out" in amber
 
-  Rule: What an agent waits on the owner for shows in Now
+  Rule: What an agent waits on the owner for shows in the conversation
 
-    # Drew, @dot conv 39 msg 852: an agent's "waiting on the owner" item showed in the plan panel, as an amber row icon and as one push, but
-    # never in Now. "Drew lives in Now, so items waiting on Drew are missed."
+    # Owner (Drew), conv 151 msg 3673: "The cards are stupid, the plan is good, the indicator that it's blocked at the top is good, the
+    # icon on the sidebar is good. This check in box/card is stupid. remove it now". No card, no "I did it" or "Not needed", no row in Now.
     @v1 @browser
-    Scenario: A plan item waiting on the owner shows in Now
-      Given "devtool" waits on the owner for "Approve the dot card" in conversation 41
+    Scenario: What waits on the owner shows only as the plan, the line under the title and the row icon, with no card or button
+      Given "devtool" runs "convoz plan 41 --doing 'Building invites' --waiting 'Approve PR 1'"
+      When the owner opens conversation 41
+      Then the line under the title says "Waiting on you: Approve PR 1"
+      And the chat has no "Waiting on you" card and no "I did it" or "Not needed" button
+      When the owner opens the Conversations list
+      Then the row "Ship search filters" has the icon "Waiting on you"
       When the owner opens Now
-      Then Now lists "Approve the dot card" under "Waiting on you" with "devtool" and the title "Ship search filters"
-      And the top bar says "1 open"
-      When the owner taps the row
-      Then conversation 41 opens with its details panel showing "Waiting on you · 1"
+      Then it says "0 open", lists nothing for "Approve PR 1", has no "I did it" or "Not needed" button, and the Now badge does not count it
+      When the owner opens conversation 41, with the live stream open
+      And "devtool" runs "convoz plan 41 --doing 'Building invites'", with no --waiting
+      Then the line under the title no longer says "Waiting on you", without a reload
+      And the line under the title says "Building invites"
+      When the owner opens the Conversations list
+      Then the row "Ship search filters" has the icon "Working", not "Waiting on you"
 
-    @v1 @browser
-    Scenario: A waiting item leaves Now when the agent finishes it
-      Given "devtool" waits on the owner for "Approve the dot card" in conversation 41 and the owner has Now open
-      When "devtool" runs "convoz plan 41 --done 'Approve the dot card'"
-      Then Now no longer lists "Approve the dot card" and says "0 open", without a reload
+    # Drew, conv 151: an item for someone else ("Rogerio: Day 10 fix") must never show as an owner item. A name label is one or two
+    # capitalised words of letters only; "Step 2:", "Log in:" or "Approve deploy:" are instructions, not names.
+    @v1 @cli
+    Scenario: A waiting item that names someone else is refused
+      When "devtool" runs "convoz plan 41 --doing 'Day 10' --waiting 'Rogerio: fix'"
+      Then it fails with 'waiting is only for what the owner must do. "Rogerio: …" names someone else: put it in --blocked "Waiting on Rogerio: …", or drop the "Rogerio:" label.'
+      And the API refuses it on the field "waiting" with the same message
+      And the API refuses "Rogerio Silva: fix" the same way
+      When "devtool" runs "convoz plan 41 --doing 'Day 10' --waiting 'drew: Approve PR 9' --waiting 'see https://x.y/z' --waiting 'Step 2: paste the key'"
+      Then the plan waits on the owner for "Approve PR 9", "see https://x.y/z" and "Step 2: paste the key"
 
     @v1 @browser
     Scenario: A waiting item missed while offline shows after reconnect
-      Given the owner has Now open and the live stream is cut
+      Given "devtool" works on "Building invites", the owner has conversation 41 open and the live stream is cut
       When "devtool" runs "convoz plan 41 --doing 'Building invites' --waiting 'Approve the dot card'" and the app reconnects
-      Then Now lists "Approve the dot card" under "Waiting on you" without a reload
+      Then the line under the title says "Waiting on you: Approve the dot card" without a reload

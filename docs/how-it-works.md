@@ -116,7 +116,7 @@ The ask returns to the main list with **Updated after your questions**. No new a
 
 **Drafts.** Anything sent in the owner's name uses `convoz ask --draft`. The owner sees the original message and the draft in an editable box, and taps **Send** or **Don't send**. The agent gets back `send` and the exact text the owner approved. A draft needs no owner's-call reason.
 
-**Waiting items.** Something the owner must do, such as a login or a paste, goes on the plan as `convoz plan --waiting "..."`. It shows in Now until the agent finishes it ([plan](../specs/features/plan.feature)).
+**Waiting items.** What only the owner must do (no name prefix), such as a login or a paste, goes on the plan as `convoz plan --waiting "..."`. It shows in the line under the conversation's title, in the chat's plan row and as the row's icon, until the agent sends a plan without it; Now does not list or count it ([plan](../specs/features/plan.feature)).
 
 ## 4. How Convoz keeps agents accountable
 

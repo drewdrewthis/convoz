@@ -1,17 +1,15 @@
 import { IconButton } from "@convoz/ui/IconButton";
-import { EmptyState } from "@convoz/ui/EmptyState";
 import type { Identity, Upload } from "@convoz/api-client";
 import { mentionsOf } from "@convoz/markdown";
 import { AttachIcon, MicIcon, SendIcon } from "@convoz/ui/icons";
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
-import { initials, paletteOf, stripCf } from "../../shared/chat.ts";
-import { TriageBadge } from "../../shared/TriageBadge.tsx";
 import { useVoiceNote } from "../voice/index.ts";
 import { AttachmentList } from "./AttachmentList.tsx";
 import { loadDraft, saveDraft } from "./draft.ts";
 import { pasteFiles, type Attachments } from "./attachments.ts";
 import { enterSends } from "./enterToSend.ts";
 import { keepFocus } from "./keepFocus.ts";
+import { MentionMenu, useMentionMenu } from "./MentionMenu.tsx";
 
 export interface ComposerProps {
   /** The agent the message goes to; with none (and none typed as an @mention), Send stays disabled. */
@@ -39,7 +37,6 @@ export interface ComposerProps {
  */
 export function Composer({ agent, label, conversationId, attachments, onSend, textRef, mentions }: ComposerProps) {
   const [text, setText] = useState(() => loadDraft(location.pathname));
-  const [menu, setMenu] = useState<{ shown: Identity[]; active: number } | null>(null);
   const picker = useRef<HTMLInputElement>(null);
   const voice = useVoiceNote(conversationId, (sent) => onSend("", [sent]));
   const files = attachments.items;
@@ -60,56 +57,15 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
     box.style.height = text === "" ? "" : `${box.scrollHeight}px`;
   }, [text, textRef]);
 
-  const menuFor = (value: string, crew: Identity[]) => {
-    const m = /(?:^|\s)@([a-z0-9-]*)$/.exec(value);
-    const shown = m ? crew.filter((p) => p.handle.startsWith(m[1]!)) : [];
-    // "Invite a new agent…" ends the list whenever the box is on an "@", so a handle nobody has yet still leads somewhere.
-    return shown.length || (m && mentions?.onInvite) ? { shown, active: 0 } : null;
-  };
+  const mention = useMentionMenu({ text, setText, crew: mentions?.crew, focus: () => textRef.current?.focus(), onPick: mentions?.onPick, onInvite: mentions?.onInvite });
   const change = (value: string) => {
     setText(value);
     voice.clearNote();
-    if (mentions) setMenu(menuFor(value, mentions.crew));
-  };
-
-  // An "@" typed before the crew has loaded opens the menu once it arrives.
-  const crewCount = mentions?.crew.length ?? 0;
-  useEffect(() => {
-    if (crewCount && mentions) setMenu((open) => open ?? menuFor(text, mentions.crew));
-  }, [crewCount]); // only on the crew's arrival, not on every keystroke
-
-  const invite = () => {
-    setMenu(null);
-    setText((now) => now.replace(/(^|\s)@[a-z0-9-]*$/, "$1"));
-    mentions!.onInvite!();
-  };
-
-  const pick = (who: Identity) => {
-    setMenu(null);
-    setText((now) => now.replace(/(^|\s)@[a-z0-9-]*$/, `$1@${who.handle} `));
-    textRef.current?.focus();
-    mentions!.onPick?.(who);
+    mention.changed(value);
   };
 
   const keyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (menu) {
-      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        event.preventDefault();
-        const n = menu.shown.length + (mentions?.onInvite ? 1 : 0);
-        setMenu({ ...menu, active: (menu.active + (event.key === "ArrowDown" ? 1 : -1) + n) % n });
-        return;
-      }
-      if (event.key === "Enter" && !event.nativeEvent.isComposing) {
-        event.preventDefault();
-        if (menu.active >= menu.shown.length) invite();
-        else pick(menu.shown[menu.active]!);
-        return;
-      }
-      if (event.key === "Escape") {
-        setMenu(null);
-        return;
-      }
-    }
+    if (mention.keyDown(event)) return;
     if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && enterSends()) {
       event.preventDefault();
       event.currentTarget.form?.requestSubmit();
@@ -118,38 +74,7 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
 
   return (
     <div className="compose">
-      {mentions ? (
-        <div id="picker" className="pop" hidden={!menu}>
-          <ul id="agents" className="agents" role="list" aria-label="Agents">
-            {(menu?.shown ?? []).map((who, i) => (
-              <li key={who.handle} role="presentation">
-                <button className="agentbtn" type="button" tabIndex={-1} aria-selected={i === menu!.active} onClick={() => pick(who)} onMouseDown={keepFocus}>
-                  <span className={`ava p${paletteOf(who.handle)}`} aria-hidden="true" data-l={initials(who.handle)} />
-                  <span className="who">
-                    <span className="handle" aria-label={`@${who.handle}`}>
-                      {who.handle}
-                    </span>
-                    <span className="name">{stripCf(who.display_name)}</span>
-                  </span>{" "}
-                  <TriageBadge handle={who.handle} />{" "}
-                  <span className={`state${who.online ? " on" : ""}`}>
-                    <i aria-hidden="true" />
-                    <span>{who.online ? "Online" : "Offline"}</span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          {mentions.onInvite ? (
-            <button className="agentbtn invite" type="button" role="option" tabIndex={-1} aria-selected={menu ? menu.active >= menu.shown.length : false} hidden={!menu} onClick={invite} onMouseDown={keepFocus}>
-              Invite a new agent…
-            </button>
-          ) : null}
-          <EmptyState id="picker-note" variant="compact" hidden={mentions.crew.length > 0}>
-            No agents yet. Connect a machine and add an agent first.
-          </EmptyState>
-        </div>
-      ) : null}
+      {mentions ? <MentionMenu mention={mention} crew={mentions.crew} invites={Boolean(mentions.onInvite)} /> : null}
       <AttachmentList attachments={attachments} />
       {voice.bar}
       <form
