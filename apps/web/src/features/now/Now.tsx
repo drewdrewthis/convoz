@@ -15,9 +15,17 @@ import { Unread, unreadRows } from "./Unread.tsx";
 import { useAskActions } from "./useAskActions.ts";
 import { useNow } from "./store.ts";
 
+interface NowProps {
+  /** Drawn in the desktop rail (proposal §1): no notes and no wordmark, and it polls on its own, since no Now page around it does. */
+  compact?: boolean;
+  /** The conversation open beside the rail: its items carry aria-current, as a rail row does. */
+  current?: number;
+}
+
 /** Now is /: what needs the owner. Open asks first (urgent, then the newest), then the ones the owner replied to and the agent has not answered, then the adds agents wait on and the machines waiting
- *  to connect; Snoozed, Answered today and Dismissed today fold away below. With nothing waiting, the wordmark, "All clear" and the folds are centred, in that order. */
-export function Now() {
+ *  to connect; Snoozed, Answered today and Dismissed today fold away below. With nothing waiting, the wordmark, "All clear" and the folds are centred, in that order.
+ *  The desktop rail draws the same list `compact`, beside the open conversation. */
+export function Now({ compact = false, current = 0 }: NowProps = {}) {
   const { fail } = useNotice();
   const load = useNow((s) => s.load);
   const now = useNow((s) => s.now);
@@ -32,11 +40,12 @@ export function Now() {
     (async () => {
       setMe(await data.loadMe());
       // The passkey count only shapes a hint: with no link it is left out, and Now still shows what the device kept.
-      const passkeys = await call(client.GET("/api/me/passkeys")).then((r) => r.passkeys, () => null);
+      const passkeys = compact ? null : await call(client.GET("/api/me/passkeys")).then((r) => r.passkeys, () => null);
       if (passkeys) setOnePasskey(passkeys.length === 1);
       await load();
     })().catch((err) => fail(humanError(err)));
-  }, [load, fail]);
+  }, [load, fail, compact]);
+  useEffect(() => (compact ? useNow.getState().start() : undefined), [compact]);
 
   const conversations = useData((s) => s.conversations);
   const mine = useData((s) => s.me?.identity.handle);
@@ -48,8 +57,9 @@ export function Now() {
   const unread = useMemo(() => unreadRows(conversations), [conversations]);
 
   useEffect(() => {
-    if (now) markUseful();
-  }, [now]);
+    // The rail's list is not what the page came for.
+    if (now && !compact) markUseful();
+  }, [now, compact]);
 
   const pending = now?.machine_requests ?? null;
   const plain = (pending ?? []).filter((m) => !m.identity);
@@ -97,7 +107,7 @@ export function Now() {
 
   return (
     <>
-      <div id="notes">
+      <div id="notes" hidden={compact}>
         {me?.recovery?.hold_until ? (
           <p className="banner" role="status">{`You signed in with a recovery code. Codes left: ${me.recovery.codes_left}. Some actions are paused for 24 hours.`}</p>
         ) : null}
@@ -108,7 +118,7 @@ export function Now() {
           </div>
         ) : null}
       </div>
-      <AllClear hidden={!clear} />
+      <AllClear hidden={!clear} compact={compact} />
       {now && !some && unread.length ? <NoDecisions /> : null}
       <Folds
         snoozed={now?.snoozed ?? []}
@@ -123,7 +133,9 @@ export function Now() {
       {asks.length ? (
         <section id="asks" className="mb-8 flex flex-col gap-8" onKeyDown={moveFocus}>
           {asks.map((ask) => (
-            <NowAsk key={ask.id} ask={ask} busy={busy.has(ask.id)} presets={presets} answer={answer} dismiss={dismiss} snooze={snooze} />
+            <div key={ask.id} className="flex flex-col gap-8" data-conv={ask.conversation_id} aria-current={ask.conversation_id === current ? "page" : undefined}>
+              <NowAsk ask={ask} busy={busy.has(ask.id)} presets={presets} answer={answer} dismiss={dismiss} snooze={snooze} />
+            </div>
           ))}
         </section>
       ) : null}
@@ -163,7 +175,7 @@ export function Now() {
           ))}
         </div>
       </section>
-      {unread.length ? <Unread rows={unread} me={mine ?? ""} /> : null}
+      {unread.length ? <Unread rows={unread} me={mine ?? ""} current={current} /> : null}
     </>
   );
 }
