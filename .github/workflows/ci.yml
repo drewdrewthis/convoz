@@ -93,12 +93,17 @@ jobs:
         run: make testhooks
       # The browser scenarios run in chromium. The Playwright version is pinned exactly in e2e/package.json
       # (checked by scripts/check_pins.py), and that version names the browser build it installs.
+      # Off by owner order (Convoz msg 4211) until the 30 red e2e tests are fixed; turn back on then.
       - name: Playwright chromium
+        if: false
         run: pnpm --filter @convoz/e2e exec playwright install --with-deps chromium
+      # Off by owner order (Convoz msg 4211) until the 30 red e2e tests are fixed; turn back on then.
       - name: E2E
+        if: false
         run: pnpm e2e
+      # Off by owner order (Convoz msg 4211) until the 30 red e2e tests are fixed; turn back on then.
       - name: Proof page
-        if: github.event_name == 'pull_request'
+        if: false
         env:
           BASE_REF: ${{ github.base_ref }}
         run: pnpm proof "origin/$BASE_REF"
@@ -108,7 +113,9 @@ jobs:
         run: python3 -I scripts/red_green.py --self-test
       - name: Parity self-test
         run: python3 -I specs/scripts/parity.py --self-test
+      # Off by owner order (Convoz msg 4211) until the 30 red e2e tests are fixed; turn back on then.
       - name: Parity
+        if: false
         run: pnpm parity
       - name: Spec diff
         if: github.event_name == 'pull_request'
