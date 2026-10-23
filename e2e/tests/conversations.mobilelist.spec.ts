@@ -59,6 +59,16 @@ scenario("On a phone the Conversations list keeps each row on one line and the l
   expect(rights.length).toBeGreaterThan(3);
   expect(new Set(rights).size).toBe(1);
 
+  // And a row without a fold keeps its link across the empty fold column and its count on the same right edge
+  const plain = page.locator("#chats li").filter({ has: page.getByRole("heading", { name: "Docs search" }) });
+  await expect(plain.locator(".thrfold")).toHaveCount(0);
+  const li = await box(plain);
+  const link = await box(plain.locator("a.chatrow"));
+  const grab = (await plain.locator(".listgrab").count()) ? await box(plain.locator(".listgrab")) : { width: 0 };
+  expect(link.x + link.width).toBeGreaterThanOrEqual(li.x + li.width - grab.width - 2);
+  const countRight = (loc: typeof row) => loc.locator("a.chatrow .count").evaluate((e) => e.getBoundingClientRect().right);
+  expect(Math.abs((await countRight(plain)) - (await countRight(row)))).toBeLessThanOrEqual(1);
+
   // When the owner scrolls to the end of the list
   await page.locator("main").evaluate((m) => m.scrollTo(0, m.scrollHeight));
   await info.attach("list, end (390x844)", { body: await page.screenshot(), contentType: "image/png" });
