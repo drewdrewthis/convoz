@@ -48,6 +48,17 @@ Feature: Pins, stars and mute
       When the owner unpins it
       Then "Pinned in this conversation" no longer lists it
 
+  Rule: A message link opens that message
+
+    @v1 @browser
+    Scenario: Copy link puts the message link on the clipboard and the link opens that message
+      Given "devtool" posted "Runbook: https://docs.acme.dev/runbooks/deploy-alerts" in conversation 52, then 40 later messages followed
+      When the owner opens the message actions of that message and taps "Copy link"
+      Then a toast says "Link copied"
+      And the clipboard holds "/chats/52#m" and the id of that message
+      When the owner opens that link
+      Then conversation 52 opens scrolled to that message with it highlighted
+
   Rule: Mute silences pushes but not Now
 
     @v1 @browser
