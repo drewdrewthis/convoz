@@ -35,11 +35,20 @@ Feature: Plans (contracts)
   Rule: The nudge follows the server clock
 
     @v1 @api
-    Scenario: Nudges come once per 2 hours and stop at 3
-      Given "devtool" planned Doing "Building invites" with eta "30m"
-      When the server clock passes the eta and "devtool" claims and acks its status_due item each time
-      Then "devtool" gets status_due items 0, 2 and 4 hours after the eta, and none at 6 hours
-      And a new plan starts the count again
+    Scenario: Nudges come 15 minutes after the last update, then once per hour, and stop at 3
+      Given "devtool" planned Doing "Building invites" with no eta
+      When the server clock moves on and "devtool" claims and acks its status_due item each time
+      Then "devtool" gets no status_due item at 14 minutes, one at 16 minutes, none at 46 minutes, one at 1 hour, one at 2 hours and none at 3 hours after the first
+      And agent_streak of the conversation is unchanged
+      And a new plan starts the count again: none after 14 minutes, one after 16 minutes
+
+    @v1 @api
+    Scenario: A plan that is blocked or waits on the owner is not nudged
+      Given "devtool" planned Doing "Building invites" and Waiting on you "Approve the deploy"
+      When 3 hours pass
+      Then "devtool" gets no status_due item
+      When "devtool" plans Doing "Building invites" and Blocked "CI is down" and 3 hours pass
+      Then "devtool" gets no status_due item
 
   Rule: An agent with a message waiting 10 minutes and no live watch is not responding
 
