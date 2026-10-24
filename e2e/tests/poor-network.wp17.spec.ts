@@ -1,4 +1,5 @@
 import { brotliCompressSync, constants } from "node:zlib";
+import type { Route } from "@playwright/test";
 import { chatsHeading, composer, message, messageLog, sendButton } from "../lib/chat-ui.ts";
 import { createConversation, messagesOf, ownerSays } from "../lib/chat.ts";
 import { seedMessages } from "../lib/event.ts";
@@ -186,6 +187,43 @@ scenario("Only a revoking 401 clears the offline cache", { tag: ["@browser"] }, 
     }
     await page.unroute("**/api/**");
   }
+});
+
+scenario("A conversation opens from the offline copy before the server answers", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(120_000);
+  // Given the installed app has cached conversation 41 with 5 messages
+  const u = await world({ server, page, context });
+  const conv = await createConversation(u.w.owner, { participants: ["devtool"], title: SHIP });
+  await seedMessages(u.w.srv, conv, 4);
+  await ownerSays(u.w.owner, conv, "the newest before the hold");
+  await page.goto(`${u.w.srv.origin}/chats/${conv}`);
+  await expect(message(page, "the newest before the hold")).toBeVisible();
+  await installed(page);
+  await cachedMessages(page, conv, 5);
+  await expect.poll(async () => (await stored(page))?.conversations ?? 0).toBeGreaterThanOrEqual(1);
+  // a fresh page: what it holds of the conversation's messages can only come from IndexedDB
+  await page.goto(`${u.w.srv.origin}/chats`);
+  await expect(chatsHeading(page)).toBeVisible();
+
+  // When the server holds its answers to /api/me, /api/identities and conversation 41 and the owner opens conversation 41
+  const held: Route[] = [];
+  const holds = (url: URL) =>
+    ["/api/me", "/api/identities", `/api/conversations/${conv}`].includes(url.pathname) || url.pathname.startsWith(`/api/conversations/${conv}/messages`);
+  await page.route(holds, (route) => void held.push(route));
+  await page.getByRole("heading", { name: SHIP }).click();
+
+  // Then the last message shows within 3 seconds
+  await expect(message(page, "the newest before the hold")).toBeVisible({ timeout: 3_000 });
+  expect(held.map((r) => new URL(r.request().url()).pathname)).toContain(`/api/conversations/${conv}`);
+
+  // And the page stays the same once the server answers
+  const answered = page.waitForResponse((r) => new URL(r.url()).pathname.startsWith(`/api/conversations/${conv}/messages`));
+  for (const route of held) await route.continue();
+  await page.unroute(holds);
+  await answered;
+  await expect(message(page, "the newest before the hold")).toBeVisible();
+  await expect(composer(page)).toBeVisible();
+  await expect(page.getByText("This conversation does not exist")).toHaveCount(0);
 });
 
 scenario("The offline shell opens with the cached rail and Now", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
