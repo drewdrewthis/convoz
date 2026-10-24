@@ -226,6 +226,52 @@ scenario("A conversation opens from the offline copy before the server answers",
   await expect(page.getByText("This conversation does not exist")).toHaveCount(0);
 });
 
+scenario("The conversation list is read from the network once per page load", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(120_000);
+  // Given the installed app has cached conversation 41
+  const u = await world({ server, page, context });
+  await createConversation(u.w.owner, { participants: ["devtool"], title: SHIP });
+  await page.goto(`${u.w.srv.origin}/chats`);
+  await expect(chatsHeading(page)).toBeVisible();
+  await installed(page);
+  await page.waitForFunction(() => performance.getEntriesByName("kept-offline").length > 0, undefined, { timeout: 30_000 });
+  await expect.poll(async () => (await stored(page))?.conversations ?? 0).toBeGreaterThanOrEqual(1);
+
+  const rows = [
+    { start: "normally", failFirst: false, asked: 1, answered: 1 },
+    { start: "and its first list read fails (disk copy only)", failFirst: true, asked: 2, answered: 1 },
+  ];
+  const isList = (url: URL) => url.pathname === "/api/conversations";
+  for (const row of rows) {
+    // When the owner opens the conversation list <start>
+    const asked: string[] = [];
+    const answered: string[] = [];
+    const onRequest = (r: import("@playwright/test").Request) => void (isList(new URL(r.url())) && r.method() === "GET" && asked.push(r.url()));
+    const onResponse = (r: import("@playwright/test").Response) => void (isList(new URL(r.url())) && r.request().method() === "GET" && answered.push(r.url()));
+    page.on("request", onRequest);
+    page.on("response", onResponse);
+    let failed = !row.failFirst;
+    await page.route(isList, (route) => {
+      if (failed) return route.continue();
+      failed = true;
+      return route.abort("internetdisconnected");
+    });
+    await page.goto(`${u.w.srv.origin}/chats`);
+    await expect(page.getByRole("heading", { name: SHIP }), row.start).toBeVisible({ timeout: 20_000 });
+
+    // And the app has saved its offline copy
+    await page.waitForFunction(() => performance.getEntriesByName("kept-offline").length > 0, undefined, { timeout: 30_000 });
+    await page.waitForTimeout(500); // a read the page starts after the mark would be a late second load: let it show
+
+    // Then the app asked the server for the conversation list <asked> times and got <answered> answer
+    expect(asked.length, `${row.start}: list requests`).toBe(row.asked);
+    expect(answered.length, `${row.start}: list answers`).toBe(row.answered);
+    page.off("request", onRequest);
+    page.off("response", onResponse);
+    await page.unroute(isList);
+  }
+});
+
 scenario("The offline shell opens with the cached rail and Now", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
   info.setTimeout(240_000);
   // Given the installed app synced the 20 most recent conversations
