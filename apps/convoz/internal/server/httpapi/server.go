@@ -28,6 +28,9 @@ type Config struct {
 	Unix       bool   // the public listener is the unix socket behind `tailscale serve`
 	Version    string
 
+	// ExtensionOrigin is the one extra exact Origin (a Chrome extension) allowed to write; empty means none.
+	ExtensionOrigin string
+
 	// TailscaleBin is the tailscale command; TailscaleOn says whether to ask it who a source address is.
 	// Node identity comes from `tailscale whois`; it is shown to the owner and never trusted as a login.
 	TailscaleBin string

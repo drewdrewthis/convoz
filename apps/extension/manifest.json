@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Convoz",
+  "version": "0.1.0",
+  "description": "Send the page you are on to an agent in Convoz.",
+  "minimum_chrome_version": "116",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyfK+2X7MZ2icdx74t9Ddb6sGBXtN7ktM1ToaNNkXaX9yhnUX8CC6NVv7qlTT01EX4uAEy3l07HpSghte3pBAhH/BW7TjREMoppd+T6SoV2xhj4ogvY4cgDytQmR6nZrHPIlHO3ttvPbOQLOYmWu7ytioXQZEXvKDnpfE3ZGB/YA28QY4MYWLrAH5Xh4MucMiz1i01c+Txgz+k6G5fy/jiXCm1FkNSJwZKzZ9cpgkZZSl7cd4GI7xQu7VxhiTnps3ubp+FujwfnmiR14BznGTse9kkcFpb66CZWKGn7CyG8y1anxNo1HnDn8LbP5ay2/bUZDxcmY6Jfkvof6OxT6bswIDAQAB",
+  "permissions": ["sidePanel", "activeTab", "scripting", "storage"],
+  "optional_host_permissions": ["https://*/*", "http://localhost/*"],
+  "background": { "service_worker": "background.js" },
+  "side_panel": { "default_path": "sidepanel.html" },
+  "action": { "default_title": "Send this page to Convoz" }
+}

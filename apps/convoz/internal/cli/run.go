@@ -35,7 +35,7 @@ type stringList []string
 func (l *stringList) String() string     { return strings.Join(*l, " ") }
 func (l *stringList) Set(v string) error { *l = append(*l, v); return nil }
 
-// Run runs `convoz run --as H [--workdir D] [--budget USD] [--fresh-after N] [--item-timeout D] [--owner-lane=false] [--owner-lane-timeout D] [-- cmd args...]`:
+// Run runs `convoz run --as H [--workdir D] [--budget USD] [--fresh-after N] [--item-timeout D] [-- cmd args...]`:
 // it serves the agent's inbox with one short-lived process per item, so the agent needs no terminal open.
 //
 // With `-- cmd args` the command runs once per item: the item as JSON on stdin; CONVOZ_SID (the runner's session, so the command's
@@ -61,8 +61,6 @@ func Run(args []string, io IO) int {
 	budget := f.fs.String("budget", "2.00", "Claude mode: the most one item may spend, in dollars (a first turn alone costs about $0.40)")
 	freshAfter := f.fs.Int("fresh-after", 20, "Claude mode: start a new session, with a summary of the old one, after this many items")
 	itemTimeout := f.fs.Duration("item-timeout", 10*time.Minute, "kill an item's command after this long")
-	ownerLane := f.fs.Bool("owner-lane", true, "start an item written by the owner at once, in a second call, while a long item runs")
-	laneTimeout := f.fs.Duration("owner-lane-timeout", 10*time.Minute, "kill the owner lane's call after this long")
 	if pos, ok := f.parse(own, io); !ok {
 		return ExitUsage
 	} else if len(pos) != 0 || *f.as == "" {
@@ -93,14 +91,10 @@ func Run(args []string, io IO) int {
 		return code
 	}
 	statePath := filepath.Join(dir, runDir, handle+".json")
-	r := &runner{k: k, io: runIO, handle: handle, cmd: cmd, workdir: *workdir, timeout: *itemTimeout, laneTimeout: *laneTimeout, budget: *budget, freshAfter: *freshAfter,
+	r := &runner{k: k, io: runIO, handle: handle, cmd: cmd, workdir: *workdir, timeout: *itemTimeout, budget: *budget, freshAfter: *freshAfter,
 		statePath: statePath, st: loadRunState(statePath)}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if *ownerLane {
-		r.lane = newOwnerLane(r.claimExtra, r.serveLane)
-		go r.lane.run(ctx, laneEvery)
-	}
 	code = r.loop(ctx)
 	if ctx.Err() != nil { // asked to stop: end the session so its claims go back and the server lock opens
 		_ = endSession(dir, k.c, k.sid)
@@ -130,9 +124,6 @@ type runner struct {
 	statePath  string
 	st         *runState
 	lastErr    string // the last stderr line of the last failed command
-
-	laneTimeout time.Duration
-	lane        *ownerLane // nil: the owner lane is off
 }
 
 // loop polls the inbox for ever and serves one item at a time, in order.
@@ -143,7 +134,7 @@ func (r *runner) loop(ctx context.Context) int {
 		if first {
 			hold = 0 // answers at once, so a refusal (409) is known before "serving" is said
 		}
-		items, err := r.poll(ctx, hold, 1+r.lane.count())
+		items, err := r.poll(ctx, hold)
 		switch {
 		case ctx.Err() != nil:
 			return ExitOK
@@ -164,25 +155,11 @@ func (r *runner) loop(ctx context.Context) int {
 			first = false
 			fmt.Fprintf(r.io.Stdout, "convoz run: serving @%s (pid %d)\n", r.handle, os.Getpid())
 		}
-		if it, ok := r.next(items); ok {
-			r.lane.setBusy(true)
-			r.serve(ctx, it) // the rest stay held and come back on the next poll
-			r.lane.setBusy(false)
-		} else if len(items) > 0 {
-			sleepCtx(ctx, laneEvery) // only the lane's items are held: a poll would answer at once
+		if len(items) > 0 {
+			r.serve(ctx, items[0]) // the rest stay held and come back on the next poll
 		}
 	}
 	return ExitOK
-}
-
-// next is the first item the owner lane does not have.
-func (r *runner) next(items []wire.InboxItem) (wire.InboxItem, bool) {
-	for _, it := range items {
-		if !r.lane.owns(it.ID) {
-			return it, true
-		}
-	}
-	return wire.InboxItem{}, false
 }
 
 // heldElsewhere prints the server's refusal of a poll because another runner or watch holds the agent, and says it was one.
@@ -195,8 +172,8 @@ func heldElsewhere(io IO, err error) (int, bool) {
 }
 
 // poll claims at most one item (the held one first, so a failed item comes back) and says it is a runner polling.
-func (r *runner) poll(ctx context.Context, hold, n int) ([]wire.InboxItem, error) {
-	q := url.Values{"wait": {strconv.Itoa(hold)}, "claim": {strconv.Itoa(n)}, "runner": {"1"}}
+func (r *runner) poll(ctx context.Context, hold int) ([]wire.InboxItem, error) {
+	q := url.Values{"wait": {strconv.Itoa(hold)}, "claim": {"1"}, "runner": {"1"}}
 	var out wire.InboxResponse
 	err := r.k.c.withTimeout((wire.MaxHoldSeconds+15)*time.Second).call(ctx, "GET", wire.RouteInbox+"?"+q.Encode(), r.k.lease, nil, &out)
 	return out.Items, err
@@ -216,7 +193,7 @@ func (r *runner) serve(ctx context.Context, it wire.InboxItem) {
 	case ctx.Err() != nil:
 		return
 	case err == nil:
-		r.st.update(func(s *runState) { s.Items++ })
+		r.st.Items++
 		r.finish(ctx, it, key)
 		return
 	}
@@ -228,7 +205,7 @@ func (r *runner) serve(ctx context.Context, it wire.InboxItem) {
 		return
 	}
 	if !r.answered(ctx, it) {
-		r.tell(ctx, it, r.lastErr)
+		r.tell(ctx, it)
 	}
 	r.finish(ctx, it, key)
 }
@@ -282,7 +259,7 @@ func (r *runner) answered(ctx context.Context, it wire.InboxItem) bool {
 }
 
 // tell says in the item's thread that the command failed. The client id is the claim's, so a retry stores the notice once.
-func (r *runner) tell(ctx context.Context, it wire.InboxItem, last string) {
+func (r *runner) tell(ctx context.Context, it wire.InboxItem) {
 	if it.Conversation.ID == 0 {
 		return
 	}
@@ -290,6 +267,7 @@ func (r *runner) tell(ctx context.Context, it wire.InboxItem, last string) {
 	if len(r.cmd) > 0 {
 		name = filepath.Base(r.cmd[0])
 	}
+	last := r.lastErr
 	if len(last) > 200 {
 		last = last[:200]
 	}
@@ -309,10 +287,12 @@ func (r *runner) runItem(ctx context.Context, it wire.InboxItem) error {
 	go r.heartbeat(cctx)
 	var c *exec.Cmd
 	if len(r.cmd) > 0 {
-		var err error
-		if c, err = r.commandFor(it); err != nil {
+		raw, err := json.Marshal(it)
+		if err != nil {
 			return err
 		}
+		c = exec.Command(r.cmd[0], r.cmd[1:]...)
+		c.Stdin = bytes.NewReader(raw)
 	} else {
 		call := r.nextClaudeCall(cctx, it)
 		c = exec.Command("claude", call.args()...)
@@ -331,19 +311,8 @@ func (r *runner) runItem(ctx context.Context, it wire.InboxItem) error {
 		}
 		return err
 	}
-	r.st.update(func(s *runState) { s.Summary = "" }) // the new session got it
+	r.st.Summary = "" // the new session got it
 	return nil
-}
-
-// commandFor is the user's command for an item, with the item as JSON on stdin.
-func (r *runner) commandFor(it wire.InboxItem) (*exec.Cmd, error) {
-	raw, err := json.Marshal(it)
-	if err != nil {
-		return nil, err
-	}
-	c := exec.Command(r.cmd[0], r.cmd[1:]...)
-	c.Stdin = bytes.NewReader(raw)
-	return c, nil
 }
 
 func optID(id int64) string {
@@ -419,7 +388,7 @@ func (r *runner) nextClaudeCall(ctx context.Context, it wire.InboxItem) claudeCa
 		r.rotate(ctx)
 	}
 	if r.st.SessionID == "" {
-		r.st.update(func(s *runState) { s.SessionID, s.Items = newSessionID(), 0 })
+		r.st.SessionID, r.st.Items = newSessionID(), 0
 		r.save()
 	}
 	call := claudeCall{Budget: r.budget, Session: r.st.SessionID, Resume: transcriptExists(r.io.Getenv, r.st.SessionID)}
@@ -449,7 +418,7 @@ func (r *runner) rotate(ctx context.Context) {
 			fmt.Fprintf(r.io.Stderr, "convoz run: handoff note: %s\n", err)
 		}
 	}
-	r.st.update(func(s *runState) { s.SessionID, s.Items, s.Summary = "", 0, summary })
+	r.st.SessionID, r.st.Items, r.st.Summary = "", 0, summary
 	r.save()
 }
 
