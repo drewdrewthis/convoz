@@ -58,12 +58,15 @@ Feature: Poor connections (contracts)
       Given the installed app has cached conversation 41
       When the owner opens the conversation list <start>
       And the app has saved its offline copy
-      Then the app asked the server for the conversation list <asked> times and got <answered> answer
+      Then the app asked the server for the conversation list <asked> times and got <answered> answers (1+ is at least once)
 
       Examples:
         | start                                           | asked | answered |
         | normally                                        | 1     | 1        |
         | and its first list read fails (disk copy only)  | 2     | 1        |
+        | again after opening a conversation              | 1     | 1        |
+        | again from the back-forward cache               | 1+    | 1+       |
+        | with a page show that is not a return           | 0     | 0        |
 
     @v1 @browser
     Scenario: A conversation opens from the offline copy before the server answers

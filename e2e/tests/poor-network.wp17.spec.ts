@@ -237,13 +237,26 @@ scenario("The conversation list is read from the network once per page load", { 
   await page.waitForFunction(() => performance.getEntriesByName("kept-offline").length > 0, undefined, { timeout: 30_000 });
   await expect.poll(async () => (await stored(page))?.conversations ?? 0).toBeGreaterThanOrEqual(1);
 
+  const conv = Number(new URL(await page.getByRole("link", { name: new RegExp(SHIP) }).first().getAttribute("href") ?? "", u.w.srv.origin).pathname.split("/").pop());
+  // load: a page load of /chats; back: from a conversation back to the list in the same page; restore / show: a pageshow that is a
+  // bfcache return (persisted) or not
   const rows = [
-    { start: "normally", failFirst: false, asked: 1, answered: 1 },
-    { start: "and its first list read fails (disk copy only)", failFirst: true, asked: 2, answered: 1 },
+    { start: "normally", how: "load", failFirst: false, asked: 1, answered: 1, atLeast: false },
+    { start: "and its first list read fails (disk copy only)", how: "load", failFirst: true, asked: 2, answered: 1 },
+    { start: "again after opening a conversation", how: "back", failFirst: false, asked: 1, answered: 1 },
+    // a return wakes the rail and the list (each resumes on its own), so it can take one queued read more: it must read, at least once
+    { start: "again from the back-forward cache", how: "restore", failFirst: false, asked: 1, answered: 1, atLeast: true },
+    { start: "with a page show that is not a return", how: "show", failFirst: false, asked: 0, answered: 0 },
   ];
   const isList = (url: URL) => url.pathname === "/api/conversations";
   for (const row of rows) {
     // When the owner opens the conversation list <start>
+    if (row.how === "back") {
+      await page.getByRole("link", { name: new RegExp(SHIP) }).first().click();
+      await expect(page).toHaveURL(new RegExp(`/chats/${conv}$`));
+      await expect(composer(page)).toBeVisible();
+      await page.waitForTimeout(2_500); // past the 2 s a screen that mounts may reuse the list for: going back must read again
+    }
     const asked: string[] = [];
     const answered: string[] = [];
     const onRequest = (r: import("@playwright/test").Request) => void (isList(new URL(r.url())) && r.method() === "GET" && asked.push(r.url()));
@@ -256,16 +269,28 @@ scenario("The conversation list is read from the network once per page load", { 
       failed = true;
       return route.abort("internetdisconnected");
     });
-    await page.goto(`${u.w.srv.origin}/chats`);
+    if (row.how === "load") {
+      await page.goto(`${u.w.srv.origin}/chats`);
+    } else if (row.how === "back") {
+      await page.goBack();
+      await expect(page).toHaveURL(/\/chats$/);
+    } else {
+      await page.evaluate((persisted) => dispatchEvent(new PageTransitionEvent("pageshow", { persisted })), row.how === "restore");
+    }
     await expect(page.getByRole("heading", { name: SHIP }), row.start).toBeVisible({ timeout: 20_000 });
 
     // And the app has saved its offline copy
     await page.waitForFunction(() => performance.getEntriesByName("kept-offline").length > 0, undefined, { timeout: 30_000 });
-    await page.waitForTimeout(500); // a read the page starts after the mark would be a late second load: let it show
+    await page.waitForTimeout(row.how === "load" ? 500 : 1_500); // a read the page starts late would be a second one: let it show
 
-    // Then the app asked the server for the conversation list <asked> times and got <answered> answer
-    expect(asked.length, `${row.start}: list requests`).toBe(row.asked);
-    expect(answered.length, `${row.start}: list answers`).toBe(row.answered);
+    // Then the app asked the server for the conversation list <asked> times and got <answered> answers (1+ is at least once)
+    if (row.atLeast) {
+      expect(asked.length, `${row.start}: list requests`).toBeGreaterThanOrEqual(row.asked);
+      expect(answered.length, `${row.start}: list answers`).toBeGreaterThanOrEqual(row.answered);
+    } else {
+      expect(asked.length, `${row.start}: list requests`).toBe(row.asked);
+      expect(answered.length, `${row.start}: list answers`).toBe(row.answered);
+    }
     page.off("request", onRequest);
     page.off("response", onResponse);
     await page.unroute(isList);
