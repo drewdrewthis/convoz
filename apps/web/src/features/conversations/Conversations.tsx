@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { humanError } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { markUseful } from "../../shared/perf.ts";
-import { data, useData, useLive } from "../../shared/data.ts";
+import { data, loadListOnMount, useData, useLive } from "../../shared/data.ts";
 import { ChevronIcon, groups, moveRow, setMute, setStar, stepRow, titleOf, type Drop } from "../rail/index.ts";
 import { toast } from "../pins-stars/index.ts";
 import { markAllRead } from "./actions.ts";
@@ -30,7 +30,7 @@ export function Conversations() {
   useEffect(() => {
     data
       .loadMe()
-      .then(() => data.loadConversations())
+      .then(() => loadListOnMount())
       .catch((err) => fail((err && err.message) || "Something went wrong. Try again."));
   }, [fail]);
 

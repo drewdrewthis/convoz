@@ -5,7 +5,7 @@ import type { Conversation } from "@convoz/api-client";
 import { Fragment, useCallback, useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { humanError } from "../../shared/api.ts";
 import { visit } from "../../shared/navigate.ts";
-import { data, useData, useLive } from "../../shared/data.ts";
+import { data, loadListOnMount, useData, useLive } from "../../shared/data.ts";
 import { Now, openCount, useNow } from "../now/index.ts";
 import { toast } from "../pins-stars/index.ts";
 import { useSearchUi } from "../search/index.ts";
@@ -46,7 +46,7 @@ export default function Sidebar() {
   const setMode = useRailMode((s) => s.set);
   useLive(() => void data.loadConversations().catch(() => {}));
   useEffect(() => {
-    Promise.all([data.loadMe(), data.loadConversations(), data.loadIdentities()]).catch(() => {});
+    Promise.all([data.loadMe(), loadListOnMount(), data.loadIdentities()]).catch(() => {});
   }, []);
   const g = useMemo(() => groups(list ?? []), [list]);
 
