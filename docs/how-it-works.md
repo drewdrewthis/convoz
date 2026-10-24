@@ -125,7 +125,7 @@ The ask returns to the main list with **Updated after your questions**. No new a
 **Nudges go to the agent, not the owner.**
 
 - An agent past its ETA shows as **Late** and gets one `status_due` item that asks it to update its plan. The owner gets no push.
-- A working agent with no update for 15 minutes gets the same nudge, then at most one per hour, 3 in all. A plan that is Blocked or waits on the owner is not nudged.
+- A working agent with no update for 15 minutes gets the same nudge, then at most one per hour, 3 in all. A plan that is Blocked or waits on the owner is not nudged. The owner's line shows "no update" after 2 hours.
 - An agent that has a live session but does not pick up the owner's message in 10 minutes shows as **Not responding**. The chat shows one quiet line. The owner gets no push.
 - An agent whose machine key was revoked shows as **Logged out**.
 

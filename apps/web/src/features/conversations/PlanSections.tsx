@@ -109,7 +109,7 @@ function stateOf(plan: Plan | undefined, agent: PlanAgent | undefined, now: numb
   const sub = `updated ${ago(plan.updated_at, now)}`;
   if (plan.blocked) return { word: "Blocked", tone: "red", sub };
   if (plan.doing && plan.eta && now >= plan.eta) return { word: "Late", tone: "amber", sub };
-  if (plan.doing && !plan.eta && plan.due_at && now >= plan.due_at) return { word: "No update", tone: "amber", sub: "no update for 15 min" };
+  if (plan.doing && !plan.eta && plan.due_at && now >= plan.due_at) return { word: "No update", tone: "amber", sub: "no update for 2 h" };
   if (plan.doing) return { word: "Working", tone: "green", sub };
   if (plan.waiting.length) return { word: "Waiting on you", tone: "amber", sub };
   return { word: "Done", tone: "grey", sub };

@@ -38,8 +38,11 @@ const (
 
 // Timing of the nudge and of the liveness rule. Every one follows the server clock, so the tests move it.
 const (
-	// StaleAfter is how long a plan with a Doing and no estimate may go without an update before it counts as overdue.
-	StaleAfter = 15 * time.Minute
+	// StaleAfter is how long a plan with a Doing and no estimate may go without an update before the owner's line turns "no update".
+	StaleAfter = 2 * time.Hour
+	// NudgeAfter is how long a plan with a Doing and no estimate may go without an update before its agent is nudged; the owner's
+	// line turns stale only at StaleAfter.
+	NudgeAfter = 15 * time.Minute
 	// NudgeEvery is the gap between two nudges of one miss.
 	NudgeEvery = time.Hour
 	// MaxNudges caps the nudges of one miss.
@@ -422,13 +425,27 @@ func (p Plan) Overdue(anchor, now int64) string {
 	return state
 }
 
-// NudgeDue reports whether the agent should be nudged now: the plan is overdue, it does not wait on the owner, fewer than MaxNudges
-// went out for this miss, and the last one is NudgeEvery old. A miss is one anchor: a newer update starts the count again.
+// nudgeDue says whether one item calls for a nudge at now: late past its estimate with no update since, or with no estimate and
+// no update for NudgeAfter.
+func (it Item) nudgeDue(anchor, now int64) bool {
+	if it.ETA != 0 {
+		return now >= it.ETA && anchor < it.ETA
+	}
+	return now >= anchor+NudgeAfter.Milliseconds()
+}
+
+// NudgeDue reports whether the agent should be nudged now: an item is late or has had no update for NudgeAfter, the plan neither
+// waits on the owner nor is blocked, fewer than MaxNudges went out for this miss, and the last one is NudgeEvery old. A miss is one
+// anchor: a newer update starts the count again.
 func (p Plan) NudgeDue(anchor, now int64) bool {
-	if len(p.Waiting) > 0 {
+	if len(p.Waiting) > 0 || p.Blocked != "" {
 		return false
 	}
-	if p.Overdue(anchor, now) == "" {
+	due := false
+	for _, it := range p.Now {
+		due = due || it.nudgeDue(anchor, now)
+	}
+	if !due {
 		return false
 	}
 	if p.NudgeAnchor != anchor || p.Nudges == 0 {
