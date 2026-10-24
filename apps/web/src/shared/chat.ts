@@ -31,11 +31,15 @@ export function onResume(fn: () => void): () => void {
   const visible = () => {
     if (document.visibilityState === "visible") fn();
   };
-  addEventListener("pageshow", fn);
+  // a fresh load fires pageshow too; only a bfcache restore (persisted) is a return
+  const shown = (e: PageTransitionEvent) => {
+    if (e.persisted) fn();
+  };
+  addEventListener("pageshow", shown);
   addEventListener("online", fn);
   document.addEventListener("visibilitychange", visible);
   return () => {
-    removeEventListener("pageshow", fn);
+    removeEventListener("pageshow", shown);
     removeEventListener("online", fn);
     document.removeEventListener("visibilitychange", visible);
   };
