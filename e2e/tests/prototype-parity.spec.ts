@@ -94,8 +94,9 @@ scenario("On a phone the Conversations list matches the prototype", { tag: ["@br
   await page.goto(`${u.w.srv.origin}/chats`);
   await expect(page.getByRole("heading", { name: "Why did the nightly export get slower?" })).toBeVisible();
 
-  // Then it matches the prototype in light and in dark
-  await matchesBoth(page, "conversations");
+  // Then it matches the reviewed app frame in light and in dark: the owner had the phone list redone (conv 132 msg 3322), chevron and
+  // counts in a right column, a round "+"
+  await matchesBoth(page, "conversations", "app");
 });
 
 scenario("On a phone a conversation matches the prototype", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {
@@ -178,8 +179,8 @@ scenario("On a phone the rail matches the prototype", { tag: ["@browser", "@phon
   await page.goto(`${u.w.srv.origin}/chats`);
   await expect(page.getByRole("heading", { name: "Ops reports" })).toBeVisible();
 
-  // Then it matches the prototype in light and in dark
-  await matchesBoth(page, "rail");
+  // Then it matches the reviewed app frame in light and in dark (the phone list redone, conv 132 msg 3322)
+  await matchesBoth(page, "rail", "app");
 });
 
 scenario("On a phone Crew with agent status matches the prototype", { tag: ["@browser", "@phone"] }, async ({ server, page, context, dataDir }, info) => {

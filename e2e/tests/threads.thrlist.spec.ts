@@ -32,7 +32,9 @@ scenario("Each conversation lists its threads under it, and a thread opens from 
   await expect(row).toContainText("↳");
   const box = (await row.boundingBox())!;
   expect(box.height).toBeGreaterThanOrEqual(44);
-  expect(box.x).toBeGreaterThan((await convRow(page).boundingBox())!.x);
+  // the ↳ lines up under the title, so the indent is the thread's text, right of the title's left edge
+  const text = (await row.locator(".thrtext").boundingBox())!;
+  expect(text.x).toBeGreaterThan((await convRow(page).getByRole("heading").boundingBox())!.x);
 
   // When the owner taps the row of thread 900
   await row.click();

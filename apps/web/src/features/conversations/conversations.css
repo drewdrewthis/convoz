@@ -101,7 +101,7 @@
   /* Working turns, it does not blink (owner msg 2041): a blinking dot reads as a live connection. */
   .planicon .spin { box-sizing: border-box; width: 12px; height: 12px; border-radius: 999px; border: 2px solid color-mix(in srgb, currentColor 25%, transparent); border-top-color: currentColor; animation: pdotspin 0.9s linear infinite; }
   @media (prefers-reduced-motion: reduce) { .planicon .spin { animation: none; border-color: currentColor; } }
-  .chatrow .planicon + .count { margin-left: -6px; }
+  .chatrow .planicon + .count { margin-left: 4px; }
   /* The line keeps the header compact: its 44 px tap target overlaps the title's lower half instead of pushing the bar down. */
   .planline {
     display: inline-flex; align-items: center; justify-content: center; gap: 6px; max-width: 100%; min-height: 44px; margin: -12px 0 -14px;

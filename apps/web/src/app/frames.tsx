@@ -96,7 +96,7 @@ export function ShellFrame({ def, children }: { def: PageDef; children: ReactNod
         {def.newChat ? (
           <a className="fab" href="/chats/new">
             <PlusIcon />
-            New conversation
+            <span className="fablabel">New conversation</span>
           </a>
         ) : null}
       </div>
