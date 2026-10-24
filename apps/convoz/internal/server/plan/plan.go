@@ -39,9 +39,9 @@ const (
 // Timing of the nudge and of the liveness rule. Every one follows the server clock, so the tests move it.
 const (
 	// StaleAfter is how long a plan with a Doing and no estimate may go without an update before it counts as overdue.
-	StaleAfter = 2 * time.Hour
+	StaleAfter = 15 * time.Minute
 	// NudgeEvery is the gap between two nudges of one miss.
-	NudgeEvery = 2 * time.Hour
+	NudgeEvery = time.Hour
 	// MaxNudges caps the nudges of one miss.
 	MaxNudges = 3
 	// NotRespondingAfter is how long a message may wait for an agent with no live watch before it shows as not responding.
@@ -422,9 +422,12 @@ func (p Plan) Overdue(anchor, now int64) string {
 	return state
 }
 
-// NudgeDue reports whether the agent should be nudged now: the plan is overdue, fewer than MaxNudges went out for this miss, and the
-// last one is NudgeEvery old. A miss is one anchor: a newer update starts the count again.
+// NudgeDue reports whether the agent should be nudged now: the plan is overdue, it does not wait on the owner, fewer than MaxNudges
+// went out for this miss, and the last one is NudgeEvery old. A miss is one anchor: a newer update starts the count again.
 func (p Plan) NudgeDue(anchor, now int64) bool {
+	if len(p.Waiting) > 0 {
+		return false
+	}
 	if p.Overdue(anchor, now) == "" {
 		return false
 	}

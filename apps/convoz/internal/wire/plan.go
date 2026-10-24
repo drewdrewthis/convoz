@@ -73,7 +73,7 @@ type Plan struct {
 	Waiting    []PlanWaiting `json:"waiting"`
 	Done       []PlanDone    `json:"done"` // newest first, at most 20
 	UpdatedAt  int64         `json:"updated_at"`
-	// DueAt is when the plan turns overdue by its own clock: the ETA, or 2 h after the update for a Doing with no ETA.
+	// DueAt is when the plan turns overdue by its own clock: the ETA, or 15 min after the update for a Doing with no ETA.
 	DueAt int64 `json:"due_at,omitempty"`
 	// NudgedAt is when Convoz last asked the agent to update this plan; absent when it never did since the plan was written.
 	NudgedAt int64 `json:"nudged_at,omitempty"`

@@ -767,7 +767,7 @@ I know which conversations are active, and an agent that went quiet is noticed.
   - [Only something new that waits on the owner pushes](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L207)
 - **An agent that goes quiet is nudged, and the owner sees it without a push**
   - [A late agent is nudged once to update its plan, and the owner is not pushed](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L222)
-  - [A working agent with no update for 2 hours is nudged](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L236)
+  - [A working agent with no update for 15 minutes is nudged](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L236)
   - [An agent that does not pick up a message shows as not responding](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L243)
   - [An agent whose machine key was revoked shows as logged out](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L255)
 - **What an agent waits on the owner for shows in the conversation**

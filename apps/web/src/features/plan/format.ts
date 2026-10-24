@@ -60,7 +60,7 @@ function oneLine(a: PlanAttention, now: number): Look {
     case "late":
       return { text: `Late · was due ${when(a.eta ?? now, now)}`, tone: "amber" };
     case "stale":
-      return { text: `${a.text} · no update for 2 h`, tone: "grey" };
+      return { text: `${a.text} · no update for 15 min`, tone: "grey" };
     case "working":
       return { text: `Working · ${a.text}${a.eta ? ` · ready ~${when(a.eta, now)}` : ""}`, tone: "green" };
     case "next":
