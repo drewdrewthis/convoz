@@ -77,6 +77,8 @@ export const data: DataCache = createDataCache(readable);
 // network answers; the sync cursor is kept with it, so a warm start reads only the delta (design §9). The stored messages, the
 // largest read, wait until the first screen shows (Now and the list do not show them; a conversation page has no mark to wait for).
 const ready = startOfflineCache(data, offline(), { messagesAfter: afterFirstScreen() });
+/** offlineReady resolves once the IndexedDB copy is in the cache: a page draws from it at once and does not wait for the network. */
+export const offlineReady = (): Promise<unknown> => ready;
 export const sync = createSync(data, readable, { cursor: cursorStore(offline()) });
 /** The sends the server has not confirmed; they survive a closed page and go out again with the same client id. */
 export const outbox = idbOutbox(offline());
@@ -110,6 +112,15 @@ export function useLive(resume: () => void): void {
 const KEEP_CONVERSATIONS = 20;
 const KEEP_MESSAGES = 200;
 let kept = false;
+/** The open view's own reads; the offline copy waits for them so its ~40 requests never queue in front of them. */
+let viewReads: Promise<unknown> = Promise.resolve();
+/** The longest the offline copy waits for the open view's reads. */
+const VIEW_WAIT_MS = 2000;
+
+/** holdOfflineUntil makes keepForOffline start only after the open view's reads have settled (or 2 s have passed). */
+export function holdOfflineUntil(reads: Promise<unknown>): void {
+  viewReads = reads;
+}
 
 /**
  * keepForOffline reads who is signed in, the crew, and the 20 newest conversations with their last 200 messages into the cache (and so into IndexedDB), once per
@@ -122,6 +133,8 @@ export async function keepForOffline(): Promise<void> {
   kept = true;
   try {
     await navigator.serviceWorker.ready;
+    await afterFirstScreen();
+    await Promise.race([viewReads.catch(() => {}), new Promise((r) => setTimeout(r, VIEW_WAIT_MS))]);
     if ((navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData) return;
     await Promise.all([data.loadMe(), data.loadIdentities(), data.loadConversations()]);
     for (const c of (data.store.getState().conversations ?? []).slice(0, KEEP_CONVERSATIONS)) {

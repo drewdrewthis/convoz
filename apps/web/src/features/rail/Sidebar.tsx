@@ -108,7 +108,7 @@ export default function Sidebar() {
   const row = (c: Conversation, grp: "starred" | "mid" | "older") => (
     <Fragment key={c.id}>
     <div className="rrow group/rrow" data-rid={grp === "older" ? undefined : c.id} data-grp={grp} data-current={c.id === current ? "true" : undefined} onPointerDown={grp === "older" ? undefined : (e) => startDrag(e, drop)} onKeyDown={(e) => key(e, c)}>
-      <a className={`rgo${unreadOf(c) > 0 ? " unread" : ""}${c.muted_until ? " muted" : ""}`} id={`rr-${c.id}`} href={`/chats/${c.id}`} aria-current={c.id === current ? "page" : undefined} aria-label={rowLabel(c, unreadOf(c))} draggable={false}>
+      <a className={`rgo${unreadOf(c) > 0 ? " unread" : ""}${c.muted_until ? " muted" : ""}`} id={`rr-${c.id}`} href={`/chats/${c.id}`} onClick={(e) => visit(e, `/chats/${c.id}`)} aria-current={c.id === current ? "page" : undefined} aria-label={rowLabel(c, unreadOf(c))} draggable={false}>
         <span className="rtitle">{titleOf(c)}</span>
         <PlanIcon id={c.id} />
         {unreadOf(c) > 0 ? (

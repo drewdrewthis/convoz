@@ -42,6 +42,8 @@ export interface TranscriptProps {
   me: string;
   /** The first page is in: open at the newest message. */
   opened: boolean;
+  /** The server's newest page is in (the held copy can lack newer messages): only then is the newest root with a thread known. */
+  current: boolean;
   hint: boolean;
   /** The conversation, so a notice can act on it (Resume). */
   conversation: number;
@@ -130,7 +132,7 @@ export function firstUnread(messages: Message[], readAt: number | undefined, me:
  * Transcript is the log "Messages": the page itself does not scroll, the log does. It opens at the newest message, follows new
  * ones while it is at the bottom, and otherwise shows "New message ↓" instead of jumping.
  */
-export function Transcript({ messages, pending, hasEarlier, me, opened, hint, conversation, working, control, onEarlier, onRetry, onDiscard, onDetails, focus, newFrom }: TranscriptProps) {
+export function Transcript({ messages, pending, hasEarlier, me, opened, current, hint, conversation, working, control, onEarlier, onRetry, onDiscard, onDetails, focus, newFrom }: TranscriptProps) {
   const log = useRef<HTMLDivElement>(null);
   const items = useRef<HTMLDivElement>(null);
   // Opened at a search result, the log never starts at the newest end: rows that arrive (and a list virtualizer that measures them)
@@ -148,8 +150,9 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, hint, co
   const [settled, setSettled] = useState(false);
   const rows = useMemo(() => rowsOf(messages, pending, me, { newFrom }), [messages, pending, me, newFrom]);
   const paused = useMemo(() => pausedNow(messages), [messages]);
-  // Not before the first page is in: a part of the list would make an older root the latest for a moment, and its thread would be read.
-  const latest = useMemo(() => (opened ? latestRoot(messages) : 0), [opened, messages]);
+  // Not before the server's first page is in: a part of the list (or an old held copy) would make an older root the latest for a
+  // moment, and its thread would be read.
+  const latest = useMemo(() => (opened && current ? latestRoot(messages) : 0), [opened, current, messages]);
   const focusAt = focus ? rows.findIndex((r) => r.message?.id === focus) : -1;
   const shape = rows.map((r) => r.key + (r.pending?.state ?? "")).join();
 
