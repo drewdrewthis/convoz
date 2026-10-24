@@ -277,20 +277,30 @@
   .chatmain { flex: 1 1 auto; min-height: 0; width: 100%; max-width: none; margin: 0; padding: 0; overflow: hidden; display: flex; flex-direction: column; }
   .convo { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
   .logwrap { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-  .log { scroll-padding-top: var(--headh); flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; overflow-anchor: none; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; padding: var(--headh) 0 16px; }
+  .log { scroll-padding-top: var(--headh); flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; overflow-anchor: none; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; padding: var(--headh) 0 16px;
+    /* the one column every row of the transcript shares (messages, threads, notices, the New line, the day labels): one left edge */
+    --col: 760px; }
   .pausebar ~ .chatmain .log { padding-top: 8px; }
   .chatframe > .pausebar { position: relative; z-index: 2; margin-top: var(--headh); }
   /* flex: none — a virtual list's rows are absolute, so its height is all it has; as a shrinking flex item it collapsed to the log's height
      and the log's scroll height stopped following the rows, so a long chat stopped short of its newest message. */
   .items { display: flex; flex-direction: column; flex: none; }
   /* "New messages": a thin line with a label, above the first message that was unread when the chat opened. */
-  .newline { display: flex; align-items: center; gap: 8px; box-sizing: border-box; width: 100%; max-width: 760px; margin: 12px auto 0; padding: 0 12px; color: var(--color-accent); font-size: 12px; font-weight: 700; }
+  .newline { display: flex; align-items: center; gap: 8px; box-sizing: border-box; width: 100%; max-width: var(--col); margin: 12px auto 0; padding: 0 12px; color: var(--color-accent); font-size: 12px; font-weight: 700; }
   .newline::before, .newline::after { content: ""; flex: 1 1 0; height: 1px; background: currentColor; opacity: .6; }
   .newline::before { flex-grow: 0; width: 12px; }
   .earlier { display: flex; justify-content: center; }
+  /* A day label ("Today", "Wed 21 Oct"), quiet like the New line. It pins under the header while its day scrolls by (top 0 is the log's
+     padding edge, already below the header); the next day's label, later in the list, covers it, hence the solid band. In a virtual list
+     (over 100 rows) each row is its own absolute box, so there it pins within its own row only. */
+  .dayline {
+    position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 8px; box-sizing: border-box; width: 100%; max-width: var(--col);
+    margin: 12px auto 0; padding: 4px 12px; background: var(--color-surface); color: var(--color-muted); font-size: 12px; font-weight: 700; pointer-events: none;
+  }
+  .dayline::before, .dayline::after { content: ""; flex: 1 1 0; height: 1px; background: var(--color-border); }
   /* A message (prototype v42): no avatar column. An agent's message is the full width of a centred 760 px column, under one author line
      (avatar, name, handle, time); the owner's is a compact bubble on the right, with the time above it. */
-  .msg { position: relative; display: block; box-sizing: border-box; width: 100%; max-width: 760px; margin-inline: auto; padding: 16px 12px 3px; border-radius: 12px; }
+  .msg { position: relative; display: block; box-sizing: border-box; width: 100%; max-width: var(--col); margin-inline: auto; padding: 16px 12px 3px; border-radius: 12px; }
   .msg:not(.first) { padding-top: 3px; }
   .msg .byline .ava { width: 24px; height: 24px; font-size: 12px; }
   .msg .byline .ava::before { content: attr(data-l); } /* the letter is drawn, not text: a message reads "devtool @devtool 5:25 AM Hello" */
@@ -353,7 +363,7 @@
     .msg-actions-btn { opacity: 1; }
     .msg-reply-btn { display: none; }
   }
-  .notice-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 12px 3px 60px; color: var(--color-muted); font-size: 13.5px; line-height: 1.4; }
+  .notice-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; box-sizing: border-box; width: 100%; max-width: var(--col); margin-inline: auto; padding: 12px 12px 3px 60px; color: var(--color-muted); font-size: 13.5px; line-height: 1.4; }
   /* the bullet hangs off the text itself: as its own flex item, a text too long for the row wrapped below it and left the bullet alone */
   .notice-text::before { content: "\2022"; display: inline-block; width: 16px; margin-left: -24px; margin-right: 8px; text-align: center; }
   .notice-line[data-t="conversation.paused"] .notice-text::before { content: "\23F8"; }

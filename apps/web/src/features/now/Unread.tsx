@@ -51,7 +51,7 @@ function useLines(rows: Conversation[], me: string): Record<number, Message[]> {
 }
 
 /** Unread is the digest under the asks (owner, conv 1, msgs 535 and 562): a summary line, then one card per conversation with its newest unread lines. */
-export const Unread = memo(function Unread({ rows, me }: { rows: Conversation[]; me: string }) {
+export const Unread = memo(function Unread({ rows, me, current = 0 }: { rows: Conversation[]; me: string; current?: number }) {
   const { fail } = useNotice();
   const [busy, setBusy] = useState(false);
   const lines = useLines(rows, me);
@@ -74,7 +74,7 @@ export const Unread = memo(function Unread({ rows, me }: { rows: Conversation[];
         {rows.map((c) => {
           const n = c.main_unread ?? c.unread;
           return (
-            <li key={c.id} className="flex flex-col rounded-[14px] border border-solid border-border bg-raised px-14 pt-4 pb-2 [&_.thrlist]:pl-0" data-id={c.id}>
+            <li key={c.id} className="flex flex-col rounded-[14px] border border-solid border-border bg-raised px-14 pt-4 pb-2 [&_.thrlist]:pl-0" data-id={c.id} aria-current={c.id === current ? "page" : undefined}>
               <a className="flex flex-col gap-2 pt-8 pb-4 text-inherit no-underline" href={`/chats/${c.id}`}>
                 <span className="flex items-center gap-8">
                   <h2 className="rowtitle min-w-0 flex-auto font-semibold">{titleOf(c)}</h2>

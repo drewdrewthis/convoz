@@ -1,14 +1,17 @@
 import { Wordmark } from "@convoz/ui/Wordmark";
 import { Tick } from "./Tick.tsx";
 
-/** AllClear is Now with nothing waiting (owner, msg 275): the wordmark, the "All clear" line where the first item would be, and the fold chips under them, all centred. */
-export function AllClear({ hidden }: { hidden: boolean }) {
+/** AllClear is Now with nothing waiting (owner, msg 275): the wordmark, the "All clear" line where the first item would be, and the fold chips under them, all centred.
+ *  `compact` (the desktop rail) leaves the wordmark out: the rail has its own at the top. */
+export function AllClear({ hidden, compact = false }: { hidden: boolean; compact?: boolean }) {
   return (
     <div id="allclear" hidden={hidden}>
       {/* wordmark and allclear are the hooks of the e2e specs that measure the centring. */}
-      <div className="wordmark flex justify-center pt-48 pb-8 [&_svg]:flex-none [&_svg]:[display:block]">
-        <Wordmark />
-      </div>
+      {compact ? null : (
+        <div className="wordmark flex justify-center pt-48 pb-8 [&_svg]:flex-none [&_svg]:[display:block]">
+          <Wordmark />
+        </div>
+      )}
       <div className="allclear flex items-center justify-center gap-10 px-4 py-12">
         <Tick />
         <span className="text-14 font-semibold">All clear. Nothing needs you.</span>

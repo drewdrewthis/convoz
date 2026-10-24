@@ -4,6 +4,7 @@ import { cx } from "@convoz/ui/cx";
 import { DraftReview } from "./DraftReview.tsx";
 import { ReplyCount } from "./ReplyCount.tsx";
 import { AskMenu, MenuItem } from "./AskMenu.tsx";
+import { Answers } from "./Answers.tsx";
 import { clock, historyText, stateLine, waitingLine, whoLine, type Answer, type AskData, type SnoozePreset } from "./askData.ts";
 
 /* The ask card: one question an agent put to the owner, with the answers it offers. Now and a conversation draw the same card. */
@@ -63,28 +64,6 @@ const Icon = ({ d }: { d: string }) => (
 );
 
 const URGENT_EDGE = "border-[color-mix(in_srgb,var(--color-danger)_55%,var(--color-border))]";
-
-/**
- * Answers is what an update of the ask says after the owner's questions: the line, the owner's own question, the version trail and the
- * answers. They are what is new, so they read in full at a glance (owner, msg 2064); only a very long one folds, at 6 lines, with "More".
- */
-function Answers({ ask, className }: { ask: AskData; className?: string }) {
-  const [more, setMore] = useState(false);
-  const long = (ask.answers ?? "").length > 420 || (ask.answers ?? "").split("\n").length > 6;
-  return (
-    <div className={cx("mb-2 flex flex-col gap-1 text-13 leading-[18px] text-muted", className)}>
-      <p className="m-0 font-semibold text-text">Updated after your questions</p>
-      {ask.owner_reply?.text ? <p className="m-0 [overflow-wrap:anywhere]">{`You asked: ${ask.owner_reply.text}`}</p> : null}
-      {ask.revision && ask.revision > 1 ? <p className="m-0">{`v${ask.revision}${ask.changed ? ` · changed: ${ask.changed}` : ""}`}</p> : null}
-      <p className={cx("m-0 whitespace-pre-line text-14 leading-[20px] text-text [overflow-wrap:anywhere]", !more && "line-clamp-6")}>{ask.answers}</p>
-      {long ? (
-        <Button variant="text" size="inline" className="self-start -ml-8" aria-expanded={more} onClick={() => setMore(!more)}>
-          {more ? "Less" : "More"}
-        </Button>
-      ) : null}
-    </div>
-  );
-}
 
 /** AskCard draws one ask. It keeps only what the eye needs (which panel is open); every change goes up through a callback. */
 export function AskCard({ ask, where, labelId, as = "article", presets, busy, notice, onAnswer, onDismiss, onUndismiss, onSnooze, onReply, replies, onPin, pinned, onDelete, onCopyLink, openHref, dataId }: AskCardProps) {
@@ -193,6 +172,7 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
   const clear = now && "pr-26";
   const shutState = ask.state === "dismissed" || ask.state === "closed";
   const replyLast = Boolean(onReply);
+  const answered = open && Boolean(ask.answers);
   const body = (
     <>
       {where === "conversation" ? (
@@ -207,10 +187,11 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
         </div>
       ) : null}
       {optionsMenu}
-      <h3 id={labelId} className={cx("m-0 pt-12 pb-3 text-17 leading-[22px] font-semibold [overflow-wrap:anywhere]", clear)}>
+      {/* The question is the brightest text of an updated card, over its answers; a card never updated keeps its look. */}
+      <h3 id={labelId} className={cx("m-0 pt-12 pb-3 text-17 leading-[22px] font-semibold [overflow-wrap:anywhere]", answered && "text-text", clear)}>
         {ask.question}
       </h3>
-      {open && ask.answers ? <Answers ask={ask} className={clear || undefined} /> : null}
+      {answered ? <Answers ask={ask} phone={phone} className={(!phone && clear) || undefined} /> : null}
       {ask.owners_call ? <p className={cx("m-0 mb-2 text-13 leading-[18px] text-muted [overflow-wrap:anywhere]", clear)}>{`Your call · ${ask.owners_call.kind}: ${ask.owners_call.reason}`}</p> : null}
       {now ? (
         <div className={cx("flex items-center gap-x-8 text-13 leading-[20px] text-muted", clear)}>

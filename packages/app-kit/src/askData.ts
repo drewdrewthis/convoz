@@ -78,8 +78,51 @@ export function stateLine(a: AskData): string {
 
 const HISTORY: Record<string, string> = { create: "Asked", answer: "Answered", dismiss: "Dismissed", undismiss: "Reopened", withdraw: "Withdrawn", close: "Closed", owner_replied: "Replied in the thread", updated: "Updated" };
 
-/** historyText is one line of the History list: "Answered by Drew · Yes". */
+/** historyText is one line of the History list: "Answered by Drew · Yes", "Updated by Devtool @devtool · v2, changed answers". */
 export function historyText(h: AskHistoryItem, a: AskData): string {
   const who = h.by ? ` by ${whoLine(h.by)}` : "";
-  return `${HISTORY[h.event] ?? h.event}${who}${h.event === "answer" && a.answer ? ` · ${a.answer}` : ""}`;
+  return `${HISTORY[h.event] ?? h.event}${who}${h.event === "answer" && a.answer ? ` · ${a.answer}` : ""}${h.event === "updated" ? updateTrail(h, a) : ""}`;
+}
+
+/** The version an update made (v2 for the first) and, for the latest one only, what it changed: the ask carries only the latest `changed`. */
+function updateTrail(h: AskHistoryItem, a: AskData): string {
+  const updates = (a.history ?? []).filter((x) => x.event === "updated");
+  const n = updates.indexOf(h);
+  const latest = n === updates.length - 1;
+  return ` · v${n + 2}${latest && a.changed ? `, changed ${a.changed}` : ""}`;
+}
+
+/** One question of the owner and the agent's answer to it. Either side can be missing: text before the first mark, or a question left unanswered. */
+export interface QaPair {
+  q?: string;
+  a: string;
+}
+
+// A mark starts the text or follows a space, so "FAQ:" or "QA:" inside a sentence is not one.
+const MARK = /(?<=^|\s)([QA]):\s*/g;
+
+/**
+ * qaPairs splits the answers of an update into the owner's questions and the agent's answers, on their "Q:" and "A:" marks.
+ * With no "A:" mark the whole text is one answer, as it was written. With no "Q:" mark the owner's reply in the thread is the question.
+ */
+export function qaPairs(answers: string, ownerReply?: string): QaPair[] {
+  const marks = [...answers.matchAll(MARK)];
+  if (!marks.some((m) => m[1] === "A")) return [{ q: ownerReply, a: answers }];
+  const pairs: QaPair[] = [];
+  const lead = answers.slice(0, marks[0]!.index).trim();
+  if (lead) pairs.push({ a: lead });
+  let q: string | undefined;
+  marks.forEach((m, i) => {
+    const body = answers.slice(m.index + m[0].length, marks[i + 1]?.index ?? answers.length).trim();
+    if (m[1] === "A") {
+      pairs.push({ q, a: body });
+      q = undefined;
+      return;
+    }
+    if (q !== undefined) pairs.push({ q, a: "" });
+    q = body;
+  });
+  if (q !== undefined) pairs.push({ q, a: "" });
+  if (ownerReply && !marks.some((m) => m[1] === "Q")) pairs[0]!.q ??= ownerReply;
+  return pairs;
 }
