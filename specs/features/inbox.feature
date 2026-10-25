@@ -34,7 +34,18 @@ Feature: Agent inbox
     Scenario: An agent's own messages create no item for itself
       When session "s1" posts "Starting on it" in conversation 41
       Then "convoz inbox --peek --sid s2" shows no item for that message
-      And "convoz inbox --peek" as "docs" shows 1 "activity" item for conversation 41
+      And "convoz inbox --peek" as "docs" shows no item for conversation 41
+
+    @v1 @cli @I-43
+    Scenario: An agent's message wakes another agent only on a mention or its thread
+      When session "s1" of "devtool" posts "Status update" in conversation 41
+      Then "convoz inbox --peek" as "docs" shows no item for conversation 41
+      When session "s1" posts "@docs can you check?" in conversation 41
+      Then "convoz inbox --peek" as "docs" shows 1 "mention" item for conversation 41
+      When "docs" starts a thread in conversation 41 and session "s1" replies in it
+      Then "convoz inbox --peek" as "docs" shows an item with reason "thread" for conversation 41
+      When the owner posts "next step?" in conversation 41
+      Then "convoz inbox --peek" as "docs" shows an item for conversation 41
 
     @v1 @cli @I-43
     Scenario Outline: Each kind of event makes an item with its reason
