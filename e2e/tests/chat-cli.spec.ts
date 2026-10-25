@@ -1,5 +1,7 @@
 import { spawnSync } from "node:child_process";
 import {
+  agentPost,
+  agentSays,
   chatWorld,
   convoz,
   createConversation,
@@ -13,6 +15,7 @@ import {
   watchLines,
 } from "../lib/chat.ts";
 import { machineVia } from "../lib/agent-wp7.ts";
+import { must } from "../lib/owner.ts";
 import { clientId } from "../lib/machines.ts";
 import type { Running } from "../lib/cli.ts";
 import { pollCut } from "../lib/poll-cut.ts";
@@ -37,7 +40,44 @@ scenario("An agent's own messages create no item for itself", { tag: ["@cli"] },
   // Then "convoz inbox --peek --sid s2" shows no item for that message
   expect(await peekFor(w.box, s2.sid, conv)).toEqual([]);
 
-  // And "convoz inbox --peek" as "docs" shows 1 "activity" item for conversation 41
+  // And "convoz inbox --peek" as "docs" shows no item for conversation 41
+  expect(await peekFor(w.box, docs.sid, conv)).toEqual([]);
+});
+
+scenario("An agent's message wakes another agent only on a mention or its thread", { tag: ["@cli"] }, async ({ server }) => {
+  // Given conversation 41 has "devtool" and "docs", with a session "s1" of "devtool" and one of "docs"
+  const w = await chatWorld(server, { agents: ["devtool", "docs"] });
+  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  const s1 = await startSession(w.box, "devtool", "s1");
+  const docs = await startSession(w.box, "docs", "docs");
+  const drain = async () => {
+    for (const i of await inboxItems(w.box, docs.sid, ["--claim", "10", "--wait", "0"])) {
+      expect((await convoz(w.box, docs.sid, ["ack", `${i.id}:${i.claim_token}`])).code).toBe(0);
+    }
+  };
+
+  // When session "s1" posts "Status update" in conversation 41
+  await agentSays(w.srv, s1.lease, conv, "Status update");
+  // Then "convoz inbox --peek" as "docs" shows no item for conversation 41
+  expect(await peekFor(w.box, docs.sid, conv), "no mention, no thread").toEqual([]);
+
+  // When session "s1" posts "@docs can you check?" in conversation 41
+  await agentSays(w.srv, s1.lease, conv, "@docs can you check?");
+  // Then "convoz inbox --peek" as "docs" shows 1 "mention" item for conversation 41
+  expect((await peekFor(w.box, docs.sid, conv)).map((i) => [i.reason, i.count])).toEqual([["mention", 1]]);
+  await drain();
+
+  // When "docs" starts a thread in conversation 41 and session "s1" replies in it
+  const root = await agentSays(w.srv, docs.lease, conv, "Step 1 is the filter chips UI");
+  await drain();
+  must(await agentPost(w.srv, s1.lease, conv, "sounds right", { thread_root_id: root }), "thread reply", 201);
+  // Then "convoz inbox --peek" as "docs" shows an item with reason "thread" for conversation 41
+  expect((await peekFor(w.box, docs.sid, conv)).map((i) => i.reason)).toEqual(["thread"]);
+  await drain();
+
+  // When the owner posts "next step?" in conversation 41
+  await ownerSays(w.owner, conv, "next step?");
+  // Then "convoz inbox --peek" as "docs" shows an item for conversation 41
   expect((await peekFor(w.box, docs.sid, conv)).map((i) => i.reason)).toEqual(["activity"]);
 });
 

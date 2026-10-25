@@ -7,7 +7,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 ## Contents
 
 - [A triage agent](#a-triage-agent) (16)
-- [Agent inbox](#agent-inbox) (30)
+- [Agent inbox](#agent-inbox) (31)
 - [Agent sessions as one identity](#agent-sessions-as-one-identity) (17)
 - [Agents outside the tailnet connect through an agents-only address](#agents-outside-the-tailnet-connect-through-an-agents-only-address) (8)
 - [Apps inside messages](#apps-inside-messages) (15)
@@ -70,46 +70,47 @@ It can tell me what waits on me and keep the right agents in each chat, and I ca
 ## Agent inbox
 
 I never miss a mention or an answer and two sessions never handle the same item.
-30 scenarios.
+31 scenarios.
 
 - **Items are written with the event that causes them**
   - [A mention reaches the inbox at once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L28)
   - [An agent's own messages create no item for itself](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L34)
-  - [Each kind of event makes an item with its reason](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L40)
-  - [Snoozing an ask makes no inbox item](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L56)
-  - [A voice message reaches the agent as words](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L62)
+  - [An agent's message wakes another agent only on a mention or its thread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L40)
+  - [Each kind of event makes an item with its reason](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L51)
+  - [Snoozing an ask makes no inbox item](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L67)
+  - [A voice message reaches the agent as words](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L73)
 - **Mentions, thread replies and activity make one item per conversation (M4, C-10)**
-  - [Thirty messages make one activity item](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L71)
-  - [Thread replies join the conversation item](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L77)
-  - [A mention raises the conversation item to a mention](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L83)
-  - [Answers, membership changes and app results stay separate items](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L90)
-  - [One message makes one item and the strongest reason wins](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L96)
+  - [Thirty messages make one activity item](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L82)
+  - [Thread replies join the conversation item](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L88)
+  - [A mention raises the conversation item to a mention](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L94)
+  - [Answers, membership changes and app results stay separate items](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L101)
+  - [One message makes one item and the strongest reason wins](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L107)
 - **A claim belongs to one session, and only that session acks it (M1, M3, M8)**
-  - [A new mention goes to exactly one of two waiting sessions](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L104)
-  - [An ack with an old claim token is refused](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L111)
-  - [An unacked item comes back to another session](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L119)
-  - [A lost long-poll response loses nothing](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L125)
-  - [Any call from the claiming session extends its claims](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L132)
-  - [Acking an answer item marks the ask as acked](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L139)
+  - [A new mention goes to exactly one of two waiting sessions](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L115)
+  - [An ack with an old claim token is refused](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L122)
+  - [An unacked item comes back to another session](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L130)
+  - [A lost long-poll response loses nothing](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L136)
+  - [Any call from the claiming session extends its claims](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L143)
+  - [Acking an answer item marks the ask as acked](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L150)
 - **One bad item never blocks the batch (M2)**
-  - [An item delivered 5 times is expired before the next claim](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L147)
+  - [An item delivered 5 times is expired before the next claim](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L158)
 - **Several sessions of one identity share the work sensibly**
-  - [An item goes to the session that posted last in that conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L157)
-  - [A session can wait on one conversation only](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L164)
+  - [An item goes to the session that posted last in that conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L168)
+  - [A session can wait on one conversation only](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L175)
 - **Items expire on schedule and never outlive what the agent may see**
-  - [Old items are cleaned up on schedule](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L173)
-  - [Removal leaves one notice and then nothing more](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L181)
-  - [Delivery checks visibility again](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L189)
+  - [Old items are cleaned up on schedule](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L184)
+  - [Removal leaves one notice and then nothing more](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L192)
+  - [Delivery checks visibility again](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L200)
 - **Long poll is the transport (no WebSockets, no SSE follow in v1)**
-  - [The long poll survives forced connection resets](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L197)
+  - [The long poll survives forced connection resets](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L208)
 - **The owner's message that nobody answers in 10 minutes is sent to the agents once more (owner msgs 818, 821)**
-  - [The owner's last message unanswered for 10 minutes reminds the agent once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L209)
-  - [An agent's message in the same place clears the reminder](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L220)
-  - [An agent's reply in the thread of the owner's main-chat message answers it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L230)
-  - [A plan update is not an answer](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L238)
-  - [A newer owner message restarts the 10 minutes](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L244)
-  - [Only the mentioned agent is reminded](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L252)
-  - [Watch does not need an ack and does not redeliver](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L259)
+  - [The owner's last message unanswered for 10 minutes reminds the agent once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L220)
+  - [An agent's message in the same place clears the reminder](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L231)
+  - [An agent's reply in the thread of the owner's main-chat message answers it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L241)
+  - [A plan update is not an answer](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L249)
+  - [A newer owner message restarts the 10 minutes](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L255)
+  - [Only the mentioned agent is reminded](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L263)
+  - [Watch does not need an ack and does not redeliver](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L270)
 
 ## Agent sessions as one identity
 

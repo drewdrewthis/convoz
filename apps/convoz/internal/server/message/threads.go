@@ -15,6 +15,11 @@ func PrevReplyID(ctx context.Context, d pdb.DBTX, root, before int64) (int64, er
 	return db.New(d).PrevReplyID(ctx, db.PrevReplyIDParams{RootID: nullInt(root), BeforeID: before})
 }
 
+// WroteInThread reports whether identity wrote the root of a thread or any reply in it.
+func WroteInThread(ctx context.Context, d pdb.DBTX, root, identity int64) (bool, error) {
+	return db.New(d).WroteInThread(ctx, db.WroteInThreadParams{IdentityID: nullInt(identity), RootID: root})
+}
+
 // NewestReplyID is the newest reply to root, 0 for none.
 func NewestReplyID(ctx context.Context, d pdb.DBTX, root int64) (int64, error) {
 	return db.New(d).NewestReplyID(ctx, nullInt(root))
