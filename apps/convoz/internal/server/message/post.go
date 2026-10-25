@@ -69,11 +69,12 @@ type Arrival struct {
 	Mentioned  []int64 // the identities the message @mentions
 	SourceSeq  int64   // the seq of the message's event
 	HasUploads bool    // it carries files: a voice note may wait for its words
+	ByAgent    bool    // an agent wrote it: it wakes another agent only on a mention or a thread that agent is in
 }
 
-// InboxFanOut queues the new message for one agent (inbox module).
+// InboxFanOut queues the new message for one agent (inbox module); it reports whether an item was queued.
 type InboxFanOut interface {
-	FanOut(ctx context.Context, d pdb.DBTX, now time.Time, identity int64, a Arrival) error
+	FanOut(ctx context.Context, d pdb.DBTX, now time.Time, identity int64, a Arrival) (bool, error)
 }
 
 // Places keeps track of which place (the main chat or one thread) a new message lands in, for the reminder of an owner's message
@@ -288,23 +289,28 @@ func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) 
 	if err != nil {
 		return Posted{}, err
 	}
-	arrival := Arrival{Message: m, Mentioned: mentioned, SourceSeq: seq, HasUploads: len(draft.UploadIDs) > 0}
+	arrival := Arrival{Message: m, Mentioned: mentioned, SourceSeq: seq, HasUploads: len(draft.UploadIDs) > 0, ByAgent: isAgent}
 	if draft.Quiet {
 		recipients = nil
 	}
+	var queued []int64
 	for _, who := range recipients {
 		if who == asker {
 			continue // the asker gets one ask_resolved item for its answer, not a second item for the same message (I-43)
 		}
-		if err := p.Inbox.FanOut(ctx, d, now, who, arrival); err != nil {
+		got, err := p.Inbox.FanOut(ctx, d, now, who, arrival)
+		if err != nil {
 			return Posted{}, err
+		}
+		if got {
+			queued = append(queued, who)
 		}
 	}
 	paused, err := countLoop(ctx, d, p, now, draft, isAgent)
 	if err != nil {
 		return Posted{}, err
 	}
-	return Posted{Message: m, Wake: append(recipients, woken...), Paused: paused}, nil
+	return Posted{Message: m, Wake: append(queued, woken...), Paused: paused}, nil
 }
 
 // askerAnswered is the author of the ask that a message answers; 0 when the message answers none.
