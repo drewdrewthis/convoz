@@ -658,11 +658,14 @@ func (s *Server) statusDueItem(ctx context.Context, d pdb.DBTX, now time.Time, p
 	body := "Your plan in conversation " + conv + " needs an update."
 	if pl, err := plan.Get(ctx, d, p.Identity(), it.ConversationID); err == nil {
 		it, state := pl.MostOverdue(pl.UpdatedAt, now.UnixMilli())
+		if state == "" && len(pl.Now) > 0 { // nudged before the owner's line turns stale
+			it, state = pl.Now[0], "stale"
+		}
 		switch state {
 		case "late":
 			body = "Your plan in conversation " + conv + " is late: \"" + it.Text + "\" was due " + time.UnixMilli(it.ETA).UTC().Format(time.RFC3339) + "."
 		case "stale":
-			body = "Your plan in conversation " + conv + " has had no update for 2 h: \"" + it.Text + "\"."
+			body = "Your plan in conversation " + conv + " has had no update for " + strconv.FormatInt((now.UnixMilli()-pl.UpdatedAt)/60000, 10) + " min: \"" + it.Text + "\"."
 		}
 	}
 	body += " Say where you are: convoz plan " + conv + " --doing \"…\" --eta 30m (or --done, --blocked, --waiting)."

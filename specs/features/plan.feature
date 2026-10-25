@@ -227,17 +227,20 @@ Feature: Plans: what each agent is doing, what is next and what waits on the own
       And the owner gets no push
       When "devtool" acks it and 10 more minutes pass
       Then "devtool" gets no second nudge
-      When 2 more hours pass
+      When 1 more hour passes
       Then "devtool" gets one more "status_due" item
       When "devtool" runs "convoz plan 41 --doing 'Building invites' --eta 30m"
       Then the line of conversation 41 is "Working" again
 
     @v1 @cli
-    Scenario: A working agent with no update for 2 hours is nudged
+    Scenario: A working agent is nudged after 15 minutes, and its line says no update after 2 hours
       Given "devtool" runs "convoz plan 41 --doing 'Building invites'"
-      When 2 hours and 1 minute pass with no update from "devtool"
-      Then the line of conversation 41 reads "Building invites · no update for 2 h"
+      When 16 minutes pass with no update from "devtool"
+      Then the line of conversation 41 is still "Working"
       And "convoz inbox" of "devtool" gives one item with the reason "status_due" for conversation 41
+      And its message says "has had no update for 16 min"
+      When "devtool" acks it and 2 hours pass in all
+      Then the line of conversation 41 reads "Building invites · no update for 2 h"
 
     @v1 @browser
     Scenario: An agent that does not pick up a message shows as not responding

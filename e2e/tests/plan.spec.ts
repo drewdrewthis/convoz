@@ -639,8 +639,8 @@ scenario("A late agent is nudged once to update its plan, and the owner is not p
   await testApi(p.w.srv).advanceClock(10 * MIN);
   expect((await inboxItems(p.w.box, p.dev.sid, [])).filter((i) => i.reason === "status_due")).toEqual([]);
 
-  // When 2 more hours pass, then one more "status_due" item
-  await testApi(p.w.srv).advanceClock(2 * HOUR);
+  // When 1 more hour passes, then one more "status_due" item
+  await testApi(p.w.srv).advanceClock(HOUR);
   expect((await inboxItems(p.w.box, p.dev.sid, [])).filter((i) => i.reason === "status_due")).toHaveLength(1);
 
   // When "devtool" plans again, the line is "Working" again
@@ -648,21 +648,31 @@ scenario("A late agent is nudged once to update its plan, and the owner is not p
   expect(await attentionOf(p)).toBe("working");
 });
 
-scenario("A working agent with no update for 2 hours is nudged", { tag: ["@cli"] }, async ({ server, testApi }) => {
+scenario("A working agent is nudged after 15 minutes, and its line says no update after 2 hours", { tag: ["@cli"] }, async ({ server, testApi }) => {
   const p = await planWorld(server, { docsIn: false });
   // Given "devtool" runs "convoz plan 41 --doing 'Building invites'"
   await mustPlan(p, p.dev, ["--doing", "Building invites"]);
 
-  // When 2 hours and 1 minute pass with no update from "devtool"
-  await testApi(p.w.srv).advanceClock(2 * HOUR + MIN);
+  // When 16 minutes pass with no update from "devtool"
+  await testApi(p.w.srv).advanceClock(16 * MIN);
 
-  // Then the line reads "Building invites · no update for 2 h"
-  const a = (await board(p, p.conv)).attention.find((x) => x.conversation_id === p.conv);
-  expect(a).toMatchObject({ state: "stale", text: "Building invites" });
+  // Then the line of conversation 41 is still "Working"
+  const at = async () => (await board(p, p.conv)).attention.find((x) => x.conversation_id === p.conv);
+  expect(await at()).toMatchObject({ state: "working" });
 
   // And "convoz inbox" gives one item with the reason "status_due" for conversation 41
   const due = (await inboxItems(p.w.box, p.dev.sid, [])).filter((i) => i.reason === "status_due");
   expect(due.map((i) => i.conversation.id)).toEqual([p.conv]);
+  // And its message says "has had no update for 16 min"
+  expect(due[0]!.message.body).toContain("has had no update for 16 min");
+
+  // When "devtool" acks it and 2 hours pass in all
+  const ack = await convoz(p.w.box, p.dev.sid, ["ack", `${due[0]!.id}:${due[0]!.claim_token}`]);
+  expect(ack.code, ack.stderr).toBe(0);
+  await testApi(p.w.srv).advanceClock(HOUR + 45 * MIN);
+
+  // Then the line reads "Building invites · no update for 2 h"
+  expect(await at()).toMatchObject({ state: "stale", text: "Building invites" });
 });
 
 scenario("An agent that does not pick up a message shows as not responding", { tag: ["@browser"] }, async ({ server, page, context, testApi, dataDir }, info) => {
