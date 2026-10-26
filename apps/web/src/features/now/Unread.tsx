@@ -1,5 +1,5 @@
 import type { Conversation, Message } from "@convoz/api-client";
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { humanError } from "../../shared/api.ts";
 import { stripCf } from "../../shared/chat.ts";
 import { source } from "../../shared/data.ts";
@@ -7,12 +7,10 @@ import { visit } from "../../shared/navigate.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { markAllRead } from "../conversations/index.ts";
 import { toast } from "../pins-stars/index.ts";
-import { ThreadRows } from "../threads/index.ts";
 import { titleOf } from "../rail/index.ts";
 import { Button } from "@convoz/ui/Button";
 
-/** Lines shown per card, and how many of the newest messages are read to find them (the owner's own and system lines are skipped). */
-const LINES = 3;
+/** How many of the newest messages are read to tell what is new in a conversation. */
 const WINDOW = 20;
 
 /** unreadRows are the conversations with unread main messages or unread thread replies, newest activity first. A muted conversation stays out. */
@@ -30,8 +28,63 @@ export function ago(at: number, now = Date.now()): string {
 
 const words = (m: Message): string => stripCf(m.body).replace(/\s+/g, " ").trim();
 
-/** useLines reads the newest unread lines of each card; it reads again when a conversation has a new last message. */
-function useLines(rows: Conversation[], me: string): Record<number, Message[]> {
+/** One line of a card: who said it and what. */
+interface Line {
+  author: string;
+  text: string;
+}
+/** A conversation with the one message that put it under Needs you or Replies to you. */
+export interface Item {
+  c: Conversation;
+  line: Line;
+}
+/** A conversation that is only news: who spoke, for its one line. */
+export interface Quiet {
+  c: Conversation;
+  who: string;
+}
+export interface Triage {
+  mentions: Item[];
+  replies: Item[];
+  rest: Quiet[];
+}
+
+const lineOf = (m: Message): Line => ({ author: m.author.handle, text: words(m) });
+
+/**
+ * triage sorts the unread conversations by what the owner must do (owner msgs 535, 562): a message that @mentions the owner needs them;
+ * an answer to something the owner said (a message of theirs before the new ones, or a thread they started) is a reply; the rest is news.
+ * `lines` is the newest window of messages per conversation. A conversation not read yet is news until it is; one whose only new messages
+ * are asks (already cards) or system lines is left out.
+ */
+export function triage(rows: readonly Conversation[], lines: Record<number, Message[]>, me: string): Triage {
+  const out: Triage = { mentions: [], replies: [], rest: [] };
+  const at = new RegExp(`(^|[^\\w-])@${me.replace(/[^\w-]/g, "")}(?![\\w-])`, "i");
+  for (const c of rows) {
+    const n = c.main_unread ?? c.unread;
+    const win = n > 0 ? lines[c.id] : [];
+    if (!win) {
+      out.rest.push({ c, who: c.last?.author_handle ?? "" });
+      continue;
+    }
+    const fresh = (n > 0 ? win.slice(-n) : []).filter((m) => m.kind !== "system" && m.kind !== "ask" && m.author.handle !== me && words(m));
+    const threads = (c.threads ?? []).filter((t) => t.unread > 0);
+    const mention = fresh.filter((m) => m.mentions?.some((x) => x.handle === me) || (me && at.test(m.body))).pop();
+    if (mention) {
+      out.mentions.push({ c, line: lineOf(mention) });
+      continue;
+    }
+    const spoke = n > 0 && win.slice(0, win.length - n).some((m) => m.author.handle === me);
+    const mineThread = threads.find((t) => t.author.handle === me);
+    if (fresh.length && spoke) out.replies.push({ c, line: lineOf(fresh[fresh.length - 1]!) });
+    else if (mineThread) out.replies.push({ c, line: mineThread.last_reply ? { author: mineThread.last_reply.author.handle, text: stripCf(mineThread.last_reply.preview) } : fresh.length ? lineOf(fresh[fresh.length - 1]!) : { author: mineThread.author.handle, text: stripCf(mineThread.preview) } });
+    else if (fresh.length || threads.length) out.rest.push({ c, who: [...new Set(fresh.map((m) => m.author.handle))].join(", ") || c.last?.author_handle || "" });
+  }
+  return out;
+}
+
+/** useLines reads the newest window of each unread conversation; it reads again when a conversation has a new last message. */
+function useLines(rows: Conversation[]): Record<number, Message[]> {
   const [lines, setLines] = useState<Record<number, { key: string; list: Message[] }>>({});
   const key = rows.map((c) => `${c.id}:${c.last?.id ?? 0}:${c.main_unread ?? c.unread}`).join(",");
   useEffect(() => {
@@ -39,23 +92,24 @@ function useLines(rows: Conversation[], me: string): Record<number, Message[]> {
       const k = `${c.last?.id ?? 0}:${c.main_unread ?? c.unread}`;
       if (lines[c.id]?.key === k || !(c.main_unread ?? c.unread)) continue;
       source.messages(c.id, { limit: WINDOW }).then(
-        ({ messages }) => {
-          const mine = messages.filter((m) => m.kind !== "system" && m.author.handle !== me && words(m));
-          setLines((l) => ({ ...l, [c.id]: { key: k, list: mine.slice(-Math.min(LINES, c.main_unread ?? c.unread)).reverse() } }));
-        },
+        ({ messages }) => setLines((l) => ({ ...l, [c.id]: { key: k, list: messages } })),
         () => {},
       );
     }
-  }, [key, me]);
-  return Object.fromEntries(Object.entries(lines).map(([id, v]) => [id, v.list]));
+  }, [key]);
+  return useMemo(() => Object.fromEntries(Object.entries(lines).map(([id, v]) => [id, v.list])), [lines]);
 }
 
-/** Unread is the digest under the asks (owner, conv 1, msgs 535 and 562): a summary line, then one card per conversation with its newest unread lines. */
-export const Unread = memo(function Unread({ rows, me, current = 0 }: { rows: Conversation[]; me: string; current?: number }) {
+/** useTriage is what Now shows of the unread conversations; Now calls it so the Needs you count can include the mentions. */
+export function useTriage(rows: Conversation[], me: string): Triage {
+  const lines = useLines(rows);
+  return useMemo(() => triage(rows, lines, me), [rows, lines, me]);
+}
+
+/** useMarkRead marks conversations read with one toast, and keeps its buttons off meanwhile. */
+function useMarkRead() {
   const { fail } = useNotice();
   const [busy, setBusy] = useState(false);
-  const lines = useLines(rows, me);
-  const total = rows.reduce((n, c) => n + c.unread, 0);
   const run = async (ids: number[], said: string) => {
     setBusy(true);
     try {
@@ -67,48 +121,73 @@ export const Unread = memo(function Unread({ rows, me, current = 0 }: { rows: Co
       setBusy(false);
     }
   };
+  return { busy, run };
+}
+
+/** Cards are the rows of Mentions and Replies: the title, the whole message (four lines at most), then Reply and Mark read. */
+function Cards({ items, label, current }: { items: Item[]; label: string; current: number }) {
+  const { busy, run } = useMarkRead();
+  return (
+    <ul className="m-0 mb-8 flex list-none flex-col gap-8 p-0" role="list" aria-label={label}>
+      {items.map(({ c, line }) => (
+        <li key={c.id} className="flex flex-col rounded-[14px] border border-solid border-border bg-raised px-14 pt-4 pb-2" data-id={c.id} aria-current={c.id === current ? "page" : undefined}>
+          <a className="flex flex-col gap-2 pt-8 pb-4 text-inherit no-underline" href={`/chats/${c.id}`}>
+            <span className="flex items-center gap-8">
+              <h2 className="rowtitle min-w-0 flex-auto font-semibold">{titleOf(c)}</h2>
+              <time className="when">{ago(c.last_activity_at)}</time>
+            </span>
+            {/* uline is the hook of the e2e specs that read the line of a card. */}
+            <span className="uline line-clamp-4 text-13 leading-[20px] text-muted">
+              <b className="font-semibold text-text">{line.author}</b> {line.text}
+            </span>
+          </a>
+          <div className="flex items-center">
+            <Button variant="text" size="inline" className="-ml-8" href={`/chats/${c.id}#compose`} onClick={(e) => visit(e, `/chats/${c.id}#compose`)}>
+              Reply
+            </Button>
+            <Button variant="text" size="inline" disabled={busy} aria-label={`Mark ${titleOf(c)} read`} onClick={() => void run([c.id], "Marked read")}>
+              Mark read
+            </Button>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Mentions are the messages that @mention the owner, under the Needs you heading and its asks. */
+export const Mentions = memo(function Mentions({ items, current = 0 }: { items: Item[]; current?: number }) {
+  return <Cards items={items} label="Mentions of you" current={current} />;
+});
+
+/** Replies are the answers to what the owner said, each with its newest message whole. */
+export const Replies = memo(function Replies({ items, current = 0 }: { items: Item[]; current?: number }) {
+  return (
+    <section id="replies" className="block" aria-labelledby="replies-head">
+      <p id="replies-head" className="ghdr">Replies to you</p>
+      <Cards items={items} label="Replies to you" current={current} />
+    </section>
+  );
+});
+
+/** OtherChats is the news the owner is not in: one line per conversation and one Mark all read for them. */
+export const OtherChats = memo(function OtherChats({ rows, current = 0 }: { rows: Quiet[]; current?: number }) {
+  const { busy, run } = useMarkRead();
   return (
     <section id="unread" className="block" aria-labelledby="unread-head">
-      <p id="unread-head" className="ghdr">{`${total} unread in ${rows.length} ${rows.length === 1 ? "conversation" : "conversations"}`}</p>
-      <ul className="m-0 mb-8 flex list-none flex-col gap-8 p-0" role="list" aria-label="Unread conversations">
-        {rows.map((c) => {
-          const n = c.main_unread ?? c.unread;
-          return (
-            <li key={c.id} className="flex flex-col rounded-[14px] border border-solid border-border bg-raised px-14 pt-4 pb-2 [&_.thrlist]:pl-0" data-id={c.id} aria-current={c.id === current ? "page" : undefined}>
-              <a className="flex flex-col gap-2 pt-8 pb-4 text-inherit no-underline" href={`/chats/${c.id}`}>
-                <span className="flex items-center gap-8">
-                  <h2 className="rowtitle min-w-0 flex-auto font-semibold">{titleOf(c)}</h2>
-                  <time className="when">{ago(c.last_activity_at)}</time>
-                  {n > 0 ? (
-                    <span className="count">
-                      <span className="sr">Unread: </span>
-                      {n > 99 ? "99+" : n}
-                    </span>
-                  ) : null}
-                </span>
-                {(lines[c.id] ?? []).map((m) => (
-                  // uline is the hook of the e2e specs that read the lines of a card.
-                  <span key={m.id} className="uline truncate text-13 leading-[20px] text-muted">
-                    <b className="font-semibold text-text">{m.author.handle}</b> {words(m)}
-                  </span>
-                ))}
-              </a>
-              {/* Only the threads with something new; the rest are in the conversation. */}
-              <ThreadRows c={{ ...c, threads: (c.threads ?? []).filter((t) => t.unread > 0) }} compact foldable={false} />
-              <div className="flex items-center">
-                <Button variant="text" size="inline" className="-ml-8" href={`/chats/${c.id}#compose`} onClick={(e) => visit(e, `/chats/${c.id}#compose`)}>
-                  Reply
-                </Button>
-                <Button variant="text" size="inline" disabled={busy} aria-label={`Mark ${titleOf(c)} read`} onClick={() => void run([c.id], "Marked read")}>
-                  Mark read
-                </Button>
-              </div>
-            </li>
-          );
-        })}
+      <p id="unread-head" className="ghdr">Other chats</p>
+      <ul className="m-0 mb-8 flex list-none flex-col gap-4 p-0" role="list" aria-label="Other chats">
+        {rows.map(({ c, who }) => (
+          <li key={c.id} data-id={c.id} aria-current={c.id === current ? "page" : undefined}>
+            <a className="flex items-baseline gap-8 py-4 text-inherit no-underline" href={`/chats/${c.id}`}>
+              <span className="rowtitle min-w-0 font-semibold">{titleOf(c)}</span>
+              <span className="truncate text-13 text-muted">{`${who}, ${c.unread} new`}</span>
+            </a>
+          </li>
+        ))}
       </ul>
       <div className="btns">
-        <Button disabled={busy} onClick={() => void run(rows.map((c) => c.id), "Marked all read")}>
+        <Button disabled={busy} onClick={() => void run(rows.map(({ c }) => c.id), "Marked all read")}>
           Mark all read
         </Button>
       </div>

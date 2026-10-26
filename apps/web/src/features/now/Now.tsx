@@ -11,7 +11,7 @@ import { Folds, type FoldKey } from "./Folds.tsx";
 import { NowAsk } from "./NowAsk.tsx";
 import { NowReplied } from "./NowReplied.tsx";
 import { PendingAdd } from "./PendingAdd.tsx";
-import { Unread, unreadRows } from "./Unread.tsx";
+import { Mentions, OtherChats, Replies, unreadRows, useTriage } from "./Unread.tsx";
 import { useAskActions } from "./useAskActions.ts";
 import { useNow } from "./store.ts";
 
@@ -56,6 +56,7 @@ export function Now({ compact = false, current = 0 }: NowProps = {}) {
   }, []);
   // Memoised: Now re-renders on every poll of /api/now, and the digest must not (it is the long list).
   const unread = useMemo(() => unreadRows(conversations), [conversations]);
+  const { mentions, replies, rest } = useTriage(unread, mine ?? "");
 
   useEffect(() => {
     // The rail's list is not what the page came for.
@@ -120,7 +121,7 @@ export function Now({ compact = false, current = 0 }: NowProps = {}) {
         ) : null}
       </div>
       <AllClear hidden={!clear} compact={compact} />
-      {now && !some && unread.length ? <NoDecisions /> : null}
+      {now && !some && !mentions.length && unread.length ? <NoDecisions /> : null}
       <Folds
         snoozed={now?.snoozed ?? []}
         answered={now?.answered_today ?? []}
@@ -131,6 +132,7 @@ export function Now({ compact = false, current = 0 }: NowProps = {}) {
         reopen={reopen}
         centered={clear}
       />
+      {asks.length + mentions.length ? <p className="ghdr">{`Needs you · ${asks.length + mentions.length}`}</p> : null}
       {asks.length ? (
         <section id="asks" className="mb-8 flex flex-col gap-8" onKeyDown={moveFocus}>
           {asks.map((ask) => (
@@ -140,6 +142,7 @@ export function Now({ compact = false, current = 0 }: NowProps = {}) {
           ))}
         </section>
       ) : null}
+      {mentions.length ? <Mentions items={mentions} current={current} /> : null}
       {replied.length ? <NowReplied asks={replied} /> : null}
       {adds.length ? (
         <section id="adds" className="block" aria-label="Adds to decide">
@@ -176,7 +179,8 @@ export function Now({ compact = false, current = 0 }: NowProps = {}) {
           ))}
         </div>
       </section>
-      {unread.length ? <Unread rows={unread} me={mine ?? ""} current={current} /> : null}
+      {replies.length ? <Replies items={replies} current={current} /> : null}
+      {rest.length ? <OtherChats rows={rest} current={current} /> : null}
     </>
   );
 }
