@@ -69,7 +69,7 @@ type ProjectSystem struct {
 	T        string
 	Identity Person
 	By       Person
-	Via      string // "triage": a triage agent added or removed, and the line names it
+	Via      string // "triage": a triage agent added or removed; "mention": an @mention added. Either way the line names who did it
 	History  string
 	Streak   int
 	Title    string // conversation.renamed: the title the line quotes
@@ -154,7 +154,7 @@ func systemText(s ProjectSystem) string {
 	switch s.T {
 	case "member.added":
 		added := "Added " + s.Identity.Ref()
-		if s.Via == "triage" {
+		if s.Via == "triage" || s.Via == "mention" {
 			added = s.By.Ref() + " added " + s.Identity.Ref()
 			if s.By == s.Identity {
 				added = s.By.Ref() + " joined"

@@ -394,7 +394,7 @@ scenario("While paused, agent posts and asks are refused", { tag: ["@api"] }, as
 
 // ---- mentions -----------------------------------------------------------------------------------------------
 
-scenario("An agent's mention does not add an agent", { tag: ["@api"] }, async ({ server, dataDir }) => {
+scenario("An agent's mention adds the agent and says who added it", { tag: ["@api"] }, async ({ server, dataDir }) => {
   // Background
   const w = await msgWorld({ server, dataDir });
   const dev = await leaseOf(w, "devtool");
@@ -403,15 +403,17 @@ scenario("An agent's mention does not add an agent", { tag: ["@api"] }, async ({
   // When "devtool" posts "@docs can you review?" in conversation 41
   must(await agentPost(w.srv, dev, w.conv, "@docs can you review?"), "post", 201);
 
-  // Then "docs" is not a participant of conversation 41
-  expect(await participantsOf(w)).toEqual(["drew", "devtool"]);
+  // Then "docs" is a participant of conversation 41
+  expect(await participantsOf(w)).toEqual(["drew", "devtool", "docs"]);
 
-  // And "docs" gets no inbox item for conversation 41
-  expect(await itemsFor(w, docs)).toEqual([]);
+  // And "docs" gets an inbox item for conversation 41 with reason "mention"
+  expect((await itemsFor(w, docs)).map((i) => (i as { reason: string }).reason)).toEqual(["mention"]);
 
-  // (the mention itself is recorded: nobody is pulled in, but the message says whom it named)
-  const named = w.db().prepare("SELECT i.handle AS handle FROM mentions m JOIN identities i ON i.id = m.identity_id").all() as { handle: string }[];
-  expect(named.map((r) => r.handle)).toEqual(["docs"]);
+  // And the system line says "@devtool added @docs"
+  const added = w.db().prepare("SELECT system_json AS j FROM messages WHERE kind = 'system' AND system_json LIKE '%member.added%' ORDER BY id DESC").get() as { j: string };
+  const line = JSON.parse(added.j) as { identity: number; by: number; via: string };
+  const id = (h: string) => (w.db().prepare("SELECT id FROM identities WHERE handle = ?").get(h) as { id: number }).id;
+  expect(line).toMatchObject({ via: "mention", identity: id("docs"), by: id("devtool") });
 });
 
 scenario("Mentions inside code and quotes are ignored", { tag: ["@api"] }, async ({ server, dataDir }) => {

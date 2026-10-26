@@ -473,6 +473,10 @@ func addMentioned(ctx context.Context, d pdb.DBTX, now time.Time, conv, author, 
 			if _, err := journalChange(ctx, d, now, author, conv, target.ID, conversation.StatusActive); err != nil {
 				return err
 			}
+			// The line names who added whom: with agents adding agents, the owner must see who brought each one in.
+			if _, _, err := sayLine(ctx, d, now, author, conv, message.SystemLine{T: "member.added", Identity: target.ID, By: author, Via: "mention"}); err != nil {
+				return err
+			}
 		}
 		if err := inbox.Mention(ctx, d, now, target.ID, conv, messageID, seq); err != nil {
 			return err
