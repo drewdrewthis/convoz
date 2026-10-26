@@ -3529,6 +3529,14 @@ export interface components {
             alternatives?: components["schemas"]["AskOption"][];
             owners_call_reason?: string;
             answers?: string;
+            /** @description A permission ask only. All its parts, which replace the old ones; one of undo and one_way. There is no confidence (it is fixed at create; 400 when given). */
+            permission?: {
+                action: string;
+                risk: string;
+                undo?: string;
+                one_way?: boolean;
+                considered: string[];
+            };
         };
         /** @description The owner's latest reply in the thread of an open ask. */
         AskOwnerReply: {
@@ -3671,8 +3679,10 @@ export interface components {
             title: string | null;
         };
         /**
-         * @description An ask with options (recommended, alternatives and owners_call; without owners_call it is refused) or a draft ask (draft alone: it has
-         *     no options and no owner's call, the server sets both).
+         * @description A permission ask (permission alone: the server sets the options Go and Not this, no owner's call is needed, and the question defaults
+         *     to the action; a confidence under 80 is refused with the get-confident text), a draft ask (draft alone: it has no options and no
+         *     owner's call, the server sets both), or the legacy ask with options (question, recommended, alternatives and owners_call; without
+         *     owners_call it is refused). Permission with draft is refused.
          */
         AskRequest: {
             /** Format: int64 */
@@ -3680,12 +3690,13 @@ export interface components {
             /** Format: int64 */
             thread_root_id?: number;
             client_id: components["schemas"]["ClientId"];
-            question: string;
+            question?: string;
             recommended?: components["schemas"]["AskOption"];
             alternatives?: components["schemas"]["AskOption"][];
             owners_call?: components["schemas"]["OwnersCall"];
             urgent?: boolean;
             draft?: components["schemas"]["AskDraft"];
+            permission?: components["schemas"]["AskPermission"];
             /** @description An app shown with the question (a chart, a table, a diff). It helps the owner decide and never answers: no picker, form or select checklist (400 app_type_not_allowed_on_ask). */
             app?: components["schemas"]["App"];
         };
