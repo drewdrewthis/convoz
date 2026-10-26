@@ -138,6 +138,8 @@ export function useLive(resume: () => void): void {
 /** What the offline shell keeps (design §9): the newest conversations, each with its last messages. */
 const KEEP_CONVERSATIONS = 20;
 const KEEP_MESSAGES = 200;
+/** How many conversations the offline copy reads at once: a few cut the serial chain without crowding the network. */
+const KEEP_AT_ONCE = 4;
 let kept = false;
 /** The open view's own reads; the offline copy waits for them so its ~40 requests never queue in front of them. */
 let viewReads: Promise<unknown> = Promise.resolve();
@@ -150,7 +152,7 @@ export function holdOfflineUntil(reads: Promise<unknown>): void {
 }
 
 /**
- * keepForOffline reads who is signed in, the crew, and the 20 newest conversations with their last 200 messages into the cache (and so into IndexedDB), once per
+ * keepForOffline reads who is signed in, the crew, and the 20 newest conversations with their last 200 messages (read 4 conversations at a time) into the cache (and so into IndexedDB), once per
  * page load and only where a service worker can open the app offline. It waits for the worker so it never competes with the first
  * screen, and skips a link that asked to save data. It sets the `kept-offline` mark when it is done, whatever the outcome, and only once
  * what it read is on disk: the offline copy an earlier page left can already hold as much, so only this mark says the copy is this page's.
@@ -166,11 +168,21 @@ export async function keepForOffline(): Promise<void> {
     // the list this page already read from the server is fresh; one that came from the disk copy is read again
     if (listReading) await listReading;
     await Promise.all([data.loadMe(), data.loadIdentities(), listFromNetworkAt === null ? data.loadConversations() : undefined]);
-    for (const c of (data.store.getState().conversations ?? []).slice(0, KEEP_CONVERSATIONS)) {
+    const list = (data.store.getState().conversations ?? []).slice(0, KEEP_CONVERSATIONS);
+    let next = 0;
+    const keep = async (c: (typeof list)[number]) => {
       await data.loadNewest(c.id);
       const held = data.store.getState().messages[c.id];
       if (held?.hasEarlier && held.list.length < KEEP_MESSAGES) await data.loadEarlier(c.id);
-    }
+    };
+    // a failed read stops new reads, but the error waits for the reads in flight: `kept-offline` must follow what was read
+    const failed: unknown[] = [];
+    await Promise.all(
+      Array.from({ length: KEEP_AT_ONCE }, async () => {
+        while (!failed.length && next < list.length) await keep(list[next++]!).catch((err: unknown) => void failed.push(err));
+      }),
+    );
+    if (failed.length) throw failed[0];
   } catch {
     /* offline or refused: the next visit tries again */
   } finally {

@@ -69,6 +69,16 @@ Feature: Poor connections (contracts)
         | with a page show that is not a return           | 0     | 0        |
 
     @v1 @browser
+    Scenario: The offline copy reads a few conversations at once
+      Given the owner has 8 conversations
+      When the owner opens the conversation list and the server takes 300 ms to answer each message read
+      And the app has saved its offline copy
+      Then the app had at most 4 message reads in flight at once, and more than 1
+      And the offline copy holds every conversation
+      When the owner opens the conversation list again and the server refuses the first message read with a 404
+      Then the app saves its offline copy only after the other message reads in flight have ended
+
+    @v1 @browser
     Scenario: A conversation opens from the offline copy before the server answers
       Given the installed app has cached conversation 41 with 5 messages
       When the server holds its answers to /api/me, /api/identities and conversation 41 and the owner opens conversation 41

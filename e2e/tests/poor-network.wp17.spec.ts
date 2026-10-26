@@ -297,6 +297,75 @@ scenario("The conversation list is read from the network once per page load", { 
   }
 });
 
+scenario("The offline copy reads a few conversations at once", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(120_000);
+  // Given the owner has 8 conversations
+  const u = await world({ server, page, context });
+  for (let n = 1; n <= 8; n++) await createConversation(u.w.owner, { participants: ["devtool"], title: `Thread ${n}` });
+  await page.goto(`${u.w.srv.origin}/chats`);
+  await expect(chatsHeading(page)).toBeVisible();
+  await installed(page);
+  await page.waitForFunction(() => performance.getEntriesByName("kept-offline").length > 0, undefined, { timeout: 30_000 });
+
+  // When the owner opens the conversation list and the server takes 300 ms to answer each message read
+  let inFlight = 0;
+  let peak = 0;
+  let total = 0;
+  const isMessages = (url: URL) => /^\/api\/conversations\/\d+\/messages$/.test(url.pathname);
+  await page.route(isMessages, async (route) => {
+    if (route.request().method() !== "GET") return route.continue();
+    inFlight++;
+    peak = Math.max(peak, inFlight);
+    total++;
+    try {
+      await new Promise((r) => setTimeout(r, 300));
+      const res = await route.fetch();
+      await route.fulfill({ response: res });
+    } finally {
+      inFlight--;
+    }
+  });
+  await page.goto(`${u.w.srv.origin}/chats`);
+  await expect(chatsHeading(page)).toBeVisible();
+
+  // And the app has saved its offline copy
+  await page.waitForFunction(() => performance.getEntriesByName("kept-offline").length > 0, undefined, { timeout: 30_000 });
+
+  // Then the app had at most 4 message reads in flight at once, and more than 1
+  expect(total, "message reads").toBeGreaterThanOrEqual(8);
+  expect(peak, "most reads in flight at once").toBeLessThanOrEqual(4);
+  expect(peak).toBeGreaterThan(1);
+
+  // And the offline copy holds every conversation
+  await expect.poll(async () => (await stored(page))?.conversations ?? 0).toBeGreaterThanOrEqual(8);
+  await page.unroute(isMessages);
+
+  // When the owner opens the conversation list again and the server refuses the first message read with a 404
+  let n = 0;
+  const ended: number[] = [];
+  await page.route(isMessages, async (route) => {
+    if (route.request().method() !== "GET") return route.continue();
+    if (n++ === 0) {
+      // A 404 is a refusal the offline cache does not cover, so the read throws.
+      return route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: { code: "not_found", message: "gone" } }) });
+    }
+    await new Promise((r) => setTimeout(r, 300));
+    const res = await route.fetch();
+    await route.fulfill({ response: res });
+    ended.push(Date.now());
+  });
+  await page.goto(`${u.w.srv.origin}/chats`);
+  await expect(chatsHeading(page)).toBeVisible();
+  await page.waitForFunction(() => performance.getEntriesByName("kept-offline").length > 0, undefined, { timeout: 30_000 });
+  const markAt = await page.evaluate(() => performance.timeOrigin + performance.getEntriesByName("kept-offline")[0]!.startTime);
+
+  // Then the app saves its offline copy only after the other message reads in flight have ended
+  expect(ended.length, "other reads that ended").toBeGreaterThan(0);
+  // Node and the page share the machine clock; 50 ms covers the gap between the route's fulfill and the page's receipt.
+  expect(Math.max(...ended), "the last other read ended before the mark").toBeLessThanOrEqual(markAt + 50);
+  await page.unroute(isMessages);
+});
+
 scenario("The offline shell opens with the cached rail and Now", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
   info.setTimeout(240_000);
   // Given the installed app synced the 20 most recent conversations
