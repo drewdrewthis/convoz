@@ -74,11 +74,13 @@ export interface PermissionBodyProps {
   stateLine: string;
   /** The action row (Snooze, Open, Dismiss), drawn under the buttons of an open card. */
   actions: ReactNode;
+  /** The feed's thread: drawn above the buttons, so everything that answers is last. */
+  footer?: ReactNode;
   clear?: string | false;
 }
 
 /** PermissionBody draws the permission ask: open (byline, fields, Go and Not this) or answered (a pill and Details). */
-export function PermissionBody({ ask, permission: p, labelId, where, meta, urgent, open, phone, busy, notThis, text, setText, onGo, onNotThis, onSend, onReply, replies, stateLine, actions, clear }: PermissionBodyProps) {
+export function PermissionBody({ ask, permission: p, labelId, where, meta, urgent, open, phone, busy, notThis, text, setText, onGo, onNotThis, onSend, onReply, replies, stateLine, actions, footer, clear }: PermissionBodyProps) {
   const [details, setDetails] = useState(false);
   const handle = ask.asker.handle;
   if (!open) {
@@ -118,6 +120,7 @@ export function PermissionBody({ ask, permission: p, labelId, where, meta, urgen
         </dd>
         <Fields p={p} phone={phone} fold />
       </dl>
+      {footer}
       <div className={cx("flex gap-8", phone ? "flex-col" : "flex-row [&>*]:flex-1")}>
         <Button size="option" variant="primary" disabled={busy} aria-keyshortcuts={p.one_way ? "G" : GO_KEY} onClick={onGo}>
           Go

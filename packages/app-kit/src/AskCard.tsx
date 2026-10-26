@@ -31,6 +31,8 @@ export interface AskCardProps {
   onReply?(): void;
   /** The thread "Reply in thread" opens: its replies and how many are new to the viewer. Shown beside the button. */
   replies?: { count?: number; unread?: number };
+  /** Drawn last inside the card's box (the feed's thread), so it is part of the card. */
+  footer?: ReactNode;
   /** Pin and Delete of the message that holds the ask; no item when the caller gives none. */
   onPin?(): void;
   pinned?: boolean;
@@ -61,7 +63,7 @@ function usePhone(): boolean {
 const URGENT_EDGE = "border-[color-mix(in_srgb,var(--color-danger)_55%,var(--color-border))]";
 
 /** AskCard draws one ask. It keeps only what the eye needs (which panel is open); every change goes up through a callback. */
-export function AskCard({ ask, where, labelId, as = "article", presets, busy, notice, onAnswer, onDismiss, onUndismiss, onSnooze, onReply, replies, onPin, pinned, onDelete, onCopyLink, openHref, dataId }: AskCardProps) {
+export function AskCard({ ask, where, labelId, as = "article", presets, busy, notice, onAnswer, onDismiss, onUndismiss, onSnooze, onReply, replies, onPin, pinned, onDelete, onCopyLink, openHref, dataId, footer }: AskCardProps) {
   const [panel, setPanel] = useState<"" | "reply" | "snooze" | "history" | "options">("");
   const [text, setText] = useState("");
   const [optionsOnSnooze, setOptionsOnSnooze] = useState(false);
@@ -209,6 +211,7 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
           replies={replies}
           stateLine={stateLine(ask)}
           actions={actionRow}
+          footer={footer}
           clear={clear}
         />
       ) : (
@@ -249,6 +252,7 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
           {notice}
         </p>
       ) : null}
+      {permission ? null : footer}
       {permission ? null : actionRow}
       {panel === "snooze" ? menu(presetItems) : null}
       {draft ? <DraftReview draft={draft} busy={busy} onSend={(text) => onAnswer({ choice: "recommended", text })} onDecline={() => onAnswer({ choice: "alternative", index: 1 })} /> : null}

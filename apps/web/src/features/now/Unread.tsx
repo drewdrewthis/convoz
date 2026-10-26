@@ -148,6 +148,7 @@ function Cards({ items, label, current, done = false }: { items: Item[]; label: 
               <b className="font-semibold text-text">{line.author}</b> {line.text}
             </span>
           </a>
+          <CardThread c={c} />
           <div className="flex items-center">
             <Button variant="text" size="inline" className="-ml-8" href={`/chats/${c.id}#compose`} onClick={(e) => visit(e, `/chats/${c.id}#compose`)}>
               Reply
@@ -156,7 +157,6 @@ function Cards({ items, label, current, done = false }: { items: Item[]; label: 
               {done ? "Done" : "Mark read"}
             </Button>
           </div>
-          <CardThread c={c} />
         </li>
       ))}
     </ul>

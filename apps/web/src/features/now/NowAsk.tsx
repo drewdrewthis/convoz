@@ -1,7 +1,7 @@
 import type { Ask } from "@convoz/api-client";
 import { AskCard, type Answer } from "@convoz/app-kit";
 import { Button } from "@convoz/ui/Button";
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import { navigate } from "../../shared/navigate.ts";
 import { AskApp } from "./AskApp.tsx";
 import { Attention } from "./Attention.tsx";
@@ -19,7 +19,7 @@ interface NowAskProps {
 }
 
 /** CompactAsk is the sidebar's ask card: the question, one tap for the recommended answer, and Open for everything else. */
-function CompactAsk({ ask, busy, answer }: Pick<NowAskProps, "ask" | "busy" | "answer">) {
+function CompactAsk({ ask, busy, answer, thread }: Pick<NowAskProps, "ask" | "busy" | "answer"> & { thread: ReactNode }) {
   const id = useId();
   const first = ask.options[0];
   const p = ask.permission;
@@ -38,6 +38,7 @@ function CompactAsk({ ask, busy, answer }: Pick<NowAskProps, "ask" | "busy" | "a
           <dt className="mt-4 font-semibold text-text">Undo</dt>
           <dd className={p.one_way ? "m-0 font-semibold text-danger" : "m-0 text-text [overflow-wrap:anywhere]"}>{p.one_way ? "None. This is one-way." : p.undo}</dd>
         </dl>
+        {thread}
         {p.one_way ? (
           <Button size="option" href={href}>
             Review
@@ -60,6 +61,7 @@ function CompactAsk({ ask, busy, answer }: Pick<NowAskProps, "ask" | "busy" | "a
       <h3 id={id} className="m-0 text-15 leading-[20px] font-semibold [overflow-wrap:anywhere]">
         {ask.question}
       </h3>
+      {thread}
       {first ? (
         <Button size="option" variant="primary" disabled={busy} onClick={() => answer(ask, { choice: "recommended" })}>
           {first.label}
@@ -75,14 +77,8 @@ function CompactAsk({ ask, busy, answer }: Pick<NowAskProps, "ask" | "busy" | "a
 /** NowAsk is one open ask of the feed: its card, the app an agent attached to it, and what the agents are doing about the owner's last message. */
 export function NowAsk({ ask, busy, presets, answer, dismiss, snooze, compact = false }: NowAskProps) {
   const id = useId();
-  if (compact && !ask.draft) {
-    return (
-      <>
-        <CompactAsk ask={ask} busy={busy} answer={answer} />
-        <FeedThread conversation={ask.conversation_id} root={ask.thread_root_id ?? ask.id} count={ask.reply_count} />
-      </>
-    );
-  }
+  const thread = <FeedThread conversation={ask.conversation_id} root={ask.thread_root_id ?? ask.id} count={ask.reply_count} />;
+  if (compact && !ask.draft) return <CompactAsk ask={ask} busy={busy} answer={answer} thread={thread} />;
   return (
     <>
       <AskCard
@@ -98,9 +94,9 @@ export function NowAsk({ ask, busy, presets, answer, dismiss, snooze, compact = 
         onUndismiss={() => undefined}
         onSnooze={(preset) => snooze(ask, preset)}
         replies={{ count: ask.reply_count, unread: ask.unread_replies }}
+        footer={thread}
         onReply={() => navigate(`/chats/${ask.conversation_id}#reply=${ask.thread_root_id ?? ask.id}`)}
       />
-      <FeedThread conversation={ask.conversation_id} root={ask.thread_root_id ?? ask.id} count={ask.reply_count} />
       <AskApp ask={ask} />
       <Attention conversation={ask.conversation_id} />
     </>
