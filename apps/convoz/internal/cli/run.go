@@ -51,8 +51,8 @@ func (l *stringList) Set(v string) error { *l = append(*l, v); return nil }
 // Each command is its own process group, so a timeout kills what the command started too.
 //
 // The server lets one runner serve an agent: a second `convoz watch` is refused for as long as this session lives. The command
-// never stops on a network error; it stops when its session ends (exit 3), when another watch holds the agent (exit 3), or on SIGINT/SIGTERM
-// (it ends its session first so the lock and its claims are let go at once).
+// never stops on a network error, and waits (5 s doubling to 5 min) while a watch holds the agent; it stops
+// when its session ends (exit 3), or on SIGINT/SIGTERM (it ends its session first so the lock and its claims are let go at once).
 func Run(args []string, io IO) int {
 	own, cmd := splitDash(args)
 	f := newChatFlags("run", io)
@@ -140,7 +140,7 @@ type runner struct {
 
 // loop polls the inbox for ever and serves one item at a time, in order.
 func (r *runner) loop(ctx context.Context) int {
-	backoff, first := watchBackoffFirst, true
+	backoff, heldWait, first := watchBackoffFirst, runHeldFirst, true
 	for ctx.Err() == nil {
 		hold := wire.MaxHoldSeconds
 		if first {
@@ -156,13 +156,16 @@ func (r *runner) loop(ctx context.Context) int {
 			sleepCtx(ctx, backoff)
 			backoff = min(backoff*2, watchBackoffMax)
 			continue
+		case isWatchOpen(err):
+			// The agent's own `convoz watch` holds the slot. Never take it by force: wait, or a service manager restart-loops us.
+			fmt.Fprintf(r.io.Stderr, "convoz run: %s; trying again in %s\n", err, heldWait)
+			sleepCtx(ctx, heldWait)
+			heldWait = min(heldWait*2, runHeldMax)
+			continue
 		default:
-			if code, held := heldElsewhere(r.io, err); held {
-				return code
-			}
 			return r.k.fail(err)
 		}
-		backoff = watchBackoffFirst
+		backoff, heldWait = watchBackoffFirst, runHeldFirst
 		if first {
 			first = false
 			fmt.Fprintf(r.io.Stdout, "convoz run: serving @%s (pid %d)\n", r.handle, os.Getpid())
@@ -186,6 +189,12 @@ func (r *runner) next(items []wire.InboxItem) (wire.InboxItem, bool) {
 		}
 	}
 	return wire.InboxItem{}, false
+}
+
+// isWatchOpen says the server refused a poll because a watch holds the agent's slot.
+func isWatchOpen(err error) bool {
+	status, _ := statusCode(err)
+	return status == 409
 }
 
 // heldElsewhere prints the server's refusal of a poll because another runner or watch holds the agent, and says it was one.
