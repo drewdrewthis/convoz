@@ -244,6 +244,22 @@ Feature: The convoz CLI and MCP server for agents
       Then the tool result gives the title "Build status"
       And conversation 41 shows the system line '@devtool renamed this to "Build status"'
 
+    # Owner goal, conv 308 msg 5755: an agent edits its own sent message from the CLI.
+    @v1 @cli
+    Scenario: An agent edits its own message with convoz edit
+      Given "devtool" posted "Build is gren" in conversation 41 with "docs"
+      When "devtool" runs "convoz edit <id> -" with "Build is green, @docs please check" on standard input
+      Then the CLI exits 0
+      And the owner reads "Build is green, @docs please check" with an edited time
+      And "docs" gets no inbox item and the owner's unread count does not change
+
+    @v1 @cli
+    Scenario: An agent cannot edit another's message with convoz edit
+      Given the owner posted "Ship it" in conversation 41
+      When "devtool" runs "convoz edit <id> 'Hold it'"
+      Then the CLI exits 3 and says only the author may do that
+      And the message still reads "Ship it"
+
     @later @cli
     Scenario: Watch can start a command per item
       Given the owner approved "convoz watch --exec" on "box-2"

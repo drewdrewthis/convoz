@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Convoz</title>
+    <style>
+      :root { color-scheme: light dark; font: 14px/1.4 system-ui, sans-serif; }
+      body { margin: 0; padding: 16px; }
+      h1 { font-size: 16px; margin: 0 0 12px; }
+      form { display: flex; flex-direction: column; gap: 8px; }
+      label { font-weight: 600; }
+      label.check { display: flex; gap: 6px; align-items: center; font-weight: 400; }
+      input[type="url"], select, textarea { font: inherit; padding: 6px; }
+      button { font: inherit; padding: 6px 12px; }
+      button.quiet { margin-top: 12px; background: none; border: none; padding: 0; text-decoration: underline; cursor: pointer; }
+      .status { margin: 4px 0; }
+    </style>
+  </head>
+  <body>
+    <h1>Convoz</h1>
+    <main id="app"></main>
+    <script src="sidepanel.js"></script>
+  </body>
+</html>
