@@ -6,7 +6,7 @@ export { ReplyCount } from "./ReplyCount.tsx";
 export { DraftReview } from "./DraftReview.tsx";
 export type { DraftData } from "./DraftReview.tsx";
 export type { AskCardProps } from "./AskCard.tsx";
-export type { Answer, AskData, AskHistoryItem, AskPerson, SnoozePreset } from "./askData.ts";
+export type { Answer, AskData, AskHistoryItem, AskPerson, AskPermission, SnoozePreset } from "./askData.ts";
 export { validateApp, validateBridge, validateResult } from "./validate.ts";
 export type { Verdict } from "./validate.ts";
 export { parseDiff } from "./tier1/Code.tsx";

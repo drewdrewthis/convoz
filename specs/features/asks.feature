@@ -377,3 +377,109 @@ Feature: Asks and their state machine
       Then the owner sees the original cut to 2000 characters and ending with "…"
       When "devtool" runs "convoz ask --draft" with a draft of 4001 characters
       Then the command exits 2 and the owner sees no new ask
+
+  # Drew, conv 349 msg 6199: an ask stops handing the owner a decision. The agent is confident in one action and asks the owner to
+  # accept its risk; it lists the ways it rejected and why they were worse. The card must read in about 10 seconds with no outside context.
+  Rule: An ask is a permission request: one action, its risk and undo, and the ways the agent rejected
+
+    @v1 @browser
+    Scenario: A permission ask reads as a short request on the Now card
+      Given "devtool" asked permission to "Merge PR 415 into main" with a risk, an undo and 2 considered ways
+      When the owner opens Now
+      Then the card shows, in order, who asked and where, "I will" and the action, "Risk", "Undo", "Considered, and why worse" with both ways, Go, Not this, "I have questions" and Snooze
+      And the card shows Dismiss and an Open link
+      And the card shows no "Quick reply" and no confidence
+
+    @v1 @browser
+    Scenario: Go on a permission card answers Go
+      Given "devtool" asked permission to "Merge PR 415 into main"
+      When the owner opens conversation 41 and taps "Go"
+      Then the card shows "You said Go"
+      And "devtool" reads the answer "Go" in its inbox
+
+    @v1 @browser
+    Scenario: Not this on a permission card needs a reason and sends it to the agent
+      Given "devtool" asked permission to "Merge PR 415 into main"
+      When the owner opens conversation 41 and taps "Not this"
+      Then a box "Why not? @devtool reads this." opens and "Send" is disabled while it is empty
+      When the owner writes "Wait for PR 412" and taps "Send"
+      Then the card shows "Not this · Wait for PR 412"
+      And "devtool" reads the answer "Not this: Wait for PR 412" in its inbox
+
+    @v1 @browser
+    Scenario: G and Enter say Go and N opens Not this
+      Given "devtool" asked permission to "Merge PR 415 into main" and to "Deploy the docs site"
+      When the owner opens Now and presses N on the first card
+      Then the "Not this" box opens
+      When the owner presses G on the first card and Enter on the second
+      Then both asks are answered "Go"
+
+    @v1 @browser
+    Scenario: Enter does nothing on a one-way permission ask
+      Given "devtool" asked permission to "Merge PR 415 into main" as a one-way action
+      When the owner opens Now
+      Then the card says "None. This is one-way."
+      When the owner presses Enter on the card
+      Then the ask is still open
+      When the owner presses G
+      Then the ask is answered "Go"
+
+    @v1 @browser
+    Scenario: Typing in the Not this box is not a shortcut
+      Given "devtool" asked permission to "Merge PR 415 into main"
+      When the owner opens Now, taps "Not this", and types "go now"
+      Then the box holds "go now" and the ask is still open
+
+    @v1 @browser
+    Scenario: A permission ask in the conversation says Needs your OK
+      Given "devtool" asked permission to "Merge PR 415 into main"
+      When the owner opens conversation 41
+      Then the top of the card reads "Needs your OK"
+      And the card shows "I will", "Risk", "Undo", "Considered, and why worse", Go and Not this
+      And the card has no byline of its own
+
+    @v1 @browser
+    Scenario: The sidebar shows a short permission card
+      Given "devtool" asked permission to "Merge PR 415 into main" in conversation 41
+      When the owner opens another conversation on a wide screen and turns the rail to Now
+      Then the card shows, in order, who asked, "I will", "Risk", "Undo", Go and Open
+      And the card shows no considered ways
+      And Open links to conversation 41
+
+    @v1 @browser
+    Scenario: The sidebar shows Review for a one-way permission ask
+      Given "devtool" asked permission to "Merge PR 415 into main" as a one-way action in conversation 41
+      When the owner opens another conversation on a wide screen and turns the rail to Now
+      Then the card shows a "Review" link to conversation 41 and no Go button
+
+    @v1 @browser @phone
+    Scenario: On a phone the considered ways fold and Go and Not this stack
+      Given "devtool" asked permission to "Merge PR 415 into main" with 2 considered ways
+      When the owner opens Now on a phone (390 x 844)
+      Then the considered ways are folded behind "Considered 2 other ways"
+      When the owner taps "Considered 2 other ways"
+      Then both ways show
+      And Not this sits under Go, both at the same left edge
+
+    @v1 @browser
+    Scenario: History says how sure the agent said it was
+      Given "devtool" asked permission to "Merge PR 415 into main" and said it was 90% sure
+      When the owner opens conversation 41 and the History of the card
+      Then a row reads "Asked by" the agent "· said 90% sure"
+      And the card shows no word "confidence"
+
+    @v1 @browser
+    Scenario: An ask from an old agent still shows the decision card
+      Given "devtool" asked with an old CLI: a question, a recommended option, an alternative and an owner's call
+      When the owner opens Now
+      Then the API reads it as kind "decision"
+      And the card shows the options as buttons and the line "Your call · taste: Both names read fine; it is your voice"
+      And the card shows no "I will" and no "Not this"
+
+    @v1 @browser
+    Scenario: An answered permission card hides risk, undo and considered behind Details
+      Given the owner said Go to a permission ask of "devtool"
+      When the owner opens conversation 41
+      Then the card shows "You said Go" and hides the risk, the undo and the considered ways
+      When the owner taps "Details"
+      Then the risk, the undo and the considered ways show

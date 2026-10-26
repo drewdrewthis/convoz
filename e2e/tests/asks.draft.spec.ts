@@ -28,7 +28,7 @@ scenario("An app on an ask shows on its card in Now and in the conversation", { 
     "ask", String(conv), "--question", "Is this spend fine?", "--recommend", "Yes", "--why", "It is flat", "--alt", "No", "--alt-why", "It is high",
     "--owners-call", "taste", "--owners-call-why", "It is your budget", "--app", file,
   ]);
-  expect({ code: ran.code, stderr: ran.stderr }).toEqual({ code: 0, stderr: "" });
+  expect({ code: ran.code, stderr: ran.stderr.trim() }).toEqual({ code: 0, stderr: "hint: use --action ... for a permission ask" });
 
   // When the owner opens Now
   await openNow(page, w.srv);

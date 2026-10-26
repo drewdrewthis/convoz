@@ -5,6 +5,8 @@ import { DraftReview } from "./DraftReview.tsx";
 import { ReplyCount } from "./ReplyCount.tsx";
 import { AskMenu, MenuItem } from "./AskMenu.tsx";
 import { Answers } from "./Answers.tsx";
+import { AskActions } from "./AskActions.tsx";
+import { PermissionBody } from "./PermissionBody.tsx";
 import { clock, historyText, stateLine, waitingLine, whoLine, type Answer, type AskData, type SnoozePreset } from "./askData.ts";
 
 /* The ask card: one question an agent put to the owner, with the answers it offers. Now and a conversation draw the same card. */
@@ -56,13 +58,6 @@ function usePhone(): boolean {
   );
 }
 
-/** Icon is one 18px stroke icon of the action row. */
-const Icon = ({ d }: { d: string }) => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d={d} />
-  </svg>
-);
-
 const URGENT_EDGE = "border-[color-mix(in_srgb,var(--color-danger)_55%,var(--color-border))]";
 
 /** AskCard draws one ask. It keeps only what the eye needs (which panel is open); every change goes up through a callback. */
@@ -78,7 +73,8 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
   const draft = open ? ask.draft : undefined;
   const now = where === "now";
   // A card in a conversation has Quick reply whenever it can reach a thread reply box, inside a thread too (owner, conv 379 msg 6722).
-  const quickReply = (now || Boolean(onReply)) && !draft; // a draft is answered by Send or Don't send only
+  const permission = draft ? undefined : ask.permission;
+  const quickReply = (now || Boolean(onReply)) && !draft && !permission; // a draft is answered by Send or Don't send only
   const shut = () => {
     setPanel("");
     setOptionsOnSnooze(false);
@@ -108,7 +104,11 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
     if (draft) return;
     if (e.metaKey || e.ctrlKey || e.altKey || t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.getAttribute("role") === "menuitem" || !open || busy) return;
     const k = e.key.toLowerCase();
-    if (e.key === "Enter" && t === e.currentTarget) onAnswer({ choice: "recommended" });
+    // A one-way ask is not said Go to by a stray Enter; G and the button still do.
+    if (e.key === "Enter" && t === e.currentTarget && !permission?.one_way) onAnswer({ choice: "recommended" });
+    else if (permission && k === "g") onAnswer({ choice: "recommended" });
+    else if (permission && (k === "n" || k === "r")) setPanel("reply");
+    else if (permission && k === "a") return;
     else if (k === "a" && ask.options.length > 1) onAnswer({ choice: "alternative", index: 1 });
     else if (k === "r" && quickReply) setPanel("reply");
     else if (k === "s") setPanel("snooze");
@@ -120,7 +120,7 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
   const send = () => {
     const value = text.trim();
     if (!value) return;
-    onAnswer({ choice: "custom", text: value });
+    onAnswer(permission ? { choice: "alternative", index: 1, text: value } : { choice: "custom", text: value });
     setText("");
     shut();
   };
@@ -173,11 +173,12 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
   const shutState = ask.state === "dismissed" || ask.state === "closed";
   const replyLast = Boolean(onReply);
   const answered = open && Boolean(ask.answers);
+  const actionRow = open ? <AskActions quickReply={quickReply} panel={panel} toggle={toggle} openHref={openHref} onDismiss={onDismiss} /> : null;
   const body = (
     <>
       {where === "conversation" ? (
         <div className="-mx-14 flex min-h-32 items-center gap-8 border-0 border-b border-solid border-border pr-6 pl-14 text-12">
-          <span className="font-bold tracking-[.04em] text-text uppercase">Ask</span>
+          <span className="font-bold tracking-[.04em] text-text uppercase">{permission && open ? "Needs your OK" : "Ask"}</span>
           {urgent ? <span className="flex-none font-bold tracking-[.04em] text-danger uppercase">· Urgent</span> : null}
           <span className="ml-auto flex items-center gap-2">
             <Button variant="text" size="inline" aria-label="Ask options" aria-haspopup="menu" aria-expanded={panel === "options"} onClick={() => (setOptionsOnSnooze(false), toggle("options"))}>
@@ -187,6 +188,31 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
         </div>
       ) : null}
       {optionsMenu}
+      {permission ? (
+        <PermissionBody
+          ask={ask}
+          permission={permission}
+          labelId={labelId}
+          where={where}
+          meta={meta}
+          urgent={urgent}
+          open={open}
+          phone={phone}
+          busy={busy}
+          notThis={panel === "reply"}
+          text={text}
+          setText={setText}
+          onGo={() => onAnswer({ choice: "recommended" })}
+          onNotThis={() => toggle("reply")}
+          onSend={send}
+          onReply={onReply}
+          replies={replies}
+          stateLine={stateLine(ask)}
+          actions={actionRow}
+          clear={clear}
+        />
+      ) : (
+        <>
       {/* The question is the brightest text of an updated card, over its answers; a card never updated keeps its look. */}
       <h3 id={labelId} className={cx("m-0 pt-12 pb-3 text-17 leading-[22px] font-semibold [overflow-wrap:anywhere]", answered && "text-text", clear)}>
         {ask.question}
@@ -216,37 +242,17 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
           {ask.state === "closed" && ask.close_reason && ask.close_reason !== "replied" ? <p className="m-0 mt-6 text-13 text-muted">{`Why: ${ask.close_reason.replaceAll("_", " ")}`}</p> : null}
         </>
       )}
+        </>
+      )}
       {notice ? (
         <p className="m-0 mt-6 text-13 text-muted" role="status">
           {notice}
         </p>
       ) : null}
-      {open ? (
-        <div className="-mx-8 mb-14 flex flex-wrap" role="group" aria-label="Ask actions">
-          {quickReply ? (
-            <Button variant="text" size="inline" aria-expanded={panel === "reply"} onClick={() => toggle("reply")}>
-              <Icon d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-              Quick reply
-            </Button>
-          ) : null}
-          <Button variant="text" size="inline" aria-haspopup="menu" aria-expanded={panel === "snooze"} onClick={() => toggle("snooze")}>
-            <Icon d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2" />
-            Snooze
-          </Button>
-          {openHref ? (
-            <Button variant="text" size="inline" href={openHref}>
-              <Icon d="M7 17L17 7M8 7h9v9" />
-              Open
-            </Button>
-          ) : null}
-          <Button variant="text" size="inline" onClick={onDismiss}>
-            <Icon d="M18 6L6 18M6 6l12 12" />
-            Dismiss
-          </Button>
-        </div>
-      ) : null}
+      {permission ? null : actionRow}
       {panel === "snooze" ? menu(presetItems) : null}
       {draft ? <DraftReview draft={draft} busy={busy} onSend={(text) => onAnswer({ choice: "recommended", text })} onDecline={() => onAnswer({ choice: "alternative", index: 1 })} /> : null}
+      {permission ? null : (
       <div className="flex flex-col gap-8">
         {open && !draft
           ? ask.options.map((o, i) => (
@@ -262,7 +268,8 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
           </Button>
         ) : null}
       </div>
-      {panel === "reply" ? (
+      )}
+      {panel === "reply" && !permission ? (
         <form
           className="mt-6 flex items-center gap-8"
           onSubmit={(e) => {
@@ -289,7 +296,7 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
       {panel === "history" ? (
         <ul className="m-0 mt-8 flex list-none flex-col gap-4 border-0 border-t border-solid border-border p-0 pt-8 text-13 text-muted" aria-label="History">
           {(ask.history ?? []).map((h, i) => (
-            <li key={i}>{`${historyText(h, ask)} · ${clock(h.at)}`}</li>
+            <li key={i}>{permission && h.event === "create" ? historyText(h, ask) : `${historyText(h, ask)} · ${clock(h.at)}`}</li>
           ))}
         </ul>
       ) : null}

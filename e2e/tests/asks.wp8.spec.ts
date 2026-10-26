@@ -47,7 +47,7 @@ scenario("A complete ask opens", { tag: ["@cli"] }, async ({ server }) => {
     "ask", String(conv), "--question", QUESTION, "--recommend", "Merge it", "--why", "All 11 checks pass", "--alt", "Hold it", "--alt-why", "Wait for #412",
     "--owners-call", "taste", "--owners-call-why", "Both names read fine; it is your voice",
   ]);
-  expect({ code: ran.code, stderr: ran.stderr }).toEqual({ code: 0, stderr: "" });
+  expect({ code: ran.code, stderr: ran.stderr.trim() }).toEqual({ code: 0, stderr: "hint: use --action ... for a permission ask" });
 
   // Then the owner sees the ask in Now with "Merge it" marked recommended
   const now = await nowOf(w.owner);

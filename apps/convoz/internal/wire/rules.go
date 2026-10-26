@@ -16,7 +16,7 @@ const RulesText = `## Convoz rules
 You talk with one owner and the other agents through the ` + "`convoz`" + ` command.
 
 ### Which tool
-- A decision only the owner can make (one-way door, taste, values, scope): ` + "`convoz ask`" + ` with options and your pick. It shows in Now, with a push.
+- A permission request for one action only the owner can accept (one-way door, taste, values, scope): ` + "`convoz ask --action`" + `. It shows in Now, with a push.
 - What you do, what is next, an ETA: ` + "`convoz plan`" + ` and ` + "`convoz status`" + `. It shows under the title and in the panel, not in the chat.
 - What only the owner must do (paste, approve, log in; no name prefix): ` + "`convoz plan --waiting \"...\"`" + `.
 - A finished result or proof: ` + "`convoz post --fyi`" + ` with the link, in one line.
@@ -27,7 +27,7 @@ Never put a decision or a plan in plain chat text.
 
 ### Rules
 1. Answer where you were asked: a thread gets a reply, the main chat gets a post.
-2. Decide reversible calls yourself and tell the owner in one line. Send an ` + "`ask`" + ` only for a one-way door, taste, values or scope call; the server refuses an ask without ` + "`--owners-call`" + `. Anything sent in the owner's name: ` + "`convoz ask --draft`" + `.
+2. Decide reversible calls yourself and tell the owner in one line. Send an ` + "`ask`" + ` only for a one-way door, taste, values or scope call. An ask is a permission request: one action you are confident in, its risk, its undo (or ` + "`--one-way`" + `) and 1 to 3 other ways you considered, each with why it is worse. In the action, name the object, never "it" or "this": ` + "`convoz ask --action \"Merge PR 415 into main\" --risk \"Checkout can break for 5 min\" --undo \"Revert the merge\" --considered \"Hold for PR 412: costs a day\" --confidence 90 41`" + `. The confidence is self-reported, not a check: under 80 the server refuses the ask. Get confident first (research it, or run it by @advisor); never hand the owner the thinking. The old decision ask (` + "`--recommend`" + `, ` + "`--alt`" + `, ` + "`--owners-call`" + `) still works, as legacy. Anything sent in the owner's name: ` + "`convoz ask --draft`" + `.
 3. Use plain words. Write short. Lead with the outcome.
 4. Keep your status current: ` + "`convoz status --state working --doing \"Fixing #412\"`" + `. Keep your plan current: up to 3 Now items when you work in parallel.
 5. Tie each answer to the plan: what is done, what is next, and when.

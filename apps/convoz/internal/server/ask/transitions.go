@@ -232,8 +232,11 @@ func lost(ctx context.Context, d pdb.DBTX, id int64) error {
 
 // resolve checks a choice against the ask's options and says what it is and in which words it is posted.
 func resolve(a Ask, c Choice) (Choice, string, error) {
-	if a.Draft != nil {
+	switch {
+	case a.Draft != nil:
 		return resolveDraft(a, c)
+	case a.Permission != nil:
+		return resolvePermission(c)
 	}
 	switch c.Kind {
 	case Recommended:
@@ -274,6 +277,29 @@ func resolveDraft(a Ask, c Choice) (Choice, string, error) {
 	return Choice{}, "", &FieldError{"choice", "Answer a draft with recommended (send) or alternative 1 (do not send)."}
 }
 
+// resolvePermission is resolve for a permission ask: Go takes no text, Not this needs the reason the agent reads.
+func resolvePermission(c Choice) (Choice, string, error) {
+	text := strings.TrimSpace(c.Text)
+	switch c.Kind {
+	case Recommended:
+		if text != "" {
+			return Choice{}, "", &FieldError{"text", "Go takes no text: to say why not, answer Not this."}
+		}
+		return Choice{Kind: Recommended}, "Go", nil
+	case Alternative:
+		switch {
+		case c.Index != 1:
+			return Choice{}, "", &FieldError{"index", "The ask did not offer that alternative."}
+		case text == "":
+			return Choice{}, "", &FieldError{"text", "Say why not: the agent reads it."}
+		case utf8.RuneCountInString(text) > MaxCustomText:
+			return Choice{}, "", &FieldError{"text", "A reason has at most 4000 characters."}
+		}
+		return Choice{Kind: Alternative, Index: 1, Text: text}, "Not this: " + text, nil
+	}
+	return Choice{}, "", &FieldError{"choice", "Answer a permission ask with recommended (Go) or alternative 1 (Not this) and a reason."}
+}
+
 // draftTextOf is the text a Send answer carries: the one the person gave, else the draft.
 func draftTextOf(a Ask, c Choice) string {
 	if text := strings.TrimSpace(c.Text); text != "" {
@@ -289,7 +315,7 @@ func sameChoice(a Ask, c Choice) bool {
 	}
 	switch c.Kind {
 	case Alternative:
-		return a.Chosen.Index == c.Index
+		return a.Chosen.Index == c.Index && (a.Permission == nil || a.Chosen.Text == strings.TrimSpace(c.Text))
 	case Custom:
 		return a.Chosen.Text == strings.TrimSpace(c.Text)
 	case Recommended:

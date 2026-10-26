@@ -79,3 +79,24 @@ func TestInstructions_CarryTheRules(t *testing.T) {
 		t.Fatal("the MCP instructions must carry wire.RulesText")
 	}
 }
+
+func TestAsk_PermissionFieldsPassTheSchemaWithoutAQuestionOrAnOwnersCall(t *testing.T) {
+	ask, _ := Lookup("ask")
+	v, _ := newValidator(ask.InputSchema)
+	args := `{"conversation":41,"action":"Merge PR 415","risk":"Checkout breaks","one_way":true,"considered":["Hold: costs a day"],"confidence":80}`
+	if err := v.check(json.RawMessage(args)); err != nil {
+		t.Fatalf("a permission ask must pass the schema: %v", err)
+	}
+}
+
+func TestAsk_ConfidenceUnder80IsRefusedWithTheGetConfidentFirstText(t *testing.T) {
+	ask, _ := Lookup("ask")
+	for _, confidence := range []string{`79`, `0`, `null`} {
+		args := `{"conversation":41,"action":"Merge PR 415","risk":"Checkout breaks","undo":"Revert","considered":["Hold"],"confidence":` + confidence + `}`
+		_, err := ask.Call(context.Background(), json.RawMessage(args))
+		var failed Failed
+		if !errors.As(err, &failed) || failed.Text != wire.GetConfidentFirst {
+			t.Errorf("confidence %s: err = %v, want the get-confident text", confidence, err)
+		}
+	}
+}

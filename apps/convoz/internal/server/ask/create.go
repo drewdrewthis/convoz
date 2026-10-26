@@ -3,6 +3,7 @@ package ask
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -19,17 +20,37 @@ type New struct {
 	Recommended                              Option
 	Alternatives                             []Option
 	Urgent                                   bool
-	OwnersCall                               OwnersCall // checked by the caller (wire.OwnersCall.Problem); the table refuses an unknown kind
-	App                                      []byte     // the checked app shown with the question (compact JSON); nil for none
-	Draft                                    *Draft     // a draft ask: it has no options and no owner's call of its own, the module sets both
+	OwnersCall                               OwnersCall  // checked by the caller (wire.OwnersCall.Problem); the table refuses an unknown kind
+	App                                      []byte      // the checked app shown with the question (compact JSON); nil for none
+	Draft                                    *Draft      // a draft ask: it has no options and no owner's call of its own, the module sets both
+	Permission                               *Permission // a permission ask: no options and no owner's call either; the question defaults to the action
+}
+
+// question is the question the ask shows: a permission ask asked without one shows its action.
+func (n New) question() string {
+	if n.Permission != nil && strings.TrimSpace(n.Question) == "" {
+		return n.Permission.Action
+	}
+	return n.Question
 }
 
 // Check refuses an ask that is not complete or is too long, naming the field (I-11, AC-13).
 func (n New) Check() error {
+	if p := n.Permission; p != nil {
+		if n.Draft != nil {
+			return &FieldError{"permission", "An ask is a permission ask or a draft ask, not both."}
+		}
+		if err := p.check(); err != nil {
+			return err
+		}
+	}
+	n.Question = n.question()
 	if err := n.checkQuestion(); err != nil {
 		return err
 	}
 	switch {
+	case n.Permission != nil:
+		return nil
 	case n.Draft != nil:
 		return checkDraft(*n.Draft)
 	case len(n.Alternatives) < 1 || len(n.Alternatives) > MaxAlternatives:
@@ -86,6 +107,7 @@ func checkOption(o Option) error {
 // Create opens an ask in the caller's transaction: the ask message, the ask and its options, sealed (I-10, I-11), the
 // first history row, the counter and the thin event. A repeat of the client id changes nothing and returns the first ask (I-24).
 func Create(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, n New) (a Ask, replayed bool, err error) {
+	n.Question = n.question()
 	if err := n.Check(); err != nil {
 		return Ask{}, false, err
 	}
@@ -119,6 +141,12 @@ func Create(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, n New) (a A
 		row.DraftText, row.OriginalText, row.OriginalFrom = sql.NullString{String: d.Text, Valid: true}, nullText(d.Original), nullText(d.OriginalFrom)
 		options = draftOptions
 	}
+	if pm := n.Permission; pm != nil { // Risk and Undo say what an owner's call said: none is stored
+		row.OwnersCallKind, row.OwnersCallReason = sql.NullString{}, sql.NullString{}
+		row.Action, row.Risk, row.Undo, row.OneWay, row.Considered = permissionColumns(pm)
+		row.Confidence = sql.NullInt64{Int64: int64(pm.Confidence), Valid: true}
+		options = permissionOptions
+	}
 	if err := q.InsertAsk(ctx, row); err != nil {
 		return Ask{}, false, err
 	}
@@ -144,6 +172,16 @@ func Create(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, n New) (a A
 	}
 	a, err = Get(ctx, d, id)
 	return a, false, err
+}
+
+// permissionColumns is a permission as the asks table keeps it; all NULL for nil (any other ask). The considered lines are a JSON array.
+func permissionColumns(pm *Permission) (action, risk, undo sql.NullString, oneWay sql.NullInt64, considered sql.NullString) {
+	if pm == nil {
+		return
+	}
+	lines, _ := json.Marshal(pm.Considered) // a []string always marshals
+	return sql.NullString{String: pm.Action, Valid: true}, sql.NullString{String: pm.Risk, Valid: true}, nullText(pm.Undo),
+		sql.NullInt64{Int64: boolInt(pm.OneWay), Valid: true}, sql.NullString{String: string(lines), Valid: true}
 }
 
 func boolInt(b bool) int64 {
