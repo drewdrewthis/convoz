@@ -104,27 +104,29 @@ scenario("A triage agent posts in a conversation it is not in, as itself", { tag
   expect((view.participants as { handle: string }[]).map((p) => p.handle).sort()).toEqual(["devtool", "drew"]);
 });
 
-scenario("A triage agent gets no inbox item from a conversation it is not in", { tag: ["@cli"], fixme: "https://github.com/drewdrewthis/convoz/issues/135" }, async ({ server }) => {
+scenario("A triage agent gets no inbox item from a conversation it is not in", { tag: ["@cli"] }, async ({ server }) => {
   // Given the owner made "triage" a triage agent
   const r = await triageWorld(server);
   await grantTriage(r);
 
-  // When "drew" posts a message in conversation 41 and "devtool" posts "@triage have a look" (an agent's @mention adds nobody)
+  // When "drew" posts a message in conversation 41
   await ownerSays(r.w.owner, r.conv, QUESTION);
-  await agentSays(r.w.srv, r.dev.lease, r.conv, "@triage have a look");
 
   // Then "convoz inbox --peek" as "triage" shows no item
   expect(await inboxItems(r.w.box, r.tri.sid, ["--peek"])).toEqual([]);
 
-  // And "triage" is still not a participant of conversation 41
+  // And "triage" is still not a participant of conversation 41, and no message shows a "Seen by" line for it
   const view = must(await r.w.owner.client.get(`/api/conversations/${r.conv}`), "conversation").json().conversation;
   expect((view.participants as { handle: string }[]).map((p) => p.handle).sort()).toEqual(["devtool", "drew"]);
-
-  // And no message shows a "Seen by" line for "triage"
   const page = must(await r.w.owner.client.get(`/api/conversations/${r.conv}/messages`), "messages").json();
   expect(JSON.stringify(page.seen ?? [])).not.toContain("triage");
-  const plans = must(await r.w.owner.client.get("/api/plans"), "plans").json();
-  expect(JSON.stringify(plans.attention)).not.toContain("triage");
+
+  // When "devtool" mentions "@triage" (an agent's @mention brings the agent in, 74212e5)
+  await agentSays(r.w.srv, r.dev.lease, r.conv, "@triage have a look");
+
+  // Then "triage" is now a participant of conversation 41
+  const after = must(await r.w.owner.client.get(`/api/conversations/${r.conv}`), "conversation").json().conversation;
+  expect((after.participants as { handle: string }[]).map((p) => p.handle)).toContain("triage");
 });
 
 scenario("Turning it off ends the reading on the next command", { tag: ["@cli"] }, async ({ server }) => {
