@@ -38,9 +38,6 @@
   .msg .stampbtn { padding: 15px 4px; margin: -15px -4px; border: 0; background: none; font: inherit; font-size: 12px; line-height: normal; color: var(--color-muted); }
   .stampbtn time { font-variant-numeric: tabular-nums; }
 
-  /* ---- the pause bar under the app bar ---- */
-  .pausebar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 12px 0; }
-
   /* ---- the row menu ---- */
   .rowmenu { z-index: 9; right: auto; }
   .rowmenu > button { color: var(--color-text); }

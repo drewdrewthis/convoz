@@ -1,6 +1,6 @@
 import { inboxItems, convoz, ownerSays, messagesOf } from "../lib/chat.ts";
 import { send } from "../lib/http.ts";
-import { bearer, plainDb, stepped } from "../lib/machines.ts";
+import { bearer, stepped } from "../lib/machines.ts";
 import { board, putPlan, planWorld, type Board } from "../lib/plan.ts";
 import { must } from "../lib/owner.ts";
 import { expect, scenario } from "../lib/scenario.ts";
@@ -63,21 +63,11 @@ scenario("A plan with no Doing has no due time and Done keeps 20", { tag: ["@api
   expect(last.due_at).toBeUndefined();
 });
 
-scenario("Nudges come 15 minutes after the last update, then once per hour, and stop at 3", { tag: ["@api"] }, async ({ server, testApi, dataDir }, info) => {
+scenario("Nudges come 15 minutes after the last update, then once per hour, and stop at 3", { tag: ["@api"] }, async ({ server, testApi }, info) => {
   info.setTimeout(60_000);
-  const p = await planWorld(server, { docsIn: false, env: { CONVOZ_TEST_PLAINTEXT: "1" } });
+  const p = await planWorld(server, { docsIn: false });
   // Given "devtool" planned Doing "Building invites" with no eta
   must(await putPlan(p.w.srv, p.dev.lease, p.conv, { doing: "Building invites" }), "plan");
-  const streak = (): number => {
-    const db = plainDb(dataDir);
-    try {
-      return (db.prepare("SELECT agent_streak FROM conversations WHERE id = ?").get(p.conv) as { agent_streak: number }).agent_streak;
-    } finally {
-      db.close();
-    }
-  };
-  const streakBefore = streak();
-
   const nudges = async (): Promise<number> => {
     const due = (await inboxItems(p.w.box, p.dev.sid, [])).filter((i) => i.reason === "status_due");
     for (const d of due) expect((await convoz(p.w.box, p.dev.sid, ["ack", `${d.id}:${d.claim_token}`])).code).toBe(0);
@@ -96,9 +86,6 @@ scenario("Nudges come 15 minutes after the last update, then once per hour, and 
   expect(await nudges()).toBe(1); // 2 h after the first
   await testApi(p.w.srv).advanceClock(HOUR);
   expect(await nudges()).toBe(0); // 3 h after the first: the cap is 3
-
-  // Then agent_streak of the conversation is unchanged (a nudge is no message)
-  expect(streak()).toBe(streakBefore);
 
   // And a new plan starts the count again
   must(await putPlan(p.w.srv, p.dev.lease, p.conv, { doing: "Building invites" }), "plan again");

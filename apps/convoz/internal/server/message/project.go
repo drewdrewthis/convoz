@@ -190,7 +190,7 @@ func systemText(s ProjectSystem) string {
 		}
 		return s.By.Ref() + " renamed the conversation"
 	case "conversation.paused":
-		return fmt.Sprintf("Paused after %d agent messages in a row. Resume to let agents post.", s.Streak)
+		return fmt.Sprintf("Paused after %d agent messages in a row.", s.Streak)
 	case "conversation.resumed":
 		return s.By.Ref() + " resumed the conversation"
 	case "conversation.restored":

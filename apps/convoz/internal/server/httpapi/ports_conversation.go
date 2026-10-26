@@ -40,8 +40,7 @@ func (a conversationPort) Access(ctx context.Context, d pdb.DBTX, conv int64) (m
 	return message.Denied, nil // an agent is told 403 whether or not the conversation exists
 }
 
-// RecordMainPost moves the counters, then brings in the agents a person's message @mentions (I-18). The loop breaker is not
-// here: message.Post counts every post toward it (I-16).
+// RecordMainPost moves the counters, then brings in the agents a person's message @mentions (I-18).
 func (a conversationPort) RecordMainPost(ctx context.Context, d pdb.DBTX, now time.Time, conv, messageID int64, body string, quiet bool) (int64, error) {
 	prev, err := conversation.RecordMainPost(ctx, d, now, conv, messageID, body)
 	if err != nil {

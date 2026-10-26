@@ -1,5 +1,5 @@
 // Package message owns the messages table: writing a text message once per client id, editing, deleting and purging it,
-// system lines, mentions, the loop breaker's rule and the plain-text projection, and reading pages of them.
+// system lines, mentions and the plain-text projection, and reading pages of them.
 // It knows nothing of who may see a conversation; the caller passes the first visible id (the floor) to every read.
 package message
 

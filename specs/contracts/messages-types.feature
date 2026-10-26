@@ -1,7 +1,7 @@
 # Contracts for `features/messages-types.feature`: protocol, security and invariant checks that pin
 # implementation details. They run end to end like every scenario; the user-facing
 # behaviour lives in specs/features/messages-types.feature.
-# Source: design draft 9 §2.3 (permission matrix), §13 (messages route), §13.1 (limits), I-8, I-16, I-18, I-23, I-30, I-40, AC-5.
+# Source: design draft 9 §2.3 (permission matrix), §13 (messages route), §13.1 (limits), I-8, I-18, I-23, I-30, I-40, AC-5.
 
 Feature: Messages and their types (contracts)
   Protocol, security and invariant rules behind messages and their types.
@@ -45,7 +45,7 @@ Feature: Messages and their types (contracts)
 
     @v1 @browser @AC-M14
     Scenario: The draft-8 message rules still hold
-      When the S2 and S6 scenarios for thread rules, unread math, the loop breaker, file serving and markdown links run
+      When the S2 and S6 scenarios for thread rules, unread math, file serving and markdown links run
       Then every one passes unchanged
 
   Rule: The server decides who wrote a message
@@ -113,21 +113,6 @@ Feature: Messages and their types (contracts)
       When the owner deletes the app message
       Then GET /api/files for its upload and GET /api/messages/:id/app answer 404
       And after a purge with a passkey, a scan of every table finds the body, app, result and transcript strings 0 times
-
-  Rule: A runaway agent loop pauses the conversation
-
-    @v1 @api @I-16 @AC-5
-    Scenario: While paused, agent posts and asks are refused
-      Given conversation 41 is paused after 20 agent messages
-      When "devtool" posts a message
-      Then the server answers 429
-      And an ask from "devtool" also answers 429
-
-    @v1 @api @I-16 @I-46 @AC-5
-    Scenario: A message sent through an app does not reset the loop counter
-      Given conversation 41 is paused after 20 agent messages
-      When the owner confirms an app result that posts a via_app message
-      Then the next post from "devtool" answers 429
 
   Rule: Agents have budgets, checked before any write
 

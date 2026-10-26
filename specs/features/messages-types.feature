@@ -1,4 +1,4 @@
-# Source: design draft 9 §2.3 (permission matrix), §13 (messages route), §13.1 (limits), I-8, I-16, I-18, I-23, I-30, I-40, AC-5.
+# Source: design draft 9 §2.3 (permission matrix), §13 (messages route), §13.1 (limits), I-8, I-18, I-23, I-30, I-40, AC-5.
 # Kept from the draft-6 spec, reworded: body and app caps (was "rich body caps"), an agent cannot post
 # under another name, an agent cannot post where it is not a participant.
 # Draft 9 adds the messages and apps spec (docs/messages-apps-spec.md): one plain-text projection, edit rules (E-18),
@@ -86,33 +86,6 @@ Feature: Messages and their types
       When "devtool" posts the twenty-first
       Then conversation 41 shows the twenty-first message
       And conversation 41 has no "paused" line
-
-  Rule: A runaway agent loop pauses the conversation
-
-    @v1 @api @I-16 @AC-5
-    Scenario: The twentieth agent message in a row pauses the conversation
-      Given "devtool" and "docs" posted 19 messages in a row in conversation 41
-      When "docs" posts the twentieth
-      Then the owner sees the system line that the conversation is paused
-      And the owner gets a "paused" notification
-
-    @v1 @api @I-16 @AC-5
-    Scenario: A human message lets agents post again
-      Given conversation 41 is paused after 20 agent messages
-      When the owner posts "carry on"
-      Then the next "convoz post" from "devtool" works
-
-    @v1 @browser @I-16
-    Scenario: The owner resumes a paused conversation
-      Given conversation 41 is paused after 20 agent messages
-      When the owner taps Resume
-      Then the next "convoz post" from "devtool" works
-
-    @v1 @api @I-16
-    Scenario: Thread replies count toward the loop
-      Given "devtool" posted 19 thread replies in a row in conversation 41
-      When "docs" posts one more reply in the thread
-      Then conversation 41 is paused
 
   Rule: Mentions by agents never add anyone
 

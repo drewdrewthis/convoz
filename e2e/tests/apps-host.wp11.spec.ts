@@ -523,29 +523,6 @@ scenario("The owner confirms an app result on a sheet drawn by the host", { tag:
   await expect(page.getByText("via app by @devtool")).toBeVisible();
 });
 
-scenario("An app result does not count as the owner speaking", { tag: ["@browser"] }, async ({ server, page, context }) => {
-  // Background
-  const a = await appsWorld({ server, page, context, browser: true });
-
-  // Given conversation 41 is paused after 20 agent messages
-  const picker = await postApp(a, validApp("picker-single-prototype-a2"), "Which runner?");
-  for (let i = 1; i < 20; i++) must(await agentPost(a.w.srv, i % 2 ? a.docs.lease : a.devtool.lease, a.conv, `Agent message ${i}`), `agent message ${i}`, 201);
-  await openConversation(page, a.w.srv, a.conv);
-  await expect(page.getByRole("button", { name: "Resume" }).first()).toBeVisible();
-
-  // When the owner confirms an app result
-  const card = appCard(page, "Runner picker");
-  await card.getByRole("button", { name: "Expand app" }).click();
-  await card.getByRole("button", { name: "vitest" }).click();
-  await expect.poll(async () => (await pageOf(a)).some((m) => m.via_app?.message_id === picker)).toBe(true);
-
-  // Then the conversation stays paused
-  await expect(page.getByRole("button", { name: "Resume" }).first()).toBeVisible();
-  const view = must(await a.w.owner.client.get(`/api/conversations/${a.conv}`), "read the conversation").json().conversation;
-  expect(view.paused).toBe(true);
-  expect((await agentPost(a.w.srv, a.devtool.lease, a.conv, "Still stopped")).json().error.code).toBe("conversation_paused");
-});
-
 scenario("One tap on a picker answers the agent", { tag: ["@browser", "@cli"] }, async ({ server, page, context }, info) => {
   info.setTimeout(60_000);
   // Background

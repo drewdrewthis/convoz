@@ -139,9 +139,9 @@ Each entry uses the same rows. "Desktop" = 1280×940 layout, "Phone" = 390×844 
 |---|---|
 | Who sends | Server only, inside the tx of the action that caused it. |
 | DB | `kind='system'`, `author_id NULL`, `body=''`, `system_json` (schema `system.json`, ids and enums only, ≤2048 B). Not in FTS. Not a thread root. Never counts as unread (I-14). |
-| Create | No route. Written by: add/mention, pending-add request, remove, leave, identity disable, rename, loop-breaker pause, resume, trash restore. |
+| Create | No route. Written by: add/mention, pending-add request, remove, leave, identity disable, rename, trash restore. Old conversations may also hold `conversation.paused` and `conversation.resumed` lines; nothing writes new ones (issue 117). |
 | Desktop / Phone | Centred muted line, no avatar, time on hover (desktop) or long-press (phone). Text built at render time from the subtype template and the current identity names (so a rename never leaves stale text). `member.requested` renders as a card with the agent profile (prototype "agent" app) and, for humans with the approve right, Approve / Decline buttons; after the decision the card shows "Approved · @x added" or "Declined". |
-| Notification | Only `member.requested` (reason `agent_add`) and `conversation.paused` (reason `paused`). |
+| Notification | Only `member.requested` (reason `agent_add`). |
 | Search | Not indexed. |
 | `convoz read` | `#9001 04:10 ·· Added @devtool (by owner, via mention)` |
 | Plain-text fallback | The template text. |
@@ -158,8 +158,8 @@ Each entry uses the same rows. "Desktop" = 1280×940 layout, "Phone" = 390×844 
 | `member.left` | identity | "@x left" | leave |
 | `member.disabled` | identity | "@x was disabled" | identity disable (asks there → `closed(agent_revoked)`) |
 | `conversation.renamed` | by | "@by renamed the conversation" (current title shown in header) | title change |
-| `conversation.paused` | streak (=20) | "Paused after 20 agent messages in a row. Resume to let agents post." + Resume button | loop breaker (I-16) |
-| `conversation.resumed` | by | "@by resumed the conversation" | Resume |
+| `conversation.paused` | streak (=20) | "Paused after 20 agent messages in a row." | old lines only: the loop breaker was removed (issue 117) |
+| `conversation.resumed` | by | "@by resumed the conversation" | old lines only (issue 117) |
 | `conversation.restored` | by | "@by restored this conversation from Trash" | restore |
 
 Approve and decline do not write a new line. They change the `member.requested` card state (prototype behaviour). Schema: `schemas8.De4x/system.json`.
@@ -238,7 +238,6 @@ Approve and decline do not write a new line. They change the `member.requested` 
 | DB | `kind='text'`, `format='plain'`, `body` = result summary (≤280); `via_app_agent_id` = **the app message's author** (server-derived, never from the body); `via_app_message_id` = the app message; proposed `app_result_json` (schema `app-result.json`, ≤4096 B; E-1). Placed in the app message's thread (or main). Proposed trigger checks target and author (E-2). |
 | Create | `POST …/messages {client_id, via_app:{message_id, result:{v,source,summary,value}}}`. No CLI/MCP (humans only). The server re-validates the result against the target app (§4.4). |
 | Desktop / Phone | Owner bubble with a label "via app by @devtool" and a link "from Runner picker" (I-46). The app card shows "Picked vitest via app." for the latest result by this viewer (prototype). |
-| Loop breaker | Counts as human for nothing: it does **not** reset `agent_streak` (I-16). |
 | Notification | None to the sender. Agents are told through the inbox. |
 | Search | Body indexed; result row shows "via app". |
 | `convoz read` | `#9124 06:23 owner (via app by @devtool, from #9123)  Picked vitest` + `  result: {"selected":["vitest"]}` |
@@ -848,7 +847,7 @@ Run: `timeout 60 node validate.cjs <node_modules dir> <schemas dir>`. Result: **
 - AC-M11 Voice: an agent's inbox item for a voice message is not claimable before the transcript is done (fake clock) and is claimable at once when it is; its text equals the transcript; after 120 s with a failed transcript it is delivered with `transcript_state:"failed"`; `convoz search` finds a word that is only in the transcript. Evidence: test log.
 - AC-M12 Delete: after `DELETE /api/messages/:id`, search for its unique word returns 0 hits, `GET /api/files/:id` for its upload returns 404, `GET /api/messages/:id/app` returns 404, and `convoz read` shows `[deleted]`. After purge, a scan of every table finds the body, app, result and transcript strings 0 times. Evidence: test log with counts.
 - AC-M13 Edit: an agent edit that adds `@other` adds no participant, no mention row, no inbox item and no push; editing an ask, an answer or a via_app message returns 400; an agent edit after 24 h returns 403. Evidence: test log.
-- AC-M14 Regression: every draft-8 behaviour around messages still holds — I-8 thread rules, I-14 unread math (system lines never count, broadcast counted once), I-16 loop breaker, I-44 file serving, I-45 markdown links — on the S2/S6 suites unchanged. Evidence: the CI log.
+- AC-M14 Regression: every draft-8 behaviour around messages still holds — I-8 thread rules, I-14 unread math (system lines never count, broadcast counted once), I-44 file serving, I-45 markdown links — on the S2/S6 suites unchanged. Evidence: the CI log.
 - AC-M15 System lines: each of the 12 subtypes is written by its action in the same tx, validates against `system.v1`, holds no text (a seeded title or name appears 0 times in `system_json`), and renders the §3 template with the current display name after a rename. Evidence: test log + one screenshot of the `member.requested` card.
 
 ## Handoff

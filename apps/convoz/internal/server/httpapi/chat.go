@@ -163,7 +163,7 @@ func conversationView(ctx context.Context, d pdb.DBTX, p authz.Principal, dir di
 	if out.RepliesToYou, err = repliesToYou(ctx, d, dir, p.Identity(), cv, u, out.Threads); err != nil {
 		return wire.Conversation{}, err
 	}
-	out.Paused, out.Stale = cv.Paused(), cv.Stale()
+	out.Stale = cv.Stale()
 	if out.Stale {
 		out.StaleReason = cv.StaleReason
 	}

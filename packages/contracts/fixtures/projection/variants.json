@@ -230,8 +230,8 @@
     "streak": 20
    }
   },
-  "short": "Paused after 20 agent messages in a row. Resume to let agents post.",
-  "long": "Paused after 20 agent messages in a row. Resume to let agents post."
+  "short": "Paused after 20 agent messages in a row.",
+  "long": "Paused after 20 agent messages in a row."
  },
  {
   "name": "system: renamed with the title",

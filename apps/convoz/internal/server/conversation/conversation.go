@@ -44,16 +44,11 @@ type Conversation struct {
 	LastMainID     int64
 	LastActivityAt int64
 	MessageCount   int64
-	AgentStreak    int64
-	PausedAt       int64
 	DeletedAt      int64
 	DeletedBy      int64
 	StaleAt        int64  // when an agent marked it stale; it counts only while no message came after (see Stale)
 	StaleReason    string // the agent's why with the last mark; may be empty
 }
-
-// Paused reports whether the loop breaker has stopped the agents (I-16).
-func (c Conversation) Paused() bool { return c.PausedAt != 0 }
 
 // Stale reports whether an agent's stale mark still holds: no message moved the conversation since it was marked.
 func (c Conversation) Stale() bool { return c.StaleAt != 0 && c.StaleAt >= c.LastActivityAt }
@@ -101,7 +96,6 @@ func fromRow(r db.Conversation) Conversation {
 	return Conversation{
 		ID: r.ID, Title: r.Title.String, TitleManual: r.TitleSource == "manual", TitleSetBy: r.TitleSetBy, CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, LinkURL: r.LinkUrl.String,
 		LastMessageID: r.LastMessageID, LastMainID: r.LastMainID, LastActivityAt: r.LastActivityAt, MessageCount: r.MessageCount,
-		AgentStreak: r.AgentStreak, PausedAt: r.PausedAt.Int64,
 		DeletedAt: r.DeletedAt.Int64, DeletedBy: r.DeletedBy.Int64, StaleAt: r.StaleAt, StaleReason: r.StaleReason,
 	}
 }

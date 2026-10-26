@@ -402,7 +402,7 @@ scenario("The unread count caps at 99+", { tag: ["@browser", "@I-14"] }, async (
   // Given the owner has read conversation 41
   await ownerHasRead(t);
 
-  // When "devtool" posts 150 messages and the owner posts through the API after every 15 to keep the loop breaker off
+  // When "devtool" posts 150 messages and the owner posts through the API after every 15
   for (let i = 1; i <= 150; i++) {
     await agentSays(t.w.srv, t.dev, t.conv, `message ${i}`);
     if (i % 15 === 0) {

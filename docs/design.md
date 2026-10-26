@@ -129,7 +129,6 @@ Legend: ✓ allowed, ✗ denied, P = only as a participant of that conversation,
 | Search | ✓ | ✓ (canSee) | ✓ (canSee) | ✓ (canSee) | K |
 | Inbox, brief, write a handoff | ✗ | ✗ | ✗ | own identity | K |
 | Read an agent's handoffs | ✓ (Crew) | ✗ | ✗ | own identity | K+R |
-| Resume a loop-paused conversation | ✓ | P | ✗ | ✗ | K+R |
 | Approve or decline a connect request (a machine, an agent, or both) | ✓ (one tap, no step-up) | ✗ | ✗ | ✗ | R |
 | Reveal / regenerate / revoke a machine key; edit its allow-list | ✓ S | ✗ | ✗ | ✗ | R |
 | Create an agent identity | ✓ by approving its connect request (no step-up); `POST /api/crew/agents` has no UI, for fixtures | ✗ | ✗ | files a connect request (`--create`); at once with `create_identity` | K+R |
@@ -579,7 +578,6 @@ Visibility: **conv** = canSee(conversation, message) and `seq ≥ joined_seq`; *
 | `machine.requested` / `.approved` / `.denied` / `.key_revealed` / `.key_regenerated` / `.revoked` / `.allow_changed` | API | C1; C2 for `requested` (reason `machine_request`) and `key_revealed` (reason `security`) (C-2) | machine or request id, by | owner |
 | `session.started` / `.ended` | API | C1 | session, identity, machine, reason | owner |
 | `handoff.created` | API | C1 | handoff id, identity | owner + self |
-| `conversation.paused` / `.resumed` | API | C1 C2 | conv, streak | conv |
 | `auth.*` (login, login_failed, step_up, device_revoked, passkey_added, recovery_used, bootstrap_used) | API | C1 C2 (recovery_used, bootstrap_used) | device, passkey hint | self/owner |
 | `upload.transcribed` | worker (its tx also re-indexes the message FTS row with the transcript and releases held inbox items) | C1 | upload, message_id | conv |
 
@@ -623,7 +621,7 @@ Built (S3 sync part): `GET /api/sync?cursor=<epoch>:<seq>&wait=<s≤25>` returns
 | T-9 Disk **write** access: rollback of old pages or a VM-snapshot restore | ✗ | ✗ Adiantum (unauthenticated) / ✓ SQLCipher (per-page HMAC, but whole-file rollback still works) | ✗ | partial |
 
 - The FTS index is pages in the same file, so page-level encryption covers it. This is the deciding factor.
-- T-6 is handled by authz: canSee, scopes, allow-lists, rate limits, the loop breaker, pending adds, instant revoke. The machine key is readable by every agent process of that Unix user (honest limit, §2.1).
+- T-6 is handled by authz: canSee, scopes, allow-lists, rate limits, pending adds, instant revoke. The machine key is readable by every agent process of that Unix user (honest limit, §2.1).
 - T-1 is honest: with the KEK on the same disk, a full-disk thief has everything.
 - T-9 (SEC should-fix, corrected from draft 7): the real risk is not page forgery (an edit randomizes a whole sector) but **rollback**: restoring old pages or an old VM snapshot can bring back a revoked machine key, device or passkey. Draft 7 said "disk write access ≈ full compromise"; that is wrong when the KEK is off-disk. v1 accepts this risk for one owner: signed backups, and the HMAC audit chain later (§3.9, §18.2).
 
@@ -907,8 +905,8 @@ CREATE TABLE conversations (
   last_activity_at INTEGER NOT NULL,
   message_count    INTEGER NOT NULL DEFAULT 0 CHECK (message_count >= 0),
   open_ask_count   INTEGER NOT NULL DEFAULT 0 CHECK (open_ask_count >= 0),
-  agent_streak     INTEGER NOT NULL DEFAULT 0 CHECK (agent_streak BETWEEN 0 AND 20),
-  paused_at        INTEGER,
+  agent_streak     INTEGER NOT NULL DEFAULT 0 CHECK (agent_streak BETWEEN 0 AND 20),   -- unused: the loop breaker was removed (issue 117)
+  paused_at        INTEGER,                                                        -- unused, as agent_streak
   pickup_opened_at INTEGER, pickup_opened_by INTEGER REFERENCES humans(identity_id),   -- SEC-6, unused: pickup was removed
   assign_version   INTEGER NOT NULL DEFAULT 0 CHECK (assign_version >= 0),             -- pickup fencing counter; never resets
   deleted_at       INTEGER, deleted_by INTEGER REFERENCES humans(identity_id),         -- soft delete (DA-6)
@@ -1448,7 +1446,7 @@ Enforcement: **DB** = constraint, trigger or index; **TX** = checked inside `tx(
 | I-13 | Snooze is per user, **only on open asks** (else 409 `not_open`; C-5), and never bumps `asks.version`. It is deleted when the ask leaves `open`. Presets: 1 hour; Tonight = 6:00 PM (18:00) local the same day, not offered from 18:00 (C-9, per prototype v41); Tomorrow = 09:00 local. | TX | `TestSnooze_PerUserIsolation`, `TestSnooze_ClearedOnAnswer`, `TestSnooze_DoesNotBumpVersion`, `TestSnooze_OnlyOpen409`, `TestSnooze_Presets` |
 | I-14 | Unread math (§8.2): own, system and deleted messages never count; thread replies count only in threads U is involved in; a broadcast reply read in its thread is read in main. | APP | `TestUnread_MainAndThread`, `TestUnread_OwnNotCounted`, `TestUnread_BroadcastCountedOnce`, `TestUnread_ReadMainClearsBold`, `TestUnread_UninvolvedThreadNotCounted`, `TestUnread_BroadcastReadInThread`, `BenchmarkRail_FloorZero1M` |
 | I-15 | Read cursors only move forward (trigger + `max()` upsert) and are clamped to `≤ last_message_id`. A post advances the author's own cursor only if it was caught up (`… WHERE last_read_main_id >= :prev_last_main_id`). An answer never moves the answerer's cursor (there is no CLI answer in v1, C-3). A new participant's cursor starts at `C.last_message_id`. | DB + TX | `TestReadCursor_NeverBackward`, `TestReadCursor_ClampedToLast`, `TestReadCursor_OwnPostAdvancesOnlyWhenCaughtUp`, `TestInbox_AgentPostKeepsEarlierHumanMessageUnread`, `TestReadCursor_AnswerFromNowDoesNotMarkRead`, `TestAddParticipant_FullHistoryCursorAtLast` |
-| I-16 | Loop breaker: an agent message or ask → `agent_streak+1`; at 20, pause, a system line and a `paused` notification; while paused, agent posts and asks → 429. A human message (not `via_app`) or Resume → 0. Thread replies count. Edits and status updates are rate-limited (§13.1). | TX + DB CHECK | `TestLoopBreaker_PausesOn20th`, `TestLoopBreaker_21stIs429`, `TestLoopBreaker_HumanResets`, `TestLoopBreaker_RepliesCount`, `TestViaApp_DoesNotResetStreak` |
+| I-16 | Removed 2026-10-26 (issue 117): agents are never paused for a long run of messages. The id is not reused. | — | — |
 | I-17 | Pending add: an agent request, and every participant an agent lists when it creates a conversation, is `pending` until a human approves. Approve → `active` with the whole history. Humans are never pending. | TX | `TestPendingAdd_RequestApproveJoinsAtRequest`, `TestPendingAdd_Decline`, `TestPendingAdd_HumanTargetRejected`, `TestPendingAdd_PendingHasNoAccess`, `TestAgentCreateConversation_ParticipantsPending` |
 | I-18 | An @mention in a human message adds a non-disabled agent at once, with the whole history. Joining puts no inbox item for older messages: the agent gets the mention of this message and the membership notice only. An agent's @mention never adds. Mentions in code and quotes are ignored; TS and Go parsers agree. | TX + APP | `TestMention_HumanAddsAgent`, `TestMention_AgentNeverAdds`, `TestMention_InCodeIgnored`, `TestMention_ParserDifferentialFuzz` |
 | I-19 | Removal or leave, one tx: status → `removed`/`left`; the subject's **open and dismissed** asks there → `closed(removed)`; its assignment released; its other inbox items there → `expired(removed)`; **one `membership` notice item** for the subject, exempt from the canSee re-check and delivered once (C-1); a system line. After commit the hub drops the subscription; after the notice the subject gets nothing more from that conversation. | TX + APP | `TestRemove_ClosesAsksAndAssignment`, `TestRemove_ClosesDismissedAsks`, `TestRemove_ExpiresInboxItemsButDeliversNotice`, `TestRemove_NoEventDeliveredAfterCommit`, `TestReAdd_OriginalHistoryOption` |
@@ -1493,7 +1491,7 @@ Every transition below that changes state also writes one `ask_transitions` row 
 
 | From | Event | Who | To | Same tx |
 |---|---|---|---|---|
-| — | create | agent participant + `ask` | open | options, then seal; `open_ask_count+1`; `ask.created`; streak+1; history |
+| — | create | agent participant + `ask` | open | options, then seal; `open_ask_count+1`; `ask.created`; history |
 | open | answer {recommended \| alternative i \| custom text} | human with the answer right (in the conversation or from Now; no CLI in v1, C-3) | answered | `chosen_*`, `resolved_*`, `answer_via` (`inline` \| `now`); an answer `text` message (in the ask's thread if the ask is a reply, else main) — **the answerer's cursor does not move** (I-15); count−1; snoozes deleted; inbox `ask_resolved` for the asker; history |
 | open | dismiss | same | dismissed | `resolved_by`/`resolved_at` = the dismisser; count−1; snoozes deleted; inbox `ask_resolved`; history |
 | dismissed | answer | same | answered | asker must be an active participant and not disabled, else 409 `asker_gone`; clear `acked_at`/`acked_by_session`; answer message; inbox `ask_resolved`; history |
@@ -1695,18 +1693,17 @@ All JSON (brotli/gzip). Errors `{error:{code,message}}`. Auth: **H** human cooki
 | `GET/PATCH/DELETE /api/conversations/:id` · `POST …/restore` | H/L · H/L (`post`) · O | title, link · rename: `{title?, link_url?}`; an agent may send only `title` (a link is 403, no title is 400). A participant agent gets the conversation (a non-participant 403, as for every agent read); a title a person chose is 409 `title_owner_set`; the 4th rename within an hour by one agent in one conversation is 429. The title is untrusted text: control and bidi characters are stripped, then 1 to 120 characters (400 `title`). The rename writes the system line `@claude renamed this to "X"`; the event and the audit line `conversation.rename` name the agent · soft delete · restore from trash | I-6 I-20 I-49 |
 | `PATCH /api/conversations/:id/prefs` | H | {starred?, rail_rank?, muted_until?} | I-21 I-22 |
 | `POST /api/conversations/:id/participants` · `…/:iid/{approve,decline}` · `DELETE …/:iid` · `POST …/leave` | H/L · H · H · H/L | {identity_id, history: since_now\|full (both give the whole history; kept for older clients)} | I-17 I-18 I-19 |
-| `POST …/resume` | H | | I-16 |
 | `POST …/read` | H/L | {main_id?, root_id+reply_id?, all?} | I-15 |
 | `GET …/messages?before=&after=&limit=` · `GET /api/messages/:id/replies` | H/L | compact pages + `as_of_seq` | I-6 I-7 |
 | `POST /api/conversations/:id/typing` | L | {thread_root_id?} → 204; live `agent.working` for 30 s, nothing stored (a person gets 403) | — |
-| `POST /api/conversations/:id/messages` | H/L `post` | {client_id, body, format, thread_root_id?, broadcast?, upload_ids?, app? (L only), via_app?:{message_id, result} (H only)} | I-8 I-9 I-16 I-18 I-24 I-31 I-46 I-50 |
+| `POST /api/conversations/:id/messages` | H/L `post` | {client_id, body, format, thread_root_id?, broadcast?, upload_ids?, app? (L only), via_app?:{message_id, result} (H only)} | I-8 I-9 I-18 I-24 I-31 I-46 I-50 |
 | `POST /api/apps/validate` | H/L | {app} → 200 {bytes} \| 400 app_* | I-50 |
 | `GET /api/messages/:id/app` | H/L | full `app_json` when the page held a stub | I-6 |
 | `GET /api/apps/:message_id/frame?h=` | H (cookie only) | Tier-2 bundle with the frame CSP | I-46 I-50 |
 | `GET /api/messages/:id/unfurl` | H | unfurl card for the first URL (canSee) | I-6 |
 | `PATCH/DELETE /api/messages/:id` · `POST /api/messages/:id/purge` | author/O · O S | edit / tombstone / scrub | I-10 I-49 |
 | `PUT/DELETE /api/messages/:id/pin` | H | | I-22 |
-| `POST /api/asks` | L `ask` | {conversation_id, thread_root_id?, client_id, question, recommended{label,why}, alternatives[{label,why}], urgent, app?} | I-11 I-16 |
+| `POST /api/asks` | L `ask` | {conversation_id, thread_root_id?, client_id, question, recommended{label,why}, alternatives[{label,why}], urgent, app?} | I-11 |
 | `GET /api/asks/:id` | H/L | the ask, its options, state and history (`ask_transitions`) | I-6 I-12 |
 | `POST /api/asks/:id/{answer,dismiss,undismiss}` · `POST /api/asks/:id/withdraw` | H · L | {choice, text?, if_version?, client_id} (a lease answering → 403; C-3) | I-12 |
 | `PUT/DELETE /api/asks/:id/snooze` | H | {preset (`1h` \| `tonight` \| `tomorrow`) \| until}; open asks only (409 `not_open`) | I-13 |
@@ -1728,7 +1725,7 @@ SSE (humans only in v1): `event: <type>`, `id: epoch:seq`, `data: {…, prev_seq
 | Item | Limit |
 |---|---|
 | Agent messages | 1/s sustained, burst 20, 5k/day per identity; 20k/day per machine |
-| Edits (agents) | 30/h per identity (SEC should-fix: edits bypass the loop breaker) |
+| Edits (agents) | 30/h per identity (an edit is not a new message, so edits have a budget of their own) |
 | Status updates | 1 per 5 s, burst 10, per identity |
 | Asks | 20 open, 60/h per identity |
 | Uploads | 60/h per identity; bytes 500 MB/day per identity and 2 GB/day per machine (**DEFAULT**); ≤4 in flight per identity |
@@ -1847,7 +1844,7 @@ Others: a Tier-2 frame can navigate itself away and leak what the owner types in
 |---|---|---|---|
 | S0 | Repo skeleton, contracts + drift gate, tokens + contrast gate, first `ui` primitives, boundary lint, **supply-chain settings**, `specs/` checker in CI. Server core: driver spike and gate (FTS5, contentless_delete, p95 at 1M, **backup snapshot encrypted**, **FTS optimize time**); `tx()` with audit/FTS/inbox ports; migration runner; pragmas (`secure_delete`); keyring + KEK via `LoadCredential`; thin `events` + immutability trigger; schema golden; `testhooks` build tag + release guard | platform, crypto · — · contracts, tokens, ui, config | `platform` (I-4, I-5, I-23 immutability, I-34, I-48), `ops` (encrypted DB and KEK file), `quality-gates` (AC-1 checker, AC-16, contrast, pinned inputs) |
 | S1 | `identity`, `auth`, `authz`: identities (retired handles, confusables), passkeys, recovery (24 h limit), devices, CSRF, single-use step-up, break-glass socket; **tailnet wall**; **device flow (M6), machines, allow-lists, Reveal / Regenerate / Revoke, session leases (M5)**; Tailscale spike (serve→unix, whois, funnel status); `convoz login/whoami/session/serve/admin` | identity, auth, authz · auth, onboarding, now (machine card), crew (machines) · contracts, api-client | `onboarding`, `machine-login`, `sessions`, `crew`, `security` (wall, step-up, reveal); I-1, I-2, I-3, I-25, I-26, I-33, I-36…I-42; AC-2, AC-8, AC-14, AC-15, AC-24, AC-27 (b, c) |
-| S2 | Conversations (soft delete), participants (agent-listed pending), messages, threads (involvement), mentions, edits/deletes (E-16, E-18), canSee, counters, read cursors (DA-2/3/4), unread, loop breaker, removal (C-1 notice row), GC; **sync FTS writes**; markdown links/images rules; plain-text projection (E-21) | conversation, message, readstate, search, authz · rail, conversations, threads, composer · markdown, ui | `conversations`, `threads`, `rail`, `composer` (text), `messages-types`; I-6…I-9, I-14…I-21, I-24, I-45; AC-5, AC-13, AC-26; AC-M1, AC-M13, AC-M14, AC-M15 |
+| S2 | Conversations (soft delete), participants (agent-listed pending), messages, threads (involvement), mentions, edits/deletes (E-16, E-18), canSee, counters, read cursors (DA-2/3/4), unread, removal (C-1 notice row), GC; **sync FTS writes**; markdown links/images rules; plain-text projection (E-21) | conversation, message, readstate, search, authz · rail, conversations, threads, composer · markdown, ui | `conversations`, `threads`, `rail`, `composer` (text), `messages-types`; I-6…I-9, I-14…I-21, I-24, I-45; AC-5, AC-13, AC-26; AC-M1, AC-M13, AC-M14, AC-M15 |
 | S3 | Event backbone: bus, SSE C1 with hydration (humans), delta sync + long-poll fallback, snapshot, prune; **inbox**: items and precedence (C-10), long poll, held/expire/merge/claim/ack/extend (M1–M4, M8), session preference, removal notice (C-1), retention | event, inbox · (sync engine) · api-client | `inbox`, `poor-network` (sync and stream parts), `platform` (events); I-23, I-43; AC-6, AC-18, AC-20 (b, e), AC-22, AC-27 (a), AC-28 |
 | S4 | Asks: options + seal, state machine (C-3…C-6), history (`ask_transitions`), per-user snooze (open only, presets C-9), ack via inbox, Now | ask · now · app-kit (AskCard) | `asks`, `now`; I-10…I-13; AC-4, AC-29 |
 | S-A | **Agent surface:** `convoz brief` (M7 budgets, paging, no side effects), `handoff`, `read`, `search`, `post`, `reply`, `ask`, `status`, `watch`; `convoz mcp` tools; `convoz setup`; retries + `client_id`; `CLAUDE_CODE_SESSION_ID` as client id; MCP config spike | inbox · crew (handoffs, sessions) · contracts (MCP schemas) | `brief-handoff`, `cli-mcp`; AC-19, AC-21; owner check: a real Claude Code session |
@@ -1962,7 +1959,7 @@ Each AC is proven by the end-to-end scenarios tagged `@AC-n` (`specs/coverage.md
 - AC-2 Break-glass: `convoz admin bootstrap-link` over the admin socket prints a link; using its fake token `cvz_b_TESTONLY…` registers one passkey; reusing it returns 401; a token presented after 10 min returns 401; no HTTP route mints a bootstrap token (route table test). Evidence: an integration test transcript.
 - AC-3 Opening the DB file and a backup snapshot with a plain VFS returns "file is not a database". A `strings` scan of the DB, WAL, snapshot and blob files finds no seeded fake message body. Evidence: a test log quoting both checks.
 - AC-4 50 concurrent answers to one open ask, each with a different custom text, produce exactly 1 `answered` row, 1 answer message, one 200 and 49 responses of 409 with the winning text; re-sending the winning answer as the same human returns 200 and writes nothing; the answerer's read cursor is unchanged; the ask history has one `answer` row. Evidence: a test log.
-- AC-5 The 21st consecutive agent message returns 429. A human message then lets agent posts through; a `via_app` message does not. Evidence: a test log.
+- AC-5 The 21st consecutive agent message posts, and no pause line is written (issue 117 removed the loop breaker, I-16). Evidence: a test log.
 - AC-6 An agent removed from a conversation gets exactly one inbox item for it after the removal (the `membership` removal notice), then no SSE frame, inbox item, `convoz read` or search result for it, while its other conversations keep flowing; its open and dismissed asks there are `closed(removed)`. Evidence: a test that asserts on items, frames and rows.
 - AC-7 Push: a muted conversation is suppressed with `muted`; an urgent ask in quiet hours is sent when `urgent_bypass=true` and suppressed otherwise; a 410 disables the subscription; an endpoint on `fcm.googleapis.com.evil.tld` is refused; a machine request and a key reveal each push the owner. Evidence: `notifications` and `push_deliveries` rows in the test log.
 - AC-8 Device flow on a `mktemp -d` server: `convoz login --name box-2` prints a code; `GET /api/now` lists a machine request with the same code; before approval the token poll returns `authorization_pending`; a poll under 5 s returns `slow_down`; approval without a single-use step-up returns 403; after approval, with a fault proxy that drops the first successful token response, the next poll with the same device code gets the key; after the first `POST /api/sessions` with the key, a poll with that device code returns `expired_token`; an approved key never fetched returns `expired_token` 10 min after approval; an unapproved request returns `expired_token` after 10 min (fake clock); a denied request creates no `machines` row; the credentials file is 0600 and the CLI exits 3 with a clear message when it is 0644. Evidence: a CLI transcript with the proxy log and a screenshot of the Now card.
