@@ -5,6 +5,7 @@ import { coalesce, maxId } from "@convoz/api-client";
 import { create } from "zustand";
 import { ApiError, humanError } from "../../shared/api.ts";
 import { newId } from "../../shared/chat.ts";
+import { reportSendFailed } from "../../shared/clientEvents.ts";
 import { data, holdOfflineUntil, offlineReady, outbox, source, sync } from "../../shared/data.ts";
 import { asUpload, uploadFile } from "../../shared/uploads.ts";
 import { toast } from "../pins-stars/index.ts";
@@ -138,6 +139,7 @@ export const useConversations = create<ConversationsState>()((set, get) => {
         if (err instanceof ApiError && err.handled) return;
         if (!linkDown(err)) {
           void outbox.remove(cid); // a refusal comes back on every open if kept, and a retry cannot change it
+          reportSendFailed();
           // a failure marks its bubble; with no bubble left to mark, the owner still hears of it
           if (!thread(key)?.pending.some((x) => x.cid === cid)) return toast(LOST_SEND);
           return setState("failed", humanError(err));

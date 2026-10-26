@@ -16,6 +16,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/ops"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/telemetry"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/upload"
 )
 
@@ -76,6 +77,8 @@ type Server struct {
 	statusLimit auth.Limiter
 	// clientErrorLimit caps the web app's error reports at 60 an hour per device session.
 	clientErrorLimit auth.Limiter
+	// clientEventLimit caps the web app's events (POST /api/client-events) at 60 an hour per device session.
+	clientEventLimit auth.Limiter
 	// dayIdentityLimit and dayMachineLimit are the daily message caps of an agent identity and of a machine (design §13.1).
 	dayIdentityLimit auth.Limiter
 	dayMachineLimit  auth.Limiter
@@ -83,13 +86,14 @@ type Server struct {
 	agentStartLimit, agentStartAll, agentPollLimit, agentFailLimit, agentDownloadLimit auth.Limiter
 	agentInflight                                                                      inflight
 	streams                                                                            streamSet
-	maintainedAt                                                                       atomic.Int64  // server time (unix ms) of the last clean-up run Maintain made on a list read
-	maintaining                                                                        sync.Mutex    // held while a list read runs the clean-up, so a second list read waits for it instead of reading the list before the clean-up
-	exports                                                                            ops.Exports   // export jobs; the zero value is ready
-	heartbeat                                                                          time.Duration // how often a quiet stream sends ": hb" and checks its device; heartbeatEvery unless a test shortens it
-	watching                                                                           watchSet      // the agents that hold a long poll of their inbox now (plan liveness, msg 281)
-	runners                                                                            runnerSet     // which session runs `convoz run` for an agent (handlers_runner.go)
-	voice                                                                              voiceState    // the voice call's key, token minter and hourly budget (voice.go)
+	maintainedAt                                                                       atomic.Int64         // server time (unix ms) of the last clean-up run Maintain made on a list read
+	maintaining                                                                        sync.Mutex           // held while a list read runs the clean-up, so a second list read waits for it instead of reading the list before the clean-up
+	exports                                                                            ops.Exports          // export jobs; the zero value is ready
+	heartbeat                                                                          time.Duration        // how often a quiet stream sends ": hb" and checks its device; heartbeatEvery unless a test shortens it
+	watching                                                                           watchSet             // the agents that hold a long poll of their inbox now (plan liveness, msg 281)
+	runners                                                                            runnerSet            // which session runs `convoz run` for an agent (handlers_runner.go)
+	voice                                                                              voiceState           // the voice call's key, token minter and hourly budget (voice.go)
+	Telemetry                                                                          *telemetry.Telemetry // numbers-only metrics and traces; nil is off
 }
 
 // Daily message caps (design §13.1).
@@ -121,6 +125,7 @@ func NewServer(store *db.Store, clock platform.Clock, wa *webauthn.WebAuthn, key
 		postLimit:          auth.Limiter{Window: 20 * time.Second, Max: 20},
 		statusLimit:        auth.Limiter{Window: 50 * time.Second, Max: 10},
 		clientErrorLimit:   auth.Limiter{Window: time.Hour, Max: clientErrorsPerHour},
+		clientEventLimit:   auth.Limiter{Window: time.Hour, Max: clientEventsPerHour},
 		agentStartLimit:    auth.Limiter{Window: time.Hour, Max: agentStartsPerHour},
 		agentStartAll:      auth.Limiter{Window: time.Hour, Max: agentStartsAllPerHour},
 		agentDownloadLimit: auth.Limiter{Window: time.Hour, Max: agentDownloadsPerHour},
@@ -140,8 +145,10 @@ func (s *Server) Handler() http.Handler {
 	for _, r := range Routes {
 		mux.HandleFunc(r.Method+" "+muxPattern(r.Pattern), s.route(r))
 	}
-	mux.HandleFunc("/api/", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
+		start := s.Telemetry.Now()
 		writeErr(w, http.StatusNotFound, "not_found", "No such route.")
+		s.Telemetry.ObserveRequest(start, telemetry.Unmatched, r.Method, http.StatusNotFound)
 	})
 	registerTestHooks(mux, s)
 	s.startTranscriber()

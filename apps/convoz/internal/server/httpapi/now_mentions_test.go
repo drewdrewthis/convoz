@@ -116,7 +116,7 @@ const lastMainFixup = `UPDATE conversations SET last_main_id = COALESCE((SELECT 
 
 // seedTimingRun builds n conversations like the issue 105 timing run: each has one unread agent message, in every 5th it
 // @mentions the owner, and in every 10th the owner wrote first.
-func seedTimingRun(t *testing.T, s *pdb.Store, n int) {
+func seedTimingRun(t testing.TB, s *pdb.Store, n int) {
 	var convs, msgs, mentions, cursors []string
 	id := 0
 	for i := 1; i <= n; i++ {

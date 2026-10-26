@@ -19,7 +19,7 @@ func fakeCred(id string) *webauthn.Credential {
 	return &webauthn.Credential{ID: []byte("TESTONLY-" + id), PublicKey: []byte("TESTONLY-key-" + id)}
 }
 
-func mintLink(t *testing.T, s *pdb.Store, now time.Time) string {
+func mintLink(t testing.TB, s *pdb.Store, now time.Time) string {
 	t.Helper()
 	var token string
 	err := s.Writer.Tx(context.Background(), func(ctx context.Context, tx *pdb.Tx) error {

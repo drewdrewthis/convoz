@@ -96,9 +96,9 @@ func firstReadRoutes() map[string]Route {
 var firstReadsByPage = console.FirstReads()
 
 // firstReads runs each read of this page's first screen as the request's own GET of that route, through the route's own
-// authentication and Auth class (s.route), and returns them as the data block. A read that does not answer 200 is left out (the
-// app asks for it itself); with none left, or a page with no first screen, it returns nil and the page is the lean shell, never
-// a page with empty data.
+// authentication and Auth class (s.serveRoute: a read inline is part of the page's request, so telemetry does not count it again),
+// and returns them as the data block. A read that does not answer 200 is left out (the app asks for it itself); with none left, or
+// a page with no first screen, it returns nil and the page is the lean shell, never a page with empty data.
 func (s *Server) firstReads(r *http.Request) []byte {
 	reads := firstReadsByPage[r.URL.Path]
 	if len(reads) == 0 {
@@ -111,7 +111,7 @@ func (s *Server) firstReads(r *http.Request) []byte {
 		q.Header.Del("Accept-Encoding")
 		q.Header.Del(console.LeanHeader)
 		rec := &recorder{header: http.Header{}, status: http.StatusOK}
-		s.route(s.readRoutes[path])(rec, q)
+		s.serveRoute(s.readRoutes[path])(rec, q)
 		if rec.status == http.StatusOK && json.Valid(rec.body.Bytes()) {
 			answers[path] = rec.body.Bytes()
 		}

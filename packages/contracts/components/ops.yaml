@@ -12,9 +12,20 @@ ClientErrorRequest:
   additionalProperties: false
   required: [message, stack, page, build, ua, at]
   properties:
+    kind:
+      type: string
+      description: |
+        The error's class: TypeError, ReferenceError, SyntaxError, RangeError or ChunkLoadError, else "other". It is the only part
+        that is counted; the server matches it exactly and counts any other value as "other". Never read from the message.
     message: { type: string, maxLength: 500 }
     stack: { type: string, maxLength: 4096 }
     page: { type: string, description: The path of the page; never a query. }
     build: { type: string, description: The web build that ran. }
     ua: { type: string, description: The browser's user agent. }
     at: { type: integer, format: int64, description: The browser's time of the error, in milliseconds. }
+ClientEventRequest:
+  type: object
+  description: One event of the web app, with no content. Fields other than event are ignored.
+  required: [event]
+  properties:
+    event: { type: string, enum: [send_failed], description: "send_failed: a message send the app gave up on." }
