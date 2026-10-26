@@ -5,6 +5,7 @@ import { useId } from "react";
 import { navigate } from "../../shared/navigate.ts";
 import { AskApp } from "./AskApp.tsx";
 import { Attention } from "./Attention.tsx";
+import { FeedThread } from "./FeedThread.tsx";
 
 interface NowAskProps {
   ask: Ask;
@@ -92,6 +93,7 @@ export function NowAsk({ ask, busy, presets, answer, dismiss, snooze, compact = 
         replies={{ count: ask.reply_count, unread: ask.unread_replies }}
         onReply={() => navigate(`/chats/${ask.conversation_id}#reply=${ask.thread_root_id ?? ask.id}`)}
       />
+      <FeedThread ask={ask} />
       <AskApp ask={ask} />
       <Attention conversation={ask.conversation_id} />
     </>
