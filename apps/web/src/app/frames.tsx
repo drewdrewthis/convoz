@@ -4,12 +4,12 @@ import { AccountIcon, BackIcon, ChatIcon, CrewIcon, NowIcon, PlusIcon } from "@c
 import { IconButton } from "@convoz/ui/IconButton";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { signOut } from "../shared/api.ts";
-import { keepForOffline } from "../shared/data.ts";
+import { keepForOffline, useData } from "../shared/data.ts";
 import { Banners, useNoticeState } from "../shared/notice.tsx";
 import { PageHeadContext, type PageHead } from "../shared/page-head.tsx";
 import { CallPill } from "../features/call/index.ts";
 import { PushBanner } from "../features/notifications/index.ts";
-import { openCount, useNow } from "../features/now/index.ts";
+import { needsYouCount, useNow } from "../features/now/index.ts";
 import { SearchButton } from "../features/search/index.ts";
 import type { PageDef } from "./routes.tsx";
 
@@ -55,7 +55,7 @@ const TABS = [
 
 export function ShellFrame({ def, children }: { def: PageDef; children: ReactNode }) {
   const { status, alert, notice, Provider } = useNoticeState();
-  const count = openCount(useNow((s) => s.now));
+  const count = needsYouCount(useNow((s) => s.now), useData((s) => s.conversations));
   // The Now tab counts what waits for the owner on every signed-in page, so the page keeps the numbers fresh while it is open.
   // Only Now polls: another page loads the numbers once and then follows the stream, so it can go quiet (networkidle).
   useEffect(() => {

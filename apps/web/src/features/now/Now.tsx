@@ -13,7 +13,7 @@ import { NowReplied } from "./NowReplied.tsx";
 import { PendingAdd } from "./PendingAdd.tsx";
 import { Mentions, OtherChats, Replies, unreadRows, useTriage } from "./Unread.tsx";
 import { useAskActions } from "./useAskActions.ts";
-import { useNow } from "./store.ts";
+import { needsYouCount, useNow } from "./store.ts";
 
 interface NowProps {
   /** Drawn in the desktop rail (proposal §1): no notes and no wordmark, and it polls on its own, since no Now page around it does. */
@@ -22,9 +22,10 @@ interface NowProps {
   current?: number;
 }
 
-/** Now is /: what needs the owner. Open asks first (urgent, then the newest), then the ones the owner replied to and the agent has not answered, then the adds agents wait on and the machines waiting
- *  to connect; Snoozed, Answered today and Dismissed today fold away below. With nothing waiting, the wordmark, "All clear" and the folds are centred, in that order.
- *  The desktop rail draws the same list `compact`, beside the open conversation. */
+/** Now is /: what needs the owner. Under "Needs you · N" (N is needsYouCount, the number of the Now badges): open asks (urgent, then the newest), the adds agents
+ *  wait on, the machines and agents waiting to connect, and the messages that @mention the owner. Then "Replies to you", then the asks the owner replied to and
+ *  the agent has not answered, then Other chats; Snoozed, Answered today and Dismissed today fold away above. With nothing waiting, the wordmark, "All clear"
+ *  and the folds are centred, in that order. The desktop rail draws the same list `compact`, beside the open conversation (owner, conv 179 msg 6018). */
 export function Now({ compact = false, current = 0 }: NowProps = {}) {
   const { fail } = useNotice();
   const load = useNow((s) => s.load);
@@ -73,6 +74,8 @@ export function Now({ compact = false, current = 0 }: NowProps = {}) {
   const adds = now?.pending_adds ?? [];
   const some = Boolean(pending && (waiting || asks.length || adds.length));
   const clear = Boolean(now) && !some && conversations !== null && unread.length === 0;
+
+  const needsYou = needsYouCount(now, conversations) ?? 0;
 
   const reload = useCallback(() => load().then(() => undefined), [load]);
   const { busy, presets, answer, dismiss, snooze, unsnooze, reopen } = useAskActions({ now, asks, reload, onAnswered: () => setFolds((f) => ({ ...f, answered: true })) });
@@ -132,18 +135,16 @@ export function Now({ compact = false, current = 0 }: NowProps = {}) {
         reopen={reopen}
         centered={clear}
       />
-      {asks.length + mentions.length ? <p className="ghdr">{`Needs you · ${asks.length + mentions.length}`}</p> : null}
+      {needsYou ? <p className="ghdr">{`Needs you · ${needsYou}`}</p> : null}
       {asks.length ? (
         <section id="asks" className="mb-8 flex flex-col gap-8" onKeyDown={moveFocus}>
           {asks.map((ask) => (
             <div key={ask.id} className="flex flex-col gap-8" data-conv={ask.conversation_id} aria-current={ask.conversation_id === current ? "page" : undefined}>
-              <NowAsk ask={ask} busy={busy.has(ask.id)} presets={presets} answer={answer} dismiss={dismiss} snooze={snooze} />
+              <NowAsk ask={ask} busy={busy.has(ask.id)} presets={presets} answer={answer} dismiss={dismiss} snooze={snooze} compact={compact} />
             </div>
           ))}
         </section>
       ) : null}
-      {mentions.length ? <Mentions items={mentions} current={current} /> : null}
-      {replied.length ? <NowReplied asks={replied} /> : null}
       {adds.length ? (
         <section id="adds" className="block" aria-label="Adds to decide">
           {adds.map((add) => (
@@ -179,8 +180,10 @@ export function Now({ compact = false, current = 0 }: NowProps = {}) {
           ))}
         </div>
       </section>
+      {mentions.length ? <Mentions items={mentions} current={current} /> : null}
       {replies.length ? <Replies items={replies} current={current} /> : null}
-      {rest.length ? <OtherChats rows={rest} current={current} /> : null}
+      {replied.length ? <NowReplied asks={replied} /> : null}
+      {rest.length ? <OtherChats rows={rest} current={current} compact={compact} /> : null}
     </>
   );
 }

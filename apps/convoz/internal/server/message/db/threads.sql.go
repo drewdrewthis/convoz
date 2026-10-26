@@ -108,6 +108,50 @@ func (q *Queries) CountThreadUnreadByRoot(ctx context.Context, arg CountThreadUn
 	return items, nil
 }
 
+const countUnreadMentions = `-- name: CountUnreadMentions :one
+SELECT COUNT(*) FROM (
+  SELECT m.id FROM mentions mn JOIN messages m ON m.id = mn.message_id
+  WHERE mn.identity_id = ?1 AND mn.message_id > ?2
+    AND m.conversation_id = ?3 AND m.kind <> 'system' AND m.deleted_at IS NULL AND m.author_id <> ?4
+    AND (
+      (m.in_main = 1 AND m.id > ?5 AND NOT (m.broadcast = 1 AND EXISTS (
+        SELECT 1 FROM json_each(?6) p WHERE json_extract(p.value, '$[0]') = m.thread_root_id AND m.id <= json_extract(p.value, '$[1]'))))
+      OR (m.broadcast = 0 AND m.thread_root_id IS NOT NULL AND EXISTS (
+        SELECT 1 FROM json_each(?6) p WHERE json_extract(p.value, '$[0]') = m.thread_root_id AND m.id > json_extract(p.value, '$[1]')))
+    )
+  LIMIT ?7
+)
+`
+
+type CountUnreadMentionsParams struct {
+	IdentityID     int64
+	LowestAfter    int64
+	ConversationID int64
+	ReaderID       sql.NullInt64
+	MainAfter      int64
+	Points         interface{}
+	MaxRows        int64
+}
+
+// The unread messages of a conversation that @mention the reader, stopping at max_rows: the main list after main_after, less the
+// broadcast replies read in their thread, and the replies of the threads in points, each after its own read point. points is a
+// JSON array of [root_id, after] for the threads the reader is in; lowest_after is the lowest of all those points, so the scan
+// starts from the reader's own mentions (mentions_identity) and never reads the whole conversation.
+func (q *Queries) CountUnreadMentions(ctx context.Context, arg CountUnreadMentionsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countUnreadMentions,
+		arg.IdentityID,
+		arg.LowestAfter,
+		arg.ConversationID,
+		arg.ReaderID,
+		arg.MainAfter,
+		arg.Points,
+		arg.MaxRows,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const inThread = `-- name: InThread :many
 SELECT id FROM messages WHERE thread_root_id = ?1 AND id IN (/*SLICE:ids*/?) ORDER BY id
 `
@@ -150,6 +194,27 @@ func (q *Queries) InThread(ctx context.Context, arg InThreadParams) ([]int64, er
 		return nil, err
 	}
 	return items, nil
+}
+
+const mainAuthorAt = `-- name: MainAuthorAt :one
+SELECT CAST(COALESCE((
+  SELECT author_id FROM messages
+  WHERE conversation_id = ?1 AND in_main = 1 AND kind <> 'system' AND deleted_at IS NULL AND id <= ?2
+  ORDER BY id DESC LIMIT 1
+), 0) AS INTEGER)
+`
+
+type MainAuthorAtParams struct {
+	ConversationID int64
+	At             int64
+}
+
+// The author of the newest main-list message at or before at that still reads, 0 for none: who wrote what the reader read last.
+func (q *Queries) MainAuthorAt(ctx context.Context, arg MainAuthorAtParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, mainAuthorAt, arg.ConversationID, arg.At)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const newestCountedInMain = `-- name: NewestCountedInMain :one

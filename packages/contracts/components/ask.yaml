@@ -194,11 +194,12 @@ NowWaiting:
     since: { type: integer, format: int64 }
 Now:
   type: object
-  required: [now, poll_ms, badge, asks, replied, snoozed, answered_today, dismissed_today, pending_adds, waiting_plans, machine_requests, identity_requests]
+  required: [now, poll_ms, badge, mentions, asks, replied, snoozed, answered_today, dismissed_today, pending_adds, waiting_plans, machine_requests, identity_requests]
   properties:
     now: { type: integer, format: int64, description: The server's clock, epoch ms. Snooze times and "tonight" are read against it. }
     poll_ms: { type: integer, description: How often an open Now asks again, for what only time changes (a snooze waking, a request expiring). }
-    badge: { type: integer, description: Open asks that are not snoozed. }
+    badge: { type: integer, description: Open asks that are not snoozed, plus mentions. }
+    mentions: { type: integer, description: "The caller's conversations, not muted and not in the trash, that have an unread message that @mentions it." }
     asks: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Ask" }, description: "Open and not snoozed; urgent first, then the newest." }
     replied: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Ask" }, description: "Open, not snoozed, and the owner replied in the thread: they wait on the agent's updated ask, the newest reply first." }
     snoozed: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Ask" }, description: "The caller's snoozed open asks, the soonest wake first." }

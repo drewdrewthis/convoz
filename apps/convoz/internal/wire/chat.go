@@ -49,8 +49,10 @@ type Conversation struct {
 	Participants   []Person     `json:"participants"`
 	Last           *LastMessage `json:"last"`
 	Unread         int64        `json:"unread"`
-	MainUnread     int64        `json:"main_unread"`       // the part of Unread that sits in the main list; the rest is thread replies
-	Threads        []ThreadRow  `json:"threads,omitempty"` // the threads with a reply, newest reply first
+	MainUnread     int64        `json:"main_unread"`              // the part of Unread that sits in the main list; the rest is thread replies
+	UnreadMentions int64        `json:"unread_mentions"`          // the unread messages that @mention the caller, under the same cursors as Unread
+	RepliesToYou   bool         `json:"replies_to_you,omitempty"` // an agent answered the caller: unread after its own message, or in its own thread
+	Threads        []ThreadRow  `json:"threads,omitempty"`        // the threads with a reply, newest reply first
 	Starred        bool         `json:"starred"`
 	Rank           float64      `json:"rank"`
 	OwnerLast      bool         `json:"owner_last,omitempty"` // the owner wrote the newest message of the main list: it never goes Older (#42)

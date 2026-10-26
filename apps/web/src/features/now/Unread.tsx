@@ -10,8 +10,10 @@ import { toast } from "../pins-stars/index.ts";
 import { titleOf } from "../rail/index.ts";
 import { Button } from "@convoz/ui/Button";
 
-/** How many of the newest messages are read to tell what is new in a conversation. */
+/** How many of the newest messages are read to find the line of a Needs you or Replies to you card. */
 const WINDOW = 20;
+/** How many Other chats rows the sidebar lists when its one-line fold opens, before "Show all". */
+const FOLD_TOP = 10;
 
 /** unreadRows are the conversations with unread main messages or unread thread replies, newest activity first. A muted conversation stays out. */
 export function unreadRows(list: readonly Conversation[] | null): Conversation[] {
@@ -50,47 +52,44 @@ export interface Triage {
 }
 
 const lineOf = (m: Message): Line => ({ author: m.author.handle, text: words(m) });
+const lastLine = (c: Conversation): Line => ({ author: c.last?.author_handle ?? "", text: stripCf(c.last?.preview ?? "") });
 
 /**
- * triage sorts the unread conversations by what the owner must do (owner msgs 535, 562): a message that @mentions the owner needs them;
- * an answer to something the owner said (a message of theirs before the new ones, or a thread they started) is a reply; the rest is news.
- * `lines` is the newest window of messages per conversation. A conversation not read yet is news until it is; so is one whose only new messages
- * are asks or system lines, so Mark all read can clear it.
+ * triage sorts the unread conversations by what the owner must do (owner msgs 535, 562; conv 179 msg 6018): the server counts the messages
+ * that @mention the owner (`unread_mentions`) and says when the new messages answer the owner (`replies_to_you`); the rest is news. Every unread
+ * conversation lands in one group. `lines` holds the newest messages of the mention and reply conversations, only for the line of their card;
+ * until they load, a card shows the conversation's last message.
  */
 export function triage(rows: readonly Conversation[], lines: Record<number, Message[]>, me: string): Triage {
   const out: Triage = { mentions: [], replies: [], rest: [] };
   const at = new RegExp(`(^|[^\\w-])@${me.replace(/[^\w-]/g, "")}(?![\\w-])`, "i");
   for (const c of rows) {
     const n = c.main_unread ?? c.unread;
-    const win = n > 0 ? lines[c.id] : [];
-    if (!win) {
-      out.rest.push({ c, who: c.last?.author_handle ?? "" });
-      continue;
-    }
-    const fresh = (n > 0 ? win.slice(-n) : []).filter((m) => m.kind !== "system" && m.kind !== "ask" && m.author.handle !== me && words(m));
-    const threads = (c.threads ?? []).filter((t) => t.unread > 0);
-    const mention = fresh.filter((m) => m.mentions?.some((x) => x.handle === me) || (me && at.test(m.body))).pop();
-    if (mention) {
-      out.mentions.push({ c, line: lineOf(mention) });
-      continue;
-    }
-    const spoke = n > 0 && win.slice(0, win.length - n).some((m) => m.author.handle === me);
-    const mineThread = threads.find((t) => t.author.handle === me);
-    if (fresh.length && spoke) out.replies.push({ c, line: lineOf(fresh[fresh.length - 1]!) });
-    else if (mineThread) out.replies.push({ c, line: mineThread.last_reply ? { author: mineThread.last_reply.author.handle, text: stripCf(mineThread.last_reply.preview) } : fresh.length ? lineOf(fresh[fresh.length - 1]!) : { author: mineThread.author.handle, text: stripCf(mineThread.preview) } });
-    else out.rest.push({ c, who: [...new Set(fresh.map((m) => m.author.handle))].join(", ") || c.last?.author_handle || "" });
+    const fresh = (n > 0 ? (lines[c.id] ?? []).slice(-n) : []).filter((m) => m.kind !== "system" && m.kind !== "ask" && m.author.handle !== me && words(m));
+    if (c.unread_mentions > 0) {
+      const mention = fresh.filter((m) => m.mentions?.some((x) => x.handle === me) || (me && at.test(m.body))).pop();
+      out.mentions.push({ c, line: mention ? lineOf(mention) : lastLine(c) });
+    } else if (c.replies_to_you) {
+      const newest = fresh[fresh.length - 1];
+      const reply = (c.threads ?? []).find((t) => t.unread > 0 && t.last_reply)?.last_reply;
+      out.replies.push({ c, line: newest ? lineOf(newest) : reply ? { author: reply.author.handle, text: stripCf(reply.preview) } : lastLine(c) });
+    } else out.rest.push({ c, who: c.last?.author_handle ?? "" });
   }
   return out;
 }
 
-/** useLines reads the newest window of each unread conversation; it reads again when a conversation has a new last message. */
+/** wanted are the conversations whose card needs its line: the mentions and the replies. News is one line from the list, so it reads nothing. */
+const wanted = (c: Conversation): boolean => (c.unread_mentions > 0 || Boolean(c.replies_to_you)) && (c.main_unread ?? c.unread) > 0;
+
+/** useLines reads the newest messages of the mention and reply conversations; it reads again when one has a new last message. */
 function useLines(rows: Conversation[]): Record<number, Message[]> {
   const [lines, setLines] = useState<Record<number, { key: string; list: Message[] }>>({});
-  const key = rows.map((c) => `${c.id}:${c.last?.id ?? 0}:${c.main_unread ?? c.unread}`).join(",");
+  const want = rows.filter(wanted);
+  const key = want.map((c) => `${c.id}:${c.last?.id ?? 0}:${c.main_unread ?? c.unread}`).join(",");
   useEffect(() => {
-    for (const c of rows) {
+    for (const c of want) {
       const k = `${c.last?.id ?? 0}:${c.main_unread ?? c.unread}`;
-      if (lines[c.id]?.key === k || !(c.main_unread ?? c.unread)) continue;
+      if (lines[c.id]?.key === k) continue;
       source.messages(c.id, { limit: WINDOW }).then(
         ({ messages }) => setLines((l) => ({ ...l, [c.id]: { key: k, list: messages } })),
         () => {},
@@ -100,7 +99,7 @@ function useLines(rows: Conversation[]): Record<number, Message[]> {
   return useMemo(() => Object.fromEntries(Object.entries(lines).map(([id, v]) => [id, v.list])), [lines]);
 }
 
-/** useTriage is what Now shows of the unread conversations; Now calls it so the Needs you count can include the mentions. */
+/** useTriage is what Now shows of the unread conversations. */
 export function useTriage(rows: Conversation[], me: string): Triage {
   const lines = useLines(rows);
   return useMemo(() => triage(rows, lines, me), [rows, lines, me]);
@@ -128,8 +127,11 @@ function useMarkRead() {
   return { pending, run };
 }
 
-/** Cards are the rows of Mentions and Replies: the title, the whole message (four lines at most), then Reply and Mark read. */
-function Cards({ items, label, current }: { items: Item[]; label: string; current: number }) {
+/**
+ * Cards are the rows of Mentions and Replies: the title, the whole message (four lines at most), then Reply and Mark read. `done` names the
+ * second button "Done" (a Needs you card, owner conv 179 msg 6018); it marks the conversation read all the same.
+ */
+function Cards({ items, label, current, done = false }: { items: Item[]; label: string; current: number; done?: boolean }) {
   const { pending, run } = useMarkRead();
   return (
     <ul className="m-0 mb-8 flex list-none flex-col gap-8 p-0" role="list" aria-label={label}>
@@ -149,8 +151,8 @@ function Cards({ items, label, current }: { items: Item[]; label: string; curren
             <Button variant="text" size="inline" className="-ml-8" href={`/chats/${c.id}#compose`} onClick={(e) => visit(e, `/chats/${c.id}#compose`)}>
               Reply
             </Button>
-            <Button variant="text" size="inline" disabled={pending.has(c.id)} aria-label={`Mark ${titleOf(c)} read`} onClick={() => void run([c.id], "Marked read")}>
-              Mark read
+            <Button variant="text" size="inline" disabled={pending.has(c.id)} aria-label={done ? `Done with ${titleOf(c)}` : `Mark ${titleOf(c)} read`} onClick={() => void run([c.id], "Marked read")}>
+              {done ? "Done" : "Mark read"}
             </Button>
           </div>
         </li>
@@ -161,7 +163,7 @@ function Cards({ items, label, current }: { items: Item[]; label: string; curren
 
 /** Mentions are the messages that @mention the owner, under the Needs you heading and its asks. */
 export const Mentions = memo(function Mentions({ items, current = 0 }: { items: Item[]; current?: number }) {
-  return <Cards items={items} label="Mentions of you" current={current} />;
+  return <Cards items={items} label="Mentions of you" current={current} done />;
 });
 
 /** Replies are the answers to what the owner said, each with its newest message whole. */
@@ -174,27 +176,52 @@ export const Replies = memo(function Replies({ items, current = 0 }: { items: It
   );
 });
 
-/** OtherChats is the news the owner is not in: one line per conversation and one Mark all read for them. */
-export const OtherChats = memo(function OtherChats({ rows, current = 0 }: { rows: Quiet[]; current?: number }) {
+/**
+ * OtherChats is the news the owner is not in: one line per conversation and one Mark all read for them. `compact` (the sidebar, owner
+ * conv 179 msg 6018) folds it to one row, "N other chats, M new", that opens to the newest ten, then "Show all" lists the rest.
+ */
+export const OtherChats = memo(function OtherChats({ rows, current = 0, compact = false }: { rows: Quiet[]; current?: number; compact?: boolean }) {
   const { pending, run } = useMarkRead();
+  const [open, setOpen] = useState(false);
+  const [all, setAll] = useState(false);
+  const fresh = rows.reduce((n, { c }) => n + c.unread, 0);
+  const shown = !compact ? rows : !open ? [] : all ? rows : rows.slice(0, FOLD_TOP);
+  const markAll = (
+    <Button variant={compact ? "text" : undefined} size={compact ? "inline" : undefined} disabled={rows.some(({ c }) => pending.has(c.id))} onClick={() => void run(rows.map(({ c }) => c.id), "Marked all read")}>
+      Mark all read
+    </Button>
+  );
   return (
     <section id="unread" className="block" aria-labelledby="unread-head">
-      <p id="unread-head" className="ghdr">Other chats</p>
-      <ul className="m-0 mb-8 flex list-none flex-col gap-4 p-0" role="list" aria-label="Other chats">
-        {rows.map(({ c, who }) => (
-          <li key={c.id} data-id={c.id} aria-current={c.id === current ? "page" : undefined}>
-            <a className="flex items-baseline gap-8 py-4 text-inherit no-underline" href={`/chats/${c.id}`}>
-              <span className="rowtitle min-w-0 font-semibold">{titleOf(c)}</span>
-              <span className="truncate text-13 text-muted">{`${who}, ${c.unread} new`}</span>
-            </a>
-          </li>
-        ))}
-      </ul>
-      <div className="btns">
-        <Button disabled={rows.some(({ c }) => pending.has(c.id))} onClick={() => void run(rows.map(({ c }) => c.id), "Marked all read")}>
-          Mark all read
+      {compact ? (
+        <div className="flex items-center gap-4">
+          <Button id="unread-head" variant="text" size="inline" className="-ml-8 min-w-0" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+            {`${rows.length} other chat${rows.length === 1 ? "" : "s"}, ${fresh} new`}
+          </Button>
+          <span className="text-muted" aria-hidden="true">·</span>
+          {markAll}
+        </div>
+      ) : (
+        <p id="unread-head" className="ghdr">Other chats</p>
+      )}
+      {shown.length ? (
+        <ul className="m-0 mb-8 flex list-none flex-col gap-4 p-0" role="list" aria-label="Other chats">
+          {shown.map(({ c, who }) => (
+            <li key={c.id} data-id={c.id} aria-current={c.id === current ? "page" : undefined}>
+              <a className="flex items-baseline gap-8 py-4 text-inherit no-underline" href={`/chats/${c.id}`}>
+                <span className="rowtitle min-w-0 font-semibold">{titleOf(c)}</span>
+                <span className="truncate text-13 text-muted">{`${who}, ${c.unread} new`}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {compact && open && !all && rows.length > FOLD_TOP ? (
+        <Button variant="text" size="inline" className="-ml-8" onClick={() => setAll(true)}>
+          Show all
         </Button>
-      </div>
+      ) : null}
+      {compact ? null : <div className="btns">{markAll}</div>}
     </section>
   );
 });
