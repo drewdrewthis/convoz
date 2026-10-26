@@ -10,44 +10,56 @@
    240,
    720
   ],
-  "a \"\"#0": [
+  "button \"Hide sidebar\"#0": [
    18,
+   16,
+   32,
+   32
+  ],
+  "svg \"\"#0": [
+   26,
+   24,
+   16,
+   16
+  ],
+  "a \"\"#0": [
+   58,
    16,
    110,
    32
   ],
   "svg[img] \"Convoz\"#0": [
-   18,
+   58,
    21,
    110,
    22
   ],
-  "svg \"\"#0": [
-   18.55,
+  "svg \"\"#1": [
+   58.55,
    25.27,
    34.1,
    13.57
   ],
   "button \"Back\"#0": [
-   150,
-   16,
-   32,
-   32
-  ],
-  "svg \"\"#1": [
-   157,
-   23,
-   18,
-   18
-  ],
-  "button \"Forward\"#0": [
-   190,
+   176,
    16,
    32,
    32
   ],
   "svg \"\"#2": [
-   197,
+   183,
+   23,
+   18,
+   18
+  ],
+  "button \"Forward\"#0": [
+   216,
+   16,
+   32,
+   32
+  ],
+  "svg \"\"#3": [
+   223,
    23,
    18,
    18
@@ -55,46 +67,58 @@
   "button \"Search\"#0": [
    10,
    60,
-   148,
+   112,
    32
   ],
-  "svg \"\"#3": [
+  "svg \"\"#4": [
    19,
    69,
    14,
    14
   ],
   "a \"New conversation\"#0": [
-   162,
-   60,
-   32,
-   32
-  ],
-  "svg \"\"#4": [
-   171,
-   69,
-   14,
-   14
-  ],
-  "a \"Invite agent\"#0": [
-   198,
+   126,
    60,
    32,
    32
   ],
   "svg \"\"#5": [
+   135,
+   69,
+   14,
+   14
+  ],
+  "a \"Invite agent\"#0": [
+   162,
+   60,
+   32,
+   32
+  ],
+  "svg \"\"#6": [
+   171,
+   69,
+   14,
+   14
+  ],
+  "button \"Fold all threads\"#0": [
+   198,
+   60,
+   32,
+   32
+  ],
+  "svg \"\"#7": [
    207,
    69,
    14,
    14
   ],
-  "a \"Now\"#0": [
+  "button \"Now\"#0": [
    10,
    104,
    220,
    32
   ],
-  "svg \"\"#6": [
+  "svg \"\"#8": [
    18,
    113,
    14,
@@ -118,7 +142,7 @@
    28,
    28
   ],
-  "svg \"\"#7": [
+  "svg \"\"#9": [
    209,
    176.8,
    14,
@@ -130,7 +154,7 @@
    22,
    28
   ],
-  "svg \"\"#8": [
+  "svg \"\"#10": [
    184,
    176.8,
    14,
@@ -138,277 +162,283 @@
   ],
   "a \"Ops reports\"#0": [
    10,
-   200.8,
-   220,
+   206.8,
+   197.47,
    32
   ],
+  "button \"Fold threads of Ops reports\"#0": [
+   207.47,
+   200.8,
+   22.53,
+   44
+  ],
   "button \"Star conversation Ops reports\"#0": [
-   202,
-   202.8,
+   178,
+   208.8,
    28,
    28
   ],
-  "svg \"\"#9": [
-   209,
-   209.8,
+  "svg \"\"#11": [
+   185,
+   215.8,
    14,
    14
   ],
   "button \"Reorder Ops reports. Alt plus arrow keys move it.\"#0": [
-   180,
-   202.8,
+   156,
+   208.8,
    22,
    28
   ],
-  "svg \"\"#10": [
-   184,
-   209.8,
+  "svg \"\"#12": [
+   160,
+   215.8,
    14,
    14
   ],
-  "a \"Open thread: Deploy finished at 5:29. I'm watching the error rate.\"#0": [
+  "button \"▸Older · 1\"#0": [
    30,
-   233.8,
-   200,
-   32
+   245.8,
+   75.53,
+   44
   ],
   "a \"Bug #8642 · null check fix, 2 unread\"#0": [
    10,
-   268.8,
+   292.8,
    220,
    32
   ],
   "button \"Star conversation Bug #8642 · null check fix\"#0": [
    202,
-   270.8,
-   28,
-   28
-  ],
-  "svg \"\"#11": [
-   209,
-   277.8,
-   14,
-   14
-  ],
-  "button \"Reorder Bug #8642 · null check fix. Alt plus arrow keys move it.\"#0": [
-   180,
-   270.8,
-   22,
-   28
-  ],
-  "svg \"\"#12": [
-   184,
-   277.8,
-   14,
-   14
-  ],
-  "a \"Issue #100 · agent chat, 6 unread\"#0": [
-   10,
-   301.8,
-   220,
-   32
-  ],
-  "button \"Star conversation Issue #100 · agent chat\"#0": [
-   202,
-   303.8,
+   294.8,
    28,
    28
   ],
   "svg \"\"#13": [
    209,
-   310.8,
+   301.8,
    14,
    14
   ],
-  "button \"Reorder Issue #100 · agent chat. Alt plus arrow keys move it.\"#0": [
+  "button \"Reorder Bug #8642 · null check fix. Alt plus arrow keys move it.\"#0": [
    180,
-   303.8,
+   294.8,
    22,
    28
   ],
   "svg \"\"#14": [
    184,
-   310.8,
+   301.8,
    14,
    14
   ],
-  "a \"lane-search, 4 unread\"#0": [
+  "a \"Issue #100 · agent chat, 6 unread\"#0": [
    10,
-   334.8,
+   325.8,
    220,
    32
   ],
-  "button \"Star conversation lane-search\"#0": [
+  "button \"Star conversation Issue #100 · agent chat\"#0": [
    202,
-   336.8,
+   327.8,
    28,
    28
   ],
   "svg \"\"#15": [
    209,
-   343.8,
+   334.8,
    14,
    14
   ],
-  "button \"Reorder lane-search. Alt plus arrow keys move it.\"#0": [
+  "button \"Reorder Issue #100 · agent chat. Alt plus arrow keys move it.\"#0": [
    180,
-   336.8,
+   327.8,
    22,
    28
   ],
   "svg \"\"#16": [
    184,
-   343.8,
+   334.8,
    14,
    14
   ],
-  "a \"Team updates\"#0": [
+  "a \"lane-search, 4 unread\"#0": [
    10,
-   367.8,
+   358.8,
    220,
    32
   ],
-  "button \"Star conversation Team updates\"#0": [
+  "button \"Star conversation lane-search\"#0": [
    202,
-   369.8,
+   360.8,
    28,
    28
   ],
   "svg \"\"#17": [
    209,
-   376.8,
+   367.8,
    14,
    14
   ],
-  "button \"Reorder Team updates. Alt plus arrow keys move it.\"#0": [
+  "button \"Reorder lane-search. Alt plus arrow keys move it.\"#0": [
    180,
-   369.8,
+   360.8,
    22,
    28
   ],
   "svg \"\"#18": [
    184,
-   376.8,
+   367.8,
    14,
    14
   ],
-  "a \"usage-bot, 2 unread\"#0": [
+  "a \"Team updates\"#0": [
    10,
-   400.8,
+   391.8,
    220,
    32
   ],
-  "button \"Star conversation usage-bot\"#0": [
+  "button \"Star conversation Team updates\"#0": [
    202,
-   402.8,
+   393.8,
    28,
    28
   ],
   "svg \"\"#19": [
    209,
-   409.8,
+   400.8,
    14,
    14
   ],
-  "button \"Reorder usage-bot. Alt plus arrow keys move it.\"#0": [
+  "button \"Reorder Team updates. Alt plus arrow keys move it.\"#0": [
    180,
-   402.8,
+   393.8,
    22,
    28
   ],
   "svg \"\"#20": [
    184,
-   409.8,
+   400.8,
    14,
    14
   ],
-  "a \"scrum-master, 1 unread\"#0": [
+  "a \"usage-bot, 2 unread\"#0": [
    10,
-   433.8,
+   424.8,
    220,
    32
   ],
-  "button \"Star conversation scrum-master\"#0": [
+  "button \"Star conversation usage-bot\"#0": [
    202,
-   435.8,
+   426.8,
    28,
    28
   ],
   "svg \"\"#21": [
    209,
-   442.8,
+   433.8,
    14,
    14
   ],
-  "button \"Reorder scrum-master. Alt plus arrow keys move it.\"#0": [
+  "button \"Reorder usage-bot. Alt plus arrow keys move it.\"#0": [
    180,
-   435.8,
+   426.8,
    22,
    28
   ],
   "svg \"\"#22": [
    184,
-   442.8,
+   433.8,
    14,
    14
   ],
-  "a \"Why did the nightly export get slower?\"#0": [
+  "a \"scrum-master, 1 unread\"#0": [
    10,
-   466.8,
+   457.8,
    220,
    32
   ],
-  "button \"Star conversation Why did the nightly export get slower?\"#0": [
+  "button \"Star conversation scrum-master\"#0": [
    202,
-   468.8,
+   459.8,
    28,
    28
   ],
   "svg \"\"#23": [
    209,
-   475.8,
+   466.8,
    14,
    14
   ],
-  "button \"Reorder Why did the nightly export get slower?. Alt plus arrow keys move it.\"#0": [
+  "button \"Reorder scrum-master. Alt plus arrow keys move it.\"#0": [
    180,
-   468.8,
+   459.8,
    22,
    28
   ],
   "svg \"\"#24": [
    184,
-   475.8,
+   466.8,
    14,
    14
   ],
-  "a \"night-watch\"#0": [
+  "a \"Why did the nightly export get slower?\"#0": [
    10,
-   499.8,
+   490.8,
    220,
    32
   ],
-  "button \"Star conversation night-watch\"#0": [
+  "button \"Star conversation Why did the nightly export get slower?\"#0": [
    202,
-   501.8,
+   492.8,
    28,
    28
   ],
   "svg \"\"#25": [
    209,
-   508.8,
+   499.8,
    14,
    14
   ],
-  "button \"Reorder night-watch. Alt plus arrow keys move it.\"#0": [
+  "button \"Reorder Why did the nightly export get slower?. Alt plus arrow keys move it.\"#0": [
    180,
-   501.8,
+   492.8,
    22,
    28
   ],
   "svg \"\"#26": [
    184,
-   508.8,
+   499.8,
+   14,
+   14
+  ],
+  "a \"night-watch\"#0": [
+   10,
+   523.8,
+   220,
+   32
+  ],
+  "button \"Star conversation night-watch\"#0": [
+   202,
+   525.8,
+   28,
+   28
+  ],
+  "svg \"\"#27": [
+   209,
+   532.8,
+   14,
+   14
+  ],
+  "button \"Reorder night-watch. Alt plus arrow keys move it.\"#0": [
+   180,
+   525.8,
+   22,
+   28
+  ],
+  "svg \"\"#28": [
+   184,
+   532.8,
    14,
    14
   ],
@@ -418,7 +448,7 @@
    220,
    32
   ],
-  "svg \"\"#27": [
+  "svg \"\"#29": [
    18,
    683,
    14,
@@ -430,7 +460,7 @@
    44,
    44
   ],
-  "svg \"\"#28": [
+  "svg \"\"#30": [
    265,
    29,
    22,
@@ -448,7 +478,7 @@
    44,
    44
   ],
-  "svg \"\"#29": [
+  "svg \"\"#31": [
    1173,
    29,
    22,
@@ -460,7 +490,7 @@
    44,
    44
   ],
-  "svg \"\"#30": [
+  "svg \"\"#32": [
    1225,
    29,
    22,
@@ -468,50 +498,134 @@
   ],
   "button \"Message details\"#0": [
    591,
-   82,
+   118.8,
    55,
    46
   ],
   "time \"6:00 PM\"#0": [
    595,
-   97,
+   133.8,
    47,
    16
   ],
+  "button \"Reply in thread\"#0": [
+   1042,
+   117.8,
+   44,
+   44
+  ],
+  "svg \"\"#33": [
+   1055,
+   130.8,
+   18,
+   18
+  ],
   "button \"Message actions\"#0": [
    1088,
-   81,
+   117.8,
    44,
    44
   ],
   "button \"Message details\"#1": [
    591,
-   181.81,
+   218.61,
    55,
    46
   ],
   "time \"6:00 PM\"#1": [
    595,
-   196.81,
+   233.61,
    47,
    16
   ],
-  "button \"Open thread, 3 replies · @night-watch\"#0": [
-   388,
-   252.83,
-   180.73,
-   44
-  ],
-  "button \"Last reply by night-watch: Will do. I will post here first.\"#0": [
-   388,
-   286.83,
-   265,
-   44
-  ],
   "button \"Message actions\"#1": [
    1088,
-   180.81,
+   217.61,
    44,
+   44
+  ],
+  "time \"6:00 PM\"#2": [
+   594,
+   294.22,
+   47,
+   16.8
+  ],
+  "button \"Message actions\"#2": [
+   1076,
+   288.63,
+   44,
+   44
+  ],
+  "time \"6:00 PM\"#3": [
+   1073,
+   346.92,
+   47,
+   16.8
+  ],
+  "button \"Message actions\"#3": [
+   410,
+   342.92,
+   44,
+   44
+  ],
+  "time \"6:00 PM\"#4": [
+   615,
+   411.61,
+   47,
+   16.8
+  ],
+  "button \"Message actions\"#4": [
+   1076,
+   406.02,
+   44,
+   44
+  ],
+  "button \"Attach a file to the reply\"#0": [
+   423,
+   464.31,
+   44,
+   44
+  ],
+  "svg \"\"#34": [
+   436,
+   477.31,
+   18,
+   18
+  ],
+  "input \"Reply… Type @ to add an agent.\"#0": [
+   471,
+   464.31,
+   601,
+   44
+  ],
+  "button \"Send reply\"#0": [
+   1076,
+   464.31,
+   44,
+   44
+  ],
+  "svg \"\"#35": [
+   1089,
+   477.31,
+   18,
+   18
+  ],
+  "button \"Record a voice message\"#0": [
+   1076,
+   464.31,
+   44,
+   44
+  ],
+  "svg \"\"#36": [
+   1089,
+   477.31,
+   18,
+   18
+  ],
+  "button \"Cancel reply\"#0": [
+   418,
+   510.31,
+   89,
    44
   ],
   "button \"Attach a file\"#0": [
@@ -520,7 +634,7 @@
    44,
    44
   ],
-  "svg \"\"#31": [
+  "svg \"\"#37": [
    271,
    676,
    18,
@@ -538,129 +652,21 @@
    44,
    44
   ],
-  "svg \"\"#32": [
+  "svg \"\"#38": [
    1224,
    676,
-   18,
-   18
-  ],
-  "button \"Record a voice message\"#0": [
-   1211,
-   663,
-   44,
-   44
-  ],
-  "svg \"\"#33": [
-   1224,
-   676,
-   18,
-   18
-  ],
-  "h2 \"Thread\"#0": [
-   1039,
-   19.41,
-   53,
-   22.39
-  ],
-  "button \"Close thread\"#0": [
-   1215,
-   17,
-   44,
-   44
-  ],
-  "svg \"\"#34": [
-   1226,
-   28,
-   22,
-   22
-  ],
-  "time \"6:00 PM\"#2": [
-   1131,
-   96.59,
-   47,
-   16.8
-  ],
-  "button \"Message actions\"#2": [
-   1223,
-   81,
-   44,
-   44
-  ],
-  "time \"6:00 PM\"#3": [
-   1110,
-   216.42,
-   47,
-   16.8
-  ],
-  "button \"Message actions\"#3": [
-   1223,
-   200.83,
-   44,
-   44
-  ],
-  "time \"6:00 PM\"#4": [
-   1212,
-   307.86,
-   47,
-   16.8
-  ],
-  "button \"Message actions\"#4": [
-   916,
-   295.86,
-   44,
-   44
-  ],
-  "time \"6:00 PM\"#5": [
-   1131,
-   415.28,
-   47,
-   16.8
-  ],
-  "button \"Message actions\"#5": [
-   1223,
-   399.69,
-   44,
-   44
-  ],
-  "button \"Attach a file to the reply\"#0": [
-   929,
-   661,
-   44,
-   44
-  ],
-  "svg \"\"#35": [
-   942,
-   674,
-   18,
-   18
-  ],
-  "input \"Reply…\"#0": [
-   977,
-   661,
-   230,
-   44
-  ],
-  "button \"Send reply\"#0": [
-   1211,
-   661,
-   44,
-   44
-  ],
-  "svg \"\"#36": [
-   1224,
-   674,
    18,
    18
   ],
   "button \"Record a voice message\"#1": [
    1211,
-   661,
+   663,
    44,
    44
   ],
-  "svg \"\"#37": [
+  "svg \"\"#39": [
    1224,
-   674,
+   676,
    18,
    18
   ]
