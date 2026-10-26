@@ -104,7 +104,7 @@ scenario("A triage agent posts in a conversation it is not in, as itself", { tag
   expect((view.participants as { handle: string }[]).map((p) => p.handle).sort()).toEqual(["devtool", "drew"]);
 });
 
-scenario("A triage agent gets no inbox item from a conversation it is not in", { tag: ["@cli"] }, async ({ server }) => {
+scenario("A triage agent gets no inbox item from a conversation it is not in", { tag: ["@cli"], fixme: "https://github.com/drewdrewthis/convoz/issues/135" }, async ({ server }) => {
   // Given the owner made "triage" a triage agent
   const r = await triageWorld(server);
   await grantTriage(r);

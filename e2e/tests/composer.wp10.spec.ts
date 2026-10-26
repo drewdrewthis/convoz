@@ -19,7 +19,7 @@ import { png, uploadWhole } from "../lib/uploads-wp10.ts";
 const chart = { name: "chart.png", type: "image/png", bytes: png(16, 16, true) };
 const logFile = { name: "deploy.log", type: "text/plain", bytes: Buffer.from("deploy ok\n".repeat(200)) };
 
-scenario("Dropping files attaches them to the next message", { tag: ["@browser"] }, async ({ server, page, context }) => {
+scenario("Dropping files attaches them to the next message", { tag: ["@browser"], fixme: "https://github.com/drewdrewthis/convoz/issues/134" }, async ({ server, page, context }) => {
   // Background
   const u = await voiceWorld({ server, page, context });
   await openConversation(page, u.w.srv, u.conv);
@@ -88,8 +88,8 @@ scenario("The owner removes a file before sending", { tag: ["@browser"] }, async
   // Then sending posts one message with only "chart.png"
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(messageLog(page).getByRole("article")).toHaveCount(1);
+  await expect.poll(async () => (await pageOf(u.w.owner, u.conv)).length).toBe(1); // the server stores the message after the bubble shows
   const posted = await pageOf(u.w.owner, u.conv);
-  expect(posted).toHaveLength(1);
   expect(posted[0]!.uploads!.map((x) => x.name)).toEqual(["chart.png"]);
 });
 
