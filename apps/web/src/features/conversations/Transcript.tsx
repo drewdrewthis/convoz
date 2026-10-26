@@ -506,7 +506,7 @@ function Article({ person, me, first, at, day, tag, onStamp, body, extra, menu, 
 }
 
 /** The replies of a thread drawn as the main list draws messages, inline under their root: a pending reply shows "sending" or "failed · retry". */
-function ThreadBubbles({ messages, pending, rootAt, me, conversation, onRetry, onDiscard }: { messages: Message[]; pending: PendingSend[]; rootAt: number; me: string; conversation: number; onRetry(cid: string): void; onDiscard(cid: string): void }) {
+export function ThreadBubbles({ messages, pending, rootAt, me, conversation, onRetry, onDiscard }: { messages: Message[]; pending: PendingSend[]; rootAt: number; me: string; conversation: number; onRetry(cid: string): void; onDiscard(cid: string): void }) {
   const rows = useMemo(() => rowsOf(messages, pending, me, { rootAt }), [messages, pending, me, rootAt]);
   return (
     <>

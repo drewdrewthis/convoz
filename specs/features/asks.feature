@@ -231,6 +231,18 @@ Feature: Asks and their state machine
       Then Now no longer lists it in the main list but under "You replied · waiting on the agent", with no reload
       And the card in the conversation shows "You replied · waiting on @devtool" and still offers its options
 
+    # Owner said (conv 179 msg 7988): "Show expandable thread in feed item directly".
+    @v1 @browser
+    Scenario: An ask in Now with replies opens its thread in place and folds it again
+      Given an open ask of "devtool" with the reply "Both fit; the smaller one is safer." from "docs" in its thread
+      When the owner opens Now
+      Then the ask card offers "Show thread" with 1 reply
+      When the owner opens the thread of the card
+      Then the card shows the reply "Both fit; the smaller one is safer." and the page is still Now
+      When the owner folds the thread of the card
+      Then the reply is no longer shown
+      And the "Replies to you" card of a conversation whose thread answered the owner opens that thread in place the same way, with the reply's markdown drawn
+
     # Owner said (conv 379 msg 6722): "why couldn't I quick reply on that ask?" (an ask inside a thread).
     @v1 @browser
     Scenario: An ask inside a thread has Quick reply too
