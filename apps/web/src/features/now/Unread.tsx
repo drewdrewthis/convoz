@@ -106,27 +106,31 @@ export function useTriage(rows: Conversation[], me: string): Triage {
   return useMemo(() => triage(rows, lines, me), [rows, lines, me]);
 }
 
-/** useMarkRead marks conversations read with one toast, and keeps its buttons off meanwhile. */
+/** useMarkRead marks conversations read with one toast, and keeps only the buttons of the conversations being marked off meanwhile (owner, conv 324 msg 5900: one shared flag greyed every card). */
 function useMarkRead() {
   const { fail } = useNotice();
-  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState<ReadonlySet<number>>(new Set());
   const run = async (ids: number[], said: string) => {
-    setBusy(true);
+    setPending((p) => new Set([...p, ...ids]));
     try {
       await Promise.all(ids.map(markAllRead));
       toast(said);
     } catch (err) {
       fail(humanError(err));
     } finally {
-      setBusy(false);
+      setPending((p) => {
+        const next = new Set(p);
+        for (const id of ids) next.delete(id);
+        return next;
+      });
     }
   };
-  return { busy, run };
+  return { pending, run };
 }
 
 /** Cards are the rows of Mentions and Replies: the title, the whole message (four lines at most), then Reply and Mark read. */
 function Cards({ items, label, current }: { items: Item[]; label: string; current: number }) {
-  const { busy, run } = useMarkRead();
+  const { pending, run } = useMarkRead();
   return (
     <ul className="m-0 mb-8 flex list-none flex-col gap-8 p-0" role="list" aria-label={label}>
       {items.map(({ c, line }) => (
@@ -145,7 +149,7 @@ function Cards({ items, label, current }: { items: Item[]; label: string; curren
             <Button variant="text" size="inline" className="-ml-8" href={`/chats/${c.id}#compose`} onClick={(e) => visit(e, `/chats/${c.id}#compose`)}>
               Reply
             </Button>
-            <Button variant="text" size="inline" disabled={busy} aria-label={`Mark ${titleOf(c)} read`} onClick={() => void run([c.id], "Marked read")}>
+            <Button variant="text" size="inline" disabled={pending.has(c.id)} aria-label={`Mark ${titleOf(c)} read`} onClick={() => void run([c.id], "Marked read")}>
               Mark read
             </Button>
           </div>
@@ -172,7 +176,7 @@ export const Replies = memo(function Replies({ items, current = 0 }: { items: It
 
 /** OtherChats is the news the owner is not in: one line per conversation and one Mark all read for them. */
 export const OtherChats = memo(function OtherChats({ rows, current = 0 }: { rows: Quiet[]; current?: number }) {
-  const { busy, run } = useMarkRead();
+  const { pending, run } = useMarkRead();
   return (
     <section id="unread" className="block" aria-labelledby="unread-head">
       <p id="unread-head" className="ghdr">Other chats</p>
@@ -187,7 +191,7 @@ export const OtherChats = memo(function OtherChats({ rows, current = 0 }: { rows
         ))}
       </ul>
       <div className="btns">
-        <Button disabled={busy} onClick={() => void run(rows.map(({ c }) => c.id), "Marked all read")}>
+        <Button disabled={rows.some(({ c }) => pending.has(c.id))} onClick={() => void run(rows.map(({ c }) => c.id), "Marked all read")}>
           Mark all read
         </Button>
       </div>
