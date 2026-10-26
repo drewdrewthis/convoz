@@ -11,7 +11,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Agent sessions as one identity](#agent-sessions-as-one-identity) (17)
 - [Agents outside the tailnet connect through an agents-only address](#agents-outside-the-tailnet-connect-through-an-agents-only-address) (8)
 - [Apps inside messages](#apps-inside-messages) (14)
-- [Asks and their state machine](#asks-and-their-state-machine) (56)
+- [Asks and their state machine](#asks-and-their-state-machine) (57)
 - [Brief, handoff, read and search for agents](#brief-handoff-read-and-search-for-agents) (17)
 - [Composer](#composer) (26)
 - [Console on a phone](#console-on-a-phone) (28)
@@ -186,7 +186,7 @@ I can see and decide without leaving Convoz, while no app can act for me.
 ## Asks and their state machine
 
 I can decide in one tap and the agent gets a clear, final answer.
-56 scenarios.
+57 scenarios.
 
 - **An ask has a question, a recommendation and at least one alternative, each with a reason**
   - [A complete ask opens](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L23)
@@ -224,39 +224,40 @@ I can decide in one tap and the agent gets a clear, final answer.
 - **A reply to an ask is a question: the ask stays open, the agent answers in the thread and updates the same ask**
   - [Replying to an ask keeps it open and moves it to You replied](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L228)
   - [An ask in Now with replies opens its thread in place and folds it again](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L236)
-  - [An ask inside a thread has Quick reply too](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L248)
-  - [An agent's reply does not close an ask](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L256)
-  - [An agent is told to answer in the thread and update the same ask](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L263)
-  - [The agent updates the ask in place with the answers](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L271)
-  - [An update needs the answers, the asker and an open ask](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L279)
-  - [The rules tell an agent to pre-answer the owner's obvious questions](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L289)
-  - [The updated ask shows in Now with the answers, and leaves You replied](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L295)
+  - [The thread of a feed card sits inside the card](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L248)
+  - [An ask inside a thread has Quick reply too](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L261)
+  - [An agent's reply does not close an ask](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L269)
+  - [An agent is told to answer in the thread and update the same ask](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L276)
+  - [The agent updates the ask in place with the answers](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L284)
+  - [An update needs the answers, the asker and an open ask](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L292)
+  - [The rules tell an agent to pre-answer the owner's obvious questions](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L302)
+  - [The updated ask shows in Now with the answers, and leaves You replied](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L308)
 - **An updated ask shows the owner's questions and the agent's answers as their own section under the question**
-  - [An updated ask shows each question and its answer in a section under a bright question](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L308)
-  - [Answers with no Q and A marks show in full, and an ask never updated shows no section](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L316)
-  - [The version of an update is in History, not on the card](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L324)
-  - [A link in an answer is a short link to the full address](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L331)
-  - [On a phone a long answer folds so the first option stays on the first screen of the card](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L338)
+  - [An updated ask shows each question and its answer in a section under a bright question](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L321)
+  - [Answers with no Q and A marks show in full, and an ask never updated shows no section](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L329)
+  - [The version of an update is in History, not on the card](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L337)
+  - [A link in an answer is a short link to the full address](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L344)
+  - [On a phone a long answer folds so the first option stays on the first screen of the card](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L351)
 - **Anything sent in the owner's name is a draft ask that the owner reviews and may edit**
-  - [An agent asks the owner to review a draft and gets back the edited text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L353)
-  - [Don't send returns send false and no text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L365)
-  - [A draft ask is reviewed inside the conversation too](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L372)
-  - [A draft ask needs no owner's-call reason](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L378)
-  - [A long original is cut and a long draft is refused](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L387)
+  - [An agent asks the owner to review a draft and gets back the edited text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L366)
+  - [Don't send returns send false and no text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L378)
+  - [A draft ask is reviewed inside the conversation too](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L385)
+  - [A draft ask needs no owner's-call reason](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L391)
+  - [A long original is cut and a long draft is refused](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L400)
 - **An ask is a permission request: one action, its risk and undo, and the ways the agent rejected**
-  - [A permission ask reads as a short request on the Now card](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L398)
-  - [Go on a permission card answers Go](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L406)
-  - [Not this on a permission card needs a reason and sends it to the agent](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L413)
-  - [G and Enter say Go and N opens Not this](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L422)
-  - [Enter does nothing on a one-way permission ask](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L430)
-  - [Typing in the Not this box is not a shortcut](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L440)
-  - [A permission ask in the conversation says Needs your OK](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L446)
-  - [The sidebar shows a short permission card](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L454)
-  - [The sidebar shows Review for a one-way permission ask](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L462)
-  - [On a phone the considered ways fold and Go and Not this stack](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L468)
-  - [History says how sure the agent said it was](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L477)
-  - [An ask from an old agent still shows the decision card](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L484)
-  - [An answered permission card hides risk, undo and considered behind Details](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L492)
+  - [A permission ask reads as a short request on the Now card](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L411)
+  - [Go on a permission card answers Go](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L419)
+  - [Not this on a permission card needs a reason and sends it to the agent](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L426)
+  - [G and Enter say Go and N opens Not this](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L435)
+  - [Enter does nothing on a one-way permission ask](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L443)
+  - [Typing in the Not this box is not a shortcut](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L453)
+  - [A permission ask in the conversation says Needs your OK](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L459)
+  - [The sidebar shows a short permission card](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L467)
+  - [The sidebar shows Review for a one-way permission ask](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L475)
+  - [On a phone the considered ways fold and Go and Not this stack](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L481)
+  - [History says how sure the agent said it was](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L490)
+  - [An ask from an old agent still shows the decision card](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L497)
+  - [An answered permission card hides risk, undo and considered behind Details](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L505)
 
 ## Brief, handoff, read and search for agents
 
