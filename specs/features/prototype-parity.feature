@@ -34,14 +34,6 @@ Feature: The phone screens match the prototype
       When the owner opens Now on a phone
       Then it matches the prototype in light and in dark
 
-    # Owner-directed (the promise in @dot conv 39 msg 855): Now lists what agents wait on the owner for. Compared with a reviewed frame of the app,
-    # e2e/visual/app/now-waiting-<scheme>.png, not the prototype's.
-    @v1 @browser @phone
-    Scenario: On a phone Now with a waiting plan item matches the prototype
-      Given "devtool" waits on the owner for "Approve the staging push"
-      When the owner opens Now on a phone
-      Then it matches the prototype in light and in dark
-
     @v1 @browser @phone
     Scenario: On a phone the Conversations list matches the prototype
       When the owner opens Conversations on a phone

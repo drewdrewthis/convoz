@@ -116,7 +116,7 @@ The ask returns to the main list with **Updated after your questions**. No new a
 
 **Drafts.** Anything sent in the owner's name uses `convoz ask --draft`. The owner sees the original message and the draft in an editable box, and taps **Send** or **Don't send**. The agent gets back `send` and the exact text the owner approved. A draft needs no owner's-call reason.
 
-**Waiting items.** Something the owner must do, such as a login or a paste, goes on the plan as `convoz plan --waiting "..."`. It shows in Now until the agent finishes it ([plan](../specs/features/plan.feature)).
+**Waiting items.** What only the owner must do (no name prefix), such as a login or a paste, goes on the plan as `convoz plan --waiting "..."`. It shows in the line under the conversation's title, in the chat's plan row and as the row's icon, until the agent sends a plan without it; Now does not list or count it ([plan](../specs/features/plan.feature)).
 
 ## 4. How Convoz keeps agents accountable
 
@@ -125,7 +125,7 @@ The ask returns to the main list with **Updated after your questions**. No new a
 **Nudges go to the agent, not the owner.**
 
 - An agent past its ETA shows as **Late** and gets one `status_due` item that asks it to update its plan. The owner gets no push.
-- A working agent with no update for 2 hours gets the same nudge.
+- A working agent with no update for 15 minutes gets the same nudge, then at most one per hour, 3 in all. A plan that is Blocked or waits on the owner is not nudged. The owner's line shows "no update" after 2 hours.
 - An agent that has a live session but does not pick up the owner's message in 10 minutes shows as **Not responding**. The chat shows one quiet line. The owner gets no push.
 - An agent whose machine key was revoked shows as **Logged out**.
 

@@ -332,7 +332,7 @@ scenario("The question mark opens the shortcut list", { tag: ["@browser"] }, asy
   // Then the "Keyboard shortcuts" dialog lists every key
   const dialog = page.getByRole("dialog", { name: "Keyboard shortcuts" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.locator("kbd")).toHaveText(["Cmd+K", "Cmd+J", "Cmd+[", "Cmd+]", "Cmd+\\", "Alt+ArrowUp", "Alt+ArrowDown", "I", "?", "Escape"]);
+  await expect(dialog.locator("kbd")).toHaveText(["Cmd+K", "Cmd+J", "Cmd+[", "Cmd+]", "Cmd+\\", "Cmd+.", "Alt+ArrowUp", "Alt+ArrowDown", "I", "?", "Escape"]);
 
   // And Escape closes it and returns focus where it was
   await page.keyboard.press("Escape");

@@ -1,4 +1,5 @@
 import { brotliCompressSync, constants } from "node:zlib";
+import type { Route } from "@playwright/test";
 import { chatsHeading, composer, message, messageLog, sendButton } from "../lib/chat-ui.ts";
 import { createConversation, messagesOf, ownerSays } from "../lib/chat.ts";
 import { seedMessages } from "../lib/event.ts";
@@ -185,6 +186,114 @@ scenario("Only a revoking 401 clears the offline cache", { tag: ["@browser"] }, 
       expect((await stored(page))?.messages[conv], row.response).toBe(1);
     }
     await page.unroute("**/api/**");
+  }
+});
+
+scenario("A conversation opens from the offline copy before the server answers", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(120_000);
+  // Given the installed app has cached conversation 41 with 5 messages
+  const u = await world({ server, page, context });
+  const conv = await createConversation(u.w.owner, { participants: ["devtool"], title: SHIP });
+  await seedMessages(u.w.srv, conv, 4);
+  await ownerSays(u.w.owner, conv, "the newest before the hold");
+  await page.goto(`${u.w.srv.origin}/chats/${conv}`);
+  await expect(message(page, "the newest before the hold")).toBeVisible();
+  await installed(page);
+  await cachedMessages(page, conv, 5);
+  await expect.poll(async () => (await stored(page))?.conversations ?? 0).toBeGreaterThanOrEqual(1);
+  // a fresh page: what it holds of the conversation's messages can only come from IndexedDB
+  await page.goto(`${u.w.srv.origin}/chats`);
+  await expect(chatsHeading(page)).toBeVisible();
+
+  // When the server holds its answers to /api/me, /api/identities and conversation 41 and the owner opens conversation 41
+  const held: Route[] = [];
+  const holds = (url: URL) =>
+    ["/api/me", "/api/identities", `/api/conversations/${conv}`].includes(url.pathname) || url.pathname.startsWith(`/api/conversations/${conv}/messages`);
+  await page.route(holds, (route) => void held.push(route));
+  await page.getByRole("heading", { name: SHIP }).click();
+
+  // Then the last message shows within 3 seconds
+  await expect(message(page, "the newest before the hold")).toBeVisible({ timeout: 3_000 });
+  expect(held.map((r) => new URL(r.request().url()).pathname)).toContain(`/api/conversations/${conv}`);
+
+  // And the page stays the same once the server answers
+  const answered = page.waitForResponse((r) => new URL(r.url()).pathname.startsWith(`/api/conversations/${conv}/messages`));
+  for (const route of held) await route.continue();
+  await page.unroute(holds);
+  await answered;
+  await expect(message(page, "the newest before the hold")).toBeVisible();
+  await expect(composer(page)).toBeVisible();
+  await expect(page.getByText("This conversation does not exist")).toHaveCount(0);
+});
+
+scenario("The conversation list is read from the network once per page load", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(120_000);
+  // Given the installed app has cached conversation 41
+  const u = await world({ server, page, context });
+  await createConversation(u.w.owner, { participants: ["devtool"], title: SHIP });
+  await page.goto(`${u.w.srv.origin}/chats`);
+  await expect(chatsHeading(page)).toBeVisible();
+  await installed(page);
+  await page.waitForFunction(() => performance.getEntriesByName("kept-offline").length > 0, undefined, { timeout: 30_000 });
+  await expect.poll(async () => (await stored(page))?.conversations ?? 0).toBeGreaterThanOrEqual(1);
+
+  const conv = Number(new URL(await page.getByRole("link", { name: new RegExp(SHIP) }).first().getAttribute("href") ?? "", u.w.srv.origin).pathname.split("/").pop());
+  // load: a page load of /chats; back: from a conversation back to the list in the same page; restore / show: a pageshow that is a
+  // bfcache return (persisted) or not
+  const rows = [
+    { start: "normally", how: "load", failFirst: false, asked: 1, answered: 1, atLeast: false },
+    { start: "and its first list read fails (disk copy only)", how: "load", failFirst: true, asked: 2, answered: 1 },
+    { start: "again after opening a conversation", how: "back", failFirst: false, asked: 1, answered: 1 },
+    // a return wakes the rail and the list (each resumes on its own), so it can take one queued read more: it must read, at least once
+    { start: "again from the back-forward cache", how: "restore", failFirst: false, asked: 1, answered: 1, atLeast: true },
+    { start: "with a page show that is not a return", how: "show", failFirst: false, asked: 0, answered: 0 },
+  ];
+  const isList = (url: URL) => url.pathname === "/api/conversations";
+  for (const row of rows) {
+    // When the owner opens the conversation list <start>
+    if (row.how === "back") {
+      await page.getByRole("link", { name: new RegExp(SHIP) }).first().click();
+      await expect(page).toHaveURL(new RegExp(`/chats/${conv}$`));
+      await expect(composer(page)).toBeVisible();
+      await page.waitForTimeout(2_500); // past the 2 s a screen that mounts may reuse the list for: going back must read again
+    }
+    const asked: string[] = [];
+    const answered: string[] = [];
+    const onRequest = (r: import("@playwright/test").Request) => void (isList(new URL(r.url())) && r.method() === "GET" && asked.push(r.url()));
+    const onResponse = (r: import("@playwright/test").Response) => void (isList(new URL(r.url())) && r.request().method() === "GET" && answered.push(r.url()));
+    page.on("request", onRequest);
+    page.on("response", onResponse);
+    let failed = !row.failFirst;
+    await page.route(isList, (route) => {
+      if (failed) return route.continue();
+      failed = true;
+      return route.abort("internetdisconnected");
+    });
+    if (row.how === "load") {
+      await page.goto(`${u.w.srv.origin}/chats`);
+    } else if (row.how === "back") {
+      await page.goBack();
+      await expect(page).toHaveURL(/\/chats$/);
+    } else {
+      await page.evaluate((persisted) => dispatchEvent(new PageTransitionEvent("pageshow", { persisted })), row.how === "restore");
+    }
+    await expect(page.getByRole("heading", { name: SHIP }), row.start).toBeVisible({ timeout: 20_000 });
+
+    // And the app has saved its offline copy
+    await page.waitForFunction(() => performance.getEntriesByName("kept-offline").length > 0, undefined, { timeout: 30_000 });
+    await page.waitForTimeout(row.how === "load" ? 500 : 1_500); // a read the page starts late would be a second one: let it show
+
+    // Then the app asked the server for the conversation list <asked> times and got <answered> answers (1+ is at least once)
+    if (row.atLeast) {
+      expect(asked.length, `${row.start}: list requests`).toBeGreaterThanOrEqual(row.asked);
+      expect(answered.length, `${row.start}: list answers`).toBeGreaterThanOrEqual(row.answered);
+    } else {
+      expect(asked.length, `${row.start}: list requests`).toBe(row.asked);
+      expect(answered.length, `${row.start}: list answers`).toBe(row.answered);
+    }
+    page.off("request", onRequest);
+    page.off("response", onResponse);
+    await page.unroute(isList);
   }
 });
 

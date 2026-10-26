@@ -34,6 +34,9 @@ Feature: Now
     @v1 @browser @phone
     Scenario: The badge counts open asks that are not snoozed
       Given 3 open asks and 1 of them snoozed
+      And this browser last had Now in the desktop rail
+      When the owner opens Now on the phone
+      Then Now is the full-screen page with no rail and no Now toggle button
       When the installed app is in the background
       Then the app badge shows 2
 

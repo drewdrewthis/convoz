@@ -588,3 +588,29 @@ scenario("On a desktop a reply arrow shows on a hovered message and opens its re
   // Then a reply box opens under message 900 and has the focus
   await expect(inlineThread(page, ROOT_TEXT).getByRole("textbox", { name: "Reply in thread" })).toBeFocused();
 });
+
+scenario("Request mini app replies to the agent in the thread of its message", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  const t = await threadWorld({ server, page, context }, { browser: true });
+  // Given the owner posted "Owner note here" in conversation 41
+  await ownerSays(t.w.owner, t.conv, "Owner note here");
+  await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
+
+  // When the owner opens the message actions of message 900 and taps "Request mini app"
+  const root = message(page, ROOT_TEXT).first();
+  await root.hover();
+  await root.getByRole("button", { name: "Message actions" }).click();
+  await page.getByRole("menuitem", { name: "Request mini app", exact: true }).click();
+
+  // Then the thread of message 900 gets the owner's reply to "@devtool" with "convoz app init" and "Good looks like"
+  const asked = async () => (await threadOf(t.w.owner, t.root)).messages.map((m) => m.body).find((b) => b.startsWith("@devtool, ")) ?? "";
+  await expect.poll(asked).toContain("convoz app init");
+  expect(await asked()).toContain("Good looks like");
+  await expect(inlineThread(page, ROOT_TEXT).getByRole("article").filter({ hasText: "Good looks like" })).toBeVisible();
+
+  // And the message actions of "Owner note here" have no "Request mini app"
+  const mine = message(page, "Owner note here");
+  await mine.hover();
+  await mine.getByRole("button", { name: "Message actions" }).click();
+  await expect(page.getByRole("menuitem", { name: "Copy link", exact: true })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Request mini app", exact: true })).toHaveCount(0);
+});

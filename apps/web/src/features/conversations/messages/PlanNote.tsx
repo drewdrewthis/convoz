@@ -1,14 +1,18 @@
 import type { Message } from "@convoz/api-client";
 import { ChevronIcon } from "@convoz/ui/icons";
-import { createContext, useContext, useState } from "react";
+import { useState, type MouseEvent } from "react";
 import { stripCf } from "../../../shared/chat.ts";
 import { usePlans } from "../../plan/index.ts";
 
-/** OpenDetails opens the details panel of the conversation; the page provides it, so a row can send the owner there. */
-export const OpenDetails = createContext<() => void>(() => {});
+/** planHash opens the details panel on the plan card of the agent `handle` (Conversation.tsx follows it). */
+export const planHash = (handle: string) => `#plan-${handle}`;
 
-/** The id of the chat's "Waiting on you" cards (PlanSections.tsx): the pill goes there. */
-export const WAITING_HERE = "waiting-here";
+/** openPlan follows the pill's hash; the same hash again sets nothing new, so the hashchange is sent by hand to open a closed panel. */
+function openPlan(e: MouseEvent<HTMLAnchorElement>, hash: string): void {
+  if (location.hash !== hash) return;
+  e.preventDefault();
+  dispatchEvent(new HashChangeEvent("hashchange"));
+}
 
 /** What a plan.changed line quotes (owner msg 632): the items as the agent wrote them, each optional. */
 interface PlanLineParts {
@@ -23,13 +27,11 @@ const LINES: [keyof PlanLineParts, string][] = [["done", "Done"], ["now", "Now"]
 
 /**
  * PlanNote is a plan update in the chat: one muted row, "@handle updated its plan", with what it does Now cut to one line and, while
- * something waits on the owner, a pill that goes to its cards above the composer, or opens the details panel when they are not
- * there (msg 632: "not sure what this little text is?"; Convoz ask 1897). Tapping the row
+ * something waits on the owner, a pill that opens that agent's plan in the details panel (msg 632: "not sure what this little text is?"; conv 151). Tapping the row
  * opens Done, Now, Next and Waiting as short labelled lines. The pill counts what waits now (the live board), not what the line quoted.
  */
 export function PlanNote({ message, conversation }: { message: Message; conversation: number }) {
   const [open, setOpen] = useState(false);
-  const openDetails = useContext(OpenDetails);
   const s = (message.system ?? {}) as PlanLineParts;
   const handle = s.identity?.handle ?? "";
   const waiting = usePlans((st) => st.boards[conversation]?.plans.find((p) => p.handle === handle)?.waiting.length ?? 0);
@@ -46,9 +48,9 @@ export function PlanNote({ message, conversation }: { message: Message; conversa
         </span>
       </button>
       {waiting > 0 ? (
-        <button type="button" className="pn-pill" onClick={() => goToWaiting(openDetails)}>
+        <a className="pn-pill" href={planHash(handle)} onClick={(e) => openPlan(e, planHash(handle))}>
           {`Waiting on you · ${waiting}`}
-        </button>
+        </a>
       ) : null}
       {open ? (
         <dl className="pn-lines">
@@ -62,12 +64,4 @@ export function PlanNote({ message, conversation }: { message: Message; conversa
       ) : null}
     </div>
   );
-}
-
-/** goToWaiting brings the chat's "Waiting on you" cards into view and gives them the focus; without them, it calls fallback. */
-function goToWaiting(fallback: () => void): void {
-  const here = document.getElementById(WAITING_HERE);
-  if (!here) return fallback();
-  here.scrollIntoView({ block: "nearest" });
-  here.focus();
 }

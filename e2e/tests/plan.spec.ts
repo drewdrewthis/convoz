@@ -1,4 +1,3 @@
-import type { Locator, Page } from "@playwright/test";
 import { convoz, createConversation, inboxItems, messagesOf, ownerSays, startWatch } from "../lib/chat.ts";
 import { appReturns, chatList, chatRow, dropStreams, streamOpen } from "../lib/chat-ui.ts";
 import { openNow } from "../lib/asks.ts";
@@ -221,7 +220,7 @@ scenario("The line under the title shows the most urgent state", { tag: ["@brows
 
 // ---- Rule: Tapping the line opens the details panel -----------------------------------------------------------------------
 
-scenario("The details panel puts what waits on the owner first, then each agent's plan, then the settings", { tag: ["@browser"] }, async ({ server, page, context }) => {
+scenario("The details panel shows each agent's plan, then the settings, and no plan item that waits on the owner", { tag: ["@browser"] }, async ({ server, page, context }) => {
   const p = await planUi({ server, page, context });
   // Given "devtool" finished five items, then planned Doing at step 2 of 3 ready in 15 minutes, two Next and one Waiting on you
   await mustPlan(p, p.dev, ["--done", "One-time invites", "--done", "Reply chip v0", "--done", "Invite page", "--done", "Rename sheet", "--done", "Search fix"]);
@@ -233,15 +232,12 @@ scenario("The details panel puts what waits on the owner first, then each agent'
   const panel = detailsPanel(page);
   await expect(panel).toBeVisible();
 
-  // Then the panel shows "Waiting on you · 1", then "Agents · 2", then "Conversation", in that order
-  await expect(panel.getByRole("heading", { level: 3 })).toHaveText(["Waiting on you · 1", "Agents · 2", "Pinned in this conversation", "Conversation"]);
+  // Then the panel shows "Agents · 2", then "Conversation", in that order
+  await expect(panel.getByRole("heading", { level: 3 })).toHaveText(["Agents · 2", "Pinned in this conversation", "Conversation"]);
 
-  // And "Paste the prompt to dot" shows "I did it" and "Reply" and no "Open", as it has no link
-  const waiting = panel.getByRole("region", { name: "Waiting on you · 1" });
-  await expect(waiting).toContainText("Paste the prompt to dot");
-  await expect(waiting.getByRole("button", { name: "I did it" })).toBeVisible();
-  await expect(waiting.getByRole("button", { name: "Reply" })).toBeVisible();
-  await expect(waiting.getByRole("link", { name: "Open" })).toHaveCount(0);
+  // And it does not list "Paste the prompt to dot": a plan item that waits on the owner shows in the header line, not here (conv 151)
+  await expect(panel.getByRole("region", { name: /^Waiting on you/ })).toHaveCount(0);
+  await expect(panel).not.toContainText("Paste the prompt to dot");
 
   // And the card of "@devtool" shows "Working", Now with "Step 2 of 3" and "ready ~", and Next numbered
   const agents = panel.getByRole("region", { name: "Agents · 2" });
@@ -269,11 +265,6 @@ scenario("The details panel puts what waits on the owner first, then each agent'
   await expect.poll(() => overflowX(page)).toBe(0);
   const short = await panel.locator("button, a.chipbtn").evaluateAll((list) => list.filter((b) => b.getBoundingClientRect().height > 0 && b.getBoundingClientRect().height < 43.5).map((b) => b.textContent));
   expect(short).toEqual([]);
-
-  // When the owner taps "I did it", then the chat shows the owner's message and the item folds to "Done by you" (Convoz ask 1897)
-  await waiting.getByRole("button", { name: "I did it" }).click();
-  await expect(waiting).toContainText("Done by you");
-  await expect.poll(async () => (await messagesOf(p.w.owner, p.conv)).map((m) => m.body)).toContain("@devtool I did it: Paste the prompt to dot");
 });
 
 scenario("Ask for a plan tells the agent the command that sets it", { tag: ["@browser"] }, async ({ server, page, context }) => {
@@ -292,6 +283,22 @@ scenario("Ask for a plan tells the agent the command that sets it", { tag: ["@br
   // And it names the MCP "plan" tool and "convoz plan --help"
   expect(await sent()).toContain("use the `plan` tool");
   expect(await sent()).toContain("convoz plan --help");
+});
+
+scenario("Request plan update asks the agent to update its plan", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  const p = await planUi({ server, page, context });
+  // Given "devtool" has a plan in conversation 41 that is not late
+  await mustPlan(p, p.dev, ["--doing", "Switch on the internet door", "--eta", "15m"]);
+  // When the owner opens the details of conversation 41 and taps "Request plan update" on the card of "@devtool"
+  await page.goto(`${p.w.srv.origin}/chats/${p.conv}`);
+  const panel = await showDetails(page);
+  const dev = panel.getByRole("region", { name: "Agents · 2" }).getByRole("listitem").filter({ hasText: "@devtool" }).first();
+  await dev.getByRole("button", { name: "Request plan update" }).click();
+  // Then the chat shows the owner's message to "@devtool" with "convoz plan 41"
+  const sent = async () => (await messagesOf(p.w.owner, p.conv)).map((m) => m.body).find((b) => b.startsWith("@devtool, please update your plan")) ?? "";
+  await expect.poll(sent).toContain(`convoz plan ${p.conv}`);
+  // And the card of "@devtool" has no "Ask for an update"
+  await expect(dev.getByRole("button", { name: "Ask for an update" })).toHaveCount(0);
 });
 
 scenario("The plan card puts Remove in a menu and shows the step as a bar", { tag: ["@browser"] }, async ({ server, page, context }) => {
@@ -476,7 +483,7 @@ scenario("A plan update in the chat is one quiet row that expands", { tag: ["@br
   const row = quietLine(page, "@devtool updated its plan");
   await expect(row).toHaveCount(1);
   await expect(row).toContainText("Now: Switch on the internet door");
-  const pill = row.getByRole("button", { name: "Waiting on you · 1" });
+  const pill = row.getByRole("link", { name: "Waiting on you · 1" });
   await expect(pill).toBeVisible();
   // And the row is collapsed and shows no "Done:" line, and is not a list bullet
   await expect(row.getByText("Done", { exact: true })).toHaveCount(0);
@@ -493,35 +500,76 @@ scenario("A plan update in the chat is one quiet row that expands", { tag: ["@br
 
   // When the owner taps the pill "Waiting on you · 1"
   await pill.click();
-  // Then the "Waiting on you" cards above the composer have the focus (Convoz ask 1897)
-  await expect(page.getByRole("region", { name: "Waiting on you", exact: true })).toBeFocused();
+  // Then the details panel opens on the plan card of "@devtool", in the conversation (conv 151: no list in Now)
+  await expect(page).toHaveURL(`${p.w.srv.origin}/chats/${p.conv}#plan-devtool`);
+  await expect(detailsPanel(page).locator("#plan-devtool")).toBeVisible();
+  await expect(detailsPanel(page).locator("#plan-devtool")).toContainText("@devtool");
 });
 
-scenario("What waits on the owner is a card in the chat that folds once done", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+const NO_BUTTONS = ["I did it", "Not needed"];
+
+// Owner, conv 151 msg 3673: "the plan is good, the indicator that it's blocked at the top is good, the icon on the sidebar is good. This
+// check in box/card is stupid." What waits on the owner shows in those three places only, and clears when the agent updates its plan.
+scenario("What waits on the owner shows only as the plan, the line under the title and the row icon, with no card or button", { tag: ["@browser"] }, async ({ server, page, context }) => {
   const p = await planUi({ server, page, context });
-  // Given "devtool" waits on the owner for "Approve PR 1"
+  // Given "devtool" runs "convoz plan 41 --doing 'Building invites' --waiting 'Approve PR 1'"
   await mustPlan(p, p.dev, ["--doing", "Building invites", "--waiting", "Approve PR 1"]);
 
-  // When the owner opens conversation 41
+  // When the owner opens conversation 41, then the line under the title says "Waiting on you: Approve PR 1"
   await page.goto(`${p.w.srv.origin}/chats/${p.conv}`);
+  await expect(planLine(page)).toContainText("Waiting on you: Approve PR 1");
+  // And the chat has no "Waiting on you" card and no "I did it" or "Not needed" button
+  await expect(page.getByRole("region", { name: "Waiting on you", exact: true })).toHaveCount(0);
+  for (const name of NO_BUTTONS) await expect(page.getByRole("button", { name })).toHaveCount(0);
 
-  // Then the chat shows a "Waiting on you" card with "Approve PR 1", "I did it" and "Reply", above the composer (Convoz ask 1897)
-  const here = page.getByRole("region", { name: "Waiting on you", exact: true });
-  await expect(here).toContainText("Approve PR 1");
-  await expect(here.getByRole("button", { name: "I did it" })).toBeVisible();
-  await expect(here.getByRole("button", { name: "Reply" })).toBeVisible();
-  const card = (await here.boundingBox())!;
-  const box = (await page.locator("#composer").boundingBox())!;
-  expect(card.y + card.height).toBeLessThanOrEqual(box.y);
-  await page.screenshot({ path: `/tmp/waiting-card-${info.project.name}.png` });
+  // When the owner opens the Conversations list, then the row "Ship search filters" has the icon "Waiting on you"
+  await page.goto(`${p.w.srv.origin}/chats`);
+  await expect(rowIcon(chatRow(page, "Ship search filters"))).toHaveAccessibleName("Waiting on you");
 
-  // When the owner taps "I did it"
-  await here.getByRole("button", { name: "I did it" }).click();
+  // When the owner opens Now, then it says "0 open", lists nothing for it, has no button for it, and the Now badge does not count it
+  await openNow(page, p.w.srv);
+  await expect(page.locator("#open-count")).toContainText("0 open");
+  await expect(page.locator("#waiting-plans")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Waiting on you" })).toHaveCount(0);
+  for (const name of NO_BUTTONS) await expect(page.getByRole("button", { name })).toHaveCount(0);
+  await expect(page.locator(".rbadge:visible, #now-badge:visible")).toHaveCount(0);
 
-  // Then the chat has "@devtool I did it: Approve PR 1" and the card folds to "Done by you"
-  await expect.poll(async () => (await messagesOf(p.w.owner, p.conv)).map((m) => m.body)).toContain("@devtool I did it: Approve PR 1");
-  await expect(here).toContainText("Done by you");
-  await expect(here.getByRole("button", { name: "I did it" })).toHaveCount(0);
+  // When "devtool" runs "convoz plan 41 --doing 'Building invites'", with no --waiting, while the owner has conversation 41 open
+  await page.goto(`${p.w.srv.origin}/chats/${p.conv}`);
+  await streamOpen(page);
+  await mustPlan(p, p.dev, ["--doing", "Building invites"]);
+  // Then the line under the title no longer says "Waiting on you", without a reload
+  await expect(planLine(page)).not.toContainText("Waiting on you");
+  await expect(planLine(page)).toContainText("Building invites");
+  // And the row "Ship search filters" has the icon "Working", not "Waiting on you"
+  await page.goto(`${p.w.srv.origin}/chats`);
+  await expect(rowIcon(chatRow(page, "Ship search filters"))).toHaveAccessibleName("Working");
+});
+
+scenario("A waiting item that names someone else is refused", { tag: ["@cli"] }, async ({ server }) => {
+  const p = await planWorld(server);
+  const why = 'waiting is only for what the owner must do. "Rogerio: …" names someone else: put it in --blocked "Waiting on Rogerio: …", or drop the "Rogerio:" label.';
+
+  // When "devtool" runs "convoz plan 41 --doing 'Day 10' --waiting 'Rogerio: fix'"
+  const res = await plan(p, p.dev, ["--doing", "Day 10", "--waiting", "Rogerio: fix"]);
+  // Then it fails with that message, and the plan is not stored
+  expect(res.code).not.toBe(0);
+  expect(res.stderr).toContain(why);
+  expect(await planOf(p, "devtool")).toBeUndefined();
+
+  // And the API answers 400 on the field "waiting" with the same message
+  const r = await putPlan(p.w.srv, p.dev.lease, p.conv, { doing: "Day 10", waiting: ["Rogerio: fix"] });
+  expect(r.status, r.text).toBe(400);
+  expect(r.json().error).toMatchObject({ field: "waiting", message: why });
+
+  // And a two-word name label is refused the same way
+  const two = await putPlan(p.w.srv, p.dev.lease, p.conv, { doing: "Day 10", waiting: ["Rogerio Silva: fix"] });
+  expect(two.status, two.text).toBe(400);
+  expect(two.json().error).toMatchObject({ field: "waiting", message: why.replaceAll("Rogerio", "Rogerio Silva") });
+
+  // When the item carries the owner's own label, then it is kept without it; a link or an instruction such as "Step 2:" is no label
+  await mustPlan(p, p.dev, ["--doing", "Day 10", "--waiting", "drew: Approve PR 9", "--waiting", "see https://x.y/z", "--waiting", "Step 2: paste the key"]);
+  expect((await planOf(p, "devtool"))!.waiting.map((w) => w.text)).toEqual(["Approve PR 9", "see https://x.y/z", "Step 2: paste the key"]);
 });
 
 scenario("Only something new that waits on the owner pushes", { tag: ["@api"] }, async ({ server, dataDir }, info) => {
@@ -591,8 +639,8 @@ scenario("A late agent is nudged once to update its plan, and the owner is not p
   await testApi(p.w.srv).advanceClock(10 * MIN);
   expect((await inboxItems(p.w.box, p.dev.sid, [])).filter((i) => i.reason === "status_due")).toEqual([]);
 
-  // When 2 more hours pass, then one more "status_due" item
-  await testApi(p.w.srv).advanceClock(2 * HOUR);
+  // When 1 more hour passes, then one more "status_due" item
+  await testApi(p.w.srv).advanceClock(HOUR);
   expect((await inboxItems(p.w.box, p.dev.sid, [])).filter((i) => i.reason === "status_due")).toHaveLength(1);
 
   // When "devtool" plans again, the line is "Working" again
@@ -600,21 +648,31 @@ scenario("A late agent is nudged once to update its plan, and the owner is not p
   expect(await attentionOf(p)).toBe("working");
 });
 
-scenario("A working agent with no update for 2 hours is nudged", { tag: ["@cli"] }, async ({ server, testApi }) => {
+scenario("A working agent is nudged after 15 minutes, and its line says no update after 2 hours", { tag: ["@cli"] }, async ({ server, testApi }) => {
   const p = await planWorld(server, { docsIn: false });
   // Given "devtool" runs "convoz plan 41 --doing 'Building invites'"
   await mustPlan(p, p.dev, ["--doing", "Building invites"]);
 
-  // When 2 hours and 1 minute pass with no update from "devtool"
-  await testApi(p.w.srv).advanceClock(2 * HOUR + MIN);
+  // When 16 minutes pass with no update from "devtool"
+  await testApi(p.w.srv).advanceClock(16 * MIN);
 
-  // Then the line reads "Building invites · no update for 2 h"
-  const a = (await board(p, p.conv)).attention.find((x) => x.conversation_id === p.conv);
-  expect(a).toMatchObject({ state: "stale", text: "Building invites" });
+  // Then the line of conversation 41 is still "Working"
+  const at = async () => (await board(p, p.conv)).attention.find((x) => x.conversation_id === p.conv);
+  expect(await at()).toMatchObject({ state: "working" });
 
   // And "convoz inbox" gives one item with the reason "status_due" for conversation 41
   const due = (await inboxItems(p.w.box, p.dev.sid, [])).filter((i) => i.reason === "status_due");
   expect(due.map((i) => i.conversation.id)).toEqual([p.conv]);
+  // And its message says "has had no update for 16 min"
+  expect(due[0]!.message.body).toContain("has had no update for 16 min");
+
+  // When "devtool" acks it and 2 hours pass in all
+  const ack = await convoz(p.w.box, p.dev.sid, ["ack", `${due[0]!.id}:${due[0]!.claim_token}`]);
+  expect(ack.code, ack.stderr).toBe(0);
+  await testApi(p.w.srv).advanceClock(HOUR + 45 * MIN);
+
+  // Then the line reads "Building invites · no update for 2 h"
+  expect(await at()).toMatchObject({ state: "stale", text: "Building invites" });
 });
 
 scenario("An agent that does not pick up a message shows as not responding", { tag: ["@browser"] }, async ({ server, page, context, testApi, dataDir }, info) => {
@@ -677,55 +735,15 @@ scenario("An agent whose machine key was revoked shows as logged out", { tag: ["
   await expect(planLine(page).locator("[data-tone]")).toHaveAttribute("data-tone", "amber");
 });
 
-// ---- Rule: What an agent waits on the owner for shows in Now ------------------------------------------------------------
-
-const waitingRows = (page: Page): Locator => page.getByRole("region", { name: "Waiting on you" }).getByRole("link");
-
-scenario("A plan item waiting on the owner shows in Now", { tag: ["@browser"] }, async ({ server, page, context }) => {
-  const p = await planUi({ server, page, context });
-  // Given "devtool" waits on the owner for "Approve the dot card" in conversation 41
-  await mustPlan(p, p.dev, ["--doing", "Building invites", "--waiting", "Approve the dot card"]);
-
-  // When the owner opens Now
-  await openNow(page, p.w.srv);
-
-  // Then Now lists the item under "Waiting on you" with the agent and the conversation title
-  await expect(waitingRows(page)).toHaveCount(1);
-  await expect(waitingRows(page).first()).toContainText("Approve the dot card");
-  await expect(waitingRows(page).first()).toContainText("@devtool");
-  await expect(waitingRows(page).first()).toContainText("Ship search filters");
-
-  // And the top bar says "1 open"
-  await expect(page.locator("#open-count")).toContainText("1 open");
-
-  // When the owner taps the row, then conversation 41 opens with its details panel showing "Waiting on you · 1"
-  await waitingRows(page).first().click();
-  await expect(page).toHaveURL(new RegExp(`/chats/${p.conv}`));
-  await expect(detailsPanel(page).getByRole("heading", { name: "Waiting on you · 1" })).toBeVisible();
-});
-
-scenario("A waiting item leaves Now when the agent finishes it", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
-  info.setTimeout(90_000);
-  const p = await planUi({ server, page, context });
-  // Given "devtool" waits on the owner for "Approve the dot card" and the owner has Now open
-  await mustPlan(p, p.dev, ["--doing", "Building invites", "--waiting", "Approve the dot card"]);
-  await openNow(page, p.w.srv);
-  await expect(waitingRows(page)).toHaveCount(1);
-  await streamOpen(page);
-
-  // When "devtool" runs "convoz plan 41 --done 'Approve the dot card'"
-  await mustPlan(p, p.dev, ["--done", "Approve the dot card"]);
-
-  // Then Now no longer lists it and says "0 open", without a reload
-  await expect(waitingRows(page)).toHaveCount(0, { timeout: 4_000 });
-  await expect(page.locator("#open-count")).toContainText("0 open");
-});
+// ---- Rule: What an agent waits on the owner for shows in the conversation ------------------------------------------------
 
 scenario("A waiting item missed while offline shows after reconnect", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
   info.setTimeout(90_000);
   const p = await planUi({ server, page, context });
-  // Given the owner has Now open and the live stream is cut
-  await openNow(page, p.w.srv);
+  // Given "devtool" works on "Building invites", the owner has conversation 41 open and the live stream is cut
+  await mustPlan(p, p.dev, ["--doing", "Building invites"]);
+  await page.goto(`${p.w.srv.origin}/chats/${p.conv}`);
+  await expect(planLine(page)).toContainText("Building invites");
   await streamOpen(page);
   expect(await dropStreams(page)).toBeGreaterThan(0);
 
@@ -733,7 +751,6 @@ scenario("A waiting item missed while offline shows after reconnect", { tag: ["@
   await mustPlan(p, p.dev, ["--doing", "Building invites", "--waiting", "Approve the dot card"]);
   await appReturns(page);
 
-  // Then Now lists it under "Waiting on you" without a reload
-  await expect(waitingRows(page)).toHaveCount(1, { timeout: 5_000 });
-  await expect(waitingRows(page).first()).toContainText("Approve the dot card");
+  // Then the line under the title says "Waiting on you: Approve the dot card" without a reload
+  await expect(planLine(page)).toContainText("Waiting on you: Approve the dot card", { timeout: 5_000 });
 });

@@ -25,7 +25,7 @@ test.use({ deviceScaleFactor: 2 });
 
 /** No screen may hide more than its share of the frame behind grey boxes, so the masks cannot grow without this number changing. */
 /** now: 25, because the owner (msg 275) centred the wordmark and moved the All clear line under it, which the prototype frame does not show. */
-const MASK_CAP: Record<string, number> = { now: 25, "now-unread": 10, "now-asks": 10, "now-waiting": 10, conversations: 10, "conversation-thread": 10, thread: 10, "new-conversation": 10, crew: 20, rail: 10, "crew-status": 20 };
+const MASK_CAP: Record<string, number> = { now: 25, "now-unread": 10, "now-asks": 10, conversations: 10, "conversation-thread": 10, thread: 10, "new-conversation": 10, crew: 20, rail: 10, "crew-status": 20 };
 
 const SHOT = { maxDiffPixelRatio: 0.02, threshold: 0.2, animations: "disabled", caret: "hide", scale: "device" } as const;
 
@@ -84,22 +84,6 @@ scenario("On a phone Now with asks matches the prototype", { tag: ["@browser", "
   await matchesBoth(page, "now-asks", "app");
 });
 
-scenario("On a phone Now with a waiting plan item matches the prototype", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {
-  info.setTimeout(180_000);
-  // Background: the prototype's agents and conversations. Given "devtool" waits on the owner for "Approve the staging push"
-  const u = await protoWorld({ server, page, context }, { agents: AGENTS, live: LIVE });
-  const ids = await seedPrototype(u);
-  const dev = await convoz(u.w.box, u.sessions.devtool!.sid, ["plan", String(ids["Bug #8642 · null check fix"]!), "--doing", "Fixing the null check", "--waiting", "Approve the staging push"]);
-  expect({ code: dev.code, stderr: dev.stderr }).toEqual({ code: 0, stderr: "" });
-
-  // When the owner opens Now on a phone
-  await page.goto(`${u.w.srv.origin}/`);
-  await expect(page.getByRole("region", { name: "Waiting on you" })).toBeVisible();
-
-  // Then it matches the app frame in light and in dark
-  await matchesBoth(page, "now-waiting", "app");
-});
-
 scenario("On a phone the Conversations list matches the prototype", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {
   info.setTimeout(180_000);
   // Background: the prototype's agents and conversations
@@ -110,8 +94,9 @@ scenario("On a phone the Conversations list matches the prototype", { tag: ["@br
   await page.goto(`${u.w.srv.origin}/chats`);
   await expect(page.getByRole("heading", { name: "Why did the nightly export get slower?" })).toBeVisible();
 
-  // Then it matches the prototype in light and in dark
-  await matchesBoth(page, "conversations");
+  // Then it matches the reviewed app frame in light and in dark: the owner had the phone list redone (conv 132 msg 3322), chevron and
+  // counts in a right column, a round "+"
+  await matchesBoth(page, "conversations", "app");
 });
 
 scenario("On a phone a conversation matches the prototype", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {
@@ -194,8 +179,8 @@ scenario("On a phone the rail matches the prototype", { tag: ["@browser", "@phon
   await page.goto(`${u.w.srv.origin}/chats`);
   await expect(page.getByRole("heading", { name: "Ops reports" })).toBeVisible();
 
-  // Then it matches the prototype in light and in dark
-  await matchesBoth(page, "rail");
+  // Then it matches the reviewed app frame in light and in dark (the phone list redone, conv 132 msg 3322)
+  await matchesBoth(page, "rail", "app");
 });
 
 scenario("On a phone Crew with agent status matches the prototype", { tag: ["@browser", "@phone"] }, async ({ server, page, context, dataDir }, info) => {

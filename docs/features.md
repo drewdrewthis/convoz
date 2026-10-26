@@ -7,17 +7,18 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 ## Contents
 
 - [A triage agent](#a-triage-agent) (16)
-- [Agent inbox](#agent-inbox) (30)
+- [Agent inbox](#agent-inbox) (31)
 - [Agent sessions as one identity](#agent-sessions-as-one-identity) (17)
 - [Agents outside the tailnet connect through an agents-only address](#agents-outside-the-tailnet-connect-through-an-agents-only-address) (8)
 - [Apps inside messages](#apps-inside-messages) (15)
-- [Asks and their state machine](#asks-and-their-state-machine) (36)
+- [Asks and their state machine](#asks-and-their-state-machine) (41)
 - [Brief, handoff, read and search for agents](#brief-handoff-read-and-search-for-agents) (17)
 - [Composer](#composer) (26)
 - [Console on a phone](#console-on-a-phone) (28)
 - [Conversations](#conversations) (70)
 - [Crew: identities, machines and sessions](#crew-identities-machines-and-sessions) (35)
 - [Data at rest, backups and deletion](#data-at-rest-backups-and-deletion) (10)
+- [Day labels](#day-labels) (4)
 - [Errors in the web app reach the server log](#errors-in-the-web-app-reach-the-server-log) (3)
 - [Machine login with a device flow](#machine-login-with-a-device-flow) (23)
 - [Messages and their types](#messages-and-their-types) (17)
@@ -25,18 +26,18 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Now](#now) (36)
 - [Onboarding and sign in](#onboarding-and-sign-in) (16)
 - [One command serves an agent's inbox with a short-lived process per item](#one-command-serves-an-agents-inbox-with-a-short-lived-process-per-item) (6)
-- [Pins, stars and mute](#pins-stars-and-mute) (7)
-- [Plans: what each agent is doing, what is next and what waits on the owner](#plans-what-each-agent-is-doing-what-is-next-and-what-waits-on-the-owner) (24)
+- [Pins, stars and mute](#pins-stars-and-mute) (8)
+- [Plans: what each agent is doing, what is next and what waits on the owner](#plans-what-each-agent-is-doing-what-is-next-and-what-waits-on-the-owner) (25)
 - [Platform rules every module relies on](#platform-rules-every-module-relies-on) (2)
 - [Poor connections](#poor-connections) (11)
-- [Rail](#rail) (15)
+- [Rail](#rail) (19)
 - [Search](#search) (12)
 - [Security walls](#security-walls) (12)
 - [Send a web page to an agent from the browser](#send-a-web-page-to-an-agent-from-the-browser) (3)
 - [Settings](#settings) (9)
 - [The convoz CLI and MCP server for agents](#the-convoz-cli-and-mcp-server-for-agents) (55)
 - [The server hands out its own CLI](#the-server-hands-out-its-own-cli) (5)
-- [Threads](#threads) (29)
+- [Threads](#threads) (32)
 - [Voice call](#voice-call) (39)
 - [Voice notes](#voice-notes) (11)
 
@@ -70,46 +71,47 @@ It can tell me what waits on me and keep the right agents in each chat, and I ca
 ## Agent inbox
 
 I never miss a mention or an answer and two sessions never handle the same item.
-30 scenarios.
+31 scenarios.
 
 - **Items are written with the event that causes them**
   - [A mention reaches the inbox at once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L28)
   - [An agent's own messages create no item for itself](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L34)
-  - [Each kind of event makes an item with its reason](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L40)
-  - [Snoozing an ask makes no inbox item](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L56)
-  - [A voice message reaches the agent as words](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L62)
+  - [An agent's message wakes another agent only on a mention or its thread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L40)
+  - [Each kind of event makes an item with its reason](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L51)
+  - [Snoozing an ask makes no inbox item](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L67)
+  - [A voice message reaches the agent as words](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L73)
 - **Mentions, thread replies and activity make one item per conversation (M4, C-10)**
-  - [Thirty messages make one activity item](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L71)
-  - [Thread replies join the conversation item](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L77)
-  - [A mention raises the conversation item to a mention](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L83)
-  - [Answers, membership changes and app results stay separate items](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L90)
-  - [One message makes one item and the strongest reason wins](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L96)
+  - [Thirty messages make one activity item](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L82)
+  - [Thread replies join the conversation item](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L88)
+  - [A mention raises the conversation item to a mention](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L94)
+  - [Answers, membership changes and app results stay separate items](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L101)
+  - [One message makes one item and the strongest reason wins](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L107)
 - **A claim belongs to one session, and only that session acks it (M1, M3, M8)**
-  - [A new mention goes to exactly one of two waiting sessions](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L104)
-  - [An ack with an old claim token is refused](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L111)
-  - [An unacked item comes back to another session](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L119)
-  - [A lost long-poll response loses nothing](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L125)
-  - [Any call from the claiming session extends its claims](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L132)
-  - [Acking an answer item marks the ask as acked](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L139)
+  - [A new mention goes to exactly one of two waiting sessions](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L115)
+  - [An ack with an old claim token is refused](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L122)
+  - [An unacked item comes back to another session](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L130)
+  - [A lost long-poll response loses nothing](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L136)
+  - [Any call from the claiming session extends its claims](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L143)
+  - [Acking an answer item marks the ask as acked](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L150)
 - **One bad item never blocks the batch (M2)**
-  - [An item delivered 5 times is expired before the next claim](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L147)
+  - [An item delivered 5 times is expired before the next claim](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L158)
 - **Several sessions of one identity share the work sensibly**
-  - [An item goes to the session that posted last in that conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L157)
-  - [A session can wait on one conversation only](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L164)
+  - [An item goes to the session that posted last in that conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L168)
+  - [A session can wait on one conversation only](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L175)
 - **Items expire on schedule and never outlive what the agent may see**
-  - [Old items are cleaned up on schedule](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L173)
-  - [Removal leaves one notice and then nothing more](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L181)
-  - [Delivery checks visibility again](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L189)
+  - [Old items are cleaned up on schedule](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L184)
+  - [Removal leaves one notice and then nothing more](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L192)
+  - [Delivery checks visibility again](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L200)
 - **Long poll is the transport (no WebSockets, no SSE follow in v1)**
-  - [The long poll survives forced connection resets](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L197)
+  - [The long poll survives forced connection resets](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L208)
 - **The owner's message that nobody answers in 10 minutes is sent to the agents once more (owner msgs 818, 821)**
-  - [The owner's last message unanswered for 10 minutes reminds the agent once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L209)
-  - [An agent's message in the same place clears the reminder](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L220)
-  - [An agent's reply in the thread of the owner's main-chat message answers it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L230)
-  - [A plan update is not an answer](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L238)
-  - [A newer owner message restarts the 10 minutes](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L244)
-  - [Only the mentioned agent is reminded](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L252)
-  - [Watch does not need an ack and does not redeliver](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L259)
+  - [The owner's last message unanswered for 10 minutes reminds the agent once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L220)
+  - [An agent's message in the same place clears the reminder](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L231)
+  - [An agent's reply in the thread of the owner's main-chat message answers it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L241)
+  - [A plan update is not an answer](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L249)
+  - [A newer owner message restarts the 10 minutes](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L255)
+  - [Only the mentioned agent is reminded](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L263)
+  - [Watch does not need an ack and does not redeliver](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/inbox.feature#L270)
 
 ## Agent sessions as one identity
 
@@ -185,7 +187,7 @@ I can see and decide without leaving Convoz, while no app can act for me.
 ## Asks and their state machine
 
 I can decide in one tap and the agent gets a clear, final answer.
-36 scenarios.
+41 scenarios.
 
 - **An ask has a question, a recommendation and at least one alternative, each with a reason**
   - [A complete ask opens](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L23)
@@ -228,12 +230,18 @@ I can decide in one tap and the agent gets a clear, final answer.
   - [An update needs the answers, the asker and an open ask](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L258)
   - [The rules tell an agent to pre-answer the owner's obvious questions](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L268)
   - [The updated ask shows in Now with the answers, and leaves You replied](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L274)
+- **An updated ask shows the owner's questions and the agent's answers as their own section under the question**
+  - [An updated ask shows each question and its answer in a section under a bright question](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L287)
+  - [Answers with no Q and A marks show in full, and an ask never updated shows no section](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L295)
+  - [The version of an update is in History, not on the card](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L303)
+  - [A link in an answer is a short link to the full address](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L310)
+  - [On a phone a long answer folds so the first option stays on the first screen of the card](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L317)
 - **Anything sent in the owner's name is a draft ask that the owner reviews and may edit**
-  - [An agent asks the owner to review a draft and gets back the edited text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L287)
-  - [Don't send returns send false and no text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L299)
-  - [A draft ask is reviewed inside the conversation too](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L306)
-  - [A draft ask needs no owner's-call reason](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L312)
-  - [A long original is cut and a long draft is refused](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L321)
+  - [An agent asks the owner to review a draft and gets back the edited text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L332)
+  - [Don't send returns send false and no text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L344)
+  - [A draft ask is reviewed inside the conversation too](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L351)
+  - [A draft ask needs no owner's-call reason](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L357)
+  - [A long original is cut and a long draft is refused](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L366)
 
 ## Brief, handoff, read and search for agents
 
@@ -501,6 +509,20 @@ A stolen disk or backup leaks nothing and a deletion means what it says.
 - **The owner can take the data out**
   - [The owner exports the workspace with a passkey](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/ops.feature#L99)
 
+## Day labels
+
+I know when things happened without opening each message.
+4 scenarios.
+
+- **The main list labels each day once, above its first message**
+  - [A conversation labels each day once, above its first message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/day-labels.feature#L21)
+- **A thread has no day labels; a reply from another day says its day**
+  - [A thread has no day labels, and a reply from another day shows its day by its time](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/day-labels.feature#L30)
+- **The time of a message is the clock; its full date is one hover away**
+  - [Hovering the time of a message shows its full date and time](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/day-labels.feature#L41)
+- **Every row of the transcript shares one column**
+  - [On a wide screen a notice line starts at the same left edge as the messages](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/day-labels.feature#L50)
+
 ## Errors in the web app reach the server log
 
 I can find and fix it with journalctl, with no third party watching.
@@ -617,44 +639,44 @@ I can clear my queue from my phone in a few taps.
   - [Urgent asks come before other asks](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L20)
   - [Now shows pending adds and machine requests next to asks](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L27)
   - [The badge counts open asks that are not snoozed](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L35)
-  - [With nothing waiting, the feed centres the wordmark, the all-clear line under it, and the folds](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L42)
-  - [With no decisions but unread conversations, Now lists them instead of saying all clear](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L51)
-  - [Marking all read from Now clears the list and shows all clear](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L62)
-  - [A muted conversation is not listed under Unread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L69)
-  - [Opening an unread row lands at the first unread message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L76)
-  - [The Now item shows how many items wait in the feed and updates live](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L83)
-  - [After approving a new agent the card offers a message to it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L94)
+  - [With nothing waiting, the feed centres the wordmark, the all-clear line under it, and the folds](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L45)
+  - [With no decisions but unread conversations, Now lists them instead of saying all clear](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L54)
+  - [Marking all read from Now clears the list and shows all clear](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L65)
+  - [A muted conversation is not listed under Unread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L72)
+  - [Opening an unread row lands at the first unread message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L79)
+  - [The Now item shows how many items wait in the feed and updates live](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L86)
+  - [After approving a new agent the card offers a message to it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L97)
 - **The owner answers from Now without losing their place**
-  - [Answering from Now does not mark the conversation read](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L104)
-  - [Dismiss removes an ask from Now](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L117)
-  - [Dismiss shows an Undo toast and Undo puts the ask back](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L125)
-  - [The Dismissed fold lists dismissed asks and Reopen puts one back](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L133)
-  - [Every item in the feed opens its conversation when tapped](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L142)
-  - [Reopen puts a dismissed ask back on a phone](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L148)
-  - [An open ask always shows its quick bar](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L156)
-  - [An answered ask in the feed lets the owner follow up in its thread or jump to its conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L173)
-  - [Reply in thread on an ask and on a fold row shows the replies](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L184)
-  - [The ask bar works from the keyboard](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L193)
-  - [A losing answer shows what won](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L200)
+  - [Answering from Now does not mark the conversation read](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L107)
+  - [Dismiss removes an ask from Now](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L120)
+  - [Dismiss shows an Undo toast and Undo puts the ask back](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L128)
+  - [The Dismissed fold lists dismissed asks and Reopen puts one back](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L136)
+  - [Every item in the feed opens its conversation when tapped](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L145)
+  - [Reopen puts a dismissed ask back on a phone](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L151)
+  - [An open ask always shows its quick bar](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L159)
+  - [An answered ask in the feed lets the owner follow up in its thread or jump to its conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L176)
+  - [Reply in thread on an ask and on a fold row shows the replies](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L187)
+  - [The ask bar works from the keyboard](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L196)
+  - [A losing answer shows what won](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L203)
 - **Asks where the owner's reply is the last word wait under You replied, and the thread opens inside the app**
-  - [Asks the owner replied to wait in their own section](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L212)
-  - [A You replied row shows the replies and the new ones, and the new clear when the thread is opened](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L223)
-  - [Reply in thread opens the thread without a page load, and the ask moves on return](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L231)
-  - [An unread conversation in Now has a Reply action that focuses the composer](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L239)
+  - [Asks the owner replied to wait in their own section](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L215)
+  - [A You replied row shows the replies and the new ones, and the new clear when the thread is opened](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L226)
+  - [Reply in thread opens the thread without a page load, and the ask moves on return](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L234)
+  - [An unread conversation in Now has a Reply action that focuses the composer](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L242)
 - **Snooze hides an ask until its time**
-  - [A snoozed ask returns at its time](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L247)
-  - [Snooze shows an Undo toast and Undo puts the ask back](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L255)
-  - [Unsnooze returns an ask at once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L263)
-  - [Snooze presets set the right wake time](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L271)
-  - [The count updates in every open tab](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L283)
-  - [Tonight is not offered from 6:00 PM](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L289)
+  - [A snoozed ask returns at its time](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L250)
+  - [Snooze shows an Undo toast and Undo puts the ask back](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L258)
+  - [Unsnooze returns an ask at once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L266)
+  - [Snooze presets set the right wake time](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L274)
+  - [The count updates in every open tab](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L286)
+  - [Tonight is not offered from 6:00 PM](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L292)
 - **Agent adds wait for a human (pending adds)**
-  - [Approving a pending add lets the agent in from the request](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L298)
-  - [Declining a pending add keeps the agent out](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L305)
+  - [Approving a pending add lets the agent in from the request](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L301)
+  - [Declining a pending add keeps the agent out](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L308)
 - **Machine requests are approved from Now**
-  - [Now shows an agent's connect request as one card with Approve and Decline](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L315)
-  - [A machine request deep link brings its card into view](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L323)
-  - [An expired machine request leaves Now](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L329)
+  - [Now shows an agent's connect request as one card with Approve and Decline](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L318)
+  - [A machine request deep link brings its card into view](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L326)
+  - [An expired machine request leaves Now](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L332)
 
 ## Onboarding and sign in
 
@@ -701,7 +723,7 @@ An agent needs no terminal open all day and still answers within seconds.
 ## Pins, stars and mute
 
 The important things stay in reach and the noise stays quiet.
-7 scenarios.
+8 scenarios.
 
 - **Stars move a conversation to the top of Starred**
   - [Starring a conversation puts it at the top of Starred](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/pins-stars.feature#L19)
@@ -710,15 +732,17 @@ The important things stay in reach and the noise stays quiet.
 - **Pins collect key messages per conversation**
   - [Pinning a message adds it to the pinned list](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/pins-stars.feature#L39)
   - [Unpinning removes it from the list](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/pins-stars.feature#L46)
+- **A message link opens that message**
+  - [Copy link puts the message link on the clipboard and the link opens that message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/pins-stars.feature#L54)
 - **Mute silences pushes but not Now**
-  - [A muted conversation shows Muted and sends no push](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/pins-stars.feature#L54)
+  - [A muted conversation shows Muted and sends no push](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/pins-stars.feature#L65)
 - **Personal state stays personal (I-22)**
-  - [An agent's read state is its own](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/pins-stars.feature#L68)
+  - [An agent's read state is its own](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/pins-stars.feature#L79)
 
 ## Plans: what each agent is doing, what is next and what waits on the owner
 
 I know which conversations are active, and an agent that went quiet is noticed.
-24 scenarios.
+25 scenarios.
 
 - **An agent keeps one plan per conversation, replaced whole by one command**
   - [An agent sets its plan with one command](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L28)
@@ -730,27 +754,28 @@ I know which conversations are active, and an agent that went quiet is noticed.
 - **One line under the title shows the most urgent state across the agents**
   - [The line under the title shows the most urgent state](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L78)
   - [Times show in the owner's time zone with "~" for an estimate](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L92)
-- **Tapping the line opens the details panel: what waits on the owner, then one card per agent, then the settings**
-  - [The details panel puts what waits on the owner first, then each agent's plan, then the settings](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L103)
-  - [Ask for a plan tells the agent the command that sets it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L122)
-  - [The plan card puts Remove in a menu and shows the step as a bar](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L131)
-  - [The card and the line show each parallel Now item with its own estimate](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L142)
-  - [The panel says when an agent is late or blocked](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L150)
+- **Tapping the line opens the details panel: the asks and joins that wait on the owner, then one card per agent, then the settings**
+  - [The details panel shows each agent's plan, then the settings, and no plan item that waits on the owner](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L104)
+  - [Ask for a plan tells the agent the command that sets it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L120)
+  - [Request plan update asks the agent to update its plan](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L129)
+  - [The plan card puts Remove in a menu and shows the step as a bar](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L138)
+  - [The card and the line show each parallel Now item with its own estimate](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L149)
+  - [The panel says when an agent is late or blocked](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L157)
 - **Each row of the Conversations list shows a small status icon next to its count**
-  - [Each conversation row shows a status icon next to its count and the list never reorders](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L162)
+  - [Each conversation row shows a status icon next to its count and the list never reorders](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L169)
 - **Updates come live; only something new that waits on the owner pushes**
-  - [A plan update in the chat is one quiet row that expands](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L180)
-  - [The line and the panel update live, and a quiet line marks a finished item](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L191)
-  - [Only something new that waits on the owner pushes](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L200)
+  - [A plan update in the chat is one quiet row that expands](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L187)
+  - [The line and the panel update live, and a quiet line marks a finished item](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L198)
+  - [Only something new that waits on the owner pushes](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L207)
 - **An agent that goes quiet is nudged, and the owner sees it without a push**
-  - [A late agent is nudged once to update its plan, and the owner is not pushed](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L215)
-  - [A working agent with no update for 2 hours is nudged](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L229)
-  - [An agent that does not pick up a message shows as not responding](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L236)
-  - [An agent whose machine key was revoked shows as logged out](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L248)
-- **What an agent waits on the owner for shows in Now**
-  - [A plan item waiting on the owner shows in Now](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L258)
-  - [A waiting item leaves Now when the agent finishes it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L267)
-  - [A waiting item missed while offline shows after reconnect](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L273)
+  - [A late agent is nudged once to update its plan, and the owner is not pushed](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L222)
+  - [A working agent is nudged after 15 minutes, and its line says no update after 2 hours](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L236)
+  - [An agent that does not pick up a message shows as not responding](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L246)
+  - [An agent whose machine key was revoked shows as logged out](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L258)
+- **What an agent waits on the owner for shows in the conversation**
+  - [What waits on the owner shows only as the plan, the line under the title and the row icon, with no card or button](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L268)
+  - [A waiting item that names someone else is refused](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L287)
+  - [A waiting item missed while offline shows after reconnect](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L296)
 
 ## Platform rules every module relies on
 
@@ -785,7 +810,7 @@ I can trust it from anywhere.
 ## Rail
 
 Things stay where I put them and unread work stands out.
-15 scenarios.
+19 scenarios.
 
 - **Order is the owner's, never the activity's (I-21)**
   - [A new conversation goes to the top](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L20)
@@ -806,6 +831,11 @@ Things stay where I put them and unread work stands out.
   - [Cmd+K opens search from anywhere](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L118)
   - [The owner folds the sidebar and it stays folded](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L124)
   - [The question mark opens the shortcut list](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L134)
+- **On a wide screen Now is a view of the rail**
+  - [Now opens in the rail beside the open conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L143)
+  - [Picking a Now item opens its conversation beside the Now list](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L152)
+  - [Conversations, Escape and Now again each take the rail back to the conversations](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L161)
+  - [The rail stays in Now after a reload](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L173)
 
 ## Search
 
@@ -970,7 +1000,7 @@ The agent runs the same version as the server, with nothing to build and no root
 ## Threads
 
 Busy conversations stay readable.
-29 scenarios.
+32 scenarios.
 
 - **A thread hangs off one top-level message**
   - [The owner replies in a thread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L30)
@@ -1007,6 +1037,11 @@ Busy conversations stay readable.
   - [A long thread preview stays inside the row and keeps its unread count in view](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L249)
   - [A long link in a thread stays inside its bubble](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L258)
   - [The message actions button does not cover the time](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L265)
+- **An @mention in a thread works as in the main chat**
+  - [Typing @ in the reply box lists the agents and a pick mentions one](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L274)
+  - [An agent @mentioned in a thread joins the conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L283)
+- **Request mini app asks the agent in the thread of its message**
+  - [Request mini app replies to the agent in the thread of its message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L293)
 
 ## Voice call
 

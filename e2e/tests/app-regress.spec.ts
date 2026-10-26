@@ -172,26 +172,12 @@ scenario("Now with a replied ask and an updated ask keeps its look", { tag: ["@b
 
   // When the owner opens Now, Then it matches its frame, with the section "You replied · waiting on the agent" and the updated ask with its answers
   await page.goto(`${u.w.srv.origin}/`);
-  await expect(page.getByRole("article", { name: "Close the incident?" })).toContainText("Updated after your questions");
+  await expect(page.getByRole("article", { name: "Close the incident?" })).toContainText("Your questions, answered");
   await expect(page.locator("#replied")).toContainText("Push the 8642 fix to staging?");
   // And the row leads with the owner's own reply, the ask under it (owner, msg 2056)
   await expect(page.locator("#replied [data-replied] > span").first()).toHaveText("Is it behind a flag, and who reviewed it? Why one PR and not two?");
   await expect(page.locator("#replied")).toContainText("On: Push the 8642 fix to staging?");
   await matchesItself(page, info, "now-replied");
-});
-
-scenario("Now with a waiting plan item keeps its look", { tag: ["@browser"] }, async ({ server, page, context, testApi }, info) => {
-  info.setTimeout(240_000);
-  // Background: the prototype's agents and conversations. Given "devtool" waits on the owner for "Approve the staging push"
-  const u = await world({ server, page, context, testApi });
-  const ids = await seedPrototype(u);
-  const dev = await convoz(u.w.box, u.sessions.devtool!.sid, ["plan", String(ids["Bug #8642 · null check fix"]!), "--doing", "Fixing the null check", "--waiting", "Approve the staging push"]);
-  expect({ code: dev.code, stderr: dev.stderr }).toEqual({ code: 0, stderr: "" });
-
-  // When the owner opens Now, Then it matches its frame
-  await page.goto(`${u.w.srv.origin}/`);
-  await expect(page.getByRole("region", { name: "Waiting on you" })).toBeVisible();
-  await matchesItself(page, info, "now-waiting");
 });
 
 scenario("An empty Now and its open folds keep their look", { tag: ["@browser"] }, async ({ server, page, context, testApi }, info) => {

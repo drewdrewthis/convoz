@@ -15,22 +15,38 @@ import (
 // inboxPort queues a new message for one agent with the strongest reason it gives (C-10).
 type inboxPort struct{}
 
-func (inboxPort) FanOut(ctx context.Context, d pdb.DBTX, now time.Time, identity int64, a message.Arrival) error {
+func (inboxPort) FanOut(ctx context.Context, d pdb.DBTX, now time.Time, identity int64, a message.Arrival) (bool, error) {
 	m := a.Message
 	if m.ViaAgentID == identity {
-		return inbox.AppResult(ctx, d, now, identity, m.ConversationID, m.ID, a.SourceSeq) // the agent whose app it was: its own item, never merged
+		return true, inbox.AppResult(ctx, d, now, identity, m.ConversationID, m.ID, a.SourceSeq) // the agent whose app it was: its own item, never merged
+	}
+	if ok, err := wakes(ctx, d, identity, a); err != nil || !ok {
+		return false, err
 	}
 	prefer, err := conversation.LastPostSession(ctx, d, m.ConversationID, identity)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if err := inbox.FanOut(ctx, d, now, identity, m.ConversationID, m.ID, a.SourceSeq, prefer, reasonFor(identity, a)); err != nil {
-		return err
+		return false, err
 	}
 	if !a.HasUploads {
-		return nil
+		return true, nil
 	}
-	return holdForWords(ctx, d, now, m.ConversationID, m.ID)
+	return true, holdForWords(ctx, d, now, m.ConversationID, m.ID)
+}
+
+// wakes is whether the message gives this agent an item. A person's message always does. An agent's message does only when it
+// @mentions the agent or is a reply in a thread the agent wrote the root of or already replied in: agents must not wake each
+// other by chatter (owner's rule, conv 252 msg 5447).
+func wakes(ctx context.Context, d pdb.DBTX, identity int64, a message.Arrival) (bool, error) {
+	if !a.ByAgent || slices.Contains(a.Mentioned, identity) {
+		return true, nil
+	}
+	if a.Message.ThreadRootID == 0 {
+		return false, nil
+	}
+	return message.WroteInThread(ctx, d, a.Message.ThreadRootID, identity)
 }
 
 // holdForWords makes the item of a voice note wait for its transcript (E-5): only while an engine works on it.

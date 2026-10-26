@@ -1,8 +1,9 @@
-import { agentSays, ownerSays } from "../lib/chat.ts";
+import { agentPost, agentSays, createConversation, ownerSays, peekFor } from "../lib/chat.ts";
+import { must } from "../lib/owner.ts";
 import { message, messageLog, recordStreams, streamOpen } from "../lib/chat-ui.ts";
-import { expect, scenario } from "../lib/scenario.ts";
-import { ROOT_TEXT, agentReplies, closeThread, openRail, openThread, ownerHasRead, ownerReplies, threadLog, threadPane, threadWorld, type ThreadWorld } from "../lib/threads-wp5.ts";
-import { seedDb } from "../lib/wp3.ts";
+import { expect, scenario, test } from "../lib/scenario.ts";
+import { ROOT_TEXT, agentReplies, closeThread, openRail, openThread, ownerHasRead, ownerReplies, replyBox, sendReply, threadLog, threadPane, threadWorld, type ThreadWorld } from "../lib/threads-wp5.ts";
+import { handlesOf, seedDb, viewOf } from "../lib/wp3.ts";
 import type { Locator, Page } from "@playwright/test";
 
 /*
@@ -31,7 +32,9 @@ scenario("Each conversation lists its threads under it, and a thread opens from 
   await expect(row).toContainText("↳");
   const box = (await row.boundingBox())!;
   expect(box.height).toBeGreaterThanOrEqual(44);
-  expect(box.x).toBeGreaterThan((await convRow(page).boundingBox())!.x);
+  // the ↳ lines up under the title, so the indent is the thread's text, right of the title's left edge
+  const text = (await row.locator(".thrtext").boundingBox())!;
+  expect(text.x).toBeGreaterThan((await convRow(page).getByRole("heading").boundingBox())!.x);
 
   // When the owner taps the row of thread 900
   await row.click();
@@ -135,6 +138,35 @@ scenario("A conversation folds its threads by its chevron, and stays folded afte
   // And tapping the chevron again lists thread 900
   await show.click();
   await expect(threadRow(page, ROOT_TEXT)).toBeVisible();
+});
+
+// Issue 31: one button folds the threads of every conversation, and shows them again.
+scenario("One button folds the threads of every conversation, and stays folded after a reload", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  test.skip(info.project.name !== "chromium", "the fold-all button is on the desktop sidebar only");
+  // Given conversations 41 and a second one each have a thread with a reply
+  const t = await threadWorld({ server, page, context }, { browser: true });
+  await agentReplies(t, t.dev, "Yes, it can");
+  const other = await createConversation(t.w.owner, { participants: ["devtool"], title: "Deploy alerts runbook" });
+  const root = await agentSays(t.w.srv, t.dev, other, "Alerts topic");
+  must(await agentPost(t.w.srv, t.dev, other, "Alerts reply", { thread_root_id: root }), "reply in the second thread", 201);
+
+  // When the owner opens the list and presses "Fold all threads"
+  await openRail(page, t.w.srv.origin);
+  const nav = page.getByRole("navigation", { name: "Conversations" });
+  const rows = nav.getByRole("link", { name: /^Open thread:/ });
+  await expect(rows).toHaveCount(2);
+  await nav.getByRole("button", { name: "Fold all threads" }).click();
+
+  // Then no thread row is listed, also after a reload, and the button says "Show all threads"
+  await expect(rows).toHaveCount(0);
+  await page.reload();
+  const show = nav.getByRole("button", { name: "Show all threads" });
+  await expect(show).toBeVisible();
+  await expect(rows).toHaveCount(0);
+
+  // And pressing it lists the threads again
+  await show.click();
+  await expect(rows).toHaveCount(2);
 });
 
 scenario("A long thread preview stays inside the row and keeps its unread count in view", { tag: ["@browser", "@I-14"] }, async ({ server, page, context }) => {
@@ -262,3 +294,52 @@ scenario("The message actions button does not cover the time", { tag: ["@browser
 function test_shot(page: Page): string {
   return (page.viewportSize()?.width ?? 0) < 600 ? "/tmp/thrlist-mobile.png" : "/tmp/thrlist-chromium.png";
 }
+
+// ---- Rule: An @mention in a thread works as in the main chat (issue 35) ----------------------------------------------------------
+
+/** The "Agents" list of the open reply box. */
+const threadAgents = (page: Page): Locator => threadPane(page).getByRole("list", { name: "Agents" });
+
+scenario("Typing @ in the reply box lists the agents and a pick mentions one", { tag: ["@browser", "@I-18"] }, async ({ server, page, context }) => {
+  const t = await threadWorld({ server, page, context }, { browser: true });
+  await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
+
+  // When the owner opens the reply box of message 900 and types "@"
+  await openThread(page, ROOT_TEXT);
+  await replyBox(page).pressSequentially("@");
+
+  // Then the "Agents" list shows above the reply box
+  await expect(threadAgents(page)).toBeVisible();
+
+  // When the owner picks "docs"
+  await threadAgents(page).getByRole("button", { name: /@docs\b/ }).click();
+
+  // Then the reply box holds "@docs " and keeps the focus
+  await expect(replyBox(page)).toHaveValue("@docs ");
+  await expect(replyBox(page)).toBeFocused();
+
+  // When the owner types "hi-35" and sends
+  await replyBox(page).pressSequentially("hi-35");
+  await sendReply(page).click();
+
+  // Then the reply shows in the thread and "docs" gets a mention item
+  await expect(threadLog(page).getByRole("article").filter({ hasText: "hi-35" })).toBeVisible();
+  await expect.poll(async () => (await peekFor(t.w.box, t.docsSid, t.conv)).map((i) => i.reason)).toContain("mention");
+});
+
+scenario("An agent @mentioned in a thread joins the conversation", { tag: ["@browser", "@I-18"] }, async ({ server, page, context }) => {
+  // Given "release-bot" is an agent that is not in conversation 41
+  const t = await threadWorld({ server, page, context }, { browser: true, agents: ["devtool", "docs", "release-bot"] });
+  expect(handlesOf(await viewOf(t.w.owner, t.conv))).not.toContain("release-bot");
+  await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
+
+  // When the owner picks "release-bot" from the "Agents" list of the reply box of message 900 and sends "please review"
+  await openThread(page, ROOT_TEXT);
+  await replyBox(page).pressSequentially("@rel");
+  await threadAgents(page).getByRole("button", { name: /@release-bot\b/ }).click();
+  await replyBox(page).pressSequentially("please review");
+  await sendReply(page).click();
+
+  // Then "release-bot" is a participant of conversation 41
+  await expect.poll(async () => handlesOf(await viewOf(t.w.owner, t.conv))).toContain("release-bot");
+});

@@ -1,7 +1,7 @@
 /* Threads: the replies drawn inline under their root (issue 61), its reply box, and the tag over a reply that is in the main list too. */
 @layer components {
-  /* indented under the root, in the same 760 px column, with a rule down its left edge; the replies are smaller than the main list */
-  .ithread { box-sizing: border-box; width: 100%; max-width: 760px; margin: 0 auto; padding: 0 12px 6px 28px; }
+  /* indented under the root, in the transcript's one column (--col), with a rule down its left edge; the replies are smaller than the main list */
+  .ithread { box-sizing: border-box; width: 100%; max-width: var(--col); margin: 0 auto; padding: 0 12px 6px 28px; }
   .ithbody { display: flex; flex-direction: column; border-left: 2px solid var(--color-border); }
   .ithread .msg { padding: 8px 4px 2px 12px; }
   .ithread .msg:not(.first) { padding-top: 2px; }
@@ -21,6 +21,8 @@
   .ithform { display: flex; flex-direction: column; gap: 0; padding: 6px 0 0 12px; }
   .ithform .ithcancel { align-self: flex-start; }
   .ithread .thrcomposer { min-height: 44px; border-radius: 999px; border-color: var(--color-edge); }
+  /* the "@" menu spans the reply box: the main composer's 300 px minimum would run past an indented thread on a phone */
+  .ithread .thrcomposer .pop { left: 0; min-width: 0; width: 100%; max-width: 360px; box-sizing: border-box; }
   .ithread .thrcomposer input[id] {
     flex: 1 1 auto; min-width: 0; width: auto; height: auto; min-height: 44px; padding: 0 12px; border: 0; border-radius: 0; outline: none; background: transparent;
     color: var(--color-text); font-size: 14px;
@@ -33,12 +35,13 @@
   }
 
   /* thread sub-rows under a conversation (owner, msgs 266-267) */
-  .chatlist li { flex-wrap: wrap; }
-  /* min-width:0: as a flex item the list otherwise keeps its min-content width (the whole nowrap preview) and the ellipsis never fires */
-  .thrlist { flex: 1 1 100%; min-width: 0; list-style: none; margin: 0; padding: 0 0 4px 28px; }
-  /* ul.thrlist: ties with app.css ".chatlist li { display: flex }", which comes later and made the row a flex item that would not shrink below its text */
+  /* min-width:0: the list otherwise keeps its min-content width (the whole nowrap preview) and the ellipsis never fires */
+  .thrlist { min-width: 0; list-style: none; margin: 0; padding: 0 0 4px 28px; }
+  /* ul.thrlist: ties with app.css ".chatlist > li", which comes later and would make each reply a grid */
   ul.thrlist li { display: block; }
   .thrrow a { min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-radius: 14px; color: var(--color-text); font-size: 13px; text-decoration: none; }
+  .chatlist .thrrow a, .chatlist .throlder { padding: 0 4px 0 12px; gap: 6px; }
+  .chatlist .thrarrow, .chatlist .throlder > span:first-child { flex: none; width: 14px; text-align: center; }
   .thrrow.unread .thrtext { font-weight: 600; }
   .thrarrow { flex: none; color: var(--color-accent-text); font-weight: 700; }
   .thrtext { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

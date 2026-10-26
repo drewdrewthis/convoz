@@ -1,28 +1,36 @@
+import { Button } from "@convoz/ui/Button";
 import { IconButton } from "@convoz/ui/IconButton";
 import { PlanIcon } from "../plan/index.ts";
 import type { Conversation } from "@convoz/api-client";
-import { Fragment, useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { humanError } from "../../shared/api.ts";
-import { data, useData, useLive } from "../../shared/data.ts";
-import { openCount, useNow } from "../now/index.ts";
+import { visit } from "../../shared/navigate.ts";
+import { data, loadListOnMount, useData, useLive } from "../../shared/data.ts";
+import { Now, openCount, useNow } from "../now/index.ts";
 import { toast } from "../pins-stars/index.ts";
 import { useSearchUi } from "../search/index.ts";
 import { startDrag, type Drop } from "./drag.ts";
 import { Logo } from "./Logo.tsx";
-import { BackArrow, ChevronIcon, ComposeGlyph, CrewGlyph, InviteGlyph, ForwardArrow, GripIcon, PanelGlyph, NowGlyph, SearchGlyph, StarIcon } from "./icons.tsx";
+import { BackArrow, ChevronIcon, ComposeGlyph, CrewGlyph, InviteGlyph, FoldAllGlyph, ForwardArrow, GripIcon, PanelGlyph, NowGlyph, SearchGlyph, StarIcon } from "./icons.tsx";
 import { groups, isOlder, rowLabel, titleOf } from "./model.ts";
 import { ThreadFold, ThreadRows, rowUnread, useThreadFold } from "../threads/index.ts";
 import { useFold } from "./fold.ts";
+import { useRailMode } from "./mode.ts";
 import { moveRow, setStar, stepRow } from "./actions.ts";
 
 // A row with thread rows carries their fold chevron at its right end, so its star and grip sit 24px further in.
 const folds = (c: Conversation): boolean => (c.threads ?? []).some((t) => t.reply_count > 0);
+
+// The rail's buttons that read as its rows (Now, "Conversations"): the app's Button in the size and colours of a rail row.
+const PILL = "rnav min-h-32! justify-start! gap-8! text-left! text-14! text-text! hover:bg-[color-mix(in_srgb,var(--color-text)_6%,transparent)] aria-pressed:bg-selection";
 
 const openedId = (): number => Number(/^\/chats\/(\d+)$/.exec(location.pathname)?.[1] ?? 0);
 
 /**
  * Sidebar is the desktop rail (prototype v41): search and new conversation at the top, Now, the groups Starred and Conversations in the
  * owner's own order, the folded Older group, and Crew at the bottom. Drag a row, or Alt plus an arrow on it, to move it.
+ * Now switches the rail to the Now list (proposal §1): the page keeps the open conversation, and a pick opens its conversation beside the
+ * list. "Conversations", Escape in the rail, or Now again switch back. On the Now page the rail stays as it is: the page is that list.
  */
 export default function Sidebar() {
   const list = useData((s) => s.conversations);
@@ -33,9 +41,12 @@ export default function Sidebar() {
   const [focusId, setFocusId] = useState(0);
   const current = openedId();
   const { folded, toggle } = useFold();
+  const onNowPage = document.body.dataset.page === "now";
+  const showNow = useRailMode((s) => s.now) && !onNowPage;
+  const setMode = useRailMode((s) => s.set);
   useLive(() => void data.loadConversations().catch(() => {}));
   useEffect(() => {
-    Promise.all([data.loadMe(), data.loadConversations(), data.loadIdentities()]).catch(() => {});
+    Promise.all([data.loadMe(), loadListOnMount(), data.loadIdentities()]).catch(() => {});
   }, []);
   const g = useMemo(() => groups(list ?? []), [list]);
 
@@ -75,14 +86,29 @@ export default function Sidebar() {
     [fail],
   );
   const foldedIds = useThreadFold((s) => s.folded);
+  const threaded = useMemo(() => (list ?? []).filter(folds).map((c) => c.id), [list]);
+  const allFolded = threaded.length > 0 && threaded.every((id) => foldedIds.includes(id));
   const unreadOf = (c: Conversation) => rowUnread(c, foldedIds.includes(c.id));
+  // Escape first closes what is open inside the rail (a field, a card's menu); then it leaves Now. The Now button keeps the focus.
+  const escape = (e: KeyboardEvent<HTMLElement>) => {
+    if (e.key !== "Escape" || !showNow || e.defaultPrevented) return;
+    const t = e.target as Element;
+    if (t.closest("input, textarea, select, [contenteditable]") || t.closest("[data-ask]")?.querySelector("[aria-haspopup][aria-expanded='true']")) return;
+    setMode(false);
+    document.getElementById("rail-now")?.focus();
+  };
+  // A pick in the Now list opens its conversation without a page load, so the list beside it does not flash.
+  const pick = (e: MouseEvent<HTMLElement>) => {
+    const to = (e.target as Element).closest("a")?.getAttribute("href");
+    if (to?.startsWith("/chats/")) visit(e, to);
+  };
   const star = (c: Conversation) =>
     setStar(c.id, !c.starred).then(() => toast(c.starred ? "Unstarred" : "Starred"), fail);
 
   const row = (c: Conversation, grp: "starred" | "mid" | "older") => (
     <Fragment key={c.id}>
     <div className="rrow group/rrow" data-rid={grp === "older" ? undefined : c.id} data-grp={grp} data-current={c.id === current ? "true" : undefined} onPointerDown={grp === "older" ? undefined : (e) => startDrag(e, drop)} onKeyDown={(e) => key(e, c)}>
-      <a className={`rgo${unreadOf(c) > 0 ? " unread" : ""}${c.muted_until ? " muted" : ""}`} id={`rr-${c.id}`} href={`/chats/${c.id}`} aria-current={c.id === current ? "page" : undefined} aria-label={rowLabel(c, unreadOf(c))} draggable={false}>
+      <a className={`rgo${unreadOf(c) > 0 ? " unread" : ""}${c.muted_until ? " muted" : ""}`} id={`rr-${c.id}`} href={`/chats/${c.id}`} onClick={(e) => visit(e, `/chats/${c.id}`)} aria-current={c.id === current ? "page" : undefined} aria-label={rowLabel(c, unreadOf(c))} draggable={false}>
         <span className="rtitle">{titleOf(c)}</span>
         <PlanIcon id={c.id} />
         {unreadOf(c) > 0 ? (
@@ -138,7 +164,7 @@ export default function Sidebar() {
   }
 
   return (
-    <nav className="rail" aria-label="Conversations" data-testid="rail">
+    <nav className="rail" aria-label="Conversations" data-testid="rail" onKeyDown={escape}>
       <div className="rail-top">
         {foldButton}
         <a className="brand" href="/">
@@ -162,38 +188,68 @@ export default function Sidebar() {
         <IconButton variant="bordered" size={32} glyph="self" href="/crew?invite" label="Invite agent">
           <InviteGlyph />
         </IconButton>
+        {threaded.length ? (
+          <IconButton variant="bordered" size={32} glyph="self" label={allFolded ? "Show all threads" : "Fold all threads"} onClick={() => useThreadFold.getState().toggleAll(threaded)}>
+            <FoldAllGlyph folding={!allFolded} />
+          </IconButton>
+        ) : null}
       </div>
       <div className="rail-scroll" data-rscroll="1">
-        <a className="rnav now" href="/" aria-current={location.pathname === "/" ? "page" : undefined}>
-          <NowGlyph />
-          <span>Now</span>
-          {waiting ? <span className="rbadge">{String(waiting)}</span> : null}
-        </a>
-        {g.starred.length ? (
-          <div className="rgroup" role="group" aria-label="Starred">
-            <div className="rghdr" data-ghdr="starred">
-              Starred
-            </div>
-            {g.starred.map((c) => row(c, "starred"))}
-          </div>
-        ) : null}
-        {g.mid.length || !g.starred.length ? (
-          <div className="rgroup" role="group" aria-label="Conversations">
-            <a className="rghdr" data-ghdr="mid" href="/chats" style={{ textDecoration: "none" }}>
-              Conversations
+        {/* The Now button keeps its place (the slot before it is empty in Conversations), so it keeps the focus across the switch. */}
+        <div className="rmode">
+          {showNow ? (
+            <Button variant="text" size="inline" className={PILL} onClick={() => setMode(false)}>
+              <BackArrow />
+              <span>Conversations</span>
+            </Button>
+          ) : null}
+          {onNowPage ? (
+            <a className="rnav now" href="/" aria-current="page">
+              <NowGlyph />
+              <span>Now</span>
+              {waiting ? <span className="rbadge">{String(waiting)}</span> : null}
             </a>
-            {g.mid.map((c) => row(c, "mid"))}
+          ) : (
+            <Button variant="text" size="inline" className={`${PILL} now`} id="rail-now" aria-pressed={showNow} aria-keyshortcuts="Meta+." title="Now · ⌘." onClick={() => setMode(!showNow)}>
+              <NowGlyph />
+              <span>Now</span>
+              {waiting ? <span className="rbadge">{String(waiting)}</span> : null}
+            </Button>
+          )}
+        </div>
+        {showNow ? (
+          <div className="rnow" onClick={pick}>
+            <Now compact current={current} />
           </div>
-        ) : null}
-        {g.older.length ? (
-          <div className="rgroup" role="group" aria-label="Older">
-            <button type="button" className="rolder" aria-expanded={olderOpen} onClick={() => setOlderOpen((o) => !o)}>
-              <ChevronIcon open={olderOpen} />
-              <span>{`Older · ${g.older.length}`}</span>
-            </button>
-            {olderOpen ? g.older.map((c) => row(c, "older")) : null}
-          </div>
-        ) : null}
+        ) : (
+          <>
+          {g.starred.length ? (
+            <div className="rgroup" role="group" aria-label="Starred">
+              <div className="rghdr" data-ghdr="starred">
+                Starred
+              </div>
+              {g.starred.map((c) => row(c, "starred"))}
+            </div>
+          ) : null}
+          {g.mid.length || !g.starred.length ? (
+            <div className="rgroup" role="group" aria-label="Conversations">
+              <a className="rghdr" data-ghdr="mid" href="/chats" style={{ textDecoration: "none" }}>
+                Conversations
+              </a>
+              {g.mid.map((c) => row(c, "mid"))}
+            </div>
+          ) : null}
+          {g.older.length ? (
+            <div className="rgroup" role="group" aria-label="Older">
+              <button type="button" className="rolder" aria-expanded={olderOpen} onClick={() => setOlderOpen((o) => !o)}>
+                <ChevronIcon open={olderOpen} />
+                <span>{`Older · ${g.older.length}`}</span>
+              </button>
+              {olderOpen ? g.older.map((c) => row(c, "older")) : null}
+            </div>
+          ) : null}
+          </>
+        )}
       </div>
       <div className="rail-foot">
         <a className="rnav" href="/crew" aria-current={location.pathname.startsWith("/crew") ? "page" : undefined}>

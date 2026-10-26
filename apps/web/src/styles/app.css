@@ -148,7 +148,7 @@
   .tabbar a[aria-current="page"] { color: var(--color-accent-text); font-weight: 600; }
   .tabbar .ico { position: relative; display: flex; }
   .tabbar svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
-  .tabbar .badge { position: absolute; top: -5px; left: 13px; min-width: 18px; margin: 0; padding: 0 5px; border-radius: 999px; background: var(--color-accent); color: var(--color-on-accent); font-size: 12px; font-weight: 700; line-height: 18px; text-align: center; vertical-align: baseline; }
+  .tabbar .badge { position: absolute; top: -5px; left: 13px; min-width: 18px; margin: 0; padding: 0 5px; border-radius: 999px; background: var(--color-accent); color: var(--color-on-accent); font-size: 12px; font-weight: 700; line-height: 18px; text-align: center; vertical-align: baseline; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
   /* ---- banners ---- */
   .banner { padding: 12px 16px; border-radius: 14px; background: var(--color-selection); color: var(--color-text); margin: 0 0 16px; }
@@ -221,11 +221,25 @@
   /* ---- Conversations ---- */
   .ghdr { margin: 0; padding: 16px 12px 4px; font-size: 12px; font-weight: 600; letter-spacing: .02em; color: var(--color-muted); }
   .chatlist { list-style: none; margin: 0; padding: 0; }
-  .chatlist li { display: flex; align-items: center; border-radius: 14px; }
+  /* Grid, not wrap: the thread chevron shares the row line (col 2) and the thread list sits under the row (owner, msgs 266-267). */
+  .chatlist > li { display: grid; grid-template-columns: minmax(0, 1fr) 36px auto; align-items: center; border-radius: 14px; }
   .chatrow { flex: 1 1 auto; min-width: 0; min-height: 64px; display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 14px; color: var(--color-text); text-decoration: none; }
   @media (hover: hover) { .chatrow:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); } }
   .rowbody { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .rowtop { display: flex; align-items: baseline; gap: 8px; }
+  .chatlist > li > .chatrow { grid-area: 1 / 1; padding: 8px 4px 8px 12px; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; row-gap: 2px; align-items: center; }
+  /* no fold: the link takes the empty 36px column too, padding keeps the time and count on the same right edge */
+  .chatlist > li:not(:has(> .thrfold)) > .chatrow { grid-column: 1 / 3; padding-right: 40px; }
+  .chatrow .rowbody, .chatrow .rowtop { display: contents; }
+  .chatrow .rowtitle { grid-area: 1 / 1; }
+  .chatrow .sp { display: none; }
+  .chatrow .when { grid-area: 1 / 2 / 2 / 4; justify-self: end; margin-left: 8px; }
+  .chatrow .preview { grid-area: 2 / 1; margin-right: 8px; }
+  .chatrow .planicon { grid-area: 2 / 2; }
+  .chatrow .count { grid-area: 2 / 3; }
+  .chatlist > li > .thrfold { grid-area: 1 / 2; width: 36px; }
+  .chatlist > li > .listgrab { grid-area: 1 / 3; }
+  .chatlist > li > .thrlist { grid-area: 2 / 1; padding: 0 0 4px; }
   .rowtitle { flex: 0 1 auto; min-width: 0; margin: 0; font-size: 14px; font-weight: 400; line-height: inherit; color: var(--color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sp { flex: 1 1 auto; }
   .when { flex: 0 0 auto; font-size: 12px; color: var(--color-muted); font-variant-numeric: tabular-nums; }
@@ -263,20 +277,30 @@
   .chatmain { flex: 1 1 auto; min-height: 0; width: 100%; max-width: none; margin: 0; padding: 0; overflow: hidden; display: flex; flex-direction: column; }
   .convo { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
   .logwrap { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-  .log { scroll-padding-top: var(--headh); flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; overflow-anchor: none; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; padding: var(--headh) 0 16px; }
+  .log { scroll-padding-top: var(--headh); flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; overflow-anchor: none; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; padding: var(--headh) 0 16px;
+    /* the one column every row of the transcript shares (messages, threads, notices, the New line, the day labels): one left edge */
+    --col: 760px; }
   .pausebar ~ .chatmain .log { padding-top: 8px; }
   .chatframe > .pausebar { position: relative; z-index: 2; margin-top: var(--headh); }
   /* flex: none — a virtual list's rows are absolute, so its height is all it has; as a shrinking flex item it collapsed to the log's height
      and the log's scroll height stopped following the rows, so a long chat stopped short of its newest message. */
   .items { display: flex; flex-direction: column; flex: none; }
   /* "New messages": a thin line with a label, above the first message that was unread when the chat opened. */
-  .newline { display: flex; align-items: center; gap: 8px; box-sizing: border-box; width: 100%; max-width: 760px; margin: 12px auto 0; padding: 0 12px; color: var(--color-accent); font-size: 12px; font-weight: 700; }
+  .newline { display: flex; align-items: center; gap: 8px; box-sizing: border-box; width: 100%; max-width: var(--col); margin: 12px auto 0; padding: 0 12px; color: var(--color-accent); font-size: 12px; font-weight: 700; }
   .newline::before, .newline::after { content: ""; flex: 1 1 0; height: 1px; background: currentColor; opacity: .6; }
   .newline::before { flex-grow: 0; width: 12px; }
   .earlier { display: flex; justify-content: center; }
+  /* A day label ("Today", "Wed 21 Oct"), quiet like the New line. It pins under the header while its day scrolls by (top 0 is the log's
+     padding edge, already below the header); the next day's label, later in the list, covers it, hence the solid band. In a virtual list
+     (over 100 rows) each row is its own absolute box, so there it pins within its own row only. */
+  .dayline {
+    position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 8px; box-sizing: border-box; width: 100%; max-width: var(--col);
+    margin: 12px auto 0; padding: 4px 12px; background: var(--color-surface); color: var(--color-muted); font-size: 12px; font-weight: 700; pointer-events: none;
+  }
+  .dayline::before, .dayline::after { content: ""; flex: 1 1 0; height: 1px; background: var(--color-border); }
   /* A message (prototype v42): no avatar column. An agent's message is the full width of a centred 760 px column, under one author line
      (avatar, name, handle, time); the owner's is a compact bubble on the right, with the time above it. */
-  .msg { position: relative; display: block; box-sizing: border-box; width: 100%; max-width: 760px; margin-inline: auto; padding: 16px 12px 3px; border-radius: 12px; }
+  .msg { position: relative; display: block; box-sizing: border-box; width: 100%; max-width: var(--col); margin-inline: auto; padding: 16px 12px 3px; border-radius: 12px; }
   .msg:not(.first) { padding-top: 3px; }
   .msg .byline .ava { width: 24px; height: 24px; font-size: 12px; }
   .msg .byline .ava::before { content: attr(data-l); } /* the letter is drawn, not text: a message reads "devtool @devtool 5:25 AM Hello" */
@@ -339,7 +363,7 @@
     .msg-actions-btn { opacity: 1; }
     .msg-reply-btn { display: none; }
   }
-  .notice-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 12px 3px 60px; color: var(--color-muted); font-size: 13.5px; line-height: 1.4; }
+  .notice-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; box-sizing: border-box; width: 100%; max-width: var(--col); margin-inline: auto; padding: 12px 12px 3px 60px; color: var(--color-muted); font-size: 13.5px; line-height: 1.4; }
   /* the bullet hangs off the text itself: as its own flex item, a text too long for the row wrapped below it and left the bullet alone */
   .notice-text::before { content: "\2022"; display: inline-block; width: 16px; margin-left: -24px; margin-right: 8px; text-align: center; }
   .notice-line[data-t="conversation.paused"] .notice-text::before { content: "\23F8"; }
@@ -351,7 +375,7 @@
   .pn-now { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pn-chev svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s; }
   .pn-main[aria-expanded="true"] .pn-chev svg { transform: rotate(90deg); }
-  .pn-pill { position: relative; flex: none; min-height: 28px; padding: 0 10px; border: 1px solid color-mix(in srgb, var(--color-warning) 45%, var(--color-border)); border-radius: 999px; background: none; color: var(--color-warning); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+  .pn-pill { position: relative; flex: none; display: inline-flex; align-items: center; text-decoration: none; min-height: 28px; padding: 0 10px; border: 1px solid color-mix(in srgb, var(--color-warning) 45%, var(--color-border)); border-radius: 999px; background: none; color: var(--color-warning); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
   .pn-pill::after { content: ""; position: absolute; inset: -8px -2px; }
   .pn-lines { flex-basis: 100%; display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 0 0 8px 23px; font-size: 13px; }
   .pn-lines div { display: contents; }
@@ -360,7 +384,6 @@
   .msg .sendstate { margin-top: 2px; text-align: right; color: var(--color-muted); font-size: 12px; }
   .msg .seen { margin-top: 2px; text-align: right; color: var(--color-muted); font-size: 12px; }
   .msg .sendstate.bad { color: var(--color-danger); font-weight: 600; }
-  .msg .retry { min-height: 32px; margin-left: 8px; padding: 0 12px; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-raised); color: var(--color-text); font: inherit; font-weight: 600; cursor: pointer; }
   .working { display: flex; align-items: center; gap: 8px; box-sizing: border-box; width: calc(100% - 24px); max-width: 736px; margin: 10px auto 2px; color: var(--color-muted); font-size: 13px; }
   .working::before { content: ""; box-sizing: border-box; width: 10px; height: 10px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--color-accent) 25%, transparent); border-top-color: var(--color-accent); animation: workspin 0.9s linear infinite; }
   @keyframes workspin { to { transform: rotate(360deg); } }
@@ -437,8 +460,20 @@
   .chatrow, .crow, .tabbar a, .fab, .msg .who, .agentbtn, .titles h1, .count { line-height: normal; }
 }
 
+/* The retry pill and the rows of the "@" menus are Buttons styled here. They sit outside the layers: a layered rule loses to every
+   Tailwind utility of Button whatever its specificity, and these keep their own size, edge and left alignment. */
+.msg .sendstate .retry { min-height: 32px; margin-left: 8px; padding: 0 12px; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-raised); color: var(--color-text); font: inherit; font-weight: 600; cursor: pointer; }
+.pop .agentbtn { display: flex; justify-content: flex-start; gap: 10px; width: 100%; min-height: 48px; padding: 4px 8px; border: 0; border-radius: 12px; background: transparent; color: var(--color-text); font: inherit; font-size: 14px; line-height: normal; text-align: left; }
+.pop .agentbtn[aria-selected="true"], .pop .agentbtn:hover { background: var(--color-selection); }
+
 /* iOS zooms a page when a text box under 16 px takes focus, and the viewport does not allow it to stay zoomed: a phone text box is 16 px or more. */
 @media (max-width: 600px) {
   input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="button"], [type="submit"], [type="hidden"]),
   textarea, select, [contenteditable]:not([contenteditable="false"]) { font-size: 16px; }
+}
+
+/* On a phone the new-conversation button is a 56 px round plus; its label stays for screen readers. */
+@media (max-width: 600px) {
+  .fab { width: 56px; height: 56px; padding: 0; justify-content: center; }
+  .fab .fablabel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }

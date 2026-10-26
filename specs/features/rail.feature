@@ -135,3 +135,43 @@ Feature: Rail
       When the owner presses "?"
       Then the "Keyboard shortcuts" dialog lists every key
       And Escape closes it and returns focus where it was
+
+  # Owner, conv 179 (msgs 4291 to 4334), UX plan §1: Now is a view of the left rail, not a page that replaces the conversation.
+  Rule: On a wide screen Now is a view of the rail
+
+    @v1 @browser
+    Scenario: Now opens in the rail beside the open conversation
+      Given "devtool" asks "Merge #415 on its own?" in conversation 52
+      And the owner has conversation 41 open on a 1280 px wide screen
+      When the owner clicks "Now" in the rail
+      Then the rail lists the ask "Merge #415 on its own?" and no Conversations group
+      And the rail is about 360 px wide and the conversation moves with it
+      And conversation 41 is still open in the page
+
+    @v1 @browser
+    Scenario: Picking a Now item opens its conversation beside the Now list
+      Given "devtool" asks "Merge #415 on its own?" in conversation 52 and "Roll back box-3?" in conversation 60
+      And the owner has conversation 41 open with Now in the rail
+      When the owner picks "Open" on the ask "Roll back box-3?" in the rail
+      Then conversation 60 is open in the page
+      And the rail still lists both asks
+      And the item of conversation 60 is marked as current and the item of conversation 52 is not
+
+    @v1 @browser
+    Scenario: Conversations, Escape and Now again each take the rail back to the conversations
+      Given "devtool" asks "Merge #415 on its own?" in conversation 52
+      And the owner has conversation 41 open with Now in the rail
+      When the owner clicks "Conversations" at the top of the rail
+      Then the rail lists the Conversations group and is 240 px wide
+      When the owner presses Cmd+. and then Escape with the focus in the rail
+      Then the rail lists the Conversations group and is 240 px wide
+      When the owner clicks "Now" twice
+      Then the rail lists the Conversations group and is 240 px wide
+      And conversation 41 stayed open the whole time
+
+    @v1 @browser
+    Scenario: The rail stays in Now after a reload
+      Given "devtool" asks "Merge #415 on its own?" in conversation 52
+      And the owner has conversation 41 open with Now in the rail
+      When the owner reloads the page
+      Then the rail still lists the ask "Merge #415 on its own?" and is about 360 px wide

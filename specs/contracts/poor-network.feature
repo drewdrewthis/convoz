@@ -53,6 +53,28 @@ Feature: Poor connections (contracts)
         | a 401 with "device_revoked"     | cleared |
         | a 401 with "session_expired"    | cleared |
 
+    @v1 @browser
+    Scenario Outline: The conversation list is read from the network once per page load
+      Given the installed app has cached conversation 41
+      When the owner opens the conversation list <start>
+      And the app has saved its offline copy
+      Then the app asked the server for the conversation list <asked> times and got <answered> answers (1+ is at least once)
+
+      Examples:
+        | start                                           | asked | answered |
+        | normally                                        | 1     | 1        |
+        | and its first list read fails (disk copy only)  | 2     | 1        |
+        | again after opening a conversation              | 1     | 1        |
+        | again from the back-forward cache               | 1+    | 1+       |
+        | with a page show that is not a return           | 0     | 0        |
+
+    @v1 @browser
+    Scenario: A conversation opens from the offline copy before the server answers
+      Given the installed app has cached conversation 41 with 5 messages
+      When the server holds its answers to /api/me, /api/identities and conversation 41 and the owner opens conversation 41
+      Then the last message shows within 3 seconds
+      And the page stays the same once the server answers
+
   Rule: The app is fast on a mid-range phone (AC-10)
 
     @v1 @browser @phone @lossy @AC-10 @unimplemented

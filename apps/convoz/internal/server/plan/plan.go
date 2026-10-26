@@ -38,10 +38,13 @@ const (
 
 // Timing of the nudge and of the liveness rule. Every one follows the server clock, so the tests move it.
 const (
-	// StaleAfter is how long a plan with a Doing and no estimate may go without an update before it counts as overdue.
+	// StaleAfter is how long a plan with a Doing and no estimate may go without an update before the owner's line turns "no update".
 	StaleAfter = 2 * time.Hour
+	// NudgeAfter is how long a plan with a Doing and no estimate may go without an update before its agent is nudged; the owner's
+	// line turns stale only at StaleAfter.
+	NudgeAfter = 15 * time.Minute
 	// NudgeEvery is the gap between two nudges of one miss.
-	NudgeEvery = 2 * time.Hour
+	NudgeEvery = time.Hour
 	// MaxNudges caps the nudges of one miss.
 	MaxNudges = 3
 	// NotRespondingAfter is how long a message may wait for an agent with no live watch before it shows as not responding.
@@ -170,6 +173,38 @@ func Check(doing []string, blocked string, next, waiting, done []string) (field,
 		}
 	}
 	return "", "", true
+}
+
+// labelRE is a label at the start of a Waiting item: one to three words, a colon and a space ("Rogerio: Day 10 fix"). The colon of
+// "https://" has no space after it, so a link is no label.
+var labelRE = regexp.MustCompile(`^([^\s:]+(?: [^\s:]+){0,2}): +(\S.*)$`)
+
+// nameRE is a label that reads as a person's name: one or two words of letters only, each starting with a capital ("Rogerio",
+// "Rogerio Silva", "Review"). "Step 2", "Log in" and "Approve deploy" are instructions, not names.
+var nameRE = regexp.MustCompile(`^\p{Lu}\p{L}*(?: \p{Lu}\p{L}*)?$`)
+
+// OwnWaiting keeps Waiting to what the owner must do (conv 151): an item labelled with someone else's name is refused, with why naming
+// the way out, and the owner's own label ("Drew:", "@drew:") is dropped. names are the owner's handle and display name; case and a
+// leading "@" do not matter.
+func OwnWaiting(items []string, names ...string) (out []string, why string) {
+	for _, t := range items {
+		m := labelRE.FindStringSubmatch(t)
+		if m == nil {
+			out = append(out, t)
+			continue
+		}
+		label := m[1]
+		if slices.ContainsFunc(names, func(n string) bool { return n != "" && strings.EqualFold(strings.TrimPrefix(label, "@"), n) }) {
+			out = append(out, m[2])
+			continue
+		}
+		if nameRE.MatchString(label) {
+			return nil, `waiting is only for what the owner must do. "` + label + `: …" names someone else: put it in --blocked "Waiting on ` +
+				label + `: …", or drop the "` + label + `:" label.`
+		}
+		out = append(out, t)
+	}
+	return out, ""
 }
 
 var stepRE = regexp.MustCompile(`^([1-9][0-9]?)/([1-9][0-9]?)$`)
@@ -390,10 +425,27 @@ func (p Plan) Overdue(anchor, now int64) string {
 	return state
 }
 
-// NudgeDue reports whether the agent should be nudged now: the plan is overdue, fewer than MaxNudges went out for this miss, and the
-// last one is NudgeEvery old. A miss is one anchor: a newer update starts the count again.
+// nudgeDue says whether one item calls for a nudge at now: late past its estimate with no update since, or with no estimate and
+// no update for NudgeAfter.
+func (it Item) nudgeDue(anchor, now int64) bool {
+	if it.ETA != 0 {
+		return now >= it.ETA && anchor < it.ETA
+	}
+	return now >= anchor+NudgeAfter.Milliseconds()
+}
+
+// NudgeDue reports whether the agent should be nudged now: an item is late or has had no update for NudgeAfter, the plan neither
+// waits on the owner nor is blocked, fewer than MaxNudges went out for this miss, and the last one is NudgeEvery old. A miss is one
+// anchor: a newer update starts the count again.
 func (p Plan) NudgeDue(anchor, now int64) bool {
-	if p.Overdue(anchor, now) == "" {
+	if len(p.Waiting) > 0 || p.Blocked != "" {
+		return false
+	}
+	due := false
+	for _, it := range p.Now {
+		due = due || it.nudgeDue(anchor, now)
+	}
+	if !due {
 		return false
 	}
 	if p.NudgeAnchor != anchor || p.Nudges == 0 {

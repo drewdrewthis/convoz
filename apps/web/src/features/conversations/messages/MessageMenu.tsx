@@ -8,6 +8,7 @@ import { useData } from "../../../shared/data.ts";
 import { pinMessage, toast, unpinMessage } from "../../pins-stars/index.ts";
 import { deleteMessage, editHistory, editMessage, transcribeAgain } from "./actions.ts";
 import { Button } from "@convoz/ui/Button";
+import { MenuItem } from "@convoz/ui/MenuItem";
 import { IconButton } from "@convoz/ui/IconButton";
 import { ReplyIcon } from "@convoz/ui/icons";
 
@@ -118,6 +119,14 @@ export function MessageMenu({ message, mine, conversation }: { message: Message;
           >
             {pinned ? "Unpin" : "Pin"}
           </button>
+          <MenuItem onClick={() => (setOpen(false), copyLink(conversation, message.id))}>
+            Copy link
+          </MenuItem>
+          {message.author.kind === "agent" ? (
+            <MenuItem onClick={() => (setOpen(false), askForMiniApp(conversation, rootId, message.author.handle))}>
+              Request mini app
+            </MenuItem>
+          ) : null}
           {voice ? (
             <button
               role="menuitem"
@@ -246,4 +255,24 @@ export function EditedMark({ id }: { id: number }) {
       ) : null}
     </>
   );
+}
+
+/** copyLink puts the full link of a message on the clipboard; when the browser refuses, it shows the link to copy by hand. */
+function copyLink(conversation: number, id: number) {
+  const url = `${location.origin}/chats/${conversation}#m${id}`;
+  const byHand = () => window.prompt("Copy this link", url);
+  if (!navigator.clipboard) return void byHand();
+  navigator.clipboard.writeText(url).then(() => toast("Link copied"), byHand);
+}
+
+/** askForMiniApp replies in the thread of an agent's message, asking that agent to turn the message into a mini app. */
+function askForMiniApp(conversation: number, rootId: number, handle: string) {
+  const threads = useThreads.getState();
+  threads.startReply(conversation, rootId);
+  threads.reply(rootId, miniAppRequest(handle, conversation));
+}
+
+/** miniAppRequest is the reply "Request mini app" posts: what a mini app is, when it helps, and how to make a good one. */
+function miniAppRequest(handle: string, conv: number): string {
+  return `@${handle}, please turn this message into a mini app instead of more text.\n\nA mini app is a small web page you post in the chat; it opens in place. It beats a wall of text when I must compare options, see a layout or a flow, check numbers, or click through choices.\n\nHow:\n\n\`\`\`\nconvoz app init ./my-app      # makes the starter files\nconvoz app build ./my-app     # builds dist/app.html and dist/app.json\nconvoz app validate ./my-app/dist/app.html\nconvoz post ${conv} --app ./my-app/dist/app.json "one line on what it shows"\n\`\`\`\n\nSee \`convoz app --help\`.\n\nGood looks like: one question per app, the answer or recommendation at the top, real data (no lorem ipsum), plain words, works on a phone, and one clear action for me if you need a decision.`;
 }

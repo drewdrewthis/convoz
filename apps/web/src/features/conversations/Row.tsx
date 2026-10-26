@@ -1,4 +1,5 @@
 // One row of the conversation list, shared by the plain list and the virtualized one (VirtualList.tsx, its own chunk).
+import { visit } from "../../shared/navigate.ts";
 import type { Conversation } from "@convoz/api-client";
 import { memo, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { stripCf, whenLabel } from "../../shared/chat.ts";
@@ -33,7 +34,7 @@ export const Row = memo(function Row({ c, me, index, measure, style, grp, mode }
   const preview = c.last ? `${c.last.author_handle === me ? "You" : c.last.author_handle}: ${c.last.preview}` : "No messages yet";
   return (
     <li className={`${unread ? "unread" : ""}${c.muted_until ? " muted" : ""}`.trim() || undefined} data-id={c.id} data-rid={moving ? c.id : undefined} data-grp={moving ? grp : undefined} data-index={index} ref={measure} style={style}>
-      <a className="chatrow" href={`/chats/${c.id}`} draggable={false} onClick={moving ? (e) => e.preventDefault() : undefined}>
+      <a className="chatrow" href={`/chats/${c.id}`} draggable={false} onClick={(e) => (moving ? e.preventDefault() : visit(e, `/chats/${c.id}`))}>
         <div className="rowbody">
           <div className="rowtop">
             <h2 className="rowtitle">{stripCf(c.title ?? "") || "New conversation"}</h2>

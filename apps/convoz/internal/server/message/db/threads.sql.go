@@ -484,3 +484,19 @@ func (q *Queries) WatchContext(ctx context.Context, ids []int64) ([]WatchContext
 	}
 	return items, nil
 }
+
+const wroteInThread = `-- name: WroteInThread :one
+SELECT EXISTS(SELECT 1 FROM messages WHERE author_id = ?1 AND (id = ?2 OR thread_root_id = ?2))
+`
+
+type WroteInThreadParams struct {
+	IdentityID sql.NullInt64
+	RootID     int64
+}
+
+func (q *Queries) WroteInThread(ctx context.Context, arg WroteInThreadParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, wroteInThread, arg.IdentityID, arg.RootID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}

@@ -39,26 +39,39 @@ func (a conversationPort) Access(ctx context.Context, d pdb.DBTX, conv int64) (m
 	return message.Denied, nil // an agent is told 403 whether or not the conversation exists
 }
 
-// RecordMainPost moves the counters, then brings in the agents a person's message @mentions (I-18); an agent's @mention
-// never adds anyone, and neither does a quiet one (the call log). The loop breaker is not here: message.Post counts every post toward it (I-16).
+// RecordMainPost moves the counters, then brings in the agents a person's message @mentions (I-18). The loop breaker is not
+// here: message.Post counts every post toward it (I-16).
 func (a conversationPort) RecordMainPost(ctx context.Context, d pdb.DBTX, now time.Time, conv, messageID int64, body string, quiet bool) (int64, error) {
 	prev, err := conversation.RecordMainPost(ctx, d, now, conv, messageID, body)
-	if err != nil || a.p.SessionID != 0 || quiet {
+	if err != nil {
 		return prev, err
+	}
+	return prev, a.bringInMentioned(ctx, d, now, conv, messageID, quiet)
+}
+
+// RecordReplyPost brings in the agents a person's thread reply @mentions, as a main message does (I-18, issue 35).
+func (a conversationPort) RecordReplyPost(ctx context.Context, d pdb.DBTX, now time.Time, conv, messageID int64, quiet bool) error {
+	return a.bringInMentioned(ctx, d, now, conv, messageID, quiet)
+}
+
+// bringInMentioned adds the agents the message @mentions. An agent's @mention never adds anyone, and neither does a quiet one (the call log).
+func (a conversationPort) bringInMentioned(ctx context.Context, d pdb.DBTX, now time.Time, conv, messageID int64, quiet bool) error {
+	if a.p.SessionID != 0 || quiet {
+		return nil
 	}
 	m, ok, err := message.Get(ctx, d, messageID)
 	if err != nil || !ok {
-		return prev, err
+		return err
 	}
 	skip := int64(0)
 	if m.AnswersAskID != 0 {
 		if ask, found, err := message.GetAny(ctx, d, m.AnswersAskID); err != nil {
-			return prev, err
+			return err
 		} else if found {
 			skip = ask.AuthorID
 		}
 	}
-	return prev, addMentioned(ctx, d, now, conv, a.p.Identity(), messageID, skip, message.ParseMentions(m.Body, m.Format))
+	return addMentioned(ctx, d, now, conv, a.p.Identity(), messageID, skip, message.ParseMentions(m.Body, m.Format))
 }
 
 func (conversationPort) NoteAgentPost(ctx context.Context, d pdb.DBTX, conv, author, session int64) error {

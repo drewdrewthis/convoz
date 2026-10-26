@@ -39,16 +39,19 @@ func (f *fakes) RecordMainPost(context.Context, pdb.DBTX, time.Time, int64, int6
 	f.recorded++
 	return f.prevMain, nil
 }
+func (f *fakes) RecordReplyPost(context.Context, pdb.DBTX, time.Time, int64, int64, bool) error {
+	return nil
+}
 func (f *fakes) AgentRecipients(context.Context, pdb.DBTX, int64, int64) ([]int64, error) {
 	return f.recipients, nil
 }
 func (f *fakes) MoveForOwnPost(context.Context, pdb.DBTX, time.Time, int64, int64, int64, int64) (bool, error) {
 	return f.moves, nil
 }
-func (f *fakes) FanOut(_ context.Context, _ pdb.DBTX, _ time.Time, who int64, _ message.Arrival) error {
+func (f *fakes) FanOut(_ context.Context, _ pdb.DBTX, _ time.Time, who int64, _ message.Arrival) (bool, error) {
 	f.fanned++
 	f.fannedTo = append(f.fannedTo, who)
-	return nil
+	return true, nil
 }
 func (f *fakes) MessageCreated(context.Context, pdb.DBTX, time.Time, message.Created) (int64, error) {
 	f.created++

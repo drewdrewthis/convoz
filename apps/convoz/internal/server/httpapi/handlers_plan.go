@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"slices"
 	"strconv"
@@ -40,13 +41,17 @@ func (s *Server) putPlan(w http.ResponseWriter, r *http.Request, c *call) {
 	if !decode(w, r, &in) {
 		return
 	}
-	now := s.Clock.Now()
-	pi, field, why := parsePlan(in, now)
+	now, ctx, who := s.Clock.Now(), r.Context(), c.p.Identity()
+	owner, err := identity.Owner(ctx, s.reader())
+	if err != nil && !errors.Is(err, identity.ErrNotFound) {
+		s.internalError(w, r, err)
+		return
+	}
+	pi, field, why := parsePlan(in, now, owner.Handle, owner.DisplayName)
 	if field != "" {
 		writeFieldErr(w, http.StatusBadRequest, "invalid_request", field, why)
 		return
 	}
-	ctx, who := r.Context(), c.p.Identity()
 	if _, visible, err := canSee(ctx, s.reader(), c.p, conv); err != nil {
 		s.internalError(w, r, err)
 		return
@@ -59,7 +64,7 @@ func (s *Server) putPlan(w http.ResponseWriter, r *http.Request, c *call) {
 		return
 	}
 	var stored plan.Plan
-	err := s.Store.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) error {
+	err = s.Store.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) error {
 		d := tx.DBTX()
 		p, ch, err := plan.Replace(ctx, d, now, who, conv, pi)
 		if err != nil {
@@ -106,7 +111,8 @@ func (s *Server) putPlan(w http.ResponseWriter, r *http.Request, c *call) {
 }
 
 // parsePlan checks a plan request and reads the step and estimate of each Now item; field names what is wrong ("" when it is fine).
-func parsePlan(in wire.PlanRequest, now time.Time) (pi plan.Input, field, why string) {
+// handle and displayName are the owner's: a Waiting item may carry their label, never someone else's (plan.OwnWaiting).
+func parsePlan(in wire.PlanRequest, now time.Time, handle, displayName string) (pi plan.Input, field, why string) {
 	items := in.Now
 	if len(items) > 0 && (in.Doing != "" || in.Step != "" || in.ETA != "") {
 		return pi, "now", "give now, or doing with step and eta, not both"
@@ -138,7 +144,11 @@ func parsePlan(in wire.PlanRequest, now time.Time) (pi plan.Input, field, why st
 	if len(in.ClientID) > 64 {
 		return pi, "client_id", "client_id is at most 64 characters"
 	}
-	pi.Blocked, pi.Next, pi.Waiting, pi.Done, pi.ClientID = in.Blocked, in.Next, in.Waiting, in.Done, in.ClientID
+	waiting, why := plan.OwnWaiting(in.Waiting, handle, displayName)
+	if why != "" {
+		return pi, "waiting", why
+	}
+	pi.Blocked, pi.Next, pi.Waiting, pi.Done, pi.ClientID = in.Blocked, in.Next, waiting, in.Done, in.ClientID
 	return pi, "", ""
 }
 

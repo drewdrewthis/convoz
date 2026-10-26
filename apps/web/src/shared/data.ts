@@ -56,13 +56,40 @@ async function fromCache<T>(read: Promise<T>, held: () => T | null | undefined):
 
 const cached = () => data.store.getState();
 const NO_MESSAGES = { messages: [] };
+/** Set once this page load has the conversation list from the server (the early copy counts: the server made it for this page).
+ *  The disk copy that fromCache falls back to never sets it. Page state only, never saved: a later page reads for itself. */
+let listFromNetworkAt: number | null = null;
+/** The list read in flight, if any: keepForOffline and the list's first reads wait for it rather than start one more behind it. */
+let listReading: Promise<unknown> | null = null;
+const listRead = () => {
+  const read = source.conversations().then((list) => {
+    listFromNetworkAt = performance.now();
+    return list;
+  });
+  const settled: Promise<unknown> = read.catch(() => {}).then(() => {
+    if (listReading === settled) listReading = null;
+  });
+  listReading = settled;
+  return read;
+};
+/** How old the page's network list may be for a screen that mounts to take it rather than read again. */
+const MOUNT_LIST_FRESH_MS = 2000;
+
+/**
+ * loadListOnMount is the list read of a screen that mounts (the rail, the list). It shares a list read already on its way, or a
+ * list from the server under 2 s old, instead of queuing one more behind it; later, going back to the list reads again.
+ */
+export async function loadListOnMount(): Promise<void> {
+  if (listReading) await listReading;
+  if (listFromNetworkAt === null || performance.now() - listFromNetworkAt > MOUNT_LIST_FRESH_MS) await data.loadConversations();
+}
 
 /** readable is the network source with a cached answer behind every read the pages make. Sends and the sync engine's own reads still fail. */
 const readable: DataSource = {
   ...source,
   me: () => fromCache(source.me(), () => cached().me),
   identities: () => fromCache(source.identities(), () => cached().identities),
-  conversations: () => fromCache(source.conversations(), () => cached().conversations),
+  conversations: () => fromCache(listRead(), () => cached().conversations),
   conversation: (id) => fromCache(source.conversation(id), () => cached().rows[id]),
   messages: (id, page) =>
     fromCache(source.messages(id, page), () => {
@@ -77,6 +104,8 @@ export const data: DataCache = createDataCache(readable);
 // network answers; the sync cursor is kept with it, so a warm start reads only the delta (design §9). The stored messages, the
 // largest read, wait until the first screen shows (Now and the list do not show them; a conversation page has no mark to wait for).
 const ready = startOfflineCache(data, offline(), { messagesAfter: afterFirstScreen() });
+/** offlineReady resolves once the IndexedDB copy is in the cache: a page draws from it at once and does not wait for the network. */
+export const offlineReady = (): Promise<unknown> => ready;
 export const sync = createSync(data, readable, { cursor: cursorStore(offline()) });
 /** The sends the server has not confirmed; they survive a closed page and go out again with the same client id. */
 export const outbox = idbOutbox(offline());
@@ -110,6 +139,15 @@ export function useLive(resume: () => void): void {
 const KEEP_CONVERSATIONS = 20;
 const KEEP_MESSAGES = 200;
 let kept = false;
+/** The open view's own reads; the offline copy waits for them so its ~40 requests never queue in front of them. */
+let viewReads: Promise<unknown> = Promise.resolve();
+/** The longest the offline copy waits for the open view's reads. */
+const VIEW_WAIT_MS = 2000;
+
+/** holdOfflineUntil makes keepForOffline start only after the open view's reads have settled (or 2 s have passed). */
+export function holdOfflineUntil(reads: Promise<unknown>): void {
+  viewReads = reads;
+}
 
 /**
  * keepForOffline reads who is signed in, the crew, and the 20 newest conversations with their last 200 messages into the cache (and so into IndexedDB), once per
@@ -122,8 +160,12 @@ export async function keepForOffline(): Promise<void> {
   kept = true;
   try {
     await navigator.serviceWorker.ready;
+    await afterFirstScreen();
+    await Promise.race([viewReads.catch(() => {}), new Promise((r) => setTimeout(r, VIEW_WAIT_MS))]);
     if ((navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData) return;
-    await Promise.all([data.loadMe(), data.loadIdentities(), data.loadConversations()]);
+    // the list this page already read from the server is fresh; one that came from the disk copy is read again
+    if (listReading) await listReading;
+    await Promise.all([data.loadMe(), data.loadIdentities(), listFromNetworkAt === null ? data.loadConversations() : undefined]);
     for (const c of (data.store.getState().conversations ?? []).slice(0, KEEP_CONVERSATIONS)) {
       await data.loadNewest(c.id);
       const held = data.store.getState().messages[c.id];

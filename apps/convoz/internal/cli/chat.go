@@ -353,7 +353,7 @@ func Read(args []string, io IO) int {
 	}
 	var page wire.MessagesResponse
 	if err := k.call(ctx, "GET", path, nil, &page); err != nil {
-		return k.fail(err)
+		return k.fail(fmt.Errorf("conversation %v: %w", pos[0], err)) // names it: a refusal alone leaves the reader guessing which one
 	}
 	if len(page.Messages) > 0 && *thread == 0 {
 		newest := page.Messages[len(page.Messages)-1].ID

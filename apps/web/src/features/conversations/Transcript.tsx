@@ -6,6 +6,7 @@ import { CallLogRow, splitCallLog, ViaVoiceMark } from "../call/index.ts";
 import { AskInline } from "../now/index.ts";
 import { clock, initials, paletteOf, stripCf } from "../../shared/chat.ts";
 import { useData } from "../../shared/data.ts";
+import { dayOf, fullDate, startOfDay } from "../../shared/days.ts";
 import { PinMark } from "../pins-stars/index.ts";
 import type { PendingSend } from "./store.ts";
 import { Markdown } from "./Markdown.tsx";
@@ -41,6 +42,8 @@ export interface TranscriptProps {
   me: string;
   /** The first page is in: open at the newest message. */
   opened: boolean;
+  /** The server's newest page is in (the held copy can lack newer messages): only then is the newest root with a thread known. */
+  current: boolean;
   hint: boolean;
   /** The conversation, so a notice can act on it (Resume). */
   conversation: number;
@@ -48,6 +51,7 @@ export interface TranscriptProps {
   control: RefObject<TranscriptControl | null>;
   onEarlier(): Promise<void>;
   onRetry(cid: string): void;
+  onDiscard(cid: string): void;
   /** Open the details of an agent's message (its time is the button). */
   onDetails?(m: Message): void;
   /** The first message that was unread when the chat opened (see `firstUnread`): the "New messages" divider goes above it. Absent: no divider. */
@@ -68,32 +72,52 @@ interface Row {
   first: boolean;
   /** The "New messages" divider goes above this row: the first message that was unread when the chat opened. */
   fresh?: boolean;
+  /** The day label ("Today", "Wed 21 Oct") that goes above this row: the first row of a local day in the main list. */
+  day?: string;
+  /** The day that goes before the time of a thread reply written on another local day than its root ("Yesterday 5:24 PM"). */
+  stampDay?: string;
   message?: Message;
   pending?: PendingSend;
 }
 
-/** rows lays the messages out the prototype's way: a run of messages by one author shows the avatar and name once. */
-function rowsOf(messages: Message[], pending: PendingSend[], me: string, newFrom?: number | null): Row[] {
+/**
+ * rows lays the messages out the prototype's way: a run of messages by one author shows the avatar and name once, and a new local day
+ * starts a new run. The main list labels each day with a row of its own (so a virtual list measures it); a thread (`rootAt`, its root's
+ * time) has no labels, and a reply on another day than its root carries its day in its time instead.
+ */
+function rowsOf(messages: Message[], pending: PendingSend[], me: string, o: { newFrom?: number | null; rootAt?: number } = {}): Row[] {
   const out: Row[] = [];
   let prev: string | null = null;
   let prevAt = 0;
+  let prevDay = NaN;
+  const now = Date.now();
+  const rootDay = o.rootAt === undefined ? null : startOfDay(o.rootAt);
+  const dated = (at: number): { turned: boolean; day?: string; stampDay?: string } => {
+    const key = startOfDay(at);
+    const turned = key !== prevDay;
+    prevDay = key;
+    if (rootDay === null) return turned ? { turned, day: dayOf(at, now) } : { turned };
+    return key !== rootDay ? { turned, stampDay: dayOf(at, now) } : { turned };
+  };
   for (const m of messages) {
+    const { turned, ...when } = dated(m.created_at);
     if (m.kind === "system") {
-      out.push({ key: `m${m.id}`, author: "", first: false, message: m });
+      out.push({ key: `m${m.id}`, author: "", first: false, ...when, message: m });
       prev = null; // a notice ends a run: the next message shows its author again
       continue;
     }
-    const fresh = m.id === newFrom;
+    const fresh = m.id === o.newFrom;
     // a reply that is also in the main list says so in its header, so it always has one
-    const first = prev !== m.author.handle || m.created_at - prevAt > GROUP_GAP_MS || fresh || Boolean(m.thread_root_id);
-    out.push({ key: `m${m.id}`, author: m.author.handle, first, fresh, message: m });
+    const first = prev !== m.author.handle || m.created_at - prevAt > GROUP_GAP_MS || fresh || Boolean(m.thread_root_id) || turned;
+    out.push({ key: `m${m.id}`, author: m.author.handle, first, fresh, ...when, message: m });
     prev = m.author.handle;
     prevAt = m.created_at;
   }
   for (const p of pending) {
-    out.push({ key: `p${p.cid}`, author: me, first: prev !== me || Date.now() - prevAt > GROUP_GAP_MS, pending: p });
+    const { turned, ...when } = dated(now);
+    out.push({ key: `p${p.cid}`, author: me, first: prev !== me || now - prevAt > GROUP_GAP_MS || turned, ...when, pending: p });
     prev = me;
-    prevAt = Date.now();
+    prevAt = now;
   }
   return out;
 }
@@ -108,7 +132,7 @@ export function firstUnread(messages: Message[], readAt: number | undefined, me:
  * Transcript is the log "Messages": the page itself does not scroll, the log does. It opens at the newest message, follows new
  * ones while it is at the bottom, and otherwise shows "New message ↓" instead of jumping.
  */
-export function Transcript({ messages, pending, hasEarlier, me, opened, hint, conversation, working, control, onEarlier, onRetry, onDetails, focus, newFrom }: TranscriptProps) {
+export function Transcript({ messages, pending, hasEarlier, me, opened, current, hint, conversation, working, control, onEarlier, onRetry, onDiscard, onDetails, focus, newFrom }: TranscriptProps) {
   const log = useRef<HTMLDivElement>(null);
   const items = useRef<HTMLDivElement>(null);
   // Opened at a search result, the log never starts at the newest end: rows that arrive (and a list virtualizer that measures them)
@@ -124,10 +148,11 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, hint, co
   const [hl, setHl] = useState<number | null>(null);
   /** The opening snap is over: after the frame that follows the first one at the newest end, nothing moves the log by itself any more. */
   const [settled, setSettled] = useState(false);
-  const rows = useMemo(() => rowsOf(messages, pending, me, newFrom), [messages, pending, me, newFrom]);
+  const rows = useMemo(() => rowsOf(messages, pending, me, { newFrom }), [messages, pending, me, newFrom]);
   const paused = useMemo(() => pausedNow(messages), [messages]);
-  // Not before the first page is in: a part of the list would make an older root the latest for a moment, and its thread would be read.
-  const latest = useMemo(() => (opened ? latestRoot(messages) : 0), [opened, messages]);
+  // Not before the server's first page is in: a part of the list (or an old held copy) would make an older root the latest for a
+  // moment, and its thread would be read.
+  const latest = useMemo(() => (opened && current ? latestRoot(messages) : 0), [opened, current, messages]);
   const focusAt = focus ? rows.findIndex((r) => r.message?.id === focus) : -1;
   const shape = rows.map((r) => r.key + (r.pending?.state ?? "")).join();
 
@@ -256,11 +281,11 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, hint, co
 
   const body =
     virtual ? (
-      <VirtualItems rows={rows} me={me} paused={paused} latest={latest} conversation={conversation} log={log} items={items} onRetry={onRetry} onDetails={onDetails} hl={hl} focusAt={opened ? focusAt : -1} />
+      <VirtualItems rows={rows} me={me} paused={paused} latest={latest} conversation={conversation} log={log} items={items} onRetry={onRetry} onDiscard={onDiscard} onDetails={onDetails} hl={hl} focusAt={opened ? focusAt : -1} />
     ) : (
       <div ref={items} id="items" className="items">
         {rows.map((r) => (
-          <MessageRow key={r.key} row={r} me={me} paused={paused} latest={latest} conversation={conversation} onRetry={onRetry} onDetails={onDetails} hl={hl} />
+          <MessageRow key={r.key} row={r} me={me} paused={paused} latest={latest} conversation={conversation} onRetry={onRetry} onDiscard={onDiscard} onDetails={onDetails} hl={hl} />
         ))}
       </div>
     );
@@ -289,7 +314,7 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, hint, co
   );
 }
 
-function VirtualItems({ rows, me, paused, latest, conversation, log, items, onRetry, onDetails, hl, focusAt }: { rows: Row[]; me: string; paused: number; latest: number; conversation: number; log: RefObject<HTMLDivElement | null>; items: RefObject<HTMLDivElement | null>; onRetry(cid: string): void; onDetails?(m: Message): void; hl: number | null; focusAt: number }) {
+function VirtualItems({ rows, me, paused, latest, conversation, log, items, onRetry, onDiscard, onDetails, hl, focusAt }: { rows: Row[]; me: string; paused: number; latest: number; conversation: number; log: RefObject<HTMLDivElement | null>; items: RefObject<HTMLDivElement | null>; onRetry(cid: string): void; onDiscard(cid: string): void; onDetails?(m: Message): void; hl: number | null; focusAt: number }) {
   const [margin, setMargin] = useState(0);
   useLayoutEffect(() => {
     const el = log.current;
@@ -311,7 +336,7 @@ function VirtualItems({ rows, me, paused, latest, conversation, log, items, onRe
     <div ref={items} id="items" className="items" style={{ position: "relative", height: v.getTotalSize() }}>
       {v.getVirtualItems().map((item) => (
         <div key={item.key} data-index={item.index} ref={v.measureElement} style={{ position: "absolute", top: 0, left: 0, right: 0, transform: `translateY(${item.start - margin}px)` }}>
-          <MessageRow row={rows[item.index]!} me={me} paused={paused} latest={latest} conversation={conversation} onRetry={onRetry} onDetails={onDetails} hl={hl} />
+          <MessageRow row={rows[item.index]!} me={me} paused={paused} latest={latest} conversation={conversation} onRetry={onRetry} onDiscard={onDiscard} onDetails={onDetails} hl={hl} />
         </div>
       ))}
     </div>
@@ -329,6 +354,7 @@ interface RowProps {
   paused: number;
   conversation: number;
   onRetry(cid: string): void;
+  onDiscard(cid: string): void;
   onDetails?(m: Message): void;
   /** The id of the message that is marked, if any. */
   hl?: number | null;
@@ -336,11 +362,16 @@ interface RowProps {
 
 /** A row that did not change keeps its node, so a selection in it survives. */
 const sameRow = (a: RowProps, b: RowProps) =>
-  a.me === b.me && a.threaded === b.threaded && a.latest === b.latest && a.paused === b.paused && a.onDetails === b.onDetails && (a.hl === a.row.message?.id) === (b.hl === b.row.message?.id) && a.row.fresh === b.row.fresh && a.row.key === b.row.key && a.row.first === b.row.first && a.row.message === b.row.message && a.row.pending?.state === b.row.pending?.state;
+  a.me === b.me && a.threaded === b.threaded && a.latest === b.latest && a.paused === b.paused && a.onDetails === b.onDetails && (a.hl === a.row.message?.id) === (b.hl === b.row.message?.id) && a.row.fresh === b.row.fresh && a.row.key === b.row.key && a.row.first === b.row.first && a.row.day === b.row.day && a.row.stampDay === b.row.stampDay && a.row.message === b.row.message && a.row.pending?.state === b.row.pending?.state;
 
 const MessageRow = memo(function MessageRow(props: RowProps) {
   return (
     <>
+      {props.row.day ? (
+        <div className="dayline" role="separator" aria-label={props.row.day}>
+          <span>{props.row.day}</span>
+        </div>
+      ) : null}
       {props.row.fresh ? (
         <div className="newline" role="separator" aria-label="New messages">
           <span>New</span>
@@ -355,8 +386,8 @@ const MessageRow = memo(function MessageRow(props: RowProps) {
 /** The thread of a top-level message, drawn under it (issue 61). A reply, a notice and a row inside a thread have none. */
 function ThreadUnder({ message: m, threaded, latest, me, conversation }: RowProps & { message: Message }) {
   const bubbles = useCallback(
-    (list: Message[], pending: PendingReply[]) => <ThreadBubbles messages={list} pending={pending} me={me} conversation={conversation} onRetry={(cid) => useThreads.getState().retry(m.id, cid)} />,
-    [me, conversation, m.id],
+    (list: Message[], pending: PendingReply[]) => <ThreadBubbles messages={list} pending={pending} rootAt={m.created_at} me={me} conversation={conversation} onRetry={(cid) => useThreads.getState().retry(m.id, cid)} onDiscard={(cid) => useThreads.getState().discard(m.id, cid)} />,
+    [me, conversation, m.id, m.created_at],
   );
   if (threaded || m.thread_root_id || m.kind === "system" || m.author.kind === "system") return null;
   return <InlineThread root={m} conversation={conversation} latest={m.id === latest} bubbles={bubbles} />;
@@ -371,7 +402,7 @@ function latestRoot(messages: Message[]): number {
   return 0;
 }
 
-function RowBody({ row, threaded, me, paused, conversation, onRetry, onDetails, hl }: RowProps) {
+function RowBody({ row, threaded, me, paused, conversation, onRetry, onDiscard, onDetails, hl }: RowProps) {
   const { message: m, pending: p } = row;
   const pinned = useData((s) => Boolean(m && s.rows[conversation]?.pinned?.some((x) => x.id === m.id)));
   const fresh = useNewReplies(m);
@@ -379,10 +410,10 @@ function RowBody({ row, threaded, me, paused, conversation, onRetry, onDetails, 
     return <NoticeRow message={m} conversation={conversation} canResume={paused === m.id} onResume={() => void resume(conversation)} />;
   }
   if (m?.deleted) {
-    return <Article person={m.author} me={me} first={row.first} stamp={clock(m.created_at)} body={<div className="text tombstone">Message deleted</div>} />;
+    return <Article person={m.author} me={me} first={row.first} at={m.created_at} day={row.stampDay} body={<div className="text tombstone">Message deleted</div>} />;
   }
   if (m?.via_voice && !m.deleted && splitCallLog(m.body)) {
-    return <Article person={m.author} me={me} first={row.first} stamp={clock(m.created_at)} body={<CallLogRow body={m.body} />} mid={m.id} marked={hl === m.id} />;
+    return <Article person={m.author} me={me} first={row.first} at={m.created_at} day={row.stampDay} body={<CallLogRow body={m.body} />} mid={m.id} marked={hl === m.id} />;
   }
   if (m) {
     const text = stripCf(m.body);
@@ -404,15 +435,19 @@ function RowBody({ row, threaded, me, paused, conversation, onRetry, onDetails, 
     const menu = askCard ? undefined : <MessageMenu message={m} mine={m.author.handle === me} conversation={conversation} />;
     const detail = onDetails && m.author.kind === "agent" ? () => onDetails(m) : undefined;
     const tag = !threaded && m.thread_root_id ? "replied to a thread" : undefined;
-    return <Article person={m.author} me={me} first={row.first} stamp={clock(m.created_at)} tag={tag} onStamp={detail} body={body} extra={<>{m.kind !== "ask" && hasLink(text) ? <LinkPreview id={m.id} /> : null}{pinned ? <PinMark /> : null}{edited}{m.author.handle === me ? <SeenLine conversation={conversation} message={m} threaded={threaded} /> : null}</>} menu={menu} mid={m.id} marked={hl === m.id} labelledBy={m.kind === "ask" && m.ask ? label : undefined} />;
+    return <Article person={m.author} me={me} first={row.first} at={m.created_at} day={row.stampDay} tag={tag} onStamp={detail} body={body} extra={<>{m.kind !== "ask" && hasLink(text) ? <LinkPreview id={m.id} /> : null}{pinned ? <PinMark /> : null}{edited}{m.author.handle === me ? <SeenLine conversation={conversation} message={m} threaded={threaded} /> : null}</>} menu={menu} mid={m.id} marked={hl === m.id} labelledBy={m.kind === "ask" && m.ask ? label : undefined} />;
   }
   const state =
     p!.state === "failed" ? (
       <div className="sendstate bad">
         {p!.reason ? `${p!.reason} ` : ""}failed ·{" "}
-        <button className="retry" type="button" onClick={() => onRetry(p!.cid)}>
+        <Button size="inline" className="retry" onClick={() => onRetry(p!.cid)}>
           retry
-        </button>
+        </Button>
+        {" · "}
+        <Button size="inline" className="retry" aria-label="Discard failed message" onClick={() => onDiscard(p!.cid)}>
+          discard
+        </Button>
       </div>
     ) : (
       <div className="sendstate">sending</div>
@@ -423,7 +458,7 @@ function RowBody({ row, threaded, me, paused, conversation, onRetry, onDetails, 
       {p!.files?.length ? <PendingFiles files={p!.files} /> : null}
     </>
   );
-  return <Article person={{ handle: me, display_name: "" }} me={me} first={row.first} stamp={clock(Date.now())} body={body} extra={state} />;
+  return <Article person={{ handle: me, display_name: "" }} me={me} first={row.first} at={Date.now()} day={row.stampDay} body={body} extra={state} />;
 }
 
 interface Who {
@@ -432,15 +467,21 @@ interface Who {
 }
 
 /** Article is one message: a run of messages by one author shows its author line once. An agent's line is avatar, name, @handle and time;
- * the owner's is the time alone, above the bubble ("You" is left for a screen reader). Reads "devtool @devtool 5:25 AM Hello". */
-function Article({ person, me, first, stamp, tag, onStamp, body, extra, menu, mid, marked, labelledBy }: { person: Who; me: string; first: boolean; stamp: string; tag?: string; onStamp?: () => void; body: ReactNode; extra?: ReactNode; menu?: ReactNode; mid?: number; marked?: boolean; labelledBy?: string }) {
+ * the owner's is the time alone, above the bubble ("You" is left for a screen reader). Reads "devtool @devtool 5:25 AM Hello".
+ * The time shows the clock only (with `day` before it in a thread reply from another day); a hover on it shows the full date. */
+function Article({ person, me, first, at, day, tag, onStamp, body, extra, menu, mid, marked, labelledBy }: { person: Who; me: string; first: boolean; at: number; day?: string; tag?: string; onStamp?: () => void; body: ReactNode; extra?: ReactNode; menu?: ReactNode; mid?: number; marked?: boolean; labelledBy?: string }) {
   const mine = person.handle === me;
-  const time = !stamp ? null : onStamp ? (
+  const stamp = first ? (
+    <time className={onStamp ? undefined : "stamp"} dateTime={new Date(at).toISOString()} title={fullDate(at)}>
+      {day ? `${day} ${clock(at)}` : clock(at)}
+    </time>
+  ) : null;
+  const time = stamp && onStamp ? (
     <button type="button" className="stamp stampbtn" aria-label="Message details" onClick={onStamp}>
-      <time>{stamp}</time>
+      {stamp}
     </button>
   ) : (
-    <time className="stamp">{stamp}</time>
+    stamp
   );
   return (
     <article className={`msg ${mine ? "mine" : "theirs"}${first ? " first" : ""}`} data-mid={mid} data-hl={marked ? "true" : undefined} aria-labelledby={labelledBy}>
@@ -469,12 +510,12 @@ function Article({ person, me, first, stamp, tag, onStamp, body, extra, menu, mi
 }
 
 /** The replies of a thread drawn as the main list draws messages, inline under their root: a pending reply shows "sending" or "failed · retry". */
-function ThreadBubbles({ messages, pending, me, conversation, onRetry }: { messages: Message[]; pending: PendingSend[]; me: string; conversation: number; onRetry(cid: string): void }) {
-  const rows = useMemo(() => rowsOf(messages, pending, me), [messages, pending, me]);
+function ThreadBubbles({ messages, pending, rootAt, me, conversation, onRetry, onDiscard }: { messages: Message[]; pending: PendingSend[]; rootAt: number; me: string; conversation: number; onRetry(cid: string): void; onDiscard(cid: string): void }) {
+  const rows = useMemo(() => rowsOf(messages, pending, me, { rootAt }), [messages, pending, me, rootAt]);
   return (
     <>
       {rows.map((r) => (
-        <MessageRow key={r.key} row={r} me={me} paused={0} conversation={conversation} onRetry={onRetry} threaded />
+        <MessageRow key={r.key} row={r} me={me} paused={0} conversation={conversation} onRetry={onRetry} onDiscard={onDiscard} threaded />
       ))}
     </>
   );

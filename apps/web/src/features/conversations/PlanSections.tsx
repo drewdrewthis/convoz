@@ -1,14 +1,13 @@
-// The plan parts of the details panel (the UX pass approved for phase 1): "Waiting on you" with the action in place, then one card per
+// The plan parts of the details panel (the UX pass approved for phase 1): "Waiting on you" (asks and joins) with the action in place, then one card per
 // agent (its state, Now with the estimate, Next numbered, Done folded). The "Conversation" settings follow in Details.tsx.
 import type { Conversation, Person, Plan, PlanAgent, PlanBoard } from "@convoz/api-client";
 import { ChevronIcon } from "@convoz/ui/icons";
 import { useEffect, useRef, useState } from "react";
-import { create } from "zustand";
 import { initials, paletteOf, stripCf } from "../../shared/chat.ts";
 import { TriageBadge } from "../../shared/TriageBadge.tsx";
-import { WAITING_HERE } from "./messages/PlanNote.tsx";
 import { AskInline, useNow } from "../now/index.ts";
 import { ago, clock, dayLabel, span, usePlans, when, type Tone } from "../plan/index.ts";
+import { planHash } from "./messages/PlanNote.tsx";
 
 /** What the panel's plan parts can do in the conversation: post a message as the owner, or start one in the composer. */
 export interface PlanActions {
@@ -25,84 +24,14 @@ export function planRequest(handle: string, conv: number, kind: "share" | "updat
   return `@${handle}, ${ask}. Use \`convoz plan ${conv}\`, not a chat message, so it shows in the panel:\n\n\`\`\`\nconvoz plan ${conv} --doing "what you do now" --eta 30m --next "then this" --next "then that" --done "what you finished"\n\`\`\`\n\nAdd \`--waiting "what you need from me"\` or \`--blocked "what stops you"\` if any. Up to 3 things at once? Repeat \`--doing\`, each with its own \`--eta\` and \`--step\`. Keep it current as you work. With MCP, use the \`plan\` tool. See \`convoz plan --help\`.`;
 }
 
-const URL_RE = /https?:\/\/[^\s<>"]+/;
 const serverNow = () => Date.now() + usePlans.getState().skew;
 
-/** One item an agent's plan waits on the owner for. */
-type WaitingItem = Plan["waiting"][number] & { handle: string };
-
-const waitingOf = (board: PlanBoard | undefined): WaitingItem[] => (board?.plans ?? []).flatMap((p) => p.waiting.map((w) => ({ handle: p.handle, ...w })));
-
-/** When the owner tapped "I did it", per conversation, agent and item: the card in the chat and the one in Details fold together. */
-const useDoneByYou = create<Record<string, number>>()(() => ({}));
-
-/**
- * WaitingCard is one item a plan waits on the owner for, with the action in place: "I did it", "Reply", and "Open" when it has a
- * link. After "I did it" it folds to "Done by you"; it goes when the agent drops the item from its plan (the live board).
- */
-export function WaitingCard({ conv, item, act }: { conv: number; item: WaitingItem; act: PlanActions }) {
-  const key = `${conv}|${item.handle}|${item.text}`;
-  const done = useDoneByYou((s) => s[key]);
-  if (done) {
-    return (
-      <div className="pcard wait sent">
-        <p className="psent">{`Done by you · ${clock(done)}`}</p>
-      </div>
-    );
-  }
-  const link = URL_RE.exec(item.text)?.[0];
-  return (
-    <div className="pcard wait">
-      <p className="pmeta">
-        <Ava handle={item.handle} />
-        <b>{`@${item.handle}`}</b>
-        {` · waiting ${span(serverNow() - item.since)}`}
-      </p>
-      <p className="pq">{item.text}</p>
-      <div className="pacts">
-        <button
-          type="button"
-          className="chipbtn go"
-          onClick={() => {
-            act.say(`@${item.handle} I did it: ${item.text}`);
-            useDoneByYou.setState({ [key]: Date.now() });
-          }}
-        >
-          I did it
-        </button>
-        <button type="button" className="chipbtn" onClick={() => act.reply(`@${item.handle} about "${item.text}": `)}>
-          Reply
-        </button>
-        {link ? (
-          <a className="chipbtn" href={link} target="_blank" rel="noopener noreferrer">
-            Open
-          </a>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-/** WaitingHere is the plan items that wait on the owner, as cards at the foot of the chat, above the composer (Convoz ask 1897). */
-export function WaitingHere({ conv, board, act }: { conv: number; board: PlanBoard | undefined; act: PlanActions }) {
-  const items = waitingOf(board);
-  if (items.length === 0) return null;
-  return (
-    <section id={WAITING_HERE} className="waithere" aria-label="Waiting on you" tabIndex={-1}>
-      {items.map((it) => (
-        <WaitingCard key={`${it.handle}|${it.text}`} conv={conv} item={it} act={act} />
-      ))}
-    </section>
-  );
-}
-
-/** WaitingSection lists what waits on the owner here: the agents' asks, the items their plans wait on, and agents that ask to join. */
-export function WaitingSection({ row, board, act, decide }: { row: Conversation; board: PlanBoard | undefined; act: PlanActions; decide(iid: number, approve: boolean): void }) {
+/** WaitingSection lists what waits on the owner here: the agents' asks and agents that ask to join. Plan items show only in the header line, the plan rows of the chat and the row icon (conv 151). */
+export function WaitingSection({ row, decide }: { row: Conversation; decide(iid: number, approve: boolean): void }) {
   const asks = (useNow((s) => s.now?.asks) ?? []).filter((a) => a.conversation_id === row.id);
   useEffect(() => void useNow.getState().load().catch(() => {}), [row.id]);
-  const items = waitingOf(board);
   const adds = row.pending ?? [];
-  const count = asks.length + items.length + adds.length;
+  const count = asks.length + adds.length;
   if (count === 0) return null;
   return (
     <section aria-labelledby="det-wait" className="plansec">
@@ -114,9 +43,6 @@ export function WaitingSection({ row, board, act, decide }: { row: Conversation;
         <div key={`a${a.id}`} className="pcard wait">
           <AskInline ask={a} labelId={`det-ask-${a.id}`} />
         </div>
-      ))}
-      {items.map((it) => (
-        <WaitingCard key={`${it.handle}|${it.text}`} conv={row.id} item={it} act={act} />
       ))}
       {adds.map((add) => (
         <div key={`p${add.person.handle}`} className="pcard wait">
@@ -196,7 +122,7 @@ function AgentCard({ person, plan, agent, conv, act, onRemove }: { person: Perso
   const seen = agent?.last_seen_at;
   const late = st?.word === "Late" || st?.word === "No update";
   return (
-    <li className="pcard ag">
+    <li id={planHash(h).slice(1)} className="pcard ag">
       <div className="aghead">
         <Ava handle={h} />
         <span className="pname">
@@ -238,10 +164,11 @@ function AgentCard({ person, plan, agent, conv, act, onRemove }: { person: Perso
       ) : (
         <PlanBody plan={plan} now={now} />
       )}
-      {late ? (
+      {/* A late plan asks for an update; any other plan can be asked to catch up too, with the same message (owner msgs 4343/4350). */}
+      {late || plan ? (
         <div className="pacts">
           <button type="button" className="chipbtn" onClick={() => act.say(planRequest(h, conv, "update"))}>
-            Ask for an update
+            {late ? "Ask for an update" : "Request plan update"}
           </button>
         </div>
       ) : null}

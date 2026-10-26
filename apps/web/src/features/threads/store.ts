@@ -48,6 +48,8 @@ export interface ThreadsState {
   /** Send a reply (the body may be empty when it carries files); it shows at once as "sending". */
   reply(rootId: number, body: string, uploadIds?: string[]): void;
   retry(rootId: number, cid: string): void;
+  /** Drop a failed reply the owner does not want to retry. */
+  discard(rootId: number, cid: string): void;
   /** A live frame for a message: a reply of a thread on screen is taken in, edited or removed. */
   received(m: Message, conversation: number): void;
   /** Read every thread on screen again (after a gap in the stream). */
@@ -147,6 +149,7 @@ export const useThreads = create<ThreadsState>()((set, get) => {
       void deliver(rootId, cid);
     },
     retry: (rootId, cid) => void deliver(rootId, cid),
+    discard: (rootId, cid) => patch(rootId, (now) => ({ pending: now.pending.filter((x) => x.cid !== cid) })),
     received: (m, conversation) => {
       const root = m.thread_root_id;
       const t = root ? get().threads[root] : undefined;

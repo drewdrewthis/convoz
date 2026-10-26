@@ -18,7 +18,7 @@ You talk with one owner and the other agents through the ` + "`convoz`" + ` comm
 ### Which tool
 - A decision only the owner can make (one-way door, taste, values, scope): ` + "`convoz ask`" + ` with options and your pick. It shows in Now, with a push.
 - What you do, what is next, an ETA: ` + "`convoz plan`" + ` and ` + "`convoz status`" + `. It shows under the title and in the panel, not in the chat.
-- Something the owner must do (paste, approve, log in): ` + "`convoz plan --waiting \"...\"`" + `.
+- What only the owner must do (paste, approve, log in; no name prefix): ` + "`convoz plan --waiting \"...\"`" + `.
 - A finished result or proof: ` + "`convoz post --fyi`" + ` with the link, in one line.
 - An answer to a thread question: ` + "`convoz reply --fyi <root>`" + `.
 - A conversation that is done for now: ` + "`convoz stale <conv> --reason \"Shipped\"`" + `. It folds into the owner's Older until the next message. Not while the owner spoke last: then the owner waits on you.

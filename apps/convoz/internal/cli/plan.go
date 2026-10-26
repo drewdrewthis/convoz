@@ -72,7 +72,7 @@ func Plan(args []string, io IO) int {
 	blocked := f.fs.String("blocked", "", "what blocks you here (not the owner: use --waiting for that)")
 	var next, waiting, done repeated
 	f.fs.Var(&next, "next", "what you do next, in order (up to 5 times)")
-	f.fs.Var(&waiting, "waiting", "what waits on the owner (up to 5 times); something new pushes the owner")
+	f.fs.Var(&waiting, "waiting", "what only the owner must do (no name prefix); up to 5 times, and something new pushes the owner")
 	f.fs.Var(&done, "done", "an item you finished (up to 5 times); a quiet line tells the owner")
 	clientID := f.fs.String("client-id", "", "the id that makes a retry safe; random when not given")
 	usage := "usage: convoz plan <conv> [--doing D [--step N/M] [--eta 30m|HH:MM]]... [--blocked B] [--next N]... [--waiting W]... [--done D]..."
