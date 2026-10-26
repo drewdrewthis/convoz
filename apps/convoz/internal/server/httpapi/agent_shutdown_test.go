@@ -9,6 +9,9 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/dbtest"
 )
 
 // The real agent server: once its ctx (the signal context) is cancelled, shuttingDown is true for a request it serves, so a cancel
@@ -16,7 +19,8 @@ import (
 func TestTheAgentServerIsShuttingDownOnceItsContextIsCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	hs := NewServer(nil, nil, nil, nil, Config{}, nil).AgentHTTPServer(ctx, log.New(io.Discard, "", 0), time.Second)
+	// a real store: AgentHTTPServer starts the transcript worker, which reads it on every tick
+	hs := NewServer(dbtest.Store(t), platform.NewClock(), nil, nil, Config{}, log.New(io.Discard, "", 0)).AgentHTTPServer(ctx, log.New(io.Discard, "", 0), time.Second)
 	hs.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.WriteString(w, strconv.FormatBool(shuttingDown(r)))
 	})
