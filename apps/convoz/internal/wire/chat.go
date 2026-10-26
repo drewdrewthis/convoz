@@ -109,6 +109,9 @@ type Message struct {
 	Uploads []Upload `json:"uploads,omitempty"`
 	// Mentions are the identities the body @mentions, by id: a handle an agent had before still names it (I-51).
 	Mentions []MentionSpan `json:"mentions,omitempty"`
+	// Unfurl is the card of the body's first link, as the preview worker has got (status pending until it is fetched). It is set only
+	// on a page read by a person, never an agent (invariant 24), and only where the body has a link.
+	Unfurl *UnfurlCard `json:"unfurl,omitempty"`
 }
 
 // LastReply is the newest reply of a thread as the reply chip shows it. Unread is set when it is newer than the reader's read point

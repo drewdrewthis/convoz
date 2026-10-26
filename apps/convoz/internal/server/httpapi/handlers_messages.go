@@ -16,11 +16,13 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/ask"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/audit"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/event"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/unfurl"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/upload"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
@@ -377,6 +379,10 @@ func (s *Server) listMessages(w http.ResponseWriter, r *http.Request, c *call) {
 		s.internalError(w, r, err)
 		return
 	}
+	if err := attachUnfurls(ctx, d, c.p, page, out); err != nil {
+		s.internalError(w, r, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, wire.MessagesResponse{Messages: out, AsOfSeq: seq})
 }
 
@@ -578,3 +584,30 @@ func (s *Server) purgeMessage(w http.ResponseWriter, r *http.Request, c *call) {
 	s.Bus.Notify()
 	s.writeEdited(w, r, m)
 }
+
+// attachUnfurls puts the card of each link message on the page, from one query, so the web does not ask per message (issue 92). An
+// agent gets none: it gets the address and never the fetched page (invariant 24, as getUnfurl).
+func attachUnfurls(ctx context.Context, d pdb.DBTX, p authz.Principal, page []message.Message, out []wire.Message) error {
+	if p.SessionID != 0 {
+		return nil
+	}
+	var bodies []string
+	for _, m := range page {
+		if hasCard(m) {
+			bodies = append(bodies, m.Body)
+		}
+	}
+	cards, err := unfurl.FindMany(ctx, d, bodies)
+	if err != nil {
+		return err
+	}
+	for i, m := range page {
+		if c, ok := cards[m.Body]; ok && hasCard(m) {
+			out[i].Unfurl = &wire.UnfurlCard{Status: c.Status, URL: c.URL, Kind: c.Kind, Site: c.Site, Title: c.Title, Description: c.Description, Meta: c.Meta}
+		}
+	}
+	return nil
+}
+
+// hasCard says whether a message can carry a card: getUnfurl answers 404 for a tombstone and a system line.
+func hasCard(m message.Message) bool { return !m.Deleted && !m.Purged && m.Kind != "system" }
