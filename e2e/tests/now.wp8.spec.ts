@@ -552,6 +552,53 @@ scenario("Marking two cards read in a row works and the other cards stay clickab
   await expect(page.getByRole("button", { name: `Done with ${c}` })).toBeEnabled();
 });
 
+// Issue 103: a mention card has "Later"; the card hides until the time, and a new @mention brings it back at once
+scenario("Later hides a mention card until its time comes", { tag: ["@browser"] }, async ({ server, page, context, testApi }, info) => {
+  info.setTimeout(90_000);
+  // Given "docs" posted "@drew can you check the deploy log?" in conversation 42
+  const w = await browserWorld({ server, page, context }, WORLD);
+  const c42 = await createConversation(w.owner, { title: "Deploy log", participants: ["devtool", "docs"] });
+  await agentSays(w.srv, w.sessions.docs!.lease, c42, "@drew can you check the deploy log?");
+
+  // When the owner opens Now and taps "Later" on the card of conversation 42 and picks "1 hour"
+  await openNow(page, w.srv);
+  const cards = page.getByRole("list", { name: "Mentions of you" }).getByRole("listitem");
+  await cards.filter({ hasText: "Deploy log" }).getByRole("button", { name: "Later", exact: true }).click();
+  await page.getByRole("menuitem", { name: "1 hour", exact: true }).click();
+
+  // Then the card leaves "Mentions of you" and the heading "Needs you" is gone
+  await expect(cards.filter({ hasText: "Deploy log" })).toHaveCount(0);
+  await expect(page.getByText(/^Needs you/)).toHaveCount(0);
+
+  // When the test clock moves 61 minutes on and the owner reloads Now
+  await testApi(w.srv).advanceClock(61 * 60_000);
+  await page.reload();
+
+  // Then the card of conversation 42 is back under Needs you
+  await expect(cards.filter({ hasText: "Deploy log" })).toHaveCount(1);
+});
+
+scenario("A new @mention after Later brings the card back at once", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  // Given "docs" posted "@drew can you check the deploy log?" in conversation 42, and the owner picked "Later" for 1 hour on its card
+  const w = await browserWorld({ server, page, context }, WORLD);
+  const c42 = await createConversation(w.owner, { title: "Deploy log", participants: ["devtool", "docs"] });
+  await agentSays(w.srv, w.sessions.docs!.lease, c42, "@drew can you check the deploy log?");
+  await openNow(page, w.srv);
+  const cards = page.getByRole("list", { name: "Mentions of you" }).getByRole("listitem");
+  await cards.filter({ hasText: "Deploy log" }).getByRole("button", { name: "Later", exact: true }).click();
+  await page.getByRole("menuitem", { name: "1 hour", exact: true }).click();
+  await expect(cards.filter({ hasText: "Deploy log" })).toHaveCount(0);
+
+  // When "docs" posts "@drew still there?" in conversation 42
+  await agentSays(w.srv, w.sessions.docs!.lease, c42, "@drew still there?");
+
+  // Then the card of conversation 42 is back under Needs you with the line "docs @drew still there?"
+  const back = cards.filter({ hasText: "Deploy log" });
+  await expect(back).toHaveCount(1);
+  await expect(back.locator(".uline")).toHaveText(/docs\s+@drew still there\?/);
+});
+
 scenario("A reply to the owner's message shows the full latest message under Replies to you", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
   info.setTimeout(90_000);
   // Given the owner wrote "What broke in the nightly?" in conversation 41 and "devtool" answered with a 300-character message
