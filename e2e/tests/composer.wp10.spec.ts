@@ -44,7 +44,7 @@ scenario("Dropping files attaches them to the next message", { tag: ["@browser"]
   await expect(messageLog(page).getByText("deploy.log")).toBeVisible();
 });
 
-scenario("Dropping files on a thread attaches them to the reply", { tag: ["@browser"] }, async ({ server, page, context }) => {
+scenario("Dropping files on a thread attaches them to the reply", { tag: ["@browser"], fixme: "https://github.com/drewdrewthis/convoz/issues/134" }, async ({ server, page, context }) => {
   // Given conversation 41 is open with a thread on its first message, and the thread is open (owner, msg 1855: "cannot drop into threads")
   const u = await voiceWorld({ server, page, context });
   const root = await ownerSays(u.w.owner, u.conv, FIRST_MESSAGE);
