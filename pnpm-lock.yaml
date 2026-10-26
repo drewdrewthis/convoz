@@ -185,6 +185,21 @@ importers:
         specifier: 8.71.0
         version: 8.71.0(eslint@10.12.0(jiti@2.7.0)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@5.9.3)
 
+  apps/extension:
+    devDependencies:
+      '@convoz/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
+      '@types/node':
+        specifier: 24.10.1
+        version: 24.10.1
+      esbuild:
+        specifier: 0.25.12
+        version: 0.25.12
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   apps/web:
     dependencies:
       '@convoz/api-client':

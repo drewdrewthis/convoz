@@ -33,6 +33,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Rail](#rail) (19)
 - [Search](#search) (12)
 - [Security walls](#security-walls) (12)
+- [Send a web page to an agent from the browser](#send-a-web-page-to-an-agent-from-the-browser) (3)
 - [Settings](#settings) (9)
 - [The convoz CLI and MCP server for agents](#the-convoz-cli-and-mcp-server-for-agents) (57)
 - [The server hands out its own CLI](#the-server-hands-out-its-own-cli) (5)
@@ -881,6 +882,17 @@ I can let many agents in without fear.
 - **Apps and agents cannot act as the owner (SEC-5, SEC-6)**
   - [An app cannot send without the owner's tap](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/security.feature#L117)
   - [A message sent through an app is attributed](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/security.feature#L124)
+
+## Send a web page to an agent from the browser
+
+I loop an agent in with one click, without copying links.
+3 scenarios.
+
+- **The panel sends the page to a new conversation with one agent**
+  - [Send the page to a new conversation with an agent](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/browser-extension.feature#L16)
+- **The panel says plainly what is wrong**
+  - [The panel of a signed-out browser offers sign in](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/browser-extension.feature#L43)
+  - [A server that does not allow the extension refuses the send](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/browser-extension.feature#L50)
 
 ## Settings
 

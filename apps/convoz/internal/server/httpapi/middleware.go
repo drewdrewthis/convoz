@@ -118,7 +118,7 @@ func (s *Server) stripUntrusted(next http.Handler) http.Handler {
 	})
 }
 
-// csrf guards every write under /api: the exact Origin (a missing one is refused), the Convoz header and a
+// csrf guards every write under /api: the exact Origin (the app's own, or the one owner-set extension origin; a missing one is refused), the Convoz header and a
 // JSON body type. A request with an Authorization header is not cookie-borne and is judged by its credential.
 // The routes marked NoCSRF (the device flow: a CLI with no cookie and no credential) are the only other exception.
 func (s *Server) csrf(next http.Handler) http.Handler {
@@ -127,13 +127,37 @@ func (s *Server) csrf(next http.Handler) http.Handler {
 			media, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
 			// A chunk of an upload is bytes, not JSON; its type is no form type either, so a page of another origin still cannot send it.
 			chunk := r.Method == http.MethodPatch && strings.HasPrefix(r.URL.Path, "/api/uploads/") && media == "application/offset+octet-stream"
-			if r.Header.Get("Origin") != s.Cfg.Origin || r.Header.Get("X-Convoz") != "1" || (media != "application/json" && !chunk) {
+			if !s.originOK(r) || r.Header.Get("X-Convoz") != "1" || (media != "application/json" && !chunk) {
 				writeErr(w, http.StatusForbidden, "csrf", "This request did not come from the Convoz app.")
 				return
 			}
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// originOK is true for the app's own Origin and, only when the owner set one, the extension's exact Origin on the few writes the extension makes.
+// WHY the route list: the extension runs in the browser with the owner's session, so a bug or a hostile page there must not reach delete, ask, settings or any other write.
+func (s *Server) originOK(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == s.Cfg.Origin {
+		return true
+	}
+	return s.Cfg.ExtensionOrigin != "" && origin == s.Cfg.ExtensionOrigin && extensionMayWrite(r.Method, r.URL.Path)
+}
+
+// extensionMayWrite is true for the three things the extension does: create a conversation, post a message, upload a file (start, then chunks).
+func extensionMayWrite(method, path string) bool {
+	seg := strings.Split(strings.Trim(path, "/"), "/") // "api", ...
+	switch {
+	case method == http.MethodPost && len(seg) == 2:
+		return seg[1] == "conversations" || seg[1] == "uploads"
+	case method == http.MethodPost && len(seg) == 4:
+		return seg[1] == "conversations" && seg[2] != "" && seg[3] == "messages"
+	case method == http.MethodPatch && len(seg) == 3:
+		return seg[1] == "uploads" && seg[2] != ""
+	}
+	return false
 }
 
 type statusWriter struct {

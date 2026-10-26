@@ -51,7 +51,7 @@ func processIO() cli.IO {
 	return cli.IO{Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr, Getenv: os.Getenv}
 }
 
-const serveUsage = "convoz serve --data-dir D --host NAME[:PORT] [--kek-file F] [--listen ADDR] [--admin-socket P] [--agent-listen ADDR --agent-host NAME[:PORT]] [--ready-file F] [--tailscale check|off] [--tailscale-bin B] [--transcribe auto|none]"
+const serveUsage = "convoz serve --data-dir D --host NAME[:PORT] [--kek-file F] [--listen ADDR] [--admin-socket P] [--agent-listen ADDR --agent-host NAME[:PORT]] [--ready-file F] [--tailscale check|off] [--tailscale-bin B] [--transcribe auto|none] [--extension-origin O]"
 
 func usage() {
 	lines := append([]string{serveUsage}, cli.Usages()...)
