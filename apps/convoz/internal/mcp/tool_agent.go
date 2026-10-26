@@ -13,7 +13,7 @@ import (
 // The tools that say something about the agent itself: its asks, its status, its handoff notes, its profile.
 
 func init() {
-	Register(Tool{Name: "ask", Order: 10, Description: "Ask the owner's permission for one action you are confident in: action (name the object, never \"it\" or \"this\"), risk, undo or one_way, 1-3 considered ways and why each is worse, and confidence (self-reported, not a check; under 80 is refused: get confident first). The owner answers Go or Not this with a reason. For text sent in the owner's name, give draft instead; the answer is {send, text}. The old decision ask (question, recommended, alternatives, owners_call) still works, as legacy.",
+	Register(Tool{Name: "ask", Order: 10, Description: "Ask permission for one action you are confident in: action, risk, undo or one_way, 1-3 considered ways (why worse), confidence (self-reported; under 80 is refused). Owner answers Go, or Not this with a reason. Owner's-name text: give draft.",
 		InputSchema: object([]string{}, props{
 			"conversation": conv(),
 			// Not in "required": a permission ask needs no question (it shows the action) and no owners_call.
