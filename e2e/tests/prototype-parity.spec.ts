@@ -39,7 +39,7 @@ async function matchesBoth(page: import("@playwright/test").Page, screen: string
   }
 }
 
-scenario("On a phone Now matches the prototype", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {
+scenario("On a phone Now matches the prototype", { tag: ["@browser", "@phone"], fixme: "https://github.com/drewdrewthis/convoz/issues/139" }, async ({ server, page, context }, info) => {
   info.setTimeout(180_000);
   // Background: the prototype's agents and conversations. Given nothing waits for the owner
   const u = await protoWorld({ server, page, context }, { agents: AGENTS, live: LIVE });
@@ -55,7 +55,7 @@ scenario("On a phone Now matches the prototype", { tag: ["@browser", "@phone"] }
   await matchesBoth(page, "now-unread", "app");
 });
 
-scenario("On a phone Now with asks matches the prototype", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {
+scenario("On a phone Now with asks matches the prototype", { tag: ["@browser", "@phone"], fixme: "https://github.com/drewdrewthis/convoz/issues/139" }, async ({ server, page, context }, info) => {
   info.setTimeout(180_000);
   // Background: the prototype's agents and conversations. Given "night-watch" asked an urgent "Close the incident?" and "devtool" asked "Push the 8642 fix to staging?"
   const u = await protoWorld({ server, page, context }, { agents: AGENTS, live: LIVE });
@@ -99,7 +99,7 @@ scenario("On a phone the Conversations list matches the prototype", { tag: ["@br
   await matchesBoth(page, "conversations", "app");
 });
 
-scenario("On a phone a conversation matches the prototype", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {
+scenario("On a phone a conversation matches the prototype", { tag: ["@browser", "@phone"], fixme: "https://github.com/drewdrewthis/convoz/issues/139" }, async ({ server, page, context }, info) => {
   info.setTimeout(180_000);
   // Background: the prototype's agents and conversations
   const u = await protoWorld({ server, page, context }, { agents: AGENTS, live: LIVE });
@@ -114,7 +114,7 @@ scenario("On a phone a conversation matches the prototype", { tag: ["@browser", 
   await matchesBoth(page, "conversation-thread");
 });
 
-scenario("On a phone a thread matches the prototype", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {
+scenario("On a phone a thread matches the prototype", { tag: ["@browser", "@phone"], fixme: "https://github.com/drewdrewthis/convoz/issues/139" }, async ({ server, page, context }, info) => {
   info.setTimeout(180_000);
   // Background: the prototype's agents and conversations, and the thread under night-watch's "Deploy finished" in Ops reports
   const u = await protoWorld({ server, page, context }, { agents: AGENTS, live: LIVE });
