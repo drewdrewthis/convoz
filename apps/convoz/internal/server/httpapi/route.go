@@ -183,9 +183,17 @@ func (s *Server) internalError(w http.ResponseWriter, r *http.Request, err error
 }
 
 // clientClosed reports whether err is the cancel of a request whose client went away: its context is cancelled and the error is
-// that cancel, or SQLite interrupting the statement for it. The same error on a live request is still a 500.
+// that cancel, or SQLite interrupting the statement for it. The same error on a live request is still a 500, and so is one while
+// the server shuts down: its base context (the signal context, serve.go) then cancels every request, which is not a client's doing.
 func clientClosed(r *http.Request, err error) bool {
-	return errors.Is(r.Context().Err(), context.Canceled) && (errors.Is(err, context.Canceled) || pdb.IsInterrupted(err))
+	return errors.Is(r.Context().Err(), context.Canceled) && !shuttingDown(r) && (errors.Is(err, context.Canceled) || pdb.IsInterrupted(err))
+}
+
+// shuttingDown reports whether the base context of the http.Server serving r is done. Both listeners return the one signal
+// context from BaseContext and ignore its argument.
+func shuttingDown(r *http.Request) bool {
+	hs, ok := r.Context().Value(http.ServerContextKey).(*http.Server)
+	return ok && hs.BaseContext != nil && hs.BaseContext(nil).Err() != nil
 }
 
 // setDeviceCookie sets the strict device cookie. Max-Age only: an Expires date would trust the client clock.
