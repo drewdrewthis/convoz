@@ -82,3 +82,12 @@ func TestClaudePromptCarriesRulesAndSummaryOnlyWhenGiven(t *testing.T) {
 		t.Errorf("nothing to carry: %q", q)
 	}
 }
+
+func TestOnlyWatchOpenIsAWaitNotEveryConflict(t *testing.T) {
+	if !isWatchOpen(&statusError{status: 409, code: "watch_open"}) {
+		t.Error("watch_open is a wait")
+	}
+	if isWatchOpen(&statusError{status: 409, code: "claim_lost"}) {
+		t.Error("a 409 claim_lost is not a wait")
+	}
+}

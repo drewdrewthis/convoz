@@ -121,14 +121,16 @@ scenario("A second watcher is refused while convoz run serves the agent", { tag:
   expect((await w.box.run(["inbox", "--peek", "--sid", other.sid])).code).toBe(0);
   expect((await w.box.run(["post", "--fyi", String(conv), "hello", "--sid", other.sid])).code).toBe(0);
 
-  // And a watch that is already open when "convoz run" starts makes the run exit 3 with "@devtool already has a convoz watch open"
+  // And a watch that is already open when "convoz run" starts makes the run wait and say "another convoz watch or run holds @devtool", not exit 3
   first.stop();
   expect((await first.done).code, "a stopped runner lets go at once").toBe(0);
   const open = w.box.start(["watch", "--sid", other.sid], { timeoutMs: 40_000 });
   try {
     expect(await exitsWithin(open, 1_500), "the watch is open").toBeNull();
-    const late = await w.box.run(argv, { timeoutMs: 15_000 });
-    expect({ code: late.code, stderr: late.stderr.includes("@devtool already has a convoz watch open") }).toEqual({ code: 3, stderr: true });
+    const late = w.box.start(argv, { timeoutMs: 15_000 });
+    expect(await exitsWithin(late, 7_000), "the run waits for the slot").toBeNull();
+    late.stop();
+    expect((await late.done).stderr).toContain("another convoz watch or run holds @devtool");
   } finally {
     open.stop();
   }
