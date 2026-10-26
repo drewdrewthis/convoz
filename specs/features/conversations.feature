@@ -28,6 +28,26 @@ Feature: Conversations
       Then without a reload the title bar shows "Star conversation" and "Show details"
       And "Show details" opens the details
 
+    # Owner report (conv 359 msg 6385): "this conversation was bricked -- I couldn't send? no errors, no toasts, nothing". The app had drawn
+    # New conversation from its offline copy, the owner sent before the server said who the crew is, and the late answer started the page over.
+    @v1 @browser
+    Scenario: A first send made before the crew has loaded keeps its message
+      Given the server is slow to say who the owner and the crew are
+      When the owner opens New conversation, picks "devtool" and sends "Plan the search filters launch"
+      And the server then says who the owner and the crew are
+      Then the conversation shows "Plan the search filters launch" and is titled "Plan the search filters launch"
+      And a second message "and the rollout" goes to the same conversation
+      And the owner has one conversation, with both messages
+
+    @v1 @browser
+    Scenario: A first send whose conversation is still being made when the crew loads keeps its message
+      Given the server is slow to say who the owner and the crew are, and slower to make a conversation
+      When the owner opens New conversation, picks "devtool" and sends "Plan the search filters launch"
+      And the server says who the owner and the crew are before it has made the conversation
+      Then the conversation shows "Plan the search filters launch" and is titled "Plan the search filters launch"
+      And a second message "and the rollout" goes to the same conversation
+      And the owner has one conversation, with both messages
+
     @v1 @browser @phone
     Scenario: On a phone the first page after sign-in is Now
       Given the owner has a passkey on a phone

@@ -1,0 +1,45 @@
+apiVersion: dashboard.grafana.app/v1beta1
+kind: Dashboard
+metadata:
+  name: convoz-overview
+  annotations:
+    grafana.app/folder: convoz
+spec:
+  title: Convoz
+  tags: [convoz]
+  timezone: browser
+  schemaVersion: 36
+  time:
+    from: now-6h
+    to: now
+  templating:
+    list:
+      - name: datasource
+        label: Data source
+        type: datasource
+        query: prometheus
+        current: {}
+        hide: 0
+        refresh: 1
+  panels:
+    - id: 1
+      type: timeseries
+      title: Request latency by route (p50 / p95)
+      gridPos: {h: 10, w: 24, x: 0, y: 0}
+      datasource: {type: prometheus, uid: "${datasource}"}
+      fieldConfig:
+        defaults:
+          unit: s
+        overrides: []
+      options:
+        legend: {displayMode: list, placement: bottom}
+        tooltip: {mode: multi}
+      targets:
+        - refId: A
+          datasource: {type: prometheus, uid: "${datasource}"}
+          expr: histogram_quantile(0.5, sum by (le, http_route) (rate(http_server_request_duration_seconds_bucket{job="convoz"}[5m])))
+          legendFormat: "{{http_route}} p50"
+        - refId: B
+          datasource: {type: prometheus, uid: "${datasource}"}
+          expr: histogram_quantile(0.95, sum by (le, http_route) (rate(http_server_request_duration_seconds_bucket{job="convoz"}[5m])))
+          legendFormat: "{{http_route}} p95"

@@ -261,11 +261,11 @@ func (s *Server) agentLimits(next http.Handler) http.Handler {
 }
 
 // notAGuess tells agentLimits that a 401 is not a wrong guess: the caller held a real credential that has ended (session_ended).
+// It marks every statusWriter of the chain: with telemetry on, route wraps its own inside the one agentLimits reads.
 func notAGuess(w http.ResponseWriter) {
 	for w != nil {
 		if sw, ok := w.(*statusWriter); ok {
 			sw.notAGuess = true
-			return
 		}
 		u, ok := w.(interface{ Unwrap() http.ResponseWriter })
 		if !ok {

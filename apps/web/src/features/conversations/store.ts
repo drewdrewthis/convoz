@@ -5,8 +5,13 @@ import { coalesce, maxId } from "@convoz/api-client";
 import { create } from "zustand";
 import { ApiError, humanError } from "../../shared/api.ts";
 import { newId } from "../../shared/chat.ts";
+import { reportSendFailed } from "../../shared/clientEvents.ts";
 import { data, holdOfflineUntil, offlineReady, outbox, source, sync } from "../../shared/data.ts";
 import { asUpload, uploadFile } from "../../shared/uploads.ts";
+import { toast } from "../pins-stars/index.ts";
+
+/** Said when a send left the page before it reached the server: the owner must never lose a message without a word. */
+export const LOST_SEND = "A message was not sent. Write it again.";
 
 /** A send waiting for the link looks again this often even if no `online` event comes. */
 const OFFLINE_RECHECK_MS = 10_000;
@@ -45,7 +50,10 @@ export interface ConversationsState {
    * the conversation is not the owner's (and then the call itself rejects too when nothing was held).
    */
   openThread(key: string, convId: number): Promise<{ fresh: Promise<void> }>;
-  /** Start a new conversation with these agents (maybe none) under `key`; nothing is made on the server until the first send. */
+  /**
+   * Start a new conversation with these agents (maybe none) under `key`; nothing is made on the server until the first send. Once a send
+   * has begun (the conversation is being made or exists) it does nothing: a late call must not drop that send (owner report, conv 359 msg 6385).
+   */
   startThread(key: string, handles: string[]): void;
   loadEarlier(key: string): Promise<void>;
   catchUp(key: string): Promise<void>;
@@ -107,7 +115,8 @@ export const useConversations = create<ConversationsState>()((set, get) => {
           patch(key, () => ({ convId: made.id }));
           t = thread(key)!;
         }
-        let p = t.pending.find((x) => x.cid === cid)!;
+        let p = t.pending.find((x) => x.cid === cid);
+        if (!p) return toast(LOST_SEND);
         if (p.held?.length) {
           const signal = new AbortController().signal;
           const files: Upload[] = [];
@@ -130,6 +139,9 @@ export const useConversations = create<ConversationsState>()((set, get) => {
         if (err instanceof ApiError && err.handled) return;
         if (!linkDown(err)) {
           void outbox.remove(cid); // a refusal comes back on every open if kept, and a retry cannot change it
+          reportSendFailed();
+          // a failure marks its bubble; with no bubble left to mark, the owner still hears of it
+          if (!thread(key)?.pending.some((x) => x.cid === cid)) return toast(LOST_SEND);
           return setState("failed", humanError(err));
         }
         await backOnline(); // the same client id goes out again, so a send that did arrive is not made twice (I-24)
@@ -171,6 +183,8 @@ export const useConversations = create<ConversationsState>()((set, get) => {
       return { fresh: sent };
     },
     startThread: (key, handles) => {
+      const t = thread(key);
+      if (t && (t.convId || t.pending.length)) return;
       set((s) => ({ threads: { ...s.threads, [key]: { ...emptyThread(0), start: { handles, clientId: newId() } } } }));
     },
     loadEarlier: async (key) => {

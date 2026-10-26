@@ -1,0 +1,48 @@
+apiVersion: rules.alerting.grafana.app/v0alpha1
+kind: AlertRule
+metadata:
+  name: convoz-api-now-p50
+  annotations:
+    grafana.app/folder: convoz
+  labels:
+    grafana.com/group: convoz
+spec:
+  title: "Convoz /api/now p50 over 150 ms"
+  trigger:
+    interval: 1m
+  for: 5m
+  noDataState: Ok
+  execErrState: Error
+  labels:
+    team: convoz
+  notificationSettings:
+    type: SimplifiedRouting
+    receiver: cloud-tech
+  expressions:
+    A:
+      queryType: ""
+      relativeTimeRange: {from: 10m, to: 0s}
+      datasourceUID: "${PROM_DS_UID}"
+      model:
+        refId: A
+        expr: 'histogram_quantile(0.5, sum by (le) (rate(http_server_request_duration_seconds_bucket{job="convoz",http_route="/api/now",http_request_method="GET"}[5m])))'
+        instant: true
+        intervalMs: 1000
+        maxDataPoints: 43200
+    B:
+      datasourceUID: __expr__
+      model:
+        refId: B
+        type: reduce
+        expression: A
+        reducer: last
+        settings: {mode: dropNN}
+    C:
+      datasourceUID: __expr__
+      source: true
+      model:
+        refId: C
+        type: threshold
+        expression: B
+        conditions:
+          - evaluator: {type: gt, params: [0.15]}

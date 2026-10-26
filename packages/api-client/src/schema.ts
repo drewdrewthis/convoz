@@ -2014,6 +2014,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/client-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The web app reports an event with no content (a failed send); the server adds one to a counter and stores nothing.
+         * @description The owner's device session only. At most 60 events an hour per device session (429 after that); a body over 1 KB or an
+         *     event the server does not know is 400. The count leaves the box only when telemetry is on (OTEL_EXPORTER_OTLP_ENDPOINT).
+         */
+        post: operations["reportClientEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/health": {
         parameters: {
             query?: never;
@@ -3829,6 +3850,11 @@ export interface components {
             size?: number;
         };
         ClientErrorRequest: {
+            /**
+             * @description The error's class: TypeError, ReferenceError, SyntaxError, RangeError or ChunkLoadError, else "other". It is the only part
+             *     that is counted; the server matches it exactly and counts any other value as "other". Never read from the message.
+             */
+            kind?: string;
             message: string;
             stack: string;
             /** @description The path of the page; never a query. */
@@ -3842,6 +3868,14 @@ export interface components {
              * @description The browser's time of the error
              */
             at: number;
+        };
+        /** @description One event of the web app, with no content. Fields other than event are ignored. */
+        ClientEventRequest: {
+            /**
+             * @description send_failed: a message send the app gave up on.
+             * @enum {string}
+             */
+            event: "send_failed";
         };
     };
     responses: {
@@ -7017,6 +7051,29 @@ export interface operations {
         };
         responses: {
             /** @description The line is written. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    reportClientEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientEventRequest"];
+            };
+        };
+        responses: {
+            /** @description The event is counted. */
             204: {
                 headers: {
                     [name: string]: unknown;
