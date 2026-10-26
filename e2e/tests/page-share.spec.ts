@@ -119,18 +119,8 @@ scenario("The panel shows the signed-in chat and shares the tab with the open co
     await expect(status).toContainText("@scout");
     await expect(panel.getByRole("button", { name: "Stop" })).toBeVisible();
     await info.attach("shared tab", { body: await panel.screenshot(), contentType: "image/png" });
-  } finally {
-    await context.close();
-  }
-});
 
-scenario("While a tab is shared, the conversation and the Convoz button say so", { tag: ["@browser"] }, async ({ server }, info) => {
-  info.setTimeout(90_000);
-  // Given the owner shared a tab with "Checkout bug", which has @scout
-  const w = await pageWorld(server);
-  const { context, panel } = await shareShop(w);
-  try {
-    // Then the panel warns "A screenshot shows what is on screen, including text the read hides."
+    // And the panel warns "A screenshot shows what is on screen, including text the read hides."
     await expect(panel.getByText(SHOT_WARNING, { exact: true })).toBeVisible();
 
     // And "Checkout bug" shows "@drew shared a tab (shop.test)", with the host of the tab and nothing more of its address

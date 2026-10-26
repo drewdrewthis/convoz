@@ -23,11 +23,7 @@ Feature: Share a browser tab with the agents of a conversation
       Then the panel shows the owner's conversations, signed in, and "Share this tab" is off and says "Open a conversation to share this tab."
       When the owner opens "Checkout bug" in the panel and clicks "Share this tab"
       Then the panel says "Shared with Checkout bug" with the members @drew and @scout and a Stop button
-
-    @v1 @browser
-    Scenario: While a tab is shared, the conversation and the Convoz button say so
-      Given the owner shared a tab with "Checkout bug", which has @scout
-      Then the panel warns "A screenshot shows what is on screen, including text the read hides."
+      And the panel warns "A screenshot shows what is on screen, including text the read hides."
       And "Checkout bug" shows "@drew shared a tab (shop.test)", with the host of the tab and nothing more of its address
       And "Checkout bug" says "● Tab shared · shop.test" under its title
       And the Convoz button on the shared tab shows "ON"
