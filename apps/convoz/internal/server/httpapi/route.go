@@ -168,9 +168,24 @@ func (s *Server) authenticate(w http.ResponseWriter, r *http.Request) (*call, er
 	return c, nil
 }
 
+// statusClientClosed is nginx's 499: the client went away before the answer. Nobody reads it; it keeps the log and the
+// metrics from counting a closed tab as a server error (issue 125).
+const statusClientClosed = 499
+
 func (s *Server) internalError(w http.ResponseWriter, r *http.Request, err error) {
+	if clientClosed(r, err) {
+		s.Log.Printf("client closed %s %s: %v", r.Method, loggablePath(r), err)
+		writeErr(w, statusClientClosed, "client_closed", "The request was cancelled.")
+		return
+	}
 	s.Log.Printf("internal error on %s %s: %v", r.Method, loggablePath(r), err)
 	writeErr(w, http.StatusInternalServerError, "internal", "Something went wrong on the server.")
+}
+
+// clientClosed reports whether err is the cancel of a request whose client went away: its context is cancelled and the error is
+// that cancel, or SQLite interrupting the statement for it. The same error on a live request is still a 500.
+func clientClosed(r *http.Request, err error) bool {
+	return errors.Is(r.Context().Err(), context.Canceled) && (errors.Is(err, context.Canceled) || pdb.IsInterrupted(err))
 }
 
 // setDeviceCookie sets the strict device cookie. Max-Age only: an Expires date would trust the client clock.
