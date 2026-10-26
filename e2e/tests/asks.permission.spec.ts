@@ -43,6 +43,7 @@ async function agentAnswer(w: Awaited<ReturnType<typeof browserAsk>>["w"], id: n
 /** The phone shows the considered ways folded; open the fold so a check that reads them works on both. */
 async function openConsidered(card: Locator): Promise<void> {
   const fold = card.getByRole("button", { name: /^Considered \d other ways?$/ });
+  await expect(card.getByRole("button", { name: "Go", exact: true })).toBeVisible(); // the card is drawn, so count() sees a fold that is there
   if (await fold.count()) await fold.click();
 }
 
