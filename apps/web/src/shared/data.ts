@@ -175,11 +175,14 @@ export async function keepForOffline(): Promise<void> {
       const held = data.store.getState().messages[c.id];
       if (held?.hasEarlier && held.list.length < KEEP_MESSAGES) await data.loadEarlier(c.id);
     };
+    // a failed read stops new reads, but the error waits for the reads in flight: `kept-offline` must follow what was read
+    const failed: unknown[] = [];
     await Promise.all(
       Array.from({ length: KEEP_AT_ONCE }, async () => {
-        while (next < list.length) await keep(list[next++]!);
+        while (!failed.length && next < list.length) await keep(list[next++]!).catch((err: unknown) => void failed.push(err));
       }),
     );
+    if (failed.length) throw failed[0];
   } catch {
     /* offline or refused: the next visit tries again */
   } finally {
