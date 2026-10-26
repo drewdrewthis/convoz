@@ -121,6 +121,44 @@
   "long": "@triage added @docs"
  },
  {
+  "name": "system: added by an agent's mention",
+  "message": {
+   "system": {
+    "t": "member.added",
+    "identity": {
+     "handle": "docs",
+     "name": "Docs"
+    },
+    "by": {
+     "handle": "devtool",
+     "name": "Dev Tool"
+    },
+    "via": "mention"
+   }
+  },
+  "short": "Dev Tool @devtool added @docs",
+  "long": "Dev Tool @devtool added @docs"
+ },
+ {
+  "name": "system: added by the owner's mention",
+  "message": {
+   "system": {
+    "t": "member.added",
+    "identity": {
+     "handle": "docs",
+     "name": "Docs"
+    },
+    "by": {
+     "handle": "drew",
+     "name": "Drew"
+    },
+    "via": "mention"
+   }
+  },
+  "short": "@drew added @docs",
+  "long": "@drew added @docs"
+ },
+ {
   "name": "system: removed by triage",
   "message": {
    "system": {

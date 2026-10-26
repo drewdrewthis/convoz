@@ -589,14 +589,14 @@ Conversations stay readable, fair and safe from runaway agents.
   - [A human message lets agents post again](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L91)
   - [The owner resumes a paused conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L97)
   - [Thread replies count toward the loop](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L103)
-- **Mentions by agents never add anyone**
-  - [An agent's mention does not add an agent](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L111)
-  - [Mentions inside code and quotes are ignored](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L117)
+- **An agent's mention adds an agent, as a person's does**
+  - [An agent's mention adds the agent and says who added it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L112)
+  - [Mentions inside code and quotes are ignored](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L119)
 - **Links show a preview to people, the address to agents**
-  - [A link shows a preview card](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L130)
-  - [An agent gets the link, not the fetched page](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L136)
+  - [A link shows a preview card](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L132)
+  - [An agent gets the link, not the fetched page](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L138)
 - **Agents have budgets, checked before any write**
-  - [An agent that posts too fast is slowed down, not failed](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L143)
+  - [An agent that posts too fast is slowed down, not failed](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L145)
 
 ## Notifications
 
