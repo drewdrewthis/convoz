@@ -40,7 +40,7 @@ func (a conversationPort) Access(ctx context.Context, d pdb.DBTX, conv int64) (m
 	return message.Denied, nil // an agent is told 403 whether or not the conversation exists
 }
 
-// RecordMainPost moves the counters, then brings in the agents a person's message @mentions (I-18).
+// RecordMainPost moves the counters, then brings in the agents the message @mentions (I-18).
 func (a conversationPort) RecordMainPost(ctx context.Context, d pdb.DBTX, now time.Time, conv, messageID int64, body string, quiet bool) (int64, error) {
 	prev, err := conversation.RecordMainPost(ctx, d, now, conv, messageID, body)
 	if err != nil {
@@ -52,14 +52,15 @@ func (a conversationPort) RecordMainPost(ctx context.Context, d pdb.DBTX, now ti
 	return prev, a.bringInMentioned(ctx, d, now, conv, messageID, quiet)
 }
 
-// RecordReplyPost brings in the agents a person's thread reply @mentions, as a main message does (I-18, issue 35).
+// RecordReplyPost brings in the agents a thread reply @mentions, as a main message does (I-18, issue 35).
 func (a conversationPort) RecordReplyPost(ctx context.Context, d pdb.DBTX, now time.Time, conv, messageID int64, quiet bool) error {
 	return a.bringInMentioned(ctx, d, now, conv, messageID, quiet)
 }
 
-// bringInMentioned adds the agents the message @mentions. An agent's @mention never adds anyone, and neither does a quiet one (the call log).
+// bringInMentioned adds the agents the message @mentions. An agent's @mention adds as a person's does (owner, conv 379 msg 6722):
+// the wake rule, not a cap, ends a run of agents mentioning each other. A quiet message (the call log) adds no one.
 func (a conversationPort) bringInMentioned(ctx context.Context, d pdb.DBTX, now time.Time, conv, messageID int64, quiet bool) error {
-	if a.p.SessionID != 0 || quiet {
+	if quiet {
 		return nil
 	}
 	m, ok, err := message.Get(ctx, d, messageID)

@@ -128,6 +128,32 @@ scenario("Replying to an ask keeps it open and moves it to You replied", { tag: 
   await expect(card.getByRole("button", { name: "Merge it" })).toBeVisible();
 });
 
+scenario("An ask inside a thread has Quick reply too", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  // Given "devtool" asks inside the thread of its message "Step 1 is the chips UI"
+  const u = await uiWorld({ server, page, context }, { agents: ["devtool"], live: ["devtool"] });
+  const lease = u.sessions.devtool!.lease;
+  const conv = await createConversation(u.w.owner, { title: "Ship search filters", participants: ["devtool"] });
+  const root = must(await agentPost(u.w.srv, lease, conv, "Step 1 is the chips UI"), "the root", 201).json().id as number;
+  await agentAsks(u.w.srv, lease, conv, { thread: root });
+
+  // When the owner opens the conversation
+  await page.goto(`${u.w.srv.origin}/chats/${conv}`);
+
+  // Then the ask card in the thread offers "Quick reply" and "I have questions"
+  const card = askCard(page).first();
+  await expect(card.getByRole("button", { name: "Quick reply" })).toBeVisible();
+  await expect(card.getByRole("button", { name: "I have questions" })).toBeVisible();
+
+  // When the owner sends the quick reply "Use the smaller one"
+  await card.getByRole("button", { name: "Quick reply" }).click();
+  await card.getByRole("textbox", { name: "Quick reply" }).fill("Use the smaller one");
+  await card.getByRole("button", { name: "Send", exact: true }).click();
+
+  // Then the ask shows "Replied · Use the smaller one"
+  await expect(page.getByText("Replied · Use the smaller one")).toBeVisible();
+});
+
 scenario("An agent's reply does not close an ask", { tag: ["@cli"] }, async ({ server }) => {
   // Given an open ask of "devtool"
   const { w, conv, devtool, docs } = await askWorld(server);

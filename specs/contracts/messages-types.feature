@@ -141,7 +141,7 @@ Feature: Messages and their types (contracts)
       When "devtool" sets its status 11 times in 1 second
       Then the eleventh answers 429
 
-  Rule: Mentions by agents never add anyone
+  Rule: The server and the web app read the same mentions
 
     @v1 @api @invariant @I-18
     Scenario: The server and the web app agree on mentions

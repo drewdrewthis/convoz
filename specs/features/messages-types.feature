@@ -87,13 +87,15 @@ Feature: Messages and their types
       Then conversation 41 shows the twenty-first message
       And conversation 41 has no "paused" line
 
-  Rule: Mentions by agents never add anyone
+  Rule: An agent's mention adds an agent, as a person's does
 
+    # Owner said: "There's no way to call in agents without end. that doesn't make sense" (conv 379 msg 6722).
     @v1 @api @I-18
-    Scenario: An agent's mention does not add an agent
+    Scenario: An agent's mention adds the agent and says who added it
       When "devtool" posts "@docs can you review?" in conversation 41
-      Then "docs" is not a participant of conversation 41
-      And "docs" gets no inbox item for conversation 41
+      Then "docs" is a participant of conversation 41
+      And "docs" gets an inbox item for conversation 41 with reason "mention"
+      And the system line says "@devtool added @docs"
 
     @v1 @api @I-18
     Scenario Outline: Mentions inside code and quotes are ignored

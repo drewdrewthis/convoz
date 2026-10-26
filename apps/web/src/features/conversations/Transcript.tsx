@@ -418,7 +418,7 @@ function RowBody({ row, threaded, me, conversation, onRetry, onDiscard, onDetail
     // only markdown draws an image of an upload in the body; plain text and markdownv2 leave it to the file list
     const files = m.uploads?.length ? <Uploads uploads={m.uploads} body={format === "markdown" ? m.body : ""} /> : null;
     const said = !text && files ? null : format ? <Markdown text={text} format={format} /> : <div className="text">{text}</div>;
-    const askCard = m.kind === "ask" && m.ask ? <AskInline ask={m.ask} replies={m.thread_root_id ? undefined : { count: m.reply_count, unread: fresh }} labelId={label} inThread={threaded} deleteSheet={(close) => <DeleteSheet message={m} close={close} />} /> : null;
+    const askCard = m.kind === "ask" && m.ask ? <AskInline ask={m.ask} replies={m.thread_root_id ? undefined : { count: m.reply_count, unread: fresh }} labelId={label} deleteSheet={(close) => <DeleteSheet message={m} close={close} />} /> : null;
     const body = askCard ?? (
       <>
         {said}

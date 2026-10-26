@@ -56,7 +56,7 @@ function systemText(s: NonNullable<Projectable["system"]>): string {
     case "member.added":
     {
       let added = `Added ${ref(s.identity)}`;
-      if (s.via === "triage") added = s.by.handle === s.identity.handle ? `${ref(s.by)} joined` : `${ref(s.by)} added ${ref(s.identity)}`;
+      if (s.via === "triage" || s.via === "mention") added = s.by.handle === s.identity.handle ? `${ref(s.by)} joined` : `${ref(s.by)} added ${ref(s.identity)}`;
       return s.history === "full" ? `${added} · full history` : added;
     }
     case "member.requested":

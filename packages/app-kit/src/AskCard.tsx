@@ -77,7 +77,7 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
   const open = ask.state === "open";
   const draft = open ? ask.draft : undefined;
   const now = where === "now";
-  // The composer of a thread is the reply there (no onReply), so a thread card has no quick reply of its own.
+  // A card in a conversation has Quick reply whenever it can reach a thread reply box, inside a thread too (owner, conv 379 msg 6722).
   const quickReply = (now || Boolean(onReply)) && !draft; // a draft is answered by Send or Don't send only
   const shut = () => {
     setPanel("");
