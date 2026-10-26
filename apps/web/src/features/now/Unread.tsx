@@ -54,8 +54,8 @@ const lineOf = (m: Message): Line => ({ author: m.author.handle, text: words(m) 
 /**
  * triage sorts the unread conversations by what the owner must do (owner msgs 535, 562): a message that @mentions the owner needs them;
  * an answer to something the owner said (a message of theirs before the new ones, or a thread they started) is a reply; the rest is news.
- * `lines` is the newest window of messages per conversation. A conversation not read yet is news until it is; one whose only new messages
- * are asks (already cards) or system lines is left out.
+ * `lines` is the newest window of messages per conversation. A conversation not read yet is news until it is; so is one whose only new messages
+ * are asks or system lines, so Mark all read can clear it.
  */
 export function triage(rows: readonly Conversation[], lines: Record<number, Message[]>, me: string): Triage {
   const out: Triage = { mentions: [], replies: [], rest: [] };
@@ -78,7 +78,7 @@ export function triage(rows: readonly Conversation[], lines: Record<number, Mess
     const mineThread = threads.find((t) => t.author.handle === me);
     if (fresh.length && spoke) out.replies.push({ c, line: lineOf(fresh[fresh.length - 1]!) });
     else if (mineThread) out.replies.push({ c, line: mineThread.last_reply ? { author: mineThread.last_reply.author.handle, text: stripCf(mineThread.last_reply.preview) } : fresh.length ? lineOf(fresh[fresh.length - 1]!) : { author: mineThread.author.handle, text: stripCf(mineThread.preview) } });
-    else if (fresh.length || threads.length) out.rest.push({ c, who: [...new Set(fresh.map((m) => m.author.handle))].join(", ") || c.last?.author_handle || "" });
+    else out.rest.push({ c, who: [...new Set(fresh.map((m) => m.author.handle))].join(", ") || c.last?.author_handle || "" });
   }
   return out;
 }
