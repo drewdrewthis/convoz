@@ -10,18 +10,18 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Agent inbox](#agent-inbox) (31)
 - [Agent sessions as one identity](#agent-sessions-as-one-identity) (17)
 - [Agents outside the tailnet connect through an agents-only address](#agents-outside-the-tailnet-connect-through-an-agents-only-address) (8)
-- [Apps inside messages](#apps-inside-messages) (15)
+- [Apps inside messages](#apps-inside-messages) (14)
 - [Asks and their state machine](#asks-and-their-state-machine) (42)
 - [Brief, handoff, read and search for agents](#brief-handoff-read-and-search-for-agents) (17)
 - [Composer](#composer) (26)
 - [Console on a phone](#console-on-a-phone) (28)
-- [Conversations](#conversations) (72)
+- [Conversations](#conversations) (71)
 - [Crew: identities, machines and sessions](#crew-identities-machines-and-sessions) (35)
 - [Data at rest, backups and deletion](#data-at-rest-backups-and-deletion) (10)
 - [Day labels](#day-labels) (4)
 - [Errors in the web app reach the server log](#errors-in-the-web-app-reach-the-server-log) (3)
 - [Machine login with a device flow](#machine-login-with-a-device-flow) (23)
-- [Messages and their types](#messages-and-their-types) (17)
+- [Messages and their types](#messages-and-their-types) (14)
 - [Notifications](#notifications) (21)
 - [Now](#now) (45)
 - [Onboarding and sign in](#onboarding-and-sign-in) (16)
@@ -162,27 +162,26 @@ I approve it with one tap and my own app stays on the tailnet.
 ## Apps inside messages
 
 I can see and decide without leaving Convoz, while no app can act for me.
-15 scenarios.
+14 scenarios.
 
 - **Tier-1 apps are our own components fed with data**
   - [A Tier-1 app renders from its data](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/apps-host.feature#L23)
   - [Apps start collapsed and expand on request](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/apps-host.feature#L38)
 - **An app result reaches the conversation only by the owner's tap (SEC-5)**
   - [The owner confirms an app result on a sheet drawn by the host](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/apps-host.feature#L47)
-  - [An app result does not count as the owner speaking](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/apps-host.feature#L54)
-  - [One tap on a picker answers the agent](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/apps-host.feature#L60)
-  - [A form result is checked on a host sheet before it is sent](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/apps-host.feature#L67)
-  - [An app that tries to leave is closed](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/apps-host.feature#L74)
-  - [A chart on an ask helps the owner decide but never answers](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/apps-host.feature#L81)
+  - [One tap on a picker answers the agent](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/apps-host.feature#L54)
+  - [A form result is checked on a host sheet before it is sent](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/apps-host.feature#L61)
+  - [An app that tries to leave is closed](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/apps-host.feature#L68)
+  - [A chart on an ask helps the owner decide but never answers](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/apps-host.feature#L75)
 - **App previews respect a slow link**
-  - [App previews wait for a tap on a slow network](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/apps-host.feature#L90)
-  - [A Tier-2 app opens only when the owner taps it, on any network](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/apps-host.feature#L97)
+  - [App previews wait for a tap on a slow network](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/apps-host.feature#L84)
+  - [A Tier-2 app opens only when the owner taps it, on any network](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/apps-host.feature#L91)
 - **Agents build and check apps before they post them**
-  - [An agent checks an app before posting it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/apps-host.feature#L106)
-  - [A typo in an app is caught at post time](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/apps-host.feature#L112)
-  - [An agent builds a Tier-2 app without npm](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/apps-host.feature#L118)
-  - [A Tier-2 build refuses outside links](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/apps-host.feature#L125)
-  - [An app this version cannot show falls back to its text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/apps-host.feature#L131)
+  - [An agent checks an app before posting it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/apps-host.feature#L100)
+  - [A typo in an app is caught at post time](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/apps-host.feature#L106)
+  - [An agent builds a Tier-2 app without npm](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/apps-host.feature#L112)
+  - [A Tier-2 build refuses outside links](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/apps-host.feature#L119)
+  - [An app this version cannot show falls back to its text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/apps-host.feature#L125)
 
 ## Asks and their state machine
 
@@ -357,7 +356,7 @@ I am never stuck at a passkey prompt that does nothing.
 ## Conversations
 
 Each piece of work has one place and only the agents that belong there.
-72 scenarios.
+71 scenarios.
 
 - **The owner starts and names conversations**
   - [A new conversation starts blank and takes a title from its first message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L19)
@@ -402,45 +401,43 @@ Each piece of work has one place and only the agents that belong there.
   - [Remove agent shows a 10 second Undo toast and Undo puts the agent back](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L300)
 - **Read position is honest (DA-2, DA-4)**
   - [Mark all read clears the conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L314)
-- **A loop pause is visible and the owner resumes it**
-  - [A paused conversation shows a banner with Resume](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L322)
 - **Messages arrive live**
-  - [On a phone the bottom bar leads to Now, Conversations and Crew](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L334)
-  - [On a phone the owner starts a conversation with an agent and sees its reply](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L342)
-  - [On a phone an unread conversation shows a dot until opened](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L352)
-  - [The Back button counts the other conversations with something new](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L361)
-  - [A question waiting in the feed counts on the Back button](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L375)
-  - [The Back count stops at 99+](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L382)
-  - [On a phone a conversation catches up after the connection comes back](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L387)
-  - [On a phone a working agent shows a note until it replies](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L395)
-  - [The owner sees when an agent has seen a message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L403)
-  - [The owner sees an agent replying in a thread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L411)
-  - [Replying clears when the agent posts](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L418)
-  - [A card in Now shows who has seen and who is replying](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L426)
-  - [On a phone the working note goes away when the agent finishes without a reply](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L434)
-  - [On a phone the working note goes away when its time runs out](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L440)
-  - [On a phone a conversation catches up when the app returns to the foreground](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L446)
-  - [An agent reads what the owner wrote](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L453)
-  - [An agent message reaches the owner's open browser fast](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L459)
-  - [The message details show who and where](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L466)
+  - [On a phone the bottom bar leads to Now, Conversations and Crew](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L325)
+  - [On a phone the owner starts a conversation with an agent and sees its reply](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L333)
+  - [On a phone an unread conversation shows a dot until opened](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L343)
+  - [The Back button counts the other conversations with something new](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L352)
+  - [A question waiting in the feed counts on the Back button](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L366)
+  - [The Back count stops at 99+](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L373)
+  - [On a phone a conversation catches up after the connection comes back](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L378)
+  - [On a phone a working agent shows a note until it replies](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L386)
+  - [The owner sees when an agent has seen a message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L394)
+  - [The owner sees an agent replying in a thread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L402)
+  - [Replying clears when the agent posts](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L409)
+  - [A card in Now shows who has seen and who is replying](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L417)
+  - [On a phone the working note goes away when the agent finishes without a reply](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L425)
+  - [On a phone the working note goes away when its time runs out](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L431)
+  - [On a phone a conversation catches up when the app returns to the foreground](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L437)
+  - [An agent reads what the owner wrote](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L444)
+  - [An agent message reaches the owner's open browser fast](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L450)
+  - [The message details show who and where](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L457)
 - **The Conversations list keeps the owner's order**
-  - [A new conversation goes to the top of the Conversations list](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L481)
-  - [New activity puts a conversation on top of the Conversations list](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L486)
-  - [On a phone Reorder mode moves a conversation and Done ends it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L494)
+  - [A new conversation goes to the top of the Conversations list](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L472)
+  - [New activity puts a conversation on top of the Conversations list](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L477)
+  - [On a phone Reorder mode moves a conversation and Done ends it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L485)
 - **A conversation reads well on a phone**
-  - [Agent replies use the full width](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L506)
-  - [On a phone a long conversation opens at its latest message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L514)
-  - [On a phone a new reply while reading older messages shows a pill instead of jumping](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L520)
-  - [A long conversation opens at the newest message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L529)
-  - [A link to a message in a long conversation still opens at that message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L542)
-  - [A Jump to latest button shows when the owner scrolls up and takes them to the newest message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L549)
-  - [A New messages line marks where unread began and stays while the chat is open](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L565)
-  - [Messages by one author more than 5 minutes apart are separate groups with their time](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L577)
-  - [A pill counts new messages while the owner reads above and jumps to the first of them](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L585)
-  - [Nothing shows through the name and buttons at the top](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L594)
-  - [On a phone an agent reply shows paragraphs, code and links safely](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L600)
-  - [On a phone the conversation pages fit a 320 px screen with large tap targets](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L612)
-  - [On a phone the conversation pages look right in dark and light](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L618)
+  - [Agent replies use the full width](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L497)
+  - [On a phone a long conversation opens at its latest message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L505)
+  - [On a phone a new reply while reading older messages shows a pill instead of jumping](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L511)
+  - [A long conversation opens at the newest message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L520)
+  - [A link to a message in a long conversation still opens at that message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L533)
+  - [A Jump to latest button shows when the owner scrolls up and takes them to the newest message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L540)
+  - [A New messages line marks where unread began and stays while the chat is open](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L556)
+  - [Messages by one author more than 5 minutes apart are separate groups with their time](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L568)
+  - [A pill counts new messages while the owner reads above and jumps to the first of them](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L576)
+  - [Nothing shows through the name and buttons at the top](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L585)
+  - [On a phone an agent reply shows paragraphs, code and links safely](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L591)
+  - [On a phone the conversation pages fit a 320 px screen with large tap targets](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L603)
+  - [On a phone the conversation pages look right in dark and light](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L609)
 
 ## Crew: identities, machines and sessions
 
@@ -572,7 +569,7 @@ One machine key serves every agent on that machine and no secret passes through 
 ## Messages and their types
 
 Conversations stay readable, fair and safe from runaway agents.
-17 scenarios.
+14 scenarios.
 
 - **A message has a type, a format and fixed caps**
   - [Each format renders for the owner](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L21)
@@ -585,19 +582,16 @@ Conversations stay readable, fair and safe from runaway agents.
   - [Deleting a message leaves a tombstone](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L59)
   - [An edit never pulls anyone in](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L65)
   - [A deleted message is gone everywhere at once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L73)
-- **A runaway agent loop pauses the conversation**
-  - [The twentieth agent message in a row pauses the conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L84)
-  - [A human message lets agents post again](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L91)
-  - [The owner resumes a paused conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L97)
-  - [Thread replies count toward the loop](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L103)
+- **A long run of agent messages never pauses the conversation**
+  - [An agent's twenty-first message in a row posts](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L84)
 - **An agent's mention adds an agent, as a person's does**
-  - [An agent's mention adds the agent and says who added it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L112)
-  - [Mentions inside code and quotes are ignored](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L119)
+  - [An agent's mention adds the agent and says who added it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L94)
+  - [Mentions inside code and quotes are ignored](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L101)
 - **Links show a preview to people, the address to agents**
-  - [A link shows a preview card](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L132)
-  - [An agent gets the link, not the fetched page](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L138)
+  - [A link shows a preview card](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L114)
+  - [An agent gets the link, not the fetched page](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L120)
 - **Agents have budgets, checked before any write**
-  - [An agent that posts too fast is slowed down, not failed](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L145)
+  - [An agent that posts too fast is slowed down, not failed](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/messages-types.feature#L127)
 
 ## Notifications
 
@@ -607,31 +601,31 @@ My phone is useful and not noisy.
 - **Each trigger sends one push**
   - [Triggers that push the owner](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L20)
 - **The decision pipeline suppresses pushes for a reason (AC-7)**
-  - [Suppression reasons](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L39)
-  - [An urgent ask in quiet hours follows the bypass setting](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L53)
-  - [A notification is not sent for what the owner can no longer see](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L64)
-  - [Security pushes cannot be turned off](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L70)
+  - [Suppression reasons](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L38)
+  - [An urgent ask in quiet hours follows the bypass setting](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L52)
+  - [A notification is not sent for what the owner can no longer see](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L63)
+  - [Security pushes cannot be turned off](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L69)
 - **Delivery is private and well-behaved (I-28)**
-  - [A gone subscription is disabled](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L77)
-  - [The preview setting decides what the lock screen shows](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L84)
-  - [Push works on an iPhone Home Screen app](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L96)
+  - [A gone subscription is disabled](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L76)
+  - [The preview setting decides what the lock screen shows](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L83)
+  - [Push works on an iPhone Home Screen app](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L95)
 - **Turning push on shows each step and confirms with a push**
-  - [Turning push on shows each step and ends On](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L108)
-  - [Turning push on sends a confirmation push](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L115)
-  - [A background worker that never starts shows an error](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L122)
-  - [A browser with push only on its background worker can turn push on](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L130)
+  - [Turning push on shows each step and ends On](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L107)
+  - [Turning push on sends a confirmation push](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L114)
+  - [A background worker that never starts shows an error](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L121)
+  - [A browser with push only on its background worker can turn push on](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L129)
 - **A banner on first open asks to turn notifications on**
-  - [The banner shows on first open when push is possible and undecided](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L141)
-  - [Tapping Turn on subscribes the device and the banner leaves](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L147)
-  - [Dismissing the banner keeps it gone after a reload](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L155)
-  - [No banner once notifications are decided](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L162)
-  - [No banner when the browser cannot receive push](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L173)
+  - [The banner shows on first open when push is possible and undecided](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L140)
+  - [Tapping Turn on subscribes the device and the banner leaves](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L146)
+  - [Dismissing the banner keeps it gone after a reload](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L154)
+  - [No banner once notifications are decided](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L161)
+  - [No banner when the browser cannot receive push](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L172)
 - **A tapped push opens a page of the app**
-  - [Tapping an ask push opens Now, not Conversation not found](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L182)
-  - [A pushed URL that is not a page of the app opens Now](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L190)
+  - [Tapping an ask push opens Now, not Conversation not found](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L181)
+  - [A pushed URL that is not a page of the app opens Now](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L189)
 - **Chrome on iPhone is told to use Safari**
-  - [Settings tells Chrome on iPhone to use Safari](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L207)
-  - [The banner tells Chrome on iPhone to use Safari and can be dismissed](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L214)
+  - [Settings tells Chrome on iPhone to use Safari](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L206)
+  - [The banner tells Chrome on iPhone to use Safari and can be dismissed](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/notifications.feature#L213)
 
 ## Now
 

@@ -40,7 +40,7 @@ type PendingAdd struct {
 }
 
 // Conversation is one row of the list, and the body of the single-conversation routes. The fields after Unread are
-// the details: the list sends the cheap ones (paused, deleted_at) and the single-conversation route all of them.
+// the details: the list sends the cheap ones (deleted_at) and the single-conversation route all of them.
 type Conversation struct {
 	ID             int64        `json:"id"`
 	Title          *string      `json:"title"`
@@ -61,7 +61,6 @@ type Conversation struct {
 	LinkURL     *string      `json:"link_url,omitempty"`
 	MutedUntil  *int64       `json:"muted_until,omitempty"`
 	Pinned      *[]Message   `json:"pinned,omitempty"`
-	Paused      bool         `json:"paused,omitempty"`
 	Stale       bool         `json:"stale,omitempty"`        // an agent marked it stale and no message came since: the rail folds it into Older
 	StaleReason string       `json:"stale_reason,omitempty"` // why, when the agent said so (only while Stale)
 	Pending     []PendingAdd `json:"pending,omitempty"`

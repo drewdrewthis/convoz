@@ -30,7 +30,7 @@ import {
 /*
  * WP3: conversations, participants and trash (specs/features/conversations.feature and specs/contracts/conversations.feature).
  * Routes (design §13): POST /api/conversations/:id/participants {identity_id|handle, history: since_now|full} (a person adds at once, an
- * agent only asks: "pending"), POST .../participants/:iid/{approve,decline}, DELETE .../participants/:iid, POST .../leave, POST .../resume,
+ * agent only asks: "pending"), POST .../participants/:iid/{approve,decline}, DELETE .../participants/:iid, POST .../leave,
  * PATCH|DELETE /api/conversations/:id, POST .../restore and
  * GET /api/conversations?deleted=1 (the trash). An agent that may not see a conversation is told 403 (the CLI exits 3), a person 404.
  * A visibility floor is the newest message id the reader may NOT see; a person who joins "since now" gets the id of the line that says so.
@@ -526,31 +526,6 @@ scenario("Mark all read clears the conversation", { tag: ["@browser"] }, async (
   await expect(unreadDot(row)).toHaveCount(0);
   expect(await isBold(row.getByRole("heading"))).toBe(false);
   expect(await unreadOf(w.owner, conv)).toBe(0);
-});
-
-// ---- Rule: A loop pause is visible and the owner resumes it ---------------------------------------------------------------
-
-scenario("A paused conversation shows a banner with Resume", { tag: ["@browser"] }, async ({ server, page, context }) => {
-  // Given "devtool" and "docs" posted 20 messages in a row in conversation 41
-  const w = await browserWorld({ server, page, context }, { live: ["devtool", "docs"] });
-  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
-  for (let i = 1; i <= 10; i++) {
-    await agentSays(w.srv, w.sessions.devtool!.lease, conv, `devtool ${i}`);
-    await agentSays(w.srv, w.sessions.docs!.lease, conv, `docs ${i}`);
-  }
-  expect((await viewOf(w.owner, conv)).paused).toBe(true);
-
-  // When the owner opens conversation 41
-  await openChat(page, w.srv, conv, "Ship search filters");
-
-  // Then a banner says the agents are paused after 20 messages in a row
-  const banner = page.getByRole("status").filter({ hasText: "paused after 20 messages in a row" });
-  await expect(banner).toBeVisible();
-
-  // And the banner has a Resume button
-  await banner.getByRole("button", { name: "Resume" }).click();
-  await expect(banner).toHaveCount(0);
-  expect((await viewOf(w.owner, conv)).paused).toBeFalsy();
 });
 
 // ---- Rule: Messages arrive live ----------------------------------------------------------------------------------------------

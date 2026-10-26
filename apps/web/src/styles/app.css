@@ -280,8 +280,6 @@
   .log { scroll-padding-top: var(--headh); flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; overflow-anchor: none; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; padding: var(--headh) 0 16px;
     /* the one column every row of the transcript shares (messages, threads, notices, the New line, the day labels): one left edge */
     --col: 760px; }
-  .pausebar ~ .chatmain .log { padding-top: 8px; }
-  .chatframe > .pausebar { position: relative; z-index: 2; margin-top: var(--headh); }
   /* flex: none — a virtual list's rows are absolute, so its height is all it has; as a shrinking flex item it collapsed to the log's height
      and the log's scroll height stopped following the rows, so a long chat stopped short of its newest message. */
   .items { display: flex; flex-direction: column; flex: none; }

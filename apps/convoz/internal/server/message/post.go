@@ -22,8 +22,6 @@ const (
 var (
 	ErrDenied  = errors.New("not a participant of that conversation")
 	ErrMissing = errors.New("no such conversation")
-	// ErrPaused means the loop breaker stopped the conversation: agents may not post until a person writes or resumes (I-16).
-	ErrPaused = errors.New("the conversation is paused after 20 agent messages in a row")
 )
 
 // Conversations is what Post needs from the conversation side.
@@ -143,13 +141,12 @@ type Journal interface {
 	ReadMoved(ctx context.Context, d pdb.DBTX, now time.Time, reader, conv, mainID int64) error
 }
 
-// Events writes the thin events of everything after the post: a reply, an edit, a delete, a purge, the loop breaker.
+// Events writes the thin events of everything after the post: a reply, an edit, a delete, a purge.
 type Events interface {
 	ThreadUpdated(ctx context.Context, d pdb.DBTX, now time.Time, conv, root, lastReply, replies int64) error
 	Edited(ctx context.Context, d pdb.DBTX, now time.Time, actor, conv, id, at int64, idem string) error
 	Deleted(ctx context.Context, d pdb.DBTX, now time.Time, actor, conv, id, at int64) error
 	Purged(ctx context.Context, d pdb.DBTX, now time.Time, actor, conv, id int64) error
-	LoopChanged(ctx context.Context, d pdb.DBTX, now time.Time, actor, conv int64, paused bool) error
 	// SystemWritten announces a system line, like a message created (the stream shows it live).
 	SystemWritten(ctx context.Context, d pdb.DBTX, now time.Time, conv, id int64) error
 }
@@ -170,7 +167,6 @@ type Ports struct {
 	Mentions      Mentions
 	Unfurls       UnfurlQueue
 	Audit         Audit
-	Loop          Loop
 	Events        Events
 	Cascades      []Cascade
 }
@@ -180,16 +176,11 @@ type Posted struct {
 	Message  Message
 	Replayed bool
 	Wake     []int64
-	// Paused is true when this post was the one that stopped the conversation (the 20th agent message in a row).
-	Paused bool
 }
 
 // Post is the whole write of one message, in the caller's transaction (I-4, I-43): the message, the conversation's
 // counters, the author's read cursor, one inbox item per other agent participant and the thin events. A repeat of
 // the same client id changes nothing and returns Replayed. The author is always the caller (I-40).
-//
-// An agent's post is refused with ErrPaused while the conversation is paused; its own post counts toward the pause
-// and a person's resets the count (I-16). A reply counts like any other message.
 func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) (Posted, error) {
 	switch access, err := p.Conversations.Access(ctx, d, draft.Conversation); {
 	case err != nil:
@@ -200,15 +191,6 @@ func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) 
 		return Posted{}, ErrMissing
 	}
 	isAgent := draft.Session != 0
-	if isAgent && p.Loop != nil {
-		paused, err := p.Loop.Paused(ctx, d, draft.Conversation)
-		if err != nil {
-			return Posted{}, err
-		}
-		if paused {
-			return Posted{}, ErrPaused
-		}
-	}
 	if err := checkRoot(ctx, d, draft); err != nil {
 		return Posted{}, err
 	}
@@ -306,11 +288,7 @@ func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) 
 			queued = append(queued, who)
 		}
 	}
-	paused, err := countLoop(ctx, d, p, now, draft, isAgent)
-	if err != nil {
-		return Posted{}, err
-	}
-	return Posted{Message: m, Wake: append(queued, woken...), Paused: paused}, nil
+	return Posted{Message: m, Wake: append(queued, woken...)}, nil
 }
 
 // askerAnswered is the author of the ask that a message answers; 0 when the message answers none.

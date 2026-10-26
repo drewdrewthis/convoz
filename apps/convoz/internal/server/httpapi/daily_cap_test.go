@@ -98,3 +98,29 @@ func TestADailyCapCountsOnlyStoredPosts(t *testing.T) {
 		t.Errorf("two stored posts spend a cap of 2: %d", w.Code)
 	}
 }
+
+// With the loop breaker gone (I-16 removed, issue 117), the per-identity message rate limit is what stops a runaway agent.
+func TestAnAgentPostingInATightLoopHitsTheRateLimit(t *testing.T) {
+	s := NewServer(nil, nil, nil, nil, Config{}, nil) // the real limits: 20 in any 20 seconds, 5k a day
+	t0 := time.Unix(1_800_000_000, 0)
+
+	for i := range 20 {
+		if w := mayPost(s, agentCall(1, 1), t0); w.Code != http.StatusNoContent {
+			t.Fatalf("post %d of the burst: %d, want it to post", i+1, w.Code)
+		}
+	}
+	for i := range 100 {
+		w := mayPost(s, agentCall(1, 1), t0.Add(time.Duration(i)*10*time.Millisecond))
+		var body wire.Error
+		_ = json.Unmarshal(w.Body.Bytes(), &body)
+		if w.Code != http.StatusTooManyRequests || body.Error.Code != "rate_limited" || w.Header().Get("Retry-After") == "" {
+			t.Fatalf("post %d in the tight loop: %d %+v, want 429 rate_limited with Retry-After", 21+i, w.Code, body.Error)
+		}
+	}
+	if w := mayPost(s, agentCall(2, 1), t0); w.Code != http.StatusNoContent {
+		t.Errorf("another agent on the same machine may still post: %d", w.Code)
+	}
+	if w := mayPost(s, agentCall(1, 1), t0.Add(21*time.Second)); w.Code != http.StatusNoContent {
+		t.Errorf("after the window the agent may post again: %d", w.Code)
+	}
+}

@@ -29,7 +29,6 @@ Feature: Notifications
         | "devtool" replies in a thread the owner replied in             | thread_reply    |
         | "devtool" requests to add "@docs" to conversation 41           | agent_add       |
         | a snoozed ask reaches its wake time                            | snooze_wake     |
-        | conversation 41 pauses after 20 agent messages                 | paused          |
         | "convoz login --name box-9" starts                             | machine_request |
         | the owner reveals the key of "box-2" from another device       | security        |
 

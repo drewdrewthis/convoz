@@ -10,29 +10,6 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/dbtest"
 )
 
-func TestTwentyAgentMessagesInARowPauseAndAPersonResumes(t *testing.T) {
-	s := seeded(t)
-	c := create(t, s, t0, conversation.New{By: owner, Members: []int64{devtool}})
-	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error {
-		for i := 1; i <= 20; i++ {
-			paused, err := conversation.AgentPosted(ctx, d, t0, c.ID)
-			if err != nil || paused != (i == 20) {
-				t.Fatalf("message %d: paused=%v err=%v", i, paused, err)
-			}
-		}
-		if got, _, _ := conversation.Get(ctx, d, c.ID); !got.Paused() || got.AgentStreak != 20 {
-			t.Errorf("the 20th pauses: %+v", got)
-		}
-		if resumed, err := conversation.HumanPosted(ctx, d, c.ID); err != nil || !resumed {
-			t.Errorf("a person lifts the pause: %v %v", resumed, err)
-		}
-		if got, _, _ := conversation.Get(ctx, d, c.ID); got.Paused() || got.AgentStreak != 0 {
-			t.Errorf("the streak is back to 0: %+v", got)
-		}
-		return nil
-	})
-}
-
 func TestCleanEmptyKeepsAConversationThatGetsAMessageMeanwhile(t *testing.T) {
 	s := seeded(t)
 	idle := create(t, s, t0, conversation.New{By: owner, Members: []int64{devtool}})

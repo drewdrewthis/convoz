@@ -25,7 +25,7 @@ type SystemLine struct {
 	By       int64  // who did it
 	Via      string // member.added: mention, add, create or triage; member.removed: triage (a triage agent did it, so the line names it)
 	History  string // member.added: since_now or full
-	Streak   int    // conversation.paused: LoopLimit
+	Streak   int    // conversation.paused: 20 (only old lines: the pause was removed, issue 117)
 	Title    string // conversation.renamed: the new title, quoted by the line (optional; at most MaxTitleRunes, no control characters)
 	// member.renamed: the handles before and after (I-51). Handles, not words: an agent's handles are never scrubbed, and a
 	// retired one is never reused, so the line stays true.
@@ -71,7 +71,7 @@ func (l SystemLine) Valid() error {
 			return bad()
 		}
 	case l.T == "conversation.paused":
-		if l.Streak != LoopLimit {
+		if l.Streak != 20 {
 			return bad()
 		}
 	case l.T == "member.renamed":

@@ -129,11 +129,6 @@ export function ownerPurges(owner: Owner, id: number): Promise<Res> {
   return stepped(owner, "POST", `/api/messages/${id}/purge`, {}, "message.purge", id);
 }
 
-/** `POST /api/conversations/:id/resume` as the owner. */
-export function ownerResumes(owner: Owner, conv: number): Promise<Res> {
-  return owner.client.post(`/api/conversations/${conv}/resume`, {});
-}
-
 /** Post `n` messages in a row with these leases, taking turns. Every one must be stored. */
 export async function agentsPost(w: MsgWorld, leases: string[], conv: number, n: number, prefix = "m"): Promise<void> {
   for (let i = 0; i < n; i++) {

@@ -236,17 +236,3 @@
                 conversation: { $ref: "../openapi.yaml#/components/schemas/Conversation" }
       "409": { $ref: "../openapi.yaml#/components/responses/Error" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
-/api/conversations/{id}/resume:
-  post:
-    x-authz: { auth: human, lease: refuse }
-    operationId: resumeConversation
-    summary: Let paused agents post again.
-    parameters:
-      - $ref: "../openapi.yaml#/components/parameters/Id"
-    requestBody:
-      content:
-        application/json:
-          schema: { type: object }
-    responses:
-      "200": { $ref: "../openapi.yaml#/components/responses/Empty" }
-      default: { $ref: "../openapi.yaml#/components/responses/Error" }

@@ -45,7 +45,6 @@ Conversation:
       type: array
       description: The messages the caller pinned in it, newest pin first. The single-conversation route only.
       items: { $ref: "../openapi.yaml#/components/schemas/Message" }
-    paused: { type: boolean, description: The loop breaker stopped the agents after 20 messages in a row. }
     pending:
       type: array
       description: Agents that wait for a person to add them, and the agent that asked.

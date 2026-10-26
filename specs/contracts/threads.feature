@@ -49,5 +49,5 @@ Feature: Threads (contracts)
     @v1 @browser @I-14
     Scenario: The unread count caps at 99+
       Given the owner has read conversation 41
-      When "devtool" posts 150 messages and the owner posts through the API after every 15 to keep the loop breaker off
+      When "devtool" posts 150 messages and the owner posts through the API after every 15
       Then the rail shows "99+" for conversation 41

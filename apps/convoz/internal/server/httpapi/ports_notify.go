@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"regexp"
 	"slices"
 	"time"
@@ -101,8 +100,6 @@ func (p pushSource) Triggers(ctx context.Context, d pdb.DBTX, e notify.Event) ([
 			return nil, nil
 		}
 		t.Reason, t.TopicKind, t.TopicID, t.Message = notify.ReasonAgentAdd, notify.TopicConversation, e.Conversation, 0
-	case eventPaused:
-		t.Reason, t.TopicKind, t.TopicID, t.Message = notify.ReasonPaused, notify.TopicConversation, e.Conversation, 0
 	case eventMachineRequested:
 		t.Reason, t.TopicKind, t.TopicID, t.Conversation = notify.ReasonMachineRequest, notify.TopicMachine, body.RequestID, 0
 		t.Remote = body.ViaInternet
@@ -332,9 +329,9 @@ func (p pushSource) Facts(ctx context.Context, d pdb.DBTX, n notify.Notification
 		return f, err
 	case notify.ReasonPlanWaiting:
 		return p.planWaitingFacts(ctx, d, n, f)
-	case notify.ReasonPaused:
+	case notify.ReasonPaused: // only an old one: conversations are no longer paused (issue 117)
 		f.Sender = titleOr(title)
-		f.Text = fmt.Sprintf("Paused after %d agent messages in a row", message.LoopLimit)
+		f.Text = "Paused after 20 agent messages in a row"
 	case notify.ReasonMachineRequest:
 		ev, found, err := eventAt(ctx, d, n.SourceSeq)
 		if err != nil || !found {

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
-	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/event"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
@@ -14,13 +13,13 @@ import (
 
 // messagePorts wires message.Post to the other modules for the caller p. Each port lives in the file of the module that
 // implements it (ports_<module>.go); a module that is not built yet has a no-op there, which its work package replaces.
-// The ports of this module (mentions, events, the journal, the loop breaker) are below.
+// The ports of this module (mentions, events, the journal) are below.
 func messagePorts(p authz.Principal) message.Ports {
 	search, uploads, apps, unfurls := searchPort{}, uploadPort{}, appPort{}, unfurlPort{}
 	return message.Ports{
 		Conversations: conversationPort{p: p}, Reads: readsPort{}, Threads: threadsPort{}, Inbox: inboxPort{}, Places: placesPort{owner: p.SessionID == 0 && p.Role == "owner"}, Asks: askReplyPort{owner: p.SessionID == 0 && p.Role == "owner"}, Journal: postJournal{},
 		Search: search, Uploads: uploads, Apps: apps, Mentions: mentionsPort{}, Unfurls: unfurls, Audit: postAuditPort{p},
-		Loop: loopPort{}, Events: messageEvents{},
+		Events: messageEvents{},
 		// A module that keeps a copy of a message joins the delete and the purge by giving its port the two Cascade methods.
 		Cascades: cascadesOf(search, uploads, apps, unfurls, askCascade{}),
 	}
@@ -77,8 +76,6 @@ const (
 	eventEdited        = "message.edited.v1"
 	eventDeleted       = "message.deleted.v1"
 	eventPurged        = "message.purged.v1"
-	eventPaused        = "conversation.paused.v1"
-	eventResumed       = "conversation.resumed.v1"
 )
 
 // postJournal writes the thin events of a post.
@@ -130,29 +127,7 @@ func (e messageEvents) Purged(ctx context.Context, d pdb.DBTX, now time.Time, ac
 	return e.write(ctx, d, now, event.Entry{Type: eventPurged, Actor: actor, Conversation: conv, Message: id, Payload: map[string]any{"id": id}})
 }
 
-func (e messageEvents) LoopChanged(ctx context.Context, d pdb.DBTX, now time.Time, actor, conv int64, paused bool) error {
-	if paused {
-		return e.write(ctx, d, now, event.Entry{Type: eventPaused, Actor: actor, Conversation: conv, Payload: map[string]any{"streak": message.LoopLimit}})
-	}
-	return e.write(ctx, d, now, event.Entry{Type: eventResumed, Actor: actor, Conversation: conv, Payload: map[string]any{}})
-}
-
 func (e messageEvents) SystemWritten(ctx context.Context, d pdb.DBTX, now time.Time, conv, id int64) error {
 	return e.write(ctx, d, now, event.Entry{Type: event.MessageCreated, Conversation: conv, Message: id,
 		Payload: map[string]any{"id": id, "kind": "system", "conversation_id": conv}})
-}
-
-// loopPort keeps the loop breaker's two columns in the conversation module.
-type loopPort struct{}
-
-func (loopPort) Paused(ctx context.Context, d pdb.DBTX, conv int64) (bool, error) {
-	return conversation.LoopPaused(ctx, d, conv)
-}
-
-func (loopPort) CountAgentPost(ctx context.Context, d pdb.DBTX, now time.Time, conv int64) (bool, error) {
-	return conversation.LoopCountAgentPost(ctx, d, now, conv, message.LoopLimit)
-}
-
-func (loopPort) Reset(ctx context.Context, d pdb.DBTX, conv int64) (bool, error) {
-	return conversation.LoopReset(ctx, d, conv)
 }

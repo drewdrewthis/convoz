@@ -17,7 +17,7 @@ export const loadTrash = () => pages().then((p) => p.Trash);
 registerHandler("message.", (frame) => {
   if (frame.name !== "message.created") return;
   useConversations.getState().received(frame.data.conversation_id, frame.data);
-  // A line the conversation says about itself (someone was added, removed, the agents paused) changed the details.
+  // A line the conversation says about itself (someone was added, removed, renamed it) changed the details.
   const id = frame.data.conversation_id;
   if (frame.data.author.kind === "system" && data.store.getState().rows[id]) {
     void data.loadConversation(id).catch(() => {});

@@ -1,4 +1,4 @@
-# Source: design draft 9 §2.3, §8 (I-7, I-9, I-15, I-16, I-17, I-19, I-20, I-47), §8.2 (unread), §14 (soft delete), AC-6, AC-26.
+# Source: design draft 9 §2.3, §8 (I-7, I-9, I-15, I-17, I-19, I-20, I-47), §8.2 (unread), §14 (soft delete), AC-6, AC-26.
 # Prototype: blank new conversation (⌘J, "Type @ to bring in an agent"), rename, details sidebar (I), participants.
 # Pickup was removed. Owner said: "Nothing claims conversations. I need to tag." Agents join only when the owner tags them.
 # Words follow prototype v41: the tab and list are "Conversations", the button is "New conversation".
@@ -315,15 +315,6 @@ Feature: Conversations
       Given conversation 41 has 7 unread main messages and 2 unread replies in an involved thread
       When the owner marks the conversation read
       Then conversation 41 and its thread rows show no unread count and it is not bold
-
-  Rule: A loop pause is visible and the owner resumes it
-
-    @v1 @browser @I-16
-    Scenario: A paused conversation shows a banner with Resume
-      Given "devtool" and "docs" posted 20 messages in a row in conversation 41
-      When the owner opens conversation 41
-      Then a banner says the agents are paused after 20 messages in a row
-      And the banner has a Resume button
 
   # Removed: "A conversation can be offered to any agent for pickup" (SEC-6, I-47).
   # Owner said: "Nothing claims conversations. I need to tag." Agents join only through the owner's @mention or + Add.

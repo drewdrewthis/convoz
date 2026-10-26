@@ -21,7 +21,7 @@
     description: |
       Needs a lease with the `ask` scope; a person gets 403. 400 names the field (`question`, `recommended`, `alternatives`,
       `why`, `label`, `owners_call`). An ask without `owners_call` is 400 with the words "Decide this yourself": an ask is for a one-way door, a
-      taste or values choice, or scope the owner must own. 429 `ask_cap` at 20 open asks of one identity, 429 `conversation_paused` while the loop breaker holds.
+      taste or values choice, or scope the owner must own. 429 `ask_cap` at 20 open asks of one identity.
     requestBody:
       required: true
       content:

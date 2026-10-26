@@ -1129,23 +1129,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/conversations/{id}/resume": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Let paused agents post again. */
-        post: operations["resumeConversation"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/conversations/{id}/stale": {
         parameters: {
             query?: never;
@@ -1488,7 +1471,7 @@ export interface paths {
          * An agent asks a question with a recommendation and alternatives. The same client_id again answers 200 with the same ask.
          * @description Needs a lease with the `ask` scope; a person gets 403. 400 names the field (`question`, `recommended`, `alternatives`,
          *     `why`, `label`, `owners_call`). An ask without `owners_call` is 400 with the words "Decide this yourself": an ask is for a one-way door, a
-         *     taste or values choice, or scope the owner must own. 429 `ask_cap` at 20 open asks of one identity, 429 `conversation_paused` while the loop breaker holds.
+         *     taste or values choice, or scope the owner must own. 429 `ask_cap` at 20 open asks of one identity.
          */
         post: operations["postAsk"];
         delete?: never;
@@ -2579,8 +2562,6 @@ export interface components {
             muted_until?: number;
             /** @description The messages the caller pinned in it, newest pin first. The single-conversation route only. */
             pinned?: components["schemas"]["Message"][];
-            /** @description The loop breaker stopped the agents after 20 messages in a row. */
-            paused?: boolean;
             /** @description Agents that wait for a person to add them, and the agent that asked. */
             pending?: {
                 person: components["schemas"]["Person"];
@@ -5584,25 +5565,6 @@ export interface operations {
         };
     };
     leaveConversation: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["Id"];
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": Record<string, never>;
-            };
-        };
-        responses: {
-            200: components["responses"]["Empty"];
-            default: components["responses"]["Error"];
-        };
-    };
-    resumeConversation: {
         parameters: {
             query?: never;
             header?: never;
