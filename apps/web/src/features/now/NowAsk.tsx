@@ -38,7 +38,7 @@ function CompactAsk({ ask, busy, answer }: Pick<NowAskProps, "ask" | "busy" | "a
           <dd className={p.one_way ? "m-0 font-semibold text-danger" : "m-0 text-text [overflow-wrap:anywhere]"}>{p.one_way ? "None. This is one-way." : p.undo}</dd>
         </dl>
         {p.one_way ? (
-          <Button size="option" variant="primary" href={href}>
+          <Button size="option" href={href}>
             Review
           </Button>
         ) : (
