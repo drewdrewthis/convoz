@@ -1,7 +1,6 @@
 import crypto from "node:crypto";
-import { agentPost } from "../lib/chat.ts";
 import { Client, send } from "../lib/http.ts";
-import { bearer, clientId, freshSource, lease, plainDb, requestDeviceCode, seedUserCodes, signInBrowser, stepped } from "../lib/machines.ts";
+import { bearer, clientId, freshSource, plainDb, requestDeviceCode, seedUserCodes, signInBrowser, stepped } from "../lib/machines.ts";
 import { addSecondPasskey } from "../lib/mobile.ts";
 import { must, signIn } from "../lib/owner.ts";
 import {
@@ -78,16 +77,6 @@ scenario("Triggers that push the owner", { tag: ["@api"] }, async ({ server, dat
     must(await w.owner.client.request("PUT", `/api/asks/${snoozedAsk}/snooze`, { csrf: true, json: { preset: "1h" } }), "snooze");
     await testApi(w.srv).advanceClock(61 * 60_000);
     await w.owner.client.get("/api/now"); // a read of Now wakes what came due
-  });
-
-  w.dev = await lease(w.srv, w.box.key, { as: "devtool", label: "dev-2" }); // the first lease ended with the hour that just passed
-  await row("conversation 41 pauses after 20 agent messages", "paused", async () => {
-    for (let i = 0; i < 25; i++) {
-      const res = await agentPost(w.srv, w.dev, w.conv, `progress ${i}`);
-      if (res.status === 429) return;
-      expect(res.status).toBe(201);
-    }
-    throw new Error("the conversation never paused");
   });
 
   await seedUserCodes(w.srv, ["KQWD-MZTP"]);

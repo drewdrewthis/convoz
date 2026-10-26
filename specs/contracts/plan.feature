@@ -39,7 +39,6 @@ Feature: Plans (contracts)
       Given "devtool" planned Doing "Building invites" with no eta
       When the server clock moves on and "devtool" claims and acks its status_due item each time
       Then "devtool" gets no status_due item at 14 minutes, one at 16 minutes, none at 46 minutes, one at 1 hour, one at 2 hours and none at 3 hours after the first
-      And agent_streak of the conversation is unchanged
       And a new plan starts the count again: none after 14 minutes, one after 16 minutes
 
     @v1 @api

@@ -21,7 +21,6 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
-	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/prefs"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/upload"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
@@ -239,8 +238,6 @@ func (s *Server) messageRefused(w http.ResponseWriter, err error) bool {
 		writeFieldErr(w, http.StatusConflict, "upload_unavailable", "upload_ids", "An upload joins one message, and only when it is finished.")
 	case errors.Is(err, upload.ErrNotYours), errors.Is(err, upload.ErrAudioAlone):
 		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "upload_ids", "An upload must be yours, from this conversation. A voice note goes alone.")
-	case errors.Is(err, message.ErrPaused):
-		writeErr(w, http.StatusTooManyRequests, "conversation_paused", "This conversation is paused after 20 agent messages in a row. A person must write or resume it.")
 	case errors.Is(err, message.ErrDenied):
 		writeErr(w, http.StatusForbidden, "forbidden", "You are not a participant of that conversation.")
 	case errors.Is(err, message.ErrMissing), errors.Is(err, message.ErrNotFound):
@@ -442,7 +439,7 @@ func (s *Server) listEdits(w http.ResponseWriter, r *http.Request, c *call) {
 
 // ---- edit, delete, purge ------------------------------------------------------------------------------
 
-// Agents may edit 30 times an hour (design §13.1): edits bypass the loop breaker, so they have a budget of their own.
+// Agents may edit 30 times an hour (design §13.1): an edit is not a new message, so edits have a budget of their own.
 const agentEditsPerHour = 30
 
 // messageBudgets are the rate budgets of this module (and the agent rename budget) that the shared Server struct does not carry. One set per server.
@@ -580,43 +577,4 @@ func (s *Server) purgeMessage(w http.ResponseWriter, r *http.Request, c *call) {
 	}
 	s.Bus.Notify()
 	s.writeEdited(w, r, m)
-}
-
-// resumeConversation is POST /api/conversations/:id/resume: a person lets agents post again after the loop breaker
-// paused the conversation (I-16). A conversation that is not paused is left as it is.
-func (s *Server) resumeConversation(w http.ResponseWriter, r *http.Request, c *call) {
-	id, ok := pathID(w, r)
-	if !ok {
-		return
-	}
-	var in struct{}
-	if !decode(w, r, &in) {
-		return
-	}
-	var lifted bool
-	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) (err error) {
-		d := tx.DBTX()
-		if _, found, err := conversation.Get(ctx, d, id); err != nil {
-			return err
-		} else if !found {
-			return message.ErrMissing
-		}
-		now := s.Clock.Now()
-		if lifted, err = message.Resume(ctx, d, messagePorts(c.p), now, id, c.p.Identity()); err != nil || !lifted {
-			return err
-		}
-		if err := conversation.Touch(ctx, d, now, id); err != nil { // the resume line moves the conversation up the list
-			return err
-		}
-		return prefs.FollowActivity(ctx, d, id)
-	})
-	if s.messageRefused(w, err) {
-		return
-	}
-	if err != nil {
-		s.internalError(w, r, err)
-		return
-	}
-	s.Bus.Notify()
-	writeJSON(w, http.StatusOK, map[string]bool{"resumed": lifted})
 }

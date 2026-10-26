@@ -20,7 +20,6 @@ import {
   ownerEdits,
   ownerPostWith,
   ownerPurges,
-  ownerResumes,
   pageOf,
   rowsWith,
   spendMachineBudget,
@@ -48,8 +47,7 @@ import { expect, scenario } from "../lib/scenario.ts";
  *   POST /api/conversations/:id/messages  {client_id, body, format?, thread_root_id?, broadcast?, upload_ids?, app?(agent only)}
  *        400 field "body" (over 16384 bytes), "app" (over 65536 bytes), "upload_ids" (over 10), "thread_root_id"
  *        (not a top-level message of that conversation; code system_line_no_replies for a system line).
- *        429 code conversation_paused (no Retry-After) while the loop breaker holds the conversation; 429 rate_limited with Retry-After
- *        for the budgets (1/s burst 20, 5000/day per identity, 20000/day per machine).
+ *        429 rate_limited with Retry-After for the budgets (1/s burst 20, 5000/day per identity, 20000/day per machine).
  *   PATCH /api/messages/:id  {client_id, body, format?}  author only. 200 {message}. 400 for any other field or for an ask, an answer, a
  *        message sent through an app and a system line (code not_editable); 403 for another author, and for an agent after 24 hours; 429
  *        for an agent's 31st edit within an hour. An edit changes no mention, adds nobody, makes no inbox item (its only event is
@@ -57,10 +55,9 @@ import { expect, scenario } from "../lib/scenario.ts";
  *   DELETE /api/messages/:id  author, or the owner for any. 200 {message} (a tombstone). 403 for an agent deleting another's.
  *   POST /api/messages/:id/purge  owner with a step-up for action "message.purge" on the message. Scrubs body, app, app result, history
  *        and mentions, the results sent through it, and tells every module that holds a copy.
- *   POST /api/conversations/:id/resume  a person; lifts the loop breaker and writes a "resumed" line. 200 {resumed:boolean}.
  *
- * LOOP BREAKER (I-16): an agent message, reply or ask counts one; the 20th pauses the conversation (a conversation.paused line, the
- *   event conversation.paused.v1); a person's message (not one sent through an app) or Resume sets the count to 0.
+ * NO LOOP BREAKER: a long run of agent messages never pauses a conversation (I-16 was removed, issue 117). Old conversation.paused and
+ *   conversation.resumed lines still read back and show their words; nothing writes new ones.
  *
  * TEST BUILD  POST /__test/system-line {conversation, t, identity?, by?, via?, history?, reason?, streak?} (handles, not ids),
  *   POST /__test/post-many {conversation, author, messages:[{body,format}]} -> {ids} (message.Post, one transaction),
@@ -95,16 +92,6 @@ async function participantsOf(w: MsgWorld, conv = w.conv): Promise<string[]> {
 async function itemsFor(w: MsgWorld, lease: string, conv = w.conv): Promise<unknown[]> {
   const res = must(await send(w.srv.target, "GET", "/api/inbox?peek=1", bearer(lease)), "peek the inbox");
   return (res.json().items as { conversation: { id: number } }[]).filter((i) => i.conversation.id === conv);
-}
-
-const LOOP = 20;
-
-/** Given a conversation paused after 20 agent messages (devtool and docs take turns). Returns their leases. */
-async function paused(w: MsgWorld): Promise<{ dev: string; docs: string }> {
-  const dev = await leaseOf(w, "devtool");
-  const docs = await leaseOf(w, "docs");
-  await agentsPost(w, [dev, docs], w.conv, LOOP);
-  return { dev, docs };
 }
 
 /**
@@ -311,90 +298,30 @@ scenario("Some messages cannot be edited", { tag: ["@api"] }, async ({ server, d
   expect(bodies).toEqual({ [askId]: "", [answerId]: "vitest", [viaId]: "Picked vitest" });
 });
 
-// ---- the loop breaker ---------------------------------------------------------------------------------------
+// ---- a long run of agent messages -----------------------------------------------------------------------------------
 
-scenario("The twentieth agent message in a row pauses the conversation", { tag: ["@api"] }, async ({ server, dataDir }) => {
-  // Given "devtool" and "docs" posted 19 messages in a row in conversation 41
+scenario("An agent's twenty-first message in a row posts", { tag: ["@api"] }, async ({ server, dataDir }) => {
+  // Given "devtool" and "docs" posted 20 messages in a row in conversation 41
   const w = await msgWorld({ server, dataDir, participants: ["devtool", "docs"] });
   const dev = await leaseOf(w, "devtool");
   const docs = await leaseOf(w, "docs");
-  await agentsPost(w, [dev, docs], w.conv, LOOP - 1);
-  const db = w.db();
-  const before = maxEventSeq(db);
+  await agentsPost(w, [dev, docs], w.conv, 20);
 
-  // When "docs" posts the twentieth
-  const twentieth = await agentPost(w.srv, docs, w.conv, "The twentieth");
-  expect(twentieth.status).toBe(201);
+  // When "devtool" posts the twenty-first
+  const post = await agentPost(w.srv, dev, w.conv, "The twenty-first");
 
-  // Then the owner sees the system line that the conversation is paused
-  const lines = (await pageOf(w.owner, w.conv, "limit=100")).filter((m) => m.kind === "system");
-  expect(lines.map((l) => l.system?.t)).toEqual(["conversation.paused"]);
-  expect(lines[0]!.author.handle).toBe("");
-  expect(lines[0]!.text).toBe("Paused after 20 agent messages in a row. Resume to let agents post.");
+  // Then conversation 41 shows the twenty-first message
+  expect(post.status, post.text).toBe(201);
 
-  // And the owner gets a "paused" notification (the event the notifications work package turns into a push)
-  expect(eventTypesAfter(db, before)).toContain("conversation.paused.v1");
-});
-
-scenario("A human message lets agents post again", { tag: ["@api"] }, async ({ server, dataDir }) => {
-  // Given conversation 41 is paused after 20 agent messages
-  const w = await msgWorld({ server, dataDir, participants: ["devtool", "docs"] });
-  const { dev } = await paused(w);
-  expect((await agentPost(w.srv, dev, w.conv, "while paused")).status).toBe(429);
-
-  // When the owner posts "carry on"
-  must(await ownerPost(w.owner, w.conv, "carry on"), "owner posts", 201);
-
-  // Then the next "convoz post" from "devtool" works
-  const session = await startSession(w.box, "devtool", "carry-on");
-  const res = await convoz(w.box, session.sid, ["post", "--fyi", String(w.conv), "back again"]);
-  expect(res.code, res.stderr).toBe(0);
-  expect((await byBody(w.owner, w.conv, "back again")).author.handle).toBe("devtool");
-});
-
-scenario("Thread replies count toward the loop", { tag: ["@api"] }, async ({ server, dataDir }) => {
-  // Given "devtool" posted 19 thread replies in a row in conversation 41
-  const w = await msgWorld({ server, dataDir, participants: ["devtool", "docs"] });
-  const dev = await leaseOf(w, "devtool");
-  const docs = await leaseOf(w, "docs");
-  const root = await ownerSays(w.owner, w.conv, "Step 1 is the filter chips UI");
-  for (let n = 1; n < LOOP; n++) must(await agentPostWith(w.srv, dev, w.conv, { body: `reply ${n}`, thread_root_id: root }), `reply ${n}`, 201);
-
-  // When "docs" posts one more reply in the thread
-  must(await agentPostWith(w.srv, docs, w.conv, { body: "reply 20", thread_root_id: root }), "the twentieth reply", 201);
-
-  // Then conversation 41 is paused
+  // And conversation 41 has no "paused" line
   const page = await pageOf(w.owner, w.conv, "limit=100");
-  expect(page.filter((m) => m.system?.t === "conversation.paused")).toHaveLength(1);
-  expect(page.find((m) => m.id === root)?.reply_count).toBe(LOOP);
-  expect(page.filter((m) => m.thread_root_id)).toHaveLength(0); // replies stay out of the main list
-  expect((await agentPost(w.srv, dev, w.conv, "after the pause")).status).toBe(429);
-});
-
-scenario("While paused, agent posts and asks are refused", { tag: ["@api"] }, async ({ server, dataDir }) => {
-  // Given conversation 41 is paused after 20 agent messages
-  const w = await msgWorld({ server, dataDir, participants: ["devtool", "docs"] });
-  const { dev } = await paused(w);
-
-  // When "devtool" posts a message
-  const post = await agentPost(w.srv, dev, w.conv, "One more");
-
-  // Then the server answers 429
-  expect(post.status).toBe(429);
-  expect(errorOf(post).code).toBe("conversation_paused");
-  expect(post.headers["retry-after"]).toBeUndefined();
-  expect((await pageOf(w.owner, w.conv, "limit=100")).map((m) => m.body)).not.toContain("One more");
-
-  // And an ask from "devtool" also answers 429: the rule is the message module's `Loop` port, which the asks module calls with the
-  // same check (the ask routes arrive with that work package; until then a thread reply, which counts like an ask, is refused alike)
-  const root = (await pageOf(w.owner, w.conv)).find((m) => !m.kind)!.id;
-  const reply = await agentPostWith(w.srv, dev, w.conv, { body: "A reply", thread_root_id: root });
-  expect(reply.status).toBe(429);
+  expect(page.filter((m) => m.kind === "system").map((m) => m.system?.t)).not.toContain("conversation.paused");
+  expect(page.map((m) => m.body)).toContain("The twenty-first");
 });
 
 // ---- mentions -----------------------------------------------------------------------------------------------
 
-scenario("An agent's mention does not add an agent", { tag: ["@api"] }, async ({ server, dataDir }) => {
+scenario("An agent's mention adds the agent and says who added it", { tag: ["@api"] }, async ({ server, dataDir }) => {
   // Background
   const w = await msgWorld({ server, dataDir });
   const dev = await leaseOf(w, "devtool");
@@ -403,15 +330,17 @@ scenario("An agent's mention does not add an agent", { tag: ["@api"] }, async ({
   // When "devtool" posts "@docs can you review?" in conversation 41
   must(await agentPost(w.srv, dev, w.conv, "@docs can you review?"), "post", 201);
 
-  // Then "docs" is not a participant of conversation 41
-  expect(await participantsOf(w)).toEqual(["drew", "devtool"]);
+  // Then "docs" is a participant of conversation 41
+  expect(await participantsOf(w)).toEqual(["drew", "devtool", "docs"]);
 
-  // And "docs" gets no inbox item for conversation 41
-  expect(await itemsFor(w, docs)).toEqual([]);
+  // And "docs" gets an inbox item for conversation 41 with reason "mention"
+  expect((await itemsFor(w, docs)).map((i) => (i as { reason: string }).reason)).toEqual(["mention"]);
 
-  // (the mention itself is recorded: nobody is pulled in, but the message says whom it named)
-  const named = w.db().prepare("SELECT i.handle AS handle FROM mentions m JOIN identities i ON i.id = m.identity_id").all() as { handle: string }[];
-  expect(named.map((r) => r.handle)).toEqual(["docs"]);
+  // And the system line says "@devtool added @docs"
+  const added = w.db().prepare("SELECT system_json AS j FROM messages WHERE kind = 'system' AND system_json LIKE '%member.added%' ORDER BY id DESC").get() as { j: string };
+  const line = JSON.parse(added.j) as { identity: number; by: number; via: string };
+  const id = (h: string) => (w.db().prepare("SELECT id FROM identities WHERE handle = ?").get(h) as { id: number }).id;
+  expect(line).toMatchObject({ via: "mention", identity: id("docs"), by: id("devtool") });
 });
 
 scenario("Mentions inside code and quotes are ignored", { tag: ["@api"] }, async ({ server, dataDir }) => {
@@ -635,14 +564,13 @@ scenario("System lines hold ids, never text", { tag: ["@api"] }, async ({ server
   const w = await msgWorld({ server, dataDir, title: "ZQX-title", participants: ["devtool", "docs"] });
   await createAgent(w.owner, "zqx", "ZQX-name");
   const db = w.db();
-  const before = maxEventSeq(db);
 
   // When each of the 9 system line subtypes is caused by its action
-  // (the pause and the resume by their real actions; the seven that belong to the conversation work package by the system-line hook)
-  const { dev } = await paused(w);
-  expect((await agentPost(w.srv, dev, w.conv, "stopped")).status).toBe(429);
-  must(await ownerResumes(w.owner, w.conv), "resume");
+  // (all by the system-line hook: the seven that belong to the conversation work package, and the pause and the resume, which no action
+  // writes any more but which old conversations still hold)
   const hooked: Record<string, unknown>[] = [
+    { t: "conversation.paused", streak: 20 },
+    { t: "conversation.resumed", by: "drew" },
     { t: "member.added", identity: "zqx", by: "drew", via: "mention", history: "full" },
     { t: "member.requested", identity: "zqx", by: "devtool" },
     { t: "member.removed", identity: "zqx", by: "drew" },
@@ -657,9 +585,6 @@ scenario("System lines hold ids, never text", { tag: ["@api"] }, async ({ server
   const stored = (db.prepare("SELECT system_json AS j FROM messages WHERE kind = 'system' ORDER BY id").all() as { j: string }[]).map((r) => JSON.parse(r.j) as Record<string, unknown>);
   expect(new Set(stored.map((d) => d.t)).size).toBe(9);
   expect(stored.filter((d) => !systemV1(d)), "lines that do not match system.v1").toEqual([]);
-  const events = eventTypesAfter(db, before);
-  expect(events).toContain("conversation.paused.v1");
-  expect(events).toContain("conversation.resumed.v1");
 
   // And no stored system line contains either seeded string
   expect(rowsWith(db, "ZQX-name").filter((r) => r.startsWith("messages:"))).toEqual([]);
@@ -793,25 +718,6 @@ scenario("A deleted message is gone everywhere at once", { tag: ["@browser", "@c
   expect(w.db().prepare("SELECT body FROM message_rows WHERE id = ?").get(id)).toEqual({ body: "" });
 });
 
-scenario("The owner resumes a paused conversation", { tag: ["@browser"] }, async ({ server, dataDir, page, context, testApi }) => {
-  // Given conversation 41 is paused after 20 agent messages
-  const w = await browserWorld({ server, dataDir, page, context }, { participants: ["devtool", "docs"] });
-  await paused(w);
-  await page.goto(`${w.srv.origin}/chats/${w.conv}`);
-  const resume = messageLog(page).getByRole("button", { name: "Resume" });
-  await expect(resume).toBeVisible();
-
-  // When the owner taps Resume
-  await resume.click();
-  await expect(resume).toHaveCount(0);
-  await expect(messageLog(page).getByRole("note").last()).toHaveText("@drew resumed the conversation");
-
-  // Then the next "convoz post" from "devtool" works
-  const session = await startSession(w.box, "devtool", "resumed");
-  const res = await convoz(w.box, session.sid, ["post", "--fyi", String(w.conv), "Back at it"]);
-  expect(res.code, res.stderr).toBe(0);
-});
-
 scenario("An agent that posts too fast is slowed down, not failed", { tag: ["@cli"] }, async ({ server, dataDir }, info) => {
   info.setTimeout(120_000);
   // Background
@@ -825,8 +731,6 @@ scenario("An agent that posts too fast is slowed down, not failed", { tag: ["@cl
     const res = await w.box.run(["post", "--fyi", "--sid", session.sid, "--timeout", "10s", String(w.conv), `fast ${n}`], { timeoutMs: 80_000 });
     expect(res.code, `post ${n}: ${res.stderr}`).toBe(0);
     sent.push(`fast ${n}`);
-    // I-16 would pause conversation 41 at the 20th agent message in a row, so the owner writes now and then (a person resets the count)
-    if (n % 10 === 0) must(await ownerPost(w.owner, w.conv, `owner ${n}`), "owner posts", 201);
   }
 
   // Then all 25 messages arrive in order

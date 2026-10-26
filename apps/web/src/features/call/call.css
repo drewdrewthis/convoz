@@ -2,7 +2,6 @@
    the page's flow between the content and the tab bar (on a wide screen, at the foot of the page column). */
 @layer components {
   .chatframe > .callbar { position: relative; z-index: 2; flex: none; display: flex; align-items: center; gap: 8px; margin: var(--headh) 12px 0; padding: 4px 4px 4px 16px; border-radius: 999px; background: var(--color-raised); box-shadow: var(--float); }
-  .callbar ~ .pausebar { margin-top: 8px; }
   .callbar ~ .chatmain .log { padding-top: 8px; }
   .callstatus { flex: 1 1 auto; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; }
   .callstatus::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: var(--color-success); animation: pulse 1.2s ease-in-out infinite; }

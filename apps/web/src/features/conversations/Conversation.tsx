@@ -14,7 +14,6 @@ import { usePlans } from "../plan/index.ts";
 import { StarButton } from "../pins-stars/index.ts";
 import { rememberChat } from "../search/index.ts";
 import { useThreads } from "../threads/index.ts";
-import { resume } from "./actions.ts";
 import { Details } from "./Details.tsx";
 import { MessageDetails } from "./MessageDetails.tsx";
 import { PlanLine } from "./PlanLine.tsx";
@@ -25,7 +24,6 @@ import { backLabel, useBackCount } from "./backCount.ts";
 import { useConversations, type PendingSend } from "./store.ts";
 import { keyboardOpen, virtualKeyboard, type Screen } from "./keyboard.ts";
 import { firstUnread, Transcript, type TranscriptControl } from "./Transcript.tsx";
-import { Button } from "@convoz/ui/Button";
 
 const GONE = "This conversation does not exist, or it is not yours.";
 const NONE: Message[] = [];
@@ -315,14 +313,6 @@ export function Conversation() {
         )}
       </header>
       {convId ? <CallBar conversationId={convId} /> : null}
-      {conversation?.paused ? (
-        <div className="banner pausebar" role="status">
-          <span>Agents are paused after 20 messages in a row.</span>
-          <Button className="flex-none" size="small" onClick={() => void resume(convId).catch((err) => setError((err && err.message) || "Something went wrong. Try again."))}>
-            Resume
-          </Button>
-        </div>
-      ) : null}
       <div id="people" className="subbar" hidden={gone}>
         {chips.map((h) => (
           <span key={h} className="chip" role="img" aria-label={h}>

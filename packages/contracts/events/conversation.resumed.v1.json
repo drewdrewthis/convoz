@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://convoz.dev/events/conversation.resumed.v1.json",
   "title": "conversation.resumed.v1",
-  "description": "A person lifted the loop breaker.",
+  "description": "A person lifted the loop breaker. Old events only: nothing writes it since the loop breaker was removed (issue 117).",
   "type": "object",
   "required": [],
   "properties": {},

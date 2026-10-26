@@ -10,10 +10,9 @@ import { dayOf, fullDate, startOfDay } from "../../shared/days.ts";
 import { PinMark } from "../pins-stars/index.ts";
 import type { PendingSend } from "./store.ts";
 import { Markdown } from "./Markdown.tsx";
-import { resume } from "./actions.ts";
 import { hasLink, LinkPreview } from "./messages/LinkPreview.tsx";
 import { DeleteSheet, EditedMark, MessageMenu } from "./messages/MessageMenu.tsx";
-import { NoticeRow, pausedNow } from "./messages/Notice.tsx";
+import { NoticeRow } from "./messages/Notice.tsx";
 import { PendingFiles, Uploads } from "./messages/Uploads.tsx";
 import { SeenLine } from "./messages/SeenLine.tsx";
 import { InlineThread, useNewReplies, useThreads, type PendingReply } from "../threads/index.ts";
@@ -149,7 +148,6 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, current,
   /** The opening snap is over: after the frame that follows the first one at the newest end, nothing moves the log by itself any more. */
   const [settled, setSettled] = useState(false);
   const rows = useMemo(() => rowsOf(messages, pending, me, { newFrom }), [messages, pending, me, newFrom]);
-  const paused = useMemo(() => pausedNow(messages), [messages]);
   // Not before the server's first page is in: a part of the list (or an old held copy) would make an older root the latest for a
   // moment, and its thread would be read.
   const latest = useMemo(() => (opened && current ? latestRoot(messages) : 0), [opened, current, messages]);
@@ -281,11 +279,11 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, current,
 
   const body =
     virtual ? (
-      <VirtualItems rows={rows} me={me} paused={paused} latest={latest} conversation={conversation} log={log} items={items} onRetry={onRetry} onDiscard={onDiscard} onDetails={onDetails} hl={hl} focusAt={opened ? focusAt : -1} />
+      <VirtualItems rows={rows} me={me} latest={latest} conversation={conversation} log={log} items={items} onRetry={onRetry} onDiscard={onDiscard} onDetails={onDetails} hl={hl} focusAt={opened ? focusAt : -1} />
     ) : (
       <div ref={items} id="items" className="items">
         {rows.map((r) => (
-          <MessageRow key={r.key} row={r} me={me} paused={paused} latest={latest} conversation={conversation} onRetry={onRetry} onDiscard={onDiscard} onDetails={onDetails} hl={hl} />
+          <MessageRow key={r.key} row={r} me={me} latest={latest} conversation={conversation} onRetry={onRetry} onDiscard={onDiscard} onDetails={onDetails} hl={hl} />
         ))}
       </div>
     );
@@ -314,7 +312,7 @@ export function Transcript({ messages, pending, hasEarlier, me, opened, current,
   );
 }
 
-function VirtualItems({ rows, me, paused, latest, conversation, log, items, onRetry, onDiscard, onDetails, hl, focusAt }: { rows: Row[]; me: string; paused: number; latest: number; conversation: number; log: RefObject<HTMLDivElement | null>; items: RefObject<HTMLDivElement | null>; onRetry(cid: string): void; onDiscard(cid: string): void; onDetails?(m: Message): void; hl: number | null; focusAt: number }) {
+function VirtualItems({ rows, me, latest, conversation, log, items, onRetry, onDiscard, onDetails, hl, focusAt }: { rows: Row[]; me: string; latest: number; conversation: number; log: RefObject<HTMLDivElement | null>; items: RefObject<HTMLDivElement | null>; onRetry(cid: string): void; onDiscard(cid: string): void; onDetails?(m: Message): void; hl: number | null; focusAt: number }) {
   const [margin, setMargin] = useState(0);
   useLayoutEffect(() => {
     const el = log.current;
@@ -336,7 +334,7 @@ function VirtualItems({ rows, me, paused, latest, conversation, log, items, onRe
     <div ref={items} id="items" className="items" style={{ position: "relative", height: v.getTotalSize() }}>
       {v.getVirtualItems().map((item) => (
         <div key={item.key} data-index={item.index} ref={v.measureElement} style={{ position: "absolute", top: 0, left: 0, right: 0, transform: `translateY(${item.start - margin}px)` }}>
-          <MessageRow row={rows[item.index]!} me={me} paused={paused} latest={latest} conversation={conversation} onRetry={onRetry} onDiscard={onDiscard} onDetails={onDetails} hl={hl} />
+          <MessageRow row={rows[item.index]!} me={me} latest={latest} conversation={conversation} onRetry={onRetry} onDiscard={onDiscard} onDetails={onDetails} hl={hl} />
         </div>
       ))}
     </div>
@@ -350,8 +348,6 @@ interface RowProps {
   /** The id of the newest root with a thread (see `latestRoot`), 0 for none. */
   latest?: number;
   me: string;
-  /** The id of the pause line that still holds, 0 for none. */
-  paused: number;
   conversation: number;
   onRetry(cid: string): void;
   onDiscard(cid: string): void;
@@ -362,7 +358,7 @@ interface RowProps {
 
 /** A row that did not change keeps its node, so a selection in it survives. */
 const sameRow = (a: RowProps, b: RowProps) =>
-  a.me === b.me && a.threaded === b.threaded && a.latest === b.latest && a.paused === b.paused && a.onDetails === b.onDetails && (a.hl === a.row.message?.id) === (b.hl === b.row.message?.id) && a.row.fresh === b.row.fresh && a.row.key === b.row.key && a.row.first === b.row.first && a.row.day === b.row.day && a.row.stampDay === b.row.stampDay && a.row.message === b.row.message && a.row.pending?.state === b.row.pending?.state;
+  a.me === b.me && a.threaded === b.threaded && a.latest === b.latest && a.onDetails === b.onDetails && (a.hl === a.row.message?.id) === (b.hl === b.row.message?.id) && a.row.fresh === b.row.fresh && a.row.key === b.row.key && a.row.first === b.row.first && a.row.day === b.row.day && a.row.stampDay === b.row.stampDay && a.row.message === b.row.message && a.row.pending?.state === b.row.pending?.state;
 
 const MessageRow = memo(function MessageRow(props: RowProps) {
   return (
@@ -402,12 +398,12 @@ function latestRoot(messages: Message[]): number {
   return 0;
 }
 
-function RowBody({ row, threaded, me, paused, conversation, onRetry, onDiscard, onDetails, hl }: RowProps) {
+function RowBody({ row, threaded, me, conversation, onRetry, onDiscard, onDetails, hl }: RowProps) {
   const { message: m, pending: p } = row;
   const pinned = useData((s) => Boolean(m && s.rows[conversation]?.pinned?.some((x) => x.id === m.id)));
   const fresh = useNewReplies(m);
   if (m?.kind === "system" || m?.author.kind === "system") {
-    return <NoticeRow message={m} conversation={conversation} canResume={paused === m.id} onResume={() => void resume(conversation)} />;
+    return <NoticeRow message={m} conversation={conversation} />;
   }
   if (m?.deleted) {
     return <Article person={m.author} me={me} first={row.first} at={m.created_at} day={row.stampDay} body={<div className="text tombstone">Message deleted</div>} />;
@@ -515,7 +511,7 @@ function ThreadBubbles({ messages, pending, rootAt, me, conversation, onRetry, o
   return (
     <>
       {rows.map((r) => (
-        <MessageRow key={r.key} row={r} me={me} paused={0} conversation={conversation} onRetry={onRetry} onDiscard={onDiscard} threaded />
+        <MessageRow key={r.key} row={r} me={me} conversation={conversation} onRetry={onRetry} onDiscard={onDiscard} threaded />
       ))}
     </>
   );

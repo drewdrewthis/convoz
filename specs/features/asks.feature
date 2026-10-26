@@ -19,7 +19,7 @@ Feature: Asks and their state machine
 
   Rule: An ask has a question, a recommendation and at least one alternative, each with a reason
 
-    @v1 @cli @I-11 @I-16
+    @v1 @cli @I-11
     Scenario: A complete ask opens
       When "devtool" runs "convoz ask 41 --question 'Merge #415 on its own?' --recommend 'Merge it' --why 'All 11 checks pass' --alt 'Hold it' --alt-why 'Wait for #412' --owners-call taste --owners-call-why 'Both names read fine; it is your voice'"
       Then the owner sees the ask in Now with "Merge it" marked recommended

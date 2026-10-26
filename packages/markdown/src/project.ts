@@ -56,7 +56,7 @@ function systemText(s: NonNullable<Projectable["system"]>): string {
     case "member.added":
     {
       let added = `Added ${ref(s.identity)}`;
-      if (s.via === "triage") added = s.by.handle === s.identity.handle ? `${ref(s.by)} joined` : `${ref(s.by)} added ${ref(s.identity)}`;
+      if (s.via === "triage" || s.via === "mention") added = s.by.handle === s.identity.handle ? `${ref(s.by)} joined` : `${ref(s.by)} added ${ref(s.identity)}`;
       return s.history === "full" ? `${added} · full history` : added;
     }
     case "member.requested":
@@ -76,7 +76,7 @@ function systemText(s: NonNullable<Projectable["system"]>): string {
     case "conversation.renamed":
       return s.title ? `${ref(s.by)} renamed this to "${s.title}"` : `${ref(s.by)} renamed the conversation`;
     case "conversation.paused":
-      return `Paused after ${s.streak ?? 0} agent messages in a row. Resume to let agents post.`;
+      return `Paused after ${s.streak ?? 0} agent messages in a row.`;
     case "conversation.resumed":
       return `${ref(s.by)} resumed the conversation`;
     case "conversation.restored":
