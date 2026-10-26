@@ -251,6 +251,9 @@ func IsUniqueViolation(err error) bool { return errors.Is(err, sqlite3.CONSTRAIN
 // IsTriggerAbort reports whether err is a trigger raising ABORT (the schema's own rules, e.g. I-37).
 func IsTriggerAbort(err error) bool { return errors.Is(err, sqlite3.CONSTRAINT_TRIGGER) }
 
+// IsInterrupted reports whether err is SQLite stopping a statement because its context was cancelled.
+func IsInterrupted(err error) bool { return errors.Is(err, sqlite3.INTERRUPT) }
+
 // Option changes how Open builds the pools.
 type Option func(*options)
 
