@@ -1,6 +1,9 @@
 -- name: ListConversationPrefs :many
 SELECT conversation_id, starred_at, rail_rank, muted_until FROM conversation_prefs WHERE identity_id = sqlc.arg(identity_id);
 
+-- name: ClearRailRanks :exec
+UPDATE conversation_prefs SET rail_rank = NULL WHERE conversation_id = sqlc.arg(conversation_id) AND starred_at IS NULL AND rail_rank IS NOT NULL;
+
 -- name: UpsertStar :exec
 INSERT INTO conversation_prefs (identity_id, conversation_id, starred_at, rail_rank, updated_at)
 VALUES (sqlc.arg(identity_id), sqlc.arg(conversation_id), sqlc.narg(starred_at), sqlc.arg(rail_rank), sqlc.arg(at))

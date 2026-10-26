@@ -174,7 +174,7 @@ scenario("Only unstarred conversations with no message for 48 hours fold into Ol
   await page.reload();
 
   // Then conversation 52 is in the Conversations group
-  await expect(railGroup(page, "Conversations").locator(".rtitle")).toHaveText([T60, T52, T41]);
+  await expect(railGroup(page, "Conversations").locator(".rtitle")).toHaveText([T60, T41, T52]); // its older last message puts it below the others
   await expect(rail(page).getByRole("button", { name: /^Older/ })).toHaveCount(0);
 
   // Given conversation 52 is starred and its last message was 40 days ago
@@ -195,7 +195,7 @@ scenario("An agent marks a conversation stale and the next message brings it bac
   // Given the owner has the rail open and conversation 41 had a message today
   await agentSays(u.w, "devtool", u.c[41], "Tests are green");
   await openRail(page, u.w.srv);
-  await expect(railGroup(page, "Conversations").locator(".rtitle")).toHaveText([T60, T52, T41]);
+  await expect(railGroup(page, "Conversations").locator(".rtitle")).toHaveText([T41, T60, T52]);
 
   // When "devtool" marks conversation 41 stale with the reason "Shipped"
   const res = await convoz(u.w.box, u.w.sessions.devtool!.sid, ["stale", String(u.c[41]), "--reason", "Shipped"]);
@@ -210,7 +210,7 @@ scenario("An agent marks a conversation stale and the next message brings it bac
   await agentSays(u.w, "devtool", u.c[41], "One more thing");
 
   // Then 41 is back in the Conversations group
-  await expect(railGroup(page, "Conversations").locator(".rtitle")).toHaveText([T60, T52, T41]);
+  await expect(railGroup(page, "Conversations").locator(".rtitle")).toHaveText([T41, T60, T52]);
   await expect(rail(page).getByRole("button", { name: /^Older/ })).toHaveCount(0);
 });
 

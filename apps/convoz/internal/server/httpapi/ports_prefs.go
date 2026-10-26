@@ -30,7 +30,7 @@ func railSection(list []conversation.Conversation, all map[int64]prefs.Pref, sta
 	var rows []prefs.Row
 	for _, cv := range list {
 		if pf := all[cv.ID]; pf.Starred == starred {
-			rows = append(rows, prefs.Row{ID: cv.ID, Rank: pf.RankOf(cv.CreatedAt)})
+			rows = append(rows, prefs.Row{ID: cv.ID, Rank: pf.RankOf(cv.LastActivityAt)})
 		}
 	}
 	prefs.Order(rows)
@@ -50,7 +50,7 @@ func (s *Server) withRail(ctx context.Context, d pdb.DBTX, p authz.Principal, vi
 	for _, v := range views {
 		pf := all[v.ID]
 		v.Starred = pf.Starred
-		v.Rank = pf.RankOf(v.CreatedAt)
+		v.Rank = pf.RankOf(v.LastActivityAt)
 		if pf.MutedUntil != 0 {
 			v.MutedUntil = ptr(pf.MutedUntil)
 		}

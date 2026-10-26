@@ -8,6 +8,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/event"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/prefs"
 )
 
 // Event types the conversation routes write (thin: ids and enums only, I-23). The stream skips types it does not carry.
@@ -25,6 +26,9 @@ func sayLine(ctx context.Context, d pdb.DBTX, now time.Time, actor, conv int64, 
 		return 0, 0, err
 	}
 	if err = conversation.Touch(ctx, d, now, conv); err != nil {
+		return 0, 0, err
+	}
+	if err = prefs.FollowActivity(ctx, d, conv); err != nil {
 		return 0, 0, err
 	}
 	seq, err = event.Write(ctx, d, now, event.Entry{

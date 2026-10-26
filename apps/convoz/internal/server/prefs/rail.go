@@ -27,12 +27,12 @@ type Pref struct {
 	MutedUntil int64 // epoch ms; 0 for not muted
 }
 
-// RankOf is the sort key of a conversation with these prefs: coalesce(rail_rank, created_at).
-func (p Pref) RankOf(createdAt int64) float64 {
+// RankOf is the sort key of a conversation with these prefs: coalesce(rail_rank, last_activity_at).
+func (p Pref) RankOf(lastActivityAt int64) float64 {
 	if p.Rank != nil {
 		return *p.Rank
 	}
-	return float64(createdAt)
+	return float64(lastActivityAt)
 }
 
 // All reads the person's prefs of every conversation they touched, in one query. A conversation with no row has the zero Pref.
@@ -136,6 +136,11 @@ func SetRanks(ctx context.Context, d pdb.DBTX, now time.Time, identityID int64, 
 		}
 	}
 	return nil
+}
+
+// FollowActivity drops the unstarred stored ranks of a conversation, so a new message puts it back on top (Drew 2026-10-26, conv 311 msg 5768).
+func FollowActivity(ctx context.Context, d pdb.DBTX, conversationID int64) error {
+	return db.New(d).ClearRailRanks(ctx, conversationID)
 }
 
 // SetMuted mutes until the epoch ms, or unmutes with 0.

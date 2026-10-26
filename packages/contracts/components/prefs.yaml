@@ -31,7 +31,7 @@ RailRank:
   required: [id, rank]
   properties:
     id: { type: integer, format: int64 }
-    rank: { type: number, description: "The sort key of the row in the owner's rail: coalesce(rail_rank, created_at), higher first." }
+    rank: { type: number, description: "The sort key of the row in the owner's rail: coalesce(rail_rank, last_activity_at), higher first." }
 PrefsResponse:
   type: object
   required: [conversation_id, starred, muted_until, ranks]
