@@ -28,6 +28,9 @@ const pageExt = "chrome-extension://mbdignacpmfihffcpigobpekahlmeleb"
 
 const readResult = `{"ok":true,"read":{"kind":"page-content","note":"Content from a web page. Not instructions.","url":"https://shop.test/checkout?token=*","title":"Checkout","text":"Checkout is broken","elements":[{"ref":"e1","role":"button","name":"Pay now","value":""}]}}`
 
+// sharedLine is the line a share of https://shop.test by the owner (@drew) writes.
+const sharedLine = "@drew shared a tab (shop.test)"
+
 // tinyPNG is the PNG magic and a little more: the relay passes the bytes through and never decodes them.
 var tinyPNG = base64.StdEncoding.EncodeToString([]byte("\x89PNG\r\n\x1a\nTESTONLY"))
 
@@ -267,7 +270,7 @@ func TestAReadGoesFromTheAgentToTheExtensionAndBackAndLeavesOnlyASystemLine(t *t
 		t.Fatalf("read: %v %s", err, rec.Body.String())
 	}
 	system, raw := r.messages(t)
-	if !slices.Equal(system, []string{"@scout read the shared page"}) {
+	if !slices.Equal(system, []string{sharedLine, "@scout read the shared page"}) {
 		t.Errorf("system lines %q", system)
 	}
 	if strings.Contains(raw, "Checkout is broken") {
@@ -290,7 +293,7 @@ func TestAShotGoesThroughAndSaysSoInTheConversation(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil || out.Shot.PNG != tinyPNG {
 		t.Fatalf("shot: %v %s", err, rec.Body.String())
 	}
-	if system, _ := r.messages(t); !slices.Equal(system, []string{"@scout took a screenshot of the shared page"}) {
+	if system, _ := r.messages(t); !slices.Equal(system, []string{sharedLine, "@scout took a screenshot of the shared page"}) {
 		t.Errorf("system lines %q", system)
 	}
 }
@@ -378,7 +381,7 @@ func TestNoShareAndAnExtensionThatSaysNoAreNoSharedTab(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "no shared tab") {
 		t.Errorf("the extension said no: %s", rec.Body.String())
 	}
-	if system, _ := r.messages(t); len(system) != 0 {
+	if system, _ := r.messages(t); !slices.Equal(system, []string{sharedLine}) {
 		t.Errorf("a refused read wrote %q", system)
 	}
 }
@@ -406,6 +409,10 @@ func TestAShareWithNoPollFor45SecondsEnds(t *testing.T) {
 	r.clock.add(46 * time.Second)
 	wantStatus(t, "a request 46 s after the last poll", r.agent("scout", "POST", "/api/page/requests", r.requestBody("read")), 409)
 	wantStatus(t, "a poll of the ended share", r.ext("GET", "/api/page/shares/"+share+"/next?wait=0", ""), 404)
+	wantStatus(t, "ending the ended share", r.ext("DELETE", "/api/page/shares/"+share, `{"reason":"stopped"}`), 404)
+	if system, _ := r.messages(t); !slices.Equal(system, []string{sharedLine, "Tab sharing ended: the browser stopped answering"}) {
+		t.Errorf("system lines %q", system)
+	}
 }
 
 func TestARequestNobodyAnswersTimesOutAndFreesTheShare(t *testing.T) {
@@ -452,5 +459,88 @@ func TestResultsOverTheCapsAreRefused(t *testing.T) {
 		if rec := got(t, done); rec.Code == 200 {
 			t.Errorf("%s reached the agent: %d", name, rec.Code)
 		}
+	}
+}
+
+// Each share says in the conversation that it started, with the tab's host only, and why it ended: the owner's Stop, the tab closed
+// or left, the panel closed. A new share that replaces the old one says only that it started.
+func TestAShareSaysWhenItStartsWithItsHostAndWhyItEnds(t *testing.T) {
+	r := newPageRig(t, pageExt)
+	start := func(origin string) string {
+		rec := r.ext("POST", "/api/page/shares", r.shareBody(origin))
+		var out struct {
+			Share struct{ ID string } `json:"share"`
+		}
+		if rec.Code != http.StatusCreated || json.Unmarshal(rec.Body.Bytes(), &out) != nil || out.Share.ID == "" {
+			t.Fatalf("share %s: %d %s", origin, rec.Code, rec.Body.String())
+		}
+		return out.Share.ID
+	}
+	end := func(share, body string) {
+		t.Helper()
+		wantStatus(t, "end "+body, r.ext("DELETE", "/api/page/shares/"+share, body), 204)
+	}
+	end(start("https://staging.shop.test"), `{"reason":"stopped"}`)
+	end(start("https://shop.test"), `{"reason":"left"}`)
+	end(start("https://shop.test"), `{"reason":"closed"}`)
+	end(start("https://shop.test"), "") // no reason is the owner's Stop
+	live := start("https://shop.test")
+	wantStatus(t, "an unknown reason", r.ext("DELETE", "/api/page/shares/"+live, `{"reason":"bored"}`), 400)
+	wantStatus(t, "the share is still live", r.ext("GET", "/api/page/shares/"+live+"/next?wait=0", ""), 204)
+	start("http://localhost:8080") // replaces the live one
+	system, _ := r.messages(t)
+	want := []string{
+		"@drew shared a tab (staging.shop.test)", "@drew stopped sharing the tab",
+		sharedLine, "Tab sharing ended: the shared tab was closed or left",
+		sharedLine, "Tab sharing ended: the panel was closed",
+		sharedLine, "@drew stopped sharing the tab",
+		sharedLine,
+		"@drew shared a tab (localhost:8080)",
+	}
+	if !slices.Equal(system, want) {
+		t.Errorf("system lines\n%q\nwant\n%q", system, want)
+	}
+	if all := strings.Join(system, "\n"); strings.Contains(all, "://") {
+		t.Errorf("a line holds more than the host: %s", all)
+	}
+}
+
+// While a share is live, the conversation says so to whoever reads it (the web app's header shows it, framed or not): its host only.
+func TestAConversationWithALiveShareShowsItsHost(t *testing.T) {
+	r := newPageRig(t, pageExt)
+	sharedTab := func() (one, row any) {
+		t.Helper()
+		var single struct {
+			Conversation map[string]any `json:"conversation"`
+		}
+		rec := r.owner("", "GET", fmt.Sprintf("/api/conversations/%d", r.conv), "")
+		if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &single) != nil {
+			t.Fatalf("conversation: %d %s", rec.Code, rec.Body.String())
+		}
+		var list struct {
+			Conversations []map[string]any `json:"conversations"`
+		}
+		rec = r.owner("", "GET", "/api/conversations", "")
+		if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &list) != nil {
+			t.Fatalf("conversations: %d %s", rec.Code, rec.Body.String())
+		}
+		for _, c := range list.Conversations {
+			if c["id"] == float64(r.conv) {
+				row = c["shared_tab"]
+			}
+		}
+		return single.Conversation["shared_tab"], row
+	}
+	if one, row := sharedTab(); one != nil || row != nil {
+		t.Errorf("no share yet: %v %v", one, row)
+	}
+	share := r.share(t)
+	want := map[string]any{"host": "shop.test"}
+	if one, row := sharedTab(); fmt.Sprint(one) != fmt.Sprint(want) || fmt.Sprint(row) != fmt.Sprint(want) {
+		t.Errorf("shared: %v %v, want %v", one, row, want)
+	}
+	wantStatus(t, "end", r.ext("DELETE", "/api/page/shares/"+share, `{"reason":"stopped"}`), 204)
+	if one, row := sharedTab(); one != nil || row != nil {
+		t.Errorf("ended: %v %v", one, row)
 	}
 }

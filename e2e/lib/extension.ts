@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { chromium, type BrowserContext, type CDPSession, type Page } from "@playwright/test";
+import { chromium, type BrowserContext, type CDPSession, type Page, type Worker } from "@playwright/test";
 import type { ServerHandle } from "./fixtures.ts";
 import { signInBrowser } from "./machines.ts";
 import type { Owner } from "./owner.ts";
@@ -74,9 +74,30 @@ export async function grantHostAccess(context: BrowserContext, origin: string): 
   await page.close();
 }
 
+/** The extension's service worker. */
+async function extensionWorker(context: BrowserContext): Promise<Worker> {
+  return context.serviceWorkers().find((w) => w.url().startsWith(EXTENSION_ORIGIN)) ?? (await context.waitForEvent("serviceworker"));
+}
+
+/**
+ * The text of the Convoz button's badge on the tab whose address starts with `url`, as Chrome draws it ("" for none). Read in the
+ * service worker (chrome.action.getBadgeText); the tab's address is visible to it because the extension has host access to it.
+ */
+export async function badgeOf(context: BrowserContext, url: string): Promise<string> {
+  const worker = await extensionWorker(context);
+  return worker.evaluate(async (prefix) => {
+    const api = (globalThis as unknown as {
+      chrome: { tabs: { query(q: object): Promise<{ id?: number; url?: string }[]> }; action: { getBadgeText(d: { tabId: number }): Promise<string> } };
+    }).chrome;
+    const tab = (await api.tabs.query({})).find((t) => t.url?.startsWith(prefix));
+    if (tab?.id === undefined) throw new Error(`no tab at ${prefix}`);
+    return api.action.getBadgeText({ tabId: tab.id });
+  }, url);
+}
+
 /** Open the panel page in its own popup window and wait for it to load. */
 export async function openPanel(context: BrowserContext): Promise<Page> {
-  const worker = context.serviceWorkers().find((w) => w.url().startsWith(EXTENSION_ORIGIN)) ?? (await context.waitForEvent("serviceworker"));
+  const worker = await extensionWorker(context);
   const opened = context.waitForEvent("page", (p) => p.url().startsWith(`${EXTENSION_ORIGIN}/sidepanel.html`));
   await worker.evaluate(() => {
     const api = (globalThis as unknown as { chrome: { windows: { create(o: object): Promise<unknown> }; runtime: { getURL(p: string): string } } }).chrome;

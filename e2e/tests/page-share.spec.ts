@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import type { BrowserContext } from "@playwright/test";
 import os from "node:os";
 import path from "node:path";
 import { send } from "../lib/http.ts";
@@ -6,7 +7,10 @@ import { bearer } from "../lib/machines.ts";
 import { must, tmpDir } from "../lib/owner.ts";
 import {
   appIn,
+  CLOSED_LINE,
   INJECTION,
+  LEFT_LINE,
+  OPEN_A_CONVERSATION,
   openInPanel,
   OTHER_HTML,
   OTHER_URL,
@@ -14,14 +18,18 @@ import {
   PAGE_NOTE,
   pageWorld,
   PNG_MAGIC,
+  SHARED_HEADER,
+  SHARED_LINE,
   shareShop,
   SHOP_HTML,
   SHOP_ORIGIN,
   SHOP_URL,
   SHOP_URL_MASKED,
+  SHOT_WARNING,
+  STOPPED_LINE,
   type PageWorld,
 } from "../lib/page-share.ts";
-import { clickConvozButton, EXTENSION_ORIGIN, grantHostAccess, launchWithExtension, openPanel, openWebPage, setServer, signInOwner } from "../lib/extension.ts";
+import { badgeOf, clickConvozButton, EXTENSION_ORIGIN, grantHostAccess, launchWithExtension, openPanel, openWebPage, setServer, signInOwner } from "../lib/extension.ts";
 import { expect, scenario } from "../lib/scenario.ts";
 import { handlesOf, linesOf, viewOf } from "../lib/wp3.ts";
 
@@ -42,6 +50,11 @@ import { handlesOf, linesOf, viewOf } from "../lib/wp3.ts";
  *   Each read and shot writes a system line ("@scout read the shared page", "@scout took a screenshot of the shared page"); the
  *   screenshot is put in the conversation as an image.
  *   CLI: `convoz page read [--conv N] [--json]`, `convoz page shot [--conv N] [--out PATH]`, `convoz page status`.
+ *   A share writes "@drew shared a tab (<host>)" when it starts and a line that says why when it ends: DELETE carries
+ *   {reason: "stopped" | "left" | "closed"}, and 45 s without a poll is "the browser stopped answering". While it is live the
+ *   conversation carries shared_tab: {host}, and the web app's header says "● Tab shared · <host>". The panel ends the share the moment
+ *   the shared tab is no longer the active tab of its window (chrome.tabs.onActivated), closes, or leaves its site; the Convoz button
+ *   shows the badge "ON" on the shared tab while the share is live.
  * Desktop Chromium only: playwright.config.ts keeps this file out of the "mobile" project.
  */
 
@@ -56,6 +69,9 @@ interface Element {
 async function systemLines(w: PageWorld): Promise<string[]> {
   return (await linesOf(w.owner, w.conv)).filter((l) => l.author.kind === "system").map((l) => l.body);
 }
+
+/** The badge of the Convoz button on the shared tab, as Chrome draws it. */
+const badge = (context: BrowserContext) => badgeOf(context, `${SHOP_ORIGIN}/`);
 
 /** `convoz page read` fails with "no shared tab", at once or (for a share the panel ends on its own) within 15 s. */
 async function expectNoSharedTab(w: PageWorld, sub = "read"): Promise<void> {
@@ -83,15 +99,17 @@ scenario("The panel shows the signed-in chat and shares the tab with the open co
     const tab = await openWebPage(context, SHOP_URL, SHOP_HTML);
     await clickConvozButton(context, tab);
 
-    // Then the panel shows the owner's conversations, signed in, and "Share this tab" is off
+    // Then the panel shows the owner's conversations, signed in, and "Share this tab" is off and says "Open a conversation to share this tab."
     await expect(appIn(panel).getByRole("list", { name: "Conversations" }).getByText("Checkout bug")).toBeVisible({ timeout: 15_000 });
     const share = panel.getByRole("button", { name: "Share this tab" });
     await expect(share).toBeDisabled();
+    await expect(share).toHaveAccessibleDescription(OPEN_A_CONVERSATION);
     await info.attach("panel with the chat", { body: await panel.screenshot(), contentType: "image/png" });
 
     // When the owner opens "Checkout bug" in the panel and clicks "Share this tab"
     await openInPanel(panel, "Checkout bug");
     await expect(share).toBeEnabled();
+    await expect(share).not.toHaveAccessibleDescription(OPEN_A_CONVERSATION);
     await share.click();
 
     // Then the panel says "Shared with Checkout bug" with the members @drew and @scout and a Stop button
@@ -101,6 +119,31 @@ scenario("The panel shows the signed-in chat and shares the tab with the open co
     await expect(status).toContainText("@scout");
     await expect(panel.getByRole("button", { name: "Stop" })).toBeVisible();
     await info.attach("shared tab", { body: await panel.screenshot(), contentType: "image/png" });
+  } finally {
+    await context.close();
+  }
+});
+
+scenario("While a tab is shared, the conversation and the Convoz button say so", { tag: ["@browser"] }, async ({ server }, info) => {
+  info.setTimeout(90_000);
+  // Given the owner shared a tab with "Checkout bug", which has @scout
+  const w = await pageWorld(server);
+  const { context, panel } = await shareShop(w);
+  try {
+    // Then the panel warns "A screenshot shows what is on screen, including text the read hides."
+    await expect(panel.getByText(SHOT_WARNING, { exact: true })).toBeVisible();
+
+    // And "Checkout bug" shows "@drew shared a tab (shop.test)", with the host of the tab and nothing more of its address
+    await expect.poll(() => systemLines(w)).toContain(SHARED_LINE);
+    expect((await systemLines(w)).join("\n")).not.toMatch(/https:|checkout|token/);
+    await expect(appIn(panel).getByText(SHARED_LINE).first()).toBeVisible({ timeout: 10_000 });
+
+    // And "Checkout bug" says "● Tab shared · shop.test" under its title
+    await expect(appIn(panel).getByText(SHARED_HEADER, { exact: true })).toBeVisible({ timeout: 10_000 });
+
+    // And the Convoz button on the shared tab shows "ON"
+    await expect.poll(() => badge(context)).toBe("ON");
+    await info.attach("shared, as the conversation shows it", { body: await panel.screenshot(), contentType: "image/png" });
   } finally {
     await context.close();
   }
@@ -230,20 +273,26 @@ scenario("Switching to another tab ends the share", { tag: ["@browser"] }, async
   const w = await pageWorld(server);
   const { context, panel, tab } = await shareShop(w);
   try {
+    await expect.poll(() => badge(context)).toBe("ON");
+
     // When the owner switches to a tab of another site
     await openWebPage(context, OTHER_URL, OTHER_HTML);
 
-    // And @scout runs "convoz page shot"
-    const shot = await page(w, w.scout, "shot");
-
-    // Then the CLI says "no shared tab"
-    expect(shot.code).not.toBe(0);
-    expect(`${shot.stdout}${shot.stderr}`).toContain("no shared tab");
-
-    // And the panel offers "Share this tab" again
-    await expect(panel.getByRole("button", { name: "Share this tab" })).toBeVisible({ timeout: 10_000 });
+    // Then within 3 seconds, with no agent asking, the panel offers "Share this tab" again
+    await expect(panel.getByRole("button", { name: "Share this tab" })).toBeVisible({ timeout: 3_000 });
     await expect(panel.getByRole("status")).not.toContainText("Shared with");
     await info.attach("share ended", { body: await panel.screenshot(), contentType: "image/png" });
+
+    // And "convoz page status" lists no shared tab for @scout
+    const status = await page(w, w.scout, "status");
+    expect(status.code, status.stderr).toBe(0);
+    expect(status.stdout).not.toContain(SHOP_ORIGIN);
+
+    // And "Checkout bug" shows "Tab sharing ended: the shared tab was closed or left"
+    await expect.poll(() => systemLines(w)).toContain(LEFT_LINE);
+
+    // And the Convoz button on the shared tab shows nothing
+    await expect.poll(() => badge(context)).toBe("");
 
     // And after the owner goes back to the shared tab, "convoz page read" still says "no shared tab"
     await tab.bringToFront();
@@ -259,12 +308,22 @@ scenario("Stop ends the share", { tag: ["@browser"] }, async ({ server }, info) 
   const w = await pageWorld(server);
   const { context, panel } = await shareShop(w);
   try {
+    await expect(appIn(panel).getByText(SHARED_HEADER, { exact: true })).toBeVisible({ timeout: 10_000 });
+
     // When the owner clicks Stop in the panel
     await panel.getByRole("button", { name: "Stop" }).click();
     await expect(panel.getByRole("button", { name: "Share this tab" })).toBeVisible();
 
     // Then "convoz page read" says "no shared tab"
     await expectNoSharedTab(w);
+
+    // And "Checkout bug" shows "@drew stopped sharing the tab" and no longer says "Tab shared" under its title
+    await expect.poll(() => systemLines(w)).toContain(STOPPED_LINE);
+    await expect(appIn(panel).getByText(STOPPED_LINE).first()).toBeVisible({ timeout: 10_000 });
+    await expect(appIn(panel).getByText(SHARED_HEADER, { exact: true })).toHaveCount(0, { timeout: 10_000 });
+
+    // And the Convoz button on the shared tab shows nothing
+    await expect.poll(() => badge(context)).toBe("");
   } finally {
     await context.close();
   }
@@ -276,11 +335,19 @@ scenario("Closing the panel ends the share", { tag: ["@browser"] }, async ({ ser
   const w = await pageWorld(server);
   const { context, panel } = await shareShop(w);
   try {
+    await expect.poll(() => badge(context)).toBe("ON");
+
     // When the owner closes the panel
     await panel.close();
 
     // Then "convoz page read" says "no shared tab"
     await expectNoSharedTab(w);
+
+    // And "Checkout bug" shows "Tab sharing ended: the panel was closed"
+    await expect.poll(() => systemLines(w)).toContain(CLOSED_LINE);
+
+    // And the Convoz button on the shared tab shows nothing
+    await expect.poll(() => badge(context)).toBe("");
   } finally {
     await context.close();
   }
