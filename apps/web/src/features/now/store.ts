@@ -1,6 +1,6 @@
 // Now's state: what waits for the owner (asks, adds agents wait on, machines waiting to connect). The tab bar and the top bar
 // read it on every signed-in page, so the store polls on its own; a stream frame about an ask loads it at once.
-import type { Ask, MachineRequest, Now } from "@convoz/api-client";
+import type { Ask, Conversation, MachineRequest, Now } from "@convoz/api-client";
 import { create } from "zustand";
 import { ApiError, call, client, isRevoking } from "../../shared/api.ts";
 import { unreachable } from "../../shared/connection.ts";
@@ -72,6 +72,15 @@ export const useNow = create<NowState>()((set, get) => {
  */
 export function openCount(now: Now | null): number | null {
   return now ? now.asks.length + now.pending_adds.length + now.machine_requests.length + now.identity_requests.length : null;
+}
+
+/**
+ * needsYouCount is the one "Needs you" number (owner, conv 179 msg 6018): what openCount counts plus the conversations, not muted, with
+ * unread messages that @mention the owner. The Now heading and the Now badges show it, so they never disagree. null before the first load.
+ */
+export function needsYouCount(now: Now | null, conversations: readonly Conversation[] | null): number | null {
+  const open = openCount(now);
+  return open === null ? null : open + (conversations ?? []).filter((c) => !c.muted_until && c.unread_mentions > 0).length;
 }
 
 /** The newest state of an ask after an action, or the ask that won when the action lost the race (409). */

@@ -55,30 +55,117 @@ Feature: Now
       Given no decision waits and "devtool" posted 5 messages in conversation 41 that the owner has not read
       When the owner opens Now
       Then Now says "No decisions waiting" and not "All clear. Nothing needs you."
-      And the wordmark is not shown, so the cards sit near the top
-      And a summary line says "5 unread in 1 conversation"
-      And conversation 41 has one card with its title, an unread count of 5 and a short age
-      And the card shows only the 3 newest unread lines, newest first, each with its author
+      And the wordmark is not shown, so the "Other chats" list sits near the top
+      And the "Other chats" list has one row for conversation 41 reading "devtool, 5 new"
+
+    # Owner, conv 179, msgs 5840/5841: the unread view is useless; needs-you first, replies next, the rest one line per chat
+    @v1 @browser
+    Scenario: Now puts an ask and an @mention of the owner under Needs you
+      Given an open ask of "devtool" in conversation 41 and "docs" posted "@drew can you check the deploy log?" in conversation 42, and "devtool" posted "Build 812 is green" in conversation 43
+      When the owner opens Now
+      Then the heading "Needs you · 2" is shown above the ask
+      And the "Mentions of you" list has one card for conversation 42 with the line "docs @drew can you check the deploy log?"
+      And conversation 43 is only under "Other chats"
+
+    # Owner, conv 179 msg 6018 (UX review): the Needs you count and the Now badge must be one number
+    @v1 @browser
+    Scenario: The Needs you count and the rail badge are the same number
+      Given an open ask of "devtool" in conversation 41 and "docs" posted "@drew can you check the deploy log?" in conversation 42
+      When the owner opens Now on a wide screen
+      Then the heading "Needs you · 2" is shown
+      And the Now item in the rail shows 2
+
+    # Owner, conv 179 msg 6018 (UX review): in the sidebar, Other chats is one line until the owner opens it
+    @v1 @browser
+    Scenario: The sidebar folds Other chats to one line
+      Given "devtool" posted 1 message in each of 12 conversations the owner has not read, and conversation 41 has nothing new
+      When the owner opens conversation 41 on a wide screen and turns the rail to Now
+      Then the rail shows one row "12 other chats, 12 new" with "Mark all read", and no list of chats
+      When the owner taps "12 other chats, 12 new"
+      Then the rail lists the 10 newest of the 12 chats and a "Show all" button
+      When the owner taps "Show all"
+      Then the rail lists all 12 chats
+      When the owner taps "Mark all read"
+      Then the row is gone and the 12 conversations have 0 unread
+
+    # Owner, conv 179 msg 6018 (UX review): a sidebar ask card is short: the question, the recommended answer and Open
+    @v1 @browser
+    Scenario: A sidebar ask card shows the title, the first answer and Open
+      Given "devtool" asked "Merge #415 on its own?" with "Merge it" recommended and "Hold it" the alternative in conversation 52
+      When the owner opens conversation 41 on a wide screen and turns the rail to Now
+      Then the ask card in the rail shows the question, a "Merge it" button and an "Open" link to conversation 52
+      And it shows no "Hold it", "Quick reply", "Snooze", "Dismiss" or "I have questions"
+      When the owner taps "Merge it"
+      Then the ask is answered with "Merge it" and leaves the rail
+
+    # Owner, conv 179 msg 6018 (UX review): a card that needs the owner is cleared with Done; a reply card keeps Mark read
+    @v1 @browser
+    Scenario: A Needs you card has Done instead of Mark read
+      Given "docs" posted "@drew can you check the deploy log?" in conversation 42, and the owner wrote "What broke in the nightly?" in conversation 41 and "devtool" answered
+      When the owner opens Now
+      Then the card of conversation 42 under Needs you has "Done" and no "Mark read"
+      And the card of conversation 41 under "Replies to you" has "Mark read" and no "Done"
+      When the owner taps "Done" on the card of conversation 42
+      Then the card leaves the list and conversation 42 has 0 unread
+
+    # Owner, conv 324, msg 5900: "Mark read" works once, then every card goes grey and cannot be clicked
+    # Owner, conv 179 msg 6018 (UX review): a Needs you card has "Done" in place of "Mark read"
+    @v1 @browser
+    Scenario: Marking two cards read in a row works and the other cards stay clickable
+      Given 3 conversations where an agent @mentions the owner, so "Mentions of you" has 3 cards, and the first "Done" is slow to finish
+      When the owner opens Now and taps "Done" on the first card
+      Then "Done" on the other two cards is still enabled
+      When the owner taps "Done" on the second card
+      Then the second card leaves the list
+      When the first "Done" finishes
+      Then the first card leaves the list
+      And only the third card is left, and its "Done" button is enabled
+
+    # Owner, conv 179, msgs 5840/5841 (see above)
+    @v1 @browser
+    Scenario: A reply to the owner's message shows the full latest message under Replies to you
+      Given the owner wrote "What broke in the nightly?" in conversation 41 and "devtool" answered with a 300-character message
+      When the owner opens Now
+      Then "Replies to you" has one card for conversation 41 showing the whole answer
+      And no "Needs you" heading is shown
+
+    # Owner, conv 179, msgs 5840/5841 (see above)
+    @v1 @browser
+    Scenario: Agent talk the owner is not in folds to one line per chat with one Mark all read
+      Given "devtool" posted 2 messages in conversation 41 and "docs" posted 1 message in conversation 42, and the owner wrote nothing
+      When the owner opens Now
+      Then "Other chats" has 2 rows, one reading "devtool, 2 new" and one "docs, 1 new", with no message lines
+      When the owner taps "Mark all read"
+      Then both conversations have 0 unread and Now says "All clear. Nothing needs you."
+
+    # Advisor, conv 331 msg 5950: a chat whose only new message is an ask must still be listed, so Mark all read can clear it
+    @v1 @browser
+    Scenario: A chat whose only new message is an ask is listed under Other chats
+      Given "devtool" asked the owner a question in conversation 41, and nothing else is new there
+      When the owner opens Now
+      Then "Other chats" has one row for conversation 41 reading "devtool, 1 new"
+      When the owner taps "Mark all read"
+      Then the "Other chats" list is gone
 
     # Owner, conv 1, msg 535 (see above)
     @v1 @browser
     Scenario: Marking all read from Now clears the list and shows all clear
       Given no decision waits and "devtool" posted 2 messages in conversation 41 that the owner has not read
       When the owner opens Now and taps "Mark all read"
-      Then the Unread list is gone and Now says "All clear. Nothing needs you."
+      Then the "Other chats" list is gone and Now says "All clear. Nothing needs you."
 
     # Owner, conv 1, msg 535 (see above): muted conversations are not listed
     @v1 @browser
     Scenario: A muted conversation is not listed under Unread
       Given no decision waits and "devtool" posted 2 messages in a muted conversation 41 that the owner has not read
       When the owner opens Now
-      Then Now says "All clear. Nothing needs you." and has no Unread list
+      Then Now says "All clear. Nothing needs you." and has no "Other chats" list
 
     # Owner, conv 1, msg 535 (see above)
     @v1 @browser
     Scenario: Opening an unread row lands at the first unread message
       Given no decision waits and "devtool" posted "First news", "Second news" and "Third news" in conversation 41 that the owner has not read
-      When the owner opens Now and taps the conversation 41 row under Unread
+      When the owner opens Now and taps the conversation 41 row under "Other chats"
       Then conversation 41 opens with the "New messages" line above "First news"
 
     # Conv 16, msg 321: "the \"Now\" should always reflect if there's something in the feed if anything is there"
@@ -240,8 +327,8 @@ Feature: Now
 
     @v1 @browser
     Scenario: An unread conversation in Now has a Reply action that focuses the composer
-      Given "devtool" posted a message in conversation 41 that the owner has not read
-      When the owner opens Now and taps "Reply" on the unread card
+      Given the owner wrote "Are the filters in?" and "devtool" answered "The filters are in" in conversation 41
+      When the owner opens Now and taps "Reply" on its card under "Replies to you"
       Then conversation 41 opens inside the app and its composer has focus
 
   Rule: Snooze hides an ask until its time

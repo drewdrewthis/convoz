@@ -91,3 +91,29 @@ JOIN messages m ON m.thread_root_id = json_extract(p.value, '$[0]')
 WHERE m.broadcast = 0 AND m.kind <> 'system' AND m.deleted_at IS NULL
   AND m.id > json_extract(p.value, '$[1]') AND m.author_id <> sqlc.arg(reader_id)
 GROUP BY m.thread_root_id;
+
+-- name: CountUnreadMentions :one
+-- The unread messages of a conversation that @mention the reader, stopping at max_rows: the main list after main_after, less the
+-- broadcast replies read in their thread, and the replies of the threads in points, each after its own read point. points is a
+-- JSON array of [root_id, after] for the threads the reader is in; lowest_after is the lowest of all those points, so the scan
+-- starts from the reader's own mentions (mentions_identity) and never reads the whole conversation.
+SELECT COUNT(*) FROM (
+  SELECT m.id FROM mentions mn JOIN messages m ON m.id = mn.message_id
+  WHERE mn.identity_id = sqlc.arg(identity_id) AND mn.message_id > sqlc.arg(lowest_after)
+    AND m.conversation_id = sqlc.arg(conversation_id) AND m.kind <> 'system' AND m.deleted_at IS NULL AND m.author_id <> sqlc.arg(reader_id)
+    AND (
+      (m.in_main = 1 AND m.id > sqlc.arg(main_after) AND NOT (m.broadcast = 1 AND EXISTS (
+        SELECT 1 FROM json_each(sqlc.arg(points)) p WHERE json_extract(p.value, '$[0]') = m.thread_root_id AND m.id <= json_extract(p.value, '$[1]'))))
+      OR (m.broadcast = 0 AND m.thread_root_id IS NOT NULL AND EXISTS (
+        SELECT 1 FROM json_each(sqlc.arg(points)) p WHERE json_extract(p.value, '$[0]') = m.thread_root_id AND m.id > json_extract(p.value, '$[1]')))
+    )
+  LIMIT sqlc.arg(max_rows)
+);
+
+-- name: MainAuthorAt :one
+-- The author of the newest main-list message at or before at that still reads, 0 for none: who wrote what the reader read last.
+SELECT CAST(COALESCE((
+  SELECT author_id FROM messages
+  WHERE conversation_id = sqlc.arg(conversation_id) AND in_main = 1 AND kind <> 'system' AND deleted_at IS NULL AND id <= sqlc.arg(at)
+  ORDER BY id DESC LIMIT 1
+), 0) AS INTEGER);

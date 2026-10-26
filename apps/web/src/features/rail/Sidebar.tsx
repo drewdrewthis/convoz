@@ -6,7 +6,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState, type KeyboardEvent
 import { humanError } from "../../shared/api.ts";
 import { visit } from "../../shared/navigate.ts";
 import { data, loadListOnMount, useData, useLive } from "../../shared/data.ts";
-import { Now, openCount, useNow } from "../now/index.ts";
+import { Now, needsYouCount, useNow } from "../now/index.ts";
 import { toast } from "../pins-stars/index.ts";
 import { useSearchUi } from "../search/index.ts";
 import { startDrag, type Drop } from "./drag.ts";
@@ -34,7 +34,7 @@ const openedId = (): number => Number(/^\/chats\/(\d+)$/.exec(location.pathname)
  */
 export default function Sidebar() {
   const list = useData((s) => s.conversations);
-  const waiting = openCount(useNow((s) => s.now));
+  const waiting = needsYouCount(useNow((s) => s.now), list);
   const crew = useData((s) => s.identities?.filter((p) => p.kind === "agent" && !p.disabled).length ?? null);
   const [olderOpen, setOlderOpen] = useState(false);
   const [said, setSaid] = useState("");

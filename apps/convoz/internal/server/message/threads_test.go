@@ -129,3 +129,37 @@ func TestInThreadAndRepliesAnsweredWorkWithAnyNumberOfIDs(t *testing.T) {
 		return nil
 	})
 }
+
+// Owner, conv 179 msg 6018: the server counts the unread @mentions, under the same read points as the unread count.
+func TestUnreadMentionsCountOnlyUnreadMentionsOfTheReaderByOthers(t *testing.T) {
+	s := seeded(t)
+	dbtest.Exec(t, s,
+		`INSERT INTO messages (id, conversation_id, author_id, kind, body, created_at) VALUES
+		   (20,10,1,'text','root',1), (21,10,2,'text','@drew look',2), (22,10,2,'text','@devtool plain',3), (25,10,1,'text','@drew me',6)`,
+		`INSERT INTO messages (id, conversation_id, author_id, kind, body, thread_root_id, broadcast, created_at) VALUES
+		   (23,10,3,'text','@drew see',20,0,4), (24,10,3,'text','@drew also in main',20,1,5)`,
+		`INSERT INTO messages (id, conversation_id, author_id, kind, body, deleted_at, deleted_by, created_at) VALUES (26,10,2,'text','@drew gone',7,2,7)`,
+		`INSERT INTO mentions (message_id, identity_id) VALUES (21,1),(22,2),(23,1),(24,1),(25,1),(26,1)`)
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error {
+		for _, c := range []struct {
+			name      string
+			mainAfter int64
+			points    []message.ReadPoint
+			want      int64
+		}{
+			{"main mention, broadcast mention and thread mention; not its own, not deleted, not another's", 20, []message.ReadPoint{{Root: 20, After: 20}}, 3},
+			{"read past them all, the broadcast in its thread", 22, []message.ReadPoint{{Root: 20, After: 24}}, 0},
+			{"a thread the reader is not in does not count", 20, nil, 2},
+		} {
+			if n, err := message.CountUnreadMentions(ctx, d, conv, owner, c.mainAfter, c.points); err != nil || n != c.want {
+				t.Errorf("%s: %d err=%v, want %d", c.name, n, err, c.want)
+			}
+		}
+		for at, want := range map[int64]int64{19: 0, 20: owner, 22: devtool, 23: devtool, 24: docs} {
+			if got, err := message.MainAuthorAt(ctx, d, conv, at); err != nil || got != want {
+				t.Errorf("main author at %d: %d err=%v, want %d (a thread-only reply is not in the main list)", at, got, err, want)
+			}
+		}
+		return nil
+	})
+}

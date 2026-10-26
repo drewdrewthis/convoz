@@ -64,6 +64,7 @@ export interface NowView {
   now: number;
   poll_ms: number;
   badge: number;
+  mentions: number;
   asks: AskView[];
   replied: AskView[];
   snoozed: AskView[];
