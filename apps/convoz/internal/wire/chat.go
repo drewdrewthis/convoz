@@ -69,6 +69,7 @@ type Conversation struct {
 	LastRead    *int64       `json:"last_read,omitempty"` // the caller's read cursor in the main list, as it stands now
 	DeletedAt   *int64       `json:"deleted_at,omitempty"`
 	PurgesAt    *int64       `json:"purges_at,omitempty"`
+	SharedTab   *SharedTab   `json:"shared_tab,omitempty"` // the owner shares a browser tab with it now
 }
 
 // Message is one message of a page. The fields after CreatedAt are set only when they apply (a system line, a reply, an

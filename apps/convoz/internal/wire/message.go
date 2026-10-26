@@ -19,6 +19,7 @@ type System struct {
 	Next     string `json:"next,omitempty"`
 	Waiting  string `json:"waiting,omitempty"`
 	Liveness string `json:"liveness,omitempty"`
+	Host     string `json:"host,omitempty"` // page.shared: the host of the shared tab
 }
 
 // EditRequest is PATCH /api/messages/:id. Only the text changes; any other field is refused (I-8).

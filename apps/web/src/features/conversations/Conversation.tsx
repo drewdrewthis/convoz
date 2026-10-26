@@ -6,6 +6,7 @@ import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { ApiError } from "../../shared/api.ts";
 import { initials, paletteOf, setRegistry, stripCf } from "../../shared/chat.ts";
 import { data, offlineReady, useData, useLive } from "../../shared/data.ts";
+import { tellPanel } from "../../shared/frame.ts";
 import { navigatedInApp } from "../../shared/navigate.ts";
 import { CallBar, CallButton } from "../call/index.ts";
 import { Composer, useAttachments, useFileDrop } from "../composer/index.ts";
@@ -90,6 +91,14 @@ export function Conversation() {
   useEffect(() => {
     document.title = `${title} - Convoz`;
   }, [title]);
+
+  // The extension's panel shares its tab with the conversation that is open (page-share.feature).
+  const shareable = Boolean(convId && conversation);
+  useEffect(() => {
+    if (!shareable) return;
+    tellPanel({ id: convId, title });
+    return () => tellPanel(null);
+  }, [shareable, convId, title]);
 
   const waiting = useBackCount(convId);
   const board = usePlans((s) => (convId ? s.boards[convId] : undefined));
@@ -301,6 +310,8 @@ export function Conversation() {
               </>
             ) : null}
           </p>
+          {/* from the server, not the panel: it shows wherever the owner reads the conversation (page-share.feature) */}
+          {conversation?.shared_tab ? <p className="subtitle">{`● Tab shared · ${conversation.shared_tab.host}`}</p> : null}
         </div>
         {/* not gated on isNew: that is the URL at mount, and the first send makes /chats/new a real conversation without a reload (issue 62) */}
         {conversation ? <CallButton conversationId={convId} /> : null}

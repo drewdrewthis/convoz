@@ -75,6 +75,7 @@ func (s *Server) listConversations(w http.ResponseWriter, r *http.Request, c *ca
 		s.internalError(w, r, err)
 		return
 	}
+	s.withSharedTab(rows...)
 	writeJSON(w, http.StatusOK, map[string]any{"conversations": out})
 }
 
@@ -124,6 +125,7 @@ func (s *Server) visibleView(ctx context.Context, d pdb.DBTX, p authz.Principal,
 	if v, err = conversationView(ctx, d, p, dir, cv, floor); err == nil {
 		err = s.withRail(ctx, d, p, &v)
 	}
+	s.withSharedTab(&v)
 	return v, err == nil, err
 }
 
@@ -145,6 +147,7 @@ func (s *Server) visibleDetail(ctx context.Context, d pdb.DBTX, p authz.Principa
 	if err == nil {
 		err = s.withRail(ctx, d, p, &v)
 	}
+	s.withSharedTab(&v)
 	if err == nil && p.SessionID == 0 {
 		var pinned []wire.Message
 		if pinned, err = pinnedIn(ctx, d, p.Identity(), cv.ID, floor, dir); err == nil {

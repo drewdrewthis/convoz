@@ -340,3 +340,25 @@ func TestPolicyNamesGoogleOnlyWhileVoiceIsOn(t *testing.T) {
 		t.Errorf("voice changes more than connect-src: %s", policy())
 	}
 }
+
+// Only the extension the owner named may frame the web app (its side panel), and only while it is named; the rest of the policy
+// does not change.
+func TestOnlyTheOwnerSetExtensionMayFrameTheApp(t *testing.T) {
+	defer SetExtensionOrigin("")
+	const ext = "chrome-extension://mbdignacpmfihffcpigobpekahlmeleb"
+	cold := &ColdPage{}
+	for name, csp := range map[string]string{"lean": policy(), "cold": cold.csp()} {
+		if !strings.HasSuffix(csp, "frame-ancestors 'none'") || strings.Contains(csp, "chrome-extension:") {
+			t.Errorf("%s policy lets a page frame the app with no extension set: %s", name, csp)
+		}
+	}
+	SetExtensionOrigin(ext)
+	for name, csp := range map[string]string{"lean": policy(), "cold": cold.csp()} {
+		if !strings.HasSuffix(csp, "frame-ancestors "+ext) {
+			t.Errorf("%s policy does not let the extension frame the app: %s", name, csp)
+		}
+	}
+	if strings.Replace(policy(), "frame-ancestors "+ext, "frame-ancestors 'none'", 1) != CSP {
+		t.Errorf("the extension changes more than frame-ancestors: %s", policy())
+	}
+}

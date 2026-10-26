@@ -34,8 +34,8 @@ export default defineConfig({
     { name: "headless", grepInvert: /@browser/, dependencies: ["alone"] },
     // screenshot "on": the final screenshot of each browser scenario goes into the use-proof page (pnpm proof).
     { name: "chromium", grep: /@browser/, grepInvert: /@phone/, use: { ...devices["Desktop Chrome"], screenshot: "on" }, dependencies: ["alone"] },
-    // The browser extension (browser-extension.spec.ts) is desktop Chrome only: it launches its own Chromium with the extension.
-    { name: "mobile", grep: /@browser/, testIgnore: [PERF, "**/browser-extension.spec.ts"], use: phone, dependencies: ["alone"] },
+    // The browser extension (browser-extension.spec.ts, page-share.spec.ts) is desktop Chrome only: it launches its own Chromium with the extension.
+    { name: "mobile", grep: /@browser/, testIgnore: [PERF, "**/browser-extension.spec.ts", "**/page-share.spec.ts"], use: phone, dependencies: ["alone"] },
     // The perf scenario reaches the server through a TLS front with a throwaway self-signed cert (lib/h2-front.ts). ignoreHTTPSErrors alone
     // does not cover the service worker's script fetch, so the browser itself is told to accept it (this project's browser only).
     { name: "perf", grep: /@browser/, testMatch: PERF, use: { ...phone, launchOptions: { args: ["--ignore-certificate-errors"] } } },

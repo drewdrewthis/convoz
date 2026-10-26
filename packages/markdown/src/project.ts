@@ -31,6 +31,7 @@ export interface Projectable {
     now?: string;
     waiting?: string;
     liveness?: string;
+    host?: string;
   } | null;
   ask?: { question: string; options: { label: string; why: string }[] } | null;
   answer?: { custom: boolean; text: string } | null;
@@ -71,6 +72,20 @@ function systemText(s: NonNullable<Projectable["system"]>): string {
       return `${ref(s.identity)} left`;
     case "member.disabled":
       return `${ref(s.identity)} was disabled`;
+    case "page.read":
+      return `${ref(s.identity)} read the shared page`;
+    case "page.shot":
+      return `${ref(s.identity)} took a screenshot of the shared page`;
+    case "page.shared":
+      return `${ref(s.identity)} shared a tab (${s.host ?? ""})`;
+    case "page.stopped":
+      return `${ref(s.identity)} stopped sharing the tab`;
+    case "page.left":
+      return "Tab sharing ended: the shared tab was closed or left";
+    case "page.closed":
+      return "Tab sharing ended: the panel was closed";
+    case "page.timeout":
+      return "Tab sharing ended: the browser stopped answering";
     case "member.renamed":
       return `@${s.from ?? ""} is now @${s.to ?? ""}`;
     case "conversation.renamed":

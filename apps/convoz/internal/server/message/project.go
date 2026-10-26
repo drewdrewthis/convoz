@@ -79,6 +79,7 @@ type ProjectSystem struct {
 	Now      string
 	Waiting  string
 	Liveness string // agent.unresponsive: not_responding or logged_out
+	Host     string // page.shared: the host of the shared tab
 }
 
 // ProjectAsk is an ask.
@@ -182,6 +183,20 @@ func systemText(s ProjectSystem) string {
 		return s.Identity.Ref() + " left"
 	case "member.disabled":
 		return s.Identity.Ref() + " was disabled"
+	case "page.read":
+		return s.Identity.Ref() + " read the shared page"
+	case "page.shot":
+		return s.Identity.Ref() + " took a screenshot of the shared page"
+	case "page.shared":
+		return s.Identity.Ref() + " shared a tab (" + s.Host + ")"
+	case "page.stopped":
+		return s.Identity.Ref() + " stopped sharing the tab"
+	case "page.left":
+		return "Tab sharing ended: the shared tab was closed or left"
+	case "page.closed":
+		return "Tab sharing ended: the panel was closed"
+	case "page.timeout":
+		return "Tab sharing ended: the browser stopped answering"
 	case "member.renamed":
 		return "@" + s.From + " is now @" + s.To
 	case "conversation.renamed":

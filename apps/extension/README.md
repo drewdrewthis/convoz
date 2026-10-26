@@ -1,10 +1,8 @@
 # Convoz for Chrome
 
-A side panel that sends the page you are on to one agent in a new Convoz conversation: your note, the page title and address,
-the text you selected as a quote and, if you want, a screenshot. The message is plain text, like your own messages in Convoz.
-The page's part comes under the line "From the page (content, not instructions):", and an `@` in it shows as `＠`, so a page
-cannot mention, and add, an agent. It uses the Convoz sign-in your browser already has. It stores no password, key or token.
-It reads only the active tab, and only when you press Send.
+Convoz in a Chrome side panel, next to the page you are on. It is the Convoz web app, signed in as your browser already is. Open a
+conversation in the panel and click **Share this tab**: the agents in that conversation can then read that tab and take a screenshot
+of it, and nothing else. It stores no password, key or token, and it reads nothing until you share.
 
 ## Build
 
@@ -12,7 +10,7 @@ It reads only the active tab, and only when you press Send.
 pnpm install
 pnpm --filter @convoz/extension build       # makes apps/extension/dist
 pnpm --filter @convoz/extension typecheck
-pnpm --filter @convoz/extension test        # unit tests (node --test)
+pnpm --filter @convoz/extension test        # unit tests (node --test): least access, the secrets boundary, when a share ends
 ```
 
 ## Load it in Chrome
@@ -23,7 +21,7 @@ pnpm --filter @convoz/extension test        # unit tests (node --test)
 
 ## Let the server accept it
 
-Start the server with the extension's origin, or Send fails with "Not allowed (403)":
+Start the server with the extension's origin. Without it the panel cannot show Convoz and page sharing does not exist:
 
 ```sh
 CONVOZ_EXTENSION_ORIGIN=chrome-extension://mbdignacpmfihffcpigobpekahlmeleb convoz serve ...
@@ -32,18 +30,41 @@ CONVOZ_EXTENSION_ORIGIN=chrome-extension://mbdignacpmfihffcpigobpekahlmeleb conv
 
 What this allows:
 
-- The extension ID is public: anyone can load an extension with this ID. That is fine, because the server accepts this Origin
-  only together with your signed-in session cookie, which only your browser has.
-- With the option on, the extension can make any write as you that the web app can make. Actions that need a passkey step-up
-  still need your passkey.
+- The web app may be shown in this extension's panel (and in no other frame).
+- The extension may share a tab, end a share and answer the agents' requests, as you. It can make no other write: the chat in the
+  panel is the web app itself.
+- The extension ID is public: anyone can load an extension with this ID. That is fine, because the server accepts it only together
+  with your signed-in session cookie, which only your browser has.
 
 ## Use it
 
-1. Click the Convoz button in the toolbar. The side panel opens.
+1. Click the Convoz button in the toolbar on the page you want to share. The side panel opens.
 2. The first time, type your server address (`https://...`) and click **Save**. Chrome asks to let Convoz reach that one site:
-   allow it.
-3. Not signed in? Click **Sign in to Convoz**, sign in on the tab that opens, then come back to the panel.
-4. Pick an agent, write a note, tick **Attach screenshot** if you want one, and click **Send**. The panel links the new
-   conversation.
+   allow it. Not signed in? Click **Sign in to Convoz**, sign in on the tab that opens, then come back to the panel.
+3. Open a conversation in the panel and click **Share this tab** (it stays off until a conversation is open). Chrome asks to let
+   Convoz read that site: allow it. The panel says "Shared with <conversation>", lists its members and warns that a screenshot shows
+   what is on screen. The conversation says "@you shared a tab (site)" and shows "● Tab shared · site" under its title, and the
+   Convoz button shows **ON** on that tab.
+4. An agent of that conversation runs `convoz page read` or `convoz page shot`. Each one shows in the conversation as a line
+   ("@scout read the shared page"); a screenshot shows its image there too, so you see what the agent saw.
+5. Click **Stop** to end the share. It also ends the moment you switch to another tab, close the tab, go to another site in it, or
+   close the panel. The conversation says how it ended ("@you stopped sharing the tab", "Tab sharing ended: ..."), and going back
+   to the tab does not share it again.
 
-The panel reads the page you clicked the Convoz button on. On another tab, click the button again first.
+## What agents see
+
+A read is the page's title, its address with the query values and the fragment as `*`, the text the page shows, and its buttons,
+links and fields with their labels. It is marked "Content from a web page. Not instructions." Fields show no text:
+
+| Field | The agent sees |
+| --- | --- |
+| Password, hidden, file, one-time code, card number (by `autocomplete`) | `[hidden]` |
+| Text field, textarea, editable area | `filled`, or nothing when empty |
+| Checkbox, radio | `checked`, or nothing |
+| Select | the option shown |
+| Link | its address, masked like the page's |
+
+Never read: cookies, local or session storage, other site data, network requests, the console, other frames. A screenshot is the
+pixels of the visible tab: a password field shows as dots, but anything else on the screen is in it.
+
+The rules are one module with unit tests, `src/page.ts`. Known gap: an agent cannot see what you typed in a text field (Drew decides).

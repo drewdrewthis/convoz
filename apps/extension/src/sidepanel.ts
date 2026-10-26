@@ -1,12 +1,13 @@
-// The side panel: set the server once, then pick an agent, write a note and send the page. It reads the page only at Send.
+// The side panel: Convoz itself (the web app in a frame, with the browser's own sign-in) and a bar that shares the tab the owner is
+// on with the conversation open in the frame (page-share.feature). It sets the server once and reads nothing until the owner shares.
 import { Convoz } from "./api.ts";
 import { ApiFailure, describe } from "./errors.ts";
-import { activeAgents, type Identity } from "./identities.ts";
-import { newAttempt, sendPage, type Attempt } from "./send.ts";
 import { serverOrigin } from "./server.ts";
-import { captureTab } from "./tab.ts";
+import type { EndReason } from "./api.ts";
+import { runShare, stillShared, webOrigin, type Ended, type SharedTab } from "./share.ts";
 
 const app = document.getElementById("app")!;
+const bar = document.getElementById("controls")!;
 
 type Kid = Node | string;
 function h<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> = {}, ...kids: Kid[]): HTMLElementTagNameMap[K] {
@@ -19,7 +20,22 @@ const changeServer = (server: string) => h("button", { type: "button", className
 // the signed-out view's wait for the owner to come back; a newer view (setup, load) cancels it, so it cannot undo that view
 let waitForSignIn: AbortController | undefined;
 
-const openLink = (server: string, id: number) => h("a", { href: `${server}/chats/${id}`, target: "_blank", rel: "noopener", textContent: "Open the conversation" });
+// The worker ends this panel's share when the panel closes (background.ts). A worker that was stopped and started again has lost
+// the port: the panel connects again and says its share once more.
+let port = connect();
+let said: unknown = null;
+function connect(): chrome.runtime.Port {
+  const p = chrome.runtime.connect({ name: "panel" });
+  p.onDisconnect.addListener(() => {
+    port = connect();
+    port.postMessage(said);
+  });
+  return p;
+}
+function tellWorker(message: { server: string; share: string; tabId: number } | null): void {
+  said = message;
+  port.postMessage(message);
+}
 
 async function start(): Promise<void> {
   const { server } = await chrome.storage.local.get("server");
@@ -30,6 +46,7 @@ async function start(): Promise<void> {
 
 function setup(value: string, message = ""): void {
   waitForSignIn?.abort();
+  bar.replaceChildren();
   const input = h("input", { id: "server", type: "url", value, placeholder: "https://convoz.example.ts.net", required: true });
   const status = statusLine(message);
   const form = h("form", {}, h("label", { htmlFor: "server", textContent: "Convoz server" }), input, h("button", { type: "submit", textContent: "Save" }), status);
@@ -45,7 +62,7 @@ function setup(value: string, message = ""): void {
       .request({ origins: [origin + "/*"] })
       .then(async (granted) => {
         if (!granted) {
-          status.textContent = `Convoz needs access to ${origin} to send. Nothing was sent.`;
+          status.textContent = `Convoz needs access to ${origin}.`;
           return;
         }
         await chrome.storage.local.set({ server: origin });
@@ -55,20 +72,24 @@ function setup(value: string, message = ""): void {
         status.textContent = describe(err, origin, "Saving");
       });
   };
-  app.replaceChildren(form);
+  app.replaceChildren(h("div", { className: "pad" }, form));
 }
 
 async function load(server: string): Promise<void> {
   waitForSignIn?.abort();
   const api = new Convoz(server);
-  app.replaceChildren(statusLine("Loading…"));
+  bar.replaceChildren();
+  app.replaceChildren(h("div", { className: "pad" }, statusLine("Loading…")));
   try {
     await api.me();
-    compose(api, activeAgents(await api.identities()));
   } catch (err) {
     if (err instanceof ApiFailure && err.status === 401) return signedOut(api);
-    app.replaceChildren(statusLine(describe(err, server, "Loading")), h("button", { type: "button", textContent: "Try again", onclick: () => void load(server) }), changeServer(server));
+    app.replaceChildren(
+      h("div", { className: "pad" }, statusLine(describe(err, server, "Loading")), h("button", { type: "button", textContent: "Try again", onclick: () => void load(server) }), changeServer(server)),
+    );
+    return;
   }
+  chat(api);
 }
 
 function signedOut(api: Convoz): void {
@@ -76,47 +97,104 @@ function signedOut(api: Convoz): void {
   waitForSignIn = new AbortController();
   window.addEventListener("focus", () => void load(api.server), { once: true, signal: waitForSignIn.signal });
   app.replaceChildren(
-    h("p", { textContent: "This browser is not signed in to Convoz." }),
-    h("button", { type: "button", textContent: "Sign in to Convoz", onclick: () => void chrome.tabs.create({ url: api.server + "/signin" }) }),
-    changeServer(api.server),
+    h(
+      "div",
+      { className: "pad" },
+      h("p", { textContent: "This browser is not signed in to Convoz." }),
+      h("button", { type: "button", textContent: "Sign in to Convoz", onclick: () => void chrome.tabs.create({ url: api.server + "/signin" }) }),
+      changeServer(api.server),
+    ),
   );
 }
 
-function compose(api: Convoz, agents: Identity[]): void {
-  const agent = h("select", { id: "agent" }, ...agents.map((a) => h("option", { value: a.handle, textContent: "@" + a.handle })));
-  const note = h("textarea", { id: "note", rows: 4, maxLength: 1000, placeholder: "What should the agent do with this page?" });
-  const shot = h("input", { id: "shot", type: "checkbox" });
-  const send = h("button", { type: "submit", textContent: "Send", disabled: !agents.length });
+// the read hides field values; a screenshot cannot, so the owner hears it once per share, next to the status
+const SHOT_WARNING = "A screenshot shows what is on screen, including text the read hides.";
+const OPEN_A_CONVERSATION = "Open a conversation to share this tab.";
+/** The badge on the Convoz button of the shared tab while the share lives. */
+const BADGE = "ON";
+const badge = (tabId: number, text: string) => void chrome.action.setBadgeText({ tabId, text }).catch(() => {});
+
+const ENDED: Record<Ended, string> = {
+  stopped: "Sharing stopped.",
+  left: "Sharing ended: the tab was closed, left its site or is not in front.",
+  gone: "Sharing ended.",
+};
+
+/** chat shows the web app and the share bar. The frame says which conversation is open; only that one can be shared with. */
+function chat(api: Convoz): void {
+  const frame = h("iframe", { title: "Convoz", src: `${api.server}/chats` });
   const status = statusLine();
-  const picker = agents.length ? [h("label", { htmlFor: "agent", textContent: "Agent" }), agent] : [h("p", { textContent: "No agents yet" })];
-  const form = h("form", {}, ...picker, h("label", { htmlFor: "note", textContent: "Note" }), note, h("label", { className: "check" }, shot, "Attach screenshot"), send, status);
+  const shareButton = h("button", { type: "button", textContent: "Share this tab", disabled: true });
+  let open: { id: number; title: string } | null = null;
+  let sharing: { stop(): void } | null = null;
 
-  // one send of this form, kept until it succeeds so a retry makes nothing twice; another agent, note or screenshot choice is a
-  // new send
-  let attempt: Attempt | undefined;
-  for (const field of [agent, note, shot]) field.addEventListener("input", () => (attempt = undefined));
+  window.addEventListener("message", (event: MessageEvent) => {
+    const data = event.data as { type?: unknown; id?: unknown; title?: unknown } | null;
+    if (event.source !== frame.contentWindow || event.origin !== api.server || data?.type !== "convoz:conversation") return;
+    open = typeof data.id === "number" ? { id: data.id, title: typeof data.title === "string" ? data.title : "" } : null;
+    offer();
+  });
 
-  form.onsubmit = async (e) => {
-    e.preventDefault();
-    if (send.disabled) return; // a second click while a send runs does nothing
-    send.disabled = true;
-    status.replaceChildren("Sending…");
-    const current = (attempt ??= newAttempt());
+  // the button says why it is off: its title is its description to a screen reader and a tooltip to the eye
+  const offer = () => {
+    shareButton.disabled = !open;
+    shareButton.title = open ? "" : OPEN_A_CONVERSATION;
+  };
+
+  const idle = (message = "") => {
+    sharing = null;
+    tellWorker(null);
+    offer();
+    status.textContent = message;
+    bar.replaceChildren(shareButton, status);
+  };
+
+  shareButton.onclick = async () => {
+    const conversation = open;
+    if (!conversation || sharing) return;
+    shareButton.disabled = true;
     try {
-      const sent = await sendPage(api, { handle: agent.value, note: note.value, screenshot: shot.checked, capture: captureTab }, current);
-      attempt = undefined;
-      note.value = "";
-      status.replaceChildren(["Sent.", ...sent.notes].join(" ") + " ", openLink(api.server, sent.conversation));
+      const win = await chrome.windows.getLastFocused({ windowTypes: ["normal"] });
+      const [tab] = win.id === undefined ? [] : await chrome.tabs.query({ active: true, windowId: win.id });
+      const origin = webOrigin(tab?.url);
+      if (tab?.id === undefined || !origin) return idle("Click the Convoz button on the web page you want to share, then Share.");
+      if (!(await chrome.permissions.request({ origins: [origin + "/*"] }))) return idle(`Convoz needs access to ${origin} to share it.`);
+      const share = await api.startShare(conversation.id, origin);
+      const { title, handles } = await api.conversation(conversation.id);
+      const shared: SharedTab = { id: share.id, tabId: tab.id, origin };
+      const stop = new AbortController();
+      let reason: Extract<EndReason, Ended> = "stopped";
+      const end = (why: typeof reason) => {
+        if (stop.signal.aborted) return;
+        reason = why;
+        stop.abort();
+        void api.stopShare(share.id, why).catch(() => {});
+      };
+      sharing = { stop: () => end("stopped") };
+      const stopButton = h("button", { type: "button", textContent: "Stop", onclick: () => end("stopped") });
+      // another tab in front, the tab closing or going to another site ends the share at once, before any agent asks
+      const check = () => void stillShared(shared).then((still) => still || end("left"));
+      const onRemoved = (tabId: number) => tabId === shared.tabId && check();
+      const onUpdated = (tabId: number) => tabId === shared.tabId && check();
+      chrome.tabs.onActivated.addListener(check);
+      chrome.tabs.onRemoved.addListener(onRemoved);
+      chrome.tabs.onUpdated.addListener(onUpdated);
+      status.textContent = `Shared with ${title || conversation.title || "this conversation"} · ${handles.map((x) => "@" + x).join(" ")}`;
+      bar.replaceChildren(stopButton, status, h("p", { className: "note", textContent: SHOT_WARNING }));
+      badge(shared.tabId, BADGE);
+      const ended = await runShare(api, shared, stop.signal, () => tellWorker({ server: api.server, share: share.id, tabId: shared.tabId }));
+      chrome.tabs.onActivated.removeListener(check);
+      chrome.tabs.onRemoved.removeListener(onRemoved);
+      chrome.tabs.onUpdated.removeListener(onUpdated);
+      badge(shared.tabId, "");
+      idle(ENDED[ended === "stopped" ? reason : ended]);
     } catch (err) {
-      const said = describe(err, api.server);
-      // no silent half-send: a conversation that exists is linked even when the page did not reach it
-      const made = current.conversation;
-      status.replaceChildren(...(made === undefined ? [said] : [`${said} The conversation was made, but the page is not in it: `, openLink(api.server, made)]));
-    } finally {
-      send.disabled = false;
+      idle(describe(err, api.server, "Sharing"));
     }
   };
-  app.replaceChildren(form, changeServer(api.server));
+
+  idle();
+  app.replaceChildren(frame);
 }
 
 void start();

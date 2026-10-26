@@ -26,6 +26,8 @@ var errNotLoggedIn = errors.New("this machine is not logged in: run convoz login
 type client struct {
 	base string
 	http *http.Client
+	// answerMax bounds the body of an answer it reads; 0 is 1 MB, which every answer but a screenshot fits.
+	answerMax int64
 }
 
 // validServer accepts an https URL, or an http URL on localhost or a loopback address (development).
@@ -55,7 +57,7 @@ func newClient(server string) *client {
 func (c *client) withTimeout(d time.Duration) *client {
 	h := *c.http
 	h.Timeout = d
-	return &client{base: c.base, http: &h}
+	return &client{base: c.base, http: &h, answerMax: c.answerMax}
 }
 
 // call sends one JSON request. token, when set, is sent as a bearer credential. A non-2xx answer is a
@@ -120,7 +122,11 @@ func (c *client) do(ctx context.Context, method, path, token, contentType string
 		return fmt.Errorf("%w: cannot reach %s: %v", errUnreachable, c.base, err)
 	}
 	defer res.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(res.Body, 1<<20))
+	limit := c.answerMax
+	if limit == 0 {
+		limit = 1 << 20
+	}
+	raw, err := io.ReadAll(io.LimitReader(res.Body, limit))
 	if err != nil {
 		return fmt.Errorf("%w: the answer from %s was cut off: %v", errUnreachable, c.base, err)
 	}

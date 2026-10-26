@@ -6,6 +6,7 @@ import { Root } from "./app/Root.tsx";
 import { route } from "./app/routes.tsx";
 import { call, client } from "./shared/api.ts";
 import { dropEarly } from "./shared/early.ts";
+import { tellPanel } from "./shared/frame.ts";
 import { afterFirstScreen, noFirstScreen } from "./shared/perf.ts";
 import { pullToRefresh } from "./shared/pull.ts";
 import { refreshApp, registerServiceWorker } from "./sw/index.ts";
@@ -15,6 +16,7 @@ import "./styles/appearance.css";
 watchErrors(); // before anything else runs, so a failure while the app starts is reported too
 const def = route(location.pathname, document.documentElement.dataset.status);
 prepare(def);
+tellPanel(null); // a page loads with no conversation open; the conversation page says its own when it draws
 if (!def.useful) noFirstScreen();
 registerServiceWorker();
 pullToRefresh(() => void refreshApp());

@@ -33,6 +33,20 @@ var voiceOn atomic.Bool
 // SetVoice says whether the server has a voice key: the pages then may connect to Google's live address.
 func SetVoice(on bool) { voiceOn.Store(on) }
 
+var extensionOrigin atomic.Value // string
+
+// SetExtensionOrigin names the one Chrome extension the owner allows (CONVOZ_EXTENSION_ORIGIN): its side panel may then frame the
+// pages, and nothing else ever may. "" is off.
+func SetExtensionOrigin(origin string) { extensionOrigin.Store(origin) }
+
+// frameAncestors is the frame-ancestors source of every page: none, or the owner's extension.
+func frameAncestors() string {
+	if o, _ := extensionOrigin.Load().(string); o != "" {
+		return "frame-ancestors " + o
+	}
+	return "frame-ancestors 'none'"
+}
+
 // connectSrc is the connect-src of every page: our own origin, and Google's live address while voice is on.
 func connectSrc() string {
 	if voiceOn.Load() {
@@ -43,10 +57,8 @@ func connectSrc() string {
 
 // policy is CSP for the lean shell at this moment.
 func policy() string {
-	if !voiceOn.Load() {
-		return CSP
-	}
-	return strings.Replace(CSP, "connect-src 'self'", connectSrc(), 1)
+	p := strings.Replace(CSP, "frame-ancestors 'none'", frameAncestors(), 1)
+	return strings.Replace(p, "connect-src 'self'", connectSrc(), 1)
 }
 
 // notFoundMark is how a 404 page tells the app it is one: the root element carries data-status="404".

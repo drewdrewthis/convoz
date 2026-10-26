@@ -67,6 +67,7 @@ Conversation:
     stale_reason: { type: string, description: Why, when the agent that marked it stale said so. Only with stale. }
     deleted_at: { type: integer, format: int64, description: In the trash since. }
     purges_at: { type: integer, format: int64, description: When the trash removes it for good. }
+    shared_tab: { $ref: "../openapi.yaml#/components/schemas/SharedTab", description: "The owner shares a browser tab with it now (page-share.feature). Absent when not." }
 ConversationChangedFrame:
   description: SSE conversation.changed (people who can see the conversation); its row changed, for one an agent marked it stale. Read the list again.
   type: object
