@@ -7,7 +7,7 @@
     summary: Star, mute or reorder one conversation in the owner's rail.
     description: |
       Personal to the caller (I-22): another person's stars, mutes and order never change. A person only; an agent is 403.
-      A conversation the caller cannot see is 404. Send only what changes. The order is the owner's, never the activity's (I-21).
+      A conversation the caller cannot see is 404. Send only what changes. The order is the owner's; a new message puts its conversation back on top (I-21).
     parameters:
       - $ref: "../openapi.yaml#/components/parameters/Id"
     requestBody:

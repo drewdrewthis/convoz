@@ -8,6 +8,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/prefs"
 )
 
 // conversationPort answers for the conversation module and for who may post in it.
@@ -44,6 +45,9 @@ func (a conversationPort) Access(ctx context.Context, d pdb.DBTX, conv int64) (m
 func (a conversationPort) RecordMainPost(ctx context.Context, d pdb.DBTX, now time.Time, conv, messageID int64, body string, quiet bool) (int64, error) {
 	prev, err := conversation.RecordMainPost(ctx, d, now, conv, messageID, body)
 	if err != nil {
+		return prev, err
+	}
+	if err = prefs.FollowActivity(ctx, d, conv); err != nil {
 		return prev, err
 	}
 	return prev, a.bringInMentioned(ctx, d, now, conv, messageID, quiet)

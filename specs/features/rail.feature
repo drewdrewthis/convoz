@@ -14,17 +14,20 @@ Feature: Rail
     And machine "box-2" is logged in with allow-list "devtool"
     And conversations 41 "Ship search filters", 52 "Deploy alerts runbook" and 60 "Weekly usage" were created in that order with "devtool"
 
-  Rule: Order is the owner's, never the activity's (I-21)
+  Rule: Order is the owner's; a new message puts its conversation on top (I-21)
 
     @v1 @browser @I-21
     Scenario: A new conversation goes to the top
       Then the Conversations group lists 60, 52, 41 in that order
 
+    # Drew, 2026-10-26 (conv 311 msg 5768): a new conversation or a new message goes on top; the rest keep the order he set.
     @v1 @browser @I-21 @AC-13
-    Scenario: Activity never reorders the rail
+    Scenario: A new message puts its conversation on top and the owner's order of the rest stays
+      Given the owner dragged conversation 60 below 52, so the Conversations group lists 52, 60, 41
       When "devtool" posts in conversation 41
-      Then the Conversations group still lists 60, 52, 41
+      Then the Conversations group lists 41, 52, 60 without a reload
       And conversation 41 is bold with its new preview
+      And a reload shows 41, 52, 60
 
     @v1 @browser @I-21
     Scenario: Dragging a conversation puts it between its neighbours
