@@ -5,6 +5,7 @@ import type { Message } from "@convoz/api-client";
 import { create } from "zustand";
 import { ApiError, call, client } from "../../shared/api.ts";
 import { newId } from "../../shared/chat.ts";
+import { reportSendFailed } from "../../shared/clientEvents.ts";
 import { data } from "../../shared/data.ts";
 import { usePresence } from "../../shared/presence.ts";
 
@@ -122,6 +123,7 @@ export const useThreads = create<ThreadsState>()((set, get) => {
       patch(rootId, (now) => ({ replies: now.replies.some((r) => r.id === made.id) ? now.replies : merge(now.replies, [made]), pending: now.pending.filter((x) => x.cid !== cid) }));
     } catch (err) {
       if (err instanceof ApiError && err.handled) return;
+      reportSendFailed();
       setState("failed");
     }
   }

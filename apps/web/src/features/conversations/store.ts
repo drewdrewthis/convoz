@@ -5,6 +5,7 @@ import { coalesce, maxId } from "@convoz/api-client";
 import { create } from "zustand";
 import { ApiError, humanError } from "../../shared/api.ts";
 import { newId } from "../../shared/chat.ts";
+import { reportSendFailed } from "../../shared/clientEvents.ts";
 import { data, holdOfflineUntil, offlineReady, outbox, source, sync } from "../../shared/data.ts";
 import { asUpload, uploadFile } from "../../shared/uploads.ts";
 
@@ -130,6 +131,7 @@ export const useConversations = create<ConversationsState>()((set, get) => {
         if (err instanceof ApiError && err.handled) return;
         if (!linkDown(err)) {
           void outbox.remove(cid); // a refusal comes back on every open if kept, and a retry cannot change it
+          reportSendFailed();
           return setState("failed", humanError(err));
         }
         await backOnline(); // the same client id goes out again, so a send that did arrive is not made twice (I-24)
