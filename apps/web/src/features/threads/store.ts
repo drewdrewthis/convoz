@@ -61,6 +61,9 @@ export interface ThreadsState {
   reset(): void;
 }
 
+/** The most threads one read asks for: the server refuses more. */
+const MAX_ROOTS = 100;
+
 const byId = (a: Message, b: Message) => a.id - b.id;
 
 function merge(have: Message[], more: Message[]): Message[] {
@@ -83,15 +86,42 @@ export const useThreads = create<ThreadsState>()((set, get) => {
   };
   const newest = (t: ThreadView) => t.replies.at(-1)?.id ?? 0;
 
+  /** One read of up to MAX_ROOTS threads of a conversation; each thread found is taken in, one not found stays as it was. */
+  async function readThreads(conversation: number, roots: number[]) {
+    const { threads } = await call(
+      client.GET("/api/conversations/{id}/threads", { params: { path: { id: conversation }, query: { roots: roots.join(","), limit: 100 } } }),
+    );
+    for (const { root, messages, seen } of threads) {
+      if (!get().threads[root.id]) continue;
+      usePresence.getState().hydrate(conversation, root.id, seen);
+      patch(root.id, (now) => ({ replies: merge(now.replies, messages), loaded: true }));
+    }
+  }
+
+  // The threads asked for in one tick go out together: a chat that opens with N threads asks once, not N times (issue 92).
+  let batch: { roots: Map<number, number[]>; done: Promise<void> } | null = null;
+  function enqueue(conversation: number, rootId: number): Promise<void> {
+    if (!batch) {
+      const roots = new Map<number, number[]>();
+      const done = new Promise<void>((resolve, reject) => {
+        setTimeout(() => {
+          batch = null;
+          const reads = [...roots].flatMap(([conv, ids]) => Array.from({ length: Math.ceil(ids.length / MAX_ROOTS) }, (_, i) => readThreads(conv, ids.slice(i * MAX_ROOTS, (i + 1) * MAX_ROOTS))));
+          Promise.all(reads).then(() => resolve(), reject);
+        }, 0);
+      });
+      batch = { roots, done };
+    }
+    batch.roots.set(conversation, [...(batch.roots.get(conversation) ?? []), rootId]);
+    return batch.done;
+  }
+
   async function fetchThread(rootId: number) {
     const t = get().threads[rootId];
     if (!t || loading.has(rootId)) return;
     loading.add(rootId);
     try {
-      const { messages, seen } = await call(client.GET("/api/messages/{id}/replies", { params: { path: { id: rootId }, query: { limit: 100 } } }));
-      if (!get().threads[rootId]) return;
-      usePresence.getState().hydrate(t.conversation, rootId, seen);
-      patch(rootId, (now) => ({ replies: merge(now.replies, messages), loaded: true }));
+      await enqueue(t.conversation, rootId);
     } finally {
       loading.delete(rootId);
     }

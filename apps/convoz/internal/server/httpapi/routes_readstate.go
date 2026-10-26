@@ -7,4 +7,6 @@ var readstateRoutes = []Route{
 	{Method: "POST", Pattern: "/api/conversations/:id/read", Auth: authz.Human, Lease: true, handle: (*Server).markRead},
 	// The replies of one thread, found from its root message (I-6, I-7).
 	{Method: "GET", Pattern: "/api/messages/:id/replies", Auth: authz.Human, Lease: true, handle: (*Server).listReplies},
+	// The threads of many roots in one read, so a chat does not ask once per root (issue 92).
+	{Method: "GET", Pattern: "/api/conversations/:id/threads", Auth: authz.Human, Lease: true, handle: (*Server).listThreads},
 }

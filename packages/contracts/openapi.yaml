@@ -97,6 +97,7 @@ paths:
   # ---- message
   /api/conversations/{id}/messages: { $ref: "paths/message.yaml#/~1api~1conversations~1{id}~1messages" }
   /api/conversations/{id}/typing: { $ref: "paths/message.yaml#/~1api~1conversations~1{id}~1typing" }
+  /api/conversations/{id}/threads: { $ref: "paths/message.yaml#/~1api~1conversations~1{id}~1threads" }
   /api/messages/{id}: { $ref: "paths/message.yaml#/~1api~1messages~1{id}" }
   /api/messages/{id}/edits: { $ref: "paths/message.yaml#/~1api~1messages~1{id}~1edits" }
   /api/messages/{id}/purge: { $ref: "paths/message.yaml#/~1api~1messages~1{id}~1purge" }
@@ -330,6 +331,7 @@ components:
     Transcript: { $ref: "components/upload.yaml#/Transcript" }
     Posted: { $ref: "components/message.yaml#/Posted" }
     Replies: { $ref: "components/readstate.yaml#/RepliesResponse" }
+    Threads: { $ref: "components/readstate.yaml#/ThreadsResponse" }
     EditRequest: { $ref: "components/message.yaml#/EditRequest" }
     EditHistory: { $ref: "components/message.yaml#/EditHistory" }
     App: { $ref: "components/appkit.yaml#/App" }
