@@ -2652,6 +2652,8 @@ export interface components {
             } & {
                 [key: string]: unknown;
             };
+            /** @description The card of the first link of the body, as the preview worker has got (status pending until fetched). Only on a page a person reads, never an agent. */
+            unfurl?: components["schemas"]["UnfurlCard"];
             /** @description The identities the body @mentions, by id: a handle an agent had before still names it (I-51). */
             mentions?: components["schemas"]["MentionSpan"][];
             /** @description The words of a system line, or the plain-text form of a message that carries files. */

@@ -431,7 +431,7 @@ function RowBody({ row, threaded, me, conversation, onRetry, onDiscard, onDetail
     const menu = askCard ? undefined : <MessageMenu message={m} mine={m.author.handle === me} conversation={conversation} />;
     const detail = onDetails && m.author.kind === "agent" ? () => onDetails(m) : undefined;
     const tag = !threaded && m.thread_root_id ? "replied to a thread" : undefined;
-    return <Article person={m.author} me={me} first={row.first} at={m.created_at} day={row.stampDay} tag={tag} onStamp={detail} body={body} extra={<>{m.kind !== "ask" && hasLink(text) ? <LinkPreview id={m.id} /> : null}{pinned ? <PinMark /> : null}{edited}{m.author.handle === me ? <SeenLine conversation={conversation} message={m} threaded={threaded} /> : null}</>} menu={menu} mid={m.id} marked={hl === m.id} labelledBy={m.kind === "ask" && m.ask ? label : undefined} />;
+    return <Article person={m.author} me={me} first={row.first} at={m.created_at} day={row.stampDay} tag={tag} onStamp={detail} body={body} extra={<>{m.kind !== "ask" && hasLink(text) ? <LinkPreview id={m.id} card={m.unfurl} /> : null}{pinned ? <PinMark /> : null}{edited}{m.author.handle === me ? <SeenLine conversation={conversation} message={m} threaded={threaded} /> : null}</>} menu={menu} mid={m.id} marked={hl === m.id} labelledBy={m.kind === "ask" && m.ask ? label : undefined} />;
   }
   const state =
     p!.state === "failed" ? (
