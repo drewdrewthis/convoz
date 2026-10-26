@@ -100,16 +100,6 @@ jobs:
         run: pnpm --filter @convoz/e2e exec playwright install --with-deps chromium
       - name: E2E
         run: pnpm e2e
-        env:
-          REGRESS_WRITE: "1" # TEMPORARY write run for baselines; reverted in the next commit
-      - name: Regress baselines (temporary)
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: regress-baselines
-          path: e2e/visual/regress
-          if-no-files-found: ignore
-          retention-days: 3
       - name: E2E artifacts (failure only)
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
