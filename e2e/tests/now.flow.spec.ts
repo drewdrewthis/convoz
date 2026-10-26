@@ -1,4 +1,4 @@
-import { agentSays, createConversation } from "../lib/chat.ts";
+import { agentSays, createConversation, ownerSays } from "../lib/chat.ts";
 import { QUESTION, agentAsks, askCard, nowOf, openNow, ownerRepliesIn } from "../lib/asks.ts";
 import { expect, scenario, test } from "../lib/scenario.ts";
 import { replyBox, replyInThread, threadPane } from "../lib/threads-wp5.ts";
@@ -105,15 +105,16 @@ scenario("I have questions opens the thread without a page load, and the ask mov
 
 scenario("An unread conversation in Now has a Reply action that focuses the composer", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
   info.setTimeout(90_000);
-  // Given "devtool" posted a message in conversation 41 that the owner has not read
+  // Given the owner wrote "Are the filters in?" and "devtool" answered "The filters are in" in conversation 41
   const w = await browserWorld({ server, page, context }, WORLD);
   const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  await ownerSays(w.owner, conv, "Are the filters in?");
   await agentSays(w.srv, w.sessions.devtool!.lease, conv, "The filters are in");
 
-  // When the owner opens Now and taps "Reply" on the unread card
+  // When the owner opens Now and taps "Reply" on its card under "Replies to you"
   await openNow(page, w.srv);
   const origin = await mark(page);
-  await page.getByRole("list", { name: "Unread conversations" }).getByRole("listitem").filter({ hasText: "Ship search filters" }).getByRole("link", { name: "Reply", exact: true }).click();
+  await page.getByRole("list", { name: "Replies to you" }).getByRole("listitem").filter({ hasText: "Ship search filters" }).getByRole("link", { name: "Reply", exact: true }).click();
 
   // Then conversation 41 opens inside the app and its composer has focus
   await expect(page.getByRole("textbox", { name: "Message", exact: true })).toBeFocused();
