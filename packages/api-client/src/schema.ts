@@ -1203,6 +1203,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/conversations/{id}/threads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The threads of many top-level messages in one read, each as listReplies answers it, so a chat does not ask once per root. A root that is not a thread of this conversation is left out. */
+        get: operations["listThreads"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/messages/{id}": {
         parameters: {
             query?: never;
@@ -2755,6 +2772,7 @@ export interface components {
             created_at: number;
         };
         Replies: components["schemas"]["RepliesResponse"];
+        Threads: components["schemas"]["ThreadsResponse"];
         EditRequest: {
             client_id: components["schemas"]["ClientId"];
             body: string;
@@ -3776,6 +3794,9 @@ export interface components {
             as_of_seq: number;
             /** @description The agents that have seen the newest message a person wrote in this thread, first seen first. */
             seen?: components["schemas"]["Seen"][];
+        };
+        ThreadsResponse: {
+            threads: components["schemas"]["RepliesResponse"][];
         };
         VapidKey: {
             /** @description The server's VAPID public key: the 65-byte uncompressed P-256 point, base64url without padding. It is the browser's applicationServerKey. */
@@ -5782,6 +5803,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listThreads: {
+        parameters: {
+            query: {
+                /** @description Message ids separated by commas, 1 to 100. */
+                roots: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The threads, in the order asked. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThreadsResponse"];
+                };
             };
             default: components["responses"]["Error"];
         };

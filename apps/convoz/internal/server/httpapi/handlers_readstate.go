@@ -3,8 +3,11 @@ package httpapi
 import (
 	"context"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/event"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
@@ -123,40 +126,99 @@ func (s *Server) listReplies(w http.ResponseWriter, r *http.Request, c *call) {
 	if !ok1 || !ok2 {
 		return
 	}
-	ctx, d := r.Context(), s.reader()
-	root, found, err := message.Get(ctx, d, rootID)
-	var floor int64
-	var visible bool
-	if err == nil && found {
-		floor, visible, err = canRead(ctx, d, c.p, root.ConversationID)
+	out, refused, err := s.threadOf(r.Context(), s.reader(), c.p, rootID, after, int(limit))
+	switch {
+	case err != nil:
+		s.internalError(w, r, err)
+	case refused == http.StatusBadRequest:
+		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "id", "A thread hangs off a top-level message.")
+	case refused != 0:
+		writeErr(w, http.StatusNotFound, "not_found", "No such thread.")
+	default:
+		writeJSON(w, http.StatusOK, out)
 	}
+}
+
+// maxThreadRoots bounds one listThreads call: a page of messages is at most this many, and no chat shows more roots than that.
+const maxThreadRoots = 100
+
+// listThreads is GET /api/conversations/:id/threads?roots=1,2,3&limit=: the threads of many roots in one read, each as listReplies
+// answers it, so a chat does not ask once per thread root (issue 92). A root the caller cannot read, or that is not a thread of this
+// conversation, is left out.
+func (s *Server) listThreads(w http.ResponseWriter, r *http.Request, c *call) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	limit, _, ok1 := intParam(w, r, "limit")
+	if !ok1 {
+		return
+	}
+	var roots []int64
+	for _, raw := range strings.Split(r.URL.Query().Get("roots"), ",") {
+		n, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || n <= 0 || len(roots) == maxThreadRoots {
+			writeFieldErr(w, http.StatusBadRequest, "invalid_request", "roots", "That must be 1 to "+strconv.Itoa(maxThreadRoots)+" message ids, separated by commas.")
+			return
+		}
+		roots = append(roots, n)
+	}
+	ctx, d := r.Context(), s.reader()
+	_, visible, err := canRead(ctx, d, c.p, id)
 	if err != nil {
 		s.internalError(w, r, err)
 		return
 	}
-	if !found || !visible {
-		writeErr(w, http.StatusNotFound, "not_found", "No such thread.")
+	if !visible {
+		notVisible(w, c)
 		return
 	}
-	if root.Kind == "system" {
-		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "id", "A thread hangs off a top-level message.")
-		return
-	}
-	if root.ThreadRootID != 0 { // a message inside a thread names its thread
-		if root, found, err = message.Get(ctx, d, root.ThreadRootID); err != nil {
+	out := wire.ThreadsResponse{Threads: []wire.RepliesResponse{}}
+	for _, root := range roots {
+		t, refused, err := s.threadOf(ctx, d, c.p, root, 0, int(limit))
+		if err != nil {
 			s.internalError(w, r, err)
 			return
 		}
+		if refused == 0 && t.ConversationID == id {
+			out.Threads = append(out.Threads, t)
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// threadOf reads the thread of a root the way listReplies answers it. refused is 0 for a thread, 404 for no such thread (the
+// message is missing or the caller may not read its conversation) and 400 for a system line, which has no thread.
+func (s *Server) threadOf(ctx context.Context, d pdb.DBTX, p authz.Principal, rootID, after int64, limit int) (_ wire.RepliesResponse, refused int, err error) {
+	var none wire.RepliesResponse
+	root, found, err := message.Get(ctx, d, rootID)
+	var floor int64
+	var visible bool
+	if err == nil && found {
+		floor, visible, err = canRead(ctx, d, p, root.ConversationID)
+	}
+	if err != nil {
+		return none, 0, err
+	}
+	if !found || !visible {
+		return none, http.StatusNotFound, nil
+	}
+	if root.Kind == "system" {
+		return none, http.StatusBadRequest, nil
+	}
+	if root.ThreadRootID != 0 { // a message inside a thread names its thread
+		if root, found, err = message.Get(ctx, d, root.ThreadRootID); err != nil {
+			return none, 0, err
+		}
 		if !found {
-			writeErr(w, http.StatusNotFound, "not_found", "No such thread.")
-			return
+			return none, http.StatusNotFound, nil
 		}
 		rootID = root.ID
 	}
 	seq, err := event.MaxSeq(ctx, d)
 	var page []message.Message
 	if err == nil {
-		page, err = message.Thread(ctx, d, root.ConversationID, rootID, max(floor, after), int(limit))
+		page, err = message.Thread(ctx, d, root.ConversationID, rootID, max(floor, after), limit)
 	}
 	var dir directory
 	if err == nil {
@@ -167,8 +229,7 @@ func (s *Server) listReplies(w http.ResponseWriter, r *http.Request, c *call) {
 		asks, err = askViewsOf(ctx, d, dir, append([]message.Message{root}, page...))
 	}
 	if err != nil {
-		s.internalError(w, r, err)
-		return
+		return none, 0, err
 	}
 	out := viewMessages(dir, page)
 	for i, m := range page {
@@ -181,17 +242,14 @@ func (s *Server) listReplies(w http.ResponseWriter, r *http.Request, c *call) {
 		head.AttachAsk(v)
 	}
 	if err := attachSlice(ctx, d, out); err != nil {
-		s.internalError(w, r, err)
-		return
+		return none, 0, err
 	}
 	if err := attachUploads(ctx, d, []*wire.Message{&head}); err != nil {
-		s.internalError(w, r, err)
-		return
+		return none, 0, err
 	}
 	_, seen, err := seenIn(ctx, d, dir, root.ConversationID, rootID)
 	if err != nil {
-		s.internalError(w, r, err)
-		return
+		return none, 0, err
 	}
-	writeJSON(w, http.StatusOK, wire.RepliesResponse{ConversationID: root.ConversationID, Root: head, Messages: out, AsOfSeq: seq, Seen: seen})
+	return wire.RepliesResponse{ConversationID: root.ConversationID, Root: head, Messages: out, AsOfSeq: seq, Seen: seen}, 0, nil
 }
