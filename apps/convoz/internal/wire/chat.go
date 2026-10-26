@@ -42,20 +42,21 @@ type PendingAdd struct {
 // Conversation is one row of the list, and the body of the single-conversation routes. The fields after Unread are
 // the details: the list sends the cheap ones (deleted_at) and the single-conversation route all of them.
 type Conversation struct {
-	ID             int64        `json:"id"`
-	Title          *string      `json:"title"`
-	CreatedAt      int64        `json:"created_at"`
-	LastActivityAt int64        `json:"last_activity_at"`
-	Participants   []Person     `json:"participants"`
-	Last           *LastMessage `json:"last"`
-	Unread         int64        `json:"unread"`
-	MainUnread     int64        `json:"main_unread"`              // the part of Unread that sits in the main list; the rest is thread replies
-	UnreadMentions int64        `json:"unread_mentions"`          // the unread messages that @mention the caller, under the same cursors as Unread
-	RepliesToYou   bool         `json:"replies_to_you,omitempty"` // an agent answered the caller: unread after its own message, or in its own thread
-	Threads        []ThreadRow  `json:"threads,omitempty"`        // the threads with a reply, newest reply first
-	Starred        bool         `json:"starred"`
-	Rank           float64      `json:"rank"`
-	OwnerLast      bool         `json:"owner_last,omitempty"` // the owner wrote the newest message of the main list: it never goes Older (#42)
+	ID                  int64        `json:"id"`
+	Title               *string      `json:"title"`
+	CreatedAt           int64        `json:"created_at"`
+	LastActivityAt      int64        `json:"last_activity_at"`
+	Participants        []Person     `json:"participants"`
+	Last                *LastMessage `json:"last"`
+	Unread              int64        `json:"unread"`
+	MainUnread          int64        `json:"main_unread"`                     // the part of Unread that sits in the main list; the rest is thread replies
+	UnreadMentions      int64        `json:"unread_mentions"`                 // the unread messages that @mention the caller, under the same cursors as Unread
+	MentionSnoozedUntil int64        `json:"mention_snoozed_until,omitempty"` // epoch ms the caller's Later on this conversation's mention card runs to; 0 when none runs
+	RepliesToYou        bool         `json:"replies_to_you,omitempty"`        // an agent answered the caller: unread after its own message, or in its own thread
+	Threads             []ThreadRow  `json:"threads,omitempty"`               // the threads with a reply, newest reply first
+	Starred             bool         `json:"starred"`
+	Rank                float64      `json:"rank"`
+	OwnerLast           bool         `json:"owner_last,omitempty"` // the owner wrote the newest message of the main list: it never goes Older (#42)
 
 	StartedBy   *Person      `json:"started_by,omitempty"`
 	LinkURL     *string      `json:"link_url,omitempty"`

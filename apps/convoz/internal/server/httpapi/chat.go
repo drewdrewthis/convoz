@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
@@ -12,6 +13,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/prefs"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
 
@@ -124,7 +126,7 @@ func (dir directory) message(m message.Message) wire.Message {
 }
 
 // conversationView builds the list row of one conversation for the caller p, who may see messages above floor.
-func conversationView(ctx context.Context, d pdb.DBTX, p authz.Principal, dir directory, cv conversation.Conversation, floor int64) (wire.Conversation, error) {
+func conversationView(ctx context.Context, d pdb.DBTX, p authz.Principal, dir directory, cv conversation.Conversation, floor int64, now time.Time) (wire.Conversation, error) {
 	parts, err := conversation.Participants(ctx, d, cv.ID)
 	if err != nil {
 		return wire.Conversation{}, err
@@ -154,8 +156,16 @@ func conversationView(ctx context.Context, d pdb.DBTX, p authz.Principal, dir di
 		return wire.Conversation{}, err
 	}
 	out.MainUnread, out.Unread = u.main, u.total()
-	if out.UnreadMentions, err = unreadMentions(ctx, d, p.Identity(), cv, u); err != nil {
+	snoozes, err := prefs.MentionSnoozes(ctx, d, p.Identity(), now)
+	if err != nil {
 		return wire.Conversation{}, err
+	}
+	later, snoozed := snoozes[cv.ID]
+	if out.UnreadMentions, err = unreadMentions(ctx, d, p.Identity(), cv, u, later); err != nil {
+		return wire.Conversation{}, err
+	}
+	if snoozed {
+		out.MentionSnoozedUntil = later.Until
 	}
 	if out.Threads, err = threadRowsOf(ctx, d, p, dir, cv, floor); err != nil {
 		return wire.Conversation{}, err

@@ -22,6 +22,28 @@
           application/json:
             schema: { $ref: "../openapi.yaml#/components/schemas/PrefsResponse" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/conversations/{id}/mention-snooze:
+  put:
+    x-authz: { auth: human, lease: refuse }
+    operationId: snoozeMentions
+    summary: Later on a mention card of Now, for the caller only. The card hides until the time; a mention that arrives after this call shows it again at once.
+    description: |
+      The time is an absolute epoch ms, after now and within 31 days (the client reads "tomorrow 9:00" in its own zone). Setting it again moves it.
+      A conversation the caller cannot see is 404. A person only; an agent is 403.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "../openapi.yaml#/components/schemas/MentionSnoozeRequest" }
+    responses:
+      "200":
+        description: The Later as stored.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/MentionSnoozeResult" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/messages/{id}/pin:
   put:
     x-authz: { auth: human, lease: refuse }

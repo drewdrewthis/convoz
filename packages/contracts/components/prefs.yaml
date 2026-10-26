@@ -26,6 +26,18 @@ PrefsRequest:
           type: ["integer", "null"]
           format: int64
           description: The conversation it goes directly below in the section; null puts it first. Naming one that is not in the section is 400.
+MentionSnoozeRequest:
+  type: object
+  additionalProperties: false
+  required: [until]
+  properties:
+    until: { type: integer, format: int64, description: Epoch ms the mention card stays hidden until; after now and within 31 days. }
+MentionSnoozeResult:
+  type: object
+  required: [conversation_id, until]
+  properties:
+    conversation_id: { type: integer, format: int64 }
+    until: { type: integer, format: int64 }
 RailRank:
   type: object
   required: [id, rank]

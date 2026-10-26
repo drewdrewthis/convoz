@@ -48,7 +48,8 @@ export interface AskCardProps {
 /** The phone layout of the app (its single mobile breakpoint): a menu opens as a bottom sheet there. */
 const PHONE = "(max-width: 600px)";
 
-function usePhone(): boolean {
+/** usePhone says whether the screen is the phone layout. */
+export function usePhone(): boolean {
   return useSyncExternalStore(
     (notify) => {
       const q = matchMedia(PHONE);
