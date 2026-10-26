@@ -78,6 +78,15 @@ Feature: Messages and their types
       And "plan.pdf" can no longer be opened
       And "convoz read 41" shows "[deleted]" in its place
 
+  Rule: A long run of agent messages never pauses the conversation
+
+    @v1 @api @AC-5
+    Scenario: An agent's twenty-first message in a row posts
+      Given "devtool" and "docs" posted 20 messages in a row in conversation 41
+      When "devtool" posts the twenty-first
+      Then conversation 41 shows the twenty-first message
+      And conversation 41 has no "paused" line
+
   Rule: A runaway agent loop pauses the conversation
 
     @v1 @api @I-16 @AC-5

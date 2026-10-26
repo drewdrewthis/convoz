@@ -313,6 +313,25 @@ scenario("Some messages cannot be edited", { tag: ["@api"] }, async ({ server, d
 
 // ---- the loop breaker ---------------------------------------------------------------------------------------
 
+scenario("An agent's twenty-first message in a row posts", { tag: ["@api"] }, async ({ server, dataDir }) => {
+  // Given "devtool" and "docs" posted 20 messages in a row in conversation 41
+  const w = await msgWorld({ server, dataDir, participants: ["devtool", "docs"] });
+  const dev = await leaseOf(w, "devtool");
+  const docs = await leaseOf(w, "docs");
+  await agentsPost(w, [dev, docs], w.conv, 20);
+
+  // When "devtool" posts the twenty-first
+  const post = await agentPost(w.srv, dev, w.conv, "The twenty-first");
+
+  // Then conversation 41 shows the twenty-first message
+  expect(post.status, post.text).toBe(201);
+
+  // And conversation 41 has no "paused" line
+  const page = await pageOf(w.owner, w.conv, "limit=100");
+  expect(page.filter((m) => m.kind === "system").map((m) => m.system?.t)).not.toContain("conversation.paused");
+  expect(page.map((m) => m.body)).toContain("The twenty-first");
+});
+
 scenario("The twentieth agent message in a row pauses the conversation", { tag: ["@api"] }, async ({ server, dataDir }) => {
   // Given "devtool" and "docs" posted 19 messages in a row in conversation 41
   const w = await msgWorld({ server, dataDir, participants: ["devtool", "docs"] });
@@ -477,7 +496,7 @@ scenario("A 16 KB body with a 64 KB app is accepted", { tag: ["@api"] }, async (
   // When "devtool" posts a body of 16384 bytes with an app of 65536 bytes
   const res = await agentPostWith(w.srv, lease, w.conv, { body: "b".repeat(16384), app: appOf(65536) });
 
-  // Then the server answers 201
+  // Then conversation 41 shows the twenty-first message
   expect(res.status, res.text).toBe(201);
 });
 
