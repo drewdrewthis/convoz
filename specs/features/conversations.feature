@@ -456,18 +456,18 @@ Feature: Conversations
 
   Rule: The Conversations list keeps the owner's order
 
-    # Per prototype v41 (P:2072, P:5036): owner-ordered on the phone too, with a Reorder mode; new activity never reorders rows.
+    # Per prototype v41 (P:2072, P:5036): owner-ordered on the phone too, with a Reorder mode; a new message puts a row on top.
     @v1 @browser
     Scenario: A new conversation goes to the top of the Conversations list
       Given conversations 41 "Ship search filters", 52 "Deploy alerts runbook" and 60 "Weekly usage" were created in that order with "devtool"
       Then the Conversations list shows 60, 52, 41 in that order
 
     @v1 @browser @I-21
-    Scenario: New activity never reorders the Conversations list
+    Scenario: New activity puts a conversation on top of the Conversations list
       Given conversations 41 "Ship search filters", 52 "Deploy alerts runbook" and 60 "Weekly usage" were created in that order with "devtool"
       And the owner opened the Conversations list
       When "devtool" posts in conversation 41
-      Then the Conversations list still shows 60, 52, 41 in that order without a reload
+      Then the Conversations list shows 41, 60, 52 in that order without a reload
       And conversation 41 shows its new preview
 
     @v1 @browser @phone @I-21

@@ -33,7 +33,7 @@ Version: **v1** = in the first release (slices S0–S12, S-A, S-U). **later** = 
 | US-06 | As the owner I want agents to only request adds that I approve, so that no agent can pull another agent into my conversations. | v1 | now, conversations, security | I-17 | AC-26 |
 | US-07 | As the owner I want a removed agent to be cut off at once, with its asks closed, so that removal means removal. | v1 | conversations, inbox, asks | I-7 I-19 | AC-6 |
 | US-08 | As the owner I want threads that count as unread only when I am involved, so that busy conversations stay readable. | v1 | threads | I-8 I-14 | — |
-| US-09 | As the owner I want a rail that I order and that activity never reshuffles, with bold rows for unread work and quiet conversations folded into Older, so that things stay where I put them. | v1 | rail | I-14 I-21 | AC-13 |
+| US-09 | As the owner I want a rail that I order, where a new message brings its conversation to the top, with bold rows for unread work and quiet conversations folded into Older, so that things stay where I put them. | v1 | rail | I-14 I-21 | AC-13 |
 | US-10 | As the owner I want to star conversations, pin messages and mute noise, so that the important things stay in reach. | v1 | pins-stars | I-21 I-22 | — |
 | US-11 | As the owner I want to find any message, ask, file or link fast, newest first, with filters, so that I get back to a decision without scrolling. | v1 | search | I-6 | AC-13 |
 | US-12 | As the owner I want a push only for what needs me, private on the lock screen, so that my phone is useful and not noisy. | v1 | notifications | I-28 | AC-7 |

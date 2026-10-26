@@ -9,7 +9,7 @@ import { seedDb } from "../lib/wp3.ts";
  * rail.feature (and its contract in specs/contracts/rail.feature): the owner's rail. The page contract is the comment block of
  * lib/rail-wp9.ts. 41, 52 and 60 are "Ship search filters", "Deploy alerts runbook" and "Weekly usage", created in that order.
  * The rail is the desktop sidebar, so each binding that looks at it widens the window first (desktopWindow): the "mobile" project runs
- * the same steps. Rows of the phone Conversations list (/chats) keep the owner's order too (prototype v41); new activity never reorders either.
+ * the same steps. Rows of the phone Conversations list (/chats) keep the owner's order too (prototype v41); a new message puts its conversation on top.
  */
 
 const DAY = 86_400_000;
@@ -31,10 +31,13 @@ scenario("A new conversation goes to the top", { tag: ["@browser"] }, async ({ s
   await expect(railGroup(page, "Conversations").locator(".rtitle")).toHaveText([T60, T52, T41]);
 });
 
-scenario("Activity never reorders the rail", { tag: ["@browser"] }, async ({ server, page, context }) => {
+scenario("A new message puts its conversation on top and the owner's order of the rest stays", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given the owner dragged conversation 60 below 52, so the Conversations group lists 52, 60, 41
   const u = await railWorld({ server, page, context });
+  await setPrefs(u.w.owner, u.c[60], { place: { after: u.c[52] } });
   await openRail(page, u.w.srv);
-  await expect(railGroup(page, "Conversations").locator(".rtitle")).toHaveText([T60, T52, T41]);
+  const titles = railGroup(page, "Conversations").locator(".rtitle");
+  await expect(titles).toHaveText([T52, T60, T41]);
 
   // When "devtool" posts in conversation 41
   await agentSays(u.w, "devtool", u.c[41], "Tests are green");
@@ -44,9 +47,12 @@ scenario("Activity never reorders the rail", { tag: ["@browser"] }, async ({ ser
   expect(await isBold(chatRow(page, T41).getByRole("heading"))).toBe(true);
   await expect(railRow(page, T41).getByRole("link")).toHaveClass(/unread/);
 
-  // And the Conversations group still lists 60, 52, 41
-  await expect(railGroup(page, "Conversations").locator(".rtitle")).toHaveText([T60, T52, T41]);
-  expect((await railRows(u.w.owner)).find((c) => c.id === u.c[41])!.rank).toBeLessThan((await railRows(u.w.owner)).find((c) => c.id === u.c[52])!.rank);
+  // And the Conversations group lists 41, 52, 60 without a reload
+  await expect(titles).toHaveText([T41, T52, T60]);
+
+  // And a reload shows 41, 52, 60
+  await page.reload();
+  await expect(titles).toHaveText([T41, T52, T60]);
 });
 
 scenario("Dragging a conversation puts it between its neighbours", { tag: ["@browser"] }, async ({ server, page, context, browser }) => {
@@ -351,7 +357,7 @@ scenario("A conversation the owner never touched needs no preferences", { tag: [
   for (const c of rows) {
     expect(c.starred, `${c.title} starred`).toBe(false);
     expect(c.muted_until, `${c.title} muted`).toBeUndefined();
-    expect(c.rank, `${c.title} rank is its creation time`).toBe(c.created_at);
+    expect(c.rank, `${c.title} rank is its last activity`).toBe(c.last_activity_at);
   }
   // and no preferences row was written for them
   expect(seedDb(dataDir, (db) => (db.prepare("SELECT COUNT(*) AS n FROM conversation_prefs").get() as { n: number }).n)).toBe(0);
