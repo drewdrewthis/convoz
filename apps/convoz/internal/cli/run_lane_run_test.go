@@ -94,7 +94,7 @@ func (f *fakeInbox) drop(id int64) {
 
 // runAgainstFake runs the real `convoz run` with a shell command that logs to a file, against the fake inbox, and returns the log lines.
 // The script gets CONVOZ_ITEM; "log" is the file it appends to.
-func runAgainstFake(t *testing.T, fake *fakeInbox, flags []string, script string) (lines []string, code int) {
+func runAgainstFake(t *testing.T, fake http.Handler, flags []string, script string) (lines []string, code int) {
 	t.Helper()
 	oldBeat, oldEvery := runHeartbeat, laneEvery
 	runHeartbeat, laneEvery = time.Hour, 30*time.Millisecond
@@ -196,5 +196,42 @@ esac`
 	}
 	if took := time.Since(began); took > 15*time.Second {
 		t.Errorf("took %s: the extra call was not killed at its timeout", took)
+	}
+}
+
+// heldFor answers the first n inbox polls with the server's "another watch is open" refusal, then hands on to the fake.
+type heldFor struct {
+	*fakeInbox
+	mu sync.Mutex
+	n  int
+}
+
+func (h *heldFor) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == wire.RouteInbox && r.URL.Query().Get("peek") != "1" {
+		h.mu.Lock()
+		refuse := h.n > 0
+		h.n--
+		h.mu.Unlock()
+		if refuse {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			_ = json.NewEncoder(w).Encode(wire.Error{Error: wire.ErrorDetail{Code: "watch_open", Message: "@devtool already has a convoz watch open"}})
+			return
+		}
+	}
+	h.fakeInbox.ServeHTTP(w, r)
+}
+
+// A watch that holds the slot when the runner starts must not end the runner: it waits, tries again, and serves once the slot is free.
+func TestRunWaitsWhileAnotherWatchHoldsTheSlotAndThenServes(t *testing.T) {
+	oldFirst, oldMax := runHeldFirst, runHeldMax
+	runHeldFirst, runHeldMax = 10*time.Millisecond, 40*time.Millisecond
+	t.Cleanup(func() { runHeldFirst, runHeldMax = oldFirst, oldMax })
+	lines, code := runAgainstFake(t, &heldFor{fakeInbox: newFakeInbox(), n: 3}, []string{"--owner-lane=false"}, orderScript)
+	if got := strings.Join(lines, ","); got != "start1,end1,start2,end2" {
+		t.Errorf("order %q: the runner should have waited for the slot, then served both items", got)
+	}
+	if code != ExitAuth {
+		t.Errorf("exit %d, want 3 only when the session ends", code)
 	}
 }

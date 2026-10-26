@@ -24,6 +24,9 @@ import (
 var (
 	runRetryPause = 2 * time.Second  // between the two tries of an item
 	runHeartbeat  = 10 * time.Second // how often a running item tells the server that its runner is alive
+
+	runHeldFirst = 5 * time.Second // first wait when another watch holds the agent's slot
+	runHeldMax   = 5 * time.Minute // the longest wait between two tries for that slot
 )
 
 // runTries is how many times an item's command may fail before the thread is told and the item is finished.
