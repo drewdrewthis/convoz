@@ -14,6 +14,7 @@ const (
 	RouteAgents        = "/api/agents"
 	RouteInboxClaim    = "/api/inbox/claim"
 	RouteInboxAck      = "/api/inbox/ack"
+	RouteMessages      = "/api/messages" // + "/<id>": PATCH edits the text
 )
 
 // Person is who wrote a message or takes part in a conversation. A system line has the kind "system" and no handle.

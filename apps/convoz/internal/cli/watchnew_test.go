@@ -16,6 +16,13 @@ import (
 // agentRun logs in against handler and returns a runner for `convoz <cmd>` as session "devtool".
 func agentRun(t *testing.T, handler http.HandlerFunc) func(cmd func([]string, IO) int, args ...string) (code int, stdout, stderr string) {
 	t.Helper()
+	run := agentRunStdin(t, handler)
+	return func(cmd func([]string, IO) int, args ...string) (int, string, string) { return run("", cmd, args...) }
+}
+
+// agentRunStdin is agentRun with the text the command reads on standard input.
+func agentRunStdin(t *testing.T, handler http.HandlerFunc) func(stdin string, cmd func([]string, IO) int, args ...string) (code int, stdout, stderr string) {
+	t.Helper()
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
 	xdg := t.TempDir()
@@ -33,9 +40,9 @@ func agentRun(t *testing.T, handler http.HandlerFunc) func(cmd func([]string, IO
 		}
 		return ""
 	}
-	return func(cmd func([]string, IO) int, args ...string) (int, string, string) {
+	return func(stdin string, cmd func([]string, IO) int, args ...string) (int, string, string) {
 		var out, errb bytes.Buffer
-		code := cmd(append([]string{"--sid", sid}, args...), IO{Stdin: strings.NewReader(""), Stdout: &out, Stderr: &errb, Getenv: env})
+		code := cmd(append([]string{"--sid", sid}, args...), IO{Stdin: strings.NewReader(stdin), Stdout: &out, Stderr: &errb, Getenv: env})
 		return code, out.String(), errb.String()
 	}
 }

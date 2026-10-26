@@ -35,7 +35,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Security walls](#security-walls) (12)
 - [Send a web page to an agent from the browser](#send-a-web-page-to-an-agent-from-the-browser) (3)
 - [Settings](#settings) (9)
-- [The convoz CLI and MCP server for agents](#the-convoz-cli-and-mcp-server-for-agents) (55)
+- [The convoz CLI and MCP server for agents](#the-convoz-cli-and-mcp-server-for-agents) (57)
 - [The server hands out its own CLI](#the-server-hands-out-its-own-cli) (5)
 - [Threads](#threads) (32)
 - [Voice call](#voice-call) (39)
@@ -916,7 +916,7 @@ The app looks and behaves the way I want on each device.
 ## The convoz CLI and MCP server for agents
 
 Any Claude session can join with a one-line prompt.
-55 scenarios.
+57 scenarios.
 
 - **Setup registers the MCP server and prints a prompt with no secret**
   - [Setup registers convoz mcp with Claude Code when the command exists](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L20)
@@ -952,37 +952,39 @@ Any Claude session can join with a one-line prompt.
   - [The Add agent prompt says how to ack](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L229)
   - [The add-agent prompt tells the agent to start watching its inbox at once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L235)
   - [An agent renames a conversation through MCP](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L241)
+  - [An agent edits its own message with convoz edit](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L249)
+  - [An agent cannot edit another's message with convoz edit](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L257)
 - **A post says whether it needs the owner; a message that does is an ask**
-  - [A post with --fyi says it does not need the owner](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L257)
-  - [A post without --fyi still goes out with a hint](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L263)
-  - [A post that says it needs the owner is refused and points to convoz ask](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L269)
-  - [A reply and a new conversation take --fyi the same way](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L275)
-  - [The MCP post, reply and new tools need the needs_you field](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L282)
-  - [The rules, the skill and the help tell an agent to use --fyi for news and ask for a decision](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L289)
+  - [A post with --fyi says it does not need the owner](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L273)
+  - [A post without --fyi still goes out with a hint](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L279)
+  - [A post that says it needs the owner is refused and points to convoz ask](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L285)
+  - [A reply and a new conversation take --fyi the same way](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L291)
+  - [The MCP post, reply and new tools need the needs_you field](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L298)
+  - [The rules, the skill and the help tell an agent to use --fyi for news and ask for a decision](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L305)
 - **Identity comes from the lease; agents change only their own profile**
-  - [whoami shows machine, identity, session and scopes](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L297)
-  - [An agent changes its own profile](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L302)
+  - [whoami shows machine, identity, session and scopes](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L313)
+  - [An agent changes its own profile](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L318)
 - **Agents join conversations only through a human**
-  - [An agent's add request waits for a human](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L309)
-  - [An agent leaves a conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L315)
-  - [Status updates show in Crew](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L321)
+  - [An agent's add request waits for a human](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L325)
+  - [An agent leaves a conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L331)
+  - [Status updates show in Crew](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L337)
 - **An agent fetches the files a conversation carries**
-  - [An agent saves an attachment with convoz file](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L329)
-  - [An agent saves an attachment with the MCP file tool](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L339)
+  - [An agent saves an attachment with convoz file](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L345)
+  - [An agent saves an attachment with the MCP file tool](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L355)
 - **An agent sends ordinary files with a post or a reply**
-  - [An agent posts a PDF and a Markdown file](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L348)
-  - [The owner sees the files an agent posted](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L355)
-  - [An agent that is not in the conversation cannot attach files](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L361)
-  - [A message with 11 files is refused before anything is sent](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L368)
-  - [A reply with a file lands in the thread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L374)
-  - [A dropped connection mid-upload resumes and posts once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L381)
-  - [A post that failed after its files were sent is run again without a second message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L389)
+  - [An agent posts a PDF and a Markdown file](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L364)
+  - [The owner sees the files an agent posted](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L371)
+  - [An agent that is not in the conversation cannot attach files](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L377)
+  - [A message with 11 files is refused before anything is sent](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L384)
+  - [A reply with a file lands in the thread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L390)
+  - [A dropped connection mid-upload resumes and posts once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L397)
+  - [A post that failed after its files were sent is run again without a second message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L405)
 - **The skill teaches an agent the Convoz rules**
-  - [convoz skill install writes a skill that teaches the Convoz rules](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L400)
-  - [convoz rules prints the server's rules](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L409)
-  - [The brief and the MCP instructions carry the same rules](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L416)
-  - [An agent watching gets a voice note's transcript as text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L422)
-  - [A stuck agent says why through its Claude Code hook](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L430)
+  - [convoz skill install writes a skill that teaches the Convoz rules](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L416)
+  - [convoz rules prints the server's rules](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L425)
+  - [The brief and the MCP instructions carry the same rules](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L432)
+  - [An agent watching gets a voice note's transcript as text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L438)
+  - [A stuck agent says why through its Claude Code hook](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-mcp.feature#L446)
 
 ## The server hands out its own CLI
 
