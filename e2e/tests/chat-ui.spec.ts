@@ -1,4 +1,4 @@
-import type { Locator, Page } from "@playwright/test";
+import type { BrowserContext, Locator, Page } from "@playwright/test";
 import { agentPosts, appReturns, agentChoice, chooseAgent, openMentions, backButton, chatList, chatRow, chatsHeading, composer, nowHeading, dropStreams, fromBottom, hasBubble, isBold, mainNav, message, messageLog, newChat, newMessagePill, pushFrame, rowTitles, sendButton, smallChatTargets, streamOpen, uiWorld, unreadDot, workingNote } from "../lib/chat-ui.ts";
 import { agentAsks, askCard, openNow } from "../lib/asks.ts";
 import { convoz, createConversation, listConversations, messagesOf, ownerSays, peekFor, startWatch, unreadOf, watchLines, chatWorld } from "../lib/chat.ts";
@@ -289,6 +289,88 @@ scenario("A new conversation has the star and details buttons from its first sen
   // And "Show details" opens the details
   await bar.getByRole("button", { name: "Show details", exact: true }).click();
   await expect(bar.getByRole("button", { name: "Show details", exact: true })).toHaveAttribute("aria-pressed", "true");
+});
+
+/** A gate holds the requests a route matches until it is opened; nothing waits on a clock. */
+function gate(): { open(): void; held: Promise<void> } {
+  let open!: () => void;
+  const held = new Promise<void>((resolve) => (open = resolve));
+  return { open, held };
+}
+
+/**
+ * The owner sends the first message of New conversation before the server has said who the owner and the crew are (the page drew from the
+ * offline copy). `createLate`: the server also makes the conversation only after the crew has loaded. Owner report: conv 359 msg 6385.
+ */
+async function firstSendBeforeCrew(fx: { server: Parameters<typeof uiWorld>[0]["server"]; page: Page; context: BrowserContext }, createLate: boolean) {
+  const { page } = fx;
+  const u = await uiWorld(fx);
+  // a first visit leaves the offline copy, so New conversation lists the crew before the server answers
+  await page.goto(`${u.w.srv.origin}/chats`);
+  await page.waitForFunction(() => performance.getEntriesByName("kept-offline").length > 0, undefined, { timeout: 30_000 });
+
+  // Given the server is slow to say who the owner and the crew are (and, for createLate, slower to make a conversation)
+  const crew = gate();
+  const create = gate();
+  await page.route(/\/api\/(me|identities)(\?|$)/, async (route) => {
+    await crew.held;
+    await route.continue();
+  });
+  await page.route(/\/api\/conversations$/, async (route) => {
+    if (createLate && route.request().method() === "POST") await create.held;
+    await route.continue();
+  });
+  const crewLoaded = Promise.all([page.waitForResponse(/\/api\/me(\?|$)/), page.waitForResponse(/\/api\/identities(\?|$)/)]);
+  const made = page.waitForResponse((r) => r.request().method() === "POST" && /\/api\/conversations$/.test(r.url()));
+  const posted = page.waitForResponse((r) => r.request().method() === "POST" && /\/api\/conversations\/\d+\/messages$/.test(r.url()));
+  // each timing awaits only one of these: the other must not fail the test when it ends
+  for (const wait of [crewLoaded, made, posted]) wait.catch(() => {});
+
+  // When the owner opens New conversation, picks "devtool" and sends "Plan the search filters launch"
+  await page.goto(`${u.w.srv.origin}/chats/new`);
+  await chooseAgent(page, "devtool");
+  await composer(page).fill("Plan the search filters launch");
+  await sendButton(page).click();
+
+  if (createLate) {
+    // And the server says who the owner and the crew are before it has made the conversation
+    crew.open();
+    await crewLoaded;
+    create.open();
+    await made;
+  } else {
+    // And the server then says who the owner and the crew are
+    await posted;
+    crew.open();
+    await crewLoaded;
+  }
+
+  // Then the conversation shows "Plan the search filters launch" and is titled "Plan the search filters launch"
+  await expect(page).toHaveURL(/\/chats\/\d+$/);
+  const conv = Number(/\/chats\/(\d+)$/.exec(page.url())![1]);
+  await expect(message(page, "Plan the search filters launch")).toBeVisible();
+  await expect(message(page, "Plan the search filters launch")).not.toContainText(/sending|failed/);
+  await expect(page.getByRole("heading", { level: 1, name: "Plan the search filters launch" })).toBeVisible();
+  await expect.poll(async () => (await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["Plan the search filters launch"]);
+
+  // And a second message "and the rollout" goes to the same conversation
+  await composer(page).fill("and the rollout");
+  await sendButton(page).click();
+  await expect(message(page, "and the rollout")).toBeVisible();
+  await expect(message(page, "and the rollout")).not.toContainText(/sending|failed/);
+  await expect(page).toHaveURL(`${u.w.srv.origin}/chats/${conv}`);
+
+  // And the owner has one conversation, with both messages
+  await expect.poll(async () => (await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["Plan the search filters launch", "and the rollout"]);
+  expect((await listConversations(u.w.owner)).map((c) => c.id)).toEqual([conv]);
+}
+
+scenario("A first send made before the crew has loaded keeps its message", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  await firstSendBeforeCrew({ server, page, context }, false);
+});
+
+scenario("A first send whose conversation is still being made when the crew loads keeps its message", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  await firstSendBeforeCrew({ server, page, context }, true);
 });
 
 scenario("On a phone a new conversation takes its title from the first message and goes to the top of Conversations", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
