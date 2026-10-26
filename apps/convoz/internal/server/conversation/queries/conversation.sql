@@ -127,3 +127,9 @@ UPDATE conversations SET open_ask_count = max(open_ask_count + sqlc.arg(delta), 
 
 -- name: MarkStale :exec
 UPDATE conversations SET stale_at = sqlc.arg(at), stale_reason = sqlc.arg(reason) WHERE id = sqlc.arg(id);
+
+-- name: ListSeatsOfIdentity :many
+-- ListConversationsOfIdentity with the visibility floor of each seat and nothing else: what a count over every chat needs.
+SELECT c.id, p.joined_message_id FROM conversations c JOIN participants p ON p.conversation_id = c.id
+WHERE p.identity_id = sqlc.arg(identity_id) AND p.status = 'active' AND c.deleted_at IS NULL
+ORDER BY c.last_activity_at DESC, c.id DESC LIMIT sqlc.arg(max_rows);

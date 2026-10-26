@@ -42,3 +42,11 @@ SELECT root_id, last_read_id FROM thread_reads WHERE identity_id = sqlc.arg(iden
 
 -- name: GetThreadRead :one
 SELECT last_read_id FROM thread_reads WHERE identity_id = sqlc.arg(identity_id) AND conversation_id = sqlc.arg(conversation_id) AND root_id = sqlc.arg(root_id);
+
+-- name: ListPositions :many
+-- Every cursor of the identity with the threads it is in there, one row per thread (root_id 0 for a cursor with none).
+SELECT rc.conversation_id, rc.last_read_main_id, rc.thread_floor_id,
+  CAST(COALESCE(tr.root_id, 0) AS INTEGER) AS root_id, CAST(COALESCE(tr.last_read_id, 0) AS INTEGER) AS last_read_id
+FROM read_cursors rc
+LEFT JOIN thread_reads tr ON tr.identity_id = rc.identity_id AND tr.conversation_id = rc.conversation_id
+WHERE rc.identity_id = sqlc.arg(identity_id);

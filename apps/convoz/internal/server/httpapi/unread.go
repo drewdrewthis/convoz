@@ -108,15 +108,10 @@ func repliesToYou(ctx context.Context, d pdb.DBTX, dir directory, reader int64, 
 }
 
 // mentionedConversations counts the conversations p can see, not muted and not in the trash, that have an unread message that
-// @mentions p: the Now badge counts them next to the open asks (owner, conv 179 msg 6018).
+// @mentions p: the Now badge counts them next to the open asks (owner, conv 179 msg 6018). It reads every conversation at once,
+// in a fixed number of queries, with the read points unreadParts gives each (issue 105: a read per chat cost 70 ms at 200 chats).
 func mentionedConversations(ctx context.Context, d pdb.DBTX, p authz.Principal, now time.Time) (int, error) {
-	var list []conversation.Conversation
-	var err error
-	if p.Role == "owner" {
-		list, err = conversation.ListAll(ctx, d)
-	} else {
-		list, err = conversation.ListOf(ctx, d, p.Identity())
-	}
+	seats, err := readableSeats(ctx, d, p)
 	if err != nil {
 		return 0, err
 	}
@@ -124,31 +119,39 @@ func mentionedConversations(ctx context.Context, d pdb.DBTX, p authz.Principal, 
 	if err != nil {
 		return 0, err
 	}
-	count := 0
-	for _, cv := range list {
-		if pf[cv.ID].MutedUntil > now.UnixMilli() {
-			continue
-		}
-		floor, ok, err := canRead(ctx, d, p, cv.ID)
-		if err != nil {
-			return 0, err
-		}
-		if !ok {
-			continue
-		}
-		u, err := unreadParts(ctx, d, p.Identity(), cv, floor)
-		if err != nil {
-			return 0, err
-		}
-		n, err := unreadMentions(ctx, d, p.Identity(), cv, u)
-		if err != nil {
-			return 0, err
-		}
-		if n > 0 {
-			count++
-		}
+	positions, err := readstate.Positions(ctx, d, p.Identity())
+	if err != nil {
+		return 0, err
 	}
-	return count, nil
+	places := make([]message.MentionPlace, 0, len(seats))
+	for _, s := range seats {
+		pos, found := positions[s.Conversation]
+		if !found || pf[s.Conversation].MutedUntil > now.UnixMilli() {
+			continue
+		}
+		place := message.MentionPlace{Conversation: s.Conversation, MainAfter: max(pos.Main, s.Floor)}
+		for _, t := range pos.Threads {
+			place.Points = append(place.Points, message.ReadPoint{Root: t.Root, After: max(t.LastRead, pos.ThreadFloor, s.Floor)})
+		}
+		places = append(places, place)
+	}
+	ids, err := message.ConversationsWithUnreadMentions(ctx, d, p.Identity(), places)
+	return len(ids), err
+}
+
+// readableSeats lists the conversations p reads, with the floor canRead gives each: every live one for the owner, from the
+// start; its own active seats for anyone else. A triage agent's right adds none here: canRead only grants it beyond its seats,
+// and the list is its seats.
+func readableSeats(ctx context.Context, d pdb.DBTX, p authz.Principal) ([]conversation.Readable, error) {
+	if p.Role != "owner" {
+		return conversation.SeatsOf(ctx, d, p.Identity())
+	}
+	list, err := conversation.ListAll(ctx, d)
+	seats := make([]conversation.Readable, len(list))
+	for i, cv := range list {
+		seats[i] = conversation.Readable{Conversation: cv.ID}
+	}
+	return seats, err
 }
 
 // maxThreadRows bounds the threads a conversation row lists.
