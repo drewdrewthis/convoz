@@ -556,6 +556,46 @@ func (q *Queries) ListPendingOfConversations(ctx context.Context) ([]ListPending
 	return items, nil
 }
 
+const listSeatsOfIdentity = `-- name: ListSeatsOfIdentity :many
+SELECT c.id, p.joined_message_id FROM conversations c JOIN participants p ON p.conversation_id = c.id
+WHERE p.identity_id = ?1 AND p.status = 'active' AND c.deleted_at IS NULL
+ORDER BY c.last_activity_at DESC, c.id DESC LIMIT ?2
+`
+
+type ListSeatsOfIdentityParams struct {
+	IdentityID int64
+	MaxRows    int64
+}
+
+type ListSeatsOfIdentityRow struct {
+	ID              int64
+	JoinedMessageID int64
+}
+
+// ListConversationsOfIdentity with the visibility floor of each seat and nothing else: what a count over every chat needs.
+func (q *Queries) ListSeatsOfIdentity(ctx context.Context, arg ListSeatsOfIdentityParams) ([]ListSeatsOfIdentityRow, error) {
+	rows, err := q.db.QueryContext(ctx, listSeatsOfIdentity, arg.IdentityID, arg.MaxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSeatsOfIdentityRow
+	for rows.Next() {
+		var i ListSeatsOfIdentityRow
+		if err := rows.Scan(&i.ID, &i.JoinedMessageID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTrash = `-- name: ListTrash :many
 SELECT id, title, title_source, created_by, created_at, link_url, last_message_id, last_main_id, last_activity_at, message_count, open_ask_count, agent_streak, paused_at, pickup_opened_at, pickup_opened_by, assign_version, deleted_at, deleted_by, title_set_by, stale_at, stale_reason FROM conversations WHERE deleted_at IS NOT NULL
 ORDER BY deleted_at DESC, id DESC LIMIT ?1

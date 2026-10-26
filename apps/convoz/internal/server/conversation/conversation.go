@@ -183,6 +183,19 @@ func ListOf(ctx context.Context, d pdb.DBTX, identityID int64) ([]Conversation, 
 	return fromRows(rows), err
 }
 
+// Readable is a conversation an identity reads, with its visibility floor (the message it joined at; 0 for all history).
+type Readable struct{ Conversation, Floor int64 }
+
+// SeatsOf is ListOf with the floor of each seat and nothing else, latest activity first: the conversations a non-owner reads.
+func SeatsOf(ctx context.Context, d pdb.DBTX, identityID int64) ([]Readable, error) {
+	rows, err := db.New(d).ListSeatsOfIdentity(ctx, db.ListSeatsOfIdentityParams{IdentityID: identityID, MaxRows: MaxListed})
+	out := make([]Readable, len(rows))
+	for i, r := range rows {
+		out[i] = Readable{Conversation: r.ID, Floor: r.JoinedMessageID}
+	}
+	return out, err
+}
+
 // Participants lists the active participants, oldest first.
 func Participants(ctx context.Context, d pdb.DBTX, id int64) ([]Participant, error) {
 	rows, err := db.New(d).ListActiveParticipants(ctx, id)

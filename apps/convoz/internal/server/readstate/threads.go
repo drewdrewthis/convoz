@@ -42,6 +42,31 @@ func Threads(ctx context.Context, d pdb.DBTX, identityID, conversationID int64) 
 	return out, err
 }
 
+// Position is how far an identity has read one conversation: the main list, the thread floor and each thread it is in.
+type Position struct {
+	Main, ThreadFloor int64
+	Threads           []ThreadPos
+}
+
+// Positions is the Position of every conversation the identity has a cursor in, by conversation id, in one query: a count
+// over every chat reads them all at once (issue 105). A conversation with no cursor is absent.
+func Positions(ctx context.Context, d pdb.DBTX, identityID int64) (map[int64]Position, error) {
+	rows, err := db.New(d).ListPositions(ctx, identityID)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[int64]Position)
+	for _, r := range rows {
+		pos := out[r.ConversationID]
+		pos.Main, pos.ThreadFloor = r.LastReadMainID, r.ThreadFloorID
+		if r.RootID != 0 {
+			pos.Threads = append(pos.Threads, ThreadPos{Root: r.RootID, LastRead: r.LastReadID})
+		}
+		out[r.ConversationID] = pos
+	}
+	return out, nil
+}
+
 // Involve makes the identity part of a thread, with everything up to lastRead already read. A thread it is in stays as it is.
 func Involve(ctx context.Context, d pdb.DBTX, now time.Time, identityID, conversationID, rootID, lastRead int64) error {
 	return db.New(d).CreateThreadRead(ctx, db.CreateThreadReadParams{

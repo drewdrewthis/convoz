@@ -117,3 +117,22 @@ SELECT CAST(COALESCE((
   WHERE conversation_id = sqlc.arg(conversation_id) AND in_main = 1 AND kind <> 'system' AND deleted_at IS NULL AND id <= sqlc.arg(at)
   ORDER BY id DESC LIMIT 1
 ), 0) AS INTEGER);
+
+-- name: ConversationsWithUnreadMentions :many
+-- The conversations that have an unread message that @mentions the reader: CountUnreadMentions for many conversations in one
+-- query. places is a JSON array of [conversation_id, main_after, lowest_after, points], points being that conversation's
+-- [root_id, after] pairs and lowest_after the lowest of main_after and those points. Each conversation scans from the reader's
+-- own mentions (mentions_identity) after its lowest_after and stops at the first one that counts.
+SELECT CAST(json_extract(c.value, '$[0]') AS INTEGER) AS conversation_id
+FROM json_each(sqlc.arg(places)) c
+WHERE EXISTS (
+  SELECT 1 FROM mentions mn JOIN messages m ON m.id = mn.message_id
+  WHERE mn.identity_id = sqlc.arg(identity_id) AND mn.message_id > json_extract(c.value, '$[2]')
+    AND m.conversation_id = json_extract(c.value, '$[0]') AND m.kind <> 'system' AND m.deleted_at IS NULL AND m.author_id <> sqlc.arg(reader_id)
+    AND (
+      (m.in_main = 1 AND m.id > json_extract(c.value, '$[1]') AND NOT (m.broadcast = 1 AND EXISTS (
+        SELECT 1 FROM json_each(c.value, '$[3]') p WHERE json_extract(p.value, '$[0]') = m.thread_root_id AND m.id <= json_extract(p.value, '$[1]'))))
+      OR (m.broadcast = 0 AND m.thread_root_id IS NOT NULL AND EXISTS (
+        SELECT 1 FROM json_each(c.value, '$[3]') p WHERE json_extract(p.value, '$[0]') = m.thread_root_id AND m.id > json_extract(p.value, '$[1]')))
+    )
+);

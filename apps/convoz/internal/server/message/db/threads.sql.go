@@ -11,6 +11,55 @@ import (
 	"strings"
 )
 
+const conversationsWithUnreadMentions = `-- name: ConversationsWithUnreadMentions :many
+SELECT CAST(json_extract(c.value, '$[0]') AS INTEGER) AS conversation_id
+FROM json_each(?1) c
+WHERE EXISTS (
+  SELECT 1 FROM mentions mn JOIN messages m ON m.id = mn.message_id
+  WHERE mn.identity_id = ?2 AND mn.message_id > json_extract(c.value, '$[2]')
+    AND m.conversation_id = json_extract(c.value, '$[0]') AND m.kind <> 'system' AND m.deleted_at IS NULL AND m.author_id <> ?3
+    AND (
+      (m.in_main = 1 AND m.id > json_extract(c.value, '$[1]') AND NOT (m.broadcast = 1 AND EXISTS (
+        SELECT 1 FROM json_each(c.value, '$[3]') p WHERE json_extract(p.value, '$[0]') = m.thread_root_id AND m.id <= json_extract(p.value, '$[1]'))))
+      OR (m.broadcast = 0 AND m.thread_root_id IS NOT NULL AND EXISTS (
+        SELECT 1 FROM json_each(c.value, '$[3]') p WHERE json_extract(p.value, '$[0]') = m.thread_root_id AND m.id > json_extract(p.value, '$[1]')))
+    )
+)
+`
+
+type ConversationsWithUnreadMentionsParams struct {
+	Places     interface{}
+	IdentityID int64
+	ReaderID   sql.NullInt64
+}
+
+// The conversations that have an unread message that @mentions the reader: CountUnreadMentions for many conversations in one
+// query. places is a JSON array of [conversation_id, main_after, lowest_after, points], points being that conversation's
+// [root_id, after] pairs and lowest_after the lowest of main_after and those points. Each conversation scans from the reader's
+// own mentions (mentions_identity) after its lowest_after and stops at the first one that counts.
+func (q *Queries) ConversationsWithUnreadMentions(ctx context.Context, arg ConversationsWithUnreadMentionsParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, conversationsWithUnreadMentions, arg.Places, arg.IdentityID, arg.ReaderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var conversation_id int64
+		if err := rows.Scan(&conversation_id); err != nil {
+			return nil, err
+		}
+		items = append(items, conversation_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countBroadcastRead = `-- name: CountBroadcastRead :one
 SELECT COUNT(*) FROM messages
 WHERE thread_root_id = ?1 AND broadcast = 1 AND kind <> 'system' AND deleted_at IS NULL
