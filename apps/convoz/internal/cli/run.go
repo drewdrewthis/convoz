@@ -158,7 +158,7 @@ func (r *runner) loop(ctx context.Context) int {
 			continue
 		case isWatchOpen(err):
 			// The agent's own `convoz watch` holds the slot. Never take it by force: wait, or a service manager restart-loops us.
-			fmt.Fprintf(r.io.Stderr, "convoz run: %s; trying again in %s\n", err, heldWait)
+			fmt.Fprintf(r.io.Stderr, "convoz run: another convoz watch or run holds @%s (%s); trying again in %s\n", r.handle, err, heldWait)
 			sleepCtx(ctx, heldWait)
 			heldWait = min(heldWait*2, runHeldMax)
 			continue
@@ -191,10 +191,11 @@ func (r *runner) next(items []wire.InboxItem) (wire.InboxItem, bool) {
 	return wire.InboxItem{}, false
 }
 
-// isWatchOpen says the server refused a poll because a watch holds the agent's slot.
+// isWatchOpen says the server refused a poll because a watch or another runner holds the agent's slot. It matches the code, not the
+// bare 409: the ack answers 409 claim_lost, which is a different case.
 func isWatchOpen(err error) bool {
-	status, _ := statusCode(err)
-	return status == 409
+	status, code := statusCode(err)
+	return status == 409 && code == "watch_open"
 }
 
 // heldElsewhere prints the server's refusal of a poll because another runner or watch holds the agent, and says it was one.
