@@ -29,8 +29,8 @@ Conversation:
     rank:
       type: number
       description: |
-        The sort key of the row in the caller's rail: coalesce(rail_rank, created_at). Within a section (Starred, Conversations) the higher
-        rank is first; activity never changes it (I-21).
+        The sort key of the row in the caller's rail: coalesce(rail_rank, last_activity_at). Within a section (Starred, Conversations) the higher
+        rank is first; a new message clears an unstarred stored rank, so the conversation goes back on top (I-21).
     owner_last: { type: boolean, description: "The owner wrote the newest message of the main list: the conversation waits on the agents, so it never goes Older (#42). Absent when not." }
     started_by: { $ref: "../openapi.yaml#/components/schemas/Person" }
     link_url: { type: string, description: The linked pull request (https). }

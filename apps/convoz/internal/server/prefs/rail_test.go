@@ -45,14 +45,14 @@ func TestRail_NoPrefsRowNeeded(t *testing.T) {
 			t.Fatalf("a person who touched nothing has no rows: %v %v", all, err)
 		}
 		if got := all[41].RankOf(1234); got != 1234 {
-			t.Errorf("an untouched conversation ranks by created_at, got %v", got)
+			t.Errorf("an untouched conversation ranks by last_activity_at, got %v", got)
 		}
 		return nil
 	})
 }
 
 func TestRail_ActivityDoesNotReorderAndNewGoesTop(t *testing.T) {
-	// The rank reads created_at only; a later message changes last_activity_at, which the rank never sees (I-21).
+	// The fallback rank is last_activity_at, so the freshest activity is first; a stored rank is cleared by FollowActivity (I-21).
 	section := []prefs.Row{{ID: 41, Rank: 100}, {ID: 52, Rank: 200}, {ID: 60, Rank: 300}}
 	prefs.Order(section)
 	if got := ids(section); !slices.Equal(got, []int64{60, 52, 41}) {
@@ -157,6 +157,34 @@ func TestRail_StoredPrefsRoundTrip(t *testing.T) {
 			if changed, err := prefs.Unpin(ctx, d, 1, 5); err != nil || changed != want {
 				t.Fatalf("unpin #%d: changed %v err %v", i, changed, err)
 			}
+		}
+		return nil
+	})
+}
+
+func TestRail_FollowActivityClearsOnlyUnstarredRanks(t *testing.T) {
+	s := dbtest.Store(t)
+	dbtest.Exec(t, s, `INSERT INTO identities (id, kind, handle, display_name, display_skeleton, avatar_letter, avatar_palette, created_at) VALUES (1,'human','drew','Drew','drew','D',0,1)`,
+		`INSERT INTO humans (identity_id, role, created_via) VALUES (1,'owner','bootstrap')`,
+		`INSERT INTO conversations (id, created_by, created_at, last_activity_at) VALUES (10,1,1,1), (11,1,1,1)`,
+		`INSERT INTO conversation_prefs (identity_id, conversation_id, starred_at, rail_rank, updated_at) VALUES (1,10,NULL,5,1), (1,11,NULL,6,1)`)
+	dbtest.Exec(t, s, `INSERT INTO identities (id, kind, handle, display_name, display_skeleton, avatar_letter, avatar_palette, created_at) VALUES (2,'human','sam','Sam','sam','S',0,1)`,
+		`INSERT INTO humans (identity_id, role, created_via) VALUES (2,'member','bootstrap')`,
+		`INSERT INTO conversation_prefs (identity_id, conversation_id, starred_at, rail_rank, updated_at) VALUES (2,10,1,7,1)`)
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error {
+		if err := prefs.FollowActivity(ctx, d, 10); err != nil {
+			return err
+		}
+		one, _ := prefs.All(ctx, d, 1)
+		two, _ := prefs.All(ctx, d, 2)
+		if one[10].Rank != nil {
+			t.Errorf("an unstarred rank is cleared, got %v", *one[10].Rank)
+		}
+		if one[11].Rank == nil {
+			t.Error("another conversation keeps its rank")
+		}
+		if two[10].Rank == nil {
+			t.Error("a starred row keeps its rank")
 		}
 		return nil
 	})

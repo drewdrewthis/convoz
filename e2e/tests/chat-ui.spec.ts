@@ -28,7 +28,7 @@ import { webauthn } from "../lib/webauthn-browser.ts";
  * CHATS  /chats   heading "Conversations" (exact, level 1). Link "New conversation" (to /chats/new), a button that floats above the bar.
  *   Empty (no conversation): no list. Text /no conversations yet/i and text /agent/i (typing @ brings in an agent). The page body (main) also
  *   has link "New conversation". With chats: list "Conversations" with one listitem per conversation, in the OWNER'S order (rank DESC, id DESC; per prototype v41 new
- *   activity never reorders rows; Reorder mode, from a row's long-press menu, shows a handle on each row until Done). A listitem has: a link to /chats/:id that fills the row (the whole row is the tap target, >= 44 px
+ *   a new message puts a row on top; Reorder mode, from a row's long-press menu, shows a handle on each row until Done). A listitem has: a link to /chats/:id that fills the row (the whole row is the tap target, >= 44 px
  *   tall); heading (level 2) = the title ("New conversation" while untitled); a preview line "devtool: Done" (agent) or "You: ..." (owner);
  *   when unread > 0: the count pill (text "Unread: 3": a hidden "Unread: " and the count; prototype v41 has no dot), and the title heading is bold (weight >= 600).
  *   Read rows: no dot, no count, normal weight. Live: SSE frames (message.created, read.moved, conversation.created) update the rows
@@ -920,7 +920,7 @@ scenario("A new conversation goes to the top of the Conversations list", { tag: 
   await expect(chatList(page).getByRole("heading")).toHaveText(["Weekly usage", "Deploy alerts runbook", "Ship search filters"]);
 });
 
-scenario("New activity never reorders the Conversations list", { tag: ["@browser"] }, async ({ server, page, context }) => {
+scenario("New activity puts a conversation on top of the Conversations list", { tag: ["@browser"] }, async ({ server, page, context }) => {
   // Given the owner opened the Conversations list
   const u = await uiWorld({ server, page, context });
   const ids: number[] = [];
@@ -931,9 +931,9 @@ scenario("New activity never reorders the Conversations list", { tag: ["@browser
   // When "devtool" posts in conversation 41
   await agentPosts(u, "devtool", ids[0]!, "Done");
 
-  // Then the Conversations list still shows 60, 52, 41 in that order without a reload
+  // Then the Conversations list shows 41, 60, 52 in that order without a reload
   await expect(chatRow(page, "Ship search filters").getByText("devtool: Done")).toBeVisible({ timeout: 3_000 });
-  await expect(chatList(page).getByRole("heading")).toHaveText(["Weekly usage", "Deploy alerts runbook", "Ship search filters"]);
+  await expect(chatList(page).getByRole("heading")).toHaveText(["Ship search filters", "Weekly usage", "Deploy alerts runbook"]);
 
   // And conversation 41 shows its new preview
   expect(await rowTitles(page)).toHaveLength(3);

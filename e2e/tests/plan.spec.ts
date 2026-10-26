@@ -406,7 +406,7 @@ scenario("Each conversation row shows a status icon next to its count and the li
 
   // When the owner opens the Conversations list
   await page.goto(`${p.w.srv.origin}/chats`);
-  const order = ["Quiet one", "Blocked one", "Waiting one", "Working one", "Ship search filters"];
+  const order = ["Working one", "Waiting one", "Quiet one", "Blocked one", "Ship search filters"]; // a message (the post, the ask a wait sends) puts a row on top
   await expect(chatList(page).getByRole("heading")).toHaveText(order);
 
   // Then "Working one" shows a green icon named "Working", right of its title, next to its count and as tall as it

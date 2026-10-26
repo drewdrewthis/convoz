@@ -21,6 +21,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/prefs"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/upload"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
@@ -604,7 +605,10 @@ func (s *Server) resumeConversation(w http.ResponseWriter, r *http.Request, c *c
 		if lifted, err = message.Resume(ctx, d, messagePorts(c.p), now, id, c.p.Identity()); err != nil || !lifted {
 			return err
 		}
-		return conversation.Touch(ctx, d, now, id) // the resume line moves the conversation up the list
+		if err := conversation.Touch(ctx, d, now, id); err != nil { // the resume line moves the conversation up the list
+			return err
+		}
+		return prefs.FollowActivity(ctx, d, id)
 	})
 	if s.messageRefused(w, err) {
 		return

@@ -8,7 +8,7 @@ export interface Groups {
   older: Conversation[];
 }
 
-/** A section keeps the owner's order: the higher rank first, activity never matters (I-21). */
+/** A section keeps the owner's order: the higher rank first; a new message puts an unstarred conversation back on top (its rank is its last activity) (I-21). */
 export const byRank = (a: Conversation, b: Conversation): number => b.rank - a.rank || b.id - a.id;
 
 /** How long a conversation may go without a message before it folds into Older (Drew, 2026-10-22). */

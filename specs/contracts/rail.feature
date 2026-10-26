@@ -12,7 +12,7 @@ Feature: Rail (contracts)
     And machine "box-2" is logged in with allow-list "devtool"
     And conversations 41 "Ship search filters", 52 "Deploy alerts runbook" and 60 "Weekly usage" were created in that order with "devtool"
 
-  Rule: Order is the owner's, never the activity's (I-21)
+  Rule: Order is the owner's; a new message puts its conversation on top (I-21)
 
     @v1 @api @I-21
     Scenario: A conversation the owner never touched needs no preferences

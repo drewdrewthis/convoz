@@ -1384,7 +1384,7 @@ export interface paths {
         /**
          * Star, mute or reorder one conversation in the owner's rail.
          * @description Personal to the caller (I-22): another person's stars, mutes and order never change. A person only; an agent is 403.
-         *     A conversation the caller cannot see is 404. Send only what changes. The order is the owner's, never the activity's (I-21).
+         *     A conversation the caller cannot see is 404. Send only what changes. The order is the owner's; a new message puts its conversation back on top (I-21).
          */
         patch: operations["patchConversationPrefs"];
         trace?: never;
@@ -2649,8 +2649,8 @@ export interface components {
             /** @description The caller starred it. Personal to the caller (I-22); always false for an agent. */
             starred: boolean;
             /**
-             * @description The sort key of the row in the caller's rail: coalesce(rail_rank, created_at). Within a section (Starred, Conversations) the higher
-             *     rank is first; activity never changes it (I-21).
+             * @description The sort key of the row in the caller's rail: coalesce(rail_rank, last_activity_at). Within a section (Starred, Conversations) the higher
+             *     rank is first; a new message clears an unstarred stored rank, so the conversation goes back on top (I-21).
              */
             rank: number;
             /** @description The owner wrote the newest message of the main list: the conversation waits on the agents, so it never goes Older (#42). Absent when not. */
@@ -3270,7 +3270,7 @@ export interface components {
         RailRank: {
             /** Format: int64 */
             id: number;
-            /** @description The sort key of the row in the owner's rail: coalesce(rail_rank, created_at), higher first. */
+            /** @description The sort key of the row in the owner's rail: coalesce(rail_rank, last_activity_at), higher first. */
             rank: number;
         };
         PrefsResponse: {

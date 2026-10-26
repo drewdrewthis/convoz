@@ -10,6 +10,15 @@ import (
 	"database/sql"
 )
 
+const clearRailRanks = `-- name: ClearRailRanks :exec
+UPDATE conversation_prefs SET rail_rank = NULL WHERE conversation_id = ?1 AND starred_at IS NULL AND rail_rank IS NOT NULL
+`
+
+func (q *Queries) ClearRailRanks(ctx context.Context, conversationID int64) error {
+	_, err := q.db.ExecContext(ctx, clearRailRanks, conversationID)
+	return err
+}
+
 const deletePin = `-- name: DeletePin :execrows
 DELETE FROM pins WHERE identity_id = ?1 AND message_id = ?2
 `
