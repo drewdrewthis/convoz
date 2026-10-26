@@ -231,6 +231,15 @@ Feature: Asks and their state machine
       Then Now no longer lists it in the main list but under "You replied · waiting on the agent", with no reload
       And the card in the conversation shows "You replied · waiting on @devtool" and still offers its options
 
+    # Owner said (conv 379 msg 6722): "why couldn't I quick reply on that ask?" (an ask inside a thread).
+    @v1 @browser
+    Scenario: An ask inside a thread has Quick reply too
+      Given "devtool" asks inside the thread of its message "Step 1 is the chips UI"
+      When the owner opens the conversation
+      Then the ask card in the thread offers "Quick reply" and "I have questions"
+      When the owner sends the quick reply "Use the smaller one"
+      Then the ask shows "Replied · Use the smaller one"
+
     @v1 @cli
     Scenario: An agent's reply does not close an ask
       Given an open ask of "devtool"
