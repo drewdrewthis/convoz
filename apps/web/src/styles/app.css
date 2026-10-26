@@ -367,6 +367,7 @@
   /* the bullet hangs off the text itself: as its own flex item, a text too long for the row wrapped below it and left the bullet alone */
   .notice-text::before { content: "\2022"; display: inline-block; width: 16px; margin-left: -24px; margin-right: 8px; text-align: center; }
   .notice-line[data-t="conversation.paused"] .notice-text::before { content: "\23F8"; }
+  .notice-files { flex-basis: 100%; }
   /* a plan update (msg 632): one muted row; the pill and the opened lines sit under the same left edge as the other notices */
   .plan-note { gap: 0 8px; padding: 0 12px 0 60px; }
   .pn-main { display: flex; flex: 0 1 auto; align-items: center; gap: 8px; min-width: 0; min-height: 44px; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }

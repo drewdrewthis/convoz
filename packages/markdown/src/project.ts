@@ -71,6 +71,10 @@ function systemText(s: NonNullable<Projectable["system"]>): string {
       return `${ref(s.identity)} left`;
     case "member.disabled":
       return `${ref(s.identity)} was disabled`;
+    case "page.read":
+      return `${ref(s.identity)} read the shared page`;
+    case "page.shot":
+      return `${ref(s.identity)} took a screenshot of the shared page`;
     case "member.renamed":
       return `@${s.from ?? ""} is now @${s.to ?? ""}`;
     case "conversation.renamed":

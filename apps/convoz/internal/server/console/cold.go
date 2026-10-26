@@ -112,7 +112,7 @@ func NewColdPage(boot []byte, tail ...[]byte) (*ColdPage, error) {
 func (p *ColdPage) csp() string {
 	scripts := strings.Join(p.scripts, " ") // the JSON data block is not executable, so CSP never checks it
 	return "default-src 'self'; script-src 'self' " + scripts + "; style-src 'self' " + strings.Join(p.styles, " ") +
-		"; " + connectSrc() + "; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+		"; " + connectSrc() + "; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; " + frameAncestors()
 }
 
 // DataBlock is the JSON of the data block, escaped for an HTML script element: <, > and & (so no "</script>" or "<!--" in a

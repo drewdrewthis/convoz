@@ -3,7 +3,7 @@ import { createConversation, startSession } from "./chat.ts";
 import type { CliMachine } from "./cli.ts";
 import { clickConvozButton, EXTENSION_ORIGIN, grantHostAccess, launchWithExtension, openPanel, openWebPage, setServer, signInOwner } from "./extension.ts";
 import type { ServerHandle, ServerOptions } from "./fixtures.ts";
-import { createAgents, DEFAULT_SCOPES } from "./machines.ts";
+import { createAgents } from "./machines.ts";
 import { bootstrapOwner, type Owner } from "./owner.ts";
 import type { RunResult } from "./run.ts";
 import { expect } from "./scenario.ts";
@@ -59,7 +59,7 @@ export const pageServer = (extension = true): ServerOptions => ({
 export interface PageWorld {
   srv: ServerHandle;
   owner: Owner;
-  /** Machine "box-2", allowed to act as @scout and @other, with the page scope. */
+  /** Machine "box-2", allowed to act as @scout and @other, with the default scopes (page among them). */
   box: CliMachine;
   /** Conversation "Checkout bug": the owner and @scout. @other is not in it. */
   conv: number;
@@ -75,7 +75,7 @@ export async function pageWorld(server: (o?: ServerOptions) => Promise<ServerHan
   const srv = await server({ ...pageServer(o.extension ?? true), ...(o.dataDir ? { dataDir: o.dataDir } : {}) });
   const owner = await bootstrapOwner(srv);
   await createAgents(owner, "scout", "other");
-  const { box } = await machineWith(srv, owner, "box-2", ["scout", "other"], [...DEFAULT_SCOPES, "page"]);
+  const { box } = await machineWith(srv, owner, "box-2", ["scout", "other"]);
   const conv = await createConversation(owner, { participants: ["scout"], title: "Checkout bug" });
   const scout = (await startSession(box, "scout", "scout")).sid;
   const other = (await startSession(box, "other", "other")).sid;

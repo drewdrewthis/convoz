@@ -76,7 +76,9 @@
         "t": {
           "enum": [
             "member.left",
-            "member.disabled"
+            "member.disabled",
+            "page.read",
+            "page.shot"
           ]
         },
         "identity": {

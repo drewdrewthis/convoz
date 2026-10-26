@@ -477,5 +477,49 @@
   },
   "short": "@claude is not responding",
   "long": "@claude is not responding"
+ },
+ {
+  "name": "system: an agent read the shared page",
+  "message": {
+   "system": {
+    "t": "page.read",
+    "identity": {
+     "handle": "scout",
+     "name": "Scout"
+    },
+    "by": {
+     "handle": "",
+     "name": ""
+    }
+   }
+  },
+  "short": "@scout read the shared page",
+  "long": "@scout read the shared page"
+ },
+ {
+  "name": "system: an agent took a screenshot of the shared page",
+  "message": {
+   "system": {
+    "t": "page.shot",
+    "identity": {
+     "handle": "scout",
+     "name": "Scout"
+    },
+    "by": {
+     "handle": "",
+     "name": ""
+    }
+   },
+   "uploads": [
+    {
+     "kind": "image",
+     "name": "screenshot.png",
+     "size": 2048,
+     "duration_ms": 0
+    }
+   ]
+  },
+  "short": "@scout took a screenshot of the shared page",
+  "long": "@scout took a screenshot of the shared page"
  }
 ]

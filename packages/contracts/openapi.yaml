@@ -151,6 +151,12 @@ paths:
   /api/me/delete: { $ref: "paths/ops.yaml#/~1api~1me~1delete" }
   /api/client-errors: { $ref: "paths/ops.yaml#/~1api~1client-errors" }
   /api/admin/health: { $ref: "paths/ops.yaml#/~1api~1admin~1health" }
+  # ---- page
+  /api/page/shares: { $ref: "paths/page.yaml#/~1api~1page~1shares" }
+  /api/page/shares/{id}: { $ref: "paths/page.yaml#/~1api~1page~1shares~1{id}" }
+  /api/page/shares/{id}/next: { $ref: "paths/page.yaml#/~1api~1page~1shares~1{id}~1next" }
+  /api/page/requests: { $ref: "paths/page.yaml#/~1api~1page~1requests" }
+  /api/page/requests/{id}/result: { $ref: "paths/page.yaml#/~1api~1page~1requests~1{id}~1result" }
   # ---- audit
   /api/admin/audit: { $ref: "paths/audit.yaml#/~1api~1admin~1audit" }
   # ---- core
@@ -379,6 +385,17 @@ components:
     CrewStatus: { $ref: "components/prefs.yaml#/CrewStatus" }
     StatusList: { $ref: "components/prefs.yaml#/StatusList" }
     AgentStatusChangedFrame: { $ref: "components/prefs.yaml#/AgentStatusChangedFrame" }
+    PageShareRequest: { $ref: "components/page.yaml#/PageShareRequest" }
+    PageShare: { $ref: "components/page.yaml#/PageShare" }
+    PageShareResponse: { $ref: "components/page.yaml#/PageShareResponse" }
+    PageSharesResponse: { $ref: "components/page.yaml#/PageSharesResponse" }
+    PageAsk: { $ref: "components/page.yaml#/PageAsk" }
+    PageNextResponse: { $ref: "components/page.yaml#/PageNextResponse" }
+    PageElement: { $ref: "components/page.yaml#/PageElement" }
+    PageRead: { $ref: "components/page.yaml#/PageRead" }
+    PageShot: { $ref: "components/page.yaml#/PageShot" }
+    PageResult: { $ref: "components/page.yaml#/PageResult" }
+    PageAnswer: { $ref: "components/page.yaml#/PageAnswer" }
     PlanRequest: { $ref: "components/plan.yaml#/PlanRequest" }
     PlanStep: { $ref: "components/plan.yaml#/PlanStep" }
     PlanNowRequest: { $ref: "components/plan.yaml#/PlanNowRequest" }

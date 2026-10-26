@@ -182,6 +182,10 @@ func systemText(s ProjectSystem) string {
 		return s.Identity.Ref() + " left"
 	case "member.disabled":
 		return s.Identity.Ref() + " was disabled"
+	case "page.read":
+		return s.Identity.Ref() + " read the shared page"
+	case "page.shot":
+		return s.Identity.Ref() + " took a screenshot of the shared page"
 	case "member.renamed":
 		return "@" + s.From + " is now @" + s.To
 	case "conversation.renamed":

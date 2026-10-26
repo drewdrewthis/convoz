@@ -32,7 +32,7 @@ const readResult = `{"ok":true,"read":{"kind":"page-content","note":"Content fro
 var tinyPNG = base64.StdEncoding.EncodeToString([]byte("\x89PNG\r\n\x1a\nTESTONLY"))
 
 // pageRig is a server with the extension origin set (or not), the owner, conversation "Checkout bug" with @scout, and leases of
-// @scout and @other (not in it) on a machine with the page scope, and of @scout on a machine without it.
+// @scout and @other (not in it) on a machine with the default scopes (page among them), and of @scout on a machine without page.
 type pageRig struct {
 	s      *Server
 	h      http.Handler
@@ -72,10 +72,10 @@ func newPageRig(t *testing.T, ext string) *pageRig {
 			}
 			return auth.RevealKey(ctx, d, box, id)
 		}
-		if withPage, err = key("box-1", auth.DefaultScopes|auth.ScopePage); err != nil {
+		if withPage, err = key("box-1", auth.DefaultScopes); err != nil {
 			return err
 		}
-		without, err = key("box-2", auth.DefaultScopes)
+		without, err = key("box-2", auth.DefaultScopes&^auth.ScopePage)
 		return err
 	})
 	r.leases["scout"] = r.mint(t, withPage, "scout", "client-page-0001")
@@ -221,7 +221,7 @@ func (r *pageRig) messages(t *testing.T) (system []string, raw string) {
 	rec := r.owner("", "GET", fmt.Sprintf("/api/conversations/%d/messages?limit=100", r.conv), "")
 	var out struct {
 		Messages []struct {
-			Body   string `json:"body"`
+			Body   string                `json:"body"`
 			Author struct{ Kind string } `json:"author"`
 		} `json:"messages"`
 	}
@@ -302,6 +302,13 @@ func TestOnlyTheOwnersExtensionSharesAndOnlyAnAgentAsks(t *testing.T) {
 	share := r.share(t)
 	wantStatus(t, "next from the app's own origin", r.owner("http://localhost", "GET", "/api/page/shares/"+share+"/next?wait=0", ""), 403)
 	wantStatus(t, "next with no Origin", r.owner("", "GET", "/api/page/shares/"+share+"/next?wait=0", ""), 403)
+	// Chrome sends an extension's GET with no Origin, as Sec-Fetch-Site none and Sec-Fetch-Mode cors; a page cannot send those
+	fetched := func(site, mode string) *httptest.ResponseRecorder {
+		return r.do("GET", "/api/page/shares/"+share+"/next?wait=0", "", map[string]string{"Cookie": DeviceCookie + "=" + r.cookie, "Sec-Fetch-Site": site, "Sec-Fetch-Mode": mode})
+	}
+	wantStatus(t, "next as the extension's GET", fetched("none", "cors"), 204)
+	wantStatus(t, "next as a link the owner opens", fetched("none", "navigate"), 403)
+	wantStatus(t, "next from the app's own page", fetched("same-origin", "cors"), 403)
 	wantStatus(t, "next by an agent", r.agent("scout", "GET", "/api/page/shares/"+share+"/next?wait=0", ""), 401, 403)
 	wantStatus(t, "a request by the owner", r.owner("http://localhost", "POST", "/api/page/requests", r.requestBody("read")), 401, 403)
 	wantStatus(t, "a request by the extension", r.ext("POST", "/api/page/requests", r.requestBody("read")), 401, 403)

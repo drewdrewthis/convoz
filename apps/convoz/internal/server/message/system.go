@@ -44,8 +44,10 @@ var handleRE = regexp.MustCompile(`^[a-z][a-z0-9-]{1,39}$`)
 var ErrSystemLine = errors.New("not a system.v1 line")
 
 var (
-	byOnly      = []string{"conversation.renamed", "conversation.resumed", "conversation.restored"}
-	subjectOnly = []string{"member.left", "member.disabled"}
+	byOnly = []string{"conversation.renamed", "conversation.resumed", "conversation.restored"}
+	// page.read and page.shot: the subject read or took a screenshot of the tab the owner shares (page-share.feature). The line
+	// names the act only: the page's words never become a message.
+	subjectOnly = []string{"member.left", "member.disabled", "page.read", "page.shot"}
 	subjectBy   = []string{"member.requested", "member.removed", "member.approved", "member.declined"}
 )
 
