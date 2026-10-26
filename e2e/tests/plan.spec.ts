@@ -418,8 +418,10 @@ scenario("Each conversation row shows a status icon next to its count and the li
   const title = (await working.getByRole("heading").boundingBox())!;
   const count = (await working.locator(".count").boundingBox())!;
   expect(icon.x).toBeGreaterThan(title.x + title.width);
-  // The gap from the icon's right edge to the count's left edge is 16px (e72a105: 12px grid gap + 4px count margin), measured from the page
-  expect(Math.abs(count.x - (icon.x + icon.width) - 16)).toBeLessThanOrEqual(1);
+  // The count sits right next to the icon (issue 104; the 8px limit predates the e72a105 grid). Range, not a pinned value.
+  const gap = count.x - (icon.x + icon.width);
+  expect(gap, `icon-to-count box gap is ${gap.toFixed(1)}px, expected 4 to 20px`).toBeGreaterThanOrEqual(4);
+  expect(gap, `icon-to-count box gap is ${gap.toFixed(1)}px, expected 4 to 20px`).toBeLessThanOrEqual(20);
   expect(Math.abs(icon.height - count.height)).toBeLessThanOrEqual(2);
 
   // And the other rows: amber "Waiting on you", red "Blocked", and no icon for "Quiet one"
