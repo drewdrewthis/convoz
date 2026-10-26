@@ -8,7 +8,7 @@ import type { Owner } from "./owner.ts";
 import { repoRoot, run } from "./run.ts";
 
 /**
- * Helpers of browser-extension.feature: the unpacked extension (apps/extension) in a real Chromium against a real `convoz serve`.
+ * Helpers of browser-extension.feature and page-share.feature: the unpacked extension (apps/extension) in a real Chromium against a real `convoz serve`.
  *
  * Two steps of the owner's hand cannot be clicked in a test browser, so the test takes them the way Chrome's own pages do:
  *  - host access: Chrome's prompt for the server origin is browser UI. grantHostAccess adds that origin on chrome://extensions
@@ -94,9 +94,11 @@ export async function setServer(panel: Page, origin: string): Promise<void> {
   await panel.getByRole("button", { name: "Save" }).click();
 }
 
-/** A web page on an address of its own (served by the test), in a new tab, brought to the front. */
+/** A web page on an address of its own (served by the test), in a new tab, brought to the front. `url` may carry a fragment. */
 export async function openWebPage(context: BrowserContext, url: string, html: string): Promise<Page> {
-  await context.route((u) => u.href === url, (route) => route.fulfill({ contentType: "text/html; charset=utf-8", body: html }));
+  // a request never carries the fragment, so the route matches the address without it
+  const requested = url.split("#")[0];
+  await context.route((u) => u.href === requested, (route) => route.fulfill({ contentType: "text/html; charset=utf-8", body: html }));
   const page = await context.newPage();
   await page.goto(url);
   await page.bringToFront();
