@@ -13,6 +13,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/ncruces/go-sqlite3"
 	sqlite "github.com/ncruces/go-sqlite3/driver"
@@ -35,16 +36,20 @@ type Store struct {
 // Open opens (or creates) the encrypted database at path, owner-only (0600). The key goes
 // in by PRAGMA on every new connection, never in the URI, so nothing can read it back
 // from a file name (§6.2).
-func Open(path string, dek []byte) (*Store, error) {
+func Open(path string, dek []byte, opts ...Option) (*Store, error) {
 	if err := ensureFile(path); err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
 	key := &secret{hex: hex.EncodeToString(dek)}
-	w, err := openPool(path, key, true)
+	w, err := openPool(path, key, true, o.observe)
 	if err != nil {
 		return nil, err
 	}
-	r, err := openPool(path, key, false)
+	r, err := openPool(path, key, false, o.observe)
 	if err != nil {
 		_ = w.Close()
 		return nil, err
@@ -86,13 +91,13 @@ func fileURI(path string, params ...string) string {
 	return uri + "?" + strings.Join(params, "&")
 }
 
-func openPool(path string, key *secret, writer bool) (*sql.DB, error) {
+func openPool(path string, key *secret, writer bool, observe func(string, time.Duration)) (*sql.DB, error) {
 	var params []string
 	if writer {
 		params = append(params, "_txlock=immediate") // reads and writes in one tx must not upgrade a read lock
 	}
 	dsn := fileURI(path, params...)
-	pool, err := sqlite.Open(dsn, key.initConn(writer))
+	pool, err := sqlite.Open(dsn, key.initConn(writer, observe))
 	if err != nil {
 		return nil, key.scrub(fmt.Errorf("open database: %w", err))
 	}
@@ -104,7 +109,8 @@ func openPool(path string, key *secret, writer bool) (*sql.DB, error) {
 }
 
 // initConn is the per-connection hook: key first, then the extensions and settings.
-func (s *secret) initConn(writer bool) func(*sqlite3.Conn) error {
+// observe, when set, hears of each finished statement; it is installed last, so the key PRAGMA is never traced.
+func (s *secret) initConn(writer bool, observe func(string, time.Duration)) func(*sqlite3.Conn) error {
 	pragmas := []string{
 		"PRAGMA synchronous=NORMAL",
 		"PRAGMA foreign_keys=ON",
@@ -136,6 +142,17 @@ func (s *secret) initConn(writer bool) func(*sqlite3.Conn) error {
 			if err := c.Exec(p); err != nil {
 				return fmt.Errorf("%s: %w", p, err)
 			}
+		}
+		if observe != nil {
+			// TRACE_PROFILE fires once per finished statement with the statement and its run time in nanoseconds. Stmt.SQL is the
+			// text as prepared, so a bound argument never reaches observe. With no observer no hook is installed: zero cost.
+			return c.Trace(sqlite3.TRACE_PROFILE, func(_ sqlite3.TraceEvent, stmt, ns any) error {
+				if st, ok := stmt.(*sqlite3.Stmt); ok {
+					n, _ := ns.(int64)
+					observe(st.SQL(), time.Duration(n))
+				}
+				return nil
+			})
 		}
 		return nil
 	}
@@ -233,3 +250,16 @@ func IsUniqueViolation(err error) bool { return errors.Is(err, sqlite3.CONSTRAIN
 
 // IsTriggerAbort reports whether err is a trigger raising ABORT (the schema's own rules, e.g. I-37).
 func IsTriggerAbort(err error) bool { return errors.Is(err, sqlite3.CONSTRAINT_TRIGGER) }
+
+// Option changes how Open builds the pools.
+type Option func(*options)
+
+type options struct {
+	observe func(sql string, d time.Duration)
+}
+
+// WithQueryObserver calls fn once per finished statement on any connection of either pool, with the SQL text as prepared (never
+// the bound arguments) and how long it ran. fn runs on the query's own goroutine, inside the driver: it must be quick.
+func WithQueryObserver(fn func(sql string, d time.Duration)) Option {
+	return func(o *options) { o.observe = fn }
+}

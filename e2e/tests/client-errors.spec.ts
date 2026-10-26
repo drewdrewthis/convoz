@@ -6,7 +6,7 @@ import { installedMachine } from "../lib/cli.ts";
 import type { ServerHandle } from "../lib/fixtures.ts";
 import { send } from "../lib/http.ts";
 import { allow, bearer, createAgents, loginMachine } from "../lib/machines.ts";
-import { bootstrapOwner } from "../lib/owner.ts";
+import { apiServer, bootstrapOwner } from "../lib/owner.ts";
 import { expect, scenario } from "../lib/scenario.ts";
 
 /*
@@ -137,6 +137,60 @@ scenario("Client error reports are capped and need the owner", { tag: ["@api"] }
   const viaPort = await viaAgent(srv, "POST", "/api/client-errors", { csrf: false, json: { message: "TESTONLY-port" }, bearer: lease, headers: { "X-Convoz": "1" } });
   expect(viaPort.status).toBe(404);
   expect(srv.log()).not.toContain("TESTONLY-port");
+});
+
+scenario("The web app counts a failed send with no content", { tag: ["@api"] }, async ({ server }) => {
+  // Background: a fresh Convoz server with owner "drew" signed in (and an agents-only port, for the last step)
+  const srv = await server(agentServer());
+  const owner = await bootstrapOwner(srv);
+  await createAgents(owner, "devtool");
+  const box = await installedMachine(srv.origin, "box-2", (await loginMachine(srv, owner, "box-2", allow("devtool"))).key);
+  const lease = (await startSession(box, "devtool", "client-events")).lease;
+
+  // When the owner sends POST /api/client-events with the event "send_failed"
+  const ok = await owner.client.post("/api/client-events", { event: "send_failed", message: "TESTONLY-ignored" });
+
+  // Then the server answers 204
+  expect(ok.status).toBe(204);
+
+  // When the owner sends an event the server does not know
+  const unknown = await owner.client.post("/api/client-events", { event: "TESTONLY-unknown" });
+
+  // Then the server answers 400
+  expect(unknown.status).toBe(400);
+
+  // When the owner sends a body over 1 KB
+  const big = await owner.client.post("/api/client-events", { event: "send_failed", pad: "X".repeat(1100) });
+
+  // Then the server answers 400
+  expect(big.status).toBe(400);
+
+  // When an anonymous caller or an agent with a session lease sends the event
+  const anon = await send(srv.target, "POST", "/api/client-events", { csrf: true, json: { event: "send_failed" } });
+  const agent = await send(srv.target, "POST", "/api/client-events", { csrf: true, json: { event: "send_failed" }, ...bearer(lease) });
+
+  // Then the server answers 401
+  expect([anon.status, agent.status]).toEqual([401, 401]);
+
+  // And the agents-only port answers 404 for the route
+  const viaPort = await viaAgent(srv, "POST", "/api/client-events", { csrf: false, json: { event: "send_failed" }, bearer: lease, headers: { "X-Convoz": "1" } });
+  expect(viaPort.status).toBe(404);
+});
+
+scenario("An error report carries its class", { tag: ["@api"] }, async ({ server }) => {
+  // Background: a fresh Convoz server with owner "drew" signed in
+  const srv = await server(apiServer());
+  const owner = await bootstrapOwner(srv);
+
+  // When the owner sends POST /api/client-errors with the class "TypeError"
+  const res = await owner.client.post("/api/client-errors", { kind: "TypeError", message: "TESTONLY-class-in-text RangeError: x", stack: "s", page: "/", build: "b", ua: "u", at: 1 });
+
+  // Then the server answers 204
+  expect(res.status).toBe(204);
+
+  // And the report is written to the server log as before
+  const line = await lineWith(srv, "TESTONLY-class-in-text");
+  expect(line).toContain("client_error ");
 });
 
 scenario("A report holds no query string and no token", { tag: ["@browser"] }, async ({ server, page, context }) => {

@@ -30,3 +30,21 @@ Feature: Errors in the web app reach the server log (contracts)
     When a script error that carries a 40-character token in its message happens in the open page
     Then the "client_error" line has the page "/chats", no "TESTONLY-secret" and no 40-character token
     And the page sends at most 10 reports, and the same error twice is one report
+
+  @v1 @api
+  Scenario: The web app counts a failed send with no content
+    When the owner sends POST /api/client-events with the event "send_failed"
+    Then the server answers 204
+    When the owner sends an event the server does not know
+    Then the server answers 400
+    When the owner sends a body over 1 KB
+    Then the server answers 400
+    When an anonymous caller or an agent with a session lease sends the event
+    Then the server answers 401
+    And the agents-only port answers 404 for the route
+
+  @v1 @api
+  Scenario: An error report carries its class
+    When the owner sends POST /api/client-errors with the class "TypeError"
+    Then the server answers 204
+    And the report is written to the server log as before

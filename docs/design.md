@@ -1805,6 +1805,15 @@ Owner decision (2026-10-18, verbatim): "Yeah, try groq whisper. You should have 
 - **Size.** A note is read into memory once (an engine may be tried twice) and is capped at the upload limit, 25 MiB.
 - **Test build.** `testhooks` keeps the `fake` engine; tests use `httptest` fakes of the providers, never the real APIs.
 
+### 13.4 Telemetry (numbers only)
+
+**Off unless `OTEL_EXPORTER_OTLP_ENDPOINT` is set.** Then the server sends metrics and spans over OTLP/HTTP to `<endpoint>/v1/metrics` and `<endpoint>/v1/traces`, with the headers of `OTEL_EXPORTER_OTLP_HEADERS` (`k=v,k=v`), metrics every `OTEL_METRIC_EXPORT_INTERVAL` ms (default 60000). A signal-specific endpoint alone does not turn it on. The start log says `telemetry: on` or `off`, never the endpoint or the headers.
+
+**No content leaves the box.** Only these, each attribute from a bounded set: `http.server.request.duration` (s; `http.route` = the route table's pattern, or `unmatched`; `http.request.method`; `http.response.status_code`), `db.client.operation.duration` (s; `db.operation.name` = the sqlc query name, or `other`), `convoz.web.errors` (`error.type` = the class the app reports, matched exactly against TypeError, ReferenceError, SyntaxError, RangeError, ChunkLoadError, else `other`), `convoz.web.send_failures` (no attributes). One server span per request, named `METHOD pattern`, with the same three attributes, no events, no status text. The resource is `service.name=convoz` and `service.version`; no detector runs, no exemplar is kept. Never a path, query, id, user agent, address, SQL text or argument. `httpapi/telemetry_allowlist_test.go` reads the real export bytes and fails on anything else.
+
+- **`POST /api/client-events`** (owner device session, 60 an hour, body 1 KB): `{"event":"send_failed"}` when the app gives up on a send. 204 and one count; any other event is 400; other fields are ignored.
+- **Cost.** With telemetry off, no query hook is installed. On, each statement costs one SQLite trace callback (`TRACE_PROFILE`), a first-line parse of the SQL and one histogram record.
+
 ## 14. Migrations, versioning, backups, export, delete
 
 - **Migrations, event types, API versioning:** as draft 7 (clients send `X-Convoz-Client: web/<build>` or `convoz/<semver>`).

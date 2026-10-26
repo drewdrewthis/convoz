@@ -46,8 +46,23 @@ func (s *Server) source(r *http.Request) string {
 	return host
 }
 
-// route wraps one table row: public rate limit, authentication, the Auth class, and the step-up header check.
+// route wraps one table row: public rate limit, authentication, the Auth class, and the step-up header check. With telemetry on,
+// it also records the request under the row's pattern, never its path.
 func (s *Server) route(rt Route) http.HandlerFunc {
+	h := s.serveRoute(rt)
+	if !s.Telemetry.Enabled() {
+		return h
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		start := s.Telemetry.Now()
+		sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
+		h(sw, r)
+		s.Telemetry.ObserveRequest(start, rt.Pattern, rt.Method, sw.status)
+	}
+}
+
+// serveRoute is route without the telemetry.
+func (s *Server) serveRoute(rt Route) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		now := s.Clock.Now()
 		if rt.Auth == authz.Pub && rt.Method == http.MethodPost && !rt.NoLimit && !s.publicLimit.Allow(s.source(r)+"|"+rt.Pattern, now) {

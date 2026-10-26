@@ -25,6 +25,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/tailnet"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/telemetry"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/transcript"
 )
 
@@ -117,7 +118,20 @@ func serve(args []string) int {
 		return fail(1, err)
 	}
 	defer lock.Close()
-	store, keys, push, blobDEK, code := openStore(dir, kek, clock)
+	tel, telErr := telemetry.Setup(context.Background(), os.Getenv, telemetry.WithVersion(version))
+	if telErr != nil {
+		tel = nil // a wrong OTEL_* setting must not stop the chat; the line below says telemetry is off
+	}
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = tel.Shutdown(ctx) // flushes what is recorded; nil-safe
+	}()
+	var dbOpts []db.Option
+	if tel.Enabled() {
+		dbOpts = append(dbOpts, db.WithQueryObserver(tel.ObserveQuery))
+	}
+	store, keys, push, blobDEK, code := openStore(dir, kek, clock, dbOpts...)
 	if store == nil {
 		return code
 	}
@@ -172,6 +186,16 @@ func serve(args []string) int {
 	}
 	logger := log.New(os.Stderr, "convoz: ", log.LstdFlags)
 	api := httpapi.NewServer(store, clock, wa, keys, cfg, logger)
+	api.Telemetry = tel
+	// Never the endpoint or the headers: they can carry a token.
+	switch {
+	case telErr != nil:
+		logger.Printf("telemetry: off (the OTEL_EXPORTER_OTLP_* settings are not valid)")
+	case tel.Enabled():
+		logger.Printf("telemetry: on (OTLP/HTTP, numbers only)")
+	default:
+		logger.Printf("telemetry: off")
+	}
 	api.EnablePush(push)
 	if *transcribe == "auto" {
 		if names := transcribeAuto(os.Getenv("CREDENTIALS_DIRECTORY"), transcript.DefaultEndpoints()); names != nil {
@@ -308,7 +332,7 @@ func loadKEK(kekFlag string) ([]byte, int) {
 
 // openStore unlocks the key hierarchy, opens the database and migrates it. It returns the box that seals the
 // stored copy of machine keys. On failure it returns a nil store and the exit code.
-func openStore(dataDir string, kek []byte, clock platform.Clock) (*db.Store, *auth.KeyBox, notify.Keys, []byte, int) {
+func openStore(dataDir string, kek []byte, clock platform.Clock, opts ...db.Option) (*db.Store, *auth.KeyBox, notify.Keys, []byte, int) {
 	dbPath := filepath.Join(dataDir, "convoz.db")
 	ring, err := crypto.OpenKeyring(dataDir, kek, dbPath, clock.Now())
 	if err != nil {
@@ -336,7 +360,7 @@ func openStore(dataDir string, kek []byte, clock platform.Clock) (*db.Store, *au
 	if err != nil {
 		return nil, nil, notify.Keys{}, nil, fail(exitKey, err)
 	}
-	store, err := db.Open(dbPath, dek)
+	store, err := db.Open(dbPath, dek, opts...)
 	if errors.Is(err, db.ErrWrongKey) {
 		return nil, nil, notify.Keys{}, nil, fail(exitKey, err)
 	}
