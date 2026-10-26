@@ -1,6 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 import { streamOpen, uiWorld } from "../lib/chat-ui.ts";
-import { agentPost, convoz, createConversation, inboxItems, startSession, startWatch } from "../lib/chat.ts";
+import { agentPost, convoz, createConversation, inboxItems, ownerSays, startSession, startWatch } from "../lib/chat.ts";
 import { QUESTION, agentAsks, askCard, askOf, askWorld, expectState, markAsk, nowOf, openNow, ownerRepliesIn, snoozeAsk } from "../lib/asks.ts";
 import { box } from "../lib/mobile.ts";
 import { must } from "../lib/owner.ts";
@@ -327,6 +327,10 @@ scenario("An ask in Now with replies opens its thread in place and folds it agai
   const id = await agentAsks(u.w.srv, u.sessions.devtool!.lease, conv);
   const docs = await startSession(u.w.box, "docs", "docs");
   const reply = "Both fit; the smaller one is safer.";
+  // And "docs" answered the owner's message in a thread of conversation "Deploy log", in markdown
+  const deploy = await createConversation(u.w.owner, { title: "Deploy log", participants: ["devtool", "docs"] });
+  const rootOfDeploy = await ownerSays(u.w.owner, deploy, "Did the deploy finish?");
+  must(await agentPost(u.w.srv, docs.lease, deploy, "**Yes**, it finished at noon.", { thread_root_id: rootOfDeploy }), "docs answers in the thread", 201);
   must(await agentPost(u.w.srv, docs.lease, conv, reply, { thread_root_id: id }), "docs replies in the thread of the ask", 201);
 
   // When the owner opens Now
@@ -352,4 +356,11 @@ scenario("An ask in Now with replies opens its thread in place and folds it agai
 
   // Then the reply is no longer shown
   await expect(card.getByText(reply)).toHaveCount(0);
+
+  // And the "Replies to you" card of "Deploy log" offers "Show thread" too, and opens the reply with its markdown drawn
+  const replies = page.getByRole("list", { name: "Replies to you" }).getByRole("listitem").filter({ hasText: "Deploy log" });
+  await replies.getByRole("button", { name: /Show thread/ }).click();
+  await expect(replies.locator("strong", { hasText: "Yes" })).toBeVisible();
+  await replies.getByRole("button", { name: /Hide thread/ }).click();
+  await expect(replies.locator("strong", { hasText: "Yes" })).toHaveCount(0);
 });

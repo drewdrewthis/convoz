@@ -241,6 +241,7 @@ Feature: Asks and their state machine
       Then the card shows the reply "Both fit; the smaller one is safer." and the page is still Now
       When the owner folds the thread of the card
       Then the reply is no longer shown
+      And the "Replies to you" card of a conversation whose thread answered the owner opens that thread in place the same way, with the reply's markdown drawn
 
     # Owner said (conv 379 msg 6722): "why couldn't I quick reply on that ask?" (an ask inside a thread).
     @v1 @browser
