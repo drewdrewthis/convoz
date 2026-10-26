@@ -402,6 +402,7 @@ components:
     AskUpdateRequest: { $ref: "components/ask.yaml#/AskUpdateRequest" }
     AskOwnerReply: { $ref: "components/ask.yaml#/AskOwnerReply" }
     OwnersCall: { $ref: "components/ask.yaml#/OwnersCall" }
+    AskPermission: { $ref: "components/ask.yaml#/AskPermission" }
     AskDraft: { $ref: "components/ask.yaml#/AskDraft" }
     AskReply: { $ref: "components/ask.yaml#/AskReply" }
     AskHistoryRow: { $ref: "components/ask.yaml#/AskHistoryRow" }

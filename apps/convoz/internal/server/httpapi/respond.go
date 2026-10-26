@@ -50,6 +50,11 @@ func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 		writeFieldErr(w, http.StatusBadRequest, "invalid_request", strings.TrimSuffix(field, `"`), "That field is not accepted.")
 		return false
 	}
+	var typed *json.UnmarshalTypeError
+	if errors.As(err, &typed) && typed.Field != "" { // a nested field is named by its own name
+		writeFieldErr(w, http.StatusBadRequest, "invalid_request", typed.Field[strings.LastIndex(typed.Field, ".")+1:], "That field has the wrong type.")
+		return false
+	}
 	writeErr(w, http.StatusBadRequest, "invalid_request", "The request body is not valid.")
 	return false
 }

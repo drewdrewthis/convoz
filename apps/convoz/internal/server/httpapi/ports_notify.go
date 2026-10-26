@@ -297,6 +297,13 @@ func (p pushSource) Facts(ctx context.Context, d pdb.DBTX, n notify.Notification
 			return f, err
 		}
 		f.Text = message.Project(message.Projectable{Ask: &message.ProjectAsk{Question: a.Question}}, message.Short)
+		if a.Permission != nil { // a permission ask reads as what the agent will do
+			who, found, err := identity.ByID(ctx, d, a.AskerID)
+			if err != nil || !found {
+				return f, err
+			}
+			f.Text = "@" + who.Handle + " will: " + a.Permission.Action
+		}
 		f.Sender, err = refOf(ctx, d, a.AskerID, p.s.Clock.Now())
 		return f, err
 	case notify.ReasonMention, notify.ReasonThreadReply:

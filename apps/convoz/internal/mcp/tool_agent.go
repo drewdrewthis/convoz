@@ -13,10 +13,18 @@ import (
 // The tools that say something about the agent itself: its asks, its status, its handoff notes, its profile.
 
 func init() {
-	Register(Tool{Name: "ask", Order: 10, Description: "Ask the owner a decision only they can make: a question, your pick and 1-4 alternatives with reasons, and owners_call (else refused: decide it yourself). For text sent in the owner's name, give draft instead; the answer is {send, text}.",
+	Register(Tool{Name: "ask", Order: 10, Description: "Ask the owner's permission for one action you are confident in: action (name the object, never \"it\" or \"this\"), risk, undo or one_way, 1-3 considered ways and why each is worse, and confidence (self-reported, not a check; under 80 is refused: get confident first). The owner answers Go or Not this with a reason. For text sent in the owner's name, give draft instead; the answer is {send, text}. The old decision ask (question, recommended, alternatives, owners_call) still works, as legacy.",
 		InputSchema: object([]string{}, props{
 			"conversation": conv(),
-			"question":     props{"type": "string", "minLength": 1, "maxLength": 500, "description": "What you ask."},
+			// Not in "required": a permission ask needs no question (it shows the action) and no owners_call.
+			"action":     props{"type": "string", "minLength": 1, "maxLength": wire.MaxAction, "description": "What you will do, naming the object: \"Merge PR 415 into main\"."},
+			"risk":       props{"type": "string", "minLength": 1, "maxLength": wire.MaxRisk, "description": "With action: what can go wrong."},
+			"undo":       props{"type": "string", "minLength": 1, "maxLength": wire.MaxUndo, "description": "With action: how to undo it. Leave it out and give one_way when it cannot be undone."},
+			"one_way":    boolean("With action: it cannot be undone."),
+			"considered": list("With action: the other ways you considered, each with why it is worse.", props{"type": "string", "minLength": 1, "maxLength": wire.MaxConsideredLine}, 1, wire.MaxConsidered),
+			// No minimum of 80 in the schema: a lower one must reach the tool, which answers with the get-confident text.
+			"confidence": integer("With action: how sure you are that this is the right action, 0 to 100. Under 80 is refused.", 0, 100),
+			"question":   props{"type": "string", "minLength": 1, "maxLength": 500, "description": "What you ask; a permission ask shows its action when left out."},
 			// Not in "required": a draft ask has neither (draft is given instead), and a choice ask without them is refused by the tool.
 			"recommended":  option("The answer you recommend and why."),
 			"alternatives": list("The other answers worth choosing, each with its reason.", option("An alternative and why."), 1, 4),
@@ -42,6 +50,12 @@ func init() {
 				Update       int64               `json:"update"`
 				Answers      string              `json:"answers"`
 				App          json.RawMessage     `json:"app"`
+				Action       string              `json:"action"`
+				Risk         string              `json:"risk"`
+				Undo         string              `json:"undo"`
+				OneWay       bool                `json:"one_way"`
+				Considered   []string            `json:"considered"`
+				Confidence   int                 `json:"confidence"`
 			}
 			if err := decodeArgs(args, &a); err != nil {
 				return nil, err
@@ -55,19 +69,31 @@ func init() {
 					}
 				}
 				argv = withFlag(argv, "owners-call-why", a.OwnersCall.Reason)
+				if a.Action != "" {
+					argv = permissionFlags(argv, a.Action, a.Risk, a.Undo, a.OneWay, a.Considered)
+				}
 				return runnerOf(ctx).run("ask", "", argv...)
 			}
-			if a.Conversation == 0 || a.Question == "" {
-				return nil, Failed{"An ask needs conversation and question; to change an ask you already sent, give update."}
+			if a.Action != "" {
+				if a.Confidence < wire.MinConfidence {
+					return nil, Failed{wire.GetConfidentFirst}
+				}
+				if a.Conversation == 0 {
+					return nil, Failed{"An ask needs conversation; to change an ask you already sent, give update."}
+				}
+			} else if a.Conversation == 0 || a.Question == "" {
+				return nil, Failed{"An ask needs conversation and action (or the legacy question); to change an ask you already sent, give update."}
 			}
-			if a.Draft == nil {
+			if a.Draft == nil && a.Action == "" {
 				if problem := a.OwnersCall.Problem(); problem != "" {
 					return nil, Failed{problem}
 				}
 			}
 			return withApp(a.App, func(file string) (Output, error) {
-				argv := []string{"--question", a.Question}
-				if d := a.Draft; d != nil {
+				argv := withFlag(nil, "question", a.Question)
+				if a.Action != "" {
+					argv = withFlag(permissionFlags(argv, a.Action, a.Risk, a.Undo, a.OneWay, a.Considered), "confidence", a.Confidence)
+				} else if d := a.Draft; d != nil {
 					argv = append(argv, "--draft", d.Text)
 					argv = withFlag(withFlag(argv, "original", d.Original), "original-from", d.OriginalFrom)
 				} else {
@@ -208,6 +234,15 @@ func init() {
 			}
 			return runnerOf(ctx).run("profile", "", append([]string{"--set"}, set...)...)
 		}})
+}
+
+// permissionFlags adds the parts of a permission ask to argv as the CLI's flags; the confidence is added by the caller, as an update leaves it out.
+func permissionFlags(argv []string, action, risk, undo string, oneWay bool, considered []string) []string {
+	argv = withFlag(withFlag(withFlag(withFlag(argv, "action", action), "risk", risk), "undo", undo), "one-way", oneWay)
+	for _, c := range considered {
+		argv = append(argv, "--considered", c)
+	}
+	return argv
 }
 
 // draftSchema is the draft of a draft ask: a message the agent wants to send in the owner's name.

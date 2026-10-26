@@ -18,7 +18,7 @@ import (
 // snooze are added by askViews.
 func (dir directory) askBase(a ask.Ask) wire.AskView {
 	v := wire.AskView{
-		ID: a.ID, ConversationID: a.ConversationID, Asker: dir.person(a.AskerID), Question: a.Question, Urgent: a.Urgent, State: a.State,
+		ID: a.ID, ConversationID: a.ConversationID, Asker: dir.person(a.AskerID), Kind: a.Kind(), Question: a.Question, Urgent: a.Urgent, State: a.State,
 		CloseReason: a.CloseReason, Options: make([]wire.AskOption, 0, len(a.Options)), Answer: a.Answer(), AnswerVia: a.AnswerVia,
 		ResolvedAt: a.ResolvedAt, AckedAt: a.AckedAt, Version: a.Version, CreatedAt: a.CreatedAt,
 	}
@@ -31,6 +31,9 @@ func (dir directory) askBase(a ask.Ask) wire.AskView {
 		if a.Chosen != nil {
 			v.Reply = &wire.AskReply{Send: a.Chosen.Kind == ask.Recommended, Text: a.Chosen.Text}
 		}
+	}
+	if a.Permission != nil {
+		v.Permission = ptr(wire.AskPermission(*a.Permission))
 	}
 	for i, o := range a.Options {
 		v.Options = append(v.Options, wire.AskOption{Label: o.Label, Why: o.Why, Recommended: i == 0})

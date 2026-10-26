@@ -2,6 +2,7 @@ package ask_test
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -20,7 +21,11 @@ func TestMigration_AnAskFromBeforeThePermissionColumnsReadsAsADecision(t *testin
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = s.Close() })
-	opts := platform.MigrateOptions{DataDir: t.TempDir(), Clock: platform.SystemClock{}, MaxVersion: platform.LatestVersion() - 1}
+	dataDir := t.TempDir() // migrating a database that holds data backs it up with the keyring first
+	if err := os.WriteFile(filepath.Join(dataDir, "keyring.json"), []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	opts := platform.MigrateOptions{DataDir: dataDir, Clock: platform.SystemClock{}, MaxVersion: platform.LatestVersion() - 1}
 	if err := platform.Migrate(ctx, s, opts); err != nil {
 		t.Fatal(err)
 	}

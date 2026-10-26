@@ -3,6 +3,7 @@ package ask
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"sort"
 	"time"
 
@@ -109,6 +110,10 @@ func fromRow(r askRow) Ask {
 	}
 	if r.DraftText.Valid && !r.ScrubbedAt.Valid {
 		a.Draft = &Draft{Text: r.DraftText.String, Original: r.OriginalText.String, OriginalFrom: r.OriginalFrom.String}
+	}
+	if r.Action.Valid && !r.ScrubbedAt.Valid {
+		a.Permission = &Permission{Action: r.Action.String, Risk: r.Risk.String, Undo: r.Undo.String, OneWay: r.OneWay.Int64 == 1, Confidence: int(r.Confidence.Int64)}
+		_ = json.Unmarshal([]byte(r.Considered.String), &a.Permission.Considered) // written by permissionColumns, always an array
 	}
 	if r.ChosenKind.Valid {
 		a.Chosen = &Choice{Kind: r.ChosenKind.String, Index: int(r.ChosenIndex.Int64), Text: r.ChosenText.String}

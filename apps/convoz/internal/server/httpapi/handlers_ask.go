@@ -30,7 +30,8 @@ func personOf(c *call) int64 {
 	return c.p.HumanID
 }
 
-// postAsk is POST /api/asks: an agent asks a question with a recommendation and alternatives. The asker is the lease (I-40).
+// postAsk is POST /api/asks: an agent asks for permission for one action, or asks a question with a recommendation and alternatives
+// (the decision ask from before), or shows a draft. The asker is the lease (I-40). A permission or draft ask needs no owner's call.
 func (s *Server) postAsk(w http.ResponseWriter, r *http.Request, c *call) {
 	if c.p.SessionID == 0 {
 		writeErr(w, http.StatusForbidden, "forbidden", "Only an agent asks.")
@@ -63,6 +64,9 @@ func (s *Server) postAsk(w http.ResponseWriter, r *http.Request, c *call) {
 	}
 	if d := in.Draft; d != nil {
 		n.Draft = &ask.Draft{Text: d.Text, Original: d.Original, OriginalFrom: d.OriginalFrom}
+	}
+	if pm := in.Permission; pm != nil {
+		n.Permission = ptr(ask.Permission(*pm))
 	}
 	if s.askRefused(w, r, c, n.Check()) {
 		return
@@ -270,6 +274,13 @@ func (s *Server) askUpdate(w http.ResponseWriter, r *http.Request, c *call) {
 		return
 	}
 	up := ask.Updating{ID: a.ID, By: c.p.IdentityID, Question: in.Question, OwnersCallReason: in.OwnersCallReason, Answers: in.Answers}
+	if pm := in.Permission; pm != nil {
+		if pm.Confidence != 0 {
+			writeFieldErr(w, http.StatusBadRequest, "invalid_request", "confidence", "The confidence is fixed when the ask is made: leave it out of an update.")
+			return
+		}
+		up.Permission = ptr(ask.Permission(*pm))
+	}
 	if in.Recommended != nil {
 		up.Recommended = &ask.Option{Label: in.Recommended.Label, Why: in.Recommended.Why}
 	}

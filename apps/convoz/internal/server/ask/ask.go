@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
 
 // Limits (design §13.1, schema §7).
@@ -57,6 +59,40 @@ type Draft struct{ Text, Original, OriginalFrom string }
 // The two options of a draft ask: the owner sends the draft (Send is the recommended choice, and carries the final text) or does not.
 var draftOptions = []Option{{Label: "Send", Why: "Post the draft, as written or as edited."}, {Label: "Don't send", Why: "Drop the draft."}}
 
+// Permission is what a permission ask asks the owner to accept (wire.AskPermission, field for field): the action, its risk, how to undo
+// it or OneWay, 1 to 3 other ways considered, and the confidence the agent reported when it asked.
+type Permission struct {
+	Action, Risk, Undo string
+	OneWay             bool
+	Considered         []string
+	Confidence         int
+}
+
+// check refuses a permission that is not complete, is too long or comes with too little confidence, naming the field.
+func (p Permission) check() error {
+	if field, problem := wire.AskPermission(p).Check(); problem != "" {
+		return &FieldError{field, problem}
+	}
+	return nil
+}
+
+// diff names the parts of p that differ in q, in the order the card shows them. The confidence is fixed at create and not compared.
+func (p Permission) diff(q Permission) []string {
+	var out []string
+	for _, part := range []struct {
+		name string
+		same bool
+	}{{"action", p.Action == q.Action}, {"risk", p.Risk == q.Risk}, {"undo", p.Undo == q.Undo}, {"one_way", p.OneWay == q.OneWay}, {"considered", slices.Equal(p.Considered, q.Considered)}} {
+		if !part.same {
+			out = append(out, part.name)
+		}
+	}
+	return out
+}
+
+// The two options of a permission ask: Go accepts the risk (the recommended choice), Not this refuses it with a reason (alternative 1, the reason in its text).
+var permissionOptions = []Option{{Label: "Go", Why: "Accept the risk: the agent goes ahead."}, {Label: "Not this", Why: "Stop it, and say why: the agent reads the reason."}}
+
 // Choice is what an answer was.
 type Choice struct {
 	Kind  string
@@ -80,6 +116,7 @@ type Ask struct {
 	Urgent                      bool
 	OwnersCall                  *OwnersCall // nil on an ask from before the field, and after a purge
 	Draft                       *Draft      // nil on any ask that is not a draft ask, and after a purge
+	Permission                  *Permission // nil on any ask that is not a permission ask, and after a purge
 	Scrubbed                    bool
 	State, CloseReason          string
 	Options                     []Option
@@ -104,11 +141,25 @@ func (a Ask) WaitingOnAgent() bool {
 	return a.State == Open && a.OwnerRepliedAt > 0 && !a.ReplyAnswered
 }
 
-// Answer is the answer in words: the chosen option's label, or the custom text; "Send: <text>" or "Don't send" on a draft ask.
+// Kind is "permission", "draft" or "decision" (an ask with options, the shape from before permission asks).
+func (a Ask) Kind() string {
+	switch {
+	case a.Permission != nil:
+		return "permission"
+	case a.Draft != nil:
+		return "draft"
+	}
+	return "decision"
+}
+
+// Answer is the answer in words: the chosen option's label, or the custom text; "Send: <text>" or "Don't send" on a draft ask;
+// "Go" or "Not this: <reason>" on a permission ask.
 func (a Ask) Answer() string {
 	switch {
 	case a.Chosen == nil:
 		return ""
+	case a.Permission != nil && a.Chosen.Kind == Alternative:
+		return "Not this: " + a.Chosen.Text
 	case a.Draft != nil && a.Chosen.Kind == Recommended:
 		return "Send: " + a.Chosen.Text
 	case a.Draft != nil:
