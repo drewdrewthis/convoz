@@ -4,6 +4,13 @@ import { cx } from "@convoz/ui/cx";
 import { ReplyCount } from "./ReplyCount.tsx";
 import type { AskData, AskPermission } from "./askData.ts";
 
+/** A fold's chevron: it turns down when open. Hidden from the accessible name, which stays the fold's text. */
+const Chevron = ({ open }: { open: boolean }) => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={cx("ml-4 flex-none text-accent-text transition-transform", open && "rotate-90")}>
+    <path d="M9 6l6 6-6 6" />
+  </svg>
+);
+
 /* The body of a permission ask: one action the agent is sure of, what it risks, how to undo it and the ways it turned down. The owner says Go or Not this. */
 
 const ONE_WAY = "None. This is one-way.";
@@ -22,8 +29,9 @@ function Fields({ p, phone, fold }: { p: AskPermission; phone: boolean; fold: bo
       <dd className={cx("m-0 [overflow-wrap:anywhere]", p.one_way ? "font-semibold text-danger" : "text-text")}>{p.one_way ? ONE_WAY : p.undo}</dd>
       {folded ? (
         <dd className="m-0 mt-6">
-          <Button variant="muted" size="inline" aria-expanded={false} onClick={() => setMore(true)}>
+          <Button variant="muted" size="inline" className="-ml-8" aria-expanded={false} onClick={() => setMore(true)}>
             {`Considered ${n} other ${n === 1 ? "way" : "ways"}`}
+            <Chevron open={false} />
           </Button>
         </dd>
       ) : (
@@ -80,9 +88,10 @@ export function PermissionBody({ ask, permission: p, labelId, where, meta, urgen
         <h3 id={labelId} className="m-0 pt-12 pb-3 text-17 leading-[22px] font-semibold text-text [overflow-wrap:anywhere]">
           {p.action}
         </h3>
-        <p className="m-0 mt-4 rounded-full bg-soft px-10 py-px text-14 font-semibold text-accent-text [overflow-wrap:anywhere]">{said}</p>
+        <p className="m-0 mt-4 w-fit rounded-full bg-soft px-10 py-px text-14 font-semibold text-accent-text [overflow-wrap:anywhere]">{said}</p>
         <Button variant="text" size="inline" className="-ml-8 mt-4" aria-expanded={details} onClick={() => setDetails((d) => !d)}>
           Details
+          <Chevron open={details} />
         </Button>
         {details ? (
           <dl className="m-0 mb-8 text-13 leading-[18px] text-muted">

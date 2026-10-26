@@ -178,7 +178,7 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
     <>
       {where === "conversation" ? (
         <div className="-mx-14 flex min-h-32 items-center gap-8 border-0 border-b border-solid border-border pr-6 pl-14 text-12">
-          <span className="font-bold tracking-[.04em] text-text uppercase">{permission ? "Needs your OK" : "Ask"}</span>
+          <span className="font-bold tracking-[.04em] text-text uppercase">{permission && open ? "Needs your OK" : "Ask"}</span>
           {urgent ? <span className="flex-none font-bold tracking-[.04em] text-danger uppercase">· Urgent</span> : null}
           <span className="ml-auto flex items-center gap-2">
             <Button variant="text" size="inline" aria-label="Ask options" aria-haspopup="menu" aria-expanded={panel === "options"} onClick={() => (setOptionsOnSnooze(false), toggle("options"))}>
