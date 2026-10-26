@@ -116,6 +116,9 @@ type telRig struct {
 	tel    *telemetry.Telemetry
 	cookie string
 	conv   int64
+	s      *Server
+	store  *pdb.Store
+	owner  int64
 }
 
 func newTelRig(t *testing.T, tel *telemetry.Telemetry) *telRig {
@@ -136,7 +139,7 @@ func newTelRig(t *testing.T, tel *telemetry.Telemetry) *telRig {
 	}
 	s := NewServer(store, platform.SystemClock{}, nil, nil, Config{Host: "localhost", Origin: "http://localhost"}, log.New(io.Discard, "", 0))
 	s.Telemetry = tel
-	rig := &telRig{h: s.Handler(), tel: tel, cookie: boot.DeviceToken}
+	rig := &telRig{h: s.Handler(), tel: tel, cookie: boot.DeviceToken, s: s, store: store, owner: boot.Owner.ID}
 	if err := dbtest.TxErr(t, store, func(ctx context.Context, d pdb.DBTX) error {
 		cv, err := conversation.Create(ctx, d, now, conversation.New{By: boot.Owner.ID})
 		rig.conv = cv.ID

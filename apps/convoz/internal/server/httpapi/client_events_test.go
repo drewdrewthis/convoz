@@ -1,11 +1,16 @@
 package httpapi
 
 import (
+	"bytes"
+	"context"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
+	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
 
 const sendFailed = `{"event":"send_failed"}`
@@ -89,4 +94,77 @@ func TestClientEventIsLimitedPerDeviceSession(t *testing.T) {
 			t.Error("no Retry-After")
 		}
 	})
+}
+
+// mintAgentLease gives the rig a real machine and a real agent session, the way a box signs in, and returns its bearer lease.
+func (r *telRig) mintAgentLease(t *testing.T) string {
+	t.Helper()
+	var lease string
+	err := r.store.Writer.Tx(context.Background(), func(ctx context.Context, tx *pdb.Tx) error {
+		d, now := tx.DBTX(), time.Now()
+		box, err := auth.NewKeyBox(bytes.Repeat([]byte{7}, 32))
+		if err != nil {
+			return err
+		}
+		machine, err := auth.CreateMachine(ctx, d, box, auth.NewMachine{Name: "box-1", Scopes: auth.DefaultScopes | auth.ScopeCreateIdentity, Allow: auth.Allow{Mode: auth.AllowAny}, ApprovedBy: r.owner}, now)
+		if err != nil {
+			return err
+		}
+		key, err := auth.RevealKey(ctx, d, box, machine)
+		if err != nil {
+			return err
+		}
+		minted, err := auth.MintSession(ctx, d, flowPorts, auth.MintRequest{MachineKey: key, As: "alpha", ClientID: "client-001", Create: &auth.CreateIdentity{DisplayName: "Alpha"}}, now)
+		lease = minted.Lease
+		return err
+	})
+	if err != nil || lease == "" {
+		t.Fatalf("mint an agent lease: %v (lease %q)", err, lease)
+	}
+	return lease
+}
+
+func TestClientEventRefusesARealAgentSession(t *testing.T) {
+	rcv := newReceiver(t)
+	tel := startTelemetry(t, rcv)
+	rig := newTelRig(t, tel)
+	bearer := map[string]string{"Authorization": "Bearer " + rig.mintAgentLease(t)}
+
+	if rec := rig.send("", "GET", "/api/me", "", bearer); rec.Code != http.StatusOK {
+		t.Fatalf("the lease is not valid: GET /api/me gave %d (%s)", rec.Code, rec.Body.String())
+	}
+	rec := rig.send("", "POST", "/api/client-events", sendFailed, bearer)
+	flush(t, tel)
+
+	t.Run("the real lease is refused with 401 or 403", func(t *testing.T) {
+		if rec.Code != http.StatusUnauthorized && rec.Code != http.StatusForbidden {
+			t.Errorf("status %d, want 401 or 403", rec.Code)
+		}
+	})
+	t.Run("the send_failures counter stays uncounted", func(t *testing.T) {
+		if got, ok := rcv.counter("convoz.web.send_failures", nil); ok && got != 0 {
+			t.Errorf("convoz.web.send_failures = %d, want none", got)
+		}
+	})
+}
+
+func TestClientEventIsNotOnTheAgentListenerForARealAgentSession(t *testing.T) {
+	rig := newTelRig(t, nil)
+	rig.s.Cfg.AgentHost, rig.s.Cfg.AgentPort, rig.s.Cfg.AgentOrigin = testAgentHost, 45123, "https://"+testAgentHost
+	h := rig.s.AgentHandler()
+	lease := rig.mintAgentLease(t)
+
+	me := viaFunnel("GET", "/api/me", "203.0.113.40", "")
+	me.Header.Set("Authorization", "Bearer "+lease)
+	if got := serve(h, me).Code; got != http.StatusOK {
+		t.Fatalf("the lease is not valid on the agent listener: GET /api/me gave %d", got)
+	}
+	req := viaFunnel("POST", "/api/client-events", "203.0.113.40", sendFailed)
+	req.Header.Set("Authorization", "Bearer "+lease)
+	for k, v := range writeHeaders {
+		req.Header.Set(k, v)
+	}
+	if got := serve(h, req).Code; got != http.StatusNotFound {
+		t.Errorf("status %d, want 404", got)
+	}
 }
