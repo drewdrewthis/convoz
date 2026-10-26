@@ -4,3 +4,4 @@
 The console is dark by default and has a light look | The console follows the phone's dark or light setting | Chromium cannot emulate no colour preference (it matches light); the dark fallback is tested in console_test.go
 Making new recovery codes records an event as well as the audit line | schema rename from migration 0007 in master (type recovery.regenerated.v1, column payload_json); head's test asserts the same with the new names
 A working agent with no update for 15 minutes is nudged | A working agent is nudged after 15 minutes, and its line says no update after 2 hours | review (conv 219 msg 5268) kept the owner's line at 2 h; the old title asserted a stale line at 16 min
+A permission ask in the conversation says Needs your OK | the test-only copy of openConsidered counts the phone fold before the card is drawn (a race; mobile overlay failed in CI run 40318512638, passed in 40298095370); 920c342 only adds a wait for the Go button, the steps are the same
