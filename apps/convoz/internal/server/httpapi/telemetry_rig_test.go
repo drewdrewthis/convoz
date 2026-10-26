@@ -41,7 +41,7 @@ type receiver struct {
 	raw     [][]byte
 }
 
-func newReceiver(t *testing.T) *receiver {
+func newReceiver(t testing.TB) *receiver {
 	t.Helper()
 	r := &receiver{}
 	r.srv = httptest.NewServer(http.HandlerFunc(r.serve))
@@ -173,7 +173,7 @@ func (r *telRig) send(cookie, method, path, body string, headers map[string]stri
 }
 
 // startTelemetry runs Setup against rcv and shuts it down with the test.
-func startTelemetry(t *testing.T, rcv *receiver) *telemetry.Telemetry {
+func startTelemetry(t testing.TB, rcv *receiver) *telemetry.Telemetry {
 	t.Helper()
 	tel, err := telemetry.Setup(context.Background(), rcv.env())
 	if err != nil {
