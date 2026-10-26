@@ -1,23 +1,27 @@
-import type { Ask } from "@convoz/api-client";
 import { Button } from "@convoz/ui/Button";
-import { useEffect, useId, useState } from "react";
-import { stripCf } from "../../shared/chat.ts";
+import { useEffect, useId, useState, type ComponentType } from "react";
+import type { Message } from "@convoz/api-client";
+import { loadFeedReplies } from "../conversations/index.ts";
 import { useThreads } from "../threads/index.ts";
 
+type Replies = ComponentType<{ conversation: number; replies: Message[] }>;
+
 /**
- * FeedThread is the thread of an ask folded under its card in the feed (owner, conv 179 msg 7988: "Show expandable thread in feed item
- * directly"). It draws nothing for an ask with no replies. Opening it reads the replies through the threads store, as a conversation does,
- * and shows them in place; folding it hides them again. The owner stays in Now.
+ * FeedThread is the thread of a feed card folded under it (owner, conv 179 msg 7988: "Show expandable thread in feed item directly").
+ * It draws nothing for a thread with no replies. Opening it reads the replies through the threads store, as a conversation does, and
+ * draws them in place with the conversation's own message rendering; folding it hides them again. The owner stays in Now.
  */
-export function FeedThread({ ask }: { ask: Ask }) {
+export function FeedThread({ conversation, root, count: known }: { conversation: number; root: number; count?: number }) {
   const [open, setOpen] = useState(false);
+  const [Replies, setReplies] = useState<Replies | null>(null);
   const id = useId();
-  const root = ask.thread_root_id ?? ask.id;
   const replies = useThreads((s) => s.threads[root]?.replies);
-  const count = Math.max(ask.reply_count ?? 0, replies?.length ?? 0);
+  const count = Math.max(known ?? 0, replies?.length ?? 0);
   useEffect(() => {
-    if (open) void useThreads.getState().load(ask.conversation_id, root).catch(() => {});
-  }, [open, ask.conversation_id, root]);
+    if (!open) return;
+    void useThreads.getState().load(conversation, root).catch(() => {});
+    void loadFeedReplies().then((c) => setReplies(() => c));
+  }, [open, conversation, root]);
   if (!count) return null;
   return (
     <div className="flex flex-col gap-4">
@@ -25,13 +29,9 @@ export function FeedThread({ ask }: { ask: Ask }) {
         {`${open ? "Hide" : "Show"} thread · ${count} ${count === 1 ? "reply" : "replies"}`}
       </Button>
       {open ? (
-        <ul id={id} className="m-0 flex list-none flex-col gap-8 border-0 border-l-2 border-solid border-border p-0 pl-12" aria-label="Thread">
-          {(replies ?? []).map((m) => (
-            <li key={m.id} className="text-13 leading-[20px]">
-              <b className="font-semibold">{m.author.handle}</b> <span className="text-muted [overflow-wrap:anywhere]">{stripCf(m.body)}</span>
-            </li>
-          ))}
-        </ul>
+        <div id={id} className="ithread !max-w-none !px-0" role="group" aria-label="Thread">
+          <div className="ithbody">{Replies && replies ? <Replies conversation={conversation} replies={replies} /> : null}</div>
+        </div>
       ) : null}
     </div>
   );

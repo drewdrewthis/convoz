@@ -42,3 +42,6 @@ registerHandler("pin.", (frame) => {
   // Another device of the owner pinned or unpinned: the row that holds the pins is read again.
   if (frame.name === "pin.changed" && data.store.getState().rows[frame.data.conversation_id]) void data.loadConversation(frame.data.conversation_id).catch(() => {});
 });
+
+/** The replies of a thread drawn as a conversation draws them; a chunk of its own, since the transcript is large. */
+export const loadFeedReplies = () => import("./FeedReplies.tsx").then((p) => p.FeedReplies);

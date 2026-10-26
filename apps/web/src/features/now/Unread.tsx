@@ -9,6 +9,7 @@ import { markAllRead } from "../conversations/index.ts";
 import { toast } from "../pins-stars/index.ts";
 import { titleOf } from "../rail/index.ts";
 import { Button } from "@convoz/ui/Button";
+import { FeedThread } from "./FeedThread.tsx";
 
 /** How many of the newest messages are read to find the line of a Needs you or Replies to you card. */
 const WINDOW = 20;
@@ -155,10 +156,18 @@ function Cards({ items, label, current, done = false }: { items: Item[]; label: 
               {done ? "Done" : "Mark read"}
             </Button>
           </div>
+          <CardThread c={c} />
         </li>
       ))}
     </ul>
   );
+}
+
+/** CardThread is the thread that put a card in the feed: the conversation's thread with the newest unread reply, else its newest thread with replies. */
+function CardThread({ c }: { c: Conversation }) {
+  const threads = (c.threads ?? []).filter((t) => t.reply_count > 0);
+  const t = threads.find((x) => x.unread > 0) ?? threads[0];
+  return t ? <FeedThread conversation={c.id} root={t.root_id} count={t.reply_count} /> : null;
 }
 
 /** Mentions are the messages that @mention the owner, under the Needs you heading and its asks. */

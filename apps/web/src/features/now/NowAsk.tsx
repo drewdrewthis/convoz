@@ -75,7 +75,14 @@ function CompactAsk({ ask, busy, answer }: Pick<NowAskProps, "ask" | "busy" | "a
 /** NowAsk is one open ask of the feed: its card, the app an agent attached to it, and what the agents are doing about the owner's last message. */
 export function NowAsk({ ask, busy, presets, answer, dismiss, snooze, compact = false }: NowAskProps) {
   const id = useId();
-  if (compact && !ask.draft) return <CompactAsk ask={ask} busy={busy} answer={answer} />;
+  if (compact && !ask.draft) {
+    return (
+      <>
+        <CompactAsk ask={ask} busy={busy} answer={answer} />
+        <FeedThread conversation={ask.conversation_id} root={ask.thread_root_id ?? ask.id} count={ask.reply_count} />
+      </>
+    );
+  }
   return (
     <>
       <AskCard
@@ -93,7 +100,7 @@ export function NowAsk({ ask, busy, presets, answer, dismiss, snooze, compact = 
         replies={{ count: ask.reply_count, unread: ask.unread_replies }}
         onReply={() => navigate(`/chats/${ask.conversation_id}#reply=${ask.thread_root_id ?? ask.id}`)}
       />
-      <FeedThread ask={ask} />
+      <FeedThread conversation={ask.conversation_id} root={ask.thread_root_id ?? ask.id} count={ask.reply_count} />
       <AskApp ask={ask} />
       <Attention conversation={ask.conversation_id} />
     </>
