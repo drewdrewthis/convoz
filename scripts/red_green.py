@@ -21,8 +21,11 @@ Usage: python3 -I scripts/red_green.py <base> <head> [--runner PATH] [--scratch 
         <title at the test-only commit> | <reason>              skip that scenario in the overlay run
         <title at the test-only commit> | <title at head> | <reason>
                                                                  same, and red is taken from the old title, green from the new
+        <title> | red-at-base | <reason>                        the red is the title run at the base (merge-base) instead of the
+                                                                 test-only commit: it must still be "unexpected" there (a real red
+                                                                 that the test-only commit cannot show), green at head as usual
     Every exception is printed in the log. An exception whose old title is absent at the test-only commit, whose
-    new title is not in the slice, or (a skip line) whose title is not in the slice, is a FAIL.
+    new title is not in the slice, or (a skip line or red-at-base) whose title is not in the slice, is a FAIL.
   - --scratch DIR: parent for the checkouts (default: a fresh mkdtemp). Nothing in it is deleted.
 
 Prints "test-only commit: <sha>", then "red: <title>" and "green: <title>" per title. A break prints
@@ -225,6 +228,7 @@ def run_at(sha, titles, runner, scratch, tests_from=None):
 
 
 EXCEPTIONS_PATH = "specs/red-green-exceptions.txt"
+RED_AT_BASE = "red-at-base"  # the middle field of a '<title> | red-at-base | <reason>' line
 
 
 def parse_exceptions(text):
@@ -237,7 +241,7 @@ def parse_exceptions(text):
         if len(parts) == 2:
             parts = [parts[0], None, parts[1]]
         if len(parts) != 3 or not parts[0] or not parts[2] or parts[1] == "":
-            raise ValueError(f"{EXCEPTIONS_PATH}:{n}: want 'title | reason' or 'old | new | reason'")
+            raise ValueError(f"{EXCEPTIONS_PATH}:{n}: want 'title | reason', 'old | new | reason' or 'title | red-at-base | reason'")
         out.append(tuple(parts))
     return out
 
@@ -247,8 +251,9 @@ def added_lines(diff_text):
     return "\n".join(ln[1:] for ln in diff_text.splitlines() if ln.startswith("+") and not ln.startswith("+++"))
 
 
-def prove(titles, exceptions, titles_at_first, run_red, run_green, run_overlay):
-    """(exit code, log lines). run_* take titles and return title -> passed|failed, or raise RunnerError."""
+def prove(titles, exceptions, titles_at_first, run_red, run_green, run_overlay, run_base=None):
+    """(exit code, log lines). run_* take titles and return title -> passed|failed, or raise RunnerError.
+    run_base runs the titles at the merge-base; only a red-at-base exception uses it."""
     out, bad = [], False
     for old, new, reason in exceptions:
         out.append(f"exception: {old}" + (f" -> {new}" if new else "") + f" | {reason}")
@@ -258,15 +263,23 @@ def prove(titles, exceptions, titles_at_first, run_red, run_green, run_overlay):
         if new is None and old not in titles:
             out.append(f"FAIL: exception skips a title that is not in the slice: {old}")
             bad = True
-        if new is not None and new not in titles:
+        if new == RED_AT_BASE and old not in titles:
+            out.append(f"FAIL: red-at-base exception names a title that is not in the slice: {old}")
+            bad = True
+        if new not in (None, RED_AT_BASE) and new not in titles:
             out.append(f"FAIL: exception renames to a title that is not in the slice: {new}")
             bad = True
     if bad:
         return 1, out
-    red_name = {new: old for old, new, _ in exceptions if new}
-    skipped = {old for old, _, _ in exceptions}
+    base_red = {old for old, new, _ in exceptions if new == RED_AT_BASE}
+    red_name = {new: old for old, new, _ in exceptions if new not in (None, RED_AT_BASE)}
+    skipped = {old for old, new, _ in exceptions if new != RED_AT_BASE}
     try:
-        red = run_red([red_name.get(t, t) for t in titles])
+        red_now = [red_name.get(t, t) for t in titles if t not in base_red]
+        red = run_red(red_now) if red_now else {}
+        base_now = [t for t in titles if t in base_red]
+        if base_now:
+            red.update(run_base(base_now))
         green = run_green(titles)
         overlay_titles = [red_name.get(t, t) for t in titles if red_name.get(t, t) not in skipped]
         overlay = run_overlay(overlay_titles) if overlay_titles else {}
@@ -276,7 +289,8 @@ def prove(titles, exceptions, titles_at_first, run_red, run_green, run_overlay):
     for t in titles:
         old = red_name.get(t, t)
         if red.get(old) != "failed":
-            out.append(f"FAIL: {t}: passed on the test-only commit")
+            where = "at the base" if t in base_red else "on the test-only commit"
+            out.append(f"FAIL: {t}: passed {where}")
             bad = True
         elif green.get(t) != "passed":
             out.append(f"FAIL: {t}: failed at head")
@@ -285,7 +299,8 @@ def prove(titles, exceptions, titles_at_first, run_red, run_green, run_overlay):
             out.append(f"FAIL: {t}: failed on the test-only tests over head's production")
             bad = True
         else:
-            out += [f"red: {old}", f"green: {t}"] + ([] if old in skipped else [f"overlay: {old}"])
+            label = f"red (at base): {old}" if t in base_red else f"red: {old}"
+            out += [label, f"green: {t}"] + ([] if old in skipped else [f"overlay: {old}"])
     return (1 if bad else 0), out
 
 
@@ -371,6 +386,24 @@ def self_test():
         failures.append("diff headers and removed lines are not exceptions")
     if parse_exceptions("# c\n\nA | r\nB | C | r2\n") != [("A", None, "r"), ("B", "C", "r2")]:
         failures.append("parse exceptions")
+    if parse_exceptions("A | red-at-base | r") != [("A", RED_AT_BASE, "r")]:
+        failures.append("parse red-at-base")
+    red_calls = []
+    def red_recorder(ts):
+        red_calls.append(list(ts))
+        return {t: "failed" for t in ts}
+    code, log = prove(["a"], [("a", RED_AT_BASE, "why")], {"a"}, red_recorder, fake({}), fake({}), fake({"a": "passed"}))
+    if code != 1 or red_calls or not any("at the base" in l for l in log):
+        failures.append("red-at-base: test-only commit is not asked for red, a pass at base fails")
+    code, log = prove(["a"], [("a", RED_AT_BASE, "why")], {"a"}, fake({}), fake({}), fake({}), fake({"a": "failed"}))
+    if code != 0 or "red (at base): a" not in log or "overlay: a" not in log:
+        failures.append("red-at-base: unexpected at base, green at head, overlay still runs")
+    code, log = prove(["a"], [("a", RED_AT_BASE, "why")], {"a"}, fake({}), fake({}), fake({}), fake({"a": "passed"}))
+    if code != 1:
+        failures.append("red-at-base: a pass at base is not red")
+    code, _ = prove(["b"], [("a", RED_AT_BASE, "why")], {"a", "b"}, fake({}), fake({}), fake({}), fake({"a": "failed"}))
+    if code != 1:
+        failures.append("red-at-base outside the slice fails")
     for bad_line in ("only title", "A | | r", "A | B | C | D"):
         try:
             parse_exceptions(bad_line)
@@ -424,7 +457,8 @@ def main(argv):
         titles, exceptions, titles_at_first,
         lambda ts: run_at(first, ts, runner, scratch),
         lambda ts: run_at(head_sha, ts, runner, scratch),
-        lambda ts: run_at(head_sha, ts, runner, scratch, tests_from=first))
+        lambda ts: run_at(head_sha, ts, runner, scratch, tests_from=first),
+        lambda ts: run_at(merge_base, ts, runner, scratch))
     print("\n".join(log))
     return code
 
