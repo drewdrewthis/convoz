@@ -1,4 +1,4 @@
-import { agentSays, convoz, createConversation, ownerSays, unreadOf } from "../lib/chat.ts";
+import { agentPost, agentSays, convoz, createConversation, listConversations, ownerReads, ownerSays, unreadOf } from "../lib/chat.ts";
 import {
   QUESTION,
   agentAsks,
@@ -13,7 +13,7 @@ import {
   setServerTime,
   snoozeAsk,
 } from "../lib/asks.ts";
-import { setPrefs } from "../lib/rail-wp9.ts";
+import { openRail, rail, setPrefs } from "../lib/rail-wp9.ts";
 import { mintSession, nowCard, plainDb, requestMachine, seedUserCodes } from "../lib/machines.ts";
 import { must } from "../lib/owner.ts";
 import type { Locator, Page } from "@playwright/test";
@@ -322,21 +322,310 @@ scenario("With no decisions but unread conversations, Now lists them instead of 
 
   // And the wordmark is not shown, so the cards sit near the top
   await expect(page.locator(".wordmark")).toBeHidden();
-  await expect(page.getByRole("list", { name: "Unread conversations" })).toBeInViewport();
+  await expect(page.getByRole("list", { name: "Other chats" })).toBeInViewport();
 
-  // And a summary line says "5 unread in 1 conversation"
-  await expect(page.getByText("5 unread in 1 conversation", { exact: true })).toBeVisible();
+  // And the "Other chats" list has one row for conversation 41 reading "devtool, 5 new"
+  const rows = page.getByRole("list", { name: "Other chats" }).getByRole("listitem");
+  await expect(rows).toHaveCount(1);
+  await expect(rows.getByRole("link")).toContainText("Ship search filters");
+  await expect(rows.getByRole("link")).toContainText("devtool, 5 new");
+});
 
-  // And conversation 41 has one card with its title, an unread count of 5 and a short age
-  const card = page.getByRole("list", { name: "Unread conversations" }).getByRole("listitem");
-  await expect(card).toHaveCount(1);
-  await expect(card.getByRole("heading")).toHaveText("Ship search filters");
-  await expect(card.locator(".count")).toHaveText("Unread: 5");
-  await expect(card.locator("time")).toHaveText(/^(now|\d+m)$/);
+scenario("Now puts an ask and an @mention of the owner under Needs you", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  // Given an open ask of "devtool" in conversation 41 and "docs" posted "@drew can you check the deploy log?" in conversation 42, and "devtool" posted "Build 812 is green" in conversation 43
+  const w = await browserWorld({ server, page, context }, WORLD);
+  const c41 = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  const c42 = await createConversation(w.owner, { title: "Deploy log", participants: ["devtool", "docs"] });
+  const c43 = await createConversation(w.owner, { title: "Nightly builds", participants: ["devtool", "docs"] });
+  await agentAsks(w.srv, w.sessions.devtool!.lease, c41, {});
+  await agentSays(w.srv, w.sessions.docs!.lease, c42, "@drew can you check the deploy log?");
+  await agentSays(w.srv, w.sessions.devtool!.lease, c43, "Build 812 is green");
 
-  // And the card shows only the 3 newest unread lines, newest first, each with its author
-  const lines = card.locator(".uline");
-  await expect(lines).toHaveText(["devtool News 5", "devtool News 4", "devtool News 3"]);
+  // When the owner opens Now
+  await openNow(page, w.srv);
+
+  // Then the heading "Needs you · 2" is shown above the ask
+  const heading = page.getByText("Needs you · 2", { exact: true });
+  await expect(heading).toBeVisible();
+  expect((await heading.boundingBox())!.y).toBeLessThan((await askCard(page).boundingBox())!.y);
+
+  // And the "Mentions of you" list has one card for conversation 42 with the line "docs @drew can you check the deploy log?"
+  const mentions = page.getByRole("list", { name: "Mentions of you" }).getByRole("listitem");
+  await expect(mentions).toHaveCount(1);
+  await expect(mentions.getByRole("heading")).toHaveText("Deploy log");
+  await expect(mentions.locator(".uline")).toHaveText("docs @drew can you check the deploy log?");
+
+  // And conversation 43 is only under "Other chats"
+  await expect(page.getByRole("list", { name: "Other chats" }).getByRole("link", { name: /Nightly builds/ })).toHaveAttribute("href", `/chats/${c43}`);
+  await expect(mentions.filter({ hasText: "Nightly builds" })).toHaveCount(0);
+  await expect(page.getByRole("list", { name: "Replies to you" }).filter({ hasText: "Nightly builds" })).toHaveCount(0);
+});
+
+// Owner, conv 179 msg 6018 (UX review): the Needs you count and the Now badge must be one number
+scenario("The Needs you count and the rail badge are the same number", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  // Given an open ask of "devtool" in conversation 41 and "docs" posted "@drew can you check the deploy log?" in conversation 42
+  const w = await browserWorld({ server, page, context }, WORLD);
+  const c41 = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  const c42 = await createConversation(w.owner, { title: "Deploy log", participants: ["devtool", "docs"] });
+  await agentAsks(w.srv, w.sessions.devtool!.lease, c41, {});
+  await agentSays(w.srv, w.sessions.docs!.lease, c42, "@drew can you check the deploy log?");
+
+  // When the owner opens Now on a wide screen
+  await openRail(page, w.srv, "/");
+  await page.getByRole("heading", { name: "Now", exact: true }).waitFor();
+
+  // Then the heading "Needs you · 2" is shown
+  await expect(page.getByText("Needs you · 2", { exact: true })).toBeVisible();
+
+  // And the Now item in the rail shows 2
+  await expect(rail(page).locator(".rbadge")).toHaveText("2");
+});
+
+/** Open conversation `conv` on a wide screen and turn the rail to Now. */
+async function railNow(page: Page, w: Awaited<ReturnType<typeof browserWorld>>, conv: number): Promise<void> {
+  await openRail(page, w.srv, `/chats/${conv}`);
+  const now = rail(page).getByRole("button", { name: /^Now\b/ });
+  await now.click();
+  await expect(now).toHaveAttribute("aria-pressed", "true");
+}
+
+// Owner, conv 179 msg 6018 (UX review): in the sidebar, Other chats is one line until the owner opens it
+scenario("The sidebar folds Other chats to one line", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(120_000);
+  // Given "devtool" posted 1 message in each of 12 conversations the owner has not read, and conversation 41 has nothing new
+  const w = await browserWorld({ server, page, context }, WORLD);
+  const home = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  const chats: number[] = [];
+  for (let n = 1; n <= 12; n++) {
+    const conv = await createConversation(w.owner, { title: `Chatter ${n}`, participants: ["devtool", "docs"] });
+    await agentSays(w.srv, w.sessions.devtool!.lease, conv, `News ${n}`);
+    chats.push(conv);
+  }
+
+  // When the owner opens conversation 41 on a wide screen and turns the rail to Now
+  await railNow(page, w, home);
+
+  // Then the rail shows one row "12 other chats, 12 new" with "Mark all read", and no list of chats
+  const row = rail(page).getByRole("button", { name: "12 other chats, 12 new", exact: true });
+  await expect(row).toBeVisible();
+  await expect(row).toHaveAttribute("aria-expanded", "false");
+  const markAll = rail(page).getByRole("button", { name: "Mark all read", exact: true });
+  await expect(markAll).toBeVisible();
+  const list = rail(page).getByRole("list", { name: "Other chats" });
+  await expect(list).toHaveCount(0);
+
+  // When the owner taps "12 other chats, 12 new"
+  await row.click();
+
+  // Then the rail lists the 10 newest of the 12 chats and a "Show all" button
+  await expect(row).toHaveAttribute("aria-expanded", "true");
+  await expect(list.getByRole("listitem")).toHaveCount(10);
+  await expect(list.getByRole("listitem").first()).toContainText("Chatter 12");
+  await expect(list.getByRole("listitem").last()).toContainText("Chatter 3");
+  const showAll = rail(page).getByRole("button", { name: "Show all", exact: true });
+  await expect(showAll).toBeVisible();
+
+  // When the owner taps "Show all"
+  await showAll.click();
+
+  // Then the rail lists all 12 chats
+  await expect(list.getByRole("listitem")).toHaveCount(12);
+  await expect(showAll).toHaveCount(0);
+
+  // When the owner taps "Mark all read"
+  await markAll.click();
+
+  // Then the row is gone and the 12 conversations have 0 unread
+  await expect(rail(page).getByRole("button", { name: /other chats/ })).toHaveCount(0);
+  await expect(list).toHaveCount(0);
+  for (const conv of chats) expect(await unreadOf(w.owner, conv)).toBe(0);
+});
+
+// Owner, conv 179 msg 6018 (UX review): a sidebar ask card is short: the question, the recommended answer and Open
+scenario("A sidebar ask card shows the title, the first answer and Open", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  // Given "devtool" asked "Merge #415 on its own?" with "Merge it" recommended and "Hold it" the alternative in conversation 52
+  const w = await browserWorld({ server, page, context }, WORLD);
+  const home = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  const c52 = await createConversation(w.owner, { title: "Release train", participants: ["devtool", "docs"] });
+  const id = await agentAsks(w.srv, w.sessions.devtool!.lease, c52, {});
+
+  // When the owner opens conversation 41 on a wide screen and turns the rail to Now
+  await railNow(page, w, home);
+
+  // Then the ask card in the rail shows the question, a "Merge it" button and an "Open" link to conversation 52
+  const card = rail(page).getByRole("article", { name: QUESTION });
+  await expect(card).toBeVisible();
+  await expect(card.getByRole("heading", { name: QUESTION })).toBeVisible();
+  await expect(card.getByRole("button", { name: "Merge it", exact: true })).toBeVisible();
+  await expect(card.getByRole("link", { name: "Open", exact: true })).toHaveAttribute("href", `/chats/${c52}`);
+
+  // And it shows no "Hold it", "Quick reply", "Snooze", "Dismiss" or "I have questions"
+  for (const name of ["Hold it", "Quick reply", "Snooze", "Dismiss", "I have questions"]) await expect(card.getByRole("button", { name, exact: true }), name).toHaveCount(0);
+
+  // When the owner taps "Merge it"
+  await card.getByRole("button", { name: "Merge it", exact: true }).click();
+
+  // Then the ask is answered with "Merge it" and leaves the rail
+  await expect(card).toHaveCount(0);
+  const ask = await askOf(w.owner, id);
+  expect({ state: ask.state, chosen: ask.chosen?.kind }).toEqual({ state: "answered", chosen: "recommended" });
+});
+
+// Owner, conv 179 msg 6018 (UX review): a card that needs the owner is cleared with Done; a reply card keeps Mark read
+scenario("A Needs you card has Done instead of Mark read", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  // Given "docs" posted "@drew can you check the deploy log?" in conversation 42, and the owner wrote "What broke in the nightly?" in conversation 41 and "devtool" answered
+  const w = await browserWorld({ server, page, context }, WORLD);
+  const c41 = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  const c42 = await createConversation(w.owner, { title: "Deploy log", participants: ["devtool", "docs"] });
+  await agentSays(w.srv, w.sessions.docs!.lease, c42, "@drew can you check the deploy log?");
+  await ownerSays(w.owner, c41, "What broke in the nightly?");
+  await agentSays(w.srv, w.sessions.devtool!.lease, c41, "The lint step timed out");
+
+  // When the owner opens Now
+  await openNow(page, w.srv);
+
+  // Then the card of conversation 42 under Needs you has "Done" and no "Mark read"
+  const mention = page.getByRole("list", { name: "Mentions of you" }).getByRole("listitem").filter({ hasText: "Deploy log" });
+  await expect(mention).toHaveCount(1);
+  await expect(mention.getByRole("button", { name: "Done with Deploy log", exact: true })).toBeVisible();
+  await expect(mention.getByRole("button", { name: /^Mark .* read$/ })).toHaveCount(0);
+
+  // And the card of conversation 41 under "Replies to you" has "Mark read" and no "Done"
+  const reply = page.getByRole("list", { name: "Replies to you" }).getByRole("listitem").filter({ hasText: "Ship search filters" });
+  await expect(reply.getByRole("button", { name: "Mark Ship search filters read", exact: true })).toBeVisible();
+  await expect(reply.getByRole("button", { name: /^Done with/ })).toHaveCount(0);
+
+  // When the owner taps "Done" on the card of conversation 42
+  await mention.getByRole("button", { name: "Done with Deploy log", exact: true }).click();
+
+  // Then the card leaves the list and conversation 42 has 0 unread
+  await expect(mention).toHaveCount(0);
+  await expect.poll(() => unreadOf(w.owner, c42)).toBe(0);
+});
+
+scenario("Marking two cards read in a row works and the other cards stay clickable", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  // Given 3 conversations where an agent @mentions the owner, so "Mentions of you" has 3 cards, and the first "Done" is slow to finish
+  const w = await browserWorld({ server, page, context }, WORLD);
+  const titles = ["Deploy log", "Nightly builds", "Search filters"];
+  for (const title of titles) {
+    const conv = await createConversation(w.owner, { title, participants: ["devtool", "docs"] });
+    await agentSays(w.srv, w.sessions.docs!.lease, conv, `@drew look at ${title}`);
+  }
+  const [a, b, c] = titles;
+  let releaseFirst!: () => void;
+  const firstHeld = new Promise<void>((resolve) => (releaseFirst = resolve));
+  let reads = 0;
+  await page.route("**/api/conversations/*/read", async (route) => {
+    if (reads++ === 0) await firstHeld;
+    await route.continue();
+  });
+
+  // When the owner opens Now and taps "Done" on the first card
+  await openNow(page, w.srv);
+  const cards = page.getByRole("list", { name: "Mentions of you" }).getByRole("listitem");
+  await expect(cards).toHaveCount(3);
+  await page.getByRole("button", { name: `Done with ${a}` }).click();
+
+  // Then "Done" on the other two cards is still enabled
+  await expect(page.getByRole("button", { name: `Done with ${b}` })).toBeEnabled();
+  await expect(page.getByRole("button", { name: `Done with ${c}` })).toBeEnabled();
+
+  // When the owner taps "Done" on the second card
+  await page.getByRole("button", { name: `Done with ${b}` }).click();
+
+  // Then the second card leaves the list
+  await expect(cards.filter({ hasText: b })).toHaveCount(0);
+
+  // When the first "Done" finishes
+  releaseFirst();
+
+  // Then the first card leaves the list
+  await expect(cards.filter({ hasText: a })).toHaveCount(0);
+
+  // And only the third card is left, and its "Done" button is enabled
+  await expect(cards).toHaveCount(1);
+  await expect(page.getByRole("button", { name: `Done with ${c}` })).toBeEnabled();
+});
+
+scenario("A reply to the owner's message shows the full latest message under Replies to you", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  // Given the owner wrote "What broke in the nightly?" in conversation 41 and "devtool" answered with a 300-character message
+  const w = await browserWorld({ server, page, context }, WORLD);
+  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  await ownerSays(w.owner, conv, "What broke in the nightly?");
+  const answer = `The nightly broke at the lint step. ${"The cache key changed after the lockfile bump, so every shard rebuilt cold and timed out. ".repeat(3)}`.slice(0, 300).trimEnd();
+  expect(answer.length).toBeGreaterThan(250);
+  await agentSays(w.srv, w.sessions.devtool!.lease, conv, answer);
+
+  // When the owner opens Now
+  await openNow(page, w.srv);
+
+  // Then "Replies to you" has one card for conversation 41 showing the whole answer
+  const cards = page.getByRole("list", { name: "Replies to you" }).getByRole("listitem");
+  await expect(cards).toHaveCount(1);
+  await expect(cards.getByRole("heading")).toHaveText("Ship search filters");
+  await expect(cards.getByText(answer, { exact: false })).toBeVisible();
+  await expect(cards.locator(".uline")).toContainText(answer);
+
+  // And no "Needs you" heading is shown
+  await expect(page.getByText(/^Needs you/)).toHaveCount(0);
+});
+
+scenario("Agent talk the owner is not in folds to one line per chat with one Mark all read", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  // Given "devtool" posted 2 messages in conversation 41 and "docs" posted 1 message in conversation 42, and the owner wrote nothing
+  const w = await browserWorld({ server, page, context }, WORLD);
+  const c41 = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  const c42 = await createConversation(w.owner, { title: "Deploy log", participants: ["devtool", "docs"] });
+  await agentSays(w.srv, w.sessions.devtool!.lease, c41, "News 1");
+  await agentSays(w.srv, w.sessions.devtool!.lease, c41, "News 2");
+  await agentSays(w.srv, w.sessions.docs!.lease, c42, "Docs news");
+
+  // When the owner opens Now
+  await openNow(page, w.srv);
+
+  // Then "Other chats" has 2 rows, one reading "devtool, 2 new" and one "docs, 1 new", with no message lines
+  const list = page.getByRole("list", { name: "Other chats" });
+  await expect(list.getByRole("listitem")).toHaveCount(2);
+  await expect(list.getByRole("link", { name: /Ship search filters/ })).toContainText("devtool, 2 new");
+  await expect(list.getByRole("link", { name: /Deploy log/ })).toContainText("docs, 1 new");
+  await expect(list.locator(".uline")).toHaveCount(0);
+
+  // When the owner taps "Mark all read"
+  await page.getByRole("button", { name: "Mark all read" }).click();
+
+  // Then both conversations have 0 unread and Now says "All clear. Nothing needs you."
+  await expect(page.getByText("All clear. Nothing needs you.")).toBeVisible();
+  expect(await unreadOf(w.owner, c41)).toBe(0);
+  expect(await unreadOf(w.owner, c42)).toBe(0);
+});
+
+scenario("A chat whose only new message is an ask is listed under Other chats", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  // Given "devtool" asked the owner a question in conversation 41, and nothing else is new there
+  const w = await browserWorld({ server, page, context }, WORLD);
+  const c = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  await agentAsks(w.srv, w.sessions.devtool!.lease, c, {});
+
+  // When the owner opens Now
+  await openNow(page, w.srv);
+
+  // Then "Other chats" has one row for conversation 41 reading "devtool, 1 new"
+  const list = page.getByRole("list", { name: "Other chats" });
+  await expect(list.getByRole("listitem")).toHaveCount(1);
+  await expect(list.getByRole("link")).toHaveAttribute("href", `/chats/${c}`);
+  await expect(list.getByRole("link")).toContainText("devtool, 1 new");
+
+  // When the owner taps "Mark all read"
+  await page.getByRole("button", { name: "Mark all read" }).click();
+
+  // Then the "Other chats" list is gone
+  await expect(list).toHaveCount(0);
 });
 
 scenario("Marking all read from Now clears the list and shows all clear", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
@@ -348,8 +637,8 @@ scenario("Marking all read from Now clears the list and shows all clear", { tag:
   await openNow(page, w.srv);
   await page.getByRole("button", { name: "Mark all read" }).click();
 
-  // Then the Unread list is gone and Now says "All clear. Nothing needs you."
-  await expect(page.getByRole("list", { name: "Unread conversations" })).toHaveCount(0);
+  // Then the "Other chats" list is gone and Now says "All clear. Nothing needs you."
+  await expect(page.getByRole("list", { name: "Other chats" })).toHaveCount(0);
   await expect(page.getByText("All clear. Nothing needs you.")).toBeVisible();
   expect(await unreadOf(w.owner, conv)).toBe(0);
 });
@@ -362,9 +651,9 @@ scenario("A muted conversation is not listed under Unread", { tag: ["@browser"] 
   // When the owner opens Now
   await openNow(page, w.srv);
 
-  // Then Now says "All clear. Nothing needs you." and has no Unread list
+  // Then Now says "All clear. Nothing needs you." and has no "Other chats" list
   await expect(page.getByText("All clear. Nothing needs you.")).toBeVisible();
-  await expect(page.getByRole("list", { name: "Unread conversations" })).toHaveCount(0);
+  await expect(page.getByRole("list", { name: "Other chats" })).toHaveCount(0);
 });
 
 scenario("Opening an unread row lands at the first unread message", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
@@ -372,9 +661,9 @@ scenario("Opening an unread row lands at the first unread message", { tag: ["@br
   // Given no decision waits and "devtool" posted "First news", "Second news" and "Third news" in conversation 41 that the owner has not read
   const { w, conv } = await unreadWorld({ server, page, context }, ["First news", "Second news", "Third news"]);
 
-  // When the owner opens Now and taps the conversation 41 row under Unread
+  // When the owner opens Now and taps the conversation 41 row under "Other chats"
   await openNow(page, w.srv);
-  await page.getByRole("list", { name: "Unread conversations" }).getByRole("link", { name: /Ship search filters/ }).click();
+  await page.getByRole("list", { name: "Other chats" }).getByRole("link", { name: /Ship search filters/ }).click();
   await expect(page).toHaveURL(`${w.srv.origin}/chats/${conv}`);
 
   // Then conversation 41 opens with the "New messages" line above "First news"
@@ -907,4 +1196,83 @@ scenario("A human cannot be the target of a pending add", { tag: ["@api"] }, asy
   // Then the server answers 400
   expect(res.status).toBe(400);
   expect((await nowOf(w.owner)).pending_adds).toEqual([]);
+});
+
+// Owner, conv 179 msg 6018 (UX review): the server counts mentions, the client does not scan.
+
+/** The list row of one conversation as the owner sees it. */
+async function rowOf(owner: Parameters<typeof listConversations>[0], conv: number) {
+  const row = (await listConversations(owner)).find((c) => c.id === conv);
+  expect(row, `conversation ${conv} is listed`).toBeTruthy();
+  return row!;
+}
+
+scenario("The conversation list counts the unread messages that @mention the caller", { tag: ["@api"] }, async ({ server }) => {
+  const { w, conv, devtool, docs } = await askWorld(server);
+
+  // Given the owner wrote "Status?" in conversation 41
+  const root = await ownerSays(w.owner, conv, "Status?");
+
+  // And "devtool" posted "@drew look" and then "Build 812 is green" in conversation 41
+  await agentSays(w.srv, devtool.lease, conv, "@drew look");
+  const last = await agentSays(w.srv, devtool.lease, conv, "Build 812 is green");
+
+  // Then the conversation list row of conversation 41 has unread_mentions 1
+  expect((await rowOf(w.owner, conv)).unread_mentions).toBe(1);
+
+  // When the owner marks conversation 41 read
+  await ownerReads(w.owner, conv, last);
+
+  // Then the conversation list row of conversation 41 has unread_mentions 0
+  expect((await rowOf(w.owner, conv)).unread_mentions).toBe(0);
+
+  // When "docs" replies "@drew see the log" in the thread of "Status?"
+  const res = await agentPost(w.srv, docs.lease, conv, "@drew see the log", { thread_root_id: root });
+  expect(res.status).toBe(201);
+
+  // Then the conversation list row of conversation 41 has unread_mentions 1
+  expect((await rowOf(w.owner, conv)).unread_mentions).toBe(1);
+});
+
+scenario("The conversation list says when agents replied to the owner", { tag: ["@api"] }, async ({ server }) => {
+  const { w, conv, devtool, docs } = await askWorld(server);
+  const c42 = await createConversation(w.owner, { title: "Deploy log", participants: ["devtool", "docs"] });
+
+  // Given the owner wrote "What broke in the nightly?" in conversation 41 and "devtool" answered "The lint step"
+  await ownerSays(w.owner, conv, "What broke in the nightly?");
+  await agentSays(w.srv, devtool.lease, conv, "The lint step");
+
+  // And in conversation 42 only "devtool" and "docs" posted
+  await agentSays(w.srv, devtool.lease, c42, "Deploy 3 is out");
+  await agentSays(w.srv, docs.lease, c42, "Docs are updated");
+
+  // Then the conversation list row of conversation 41 has replies_to_you true
+  expect((await rowOf(w.owner, conv)).replies_to_you).toBe(true);
+
+  // And the conversation list row of conversation 42 has no replies_to_you
+  expect((await rowOf(w.owner, c42)).replies_to_you ?? false).toBe(false);
+});
+
+scenario("Now counts conversations with an unread mention in its badge", { tag: ["@api"] }, async ({ server }) => {
+  const { w, conv, devtool, docs } = await askWorld(server);
+  const c42 = await createConversation(w.owner, { title: "Deploy log", participants: ["devtool", "docs"] });
+  const c43 = await createConversation(w.owner, { title: "Nightly builds", participants: ["devtool", "docs"] });
+
+  // Given "devtool" has an open ask in conversation 41
+  await agentAsks(w.srv, devtool.lease, conv);
+
+  // And "docs" posted "@drew look" in conversation 42
+  await agentSays(w.srv, docs.lease, c42, "@drew look");
+
+  // And "docs" posted "@drew muted look" in conversation 43, which the owner muted
+  await setPrefs(w.owner, c43, { muted_until: 253402300799000 });
+  await agentSays(w.srv, docs.lease, c43, "@drew muted look");
+
+  // When the owner reads GET /api/now
+  const now = await nowOf(w.owner);
+
+  // Then mentions is 1 and badge is 2
+  expect(now.asks).toHaveLength(1);
+  expect(now.mentions).toBe(1);
+  expect(now.badge).toBe(2);
 });

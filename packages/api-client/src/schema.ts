@@ -2533,6 +2533,10 @@ export interface components {
             unread: number;
             /** @description The part of unread that sits in the main list; the row badge. The replies of a thread count on its own row in threads. */
             main_unread?: number;
+            /** @description The unread messages that @mention the caller, counted under the same read cursors as unread (the main list after its cursor, each thread after its own). Its own messages never count; stops at 100 like unread. A client reads this instead of scanning the messages. */
+            unread_mentions: number;
+            /** @description An agent answered the caller. True when the main list has unread after a message the caller wrote (the newest one it read), or a thread whose root the caller wrote has unread replies. Absent when false. */
+            replies_to_you?: boolean;
             /** @description The threads of the conversation that have a reply, newest reply first. */
             threads?: components["schemas"]["ThreadRow"][];
             /** @description The caller starred it. Personal to the caller (I-22); always false for an agent. */
@@ -3710,8 +3714,10 @@ export interface components {
             now: number;
             /** @description How often an open Now asks again */
             poll_ms: number;
-            /** @description Open asks that are not snoozed. */
+            /** @description Open asks that are not snoozed */
             badge: number;
+            /** @description The caller's conversations, not muted and not in the trash, that have an unread message that @mentions it. */
+            mentions: number;
             /** @description Open and not snoozed; urgent first, then the newest. */
             asks: components["schemas"]["Ask"][];
             /** @description Open, not snoozed, and the owner replied in the thread: they wait on the agent's updated ask, the newest reply first. */

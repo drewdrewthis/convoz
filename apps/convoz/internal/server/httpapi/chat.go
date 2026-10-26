@@ -149,12 +149,18 @@ func conversationView(ctx context.Context, d pdb.DBTX, p authz.Principal, dir di
 			out.OwnerLast = isOwner(dir, m.AuthorID)
 		}
 	}
-	mainUnread, threadUnread, err := unreadParts(ctx, d, p.Identity(), cv, floor)
+	u, err := unreadParts(ctx, d, p.Identity(), cv, floor)
 	if err != nil {
 		return wire.Conversation{}, err
 	}
-	out.MainUnread, out.Unread = mainUnread, min(mainUnread+threadUnread, message.MaxUnread)
+	out.MainUnread, out.Unread = u.main, u.total()
+	if out.UnreadMentions, err = unreadMentions(ctx, d, p.Identity(), cv, u); err != nil {
+		return wire.Conversation{}, err
+	}
 	if out.Threads, err = threadRowsOf(ctx, d, p, dir, cv, floor); err != nil {
+		return wire.Conversation{}, err
+	}
+	if out.RepliesToYou, err = repliesToYou(ctx, d, dir, p.Identity(), cv, u, out.Threads); err != nil {
 		return wire.Conversation{}, err
 	}
 	out.Paused, out.Stale = cv.Paused(), cv.Stale()

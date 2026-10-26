@@ -433,21 +433,26 @@ func (s *Server) nowScreen(w http.ResponseWriter, r *http.Request, c *call) {
 	if err == nil {
 		out.IdentityRequests, err = s.identityRequestViews(ctx, d, now, sessions)
 	}
+	if err == nil {
+		out.Mentions, err = mentionedConversations(ctx, d, c.p, now)
+	}
 	if err != nil {
 		s.internalError(w, r, err)
 		return
 	}
-	out.Badge = len(out.Asks)
+	out.Badge = len(out.Asks) + out.Mentions
 	out.MachineRequests = s.requestsJSON(machines, intros, logins)
 	writeJSON(w, http.StatusOK, out)
 }
 
 // nowView is the answer of GET /api/now.
 type nowView struct {
-	Now    int64          `json:"now"`
-	PollMS int64          `json:"poll_ms"`
-	Badge  int            `json:"badge"`
-	Asks   []wire.AskView `json:"asks"`
+	Now    int64 `json:"now"`
+	PollMS int64 `json:"poll_ms"`
+	Badge  int   `json:"badge"` // the open asks plus Mentions
+	// Mentions is how many conversations, not muted and not in the trash, have an unread message that @mentions the caller.
+	Mentions int            `json:"mentions"`
+	Asks     []wire.AskView `json:"asks"`
 	// Replied are the open asks the owner replied to: they wait on the agent's updated ask, newest reply first.
 	Replied        []wire.AskView       `json:"replied"`
 	Snoozed        []wire.AskView       `json:"snoozed"`

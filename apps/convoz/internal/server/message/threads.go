@@ -56,6 +56,31 @@ func CountThreadsUnread(ctx context.Context, d pdb.DBTX, points []ReadPoint, rea
 	return out, err
 }
 
+// CountUnreadMentions counts the unread messages of conv that @mention reader and that someone else wrote, stopping at MaxUnread:
+// the main list after mainAfter, less the broadcast replies read in their thread, and the replies of the threads in points (the ones
+// the reader is in), each after its own read point.
+func CountUnreadMentions(ctx context.Context, d pdb.DBTX, conv, reader, mainAfter int64, points []ReadPoint) (int64, error) {
+	lowest := mainAfter
+	pairs := make([][2]int64, len(points))
+	for i, p := range points {
+		pairs[i] = [2]int64{p.Root, p.After}
+		lowest = min(lowest, p.After)
+	}
+	raw, err := json.Marshal(pairs)
+	if err != nil {
+		return 0, err
+	}
+	return db.New(d).CountUnreadMentions(ctx, db.CountUnreadMentionsParams{
+		IdentityID: reader, LowestAfter: lowest, ConversationID: conv, ReaderID: nullInt(reader), MainAfter: mainAfter, Points: string(raw), MaxRows: MaxUnread,
+	})
+}
+
+// MainAuthorAt is the author of the newest main-list message at or before id that still reads (not deleted, not a system line),
+// 0 for none.
+func MainAuthorAt(ctx context.Context, d pdb.DBTX, conv, id int64) (int64, error) {
+	return db.New(d).MainAuthorAt(ctx, db.MainAuthorAtParams{ConversationID: conv, At: id})
+}
+
 // CountBroadcastRead counts the broadcast replies to root in (after, upTo] that someone else wrote: the ones the reader read
 // in the thread, which the main list must not count again (I-14).
 func CountBroadcastRead(ctx context.Context, d pdb.DBTX, root, after, upTo, reader int64) (int64, error) {

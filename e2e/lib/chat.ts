@@ -52,6 +52,8 @@ interface ConversationRow {
   participants: { handle: string; display_name: string; kind: string }[];
   last: { id: number; author_handle: string; preview: string } | null;
   unread: number;
+  unread_mentions: number;
+  replies_to_you?: boolean;
 }
 
 interface MessageRow {

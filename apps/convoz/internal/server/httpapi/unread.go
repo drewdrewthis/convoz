@@ -2,11 +2,13 @@ package httpapi
 
 import (
 	"context"
+	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/prefs"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/readstate"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
@@ -16,54 +18,137 @@ import (
 // not read. Its own, system and deleted messages never count, and a reply in a thread it is not in never counts. A conversation the
 // reader has no cursor for counts none. Each part stops at message.MaxUnread, and so does the sum.
 func unreadOf(ctx context.Context, d pdb.DBTX, reader int64, cv conversation.Conversation, floor int64) (int64, error) {
-	main, threads, err := unreadParts(ctx, d, reader, cv, floor)
-	return min(main+threads, message.MaxUnread), err
+	u, err := unreadParts(ctx, d, reader, cv, floor)
+	return u.total(), err
 }
 
-// unreadParts is unreadOf in two: the unread of the main list, and the unread replies of the threads the reader is in.
-func unreadParts(ctx context.Context, d pdb.DBTX, reader int64, cv conversation.Conversation, floor int64) (mainUnread, threadUnread int64, err error) {
+// unreadState is unreadOf in two, the unread of the main list and the unread replies of the threads the reader is in, with the read
+// points they count from, so the counts that build on them (mentions, replies to the reader) use the same cursors.
+type unreadState struct {
+	main, threads int64
+	mainAfter     int64               // the main list counts after this id
+	points        []message.ReadPoint // each thread the reader is in, after its own read point
+}
+
+// total is the conversation's unread count: both parts, stopping at message.MaxUnread.
+func (u unreadState) total() int64 { return min(u.main+u.threads, message.MaxUnread) }
+
+// unreadParts reads the unreadState of one reader and conversation, seen from above floor (see unreadOf).
+func unreadParts(ctx context.Context, d pdb.DBTX, reader int64, cv conversation.Conversation, floor int64) (unreadState, error) {
 	cursor, found, err := readstate.Cursor(ctx, d, reader, cv.ID)
 	if err != nil || !found {
-		return 0, 0, err
+		return unreadState{}, err
 	}
 	threads, err := readstate.Threads(ctx, d, reader, cv.ID)
 	if err != nil {
-		return 0, 0, err
+		return unreadState{}, err
 	}
-	after := max(cursor, floor)
+	u := unreadState{mainAfter: max(cursor, floor)}
 	var readInThread int64
 	for _, t := range threads {
-		n, err := message.CountBroadcastRead(ctx, d, t.Root, after, t.LastRead, reader)
+		n, err := message.CountBroadcastRead(ctx, d, t.Root, u.mainAfter, t.LastRead, reader)
 		if err != nil {
-			return 0, 0, err
+			return unreadState{}, err
 		}
 		readInThread += n
 	}
-	if cv.LastMainID > after {
-		raw, err := message.CountMainUnread(ctx, d, cv.ID, after, reader, message.MaxUnread+readInThread)
+	if cv.LastMainID > u.mainAfter {
+		raw, err := message.CountMainUnread(ctx, d, cv.ID, u.mainAfter, reader, message.MaxUnread+readInThread)
 		if err != nil {
-			return 0, 0, err
+			return unreadState{}, err
 		}
-		mainUnread = min(max(raw-readInThread, 0), message.MaxUnread)
+		u.main = min(max(raw-readInThread, 0), message.MaxUnread)
 	}
 	if len(threads) == 0 {
-		return mainUnread, 0, nil
+		return u, nil
 	}
 	threadFloor, err := readstate.Floor(ctx, d, reader, cv.ID)
 	if err != nil {
-		return 0, 0, err
+		return unreadState{}, err
 	}
-	for _, t := range threads {
-		if mainUnread+threadUnread >= message.MaxUnread {
+	u.points = make([]message.ReadPoint, len(threads))
+	for i, t := range threads {
+		u.points[i] = message.ReadPoint{Root: t.Root, After: max(t.LastRead, threadFloor, floor)}
+	}
+	for _, p := range u.points {
+		if u.main+u.threads >= message.MaxUnread {
 			break
 		}
-		n, err := message.CountThreadUnread(ctx, d, t.Root, max(t.LastRead, threadFloor, floor), reader)
+		n, err := message.CountThreadUnread(ctx, d, p.Root, p.After, reader)
 		if err != nil {
-			return 0, 0, err
+			return unreadState{}, err
 		}
-		threadUnread += n
+		u.threads += n
 	}
-	return mainUnread, threadUnread, nil
+	return u, nil
+}
+
+// unreadMentions counts the unread messages of cv that @mention the reader, under the read points of u (owner, conv 179 msg 6018:
+// the server counts mentions, so a client need not read every unread message to find them).
+func unreadMentions(ctx context.Context, d pdb.DBTX, reader int64, cv conversation.Conversation, u unreadState) (int64, error) {
+	if u.total() == 0 {
+		return 0, nil
+	}
+	return message.CountUnreadMentions(ctx, d, cv.ID, reader, u.mainAfter, u.points)
+}
+
+// repliesToYou says whether an agent answered the reader: the main list has unread after a message the reader wrote (the newest one
+// it read), or a thread whose root the reader wrote has unread replies. The owner's words that @voice wrote for him count as his.
+func repliesToYou(ctx context.Context, d pdb.DBTX, dir directory, reader int64, cv conversation.Conversation, u unreadState, threads []wire.ThreadRow) (bool, error) {
+	for _, t := range threads {
+		if t.Unread > 0 && t.Author.ID == reader {
+			return true, nil
+		}
+	}
+	if u.main == 0 {
+		return false, nil
+	}
+	author, err := message.MainAuthorAt(ctx, d, cv.ID, u.mainAfter)
+	return author != 0 && (author == reader || isOwner(dir, reader) && isOwner(dir, author)), err
+}
+
+// mentionedConversations counts the conversations p can see, not muted and not in the trash, that have an unread message that
+// @mentions p: the Now badge counts them next to the open asks (owner, conv 179 msg 6018).
+func mentionedConversations(ctx context.Context, d pdb.DBTX, p authz.Principal, now time.Time) (int, error) {
+	var list []conversation.Conversation
+	var err error
+	if p.Role == "owner" {
+		list, err = conversation.ListAll(ctx, d)
+	} else {
+		list, err = conversation.ListOf(ctx, d, p.Identity())
+	}
+	if err != nil {
+		return 0, err
+	}
+	pf, err := prefs.All(ctx, d, p.Identity())
+	if err != nil {
+		return 0, err
+	}
+	count := 0
+	for _, cv := range list {
+		if pf[cv.ID].MutedUntil > now.UnixMilli() {
+			continue
+		}
+		floor, ok, err := canRead(ctx, d, p, cv.ID)
+		if err != nil {
+			return 0, err
+		}
+		if !ok {
+			continue
+		}
+		u, err := unreadParts(ctx, d, p.Identity(), cv, floor)
+		if err != nil {
+			return 0, err
+		}
+		n, err := unreadMentions(ctx, d, p.Identity(), cv, u)
+		if err != nil {
+			return 0, err
+		}
+		if n > 0 {
+			count++
+		}
+	}
+	return count, nil
 }
 
 // maxThreadRows bounds the threads a conversation row lists.
