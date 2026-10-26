@@ -4,7 +4,7 @@ import type { Identity, Message, Upload } from "@convoz/api-client";
 import { BackIcon, DetailsIcon } from "@convoz/ui/icons";
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type RefObject } from "react";
 import { ApiError } from "../../shared/api.ts";
-import { initials, paletteOf, setRegistry, stripCf } from "../../shared/chat.ts";
+import { initials, newId, paletteOf, setRegistry, stripCf } from "../../shared/chat.ts";
 import { data, offlineReady, useData, useLive } from "../../shared/data.ts";
 import { navigatedInApp } from "../../shared/navigate.ts";
 import { CallBar, CallButton } from "../call/index.ts";
@@ -27,7 +27,6 @@ import { keyboardOpen, virtualKeyboard, type Screen } from "./keyboard.ts";
 import { firstUnread, Transcript, type TranscriptControl } from "./Transcript.tsx";
 import { Button } from "@convoz/ui/Button";
 
-const NEW = "new";
 const GONE = "This conversation does not exist, or it is not yours.";
 const NONE: Message[] = [];
 const NO_SENDS: PendingSend[] = [];
@@ -44,7 +43,8 @@ const PLAN_HASH = /^#plan(-[a-z0-9-]+)?$/;
  */
 export function Conversation() {
   const [isNew] = useState(() => location.pathname === "/chats/new");
-  const [key] = useState(() => (isNew ? NEW : location.pathname.split("/")[2]!));
+  // Each New conversation page has its own key: a page left with a send in flight keeps it, and the next New conversation starts blank.
+  const [key] = useState(() => (isNew ? `new-${newId()}` : location.pathname.split("/")[2]!));
   const thread = useConversations((s) => s.threads[key]);
   const convId = thread?.convId ?? 0;
   const conversation = useData((s) => (convId ? s.rows[convId] : undefined));
@@ -162,6 +162,8 @@ export function Conversation() {
     };
     (async () => {
       const s = actions();
+      // At once, not after the crew: the offline copy lets the owner pick and send before the server answers (owner report, conv 359 msg 6385).
+      if (isNew) s.startThread(key, []);
       const crew = Promise.all([data.loadMe(), data.loadIdentities()]).then(([, everyone]) => (setRegistry(everyone), everyone));
       crew.catch(() => {}); // a conversation never waits for it; only the new one awaits it, and sees its failure
       await offlineReady();
@@ -171,12 +173,11 @@ export function Conversation() {
         const everyone = await crew;
         textRef.current?.focus(); // the gradient ring shows at once, as in the prototype
         const wanted = everyone.find((p) => p.kind === "agent" && !p.disabled && p.handle === new URLSearchParams(location.search).get("with"));
-        if (wanted) {
-          s.startThread(NEW, [wanted.handle]);
+        const started = actions().threads[key];
+        if (wanted && !started?.convId && !started?.pending.length) {
+          s.startThread(key, [wanted.handle]);
           setPicked([wanted.handle]);
           openWith(wanted.handle);
-        } else {
-          s.startThread(NEW, []);
         }
         setCurrent(true);
         return;
@@ -260,7 +261,7 @@ export function Conversation() {
     if (isNew && t && !t.convId && t.pending.length === 0) {
       // the conversation is made with the agents picked and the ones typed into the message
       const typed = mentionsOf(body).filter((h) => crew.some((p) => p.handle === h));
-      actions().startThread(NEW, [...new Set([...picked, ...typed])]);
+      actions().startThread(key, [...new Set([...picked, ...typed])]);
     }
     actions().send(key, body, files, held);
   };
@@ -268,7 +269,7 @@ export function Conversation() {
   const pick = (who: Identity) => {
     const next = picked.includes(who.handle) ? picked : [...picked, who.handle];
     setPicked(next);
-    actions().startThread(NEW, next);
+    actions().startThread(key, next);
     setAgentHandle(next[0]!);
     fit();
   };
