@@ -3530,6 +3530,16 @@ export interface components {
             kind: "one-way" | "taste" | "values" | "scope" | "in-your-name";
             reason: string;
         };
+        /** @description The parts of a permission ask. One of undo and one_way is set. */
+        AskPermission: {
+            action: string;
+            risk: string;
+            undo?: string;
+            one_way?: boolean;
+            considered: string[];
+            /** @description What the agent said it was; self-reported, not a check. */
+            confidence: number;
+        };
         /** @description A message the agent wants to send in the owner's name, and the message it answers when there is one. */
         AskDraft: {
             /** @description The draft. */
@@ -3592,6 +3602,13 @@ export interface components {
             close_reason?: "removed" | "withdrawn" | "deleted" | "agent_revoked" | "replied";
             /** @description On a draft ask: Send (the recommended one) and Don't send. */
             options: components["schemas"]["AskOption"][];
+            /**
+             * @description permission: the agent asks the owner's OK for one action. decision: options. draft: a message to send.
+             * @enum {string}
+             */
+            kind?: "permission" | "decision" | "draft";
+            /** @description Present on a permission ask. */
+            permission?: components["schemas"]["AskPermission"];
             /** @description Present on a draft ask. Absent after a purge. */
             draft?: components["schemas"]["AskDraft"];
             /** @description Present on an answered draft ask. */

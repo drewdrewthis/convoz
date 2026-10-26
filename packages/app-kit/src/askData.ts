@@ -15,7 +15,21 @@ export interface AskHistoryItem {
   at: number;
 }
 
+/** The parts of a permission ask: one action the agent is sure of, what it risks and how to undo it, and the ways it turned down. */
+export interface AskPermission {
+  action: string;
+  risk: string;
+  undo?: string;
+  one_way?: boolean;
+  considered: string[];
+  /** What the agent said it was, 0-100. Self-reported, not a check: only History shows it. */
+  confidence: number;
+}
+
 export interface AskData {
+  kind?: "permission" | "decision" | "draft";
+  /** Present on a permission ask: the card then reads as a request for the owner's OK. */
+  permission?: AskPermission;
   question: string;
   urgent: boolean;
   /** Why only the owner can decide. Absent on an ask from before the field. */
@@ -81,6 +95,7 @@ const HISTORY: Record<string, string> = { create: "Asked", answer: "Answered", d
 /** historyText is one line of the History list: "Answered by Drew · Yes", "Updated by Devtool @devtool · v2, changed answers". */
 export function historyText(h: AskHistoryItem, a: AskData): string {
   const who = h.by ? ` by ${whoLine(h.by)}` : "";
+  if (h.event === "create" && a.permission) return `Asked${who} · said ${a.permission.confidence}% sure`;
   return `${HISTORY[h.event] ?? h.event}${who}${h.event === "answer" && a.answer ? ` · ${a.answer}` : ""}${h.event === "updated" ? updateTrail(h, a) : ""}`;
 }
 

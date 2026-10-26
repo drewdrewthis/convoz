@@ -21,6 +21,39 @@ interface NowAskProps {
 function CompactAsk({ ask, busy, answer }: Pick<NowAskProps, "ask" | "busy" | "answer">) {
   const id = useId();
   const first = ask.options[0];
+  const p = ask.permission;
+  if (p) {
+    const href = `/chats/${ask.conversation_id}`;
+    return (
+      <article className="flex min-w-0 flex-col gap-8 rounded-[14px] border border-solid border-border bg-raised px-14 pt-12 pb-8" aria-labelledby={id} tabIndex={-1} data-ask={ask.id}>
+        <p className="m-0 text-13 text-muted">{`@${ask.asker.handle} · ${new Date(ask.created_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`}</p>
+        <dl className="m-0 text-13 leading-[18px] text-muted">
+          <dt className="font-semibold text-text">I will</dt>
+          <dd id={id} className="m-0 text-15 leading-[20px] font-semibold text-text [overflow-wrap:anywhere]">
+            {p.action}
+          </dd>
+          <dt className="mt-4 font-semibold text-text">Risk</dt>
+          <dd className="m-0 text-text [overflow-wrap:anywhere]">{p.risk}</dd>
+          <dt className="mt-4 font-semibold text-text">Undo</dt>
+          <dd className={p.one_way ? "m-0 font-semibold text-danger" : "m-0 text-text [overflow-wrap:anywhere]"}>{p.one_way ? "None. This is one-way." : p.undo}</dd>
+        </dl>
+        {p.one_way ? (
+          <Button size="option" variant="primary" href={href}>
+            Review
+          </Button>
+        ) : (
+          <>
+            <Button size="option" variant="primary" disabled={busy} onClick={() => answer(ask, { choice: "recommended" })}>
+              Go
+            </Button>
+            <Button variant="text" size="inline" className="-ml-8 self-start" href={href}>
+              Open
+            </Button>
+          </>
+        )}
+      </article>
+    );
+  }
   return (
     <article className="flex min-w-0 flex-col gap-8 rounded-[14px] border border-solid border-border bg-raised px-14 pt-12 pb-8" aria-labelledby={id} tabIndex={-1} data-ask={ask.id}>
       <h3 id={id} className="m-0 text-15 leading-[20px] font-semibold [overflow-wrap:anywhere]">
