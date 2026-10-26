@@ -418,9 +418,8 @@ scenario("Each conversation row shows a status icon next to its count and the li
   const title = (await working.getByRole("heading").boundingBox())!;
   const count = (await working.locator(".count").boundingBox())!;
   expect(icon.x).toBeGreaterThan(title.x + title.width);
-  // The gap is the row's real grid column gap plus the count's margin (e72a105: 12px gap + 4px margin = 16px), read from the page, not a fixed number
-  const spacing = await working.evaluate((row) => parseFloat(getComputedStyle(row).columnGap) + parseFloat(getComputedStyle(row.querySelector(".count")!).marginLeft));
-  expect(Math.abs(count.x - (icon.x + icon.width) - spacing)).toBeLessThanOrEqual(1);
+  // The gap from the icon's right edge to the count's left edge is 16px (e72a105: 12px grid gap + 4px count margin), measured from the page
+  expect(Math.abs(count.x - (icon.x + icon.width) - 16)).toBeLessThanOrEqual(1);
   expect(Math.abs(icon.height - count.height)).toBeLessThanOrEqual(2);
 
   // And the other rows: amber "Waiting on you", red "Blocked", and no icon for "Quiet one"
