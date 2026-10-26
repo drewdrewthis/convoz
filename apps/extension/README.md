@@ -10,7 +10,7 @@ of it, and nothing else. It stores no password, key or token, and it reads nothi
 pnpm install
 pnpm --filter @convoz/extension build       # makes apps/extension/dist
 pnpm --filter @convoz/extension typecheck
-pnpm --filter @convoz/extension test        # unit tests (node --test): least access, the secrets boundary
+pnpm --filter @convoz/extension test        # unit tests (node --test): least access, the secrets boundary, when a share ends
 ```
 
 ## Load it in Chrome
@@ -41,12 +41,15 @@ What this allows:
 1. Click the Convoz button in the toolbar on the page you want to share. The side panel opens.
 2. The first time, type your server address (`https://...`) and click **Save**. Chrome asks to let Convoz reach that one site:
    allow it. Not signed in? Click **Sign in to Convoz**, sign in on the tab that opens, then come back to the panel.
-3. Open a conversation in the panel and click **Share this tab**. Chrome asks to let Convoz read that site: allow it. The panel says
-   "Shared with <conversation>" and lists its members.
+3. Open a conversation in the panel and click **Share this tab** (it stays off until a conversation is open). Chrome asks to let
+   Convoz read that site: allow it. The panel says "Shared with <conversation>", lists its members and warns that a screenshot shows
+   what is on screen. The conversation says "@you shared a tab (site)" and shows "● Tab shared · site" under its title, and the
+   Convoz button shows **ON** on that tab.
 4. An agent of that conversation runs `convoz page read` or `convoz page shot`. Each one shows in the conversation as a line
    ("@scout read the shared page"); a screenshot shows its image there too, so you see what the agent saw.
-5. Click **Stop** to end the share. It also ends when you close the panel, close the tab, go to another site in it, or switch to
-   another tab when an agent asks.
+5. Click **Stop** to end the share. It also ends the moment you switch to another tab, close the tab, go to another site in it, or
+   close the panel. The conversation says how it ended ("@you stopped sharing the tab", "Tab sharing ended: ..."), and going back
+   to the tab does not share it again.
 
 ## What agents see
 

@@ -35,6 +35,7 @@ declare namespace chrome {
     function create(p: { url: string }): Promise<Tab>;
     function captureVisibleTab(windowId: number, o: { format: "png" }): Promise<string>;
     const onRemoved: Event<(tabId: number) => void>;
+    const onActivated: Event<(info: { tabId: number; windowId: number }) => void>;
     const onUpdated: Event<(tabId: number, change: { url?: string }) => void>;
   }
   namespace scripting {
@@ -52,6 +53,7 @@ declare namespace chrome {
   }
   namespace action {
     const onClicked: { addListener(cb: (tab: tabs.Tab) => void): void };
+    function setBadgeText(d: { tabId: number; text: string }): Promise<void>;
   }
   namespace sidePanel {
     function open(o: { windowId: number }): Promise<void>;

@@ -13,6 +13,9 @@ export interface PageShare {
   tab_origin: string;
 }
 
+/** Why the extension ends a share: the owner's Stop, the tab closed, went behind another tab or left its site, the panel closed. */
+export type EndReason = "stopped" | "left" | "closed";
+
 /** An agent's request the long poll hands over. */
 export interface PageRequest {
   id: string;
@@ -74,8 +77,9 @@ export class Convoz {
     return made!.share;
   }
 
-  stopShare(id: string): Promise<unknown> {
-    return this.call("DELETE", `/api/page/shares/${encodeURIComponent(id)}`);
+  /** stopShare ends a share; the reason picks the line the conversation shows. */
+  stopShare(id: string, reason: EndReason): Promise<unknown> {
+    return this.call("DELETE", `/api/page/shares/${encodeURIComponent(id)}`, { json: { reason } });
   }
 
   /** next waits for an agent's request: null when none came; a 404 ApiFailure once the share ended. */

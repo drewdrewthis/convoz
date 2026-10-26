@@ -2043,7 +2043,8 @@ export interface paths {
         /**
          * The extension shares a tab with a conversation the owner sees.
          * @description tab_origin is the tab's http or https origin (no path; 400 otherwise). A conversation the owner cannot see is 404. A conversation
-         *     has one live share: a new one ends the old. The share lives in memory: a restart ends it, and so do 45 s without a poll.
+         *     has one live share: a new one ends the old. The share lives in memory: a restart ends it, and so do 45 s without a poll (the
+         *     line page.timeout). It writes the line page.shared with the tab's host, and while it lives the conversation carries shared_tab.
          */
         post: operations["startPageShare"];
         delete?: never;
@@ -2065,7 +2066,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** The share ends (Stop, the panel closing, the tab leaving its site). */
+        /**
+         * The share ends (Stop, the panel closing, the tab leaving its site).
+         * @description The reason picks the line the conversation shows (page.stopped, page.left, page.closed); another reason is 400.
+         */
         delete: operations["stopPageShare"];
         options?: never;
         head?: never;
@@ -2695,6 +2699,8 @@ export interface components {
              * @description When the trash removes it for good.
              */
             purges_at?: number;
+            /** @description The owner shares a browser tab with it now (page-share.feature). Absent when not. */
+            shared_tab?: components["schemas"]["SharedTab"];
         };
         Message: {
             /** Format: int64 */
@@ -3434,6 +3440,17 @@ export interface components {
         PageAnswer: {
             read?: components["schemas"]["PageRead"];
             shot?: components["schemas"]["PageShot"];
+        };
+        PageEndRequest: {
+            /**
+             * @description stopped: the owner's Stop (also no body); left: the tab closed, went behind another tab or left its site; closed: the panel closed.
+             * @enum {string}
+             */
+            reason?: "stopped" | "left" | "closed";
+        };
+        SharedTab: {
+            /** @description The shared tab's host (shop.test, localhost:8080), never its path or query. */
+            host: string;
         };
         PlanRequest: {
             /** @description What the agent does now, up to 3 items when it works in parallel, each with its own step and eta. Give now, or doing with step and eta, not both. */
@@ -7235,7 +7252,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PageEndRequest"];
+            };
+        };
         responses: {
             /** @description Ended. */
             204: {

@@ -30,6 +30,24 @@ type PageShareRequest struct {
 	TabOrigin      string `json:"tab_origin"`
 }
 
+// Why the extension ends a share (DELETE /api/page/shares/:id): the owner's Stop, the tab closed, went behind another tab or left
+// its site, or the panel closed. The conversation's line says which.
+const (
+	PageEndStopped = "stopped"
+	PageEndLeft    = "left"
+	PageEndClosed  = "closed"
+)
+
+// PageEndRequest is the body of DELETE /api/page/shares/:id; no body is the owner's Stop.
+type PageEndRequest struct {
+	Reason string `json:"reason"`
+}
+
+// SharedTab is what a conversation says of its live share: the tab's host only.
+type SharedTab struct {
+	Host string `json:"host"`
+}
+
 // PageShare is one live share.
 type PageShare struct {
 	ID             string `json:"id"`

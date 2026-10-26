@@ -6,6 +6,19 @@ PageShareRequest:
   properties:
     conversation_id: { type: integer, format: int64 }
     tab_origin: { type: string, description: "The tab's origin, like https://example.com." }
+PageEndRequest:
+  type: object
+  additionalProperties: false
+  properties:
+    reason:
+      type: string
+      enum: [stopped, left, closed]
+      description: "stopped: the owner's Stop (also no body); left: the tab closed, went behind another tab or left its site; closed: the panel closed."
+SharedTab:
+  type: object
+  required: [host]
+  properties:
+    host: { type: string, description: "The shared tab's host (shop.test, localhost:8080), never its path or query." }
 PageShare:
   type: object
   required: [id, conversation_id, tab_origin]

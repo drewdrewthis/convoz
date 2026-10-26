@@ -102,20 +102,79 @@ func (s *Server) startPageShare(w http.ResponseWriter, r *http.Request, c *call)
 	if !s.seesConversation(w, r, c, in.ConversationID) {
 		return
 	}
-	share := s.pages.start(in.ConversationID, c.p.HumanID, origin, s.Clock.Now())
+	share := s.pages.start(in.ConversationID, c.p.HumanID, c.p.Identity(), origin, s.Clock.Now())
+	// after the start: the line makes the web app read the conversation again, and its shared_tab must be there by then
+	s.sayPage(r.Context(), c.p.Identity(), in.ConversationID, message.SystemLine{T: "page.shared", Identity: c.p.Identity(), Host: hostOf(origin)})
 	writeJSON(w, http.StatusCreated, wire.PageShareResponse{Share: share})
 }
 
-// stopPageShare is DELETE /api/page/shares/:id: Stop in the panel, the panel closing, or the tab leaving its site.
+// hostOf is the host of an origin tabOrigin accepted.
+func hostOf(origin string) string {
+	u, _ := url.Parse(origin)
+	return u.Host
+}
+
+// pageEndLines are the lines of the reasons DELETE takes; "" is the owner's Stop.
+var pageEndLines = map[string]string{"": "page.stopped", wire.PageEndStopped: "page.stopped", wire.PageEndLeft: "page.left", wire.PageEndClosed: "page.closed"}
+
+// stopPageShare is DELETE /api/page/shares/:id {reason}: Stop in the panel (stopped, or no body), the tab closing, going behind
+// another tab or leaving its site (left), or the panel closing (closed). The conversation says which.
 func (s *Server) stopPageShare(w http.ResponseWriter, r *http.Request, c *call) {
 	if s.pageOff(w) || !s.fromExtension(w, r) {
 		return
 	}
-	if !s.pages.stop(r.PathValue("id"), c.p.HumanID) {
+	var in wire.PageEndRequest
+	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<10))
+	if err == nil && len(bytes.TrimSpace(raw)) > 0 {
+		err = json.Unmarshal(raw, &in)
+	}
+	t, known := pageEndLines[in.Reason]
+	if err != nil || !known {
+		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "reason", "The reason is stopped, left or closed.")
+		return
+	}
+	conv, found := s.pages.stop(r.PathValue("id"), c.p.HumanID)
+	if !found {
 		writeErr(w, http.StatusNotFound, "not_found", "No such share.")
 		return
 	}
+	line := message.SystemLine{T: t}
+	if t == "page.stopped" {
+		line.Identity = c.p.Identity()
+	}
+	s.sayPage(r.Context(), c.p.Identity(), conv, line)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// sayPage writes a line of a share in its conversation. A failure is logged and never fails the call: the share has started or
+// ended by then.
+func (s *Server) sayPage(ctx context.Context, actor, conv int64, line message.SystemLine) {
+	err := s.Store.Writer.Tx(context.WithoutCancel(ctx), func(ctx context.Context, tx *pdb.Tx) error {
+		_, _, err := sayLine(ctx, tx.DBTX(), s.Clock.Now(), actor, conv, line)
+		return err
+	})
+	if err != nil {
+		s.Log.Printf("page share line: %v", err)
+		return
+	}
+	s.Bus.Notify()
+}
+
+// sayTimedOut says in their conversations that the shares the heartbeat ended have ended.
+func (s *Server) sayTimedOut(ctx context.Context) {
+	for _, share := range s.pages.drainTimedOut() {
+		s.sayPage(ctx, share.by, share.conv, message.SystemLine{T: "page.timeout"})
+	}
+}
+
+// withSharedTab marks the conversations that have a live share with the host of its tab, so the web app shows it under the title.
+func (s *Server) withSharedTab(views ...*wire.Conversation) {
+	now := s.Clock.Now()
+	for _, v := range views {
+		if origin := s.pages.sharedOrigin(v.ID, now); origin != "" {
+			v.SharedTab = &wire.SharedTab{Host: hostOf(origin)}
+		}
+	}
 }
 
 // nextPageRequest is GET /api/page/shares/:id/next?wait=N: the extension's long poll for the next request, up to N seconds
@@ -140,6 +199,7 @@ func (s *Server) nextPageRequest(w http.ResponseWriter, r *http.Request, c *call
 		share, req, found := s.pages.poll(id, c.p.HumanID, s.Clock.Now())
 		switch {
 		case !found:
+			s.sayTimedOut(r.Context())
 			writeErr(w, http.StatusNotFound, "not_found", "The share ended.")
 			return
 		case req != nil:
@@ -232,6 +292,7 @@ func (s *Server) listPageShares(w http.ResponseWriter, r *http.Request, c *call)
 		}
 		return ok
 	})
+	s.sayTimedOut(ctx)
 	if failed != nil {
 		s.internalError(w, r, failed)
 		return
@@ -258,6 +319,7 @@ func (s *Server) askPage(w http.ResponseWriter, r *http.Request, c *call) {
 		return
 	}
 	req, refused := s.pages.ask(in.ConversationID, in.Op, s.Clock.Now())
+	s.sayTimedOut(r.Context())
 	switch refused {
 	case pageNoShare:
 		writeErr(w, http.StatusConflict, wire.CodeNoSharedTab, noSharedTab)

@@ -1,6 +1,7 @@
 // One shared tab (page-share.feature): the panel polls the server for the agents' requests and answers each from the tab, only
 // while the tab is still there, in front in its window and on the site it was shared on. Otherwise it says "no shared tab" and the
-// share ends: going back to the tab does not bring it back.
+// share ends: going back to the tab does not bring it back. The panel also ends it the moment the tab changes (stillShared on each
+// tab event), so no agent has to ask first.
 import { ApiFailure } from "./errors.ts";
 import type { Convoz, PageRequest, PageResult } from "./api.ts";
 import { collectPage, toRead } from "./page.ts";
@@ -25,8 +26,11 @@ export function webOrigin(url: string | undefined): string | null {
   }
 }
 
-/** stillShared is the shared tab when it is still there, in front in its window and on its origin; null otherwise. */
-async function stillShared(share: SharedTab): Promise<chrome.tabs.Tab | null> {
+/**
+ * stillShared is the shared tab when it is still there, in front in its window and on its origin; null otherwise. A tab on a site
+ * the extension has no access to shows no address, so it is not on its origin.
+ */
+export async function stillShared(share: SharedTab): Promise<chrome.tabs.Tab | null> {
   const tab = await chrome.tabs.get(share.tabId).catch(() => null);
   return tab?.active && webOrigin(tab.url) === share.origin ? tab : null;
 }
@@ -73,7 +77,7 @@ export async function runShare(api: Convoz, share: SharedTab, signal: AbortSigna
     const tab = await stillShared(share);
     if (!tab) {
       await api.answer(req.id, { ok: false, error: "no shared tab" }).catch(() => {});
-      await api.stopShare(share.id).catch(() => {});
+      await api.stopShare(share.id, "left").catch(() => {});
       return "left";
     }
     await api.answer(req.id, await answer(tab, req)).catch(() => {});

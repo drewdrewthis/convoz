@@ -396,6 +396,8 @@ components:
     PageShot: { $ref: "components/page.yaml#/PageShot" }
     PageResult: { $ref: "components/page.yaml#/PageResult" }
     PageAnswer: { $ref: "components/page.yaml#/PageAnswer" }
+    PageEndRequest: { $ref: "components/page.yaml#/PageEndRequest" }
+    SharedTab: { $ref: "components/page.yaml#/SharedTab" }
     PlanRequest: { $ref: "components/plan.yaml#/PlanRequest" }
     PlanStep: { $ref: "components/plan.yaml#/PlanStep" }
     PlanNowRequest: { $ref: "components/plan.yaml#/PlanNowRequest" }

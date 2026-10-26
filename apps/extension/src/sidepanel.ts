@@ -3,7 +3,8 @@
 import { Convoz } from "./api.ts";
 import { ApiFailure, describe } from "./errors.ts";
 import { serverOrigin } from "./server.ts";
-import { runShare, webOrigin, type Ended, type SharedTab } from "./share.ts";
+import type { EndReason } from "./api.ts";
+import { runShare, stillShared, webOrigin, type Ended, type SharedTab } from "./share.ts";
 
 const app = document.getElementById("app")!;
 const bar = document.getElementById("controls")!;
@@ -31,7 +32,7 @@ function connect(): chrome.runtime.Port {
   });
   return p;
 }
-function tellWorker(message: { server: string; share: string } | null): void {
+function tellWorker(message: { server: string; share: string; tabId: number } | null): void {
   said = message;
   port.postMessage(message);
 }
@@ -106,6 +107,13 @@ function signedOut(api: Convoz): void {
   );
 }
 
+// the read hides field values; a screenshot cannot, so the owner hears it once per share, next to the status
+const SHOT_WARNING = "A screenshot shows what is on screen, including text the read hides.";
+const OPEN_A_CONVERSATION = "Open a conversation to share this tab.";
+/** The badge on the Convoz button of the shared tab while the share lives. */
+const BADGE = "ON";
+const badge = (tabId: number, text: string) => void chrome.action.setBadgeText({ tabId, text }).catch(() => {});
+
 const ENDED: Record<Ended, string> = {
   stopped: "Sharing stopped.",
   left: "Sharing ended: the tab was closed, left its site or is not in front.",
@@ -124,13 +132,19 @@ function chat(api: Convoz): void {
     const data = event.data as { type?: unknown; id?: unknown; title?: unknown } | null;
     if (event.source !== frame.contentWindow || event.origin !== api.server || data?.type !== "convoz:conversation") return;
     open = typeof data.id === "number" ? { id: data.id, title: typeof data.title === "string" ? data.title : "" } : null;
-    shareButton.disabled = !open;
+    offer();
   });
+
+  // the button says why it is off: its title is its description to a screen reader and a tooltip to the eye
+  const offer = () => {
+    shareButton.disabled = !open;
+    shareButton.title = open ? "" : OPEN_A_CONVERSATION;
+  };
 
   const idle = (message = "") => {
     sharing = null;
     tellWorker(null);
-    shareButton.disabled = !open;
+    offer();
     status.textContent = message;
     bar.replaceChildren(shareButton, status);
   };
@@ -149,23 +163,31 @@ function chat(api: Convoz): void {
       const { title, handles } = await api.conversation(conversation.id);
       const shared: SharedTab = { id: share.id, tabId: tab.id, origin };
       const stop = new AbortController();
-      sharing = { stop: () => stop.abort() };
-      const stopButton = h("button", { type: "button", textContent: "Stop" });
-      stopButton.onclick = () => {
+      let reason: Extract<EndReason, Ended> = "stopped";
+      const end = (why: typeof reason) => {
+        if (stop.signal.aborted) return;
+        reason = why;
         stop.abort();
-        void api.stopShare(share.id).catch(() => {});
+        void api.stopShare(share.id, why).catch(() => {});
       };
-      // the tab closing or going to another site ends the share at once, before any agent asks
-      const onRemoved = (tabId: number) => tabId === shared.tabId && stopButton.click();
-      const onUpdated = (tabId: number, change: { url?: string }) => tabId === shared.tabId && change.url && webOrigin(change.url) !== origin && stopButton.click();
+      sharing = { stop: () => end("stopped") };
+      const stopButton = h("button", { type: "button", textContent: "Stop", onclick: () => end("stopped") });
+      // another tab in front, the tab closing or going to another site ends the share at once, before any agent asks
+      const check = () => void stillShared(shared).then((still) => still || end("left"));
+      const onRemoved = (tabId: number) => tabId === shared.tabId && check();
+      const onUpdated = (tabId: number) => tabId === shared.tabId && check();
+      chrome.tabs.onActivated.addListener(check);
       chrome.tabs.onRemoved.addListener(onRemoved);
       chrome.tabs.onUpdated.addListener(onUpdated);
       status.textContent = `Shared with ${title || conversation.title || "this conversation"} · ${handles.map((x) => "@" + x).join(" ")}`;
-      bar.replaceChildren(stopButton, status);
-      const ended = await runShare(api, shared, stop.signal, () => tellWorker({ server: api.server, share: share.id }));
+      bar.replaceChildren(stopButton, status, h("p", { className: "note", textContent: SHOT_WARNING }));
+      badge(shared.tabId, BADGE);
+      const ended = await runShare(api, shared, stop.signal, () => tellWorker({ server: api.server, share: share.id, tabId: shared.tabId }));
+      chrome.tabs.onActivated.removeListener(check);
       chrome.tabs.onRemoved.removeListener(onRemoved);
       chrome.tabs.onUpdated.removeListener(onUpdated);
-      idle(ENDED[ended]);
+      badge(shared.tabId, "");
+      idle(ENDED[ended === "stopped" ? reason : ended]);
     } catch (err) {
       idle(describe(err, api.server, "Sharing"));
     }

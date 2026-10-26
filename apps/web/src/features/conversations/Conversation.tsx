@@ -310,6 +310,8 @@ export function Conversation() {
               </>
             ) : null}
           </p>
+          {/* from the server, not the panel: it shows wherever the owner reads the conversation (page-share.feature) */}
+          {conversation?.shared_tab ? <p className="subtitle">{`● Tab shared · ${conversation.shared_tab.host}`}</p> : null}
         </div>
         {/* not gated on isNew: that is the URL at mount, and the first send makes /chats/new a real conversation without a reload (issue 62) */}
         {conversation ? <CallButton conversationId={convId} /> : null}

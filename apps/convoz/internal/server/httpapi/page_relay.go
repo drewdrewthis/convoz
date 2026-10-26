@@ -28,6 +28,9 @@ type pageRelay struct {
 	shares   map[string]*pageShare   // by id
 	byConv   map[int64]*pageShare    // the one live share of a conversation
 	requests map[string]*pageRequest // in flight, by id
+	// timedOut are the shares the heartbeat ended, for the server to say so in their conversations: live runs with mu held, and a
+	// line is a database write, which never runs under mu.
+	timedOut []*pageShare
 }
 
 // pageShare is one tab shared with one conversation by one person.
@@ -36,6 +39,7 @@ type pageShare struct {
 	conv     int64
 	origin   string
 	owner    int64 // the person who shared it: only that person's extension polls, answers and ends it
+	by       int64 // that person's identity, who the share's lines name
 	lastPoll time.Time
 	lastShot time.Time
 	inflight *pageRequest
@@ -76,6 +80,9 @@ func (p *pageRelay) live(share *pageShare, now time.Time) *pageShare {
 		return nil
 	}
 	if now.Sub(share.lastPoll) > pageHeartbeat {
+		if p.shares[share.id] == share {
+			p.timedOut = append(p.timedOut, share)
+		}
 		p.end(share)
 		return nil
 	}
@@ -98,30 +105,50 @@ func (p *pageRelay) end(share *pageShare) {
 	close(share.ended)
 }
 
+// drainTimedOut hands over the shares the heartbeat ended since the last call.
+func (p *pageRelay) drainTimedOut() []*pageShare {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	out := p.timedOut
+	p.timedOut = nil
+	return out
+}
+
+// sharedOrigin is the origin of conv's live share, "" when none. It ends nothing: a share past its heartbeat is not live here,
+// and the next request or poll ends it and says so.
+func (p *pageRelay) sharedOrigin(conv int64, now time.Time) string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if share := p.byConv[conv]; share != nil && now.Sub(share.lastPoll) <= pageHeartbeat {
+		return share.origin
+	}
+	return ""
+}
+
 // start shares a tab of origin with conv, ending the conversation's older share.
-func (p *pageRelay) start(conv, owner int64, origin string, now time.Time) wire.PageShare {
+func (p *pageRelay) start(conv, owner, by int64, origin string, now time.Time) wire.PageShare {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.init()
 	if old := p.byConv[conv]; old != nil {
 		p.end(old)
 	}
-	share := &pageShare{id: randomPageID(), conv: conv, origin: origin, owner: owner, lastPoll: now, wake: make(chan struct{}, 1), ended: make(chan struct{})}
+	share := &pageShare{id: randomPageID(), conv: conv, origin: origin, owner: owner, by: by, lastPoll: now, wake: make(chan struct{}, 1), ended: make(chan struct{})}
 	p.shares[share.id] = share
 	p.byConv[conv] = share
 	return wire.PageShare{ID: share.id, ConversationID: conv, TabOrigin: origin}
 }
 
-// stop ends the share id of owner; false when there is none.
-func (p *pageRelay) stop(id string, owner int64) bool {
+// stop ends the share id of owner and returns its conversation; false when there is none.
+func (p *pageRelay) stop(id string, owner int64) (conv int64, found bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	share := p.shares[id]
 	if share == nil || share.owner != owner {
-		return false
+		return 0, false
 	}
 	p.end(share)
-	return true
+	return share.conv, true
 }
 
 // list is the live shares of the conversations visible says the caller sees.

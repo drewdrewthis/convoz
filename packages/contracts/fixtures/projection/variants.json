@@ -521,5 +521,96 @@
   },
   "short": "@scout took a screenshot of the shared page",
   "long": "@scout took a screenshot of the shared page"
+ },
+ {
+  "name": "system: the owner shared a tab",
+  "message": {
+   "system": {
+    "t": "page.shared",
+    "identity": {
+     "handle": "drew",
+     "name": "Drew"
+    },
+    "by": {
+     "handle": "",
+     "name": ""
+    },
+    "host": "staging.shop.test"
+   }
+  },
+  "short": "@drew shared a tab (staging.shop.test)",
+  "long": "@drew shared a tab (staging.shop.test)"
+ },
+ {
+  "name": "system: the owner stopped sharing the tab",
+  "message": {
+   "system": {
+    "t": "page.stopped",
+    "identity": {
+     "handle": "drew",
+     "name": "Drew"
+    },
+    "by": {
+     "handle": "",
+     "name": ""
+    }
+   }
+  },
+  "short": "@drew stopped sharing the tab",
+  "long": "@drew stopped sharing the tab"
+ },
+ {
+  "name": "system: the shared tab was closed or left",
+  "message": {
+   "system": {
+    "t": "page.left",
+    "identity": {
+     "handle": "",
+     "name": ""
+    },
+    "by": {
+     "handle": "",
+     "name": ""
+    }
+   }
+  },
+  "short": "Tab sharing ended: the shared tab was closed or left",
+  "long": "Tab sharing ended: the shared tab was closed or left"
+ },
+ {
+  "name": "system: the panel of the shared tab was closed",
+  "message": {
+   "system": {
+    "t": "page.closed",
+    "identity": {
+     "handle": "",
+     "name": ""
+    },
+    "by": {
+     "handle": "",
+     "name": ""
+    }
+   }
+  },
+  "short": "Tab sharing ended: the panel was closed",
+  "long": "Tab sharing ended: the panel was closed"
+ },
+ {
+  "name": "system: the browser of the shared tab stopped answering",
+  "message": {
+   "system": {
+    "t": "page.timeout",
+    "identity": {
+     "handle": "",
+     "name": ""
+    },
+    "by": {
+     "handle": "",
+     "name": ""
+    }
+   }
+  },
+  "short": "Tab sharing ended: the browser stopped answering",
+  "long": "Tab sharing ended: the browser stopped answering"
  }
 ]

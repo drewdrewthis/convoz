@@ -1813,10 +1813,21 @@ fine". Off unless the owner names the extension (`--extension-origin`, `CONVOZ_E
 404 and the app may not be framed (`frame-ancestors 'none'`). With it, the app's `frame-ancestors` names that one extension, and its
 side panel shows the web app in a frame with the browser's own sign-in.
 
-- **Share.** The owner opens a conversation in the panel and clicks "Share this tab": Chrome asks for that tab's origin only, and
-  `POST /api/page/shares` binds the share to that conversation, tab and origin. One live share per conversation. It ends on Stop, on
-  the panel closing (the worker holds a port to the panel and sends the DELETE), when the tab closes, goes to another site or is not
-  in front when an agent asks, and after 45 s without a poll. Shares live in memory: a restart ends them all.
+- **Share.** The owner opens a conversation in the panel and clicks "Share this tab" (off, with the tooltip "Open a conversation to
+  share this tab.", until one is open): Chrome asks for that tab's origin only, and `POST /api/page/shares` binds the share to that
+  conversation, tab and origin. One live share per conversation; a new one replaces the old. Shares live in memory: a restart ends
+  them all.
+- **Lifecycle.** While a share lives, the owner sees it in four places: the line "@drew shared a tab (shop.test)" (`page.shared`, the
+  tab's host and never its path or query), "● Tab shared · shop.test" under the conversation's title (the conversation's
+  `shared_tab: {host}`, so the desktop app shows it too), the panel's status with the warning "A screenshot shows what is on screen,
+  including text the read hides.", and the badge "ON" on the Convoz button of the shared tab. It ends, with one line each:
+  Stop ("@drew stopped sharing the tab", `page.stopped`); the tab closing, another tab coming in front in its window, or the tab
+  going to another site ("Tab sharing ended: the shared tab was closed or left", `page.left`): the panel checks the tab on each
+  `tabs.onActivated`, `onRemoved` and `onUpdated`, so no agent has to ask first; the panel closing ("Tab sharing ended: the panel
+  was closed", `page.closed`: the worker holds a port to the panel and sends the DELETE); and 45 s without a poll ("Tab sharing
+  ended: the browser stopped answering", `page.timeout`, written by the next request or poll that finds it). The panel's DELETE
+  carries `{reason: stopped|left|closed}`. A request that still finds the tab gone or behind another is answered "no shared tab" and
+  ends the share too.
 - **Relay.** An agent of the conversation (lease scope `page`) sends `POST /api/page/requests {conversation_id, op: read|shot}`; the
   panel's long poll (`GET /api/page/shares/:id/next`) takes it and answers `POST /api/page/requests/:id/result`. One request at a
   time per share, one shot in 2 s, a 25 s wait (504), a read of at most 256 KB and a PNG of at most 5 MB (413). The panel's calls

@@ -8,7 +8,8 @@
     summary: The extension shares a tab with a conversation the owner sees.
     description: |
       tab_origin is the tab's http or https origin (no path; 400 otherwise). A conversation the owner cannot see is 404. A conversation
-      has one live share: a new one ends the old. The share lives in memory: a restart ends it, and so do 45 s without a poll.
+      has one live share: a new one ends the old. The share lives in memory: a restart ends it, and so do 45 s without a poll (the
+      line page.timeout). It writes the line page.shared with the tab's host, and while it lives the conversation carries shared_tab.
     requestBody:
       required: true
       content:
@@ -40,6 +41,12 @@
     x-authz: { auth: human }
     operationId: stopPageShare
     summary: The share ends (Stop, the panel closing, the tab leaving its site).
+    description: The reason picks the line the conversation shows (page.stopped, page.left, page.closed); another reason is 400.
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: { $ref: "../openapi.yaml#/components/schemas/PageEndRequest" }
     responses:
       "204": { description: Ended. }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
