@@ -364,3 +364,66 @@ scenario("An ask in Now with replies opens its thread in place and folds it agai
   await replies.getByRole("button", { name: /Hide thread/ }).click();
   await expect(replies.locator("strong", { hasText: "Yes" })).toHaveCount(0);
 });
+
+scenario("The thread of a feed card sits inside the card", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given an open ask of "devtool" with the reply "Both fit; the smaller one is safer." from "docs" in its thread
+  const u = await uiWorld({ server, page, context }, { agents: ["devtool", "docs"], live: ["devtool"] });
+  const conv = await createConversation(u.w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  const id = await agentAsks(u.w.srv, u.sessions.devtool!.lease, conv);
+  const docs = await startSession(u.w.box, "docs", "docs");
+  const reply = "Both fit; the smaller one is safer.";
+  // And "docs" answered the owner's message in a thread of conversation "Deploy log", in markdown
+  const deploy = await createConversation(u.w.owner, { title: "Deploy log", participants: ["devtool", "docs"] });
+  const rootOfDeploy = await ownerSays(u.w.owner, deploy, "Did the deploy finish?");
+  must(await agentPost(u.w.srv, docs.lease, deploy, "**Yes**, it finished at noon.", { thread_root_id: rootOfDeploy }), "docs answers in the thread", 201);
+  must(await agentPost(u.w.srv, docs.lease, conv, reply, { thread_root_id: id }), "docs replies in the thread of the ask", 201);
+
+  // When the owner opens Now
+  await openNow(page, u.w.srv);
+  // the card itself: its box holds the button and the thread
+  const card = askCard(page);
+
+  // Then the ask card offers "Show thread" with 1 reply
+  const toggle = card.getByRole("button", { name: /Show thread/ });
+  await expect(toggle).toContainText("1");
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+  // When the owner opens the thread of the card
+  await toggle.click();
+
+  // Then the card shows the reply inside the card, and the page is still Now
+  await expect(card.getByText(reply)).toBeVisible();
+  await expect(card.getByRole("button", { name: /Hide thread/ })).toHaveAttribute("aria-expanded", "true");
+  expect(new URL(page.url()).pathname).toMatch(/^\/now|^\/$/);
+
+  // And every reply button and input of the card comes after the thread (the buttons inside the thread are the thread's own)
+  const thread = await card.getByRole("group", { name: "Thread" }).boundingBox();
+  const bottom = thread!.y + thread!.height;
+  for (const control of await card.getByRole("button").all()) {
+    if (await control.evaluate((el) => Boolean(el.closest('[aria-label="Thread"]')))) continue; // the thread's own buttons
+    const name = ((await control.textContent()) ?? "").trim();
+    if (/thread/i.test(name)) continue;
+    const box = await control.boundingBox();
+    expect(box?.y ?? Infinity, `"${name}" at ${JSON.stringify(box)} sits below the thread ending at y=${bottom}`).toBeGreaterThanOrEqual(bottom - 1);
+  }
+
+  // When the owner folds the thread of the card
+  await card.getByRole("button", { name: /Hide thread/ }).click();
+
+  // Then the reply is no longer shown
+  await expect(card.getByText(reply)).toHaveCount(0);
+
+  // And the "Replies to you" card of "Deploy log" offers "Show thread" too, and opens the reply with its markdown drawn
+  const replies = page.getByRole("list", { name: "Replies to you" }).getByRole("listitem").filter({ hasText: "Deploy log" });
+  await replies.getByRole("button", { name: /Show thread/ }).click();
+  await expect(replies.locator("strong", { hasText: "Yes" })).toBeVisible();
+  // and its Reply and Mark read buttons come after the thread
+  const rthread = await replies.getByRole("group", { name: "Thread" }).boundingBox();
+  const rbottom = rthread!.y + rthread!.height;
+  for (const control of [replies.getByRole("link", { name: "Reply", exact: true }), replies.getByRole("button", { name: /^(Mark .* read|Done with .*)$/ })]) {
+    const box = await control.boundingBox();
+    expect(box?.y ?? -1, `${control} at ${JSON.stringify(box)} sits below the thread ending at y=${rbottom}`).toBeGreaterThanOrEqual(rbottom - 1);
+  }
+  await replies.getByRole("button", { name: /Hide thread/ }).click();
+  await expect(replies.locator("strong", { hasText: "Yes" })).toHaveCount(0);
+});

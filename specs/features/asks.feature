@@ -243,6 +243,19 @@ Feature: Asks and their state machine
       Then the reply is no longer shown
       And the "Replies to you" card of a conversation whose thread answered the owner opens that thread in place the same way, with the reply's markdown drawn
 
+    # Owner said (conv 179 msg 8087): "They should be part of the same card".
+    @v1 @browser
+    Scenario: The thread of a feed card sits inside the card
+      Given an open ask of "devtool" with the reply "Both fit; the smaller one is safer." from "docs" in its thread
+      When the owner opens Now
+      Then the "Show thread" button is inside the ask card
+      When the owner opens the thread of the card
+      Then the reply "Both fit; the smaller one is safer." is inside the ask card
+      And every reply button and input of the ask card comes after the last reply of its thread
+      When the owner folds the thread of the card
+      Then the reply is no longer shown
+      And the "Replies to you" card of a conversation whose thread answered the owner holds its thread inside its box the same way, with its Reply and Mark read buttons after the thread
+
     # Owner said (conv 379 msg 6722): "why couldn't I quick reply on that ask?" (an ask inside a thread).
     @v1 @browser
     Scenario: An ask inside a thread has Quick reply too
