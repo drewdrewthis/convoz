@@ -106,6 +106,52 @@ func (q *Queries) GetThreadRead(ctx context.Context, arg GetThreadReadParams) (i
 	return last_read_id, err
 }
 
+const listPositions = `-- name: ListPositions :many
+SELECT rc.conversation_id, rc.last_read_main_id, rc.thread_floor_id,
+  CAST(COALESCE(tr.root_id, 0) AS INTEGER) AS root_id, CAST(COALESCE(tr.last_read_id, 0) AS INTEGER) AS last_read_id
+FROM read_cursors rc
+LEFT JOIN thread_reads tr ON tr.identity_id = rc.identity_id AND tr.conversation_id = rc.conversation_id
+WHERE rc.identity_id = ?1
+`
+
+type ListPositionsRow struct {
+	ConversationID int64
+	LastReadMainID int64
+	ThreadFloorID  int64
+	RootID         int64
+	LastReadID     int64
+}
+
+// Every cursor of the identity with the threads it is in there, one row per thread (root_id 0 for a cursor with none).
+func (q *Queries) ListPositions(ctx context.Context, identityID int64) ([]ListPositionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPositions, identityID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPositionsRow
+	for rows.Next() {
+		var i ListPositionsRow
+		if err := rows.Scan(
+			&i.ConversationID,
+			&i.LastReadMainID,
+			&i.ThreadFloorID,
+			&i.RootID,
+			&i.LastReadID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listThreadReads = `-- name: ListThreadReads :many
 SELECT root_id, last_read_id FROM thread_reads WHERE identity_id = ?1 AND conversation_id = ?2
 `

@@ -123,14 +123,6 @@ Feature: Now
 
     # Owner, conv 179, msgs 5840/5841 (see above)
     @v1 @browser
-    Scenario: A reply to the owner's message shows the full latest message under Replies to you
-      Given the owner wrote "What broke in the nightly?" in conversation 41 and "devtool" answered with a 300-character message
-      When the owner opens Now
-      Then "Replies to you" has one card for conversation 41 showing the whole answer
-      And no "Needs you" heading is shown
-
-    # Owner, conv 179, msgs 5840/5841 (see above)
-    @v1 @browser
     Scenario: Agent talk the owner is not in folds to one line per chat with one Mark all read
       Given "devtool" posted 2 messages in conversation 41 and "docs" posted 1 message in conversation 42, and the owner wrote nothing
       When the owner opens Now
@@ -187,6 +179,16 @@ Feature: Now
       Then the card reads "@dev-ci joined" with a "Message @dev-ci" button
       When the owner taps "Message @dev-ci"
       Then a new conversation opens with @dev-ci tagged and the cursor in the composer
+
+  Rule: Replies to you lists the chats where an agent answered the owner; a thread reply counts only in the chat's 30 newest threads
+
+    # Owner, conv 179, msgs 5840/5841 (see above)
+    @v1 @browser
+    Scenario: A reply to the owner's message shows the full latest message under Replies to you
+      Given the owner wrote "What broke in the nightly?" in conversation 41 and "devtool" answered with a 300-character message
+      When the owner opens Now
+      Then "Replies to you" has one card for conversation 41 showing the whole answer
+      And no "Needs you" heading is shown
 
   Rule: The owner answers from Now without losing their place
 

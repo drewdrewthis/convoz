@@ -2535,7 +2535,7 @@ export interface components {
             main_unread?: number;
             /** @description The unread messages that @mention the caller, counted under the same read cursors as unread (the main list after its cursor, each thread after its own). Its own messages never count; stops at 100 like unread. A client reads this instead of scanning the messages. */
             unread_mentions: number;
-            /** @description An agent answered the caller. True when the main list has unread after a message the caller wrote (the newest one it read), or a thread whose root the caller wrote has unread replies. Absent when false. */
+            /** @description An agent answered the caller. True when the main list has unread after a message the caller wrote (the newest one it read), or a thread whose root the caller wrote has unread replies; only the conversation's 30 newest threads are checked. Absent when false. */
             replies_to_you?: boolean;
             /** @description The threads of the conversation that have a reply, newest reply first. */
             threads?: components["schemas"]["ThreadRow"][];

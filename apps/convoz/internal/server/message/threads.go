@@ -75,6 +75,38 @@ func CountUnreadMentions(ctx context.Context, d pdb.DBTX, conv, reader, mainAfte
 	})
 }
 
+// MentionPlace is where a reader's unread starts in one conversation: the main list after MainAfter, and each thread it is in
+// after its own read point (as for CountUnreadMentions).
+type MentionPlace struct {
+	Conversation, MainAfter int64
+	Points                  []ReadPoint
+}
+
+// ConversationsWithUnreadMentions lists the conversations of places that have an unread message that @mentions the reader,
+// under the rules of CountUnreadMentions, in one query however many places there are (issue 105).
+func ConversationsWithUnreadMentions(ctx context.Context, d pdb.DBTX, reader int64, places []MentionPlace) ([]int64, error) {
+	if len(places) == 0 {
+		return nil, nil
+	}
+	rows := make([][4]any, len(places))
+	for i, pl := range places {
+		lowest := pl.MainAfter
+		pairs := make([][2]int64, len(pl.Points))
+		for k, p := range pl.Points {
+			pairs[k] = [2]int64{p.Root, p.After}
+			lowest = min(lowest, p.After)
+		}
+		rows[i] = [4]any{pl.Conversation, pl.MainAfter, lowest, pairs}
+	}
+	raw, err := json.Marshal(rows)
+	if err != nil {
+		return nil, err
+	}
+	return db.New(d).ConversationsWithUnreadMentions(ctx, db.ConversationsWithUnreadMentionsParams{
+		Places: string(raw), IdentityID: reader, ReaderID: nullInt(reader),
+	})
+}
+
 // MainAuthorAt is the author of the newest main-list message at or before id that still reads (not deleted, not a system line),
 // 0 for none.
 func MainAuthorAt(ctx context.Context, d pdb.DBTX, conv, id int64) (int64, error) {
