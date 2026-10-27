@@ -22,6 +22,7 @@ func (s *Server) markStale(w http.ResponseWriter, r *http.Request, c *call) {
 	}
 	var in struct {
 		Reason string `json:"reason"`
+		Reopen bool   `json:"reopen"`
 	}
 	if !decode(w, r, &in) {
 		return
@@ -32,6 +33,7 @@ func (s *Server) markStale(w http.ResponseWriter, r *http.Request, c *call) {
 		return
 	}
 	who, now := c.p.Identity(), s.Clock.Now()
+	byOwner := c.p.SessionID == 0 // the owner closing from the rail chooses it himself, so the owner-spoke-last guard (for agents) does not bind him
 	var visible, ownerLast bool
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
 		d := tx.DBTX()
@@ -46,10 +48,17 @@ func (s *Server) markStale(w http.ResponseWriter, r *http.Request, c *call) {
 		if err != nil {
 			return err
 		}
-		if ownerLast, err = ownerWroteLast(ctx, d, dir, cv); err != nil || ownerLast {
-			return err
+		if !byOwner {
+			if ownerLast, err = ownerWroteLast(ctx, d, dir, cv); err != nil || ownerLast {
+				return err
+			}
 		}
-		if err := conversation.MarkStale(ctx, d, now, convID, reason); err != nil {
+		if in.Reopen && byOwner {
+			err = conversation.ClearStale(ctx, d, convID)
+		} else {
+			err = conversation.MarkStale(ctx, d, now, convID, reason)
+		}
+		if err != nil {
 			return err
 		}
 		_, err = event.Write(ctx, d, now, event.Entry{Type: eventConversationChanged, Actor: who, Session: c.p.SessionID, Conversation: convID, Payload: map[string]any{"conversation_id": convID}})

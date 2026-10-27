@@ -109,3 +109,23 @@ func TestStaleHoldsOnlyWhileNoMessageCameAfterTheMark(t *testing.T) {
 		}
 	}
 }
+
+// The owner closes a conversation from the rail even where he wrote the last message, and reopens it with reopen:true.
+func TestTheOwnerClosesAndReopensAConversationEvenWhenHeWroteLast(t *testing.T) {
+	rig := openRig(t, "owner")
+	rig.ownerPosts(t, false)
+	time.Sleep(5 * time.Millisecond)
+	owner := func(body string) int {
+		req := httptest.NewRequest(http.MethodPost, "/api/conversations/"+strconv.FormatInt(rig.conv, 10)+"/stale", strings.NewReader(body))
+		req.SetPathValue("id", strconv.FormatInt(rig.conv, 10))
+		rec := httptest.NewRecorder()
+		rig.s.markStale(rec, req, rig.c)
+		return rec.Code
+	}
+	if code := owner(`{}`); code != http.StatusOK || !rig.conversationNow(t).Stale() {
+		t.Fatalf("the owner closes it after his own message: %d stale=%v", code, rig.conversationNow(t).Stale())
+	}
+	if code := owner(`{"reopen":true}`); code != http.StatusOK || rig.conversationNow(t).StaleAt != 0 {
+		t.Errorf("reopen: %d stale_at=%d, want 200 and 0", code, rig.conversationNow(t).StaleAt)
+	}
+}

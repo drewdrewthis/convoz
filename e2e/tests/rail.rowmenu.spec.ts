@@ -53,6 +53,7 @@ scenario("The row menu closes a conversation into Older and reopens it", { tag: 
 scenario("The row menu closes a conversation where the owner wrote last", { tag: ["@browser"] }, async ({ server, page, context }) => {
   const u = await open({ server, page, context });
   await ownerSays(u.w.owner, u.c[41], "Please check");
+  await expect(railGroup(page, "Conversations").locator(".rtitle").first()).toHaveText(T41); // the new message moved the row to the top
   await pick(page, T41, "Close");
   await expect(railGroup(page, "Older").getByRole("button", { name: "Older · 1" })).toBeVisible();
 });

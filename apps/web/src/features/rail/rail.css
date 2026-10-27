@@ -78,15 +78,18 @@
   .rcnt { flex: none; min-width: 20px; padding: 1px 6px; border-radius: 999px; background: color-mix(in srgb, var(--color-text) 8%, transparent); font-size: 12px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; transition: opacity 140ms ease; }
   /* The star takes the place of the count on hover or focus, so no box moves; the grip is for the keyboard and shows on focus only. */
   .rrow:hover .rcnt, .rrow:focus-within .rcnt { opacity: 0; }
-  .rrow > .rgo:not(:has(.rcnt, .planicon)) { padding-right: 36px; }
+  .rrow > .rgo:not(:has(.rcnt, .planicon)) { padding-right: 64px; }
   /* A touch screen never hovers, so the star always shows and the count and status icon stay too: every row keeps the room the star needs, and they sit left of it. */
   @media (hover: none) {
-    .rrow > .rgo { padding-right: 36px; }
+    .rrow > .rgo { padding-right: 64px; }
   }
   /* the status icon sits by the count (or alone in its place) and gives way to the star on hover, as the count does */
   .rgo .planicon { width: 18px; height: 18px; transition: opacity 140ms ease; }
   .rgo .planicon + .rcnt { margin-left: -4px; }
   .rrow:hover .rgo .planicon, .rrow:focus-within .rgo .planicon { opacity: 0; }
+  .railmenu { z-index: 9; right: auto; min-width: 12rem; }
+  .railmenu > button { min-height: 40px; color: var(--color-text); }
+  .railmenu > .field { padding: 8px; }
   .rrow.dragging { position: relative; z-index: 5; box-shadow: var(--float); background: var(--color-raised); transition: none; will-change: transform; }
   .dropline { position: absolute; display: none; height: 2px; border-radius: 2px; background: var(--color-accent); pointer-events: none; z-index: 6; }
   .rolder { min-height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border: 0; border-radius: 999px; background: transparent; color: var(--color-muted); font-size: 12px; font-weight: 500; text-align: left; }

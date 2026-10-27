@@ -11,7 +11,8 @@ import { toast } from "../pins-stars/index.ts";
 import { useSearchUi } from "../search/index.ts";
 import { startDrag, type Drop } from "./drag.ts";
 import { Logo } from "./Logo.tsx";
-import { BackArrow, ChevronIcon, ComposeGlyph, CrewGlyph, InviteGlyph, FoldAllGlyph, ForwardArrow, GripIcon, PanelGlyph, NowGlyph, SearchGlyph, StarIcon } from "./icons.tsx";
+import { RowMenu, type RowMenuAt } from "./RowMenu.tsx";
+import { BackArrow, ChevronIcon, ComposeGlyph, CrewGlyph, InviteGlyph, FoldAllGlyph, ForwardArrow, DotsIcon, GripIcon, PanelGlyph, NowGlyph, SearchGlyph, StarIcon } from "./icons.tsx";
 import { groups, isOlder, rowLabel, titleOf } from "./model.ts";
 import { ThreadFold, ThreadRows, rowUnread, useThreadFold } from "../threads/index.ts";
 import { useFold } from "./fold.ts";
@@ -39,6 +40,8 @@ export default function Sidebar() {
   const [olderOpen, setOlderOpen] = useState(false);
   const [said, setSaid] = useState("");
   const [focusId, setFocusId] = useState(0);
+  const [menu, setMenu] = useState<RowMenuAt | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
   const current = openedId();
   const { folded, toggle } = useFold();
   const onNowPage = document.body.dataset.page === "now";
@@ -132,13 +135,31 @@ export default function Sidebar() {
       >
         <StarIcon filled={c.starred} />
       </IconButton>
+      {/* The dots sit left of the star and show with it. */}
+      <IconButton
+        variant="muted"
+        size={28}
+        glyph="self"
+        className={`absolute top-1/2 ${folds(c) ? "right-52" : "right-28"} -mt-14 pointer-events-none opacity-0 [transition:opacity_140ms_ease] [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100 group-hover/rrow:pointer-events-auto group-hover/rrow:opacity-100 group-focus-within/rrow:pointer-events-auto group-focus-within/rrow:opacity-100`}
+        id={`rm-${c.id}`}
+        label={`More actions for ${titleOf(c)}`}
+        aria-haspopup="menu"
+        aria-expanded={menu?.c.id === c.id}
+        data-nodrag=""
+        onClick={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          setMenu(menu?.c.id === c.id ? null : { c, x: r.left, y: r.bottom + 4 });
+        }}
+      >
+        <DotsIcon />
+      </IconButton>
       {grp === "older" ? null : (
         // The grip is for the keyboard and shows on focus only; w-22! because the size prop is square.
         <IconButton
           variant="muted"
           size={28}
           glyph="self"
-          className={`absolute top-1/2 ${folds(c) ? "right-52" : "right-28"} -mt-14 w-22! cursor-grab touch-none pointer-events-none opacity-0 [transition:opacity_140ms_ease] focus-visible:opacity-100`}
+          className={`absolute top-1/2 ${folds(c) ? "right-80" : "right-56"} -mt-14 w-22! cursor-grab touch-none pointer-events-none opacity-0 [transition:opacity_140ms_ease] focus-visible:opacity-100`}
           id={`rg-${c.id}`}
           label={`Reorder ${titleOf(c)}. Alt plus arrow keys move it.`}
         >
@@ -258,6 +279,7 @@ export default function Sidebar() {
           <span className="rsum">{crew ?? ""}</span>
         </a>
       </div>
+      {menu ? <RowMenu at={menu} onClose={closeMenu} /> : null}
       <p className="sr" role="status" aria-live="polite">
         {said}
       </p>
