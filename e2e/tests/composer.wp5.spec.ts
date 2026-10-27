@@ -14,7 +14,7 @@ import { asAgent, browserWorld, handlesOf, idsOf, seedDb, startSession, viewOf }
  *   key press so a change applies at once (design §11: device settings live on the device). "on" sends on Enter, "off" adds a line, and
  *   "auto" sends when the device has a hardware keyboard and adds a line when it has only a touch keyboard. The app decides that with
  *   matchMedia("(pointer: coarse), (max-width: 600px)"): a match is "only a touch keyboard". Shift+Enter always adds a line.
- * THE @ LIST in a conversation: typing "@" and some letters opens the list "Agents" of the enabled agents whose handle starts with them
+ * THE @ LIST in a conversation: typing "@" and some letters opens the list "Agents" of the enabled agents whose handle or name has those letters in order, the closest first (exact, prefix, word start, then fuzzy)
  *   (a disabled agent is never in it); a button "@docs ..." picks one and writes "@docs " in place of what was typed. The server brings
  *   the agent in when the person sends the message (I-18); a mention in code, a quote or a link adds nobody.
  * A FAILED SEND shows "failed · retry" (retry is a button) and a send in flight shows "sending" (design §9); Retry sends the same client id again.
@@ -83,9 +83,10 @@ scenario("Enter sends or adds a new line", { tag: ["@browser"] }, async ({ serve
       await expect(composer(page), label).toHaveValue(`${text}\n`);
       await composer(page).fill("");
     }
-    expect((await messagesOf(w.owner, conv)).map((m) => m.body), label).toHaveLength(sent);
+    // The composer shows a sent message at once, before the server has it.
+    await expect.poll(async () => (await messagesOf(w.owner, conv)).length, { message: label }).toBe(sent);
   }
-  expect((await messagesOf(w.owner, conv)).map((m) => m.body)).toEqual(["row 1", "row 4"]);
+  await expect.poll(async () => (await messagesOf(w.owner, conv)).map((m) => m.body)).toEqual(["row 1", "row 4"]);
 });
 
 scenario("A failed send can be retried", { tag: ["@browser"] }, async ({ server, page, context }) => {
@@ -124,7 +125,7 @@ scenario("A failed send can be retried", { tag: ["@browser"] }, async ({ server,
   await expect(bubble).not.toContainText("sending");
   expect(tries).toHaveLength(6);
   expect(new Set(tries.map((t) => t.client_id)).size).toBe(1); // every try is the same send
-  expect((await messagesOf(w.owner, conv)).map((m) => m.body)).toEqual(["retry me"]);
+  await expect.poll(async () => (await messagesOf(w.owner, conv)).map((m) => m.body)).toEqual(["retry me"]);
   await expect(message(page, "retry me")).toHaveCount(1);
 });
 
@@ -140,7 +141,7 @@ scenario("Picking an agent from the mention list adds it", { tag: ["@browser", "
 
   // When the owner types "@do" in conversation 41 and picks "docs" from the list
   await composer(page).fill("@do");
-  await expect(agentChoice(page, "devtool")).toHaveCount(0); // only what starts with "do"
+  await expect(page.getByRole("list", { name: "Agents" }).locator(".handle").first()).toHaveText("docs"); // the prefix match leads; "devtool" has d, o in order and follows
   await agentChoice(page, "docs").click();
   await expect(box(page)).toHaveValue("@docs ");
 
@@ -168,6 +169,38 @@ scenario("Picking an agent from the mention list adds it", { tag: ["@browser", "
   const items = await peekFor(w.box, w.sessions.docs!.sid, conv);
   expect(items.map((i) => i.reason)).toEqual(["mention"]);
   expect(items[0]!.message.id).toBe(sent.id);
+});
+
+const FUZZY_CREW = ["devtool", "dash", "dashboard", "lw-dashboards", "dataset-host"];
+
+scenario("Letters typed after the at sign find a handle by order, not only by its start", { tag: ["@browser", "@I-18"] }, async ({ server, page, context }) => {
+  // Background
+  const w = await browserWorld({ server, page, context }, { agents: FUZZY_CREW });
+  const conv = await createConversation(w.owner, { participants: ["devtool"], title: TITLE });
+  await page.goto(`${w.srv.origin}/chats/${conv}`);
+  await expect(composer(page)).toBeVisible();
+
+  // When the owner types "@lwd" in conversation 41
+  await composer(page).fill("@lwd");
+
+  // Then the mention list offers "lw-dashboards" and nothing else
+  await expect(agentChoice(page, "lw-dashboards")).toBeVisible();
+  await expect(page.getByRole("list", { name: "Agents" }).getByRole("button")).toHaveCount(1);
+});
+
+scenario("The mention list puts the closest handle first", { tag: ["@browser", "@I-18"] }, async ({ server, page, context }) => {
+  // Background
+  const w = await browserWorld({ server, page, context }, { agents: FUZZY_CREW });
+  const conv = await createConversation(w.owner, { participants: ["devtool"], title: TITLE });
+  await page.goto(`${w.srv.origin}/chats/${conv}`);
+  await expect(composer(page)).toBeVisible();
+
+  // When the owner types "@dash" in conversation 41
+  await composer(page).fill("@dash");
+
+  // Then the mention list shows "dash", then "dashboard", then "lw-dashboards", then "dataset-host"
+  const handles = page.getByRole("list", { name: "Agents" }).locator(".handle");
+  await expect(handles).toHaveText(["dash", "dashboard", "lw-dashboards", "dataset-host"]);
 });
 
 scenario("A disabled agent is not offered and not added", { tag: ["@browser", "@I-18"] }, async ({ server, page, context }) => {
@@ -202,7 +235,7 @@ scenario("A disabled agent is not offered and not added", { tag: ["@browser", "@
 
   // And "release-bot" is not a participant
   expect(handlesOf(await viewOf(w.owner, conv))).not.toContain("release-bot");
-  expect((await messagesOf(w.owner, conv)).map((m) => m.body)).toEqual(["@release-bot ship it"]);
+  await expect.poll(async () => (await messagesOf(w.owner, conv)).map((m) => m.body)).toEqual(["@release-bot ship it"]);
 });
 
 scenario("A mention inside code does not add an agent", { tag: ["@browser", "@I-18"] }, async ({ server, page, context }) => {
@@ -223,7 +256,7 @@ scenario("A mention inside code does not add an agent", { tag: ["@browser", "@I-
   await expect.poll(async () => (await messagesOf(w.owner, conv)).length).toBe(1); // the bubble shows before the server holds the message
 
   // Then "docs" is not a participant
-  expect((await messagesOf(w.owner, conv)).map((m) => m.body)).toEqual(["run `@docs build`"]);
+  await expect.poll(async () => (await messagesOf(w.owner, conv)).map((m) => m.body)).toEqual(["run `@docs build`"]);
   expect(handlesOf(await viewOf(w.owner, conv))).not.toContain("docs");
 });
 

@@ -185,9 +185,28 @@ scenario("The sidebar shows a short permission card", { tag: ["@browser"] }, asy
   const home = await createConversation(w.owner, { title: "Release train", participants: ["devtool"] });
   await railNow(page, w, home);
   const card = rail(page).getByRole("article", { name: ACTION });
-  await expectInOrder(card, ["@devtool", "I will", ACTION, "Risk", RISK, "Undo", UNDO, "Go", "Open"]);
+  await expectInOrder(card, ["@devtool", "I will", ACTION, "Risk", RISK, "Undo", UNDO, "Go", "Not this", "Open conversation", "Dismiss"]);
   await expect(card.getByText(CONSIDERED[0]!)).toHaveCount(0);
-  await expect(card.getByRole("link", { name: "Open", exact: true })).toHaveAttribute("href", `/chats/${conv}`);
+  await expect(card.getByRole("link", { name: "Open conversation", exact: true })).toHaveAttribute("href", `/chats/${conv}`);
+});
+
+scenario("The sidebar permission card keeps Dismiss and names Open in words", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  const { w, conv } = await browserAsk({ server, page, context });
+  const home = await createConversation(w.owner, { title: "Release train", participants: ["devtool"] });
+  await railNow(page, w, home);
+  const card = rail(page).getByRole("article", { name: ACTION });
+  // Then the card offers Dismiss and "Open conversation", and no control or line reads a bare "Open"
+  await expect(card.getByRole("button", { name: "Dismiss", exact: true })).toBeVisible();
+  await expect(card.getByRole("link", { name: "Open conversation", exact: true })).toHaveAttribute("href", `/chats/${conv}`);
+  await expect(card.getByText("Open", { exact: true })).toHaveCount(0);
+  // And "Not this" sits next to Go and opens the reason box like the full card
+  await card.getByRole("button", { name: "Not this", exact: true }).click();
+  await expect(notThisBox(card)).toBeVisible();
+  await expect(card.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
+  // And Dismiss takes the ask out of the sidebar
+  await card.getByRole("button", { name: "Dismiss", exact: true }).click();
+  await expect(rail(page).getByRole("article", { name: ACTION })).toHaveCount(0, { timeout: 4_000 });
 });
 
 scenario("The sidebar shows Review for a one-way permission ask", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
@@ -198,6 +217,8 @@ scenario("The sidebar shows Review for a one-way permission ask", { tag: ["@brow
   const card = rail(page).getByRole("article", { name: ACTION });
   await expect(card.getByRole("link", { name: "Review", exact: true })).toHaveAttribute("href", `/chats/${conv}`);
   await expect(card.getByRole("button", { name: "Go", exact: true })).toHaveCount(0);
+  // And the card has no "Open conversation" link: Review is the only way in
+  await expect(card.getByRole("link", { name: "Open conversation" })).toHaveCount(0);
 });
 
 scenario("On a phone the considered ways fold and Go and Not this stack", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {
@@ -334,7 +355,7 @@ scenario("Go and Not this answer a permission ask", { tag: ["@api"] }, async ({ 
   // Then the answers read "Go" and "Not this: Wait for PR 412" for the owner and in the conversation
   expect((await askOf(w.owner, go)).answer).toBe("Go");
   expect((await askOf(w.owner, not)).answer).toBe("Not this: Wait for PR 412");
-  expect((await messagesOf(w.owner, conv)).map((m) => m.body)).toEqual(expect.arrayContaining(["Go", "Not this: Wait for PR 412"]));
+  await expect.poll(async () => (await messagesOf(w.owner, conv)).map((m) => m.body)).toEqual(expect.arrayContaining(["Go", "Not this: Wait for PR 412"]));
 
   // And the agent reads the same answers in its inbox, and a second, different answer is refused
   const items = (await inboxItems(w.box, devtool.sid, ["--peek"])) as unknown as { message: { id: number; ask?: { answer?: string } } }[];

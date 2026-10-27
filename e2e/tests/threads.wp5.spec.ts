@@ -30,6 +30,7 @@ import {
   type ThreadWorld,
 } from "../lib/threads-wp5.ts";
 import { seedDb } from "../lib/wp3.ts";
+import { installed } from "../lib/wp17.ts";
 
 /*
  * THREADS (WP5): specs/features/threads.feature and specs/contracts/threads.feature. The page and routes these bindings assert:
@@ -71,8 +72,12 @@ async function docsJoined(t: ThreadWorld): Promise<number> {
   return must(res, "write a system line").json().id as number;
 }
 
-/** Open the Conversations list with a full load, so what it shows is what the server says now. */
+/**
+ * Open the Conversations list with a full load, so what it shows is what the server says now. The service worker must control the
+ * page first: a page it does not control is a cold page, which carries the list inline and never asks the network for it.
+ */
 async function freshRail(page: Page, t: ThreadWorld): Promise<void> {
+  await installed(page);
   await Promise.all([page.waitForResponse((r) => r.request().method() === "GET" && new URL(r.url()).pathname === "/api/conversations"), page.goto(`${t.w.srv.origin}/chats`)]);
   await rail(page).waitFor();
 }

@@ -455,15 +455,16 @@ scenario("A sidebar ask card shows the title, the first answer and Open", { tag:
   // When the owner opens conversation 41 on a wide screen and turns the rail to Now
   await railNow(page, w, home);
 
-  // Then the ask card in the rail shows the question, a "Merge it" button and an "Open" link to conversation 52
+  // Then the ask card in the rail shows the question, a "Merge it" button and an "Open conversation" link to conversation 52
   const card = rail(page).getByRole("article", { name: QUESTION });
   await expect(card).toBeVisible();
   await expect(card.getByRole("heading", { name: QUESTION })).toBeVisible();
   await expect(card.getByRole("button", { name: "Merge it", exact: true })).toBeVisible();
-  await expect(card.getByRole("link", { name: "Open", exact: true })).toHaveAttribute("href", `/chats/${c52}`);
+  await expect(card.getByRole("link", { name: "Open conversation", exact: true })).toHaveAttribute("href", `/chats/${c52}`);
 
-  // And it shows no "Hold it", "Quick reply", "Snooze", "Dismiss" or "I have questions"
-  for (const name of ["Hold it", "Quick reply", "Snooze", "Dismiss", "I have questions"]) await expect(card.getByRole("button", { name, exact: true }), name).toHaveCount(0);
+  // And it offers Dismiss, and shows no "Hold it", "Quick reply", "Snooze" or "I have questions"
+  await expect(card.getByRole("button", { name: "Dismiss", exact: true })).toBeVisible();
+  for (const name of ["Hold it", "Quick reply", "Snooze", "I have questions"]) await expect(card.getByRole("button", { name, exact: true }), name).toHaveCount(0);
 
   // When the owner taps "Merge it"
   await card.getByRole("button", { name: "Merge it", exact: true }).click();

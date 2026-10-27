@@ -92,6 +92,16 @@ Feature: Composer
       And "docs" gets a mention item
 
     @v1 @browser @I-18
+    Scenario: Letters typed after the at sign find a handle by order, not only by its start
+      When the owner types "@lwd" in conversation 41
+      Then the mention list offers "lw-dashboards" and nothing else
+
+    @v1 @browser @I-18
+    Scenario: The mention list puts the closest handle first
+      When the owner types "@dash" in conversation 41
+      Then the mention list shows "dash", then "dashboard", then "lw-dashboards", then "dataset-host"
+
+    @v1 @browser @I-18
     Scenario: A disabled agent is not offered and not added
       Given the owner disabled "release-bot"
       When the owner sends "@release-bot ship it" in conversation 41

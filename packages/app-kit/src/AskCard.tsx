@@ -6,6 +6,7 @@ import { ReplyCount } from "./ReplyCount.tsx";
 import { AskMenu, MenuItem } from "./AskMenu.tsx";
 import { Answers } from "./Answers.tsx";
 import { AskActions } from "./AskActions.tsx";
+import { QuickReply } from "./QuickReply.tsx";
 import { PermissionBody } from "./PermissionBody.tsx";
 import { clock, historyText, stateLine, waitingLine, whoLine, type Answer, type AskData, type SnoozePreset } from "./askData.ts";
 
@@ -43,6 +44,8 @@ export interface AskCardProps {
   openHref?: string;
   /** Carried to the article, so the list can find the card again after a change. */
   dataId?: number;
+  /** The sidebar's short card: the question, the first answer, Open conversation and Dismiss; the same buttons and boxes as the full card, fewer of them. */
+  compact?: boolean;
 }
 
 /** The phone layout of the app (its single mobile breakpoint): a menu opens as a bottom sheet there. */
@@ -64,7 +67,7 @@ export function usePhone(): boolean {
 const URGENT_EDGE = "border-[color-mix(in_srgb,var(--color-danger)_55%,var(--color-border))]";
 
 /** AskCard draws one ask. It keeps only what the eye needs (which panel is open); every change goes up through a callback. */
-export function AskCard({ ask, where, labelId, as = "article", presets, busy, notice, onAnswer, onDismiss, onUndismiss, onSnooze, onReply, replies, onPin, pinned, onDelete, onCopyLink, openHref, dataId, footer }: AskCardProps) {
+export function AskCard({ ask, where, labelId, as = "article", presets, busy, notice, onAnswer, onDismiss, onUndismiss, onSnooze, onReply, replies, onPin, pinned, onDelete, onCopyLink, openHref, dataId, footer, compact }: AskCardProps) {
   const [panel, setPanel] = useState<"" | "reply" | "snooze" | "history" | "options">("");
   const [text, setText] = useState("");
   const [optionsOnSnooze, setOptionsOnSnooze] = useState(false);
@@ -176,7 +179,9 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
   const shutState = ask.state === "dismissed" || ask.state === "closed";
   const replyLast = Boolean(onReply);
   const answered = open && Boolean(ask.answers);
-  const actionRow = open ? <AskActions quickReply={quickReply} panel={panel} toggle={toggle} openHref={openHref} onDismiss={onDismiss} /> : null;
+  // A one-way compact card reaches the conversation by its Review link, so its row has no Open conversation.
+  const rowHref = compact && permission?.one_way ? undefined : openHref;
+  const actionRow = open ? <AskActions quickReply={quickReply} panel={panel} toggle={toggle} openHref={rowHref} onDismiss={onDismiss} compact={compact} /> : null;
   const body = (
     <>
       {where === "conversation" ? (
@@ -214,6 +219,8 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
           actions={actionRow}
           footer={footer}
           clear={clear}
+          compact={compact}
+          reviewHref={openHref}
         />
       ) : (
         <>
@@ -222,8 +229,8 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
         {ask.question}
       </h3>
       {answered ? <Answers ask={ask} phone={phone} className={(!phone && clear) || undefined} /> : null}
-      {ask.owners_call ? <p className={cx("m-0 mb-2 text-13 leading-[18px] text-muted [overflow-wrap:anywhere]", clear)}>{`Your call · ${ask.owners_call.kind}: ${ask.owners_call.reason}`}</p> : null}
-      {now ? (
+      {ask.owners_call && !compact ? <p className={cx("m-0 mb-2 text-13 leading-[18px] text-muted [overflow-wrap:anywhere]", clear)}>{`Your call · ${ask.owners_call.kind}: ${ask.owners_call.reason}`}</p> : null}
+      {now && !compact ? (
         <div className={cx("flex items-center gap-x-8 text-13 leading-[20px] text-muted", clear)}>
           {urgent ? <span className="flex-none font-semibold text-danger">Urgent</span> : null}
           <span className="min-w-0 truncate" title={meta}>
@@ -232,7 +239,7 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
         </div>
       ) : null}
       {open && ask.owner_reply ? <p className="m-0 mt-4 mb-2 rounded-full bg-selection px-10 py-px text-14 font-semibold text-muted">{waitingLine(ask)}</p> : null}
-      {draft ? null : open ? (
+      {draft || compact ? null : open ? (
         <div className={cx("mt-6 mb-9 flex flex-col gap-1 text-13 leading-[18px] text-muted", clear)}>
           {ask.options.map((o, i) => (
             <p key={i} className="m-0">
@@ -260,7 +267,7 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
       {permission ? null : (
       <div className="flex flex-col gap-8">
         {open && !draft
-          ? ask.options.map((o, i) => (
+          ? (compact ? ask.options.slice(0, 1) : ask.options).map((o, i) => (
               <Button key={i} size="option" variant={i === 0 ? "primary" : !replyLast && i === ask.options.length - 1 ? "dashed" : undefined} disabled={busy} onClick={() => onAnswer(i === 0 ? { choice: "recommended" } : { choice: "alternative", index: i })}>
                 {o.label}
               </Button>
@@ -274,29 +281,7 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
         ) : null}
       </div>
       )}
-      {panel === "reply" && !permission ? (
-        <form
-          className="mt-6 flex items-center gap-8"
-          onSubmit={(e) => {
-            e.preventDefault();
-            send();
-          }}
-        >
-          {/* eslint-disable-next-line convoz/no-raw-input -- a pill with no visible label (aria-label); Field draws a label above its input */}
-          <input
-            aria-label="Quick reply"
-            type="text"
-            autoFocus
-            value={text}
-            maxLength={4000}
-            onChange={(e) => setText(e.target.value)}
-            className="h-52 w-full min-w-0 flex-auto rounded-full border border-solid border-edge bg-raised px-16 text-16 text-text [font-family:inherit]"
-          />
-          <Button variant="primary" size="inline" type="submit" disabled={busy || !text.trim()}>
-            Send
-          </Button>
-        </form>
-      ) : null}
+      {panel === "reply" && !permission ? <QuickReply text={text} setText={setText} busy={busy} onSend={send} /> : null}
       {sheetOpen ? <div ref={gap} aria-hidden="true" /> : null}
       {panel === "history" ? (
         <ul className="m-0 mt-8 flex list-none flex-col gap-4 border-0 border-t border-solid border-border p-0 pt-8 text-13 text-muted" aria-label="History">
