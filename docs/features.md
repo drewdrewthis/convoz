@@ -14,7 +14,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Asks and their state machine](#asks-and-their-state-machine) (62)
 - [Brief, handoff, read and search for agents](#brief-handoff-read-and-search-for-agents) (17)
 - [Composer](#composer) (28)
-- [Console on a phone](#console-on-a-phone) (28)
+- [Console on a phone](#console-on-a-phone) (29)
 - [Conversations](#conversations) (71)
 - [Crew: identities, machines and sessions](#crew-identities-machines-and-sessions) (35)
 - [Data at rest, backups and deletion](#data-at-rest-backups-and-deletion) (10)
@@ -335,7 +335,7 @@ Talking to agents feels like texting.
 ## Console on a phone
 
 I am never stuck at a passkey prompt that does nothing.
-28 scenarios.
+29 scenarios.
 
 - **One tap starts one passkey prompt, at once**
   - [Signing in takes one tap and one passkey prompt](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/console-mobile.feature#L19)
@@ -366,15 +366,16 @@ I am never stuck at a passkey prompt that does nothing.
 - **The app has a bar, a bottom nav and an account menu**
   - [The account menu lists Passkeys, Recovery codes and Sign out](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/console-mobile.feature#L178)
   - [Sign out from the account menu ends the session](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/console-mobile.feature#L185)
+  - [Sign out still says Signed out when a read of the page is refused at the same moment](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/console-mobile.feature#L192)
 - **The layout fits a phone**
-  - [Forms on a phone have labels above full-width fields and a full-width main button](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/console-mobile.feature#L194)
-  - [No page scrolls sideways on a phone](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/console-mobile.feature#L203)
-  - [The console follows the phone's dark or light setting](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/console-mobile.feature#L221)
+  - [Forms on a phone have labels above full-width fields and a full-width main button](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/console-mobile.feature#L201)
+  - [No page scrolls sideways on a phone](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/console-mobile.feature#L210)
+  - [The console follows the phone's dark or light setting](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/console-mobile.feature#L228)
 - **Real iPhone checks are run by the owner**
-  - [A real iPhone sets up a second passkey and new recovery codes](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/console-mobile.feature#L231)
-  - [A real iPhone shows the duplicate passkey message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/console-mobile.feature#L237)
-  - [A real iPhone signs in with one tap](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/console-mobile.feature#L243)
-  - [The main button stays in view with the keyboard open on a real iPhone](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/console-mobile.feature#L249)
+  - [A real iPhone sets up a second passkey and new recovery codes](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/console-mobile.feature#L238)
+  - [A real iPhone shows the duplicate passkey message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/console-mobile.feature#L244)
+  - [A real iPhone signs in with one tap](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/console-mobile.feature#L250)
+  - [The main button stays in view with the keyboard open on a real iPhone](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/console-mobile.feature#L256)
 
 ## Conversations
 

@@ -41,8 +41,9 @@ export function safeNext(raw: string | null): string {
   return typeof raw === "string" && /^\/(?![/\\])[^\u0000-\u001f]*$/.test(raw) ? raw : "/";
 }
 
-/** toSignin sends the browser to sign in, then back to this page. */
+/** toSignin sends the browser to sign in, then back to this page. A page already on its way out (sign-out) keeps its own destination. */
 export function toSignin(): void {
+  if (page.leaving) return;
   page.leaving = true;
   const here = location.pathname + location.search;
   location.assign(here === "/" ? "/signin" : `/signin?next=${encodeURIComponent(here)}`);
@@ -117,15 +118,17 @@ export function humanError(err: unknown): string {
 
 /** signOut ends the session and opens the sign-in page. A failure is handed to `fail`. */
 export async function signOut(fail: (message: string) => void): Promise<void> {
+  // Set first: a read refused once the session ends must not send the page to a plain /signin that lacks "Signed out".
+  page.leaving = true;
   try {
     await call(client.POST("/api/auth/logout", { body: {} }));
   } catch (err) {
     if (!(err instanceof ApiError && err.status === 401)) {
+      page.leaving = false;
       fail(humanError(err));
       return;
     }
   }
-  page.leaving = true;
   dropEarly();
   await forgetOffline();
   location.assign("/signin?signed_out=1");
