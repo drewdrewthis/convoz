@@ -135,12 +135,12 @@ export default function Sidebar() {
       >
         <StarIcon filled={c.starred} />
       </IconButton>
-      {/* The dots sit left of the star and show with it. */}
+      {/* The dots sit left of the star and show with it. They stay clickable while faded: a row that moves under the pointer (a new message puts it on top) must not lose them. */}
       <IconButton
         variant="muted"
         size={28}
         glyph="self"
-        className={`absolute top-1/2 ${folds(c) ? "right-52" : "right-28"} -mt-14 pointer-events-none opacity-0 [transition:opacity_140ms_ease] [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100 group-hover/rrow:pointer-events-auto group-hover/rrow:opacity-100 group-focus-within/rrow:pointer-events-auto group-focus-within/rrow:opacity-100`}
+        className={`absolute top-1/2 ${folds(c) ? "right-52" : "right-28"} -mt-14 opacity-0 [transition:opacity_140ms_ease] [@media(hover:none)]:opacity-100 group-hover/rrow:opacity-100 group-focus-within/rrow:opacity-100`}
         id={`rm-${c.id}`}
         label={`More actions for ${titleOf(c)}`}
         aria-haspopup="menu"
