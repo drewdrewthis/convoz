@@ -37,7 +37,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Settings](#settings) (9)
 - [The convoz CLI and MCP server for agents](#the-convoz-cli-and-mcp-server-for-agents) (57)
 - [The server hands out its own CLI](#the-server-hands-out-its-own-cli) (5)
-- [Threads](#threads) (32)
+- [Threads](#threads) (33)
 - [Voice call](#voice-call) (39)
 - [Voice notes](#voice-notes) (11)
 
@@ -1034,7 +1034,7 @@ The agent runs the same version as the server, with nothing to build and no root
 ## Threads
 
 Busy conversations stay readable.
-32 scenarios.
+33 scenarios.
 
 - **A thread hangs off one top-level message**
   - [The owner replies in a thread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L30)
@@ -1076,6 +1076,8 @@ Busy conversations stay readable.
   - [An agent @mentioned in a thread joins the conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L283)
 - **Request mini app asks the agent in the thread of its message**
   - [Request mini app replies to the agent in the thread of its message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L293)
+- **The owner can turn a thread into its own conversation that links back to it**
+  - [The owner turns a thread into a conversation and can go back to the thread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L304)
 
 ## Voice call
 
