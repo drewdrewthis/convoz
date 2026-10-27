@@ -1076,8 +1076,8 @@ Busy conversations stay readable.
   - [An agent @mentioned in a thread joins the conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L283)
 - **Request mini app asks the agent in the thread of its message**
   - [Request mini app replies to the agent in the thread of its message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L293)
-- **The owner can turn a thread into its own conversation that links back to it**
-  - [The owner turns a thread into a conversation and can go back to the thread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L304)
+- **The owner can turn a thread into its own conversation that takes its replies and links back to the thread**
+  - [The owner turns a thread into a conversation and can go back to the thread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/threads.feature#L305)
 
 ## Voice call
 
