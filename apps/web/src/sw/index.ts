@@ -31,6 +31,24 @@ function reloadOnUpdate(): void {
 }
 
 /**
+ * nudgeWaiting asks a waiting worker to take over. The worker skips waiting on install by itself, but that can fail to land (the
+ * install and the page's update race), leaving a tab on the old build; a waiting worker is always safe to nudge again.
+ */
+function nudgeWaiting(reg: ServiceWorkerRegistration): void {
+  reg.waiting?.postMessage({ type: "skip" });
+}
+
+/** watchForWaiting nudges a worker that finishes installing after the page started looking. */
+function watchForWaiting(reg: ServiceWorkerRegistration): void {
+  reg.addEventListener("updatefound", () => {
+    const next = reg.installing;
+    next?.addEventListener("statechange", () => {
+      if (next.state === "installed") nudgeWaiting(reg);
+    });
+  });
+}
+
+/**
  * claimLoosePage: the first worker claims the open pages when it activates, but a page that was still loading then is missed and
  * stays outside the worker (no update, no controllerchange) until its next load. Such a page asks the worker to claim it.
  */
@@ -72,7 +90,12 @@ export function registerServiceWorker(): void {
       .then((reg) => {
         registration = reg;
         claimLoosePage();
-        void reg.update().catch(() => {});
+        watchForWaiting(reg);
+        nudgeWaiting(reg);
+        void reg
+          .update()
+          .catch(() => {})
+          .then(() => nudgeWaiting(reg));
       })
       .catch((err) => console.warn("service worker:", err));
   };
@@ -80,6 +103,12 @@ export function registerServiceWorker(): void {
   else addEventListener("load", start);
   // A Home Screen app resumed from the background never loads again: coming back to the screen is when it looks for a new build.
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") void registration?.update().catch(() => {});
+    if (document.visibilityState !== "visible" || !registration) return;
+    const reg = registration;
+    nudgeWaiting(reg);
+    void reg
+      .update()
+      .catch(() => {})
+      .then(() => nudgeWaiting(reg));
   });
 }
