@@ -262,7 +262,7 @@ scenario("A send that races the cleanup keeps the conversation", { tag: ["@api"]
   must(await send(w.srv.target, "POST", "/__test/maintenance", { json: {} }), "cleanup");
 
   // Then the conversation exists with the message "wait"
-  expect((await messagesOf(w.owner, empty)).map((m) => m.body)).toEqual(["wait"]);
+  await expect.poll(async () => (await messagesOf(w.owner, empty)).map((m) => m.body)).toEqual(["wait"]);
   expect((await viewOf(w.owner, empty)).id).toBe(empty);
 
   // And a conversation nobody wrote in is gone

@@ -125,7 +125,7 @@ scenario("An agent asks the owner to review a draft and gets back the edited tex
   expect(read).toStrictEqual({ inbox: { send: true, text: EDITED }, watch: { send: true, text: EDITED } });
 
   // And conversation 41 shows "Send: Sounds good, Thursday at 10 works."
-  expect((await messagesOf(w.owner, conv)).map((m) => m.body)).toContain(`Send: ${EDITED}`);
+  await expect.poll(async () => (await messagesOf(w.owner, conv)).map((m) => m.body)).toContain(`Send: ${EDITED}`);
   expect((await askOf(w.owner, id)).answer).toBe(`Send: ${EDITED}`);
   await page.goto(`${w.srv.origin}/chats/${conv}`);
   await expect(page.getByText(`Answered · Send: ${EDITED}`, { exact: true })).toBeVisible();
@@ -150,7 +150,7 @@ scenario("Don't send returns send false and no text", { tag: ["@browser"] }, asy
   expect(read).toStrictEqual({ inbox: { send: false }, watch: { send: false } });
 
   // And conversation 41 shows "Don't send"
-  expect((await messagesOf(w.owner, conv)).map((m) => m.body)).toContain("Don't send");
+  await expect.poll(async () => (await messagesOf(w.owner, conv)).map((m) => m.body)).toContain("Don't send");
   expect(((await askOf(w.owner, id)) as Draftable).reply).toStrictEqual({ send: false });
 });
 

@@ -57,7 +57,7 @@ scenario("The data file cannot be read without the key", { tag: ["@cli"] }, asyn
   const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool"] });
   const devtool = await startSession(w.box, "devtool", "secret");
   await agentSays(w.srv, devtool.lease, conv, "ZQX-secret-plan");
-  expect((await messagesOf(w.owner, conv)).map((m) => m.body), "the server itself reads it").toContain("ZQX-secret-plan");
+  await expect.poll(async () => (await messagesOf(w.owner, conv)).map((m) => m.body), { message: "the server itself reads it" }).toContain("ZQX-secret-plan");
 
   // When the data file and a fresh backup snapshot are opened with a plain SQLite reader
   const keys = await backupKeys(convoz);
