@@ -174,7 +174,12 @@ function Cards({ items, label, current, done = false }: { items: Item[]; label: 
 function CardThread({ c }: { c: Conversation }) {
   const threads = (c.threads ?? []).filter((t) => t.reply_count > 0);
   const t = threads.find((x) => x.unread > 0) ?? threads[0];
-  return t ? <FeedThread conversation={c.id} root={t.root_id} count={t.reply_count} /> : null;
+  // A reply from the card is the owner's answer: the conversation is read, so the card leaves (it comes back with a new message to the owner).
+  const replied = (ok: boolean) => {
+    if (!ok) return;
+    void markAllRead(c.id).then(() => toast("Replied. Marked read."), () => {});
+  };
+  return t ? <FeedThread conversation={c.id} root={t.root_id} count={t.reply_count} onReplied={replied} /> : null;
 }
 
 /** Mentions are the messages that @mention the owner, under the Needs you heading and its asks. */

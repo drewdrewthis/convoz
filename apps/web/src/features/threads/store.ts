@@ -46,8 +46,8 @@ export interface ThreadsState {
   /** Open the reply box under a root, unfolding its thread (Reply in thread, a #reply= link). */
   startReply(conversation: number, rootId: number): void;
   stopReply(): void;
-  /** Send a reply (the body may be empty when it carries files); it shows at once as "sending". */
-  reply(rootId: number, body: string, uploadIds?: string[]): void;
+  /** Send a reply (the body may be empty when it carries files); it shows at once as "sending". Resolves true once the server took it, false when it failed. */
+  reply(rootId: number, body: string, uploadIds?: string[]): Promise<boolean>;
   retry(rootId: number, cid: string): void;
   /** Drop a failed reply the owner does not want to retry. */
   discard(rootId: number, cid: string): void;
@@ -127,10 +127,10 @@ export const useThreads = create<ThreadsState>()((set, get) => {
     }
   }
 
-  async function deliver(rootId: number, cid: string) {
+  async function deliver(rootId: number, cid: string): Promise<boolean> {
     const t = get().threads[rootId];
     const p = t?.pending.find((x) => x.cid === cid);
-    if (!t || !p) return;
+    if (!t || !p) return false;
     const setState = (state: PendingReply["state"]) => patch(rootId, (now) => ({ pending: now.pending.map((x) => (x.cid === cid ? { ...x, state } : x)) }));
     setState("sending");
     try {
@@ -151,10 +151,12 @@ export const useThreads = create<ThreadsState>()((set, get) => {
       };
       // The stream may have brought the server's copy first, with its files: keep that one.
       patch(rootId, (now) => ({ replies: now.replies.some((r) => r.id === made.id) ? now.replies : merge(now.replies, [made]), pending: now.pending.filter((x) => x.cid !== cid) }));
+      return true;
     } catch (err) {
-      if (err instanceof ApiError && err.handled) return;
+      if (err instanceof ApiError && err.handled) return false;
       reportSendFailed();
       setState("failed");
+      return false;
     }
   }
 
@@ -175,10 +177,10 @@ export const useThreads = create<ThreadsState>()((set, get) => {
     stopReply: () => set({ replying: null }),
     reply: (rootId, body, uploadIds) => {
       const t = get().threads[rootId];
-      if (!t) return;
+      if (!t) return Promise.resolve(false);
       const cid = newId();
       patch(rootId, (now) => ({ pending: [...now.pending, { cid, body, uploadIds, state: "sending", base: newest(now) }] }));
-      void deliver(rootId, cid);
+      return deliver(rootId, cid);
     },
     retry: (rootId, cid) => void deliver(rootId, cid),
     discard: (rootId, cid) => patch(rootId, (now) => ({ pending: now.pending.filter((x) => x.cid !== cid) })),
