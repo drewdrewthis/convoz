@@ -57,6 +57,20 @@ func (q *Queries) CreateThreadRead(ctx context.Context, arg CreateThreadReadPara
 	return err
 }
 
+const deleteThreadReads = `-- name: DeleteThreadReads :exec
+DELETE FROM thread_reads WHERE conversation_id = ?1 AND root_id = ?2
+`
+
+type DeleteThreadReadsParams struct {
+	ConversationID int64
+	RootID         int64
+}
+
+func (q *Queries) DeleteThreadReads(ctx context.Context, arg DeleteThreadReadsParams) error {
+	_, err := q.db.ExecContext(ctx, deleteThreadReads, arg.ConversationID, arg.RootID)
+	return err
+}
+
 const getCursor = `-- name: GetCursor :one
 SELECT last_read_main_id FROM read_cursors WHERE identity_id = ?1 AND conversation_id = ?2
 `

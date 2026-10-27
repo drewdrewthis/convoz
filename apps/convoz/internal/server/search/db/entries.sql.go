@@ -19,6 +19,21 @@ func (q *Queries) DeleteEntry(ctx context.Context, messageID int64) error {
 	return err
 }
 
+const moveEntries = `-- name: MoveEntries :exec
+UPDATE search_entries SET conversation_id = ?1 WHERE message_id IN (SELECT value FROM json_each(?2))
+`
+
+type MoveEntriesParams struct {
+	ToConversation int64
+	Ids            interface{}
+}
+
+// The messages of a thread that became a conversation are found in the new one.
+func (q *Queries) MoveEntries(ctx context.Context, arg MoveEntriesParams) error {
+	_, err := q.db.ExecContext(ctx, moveEntries, arg.ToConversation, arg.Ids)
+	return err
+}
+
 const upsertEntry = `-- name: UpsertEntry :exec
 INSERT INTO search_entries (message_id, conversation_id, author_id, kind, is_app, has_link, created_at)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)

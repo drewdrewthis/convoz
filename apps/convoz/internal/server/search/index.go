@@ -2,6 +2,7 @@ package search
 
 import (
 	"context"
+	"encoding/json"
 	"regexp"
 
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
@@ -66,4 +67,13 @@ func flag(b bool) int64 {
 		return 1
 	}
 	return 0
+}
+
+// Move points the entries of messages at another conversation: a thread that became a conversation takes its replies along.
+func Move(ctx context.Context, d pdb.DBTX, ids []int64, to int64) error {
+	list, err := json.Marshal(ids)
+	if err != nil {
+		return err
+	}
+	return db.New(d).MoveEntries(ctx, db.MoveEntriesParams{ToConversation: to, Ids: string(list)})
 }

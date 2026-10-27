@@ -50,3 +50,6 @@ SELECT rc.conversation_id, rc.last_read_main_id, rc.thread_floor_id,
 FROM read_cursors rc
 LEFT JOIN thread_reads tr ON tr.identity_id = rc.identity_id AND tr.conversation_id = rc.conversation_id
 WHERE rc.identity_id = sqlc.arg(identity_id);
+
+-- name: DeleteThreadReads :exec
+DELETE FROM thread_reads WHERE conversation_id = sqlc.arg(conversation_id) AND root_id = sqlc.arg(root_id);

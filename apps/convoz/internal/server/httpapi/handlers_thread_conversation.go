@@ -4,20 +4,23 @@ import (
 	"context"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/event"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/inbox"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/readstate"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/search"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
 
 // threadToConversation is POST /api/conversations/:id/threads/:root/conversation: the owner turns the thread of message :root into a
 // conversation of its own (issue 32; owner msgs 1591, 2356). The new conversation is titled by the root, holds the people of the one
-// it came from, and keeps a link to the root. Nothing is moved or copied: the thread stays where it is. Asking again for the same
-// root gives the conversation made the first time. Only the owner may do it; the route asks for the owner and so does this.
+// it came from, and keeps a link to the root. The replies move into it, authors kept; the root stays with a link (owner, ask 9259).
+// Asking again for the same root gives the conversation made the first time and moves nothing. Only the owner may do it; the route asks for the owner and so does this.
 func (s *Server) threadToConversation(w http.ResponseWriter, r *http.Request, c *call) {
 	if c.p.SessionID != 0 || c.p.Role != "owner" {
 		writeErr(w, http.StatusForbidden, "forbidden", "Only the owner can turn a thread into a conversation.")
@@ -33,7 +36,7 @@ func (s *Server) threadToConversation(w http.ResponseWriter, r *http.Request, c 
 		return
 	}
 	var view wire.Conversation
-	var created, notFound, notRoot bool
+	var created, notFound, notRoot, tied bool
 	err = s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
 		d := tx.DBTX()
 		m, found, err := message.Get(ctx, d, root)
@@ -53,6 +56,10 @@ func (s *Server) threadToConversation(w http.ResponseWriter, r *http.Request, c 
 			}
 			return err
 		}
+		if movable, err := message.RepliesMovable(ctx, d, root); err != nil || !movable {
+			tied = err == nil
+			return err
+		}
 		view, err = s.makeFromThread(ctx, d, c.p, source, m)
 		created = err == nil
 		return err
@@ -64,6 +71,8 @@ func (s *Server) threadToConversation(w http.ResponseWriter, r *http.Request, c 
 		writeErr(w, http.StatusNotFound, "not_found", "No such message in that conversation.")
 	case notRoot:
 		writeErr(w, http.StatusBadRequest, "invalid_request", "Only the first message of a thread can start a conversation.")
+	case tied:
+		writeErr(w, http.StatusConflict, "thread_tied", "This thread holds an ask or an app, which stay where they are.")
 	case created:
 		s.Bus.Notify()
 		writeJSON(w, http.StatusCreated, map[string]any{"conversation": view})
@@ -91,14 +100,12 @@ func (s *Server) makeFromThread(ctx context.Context, d pdb.DBTX, p authz.Princip
 	if err := conversation.SetOrigin(ctx, d, now, cv.ID, source, m.ID); err != nil {
 		return wire.Conversation{}, err
 	}
-	seats, err := conversation.Participants(ctx, d, cv.ID)
+	moved, err := message.MoveReplies(ctx, d, m.ID, cv.ID)
 	if err != nil {
 		return wire.Conversation{}, err
 	}
-	for _, pt := range seats {
-		if err := readstate.Create(ctx, d, now, pt.IdentityID, cv.ID, cv.LastMessageID); err != nil {
-			return wire.Conversation{}, err
-		}
+	if err := s.afterMove(ctx, d, now, source, m.ID, cv.ID, moved); err != nil {
+		return wire.Conversation{}, err
 	}
 	if _, err := event.Write(ctx, d, now, event.Entry{Type: event.ConversationCreated, Actor: who, Conversation: cv.ID, Payload: map[string]any{"id": cv.ID}}); err != nil {
 		return wire.Conversation{}, err
@@ -129,4 +136,73 @@ func originView(ctx context.Context, d pdb.DBTX, p authz.Principal, conv int64) 
 		out.ConversationTitle = src.Title
 	}
 	return out, nil
+}
+
+// afterMove brings every table that names a conversation in line with the replies that moved from source to conv: the search entries,
+// the counters of both conversations, the thread positions, and a read cursor for each person of conv that keeps what they had
+// read (a person in the thread resumes at their place in it; anyone else has read it all, as the thread did not count for them).
+func (s *Server) afterMove(ctx context.Context, d pdb.DBTX, now time.Time, source, root, conv int64, moved []message.Moved) error {
+	seats, err := conversation.Participants(ctx, d, conv)
+	if err != nil {
+		return err
+	}
+	newest, newestAt, broadcast := int64(0), int64(0), int64(0)
+	ids := make([]int64, len(moved))
+	for i, m := range moved {
+		ids[i], newest, newestAt = m.ID, m.ID, m.CreatedAt
+		if m.Broadcast {
+			broadcast++
+		}
+	}
+	for _, pt := range seats {
+		at, err := threadPosition(ctx, d, pt.IdentityID, source, root, newest)
+		if err == nil {
+			err = readstate.Create(ctx, d, now, pt.IdentityID, conv, at)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	if len(moved) == 0 {
+		return nil
+	}
+	if err := search.Move(ctx, d, ids, conv); err != nil {
+		return err
+	}
+	if err := conversation.Recount(ctx, d, conv, int64(len(moved)), newest, newest, newestAt); err != nil {
+		return err
+	}
+	lastAny, err := message.NewestMessageID(ctx, d, source)
+	if err != nil {
+		return err
+	}
+	lastMain, err := message.NewestMainID(ctx, d, source)
+	if err != nil {
+		return err
+	}
+	if err := conversation.Recount(ctx, d, source, -broadcast, lastAny, lastMain, 0); err != nil {
+		return err
+	}
+	if err := readstate.ForgetThread(ctx, d, source, root); err != nil {
+		return err
+	}
+	if err := inbox.ThreadGone(ctx, d, source, root); err != nil {
+		return err
+	}
+	return messageEvents{}.ThreadUpdated(ctx, d, now, source, root, 0, 0)
+}
+
+// threadPosition is where person has read the thread of root in conversation source: the reply they read to, else the newest reply
+// when they were never in the thread (those replies were not unread to them).
+func threadPosition(ctx context.Context, d pdb.DBTX, person, source, root, newest int64) (int64, error) {
+	threads, err := readstate.Threads(ctx, d, person, source)
+	if err != nil {
+		return 0, err
+	}
+	for _, t := range threads {
+		if t.Root == root {
+			return t.LastRead, nil
+		}
+	}
+	return newest, nil
 }

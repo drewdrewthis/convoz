@@ -745,6 +745,33 @@ func (q *Queries) RecordMainPost(ctx context.Context, arg RecordMainPostParams) 
 	return err
 }
 
+const recordMoved = `-- name: RecordMoved :exec
+UPDATE conversations
+SET message_count = max(message_count + ?1, 0), last_message_id = ?2, last_main_id = ?3,
+    last_activity_at = max(last_activity_at, ?4)
+WHERE id = ?5
+`
+
+type RecordMovedParams struct {
+	Delta         int64
+	LastMessageID int64
+	LastMainID    int64
+	At            interface{}
+	ID            int64
+}
+
+// Replies left or joined the main list: the count moves by delta, the newest ids are as the caller read them, activity only grows.
+func (q *Queries) RecordMoved(ctx context.Context, arg RecordMovedParams) error {
+	_, err := q.db.ExecContext(ctx, recordMoved,
+		arg.Delta,
+		arg.LastMessageID,
+		arg.LastMainID,
+		arg.At,
+		arg.ID,
+	)
+	return err
+}
+
 const restore = `-- name: Restore :execrows
 UPDATE conversations SET deleted_at = NULL, deleted_by = NULL WHERE id = ?1 AND deleted_at IS NOT NULL
 `

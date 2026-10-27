@@ -11,6 +11,15 @@ import (
 	"strings"
 )
 
+const clearThreadMoves = `-- name: ClearThreadMoves :exec
+DELETE FROM thread_moves
+`
+
+func (q *Queries) ClearThreadMoves(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, clearThreadMoves)
+	return err
+}
+
 const conversationsWithUnreadMentions = `-- name: ConversationsWithUnreadMentions :many
 SELECT CAST(json_extract(c.value, '$[0]') AS INTEGER) AS conversation_id
 FROM json_each(?1) c
@@ -201,6 +210,15 @@ func (q *Queries) CountUnreadMentions(ctx context.Context, arg CountUnreadMentio
 	return count, err
 }
 
+const emptyThread = `-- name: EmptyThread :exec
+UPDATE messages SET reply_count = 0, last_reply_id = NULL, last_reply_at = NULL WHERE id = ?1
+`
+
+func (q *Queries) EmptyThread(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, emptyThread, id)
+	return err
+}
+
 const inThread = `-- name: InThread :many
 SELECT id FROM messages WHERE thread_root_id = ?1 AND id IN (/*SLICE:ids*/?) ORDER BY id
 `
@@ -245,6 +263,45 @@ func (q *Queries) InThread(ctx context.Context, arg InThreadParams) ([]int64, er
 	return items, nil
 }
 
+const listReplyMoves = `-- name: ListReplyMoves :many
+SELECT id, author_id, broadcast, created_at FROM messages WHERE thread_root_id = ?1 ORDER BY id
+`
+
+type ListReplyMovesRow struct {
+	ID        int64
+	AuthorID  sql.NullInt64
+	Broadcast int64
+	CreatedAt int64
+}
+
+func (q *Queries) ListReplyMoves(ctx context.Context, rootID sql.NullInt64) ([]ListReplyMovesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listReplyMoves, rootID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListReplyMovesRow
+	for rows.Next() {
+		var i ListReplyMovesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.AuthorID,
+			&i.Broadcast,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const mainAuthorAt = `-- name: MainAuthorAt :one
 SELECT CAST(COALESCE((
   SELECT author_id FROM messages
@@ -264,6 +321,29 @@ func (q *Queries) MainAuthorAt(ctx context.Context, arg MainAuthorAtParams) (int
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const markThreadMoves = `-- name: MarkThreadMoves :exec
+INSERT INTO thread_moves (message_id) SELECT id FROM messages WHERE thread_root_id = ?1
+`
+
+func (q *Queries) MarkThreadMoves(ctx context.Context, rootID sql.NullInt64) error {
+	_, err := q.db.ExecContext(ctx, markThreadMoves, rootID)
+	return err
+}
+
+const moveThreadReplies = `-- name: MoveThreadReplies :exec
+UPDATE messages SET conversation_id = ?1, thread_root_id = NULL, broadcast = 0 WHERE thread_root_id = ?2
+`
+
+type MoveThreadRepliesParams struct {
+	ToConversation int64
+	RootID         sql.NullInt64
+}
+
+func (q *Queries) MoveThreadReplies(ctx context.Context, arg MoveThreadRepliesParams) error {
+	_, err := q.db.ExecContext(ctx, moveThreadReplies, arg.ToConversation, arg.RootID)
+	return err
 }
 
 const newestCountedInMain = `-- name: NewestCountedInMain :one
@@ -308,6 +388,17 @@ func (q *Queries) NewestCountedInMain(ctx context.Context, conversationID int64)
 		&i.ViaVoice,
 	)
 	return i, err
+}
+
+const newestMainID = `-- name: NewestMainID :one
+SELECT CAST(COALESCE(MAX(id), 0) AS INTEGER) FROM messages WHERE conversation_id = ?1 AND in_main = 1
+`
+
+func (q *Queries) NewestMainID(ctx context.Context, conversationID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, newestMainID, conversationID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const newestMessageID = `-- name: NewestMessageID :one
@@ -529,6 +620,19 @@ func (q *Queries) ThreadRoots(ctx context.Context, arg ThreadRootsParams) ([]Mes
 		return nil, err
 	}
 	return items, nil
+}
+
+const unmovableReplies = `-- name: UnmovableReplies :one
+SELECT COUNT(*) FROM messages
+WHERE thread_root_id = ?1 AND (kind = 'ask' OR answers_ask_id IS NOT NULL OR via_app_message_id IS NOT NULL OR app_json IS NOT NULL)
+`
+
+// Replies that other rows are tied to by (message, conversation): an ask, an answer to an ask, an app and its result.
+func (q *Queries) UnmovableReplies(ctx context.Context, rootID sql.NullInt64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, unmovableReplies, rootID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const watchContext = `-- name: WatchContext :many

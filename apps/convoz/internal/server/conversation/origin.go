@@ -39,3 +39,9 @@ func OriginFromMessage(ctx context.Context, d pdb.DBTX, msg int64) (o Origin, fo
 	}
 	return fromOrigin(r), err == nil, err
 }
+
+// Recount fixes the counters of a conversation after replies left its main list or joined it: the count moves by delta, the
+// newest ids are the ones the caller found, and the activity time only grows (to at).
+func Recount(ctx context.Context, d pdb.DBTX, id, delta, lastMessage, lastMain, at int64) error {
+	return db.New(d).RecordMoved(ctx, db.RecordMovedParams{ID: id, Delta: delta, LastMessageID: lastMessage, LastMainID: lastMain, At: at})
+}

@@ -143,3 +143,10 @@ SELECT conversation_id, source_conversation_id, message_id, created_at FROM conv
 
 -- name: GetOriginOfMessage :one
 SELECT conversation_id, source_conversation_id, message_id, created_at FROM conversation_origins WHERE message_id = sqlc.arg(message_id);
+
+-- name: RecordMoved :exec
+-- Replies left or joined the main list: the count moves by delta, the newest ids are as the caller read them, activity only grows.
+UPDATE conversations
+SET message_count = max(message_count + sqlc.arg(delta), 0), last_message_id = sqlc.arg(last_message_id), last_main_id = sqlc.arg(last_main_id),
+    last_activity_at = max(last_activity_at, sqlc.arg(at))
+WHERE id = sqlc.arg(id);

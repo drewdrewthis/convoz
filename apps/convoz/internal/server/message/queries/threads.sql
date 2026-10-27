@@ -136,3 +136,26 @@ WHERE EXISTS (
         SELECT 1 FROM json_each(c.value, '$[3]') p WHERE json_extract(p.value, '$[0]') = m.thread_root_id AND m.id > json_extract(p.value, '$[1]')))
     )
 );
+
+-- name: NewestMainID :one
+SELECT CAST(COALESCE(MAX(id), 0) AS INTEGER) FROM messages WHERE conversation_id = sqlc.arg(conversation_id) AND in_main = 1;
+
+-- name: UnmovableReplies :one
+-- Replies that other rows are tied to by (message, conversation): an ask, an answer to an ask, an app and its result.
+SELECT COUNT(*) FROM messages
+WHERE thread_root_id = sqlc.arg(root_id) AND (kind = 'ask' OR answers_ask_id IS NOT NULL OR via_app_message_id IS NOT NULL OR app_json IS NOT NULL);
+
+-- name: ListReplyMoves :many
+SELECT id, author_id, broadcast, created_at FROM messages WHERE thread_root_id = sqlc.arg(root_id) ORDER BY id;
+
+-- name: MarkThreadMoves :exec
+INSERT INTO thread_moves (message_id) SELECT id FROM messages WHERE thread_root_id = sqlc.arg(root_id);
+
+-- name: MoveThreadReplies :exec
+UPDATE messages SET conversation_id = sqlc.arg(to_conversation), thread_root_id = NULL, broadcast = 0 WHERE thread_root_id = sqlc.arg(root_id);
+
+-- name: ClearThreadMoves :exec
+DELETE FROM thread_moves;
+
+-- name: EmptyThread :exec
+UPDATE messages SET reply_count = 0, last_reply_id = NULL, last_reply_at = NULL WHERE id = sqlc.arg(id);

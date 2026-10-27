@@ -244,7 +244,8 @@
     summary: The owner turns the thread of a message into a conversation of its own, linked back to the message.
     description: |
       Only the owner may do it (403 otherwise). The new conversation is titled by the root message, holds the people active in the one the thread
-      is in, and carries `origin` (the conversation and the message it came from). Nothing is moved or copied. Asking again for the same root
+      is in, and carries `origin` (the conversation and the message it came from). The replies of the thread move into it, as top-level messages with their ids, authors, times and order kept; the root stays where it is with no replies.
+      A thread with an ask or an app in it cannot move: 409 thread_tied. Asking again for the same root
       answers 200 with the conversation made the first time. The root must be a top-level message of the conversation: a reply is 400.
     parameters:
       - $ref: "../openapi.yaml#/components/parameters/Id"
