@@ -238,9 +238,19 @@ Feature: Crew: identities, machines and sessions
       Examples:
         | state    | label          | ring                    |
         | working  | working        | moving gradient ring    |
-        | waiting  | waiting on you | amber ring              |
+        | waiting  | waiting        | amber ring              |
         | idle     | idle           | grey ring               |
         | offline  | offline        | hollow grey dot         |
+
+    # Owner (Drew, conv 167 msg 3771): "this says no waiting, but waiting? confusing." Approved mockup (msg 3944): the words "Waiting on you"
+    # need a real item to link to; the agent's own claim alone reads "Waiting".
+    @v1 @browser
+    Scenario: An agent that claims to wait but has no open ask reads Waiting, not Waiting on you
+      Given "devtool" has the status "waiting" and no open ask
+      When the owner opens Crew
+      Then "devtool" shows the label "Waiting" and no group or count says "Waiting on you"
+      When the owner opens the profile of "devtool"
+      Then the state reads "Waiting" and the profile has no "Waiting on you" section
 
     @v1 @browser
     Scenario: Revoke key asks to confirm and can be cancelled

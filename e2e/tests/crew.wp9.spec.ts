@@ -560,7 +560,7 @@ scenario("The status ring tells the agent's state without colour alone", { tag: 
   const sid = c.sessions.devtool!.sid;
   const rows = [
     { state: "working", label: "working", ring: "moving gradient ring" },
-    { state: "waiting", label: "waiting on you", ring: "amber ring" },
+    { state: "waiting", label: "waiting", ring: "amber ring" },
     { state: "idle", label: "idle", ring: "grey ring" },
     { state: "offline", label: "offline", ring: "hollow grey dot" },
   ];
@@ -583,6 +583,26 @@ scenario("The status ring tells the agent's state without colour alone", { tag: 
     if (state === "idle") expect(await ringStyle(mark, "::before", "background-color")).toBe(await tokenColor(page, "--color-idle"));
     if (state === "offline") expect(await ringStyle(mark, "::after", "border-top-width")).not.toBe("0px");
   }
+});
+
+scenario("An agent that claims to wait but has no open ask reads Waiting, not Waiting on you", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given "devtool" has the status "waiting" and no open ask
+  const c = await crewWorld({ server, page, context }, { agents: ["devtool"], live: ["devtool"] });
+  expect((await convoz(c.w.box, c.sessions.devtool!.sid, ["status", "--state", "waiting"])).code).toBe(0);
+
+  // When the owner opens Crew
+  await page.goto(`${c.w.srv.origin}/crew`);
+
+  // Then "devtool" shows the label "Waiting" and no group or count says "Waiting on you"
+  await expect(crewRow(page, "devtool")).toContainText("Waiting");
+  await expect(page.getByText(/waiting on you/i).filter({ visible: true })).toHaveCount(0);
+
+  // When the owner opens the profile of "devtool"
+  await crewRow(page, "devtool").click();
+
+  // Then the state reads "Waiting" and the profile has no "Waiting on you" section
+  await expect(page.locator(".pstate")).toHaveText("Waiting");
+  await expect(page.getByText(/waiting on you/i).filter({ visible: true })).toHaveCount(0);
 });
 
 scenario("An agent profile shows what waits on the owner and shared conversations", { tag: ["@browser"] }, async ({ server, dataDir, page, context }) => {
