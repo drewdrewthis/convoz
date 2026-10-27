@@ -135,11 +135,17 @@ scenario("A second watcher is refused while convoz run serves the agent", { tag:
     open.stop();
   }
   await open.done;
-  await testApi(w.srv).advanceClock(31_000);
 
   // And 30 seconds after the runner stopped, "convoz watch --as devtool" works again
-  const killed = w.box.start(argv, { timeoutMs: 8_000 }); // the harness kills it: no clean end, so only the clock lets go
-  await killed.waitForStdout(/serving @devtool/);
+  // The server starts the watch's 30 s from when it sees the poll end, which can come after the process exited and after the clock
+  // moved. A runner refused then holds nothing, so the clock moves on once more (once: a slot that never frees still fails).
+  const serving = async (last: boolean) => {
+    await testApi(w.srv).advanceClock(31_000);
+    const run = w.box.start(argv, { timeoutMs: 8_000 }); // the harness kills it: no clean end, so only the clock lets go
+    const served = await run.waitForStdout(/serving @devtool/).then(() => true, (err: Error) => (last || !/already has a convoz watch open/.test(err.message) ? Promise.reject(err) : false));
+    return served ? run : null;
+  };
+  const killed = (await serving(false)) ?? (await serving(true))!;
   await killed.done;
   const within = await w.box.run(["watch", "--once", "--timeout", "2s", "--sid", other.sid], { timeoutMs: 15_000 });
   expect(within.stderr, "still held in the grace time").toContain("served by convoz run");

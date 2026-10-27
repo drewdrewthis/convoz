@@ -5,6 +5,7 @@ import { must, signIn, type Owner } from "../lib/owner.ts";
 import { send, type Res } from "../lib/http.ts";
 import { ask, decrypt, pushWorld, received, sleep, type PushWorld, type Shown } from "../lib/push-wp14.ts";
 import { expect, scenario } from "../lib/scenario.ts";
+import { installed } from "../lib/wp17.ts";
 
 /*
  * crew.feature, rule "An agent's handle can change" (I-51), user-facing and contract bindings.
@@ -87,6 +88,7 @@ scenario("An agent changes its own handle at once", { tag: ["@cli", "@browser"] 
 
   // And the owner sees no Now card about it
   await signInBrowser(w.srv, w.owner, page, context);
+  await installed(page); // a cold page carries /api/now inline, and the wait below would never end
   const nowLoaded = page.waitForResponse((r) => r.url().endsWith("/api/now"));
   await page.reload();
   await nowLoaded;

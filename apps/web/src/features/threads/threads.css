@@ -9,6 +9,12 @@
   .ithread .msg .byline .ava { width: 20px; height: 20px; font-size: 11px; }
   .ithread .msg .text { font-size: 14px; line-height: 1.45; }
   .ithread .msg.mine .main > .text { padding: 6px 12px; }
+  /* the owner's reply keeps its bubble but starts at the thread's left edge, like an agent's: not right-aligned mid-screen (issue 83) */
+  .ithread .msg.mine .main { max-width: none; margin-left: 0; align-items: flex-start; }
+  .ithread .msg.mine .byline { justify-content: flex-start; }
+  /* the time is at the left now, so the actions button takes the free right side, as on an agent's reply */
+  .ithread .msg.mine .msg-actions { left: auto; right: 4px; flex-direction: row; }
+  .ithread .msg.mine .msg-menu { left: auto; right: 0; }
   /* folded: each reply is one line, and what hangs under it (seen, link previews) waits for the unfolded thread */
   .ithread.folded .msg .main > :not(.byline) { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; }
   /* a file or a card has no lines to count: it is cut to one line's height (the text's own clamp keeps the owner's bubble padding) */

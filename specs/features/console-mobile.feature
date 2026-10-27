@@ -188,6 +188,13 @@ Feature: Console on a phone
       Then the app shows Sign in with the note "Signed out"
       And the old session no longer works
 
+    @v1 @browser @phone
+    Scenario: Sign out still says Signed out when a read of the page is refused at the same moment
+      Given the owner is signed in on a phone and a Now read is waiting on the way to the server
+      And the sign-in page loads only after that read is let go, as it would on a slow link
+      When the owner picks "Sign out" in the account menu and the held read gets its refusal (the session is gone)
+      Then the app shows Sign in with the note "Signed out"
+
   Rule: The layout fits a phone
 
     @v1 @browser @phone
