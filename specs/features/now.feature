@@ -93,8 +93,8 @@ Feature: Now
     Scenario: A sidebar ask card shows the title, the first answer and Open
       Given "devtool" asked "Merge #415 on its own?" with "Merge it" recommended and "Hold it" the alternative in conversation 52
       When the owner opens conversation 41 on a wide screen and turns the rail to Now
-      Then the ask card in the rail shows the question, a "Merge it" button and an "Open" link to conversation 52
-      And it shows no "Hold it", "Quick reply", "Snooze", "Dismiss" or "I have questions"
+      Then the ask card in the rail shows the question, a "Merge it" button and an "Open conversation" link to conversation 52
+      And it offers Dismiss, and shows no "Hold it", "Quick reply", "Snooze" or "I have questions"
       When the owner taps "Merge it"
       Then the ask is answered with "Merge it" and leaves the rail
 
