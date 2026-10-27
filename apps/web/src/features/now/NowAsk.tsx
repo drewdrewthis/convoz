@@ -26,8 +26,22 @@ interface NowAskProps {
   compact?: boolean;
 }
 
-/** CompactAsk is the sidebar's ask card: the question, one tap for the recommended answer, and Open for everything else. */
-function CompactAsk({ ask, busy, answer, thread }: Pick<NowAskProps, "ask" | "busy" | "answer"> & { thread: ReactNode }) {
+/** CompactFoot is the quiet row under the sidebar card's answer: the way into the conversation and Dismiss. "Open" alone read as the ask's state (owner, conv 179 msg 8524). */
+function CompactFoot({ href, onDismiss }: { href: string; onDismiss(): void }) {
+  return (
+    <div className="-ml-8 flex flex-wrap">
+      <Button variant="text" size="inline" href={href}>
+        Open conversation
+      </Button>
+      <Button variant="text" size="inline" onClick={onDismiss}>
+        Dismiss
+      </Button>
+    </div>
+  );
+}
+
+/** CompactAsk is the sidebar's ask card: the question, one tap for the recommended answer, and Open conversation or Dismiss for the rest. */
+function CompactAsk({ ask, busy, answer, dismiss, thread }: Pick<NowAskProps, "ask" | "busy" | "answer" | "dismiss"> & { thread: ReactNode }) {
   const id = useId();
   const first = ask.options[0];
   const p = ask.permission;
@@ -56,11 +70,9 @@ function CompactAsk({ ask, busy, answer, thread }: Pick<NowAskProps, "ask" | "bu
             <Button size="option" variant="primary" disabled={busy} onClick={() => answer(ask, { choice: "recommended" })}>
               Go
             </Button>
-            <Button variant="text" size="inline" className="-ml-8 self-start" href={href}>
-              Open
-            </Button>
           </>
         )}
+        <CompactFoot href={href} onDismiss={() => dismiss(ask)} />
       </article>
     );
   }
@@ -75,9 +87,7 @@ function CompactAsk({ ask, busy, answer, thread }: Pick<NowAskProps, "ask" | "bu
           {first.label}
         </Button>
       ) : null}
-      <Button variant="text" size="inline" className="-ml-8 self-start" href={`/chats/${ask.conversation_id}`}>
-        Open
-      </Button>
+      <CompactFoot href={`/chats/${ask.conversation_id}`} onDismiss={() => dismiss(ask)} />
     </article>
   );
 }
@@ -86,7 +96,7 @@ function CompactAsk({ ask, busy, answer, thread }: Pick<NowAskProps, "ask" | "bu
 export function NowAsk({ ask, busy, presets, answer, dismiss, snooze, compact = false }: NowAskProps) {
   const id = useId();
   const thread = <FeedThread conversation={ask.conversation_id} root={ask.thread_root_id ?? ask.id} count={ask.reply_count} onReplied={repliedInThread} />;
-  if (compact && !ask.draft) return <CompactAsk ask={ask} busy={busy} answer={answer} thread={thread} />;
+  if (compact && !ask.draft) return <CompactAsk ask={ask} busy={busy} answer={answer} dismiss={dismiss} thread={thread} />;
   return (
     <>
       <AskCard
