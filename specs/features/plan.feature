@@ -84,7 +84,7 @@ Feature: Plans: what each agent is doing, what is next and what waits on the own
         | devtool                                                            | docs                                   | line                                    | tone  |
         | "devtool" works on "Building invites" ready in 30 minutes          | "docs" has finished "Write the README"   | Working · Building invites · ready ~HH:MM | green |
         | "devtool" has finished "One-time invites" and plans nothing more   | "docs" has no plan                      | Done · nothing planned                  | grey  |
-        | "devtool" was due 30 minutes ago with no update                    | "docs" works on "Docs" ready in 1 hour  | Late · was due HH:MM                    | amber |
+        | "devtool" was due 30 minutes ago with no update                    | "docs" works on "Docs" ready in 1 hour  | Behind · was due HH:MM                  | amber |
         | "devtool" works on "Building invites" and is blocked on "needs Tailscale ACL change" | "docs" was due 30 minutes ago | Blocked: needs Tailscale ACL change | red   |
         | "devtool" waits on the owner for "Approve the dot card"           | "docs" is blocked on "a missing key"    | Waiting on you: Approve the dot card    | amber |
 
@@ -158,7 +158,7 @@ Feature: Plans: what each agent is doing, what is next and what waits on the own
       Given "devtool" planned Doing "Building invites" ready in 30 minutes, and 31 minutes passed with no update
       And "docs" planned Doing "Docs" and is blocked on "needs Tailscale ACL change"
       When the owner opens conversation 41 and taps the line under the title
-      Then the card of "@devtool" shows "Late", "Was due" and "Ask for an update"
+      Then the card of "@devtool" shows "Behind", "Was due" and "Ask for an update"
       And the card of "@docs" shows "Blocked" and "Blocked: needs Tailscale ACL change"
 
   Rule: Each row of the Conversations list shows a small status icon next to its count
@@ -222,7 +222,7 @@ Feature: Plans: what each agent is doing, what is next and what waits on the own
     Scenario: A late agent is nudged once to update its plan, and the owner is not pushed
       Given "devtool" runs "convoz plan 41 --doing 'Building invites' --eta 30m"
       When 31 minutes pass with no plan or status update from "devtool"
-      Then the line of conversation 41 is "Late"
+      Then the line of conversation 41 is "Behind"
       And "convoz inbox" of "devtool" gives one item with the reason "status_due" for conversation 41 that asks it to update its plan
       And the owner gets no push
       When "devtool" acks it and 10 more minutes pass
