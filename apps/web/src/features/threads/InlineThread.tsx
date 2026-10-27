@@ -9,6 +9,7 @@ import { replyingNote, useReplying } from "../../shared/presence.ts";
 import { AttachmentList, MentionMenu, keepFocus, pasteFiles, useAttachments, useFileDrop, useMentionMenu } from "../composer/index.ts";
 import { useVoiceNote } from "../voice/index.ts";
 import { useThreads, type PendingReply } from "./store.ts";
+import { turnIntoConversation } from "./toConversation.ts";
 
 /** A folded thread shows its first replies, each cut to one line (owner, conv 112: "show at least three lines when collapsed"). */
 const FOLDED_REPLIES = 3;
@@ -99,6 +100,9 @@ export function InlineThread({ root, conversation, latest, bubbles }: InlineThre
           <Button variant="text" size="inline" className="ithreply" aria-label="Reply in thread" onClick={() => startReply(conversation, id)}>
             <ReplyIcon />
             <span aria-hidden="true">Reply</span>
+          </Button>
+          <Button variant="text" size="inline" className="ithreply" onClick={() => void turnIntoConversation(conversation, id).catch(() => {})}>
+            Turn into a conversation
           </Button>
         </div>
       </div>

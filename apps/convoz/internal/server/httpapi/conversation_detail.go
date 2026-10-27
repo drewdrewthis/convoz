@@ -24,6 +24,9 @@ func detailView(ctx context.Context, d pdb.DBTX, p authz.Principal, dir director
 	if cv.LinkURL != "" {
 		out.LinkURL = ptr(cv.LinkURL)
 	}
+	if out.Origin, err = originView(ctx, d, p, cv.ID); err != nil {
+		return wire.Conversation{}, err
+	}
 	if p.SessionID == 0 {
 		pf, err := prefs.OfConversation(ctx, d, p.Identity(), cv.ID)
 		if err != nil {

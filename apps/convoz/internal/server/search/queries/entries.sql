@@ -7,3 +7,7 @@ ON CONFLICT (message_id) DO UPDATE SET kind = excluded.kind, is_app = excluded.i
 -- name: DeleteEntry :exec
 -- The trigger search_entries_gone takes the words out of messages_fts with it.
 DELETE FROM search_entries WHERE message_id = sqlc.arg(message_id);
+
+-- name: MoveEntries :exec
+-- The messages of a thread that became a conversation are found in the new one.
+UPDATE search_entries SET conversation_id = sqlc.arg(to_conversation) WHERE message_id IN (SELECT value FROM json_each(sqlc.arg(ids)));

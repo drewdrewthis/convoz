@@ -295,3 +295,19 @@ Feature: Threads
       When the owner opens the message actions of message 900 and taps "Request mini app"
       Then the thread of message 900 gets the owner's reply to "@devtool" with "convoz app init" and "Good looks like"
       And the message actions of "Owner note here" have no "Request mini app"
+
+  # Issue 32 (https://github.com/drewdrewthis/convoz/issues/32), owner msgs 1591 and 2356: "I want threads to be able to be upgraded to
+  # their own conversation, but also maybe they carry the metadata of where they came from." Only the owner can turn a thread into a conversation.
+  # Owner, ask 9259 (https://convoz.drewdrewthis.com/chats/179#m9259): the replies move into the new conversation, authors kept; the root stays.
+  Rule: The owner can turn a thread into its own conversation that takes its replies and links back to the thread
+
+    @v1 @browser
+    Scenario: The owner turns a thread into a conversation and can go back to the thread
+      Given the owner replied in thread 900 with "Can step 1 ship on its own?" and "devtool" answered "Yes, it needs no API."
+      When the owner taps "Turn into a conversation" on the thread of message 900
+      Then a new conversation titled "Step 1 is the filter chips UI" opens with "devtool" and "docs" in it
+      And the replies of the thread are messages of it, by the same people
+      And it says "Started from a thread in Ship search filters"
+      When the owner taps that line
+      Then conversation 41 opens at message 900
+      And the thread under message 900 has no replies left

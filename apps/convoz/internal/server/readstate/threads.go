@@ -89,3 +89,8 @@ func ReadThread(ctx context.Context, d pdb.DBTX, identityID, conversationID, roo
 	n, err := db.New(d).MoveThreadRead(ctx, db.MoveThreadReadParams{ReplyID: replyID, IdentityID: identityID, ConversationID: conversationID, RootID: rootID})
 	return n > 0, err
 }
+
+// ForgetThread drops everyone's position in the thread of root: it has no replies left to be read.
+func ForgetThread(ctx context.Context, d pdb.DBTX, conversationID, rootID int64) error {
+	return db.New(d).DeleteThreadReads(ctx, db.DeleteThreadReadsParams{ConversationID: conversationID, RootID: rootID})
+}

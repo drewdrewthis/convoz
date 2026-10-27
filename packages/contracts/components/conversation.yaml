@@ -44,6 +44,14 @@ Conversation:
     owner_last: { type: boolean, description: "The owner wrote the newest message of the main list: the conversation waits on the agents, so it never goes Older (#42). Absent when not." }
     started_by: { $ref: "../openapi.yaml#/components/schemas/Person" }
     link_url: { type: string, description: The linked pull request (https). }
+    origin:
+      type: object
+      description: The thread this conversation was made from. Absent for any other conversation, and when the caller cannot read the one the thread is in.
+      required: [conversation_id, message_id]
+      properties:
+        conversation_id: { type: integer, format: int64, description: The conversation the thread is in. }
+        conversation_title: { type: string, description: Its title; absent when it has none. }
+        message_id: { type: integer, format: int64, description: The root message of the thread. }
     muted_until: { type: integer, format: int64, description: The caller muted it until this epoch ms (253402300799000 is forever). Absent when not muted. }
     pinned:
       type: array

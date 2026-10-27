@@ -86,3 +86,8 @@ func Targets(agents, mentioned, posters []int64, inThread bool) []int64 {
 	}
 	return agents
 }
+
+// ThreadGone forgets the reminder of a thread whose replies moved out of its conversation.
+func ThreadGone(ctx context.Context, d pdb.DBTX, conversation, root int64) error {
+	return clearPlace(ctx, d, Place{Conversation: conversation, ThreadRoot: root})
+}

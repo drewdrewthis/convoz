@@ -224,6 +224,38 @@ func (q *Queries) GetConversationAny(ctx context.Context, id int64) (Conversatio
 	return i, err
 }
 
+const getOrigin = `-- name: GetOrigin :one
+SELECT conversation_id, source_conversation_id, message_id, created_at FROM conversation_origins WHERE conversation_id = ?1
+`
+
+func (q *Queries) GetOrigin(ctx context.Context, conversationID int64) (ConversationOrigin, error) {
+	row := q.db.QueryRowContext(ctx, getOrigin, conversationID)
+	var i ConversationOrigin
+	err := row.Scan(
+		&i.ConversationID,
+		&i.SourceConversationID,
+		&i.MessageID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getOriginOfMessage = `-- name: GetOriginOfMessage :one
+SELECT conversation_id, source_conversation_id, message_id, created_at FROM conversation_origins WHERE message_id = ?1
+`
+
+func (q *Queries) GetOriginOfMessage(ctx context.Context, messageID int64) (ConversationOrigin, error) {
+	row := q.db.QueryRowContext(ctx, getOriginOfMessage, messageID)
+	var i ConversationOrigin
+	err := row.Scan(
+		&i.ConversationID,
+		&i.SourceConversationID,
+		&i.MessageID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getParticipant = `-- name: GetParticipant :one
 SELECT status, joined_message_id FROM participants
 WHERE conversation_id = ?1 AND identity_id = ?2
@@ -299,6 +331,28 @@ func (q *Queries) InsertConversation(ctx context.Context, arg InsertConversation
 	var id int64
 	err := row.Scan(&id)
 	return id, err
+}
+
+const insertOrigin = `-- name: InsertOrigin :exec
+INSERT INTO conversation_origins (conversation_id, source_conversation_id, message_id, created_at)
+VALUES (?1, ?2, ?3, ?4)
+`
+
+type InsertOriginParams struct {
+	ConversationID       int64
+	SourceConversationID int64
+	MessageID            int64
+	CreatedAt            int64
+}
+
+func (q *Queries) InsertOrigin(ctx context.Context, arg InsertOriginParams) error {
+	_, err := q.db.ExecContext(ctx, insertOrigin,
+		arg.ConversationID,
+		arg.SourceConversationID,
+		arg.MessageID,
+		arg.CreatedAt,
+	)
+	return err
 }
 
 const insertParticipant = `-- name: InsertParticipant :exec
@@ -688,6 +742,33 @@ type RecordMainPostParams struct {
 
 func (q *Queries) RecordMainPost(ctx context.Context, arg RecordMainPostParams) error {
 	_, err := q.db.ExecContext(ctx, recordMainPost, arg.MessageID, arg.At, arg.ID)
+	return err
+}
+
+const recordMoved = `-- name: RecordMoved :exec
+UPDATE conversations
+SET message_count = max(message_count + ?1, 0), last_message_id = ?2, last_main_id = ?3,
+    last_activity_at = max(last_activity_at, ?4)
+WHERE id = ?5
+`
+
+type RecordMovedParams struct {
+	Delta         int64
+	LastMessageID int64
+	LastMainID    int64
+	At            interface{}
+	ID            int64
+}
+
+// Replies left or joined the main list: the count moves by delta, the newest ids are as the caller read them, activity only grows.
+func (q *Queries) RecordMoved(ctx context.Context, arg RecordMovedParams) error {
+	_, err := q.db.ExecContext(ctx, recordMoved,
+		arg.Delta,
+		arg.LastMessageID,
+		arg.LastMainID,
+		arg.At,
+		arg.ID,
+	)
 	return err
 }
 
