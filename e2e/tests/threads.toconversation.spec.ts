@@ -1,4 +1,5 @@
-import { ROOT_TEXT, inlineThread, ownerReplies, threadWorld } from "../lib/threads-wp5.ts";
+import { ROOT_TEXT, agentReplies, inlineThread, ownerReplies, threadWorld } from "../lib/threads-wp5.ts";
+import { message } from "../lib/chat-ui.ts";
 import { must } from "../lib/owner.ts";
 import { expect, scenario } from "../lib/scenario.ts";
 
@@ -11,6 +12,7 @@ scenario("The owner turns a thread into a conversation and can go back to the th
   // Given the owner replied in thread 900 with "Can step 1 ship on its own?"
   const t = await threadWorld({ server, page, context }, { browser: true });
   await ownerReplies(t, "Can step 1 ship on its own?");
+  await agentReplies(t, t.dev, "Yes, it needs no API.");
   await page.goto(`${t.w.srv.origin}/chats/${t.conv}`);
   const thread = inlineThread(page, ROOT_TEXT);
 
@@ -24,6 +26,10 @@ scenario("The owner turns a thread into a conversation and can go back to the th
   const row = must(await t.w.owner.client.get(`/api/conversations/${made}`), "read the new conversation").json().conversation;
   expect(row.participants.map((p: { handle: string }) => p.handle)).toEqual(expect.arrayContaining(["devtool", "docs"]));
 
+  // And the replies of the thread are its messages, by the same people
+  await expect(message(page, "Can step 1 ship on its own?")).toBeVisible();
+  await expect(message(page, "Yes, it needs no API.")).toBeVisible();
+
   // And it says "Started from a thread in Ship search filters"
   const from = page.getByRole("link", { name: "Started from a thread in Ship search filters" });
   await expect(from).toBeVisible();
@@ -33,4 +39,9 @@ scenario("The owner turns a thread into a conversation and can go back to the th
 
   // Then conversation 41 opens at message 900
   await expect(page).toHaveURL(new RegExp(`/chats/${t.conv}#m${t.root}$`));
+
+  // And the thread under message 900 has no replies left
+  await expect(message(page, ROOT_TEXT)).toBeVisible();
+  await expect(inlineThread(page, ROOT_TEXT)).toHaveCount(0);
+  await expect(message(page, "Can step 1 ship on its own?")).toHaveCount(0);
 });
