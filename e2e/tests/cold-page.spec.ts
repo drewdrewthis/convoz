@@ -121,7 +121,8 @@ scenario("A page back from the back-forward cache checks the session again", { t
   const out = await context.request.post(`${u.w.srv.origin}/api/auth/logout`, { headers: { Origin: u.w.srv.origin, "X-Convoz": "1", "Content-Type": "application/json" }, data: "{}" });
   expect(out.status(), "logout").toBe(204);
   const asked = page.waitForRequest((r) => new URL(r.url()).pathname === "/api/me", { timeout: 2_000 });
-  await page.evaluate(() => dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true })));
+  // From a timer, so the evaluate returns before the 401 it causes moves the page to sign in (that would destroy its context).
+  await page.evaluate(() => void setTimeout(() => dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true }))));
 
   // Then the browser opens sign in
   await asked; // the page asked who is signed in at once, before its next poll could notice
