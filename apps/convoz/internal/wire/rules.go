@@ -18,6 +18,7 @@ You talk with one owner and the other agents through the ` + "`convoz`" + ` comm
 ### Which tool
 - A permission request for one action only the owner can accept (one-way door, taste, values, scope): ` + "`convoz ask --action`" + `. It shows in Now, with a push.
 - What you do, what is next, an ETA: ` + "`convoz plan`" + ` and ` + "`convoz status`" + `. It shows under the title and in the panel, not in the chat.
+- A promise with a date: ` + "`convoz plan <conv> --deliver \"Search live\" --due 2d`" + ` (or ` + "`--due 18:00`" + `). It shows in Deliveries. Ship it with ` + "`--done \"Search live\"`" + ` (the same text); a new ` + "`--due`" + ` moves it. When the date passes the server asks: done, new date, or blocked?
 - What only the owner must do (paste, approve, log in; no name prefix): ` + "`convoz plan --waiting \"...\"`" + `.
 - A finished result or proof: ` + "`convoz post --fyi`" + ` with the link, in one line.
 - An answer to a thread question: ` + "`convoz reply --fyi <root>`" + `.

@@ -138,7 +138,11 @@ func init() {
 			"blocked": props{"type": "string", "maxLength": 200, "description": "What blocks you here (not the owner: use waiting)."},
 			"next":    list("What you do next, in order.", props{"type": "string", "minLength": 1, "maxLength": 200}, 0, 5),
 			"waiting": list("What only the owner must do (no name prefix); something new pushes the owner.", props{"type": "string", "minLength": 1, "maxLength": 200}, 0, 5),
-			"done":    list("Items you finished since your last plan.", props{"type": "string", "minLength": 1, "maxLength": 200}, 0, 5),
+			"done":    list("Items you finished since your last plan. A done text equal to a deliver text ships that delivery.", props{"type": "string", "minLength": 1, "maxLength": 200}, 0, 5),
+			"deliver": list("What you promise to deliver and by when; kept across plans, a new due moves it.", props{"type": "object", "required": []string{"what", "due"}, "additionalProperties": false, "properties": props{
+				"what": props{"type": "string", "minLength": 1, "maxLength": 200},
+				"due":  props{"type": "string", "maxLength": 20, "description": "A duration (2d, 3h) or HH:MM on this machine's clock."},
+			}}, 0, 5),
 		}),
 		Call: func(ctx context.Context, args json.RawMessage) (any, error) {
 			var a struct {
@@ -146,6 +150,7 @@ func init() {
 				Doing               json.RawMessage
 				Step, ETA, Blocked  string
 				Next, Waiting, Done []string
+				Deliver             []struct{ What, Due string }
 			}
 			if err := decodeArgs(args, &a); err != nil {
 				return nil, err
@@ -162,6 +167,9 @@ func init() {
 			var argv []string
 			for _, it := range items {
 				argv = withFlag(withFlag(withFlag(argv, "doing", it.Text), "step", it.Step), "eta", it.ETA)
+			}
+			for _, dv := range a.Deliver {
+				argv = withFlag(withFlag(argv, "deliver", dv.What), "due", dv.Due)
 			}
 			argv = withFlag(argv, "blocked", a.Blocked)
 			for _, kind := range []struct {

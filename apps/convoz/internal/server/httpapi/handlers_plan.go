@@ -27,6 +27,8 @@ import (
 const (
 	eventPlanChanged = "plan.changed.v1"
 	eventPlanNudged  = "plan.nudged.v1"
+	// eventDeliveryNudged is the event of an ask about a late deliverable; eventPlanNudged is the ask about a late step.
+	eventDeliveryNudged = "plan.delivery_nudged.v1"
 )
 
 // putPlan is PUT /api/conversations/:id/plan: the agent replaces its whole plan for the conversation at once, so the owner never sees

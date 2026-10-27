@@ -78,6 +78,18 @@ Feature: Deliveries: what each agent will deliver, and when
       When "devtool" runs "convoz plan 41 --deliver 'Search filters live' --due 2h" and 121 minutes pass
       Then "devtool" gets one more "status_due" item that names "Search filters live"
 
+    @v1 @cli
+    Scenario: A late step and a late delivery each ask once, with their own text
+      Given "devtool" runs "convoz plan 41 --doing 'Building invites' --eta 30m --deliver 'Search filters live' --due 1h"
+      When 31 minutes pass
+      Then "devtool" gets one "status_due" item that names "Building invites" and does not ask about the delivery
+      When the due date passes while that item is not acked
+      Then the same item still reads about the step
+      When "devtool" acks it
+      Then "devtool" gets one "status_due" item that asks "done, new date, or blocked?" about "Search filters live"
+      When "devtool" acks it and 90 minutes pass
+      Then no item asks about the delivery again
+
     @v1 @browser
     Scenario: Now lists late deliverables under Overdue until the agent gives a new date
       Given "devtool" delivers "Search filters live" in 30 minutes
