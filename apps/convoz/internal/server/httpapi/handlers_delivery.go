@@ -142,14 +142,14 @@ func (s *Server) nudgeDeliveries(ctx context.Context) error {
 			if member, err := isMember(ctx, d, p.Conversation, p.Agent); err != nil || !member {
 				return err
 			}
-			if err := plan.MarkNudged(ctx, d, p, due); err != nil {
-				return err
-			}
-			// An unacked ask to update this plan reads its text when delivered, so it already names the late deliverable.
+			// An unacked ask about the plan keeps its own text, so the delivery waits unmarked and is asked once that ask is acked.
 			if open, err := inbox.HasStatusDue(ctx, d, p.Agent, p.Conversation); err != nil || open {
 				return err
 			}
-			seq, err := event.Write(ctx, d, now, event.Entry{Type: eventPlanNudged, Audience: p.Agent, Conversation: p.Conversation,
+			if err := plan.MarkNudged(ctx, d, p, due); err != nil {
+				return err
+			}
+			seq, err := event.Write(ctx, d, now, event.Entry{Type: eventDeliveryNudged, Audience: p.Agent, Conversation: p.Conversation,
 				Payload: map[string]any{"conversation_id": p.Conversation}})
 			if err != nil {
 				return err

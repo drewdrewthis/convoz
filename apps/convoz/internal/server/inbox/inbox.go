@@ -378,6 +378,11 @@ func StatusDue(ctx context.Context, d pdb.DBTX, now time.Time, identityID, conve
 	return db.New(d).InsertStatusDueItem(ctx, db.InsertStatusDueItemParams{IdentityID: identityID, ConversationID: nullInt(conversationID), SourceSeq: sourceSeq, Now: now.UnixMilli()})
 }
 
+// StatusDueSource is the seq of the event that made a status_due item.
+func StatusDueSource(ctx context.Context, d pdb.DBTX, identityID, itemID int64) (int64, error) {
+	return db.New(d).StatusDueSource(ctx, db.StatusDueSourceParams{ID: itemID, IdentityID: identityID})
+}
+
 // Waiting is the oldest message that waits for an agent in one conversation: a conversation item nobody acked yet.
 type Waiting struct {
 	Identity     int64
