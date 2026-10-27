@@ -11,7 +11,9 @@
       to working). Everything is replaced at once except Done, whose items go in front of the kept history (20 at most). A Waiting item
       that was not there before pushes the owner (plan_waiting); a finished item, or something new waiting, writes one quiet system line
       (plan.changed). Up to 3 Now items (`now`) tell of parallel work: each has its own step and eta, and each is late by its own eta. More than 3 is 400 with the field. A conversation the caller is not in is 404. More than 5 next, waiting or done items, a text over 200 characters,
-      an eta that is no duration up to 7 days nor HH:MM, or a step that is not N/M is 400 `invalid_request` with the field. A retry
+      an eta that is no duration up to 7 days nor HH:MM, or a step that is not N/M is 400 `invalid_request` with the field. Deliverables
+      (`deliver`) are kept across replacements: one with a known text gets its new due date, a done item with its text ships it; more than
+      5 in the plan is 400 with the field `deliver`, and a due that is no duration up to 60 days, HH:MM nor YYYY-MM-DD HH:MM is 400 with `due`. A retry
       with the client_id of the request that wrote the plan changes nothing.
     parameters:
       - $ref: "../openapi.yaml#/components/parameters/Id"
@@ -46,4 +48,20 @@
         content:
           application/json:
             schema: { $ref: "../openapi.yaml#/components/schemas/PlanBoard" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/deliveries:
+  get:
+    x-authz: { auth: owner }
+    operationId: getDeliveries
+    summary: Every deliverable of every plan, for the owner's Deliveries page.
+    description: |
+      The owner only. Each deliverable carries its conversation's title, its agent, its due date and its state (late, waiting, at_risk,
+      on_track), and its plan's Now items, waiting count, blocker and update time. The late ones come first, then by due date.
+      `shipped` lists the deliverables reported done in the last 48 hours. A conversation in the trash is left out.
+    responses:
+      "200":
+        description: The deliveries.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/Deliveries" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }

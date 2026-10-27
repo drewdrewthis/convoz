@@ -15,10 +15,11 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Brief, handoff, read and search for agents](#brief-handoff-read-and-search-for-agents) (17)
 - [Composer](#composer) (28)
 - [Console on a phone](#console-on-a-phone) (29)
-- [Conversations](#conversations) (71)
+- [Conversations](#conversations) (73)
 - [Crew: identities, machines and sessions](#crew-identities-machines-and-sessions) (35)
 - [Data at rest, backups and deletion](#data-at-rest-backups-and-deletion) (10)
 - [Day labels](#day-labels) (4)
+- [Deliveries: what each agent will deliver, and when](#deliveries-what-each-agent-will-deliver-and-when) (7)
 - [Errors in the web app reach the server log](#errors-in-the-web-app-reach-the-server-log) (3)
 - [Machine login with a device flow](#machine-login-with-a-device-flow) (23)
 - [Messages and their types](#messages-and-their-types) (14)
@@ -30,7 +31,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Plans: what each agent is doing, what is next and what waits on the owner](#plans-what-each-agent-is-doing-what-is-next-and-what-waits-on-the-owner) (25)
 - [Platform rules every module relies on](#platform-rules-every-module-relies-on) (2)
 - [Poor connections](#poor-connections) (11)
-- [Rail](#rail) (19)
+- [Rail](#rail) (24)
 - [Search](#search) (12)
 - [Security walls](#security-walls) (12)
 - [Send a web page to an agent from the browser](#send-a-web-page-to-an-agent-from-the-browser) (3)
@@ -380,7 +381,7 @@ I am never stuck at a passkey prompt that does nothing.
 ## Conversations
 
 Each piece of work has one place and only the agents that belong there.
-71 scenarios.
+73 scenarios.
 
 - **The owner starts and names conversations**
   - [A new conversation starts blank and takes a title from its first message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L19)
@@ -462,6 +463,8 @@ Each piece of work has one place and only the agents that belong there.
   - [On a phone an agent reply shows paragraphs, code and links safely](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L591)
   - [On a phone the conversation pages fit a 320 px screen with large tap targets](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L603)
   - [On a phone the conversation pages look right in dark and light](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L609)
+  - [The agent handle under the title of a conversation opens that agent](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L616)
+  - [The agent handle on its card in the details panel opens that agent](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L622)
 
 ## Crew: identities, machines and sessions
 
@@ -546,6 +549,22 @@ I know when things happened without opening each message.
   - [Hovering the time of a message shows its full date and time](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/day-labels.feature#L41)
 - **Every row of the transcript shares one column**
   - [On a wide screen a notice line starts at the same left edge as the messages](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/day-labels.feature#L50)
+
+## Deliveries: what each agent will deliver, and when
+
+I know when things will be delivered, and a missed date is chased without me.
+7 scenarios.
+
+- **An agent names what it will deliver and by when, and it stays until it ships**
+  - [An agent sets a deliverable with a due date, and it stays until it ships](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L21)
+- **The owner sees every deliverable on one page: what to act on first, then by day**
+  - [Deliveries shows what is late first, then what waits on the owner, then each day](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L34)
+  - [A deliverable whose plan is blocked or a day old shows as at risk](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L52)
+  - [With no deliverables the page says how they come](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L63)
+- **When a due date passes, the agent is asked first, once per date, and the owner sees it on Now without a push**
+  - [When a due date passes, the agent is asked once: done, new date, or blocked](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L70)
+  - [A late step and a late delivery each ask once, with their own text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L82)
+  - [Now lists late deliverables under Overdue until the agent gives a new date](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L94)
 
 ## Errors in the web app reach the server log
 
@@ -843,7 +862,7 @@ I can trust it from anywhere.
 ## Rail
 
 Things stay where I put them and unread work stands out.
-19 scenarios.
+24 scenarios.
 
 - **Order is the owner's; a new message puts its conversation on top (I-21)**
   - [A new conversation goes to the top](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L20)
@@ -863,12 +882,18 @@ Things stay where I put them and unread work stands out.
   - [Back and forward move between visited conversations](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L115)
   - [Cmd+K opens search from anywhere](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L121)
   - [The owner folds the sidebar and it stays folded](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L127)
-  - [The question mark opens the shortcut list](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L137)
+  - [The owner resizes the sidebar and the width is remembered](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L138)
+  - [The question mark opens the shortcut list](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L153)
 - **On a wide screen Now is a view of the rail**
-  - [Now opens in the rail beside the open conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L146)
-  - [Picking a Now item opens its conversation beside the Now list](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L155)
-  - [Conversations, Escape and Now again each take the rail back to the conversations](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L164)
-  - [The rail stays in Now after a reload](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L176)
+  - [Now opens in the rail beside the open conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L162)
+  - [Picking a Now item opens its conversation beside the Now list](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L171)
+  - [Conversations, Escape and Now again each take the rail back to the conversations](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L180)
+  - [The rail stays in Now after a reload](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L192)
+- **Each rail row has a menu of actions**
+  - [The row menu renames a conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L202)
+  - [The row menu closes a conversation into Older and reopens it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L210)
+  - [The row menu closes a conversation where the owner wrote last](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L217)
+  - [The row menu stars, unstars and marks read](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L223)
 
 ## Search
 

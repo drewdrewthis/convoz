@@ -295,7 +295,7 @@ export function Conversation() {
           <p id="subtitle" className="subtitle" hidden={!presence || Boolean(attention)}>
             {agent && presence ? (
               <>
-                <span className="who">{`@${agent.handle}`}</span>
+                <a className="who" href={`/crew/${encodeURIComponent(agent.handle)}`}>{`@${agent.handle}`}</a>
                 <span className={`presence ${presence[1]}`.trim()}>{presence[0]}</span>
               </>
             ) : null}

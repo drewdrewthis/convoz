@@ -6,6 +6,7 @@ export { CallButton } from "./CallButton.tsx";
 export { CallLogRow } from "./CallLogRow.tsx";
 export { CallPill } from "./CallPill.tsx";
 export { splitCallLog } from "./log.ts";
+export { sendKeptLogs } from "./pendingLog.ts";
 export { nowCallLive, startNowCall } from "./store.ts";
 export { ViaVoiceMark } from "./ViaVoiceMark.tsx";
 export { useVoiceOn } from "./voiceOn.ts";

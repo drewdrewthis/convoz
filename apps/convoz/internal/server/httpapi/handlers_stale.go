@@ -22,8 +22,15 @@ func (s *Server) markStale(w http.ResponseWriter, r *http.Request, c *call) {
 	}
 	var in struct {
 		Reason string `json:"reason"`
+		Reopen bool   `json:"reopen"`
+		Force  bool   `json:"force"`
 	}
 	if !decode(w, r, &in) {
+		return
+	}
+	byOwner := c.p.SessionID == 0 && c.p.Role == "owner" // a guest or member (no session either) counts as an agent here
+	if in.Reopen && !byOwner {
+		writeErr(w, http.StatusForbidden, "forbidden", "Only the owner may reopen a conversation.")
 		return
 	}
 	reason := conversation.CleanTitle(in.Reason) // untrusted text: control and bidi characters go, as in an agent's title
@@ -32,6 +39,8 @@ func (s *Server) markStale(w http.ResponseWriter, r *http.Request, c *call) {
 		return
 	}
 	who, now := c.p.Identity(), s.Clock.Now()
+	// The owner closing from the rail asks for it (force), so the owner-spoke-last guard does not bind him; the call's model and agents keep it.
+	skipGuard := byOwner && (in.Force || in.Reopen)
 	var visible, ownerLast bool
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
 		d := tx.DBTX()
@@ -46,10 +55,17 @@ func (s *Server) markStale(w http.ResponseWriter, r *http.Request, c *call) {
 		if err != nil {
 			return err
 		}
-		if ownerLast, err = ownerWroteLast(ctx, d, dir, cv); err != nil || ownerLast {
-			return err
+		if !skipGuard {
+			if ownerLast, err = ownerWroteLast(ctx, d, dir, cv); err != nil || ownerLast {
+				return err
+			}
 		}
-		if err := conversation.MarkStale(ctx, d, now, convID, reason); err != nil {
+		if in.Reopen && byOwner {
+			err = conversation.ClearStale(ctx, d, convID)
+		} else {
+			err = conversation.MarkStale(ctx, d, now, convID, reason)
+		}
+		if err != nil {
 			return err
 		}
 		_, err = event.Write(ctx, d, now, event.Entry{Type: eventConversationChanged, Actor: who, Session: c.p.SessionID, Conversation: convID, Payload: map[string]any{"conversation_id": convID}})

@@ -133,6 +133,22 @@ Feature: Rail
       When the owner presses Cmd+\
       Then the rail shows the conversations again
 
+    # Owner, conv 179 msg 9346: "I also want to be able to resize the sidebar. I want the width remembered also on refresh".
+    @v1 @browser
+    Scenario: The owner resizes the sidebar and the width is remembered
+      Given the owner has conversation 41 open on a wide screen
+      Then the handle does not cover the end of a row: its star works at the default width
+      When the owner drags the "Resize sidebar" handle 80 px to the right
+      Then the sidebar is 80 px wider and the conversation moves with it
+      When the owner reloads the page
+      Then the sidebar has the same width
+      When the owner presses the Left arrow on the handle
+      Then the sidebar is narrower
+      When the owner double-clicks the handle
+      Then the sidebar has its first width again
+      Then the handle is gone when the sidebar is folded or shows Now
+      And on a narrow screen there is no sidebar to resize
+
     @v1 @browser
     Scenario: The question mark opens the shortcut list
       When the owner presses "?"
@@ -178,3 +194,39 @@ Feature: Rail
       And the owner has conversation 41 open with Now in the rail
       When the owner reloads the page
       Then the rail still lists the ask "Merge #415 on its own?" and is about 360 px wide
+
+  # Drew, 2026-10-27 (conv 179 msg 8722): the owner can close, rename and star a conversation from the sidebar, in a menu on each row.
+  Rule: Each rail row has a menu of actions
+
+    @v1 @browser
+    Scenario: The row menu renames a conversation
+      When the owner opens the menu of conversation 52 in the rail and picks "Rename"
+      And types "Runbook v2" and presses Enter
+      Then the rail row of conversation 52 reads "Runbook v2"
+      When the owner opens the menu again, picks "Rename", changes the text and presses Escape
+      Then the row still reads "Runbook v2"
+
+    @v1 @browser
+    Scenario: The row menu closes a conversation into Older and reopens it
+      When the owner opens the menu of conversation 52 in the rail and picks "Close"
+      Then conversation 52 sits under "Older · 1"
+      When the owner opens the menu of conversation 52 and picks "Reopen"
+      Then conversation 52 is back in the Conversations group
+
+    @v1 @browser
+    Scenario: The row menu closes a conversation where the owner wrote last
+      Given the owner wrote the last message in conversation 41
+      When the owner opens the menu of conversation 41 in the rail and picks "Close"
+      Then conversation 41 sits under "Older · 1"
+
+    @v1 @browser
+    Scenario: The row menu stars, unstars and marks read
+      Given "devtool" posts in conversation 60
+      When the owner opens the menu of conversation 60 in the rail and picks "Mark read"
+      Then conversation 60 shows no unread count
+      When the owner opens the menu of conversation 60 and picks "Star"
+      Then conversation 60 is in the Starred group
+      When the owner opens the menu of conversation 60 and picks "Unstar"
+      Then conversation 60 is in the Conversations group
+      When the owner sets the sidebar to 240 px, then to 200 px
+      Then at each width the menu button of conversation 60 can be clicked, and "Star" and "Unstar" work

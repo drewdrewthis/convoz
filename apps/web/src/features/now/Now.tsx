@@ -10,10 +10,12 @@ import { AllClear, NoDecisions } from "./AllClear.tsx";
 import { Folds, type FoldKey } from "./Folds.tsx";
 import { NowAsk } from "./NowAsk.tsx";
 import { NowReplied } from "./NowReplied.tsx";
+import { Overdue, useOverdue } from "./Overdue.tsx";
 import { PendingAdd } from "./PendingAdd.tsx";
 import { Mentions, OtherChats, Replies, unreadRows, useTriage } from "./Unread.tsx";
 import { useAskActions } from "./useAskActions.ts";
 import { needsYouCount, useNow } from "./store.ts";
+import { sendKeptLogs } from "../call/index.ts";
 
 interface NowProps {
   /** Drawn in the desktop rail (proposal §1): no notes and no wordmark, and it polls on its own, since no Now page around it does. */
@@ -37,6 +39,7 @@ export function Now({ compact = false, current = 0 }: NowProps = {}) {
   const [joined, setJoined] = useState<readonly string[]>([]);
   const deepLinked = useRef(false);
 
+  useEffect(() => void sendKeptLogs(), []);
   useEffect(() => {
     (async () => {
       setMe(await data.loadMe());
@@ -73,7 +76,9 @@ export function Now({ compact = false, current = 0 }: NowProps = {}) {
   const replied = now?.replied ?? [];
   const adds = now?.pending_adds ?? [];
   const some = Boolean(pending && (waiting || asks.length || adds.length));
-  const clear = Boolean(now) && !some && conversations !== null && unread.length === 0;
+  // A deliverable past its date is no decision, but the page is not all clear while one waits (ux spec, conv 179).
+  const overdue = useOverdue();
+  const clear = Boolean(now) && !some && conversations !== null && unread.length === 0 && !overdue.length;
 
   const needsYou = needsYouCount(now, conversations) ?? 0;
 
@@ -124,7 +129,7 @@ export function Now({ compact = false, current = 0 }: NowProps = {}) {
         ) : null}
       </div>
       <AllClear hidden={!clear} compact={compact} />
-      {now && !some && !mentions.length && unread.length ? <NoDecisions /> : null}
+      {now && !some && !mentions.length && (unread.length || overdue.length) ? <NoDecisions /> : null}
       <Folds
         snoozed={now?.snoozed ?? []}
         answered={now?.answered_today ?? []}
@@ -180,6 +185,7 @@ export function Now({ compact = false, current = 0 }: NowProps = {}) {
           ))}
         </div>
       </section>
+      <Overdue late={overdue} />
       {mentions.length ? <Mentions items={mentions} current={current} /> : null}
       {replies.length ? <Replies items={replies} current={current} /> : null}
       {replied.length ? <NowReplied asks={replied} /> : null}

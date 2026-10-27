@@ -1140,8 +1140,9 @@ export interface paths {
         put?: never;
         /**
          * An agent in the conversation marks it stale (`convoz stale`). The rail folds it into Older at once; the next message brings it back.
-         * @description An agent that is a participant may mark it (403 otherwise), and so may the owner (his voice call does). While the owner wrote the last
-         *     message the conversation waits on the agents and cannot go stale: 409 owner_spoke_last. The reason, when given, is kept with
+         * @description An agent that is a participant may mark it (403 otherwise), and so may the owner (his voice call, the row menu of the rail). While the owner wrote the last
+         *     message the conversation waits on the agents and cannot be marked by an agent: 409 owner_spoke_last; the owner is not bound by it when he sends
+         *     `force: true` (the rail). He may send `reopen: true` to take the mark off. The reason, when given, is kept with
          *     the mark (stale_reason). Marking it again moves the time of the mark and replaces the reason. No system line is written.
          */
         post: operations["markStale"];
@@ -1464,7 +1465,9 @@ export interface paths {
          *     to working). Everything is replaced at once except Done, whose items go in front of the kept history (20 at most). A Waiting item
          *     that was not there before pushes the owner (plan_waiting); a finished item, or something new waiting, writes one quiet system line
          *     (plan.changed). Up to 3 Now items (`now`) tell of parallel work: each has its own step and eta, and each is late by its own eta. More than 3 is 400 with the field. A conversation the caller is not in is 404. More than 5 next, waiting or done items, a text over 200 characters,
-         *     an eta that is no duration up to 7 days nor HH:MM, or a step that is not N/M is 400 `invalid_request` with the field. A retry
+         *     an eta that is no duration up to 7 days nor HH:MM, or a step that is not N/M is 400 `invalid_request` with the field. Deliverables
+         *     (`deliver`) are kept across replacements: one with a known text gets its new due date, a done item with its text ships it; more than
+         *     5 in the plan is 400 with the field `deliver`, and a due that is no duration up to 60 days, HH:MM nor YYYY-MM-DD HH:MM is 400 with `due`. A retry
          *     with the client_id of the request that wrote the plan changes nothing.
          */
         put: operations["putPlan"];
@@ -1488,6 +1491,28 @@ export interface paths {
          *     not_responding or logged_out, late, stale, working, next, done. `next_change_at` says when time alone changes a line next; read again then.
          */
         get: operations["getPlans"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every deliverable of every plan, for the owner's Deliveries page.
+         * @description The owner only. Each deliverable carries its conversation's title, its agent, its due date and its state (late, waiting, at_risk,
+         *     on_track), and its plan's Now items, waiting count, blocker and update time. The late ones come first, then by due date.
+         *     `shipped` lists the deliverables reported done in the last 48 hours. A conversation in the trash is left out.
+         */
+        get: operations["getDeliveries"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3344,6 +3369,8 @@ export interface components {
             done?: string[];
             /** @description A retry with the same id after a lost answer changes nothing. */
             client_id?: string;
+            /** @description Adds deliverables or moves their dates. The plan keeps the ones not named; a done item with a deliverable's text ships it. */
+            deliver?: components["schemas"]["PlanDeliverRequest"][];
         };
         PlanStep: {
             at: number;
@@ -3354,6 +3381,78 @@ export interface components {
             step?: string;
             /** @description A duration (30m, 1h30m) or HH:MM in the zone of utc_offset. */
             eta?: string;
+        };
+        PlanDeliverRequest: {
+            text: string;
+            /** @description A duration up to 60 days (2d, 1d4h, 30m), HH:MM, or YYYY-MM-DD HH:MM; the last two in the zone of utc_offset. */
+            due: string;
+        };
+        PlanDeliver: {
+            text: string;
+            /**
+             * Format: int64
+             * @description Epoch ms on the server clock.
+             */
+            due: number;
+            /**
+             * Format: int64
+             * @description When the deliverable was first set.
+             */
+            since: number;
+        };
+        Delivery: {
+            /** Format: int64 */
+            conversation_id: number;
+            title: string;
+            /** Format: int64 */
+            identity_id: number;
+            handle: string;
+            text: string;
+            /**
+             * Format: int64
+             * @description Epoch ms on the server clock.
+             */
+            due: number;
+            /** Format: int64 */
+            since: number;
+            /**
+             * @description late: past due; waiting: the plan waits on the owner; at_risk: the plan is blocked or has had no update for a day.
+             * @enum {string}
+             */
+            state: "late" | "waiting" | "at_risk" | "on_track";
+            /** @description The plan has had no update for a day. */
+            stale: boolean;
+            doing: components["schemas"]["PlanNow"][];
+            /** @description How many items of the plan wait on the owner. */
+            waiting: number;
+            blocked?: string;
+            /** Format: int64 */
+            plan_updated_at: number;
+        };
+        ShippedDelivery: {
+            /** Format: int64 */
+            conversation_id: number;
+            title: string;
+            handle: string;
+            text: string;
+            /** Format: int64 */
+            at: number;
+        };
+        Deliveries: {
+            /**
+             * Format: int64
+             * @description The server's clock.
+             */
+            now: number;
+            /** @description The late ones first */
+            deliveries: components["schemas"]["Delivery"][];
+            /** @description Shipped in the last 48 hours */
+            shipped: components["schemas"]["ShippedDelivery"][];
+            /**
+             * Format: int64
+             * @description When time alone changes a state next; read again then.
+             */
+            next_change_at?: number;
         };
         PlanNow: {
             text: string;
@@ -3378,6 +3477,8 @@ export interface components {
             text: string;
             /** Format: int64 */
             at: number;
+            /** @description The item was a deliverable. */
+            shipped?: boolean;
         };
         Plan: {
             /** Format: int64 */
@@ -3402,6 +3503,8 @@ export interface components {
             waiting: components["schemas"]["PlanWaiting"][];
             /** @description Newest first */
             done: components["schemas"]["PlanDone"][];
+            /** @description What the agent will deliver and by when. */
+            deliver?: components["schemas"]["PlanDeliver"][];
             /** Format: int64 */
             updated_at: number;
             /**
@@ -5687,6 +5790,10 @@ export interface operations {
                 "application/json": {
                     /** @description Why it is stale */
                     reason?: string;
+                    /** @description The owner closes it although he wrote the last message (the rail's Close). Ignored from an agent. */
+                    force?: boolean;
+                    /** @description The owner takes the stale mark off (the rail's Reopen). An agent that sends it gets 403. */
+                    reopen?: boolean;
                 };
             };
         };
@@ -6275,6 +6382,27 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlanBoard"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getDeliveries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The deliveries. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Deliveries"];
                 };
             };
             default: components["responses"]["Error"];

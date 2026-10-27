@@ -15,12 +15,12 @@ export const byRank = (a: Conversation, b: Conversation): number => b.rank - a.r
 export const OLDER_AFTER_MS = 48 * 3_600_000;
 
 /**
- * isOlder: not starred, the owner did not write the newest message (that one waits on the agents, #42), and either no message for
- * 48 hours or an agent in it marked it stale since its last message (the server says so in `stale`; the next message clears it). A
- * new conversation with no message yet counts from when it was made.
+ * isOlder: not starred, and either marked stale since its last message (an agent did, or the owner closed it from the row menu; the
+ * server says so in `stale`; the next message clears it) or quiet for 48 hours while the owner did not write the newest message
+ * (that one waits on the agents, #42). A new conversation with no message yet counts from when it was made.
  */
 export function isOlder(c: Conversation, now = Date.now()): boolean {
-  return !c.starred && !c.owner_last && (c.stale === true || c.last_activity_at < now - OLDER_AFTER_MS);
+  return !c.starred && (c.stale === true || (!c.owner_last && c.last_activity_at < now - OLDER_AFTER_MS));
 }
 
 /** groups splits the list into Starred, Conversations and Older. Every group is in the owner's order (desktop and phone alike). */

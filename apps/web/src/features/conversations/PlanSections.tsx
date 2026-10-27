@@ -108,7 +108,7 @@ function stateOf(plan: Plan | undefined, agent: PlanAgent | undefined, now: numb
   if (!plan) return null;
   const sub = `updated ${ago(plan.updated_at, now)}`;
   if (plan.blocked) return { word: "Blocked", tone: "red", sub };
-  if (plan.doing && plan.eta && now >= plan.eta) return { word: "Late", tone: "amber", sub };
+  if (plan.doing && plan.eta && now >= plan.eta) return { word: "Behind", tone: "amber", sub };
   if (plan.doing && !plan.eta && plan.due_at && now >= plan.due_at) return { word: "No update", tone: "amber", sub: "no update for 2 h" };
   if (plan.doing) return { word: "Working", tone: "green", sub };
   if (plan.waiting.length) return { word: "Waiting on you", tone: "amber", sub };
@@ -120,14 +120,16 @@ function AgentCard({ person, plan, agent, conv, act, onRemove }: { person: Perso
   const st = stateOf(plan, agent, now);
   const h = person.handle;
   const seen = agent?.last_seen_at;
-  const late = st?.word === "Late" || st?.word === "No update";
+  const late = st?.word === "Behind" || st?.word === "No update";
   return (
     <li id={planHash(h).slice(1)} className="pcard ag">
       <div className="aghead">
         <Ava handle={h} />
         <span className="pname">
           <span className="flex items-center gap-6">
-            <b>{`@${h}`}</b>
+            <a href={`/crew/${encodeURIComponent(h)}`}>
+              <b>{`@${h}`}</b>
+            </a>
             <TriageBadge handle={h} />
           </span>
           <span className="psub">
