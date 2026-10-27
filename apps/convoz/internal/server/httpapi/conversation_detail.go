@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/authz"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
@@ -13,8 +14,8 @@ import (
 
 // detailView is the list row of a conversation plus what the details panel shows: who started it, the linked pull
 // request, whether the caller muted it, and the adds that wait for a human.
-func detailView(ctx context.Context, d pdb.DBTX, p authz.Principal, dir directory, cv conversation.Conversation, floor int64) (wire.Conversation, error) {
-	out, err := conversationView(ctx, d, p, dir, cv, floor)
+func detailView(ctx context.Context, d pdb.DBTX, p authz.Principal, dir directory, cv conversation.Conversation, floor int64, now time.Time) (wire.Conversation, error) {
+	out, err := conversationView(ctx, d, p, dir, cv, floor, now)
 	if err != nil {
 		return wire.Conversation{}, err
 	}

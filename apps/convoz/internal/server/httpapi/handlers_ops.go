@@ -96,7 +96,7 @@ func (s *Server) exportFiles(ctx context.Context, p authz.Principal, now time.Ti
 		if !ok {
 			continue
 		}
-		view, err := conversationView(ctx, d, p, dir, cv, floor)
+		view, err := conversationView(ctx, d, p, dir, cv, floor, now)
 		if err != nil {
 			return nil, err
 		}

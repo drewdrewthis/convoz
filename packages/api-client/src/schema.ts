@@ -1389,6 +1389,27 @@ export interface paths {
         patch: operations["patchConversationPrefs"];
         trace?: never;
     };
+    "/api/conversations/{id}/mention-snooze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Later on a mention card of Now, for the caller only. The card hides until the time; a mention that arrives after this call shows it again at once.
+         * @description The time is an absolute epoch ms, after now and within 31 days (the client reads "tomorrow 9:00" in its own zone). Setting it again moves it.
+         *     A conversation the caller cannot see is 404. A person only; an agent is 403.
+         */
+        put: operations["snoozeMentions"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/messages/{id}/pin": {
         parameters: {
             query?: never;
@@ -2556,6 +2577,11 @@ export interface components {
             main_unread?: number;
             /** @description The unread messages that @mention the caller, counted under the same read cursors as unread (the main list after its cursor, each thread after its own). Its own messages never count; stops at 100 like unread. A client reads this instead of scanning the messages. */
             unread_mentions: number;
+            /**
+             * Format: int64
+             * @description Epoch ms the caller's Later on this conversation's mention card runs to. Absent when none runs. While it runs, unread_mentions counts only the mentions that came after the Later.
+             */
+            mention_snoozed_until?: number;
             /** @description An agent answered the caller. True when the main list has unread after a message the caller wrote (the newest one it read), or a thread whose root the caller wrote has unread replies; only the conversation's 30 newest threads are checked. Absent when false. */
             replies_to_you?: boolean;
             /** @description The threads of the conversation that have a reply, newest reply first. */
@@ -3181,6 +3207,19 @@ export interface components {
                  */
                 after: number | null;
             };
+        };
+        MentionSnoozeRequest: {
+            /**
+             * Format: int64
+             * @description Epoch ms the mention card stays hidden until; after now and within 31 days.
+             */
+            until: number;
+        };
+        MentionSnoozeResult: {
+            /** Format: int64 */
+            conversation_id: number;
+            /** Format: int64 */
+            until: number;
         };
         RailRank: {
             /** Format: int64 */
@@ -6083,6 +6122,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PrefsResponse"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    snoozeMentions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MentionSnoozeRequest"];
+            };
+        };
+        responses: {
+            /** @description The Later as stored. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MentionSnoozeResult"];
                 };
             };
             default: components["responses"]["Error"];

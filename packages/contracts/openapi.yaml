@@ -110,6 +110,7 @@ paths:
   /api/messages/{id}/unfurl: { $ref: "paths/unfurl.yaml#/~1api~1messages~1{id}~1unfurl" }
   # ---- prefs
   /api/conversations/{id}/prefs: { $ref: "paths/prefs.yaml#/~1api~1conversations~1{id}~1prefs" }
+  /api/conversations/{id}/mention-snooze: { $ref: "paths/prefs.yaml#/~1api~1conversations~1{id}~1mention-snooze" }
   /api/messages/{id}/pin: { $ref: "paths/prefs.yaml#/~1api~1messages~1{id}~1pin" }
   /api/status: { $ref: "paths/prefs.yaml#/~1api~1status" }
   # ---- plan
@@ -370,6 +371,8 @@ components:
     SyncReset: { $ref: "components/event.yaml#/SyncReset" }
     SyncSnapshot: { $ref: "components/event.yaml#/SyncSnapshot" }
     PrefsRequest: { $ref: "components/prefs.yaml#/PrefsRequest" }
+    MentionSnoozeRequest: { $ref: "components/prefs.yaml#/MentionSnoozeRequest" }
+    MentionSnoozeResult: { $ref: "components/prefs.yaml#/MentionSnoozeResult" }
     RailRank: { $ref: "components/prefs.yaml#/RailRank" }
     PrefsResponse: { $ref: "components/prefs.yaml#/PrefsResponse" }
     PrefsChangedFrame: { $ref: "components/prefs.yaml#/PrefsChangedFrame" }

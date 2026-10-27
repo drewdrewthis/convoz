@@ -121,6 +121,22 @@ Feature: Now
       Then the first card leaves the list
       And only the third card is left, and its "Done" button is enabled
 
+    # Issue 103: a mention card has "Later" like an ask has Snooze; the card hides until the time, and a new @mention brings it back at once
+    @v1 @browser
+    Scenario: Later hides a mention card until its time comes
+      Given "docs" posted "@drew can you check the deploy log?" in conversation 42
+      When the owner opens Now and taps "Later" on the card of conversation 42 and picks "1 hour"
+      Then the card leaves "Mentions of you" and the heading "Needs you" is gone
+      When the test clock moves 61 minutes on and the owner reloads Now
+      Then the card of conversation 42 is back under Needs you
+
+    # Issue 103
+    @v1 @browser
+    Scenario: A new @mention after Later brings the card back at once
+      Given "docs" posted "@drew can you check the deploy log?" in conversation 42, and the owner picked "Later" for 1 hour on its card
+      When "docs" posts "@drew still there?" in conversation 42
+      Then the card of conversation 42 is back under Needs you with the line "docs @drew still there?"
+
     # Owner, conv 179, msgs 5840/5841 (see above)
     @v1 @browser
     Scenario: Agent talk the owner is not in folds to one line per chat with one Mark all read

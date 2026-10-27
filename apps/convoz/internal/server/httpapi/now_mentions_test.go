@@ -88,7 +88,7 @@ func oldMentionCount(ctx context.Context, d pdb.DBTX, p authz.Principal, now tim
 		if err != nil {
 			return 0, err
 		}
-		n, err := unreadMentions(ctx, d, p.Identity(), cv, u)
+		n, err := unreadMentions(ctx, d, p.Identity(), cv, u, prefs.MentionSnooze{})
 		if err != nil {
 			return 0, err
 		}

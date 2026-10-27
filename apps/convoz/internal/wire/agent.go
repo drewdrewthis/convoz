@@ -132,6 +132,17 @@ type PrefsResult struct {
 	Ranks          []Rail `json:"ranks"`
 }
 
+// MentionSnoozeRequest is PUT /api/conversations/:id/mention-snooze: hide the caller's mention card of that conversation until a time.
+type MentionSnoozeRequest struct {
+	Until int64 `json:"until"` // epoch ms, after now and within 31 days
+}
+
+// MentionSnoozeResult is the answer of PUT mention-snooze.
+type MentionSnoozeResult struct {
+	ConversationID int64 `json:"conversation_id"`
+	Until          int64 `json:"until"`
+}
+
 // HandleChange is POST /api/me/handle: the agent changes its own handle, at once.
 type HandleChange struct {
 	Handle string `json:"handle"`
