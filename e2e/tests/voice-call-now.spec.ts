@@ -253,6 +253,9 @@ scenario("A Now call that ends with a reload still leaves its log", { tag: ["@br
   model.call("read_now", {});
   await expect.poll(() => model.responses()).toHaveLength(1);
 
+  // And the call has found or made its log's conversation (a reload before then has nowhere to post the log)
+  await expect.poll(async () => (await nowCallLogs(u.w)).conversations.length).toBe(1);
+
   // When the owner reloads the page
   await page.reload();
   await page.getByRole("heading", { name: "Now", exact: true }).waitFor();

@@ -495,15 +495,24 @@ Feature: Asks and their state machine
     Scenario: The sidebar shows a short permission card
       Given "devtool" asked permission to "Merge PR 415 into main" in conversation 41
       When the owner opens another conversation on a wide screen and turns the rail to Now
-      Then the card shows, in order, who asked, "I will", "Risk", "Undo", Go and Open
+      Then the card shows, in order, who asked, "I will", "Risk", "Undo", Go, "Not this", "Open conversation" and Dismiss
       And the card shows no considered ways
-      And Open links to conversation 41
+      And "Open conversation" links to conversation 41
+
+    # Owner said (conv 179 msg 8524): "what happened to the dismiss? why does it just say open like this?"
+    @v1 @browser
+    Scenario: The sidebar permission card keeps Dismiss and names Open in words
+      Given "devtool" asked permission to "Merge PR 415 into main" in conversation 41
+      When the owner opens another conversation on a wide screen and turns the rail to Now
+      Then the card has a Dismiss button and an "Open conversation" link to conversation 41, and no control or line reading just "Open"
+      And "Not this" opens the "Why not?" box with Send disabled while it is empty
+      And tapping Dismiss takes the ask out of the sidebar
 
     @v1 @browser
     Scenario: The sidebar shows Review for a one-way permission ask
       Given "devtool" asked permission to "Merge PR 415 into main" as a one-way action in conversation 41
       When the owner opens another conversation on a wide screen and turns the rail to Now
-      Then the card shows a "Review" link to conversation 41 and no Go button
+      Then the card shows a "Review" link to conversation 41 and no Go button and no "Open conversation" link
 
     @v1 @browser @phone
     Scenario: On a phone the considered ways fold and Go and Not this stack
