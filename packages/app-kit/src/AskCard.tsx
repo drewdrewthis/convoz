@@ -43,6 +43,8 @@ export interface AskCardProps {
   openHref?: string;
   /** Carried to the article, so the list can find the card again after a change. */
   dataId?: number;
+  /** The sidebar's short card: the question, the first answer, Open conversation and Dismiss; the same buttons and boxes as the full card, fewer of them. */
+  compact?: boolean;
 }
 
 /** The phone layout of the app (its single mobile breakpoint): a menu opens as a bottom sheet there. */
@@ -64,7 +66,7 @@ export function usePhone(): boolean {
 const URGENT_EDGE = "border-[color-mix(in_srgb,var(--color-danger)_55%,var(--color-border))]";
 
 /** AskCard draws one ask. It keeps only what the eye needs (which panel is open); every change goes up through a callback. */
-export function AskCard({ ask, where, labelId, as = "article", presets, busy, notice, onAnswer, onDismiss, onUndismiss, onSnooze, onReply, replies, onPin, pinned, onDelete, onCopyLink, openHref, dataId, footer }: AskCardProps) {
+export function AskCard({ ask, where, labelId, as = "article", presets, busy, notice, onAnswer, onDismiss, onUndismiss, onSnooze, onReply, replies, onPin, pinned, onDelete, onCopyLink, openHref, dataId, footer, compact }: AskCardProps) {
   const [panel, setPanel] = useState<"" | "reply" | "snooze" | "history" | "options">("");
   const [text, setText] = useState("");
   const [optionsOnSnooze, setOptionsOnSnooze] = useState(false);
@@ -176,7 +178,9 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
   const shutState = ask.state === "dismissed" || ask.state === "closed";
   const replyLast = Boolean(onReply);
   const answered = open && Boolean(ask.answers);
-  const actionRow = open ? <AskActions quickReply={quickReply} panel={panel} toggle={toggle} openHref={openHref} onDismiss={onDismiss} /> : null;
+  // A one-way compact card reaches the conversation by its Review link, so its row has no Open conversation.
+  const rowHref = compact && permission?.one_way ? undefined : openHref;
+  const actionRow = open ? <AskActions quickReply={quickReply} panel={panel} toggle={toggle} openHref={rowHref} onDismiss={onDismiss} compact={compact} /> : null;
   const body = (
     <>
       {where === "conversation" ? (
@@ -214,6 +218,8 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
           actions={actionRow}
           footer={footer}
           clear={clear}
+          compact={compact}
+          reviewHref={openHref}
         />
       ) : (
         <>
@@ -222,8 +228,8 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
         {ask.question}
       </h3>
       {answered ? <Answers ask={ask} phone={phone} className={(!phone && clear) || undefined} /> : null}
-      {ask.owners_call ? <p className={cx("m-0 mb-2 text-13 leading-[18px] text-muted [overflow-wrap:anywhere]", clear)}>{`Your call · ${ask.owners_call.kind}: ${ask.owners_call.reason}`}</p> : null}
-      {now ? (
+      {ask.owners_call && !compact ? <p className={cx("m-0 mb-2 text-13 leading-[18px] text-muted [overflow-wrap:anywhere]", clear)}>{`Your call · ${ask.owners_call.kind}: ${ask.owners_call.reason}`}</p> : null}
+      {now && !compact ? (
         <div className={cx("flex items-center gap-x-8 text-13 leading-[20px] text-muted", clear)}>
           {urgent ? <span className="flex-none font-semibold text-danger">Urgent</span> : null}
           <span className="min-w-0 truncate" title={meta}>
@@ -232,7 +238,7 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
         </div>
       ) : null}
       {open && ask.owner_reply ? <p className="m-0 mt-4 mb-2 rounded-full bg-selection px-10 py-px text-14 font-semibold text-muted">{waitingLine(ask)}</p> : null}
-      {draft ? null : open ? (
+      {draft || compact ? null : open ? (
         <div className={cx("mt-6 mb-9 flex flex-col gap-1 text-13 leading-[18px] text-muted", clear)}>
           {ask.options.map((o, i) => (
             <p key={i} className="m-0">
@@ -260,7 +266,7 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
       {permission ? null : (
       <div className="flex flex-col gap-8">
         {open && !draft
-          ? ask.options.map((o, i) => (
+          ? (compact ? ask.options.slice(0, 1) : ask.options).map((o, i) => (
               <Button key={i} size="option" variant={i === 0 ? "primary" : !replyLast && i === ask.options.length - 1 ? "dashed" : undefined} disabled={busy} onClick={() => onAnswer(i === 0 ? { choice: "recommended" } : { choice: "alternative", index: i })}>
                 {o.label}
               </Button>
