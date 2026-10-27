@@ -614,6 +614,37 @@ scenario("Sign out from the account menu ends the session", { tag: ["@browser", 
   expect((await page.request.get(`${srv.origin}/api/me`)).status()).toBe(401);
 });
 
+scenario("Sign out still says Signed out when a read of the page is refused at the same moment", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
+  // Given the owner is signed in on a phone and a Now read is waiting on the way to the server
+  const srv = await server(local);
+  const owner = await bootstrapOwner(srv);
+  await signInBrowser(srv, owner, page, context);
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route("**/api/now*", async (route) => {
+    await held;
+    await route.continue();
+  });
+  // And the sign-in page loads only after that read is let go, as it would on a slow link
+  await page.route("**/signin?signed_out=1", async (route) => {
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    await route.continue();
+  });
+
+  const waiting = page.waitForRequest("**/api/now*");
+  await page.reload();
+  await waiting;
+
+  // When the owner picks "Sign out" in the account menu and the held read gets its refusal (the session is gone)
+  await page.getByRole("button", { name: "Account menu" }).click();
+  await page.getByRole("menuitem", { name: "Sign out" }).click();
+
+  // Then the app shows Sign in with the note "Signed out"
+  await expect(page.getByRole("heading", { name: "Sign in", exact: true })).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("Signed out");
+});
+
 scenario("Forms on a phone have labels above full-width fields and a full-width main button", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {
   // Given the owner is on a phone
   const srv = await server(local);
