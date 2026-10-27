@@ -77,8 +77,8 @@ scenario("Picking a Now item opens its conversation beside the Now list", { tag:
   await openWithNow(page, u);
   await expect(railAsk(page, OTHER)).toBeVisible();
 
-  // When the owner picks "Open" on the ask of conversation 60 in the rail
-  await railAsk(page, OTHER).getByRole("link", { name: "Open", exact: true }).click();
+  // When the owner picks "Open conversation" on the ask of conversation 60 in the rail
+  await railAsk(page, OTHER).getByRole("link", { name: "Open conversation", exact: true }).click();
 
   // Then conversation 60 is open in the page
   await expect(openHeading(page, T60)).toBeVisible();
@@ -107,7 +107,7 @@ scenario("Conversations, Escape and Now again each take the rail back to the con
   await page.keyboard.press("Meta+Period");
   await expect(railAsk(page, QUESTION)).toBeVisible();
   await expect.poll(() => railWidth(page)).toBe(360);
-  await railAsk(page, QUESTION).getByRole("link", { name: "Open", exact: true }).focus();
+  await railAsk(page, QUESTION).getByRole("link", { name: "Open conversation", exact: true }).focus();
   await page.keyboard.press("Escape");
   await expectConversationsRail(page);
   await expect(nowButton(page)).toBeFocused();

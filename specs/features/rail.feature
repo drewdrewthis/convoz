@@ -155,7 +155,7 @@ Feature: Rail
     Scenario: Picking a Now item opens its conversation beside the Now list
       Given "devtool" asks "Merge #415 on its own?" in conversation 52 and "Roll back box-3?" in conversation 60
       And the owner has conversation 41 open with Now in the rail
-      When the owner picks "Open" on the ask "Roll back box-3?" in the rail
+      When the owner picks "Open conversation" on the ask "Roll back box-3?" in the rail
       Then conversation 60 is open in the page
       And the rail still lists both asks
       And the item of conversation 60 is marked as current and the item of conversation 52 is not

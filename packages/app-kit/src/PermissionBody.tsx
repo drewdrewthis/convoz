@@ -17,7 +17,7 @@ const ONE_WAY = "None. This is one-way.";
 const GO_KEY = "Enter G";
 
 /** Fields lists Risk, Undo and Considered; one-way is said in words and in the danger colour, never by colour alone. */
-function Fields({ p, phone, fold }: { p: AskPermission; phone: boolean; fold: boolean }) {
+function Fields({ p, phone, fold, compact }: { p: AskPermission; phone: boolean; fold: boolean; compact?: boolean }) {
   const [more, setMore] = useState(false);
   const folded = phone && fold && !more;
   const n = p.considered.length;
@@ -27,7 +27,7 @@ function Fields({ p, phone, fold }: { p: AskPermission; phone: boolean; fold: bo
       <dd className="m-0 text-text [overflow-wrap:anywhere]">{p.risk}</dd>
       <dt className="mt-6 font-semibold text-text">Undo</dt>
       <dd className={cx("m-0 [overflow-wrap:anywhere]", p.one_way ? "font-semibold text-danger" : "text-text")}>{p.one_way ? ONE_WAY : p.undo}</dd>
-      {folded ? (
+      {compact ? null : folded ? (
         <dd className="m-0 mt-6">
           <Button variant="muted" size="inline" className="-ml-8" aria-expanded={false} onClick={() => setMore(true)}>
             {`Considered ${n} other ${n === 1 ? "way" : "ways"}`}
@@ -77,10 +77,13 @@ export interface PermissionBodyProps {
   /** The feed's thread: drawn above the buttons, so everything that answers is last. */
   footer?: ReactNode;
   clear?: string | false;
+  /** The sidebar's short card: no considered ways. A one-way ask offers Review (a link to `reviewHref`) where Go and Not this would be. */
+  compact?: boolean;
+  reviewHref?: string;
 }
 
 /** PermissionBody draws the permission ask: open (byline, fields, Go and Not this) or answered (a pill and Details). */
-export function PermissionBody({ ask, permission: p, labelId, where, meta, urgent, open, phone, busy, notThis, text, setText, onGo, onNotThis, onSend, onReply, replies, stateLine, actions, footer, clear }: PermissionBodyProps) {
+export function PermissionBody({ ask, permission: p, labelId, where, meta, urgent, open, phone, busy, notThis, text, setText, onGo, onNotThis, onSend, onReply, replies, stateLine, actions, footer, clear, compact, reviewHref }: PermissionBodyProps) {
   const [details, setDetails] = useState(false);
   const handle = ask.asker.handle;
   if (!open) {
@@ -118,9 +121,14 @@ export function PermissionBody({ ask, permission: p, labelId, where, meta, urgen
         <dd id={labelId} className="m-0 text-17 leading-[22px] font-semibold text-text [overflow-wrap:anywhere]">
           {p.action}
         </dd>
-        <Fields p={p} phone={phone} fold />
+        <Fields p={p} phone={phone} fold compact={compact} />
       </dl>
       {footer}
+      {compact && p.one_way ? (
+        <Button size="option" href={reviewHref}>
+          Review
+        </Button>
+      ) : (
       <div className={cx("flex gap-8", phone ? "flex-col" : "flex-row [&>*]:flex-1")}>
         <Button size="option" variant="primary" disabled={busy} aria-keyshortcuts={p.one_way ? "G" : GO_KEY} onClick={onGo}>
           Go
@@ -129,7 +137,8 @@ export function PermissionBody({ ask, permission: p, labelId, where, meta, urgen
           Not this
         </Button>
       </div>
-      {notThis ? (
+      )}
+      {notThis && !(compact && p.one_way) ? (
         <form
           className="mt-8 flex flex-col gap-4"
           onSubmit={(e) => {

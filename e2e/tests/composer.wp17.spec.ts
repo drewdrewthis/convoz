@@ -35,7 +35,7 @@ scenario("An offline send is replayed once when back online", { tag: ["@browser"
 
   // Then conversation 41 shows "first" and then "second", each once, on a second browser
   await expect(messageLog(second).getByRole("article")).toHaveText([/first$/, /second$/], { timeout: 60_000 });
-  expect((await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["first", "second"]);
+  await expect.poll(async () => (await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["first", "second"]);
   await expect(messageLog(page).getByText("sending", { exact: true })).toHaveCount(0, { timeout: 30_000 });
   await expect(messageLog(page).getByRole("article")).toHaveCount(2);
 });

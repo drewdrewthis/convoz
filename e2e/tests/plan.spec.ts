@@ -694,7 +694,8 @@ scenario("An agent that does not pick up a message shows as not responding", { t
   await expect(planLine(page).locator("[data-tone]")).toHaveAttribute("data-tone", "amber");
 
   // And the chat shows the quiet line "@devtool is not responding" once
-  await expect(quietLine(page, "@devtool is not responding")).toHaveCount(1);
+  // The line is read live but written by the timers' sweep, which runs every 10 s (RunTimers): it can come up to 10 s after the line.
+  await expect(quietLine(page, "@devtool is not responding")).toHaveCount(1, { timeout: 15_000 });
   await sleep(11_000); // a second sweep of the timers must not write the line again
   await expect(quietLine(page, "@devtool is not responding")).toHaveCount(1);
 

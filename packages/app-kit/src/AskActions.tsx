@@ -14,26 +14,30 @@ export interface AskActionsProps {
   toggle(p: "reply" | "snooze"): void;
   openHref?: string;
   onDismiss(): void;
+  /** The sidebar's short row: Open conversation and Dismiss; no Quick reply or Snooze. */
+  compact?: boolean;
 }
 
 /** AskActions is the row under an open ask: Quick reply, Snooze, Open and Dismiss. */
-export function AskActions({ quickReply, panel, toggle, openHref, onDismiss }: AskActionsProps) {
+export function AskActions({ quickReply, panel, toggle, openHref, onDismiss, compact }: AskActionsProps) {
   return (
-    <div className="-mx-8 mb-14 flex flex-wrap" role="group" aria-label="Ask actions">
-      {quickReply ? (
+    <div className={compact ? "-mx-8 mt-8 flex flex-wrap" : "-mx-8 mb-14 flex flex-wrap"} role="group" aria-label="Ask actions">
+      {quickReply && !compact ? (
         <Button variant="text" size="inline" aria-expanded={panel === "reply"} onClick={() => toggle("reply")}>
           <Icon d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           Quick reply
         </Button>
       ) : null}
-      <Button variant="text" size="inline" aria-haspopup="menu" aria-expanded={panel === "snooze"} onClick={() => toggle("snooze")}>
-        <Icon d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2" />
-        Snooze
-      </Button>
+      {compact ? null : (
+        <Button variant="text" size="inline" aria-haspopup="menu" aria-expanded={panel === "snooze"} onClick={() => toggle("snooze")}>
+          <Icon d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2" />
+          Snooze
+        </Button>
+      )}
       {openHref ? (
         <Button variant="text" size="inline" href={openHref}>
           <Icon d="M7 17L17 7M8 7h9v9" />
-          Open
+          {compact ? "Open conversation" : "Open"}
         </Button>
       ) : null}
       <Button variant="text" size="inline" onClick={onDismiss}>
