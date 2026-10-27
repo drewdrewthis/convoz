@@ -256,6 +256,34 @@ Feature: Asks and their state machine
       Then the reply is no longer shown
       And the "Replies to you" card of a conversation whose thread answered the owner holds its thread inside its box the same way, with its Reply and Mark read buttons after the thread
 
+    # Owner said (conv 179 msg 8239): "When I respond or reply or have comments on feed items they just stay there unchanged. It's crap".
+    @v1 @browser
+    Scenario: A reply typed in the thread of an ask card moves the ask to You replied
+      Given an open ask of "devtool" with a reply from "docs" in its thread
+      When the owner opens Now and the thread of the card, and sends "Use the smaller one" with Reply here
+      Then the ask leaves the main list and "You replied · waiting on the agent" lists it with "Use the smaller one"
+      And a toast says the ask moved to You replied
+      And the badge no longer counts the ask
+
+    @v1 @browser
+    Scenario: A reply typed in the thread of a Replies to you card marks it read and takes it out
+      Given "docs" answered the owner in a thread of conversation "Deploy log"
+      When the owner opens Now and the thread of the card, and sends "Thanks" with Reply here
+      Then the card leaves "Replies to you" and a toast says it was marked read
+      And after a reload the card is still gone
+
+    @v1 @browser
+    Scenario: Quick reply on an ask card says where the ask went
+      Given an open ask of "devtool" in Now
+      When the owner sends "Use the smaller one" with Quick reply
+      Then the ask leaves the main list, "Answered today" lists it with "Replied · Use the smaller one", and a toast says it moved to Answered today
+
+    @v1 @browser
+    Scenario: Go on a permission ask says where the ask went
+      Given an open permission ask of "devtool" in Now
+      When the owner taps "Go"
+      Then the ask leaves the main list, "Answered today" lists it, and a toast says it moved to Answered today
+
     # Owner said (conv 379 msg 6722): "why couldn't I quick reply on that ask?" (an ask inside a thread).
     @v1 @browser
     Scenario: An ask inside a thread has Quick reply too

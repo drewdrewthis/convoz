@@ -1,7 +1,7 @@
 import type { Locator, Page } from "@playwright/test";
 import { streamOpen, uiWorld } from "../lib/chat-ui.ts";
 import { agentPost, convoz, createConversation, inboxItems, ownerSays, startSession, startWatch } from "../lib/chat.ts";
-import { QUESTION, agentAsks, askCard, askOf, askWorld, expectState, markAsk, nowOf, openNow, ownerRepliesIn, snoozeAsk } from "../lib/asks.ts";
+import { QUESTION, agentAsks, agentAsksPermission, askCard, openFold, askOf, askWorld, expectState, markAsk, nowOf, openNow, ownerRepliesIn, snoozeAsk } from "../lib/asks.ts";
 import { box } from "../lib/mobile.ts";
 import { must } from "../lib/owner.ts";
 import { expect, scenario } from "../lib/scenario.ts";
@@ -426,4 +426,94 @@ scenario("The thread of a feed card sits inside the card", { tag: ["@browser"] }
   }
   await replies.getByRole("button", { name: /Hide thread/ }).click();
   await expect(replies.locator("strong", { hasText: "Yes" })).toHaveCount(0);
+});
+
+/** The toast of the app: a polite status region that holds the words for a few seconds. */
+const toastWith = (page: Page, text: RegExp): Locator => page.getByRole("status").filter({ hasText: text });
+
+scenario("A reply typed in the thread of an ask card moves the ask to You replied", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given an open ask of "devtool" with a reply from "docs" in its thread
+  const u = await uiWorld({ server, page, context }, { agents: ["devtool", "docs"], live: ["devtool"] });
+  const conv = await createConversation(u.w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  const id = await agentAsks(u.w.srv, u.sessions.devtool!.lease, conv);
+  const docs = await startSession(u.w.box, "docs", "docs");
+  must(await agentPost(u.w.srv, docs.lease, conv, "Both fit; the smaller one is safer.", { thread_root_id: id }), "docs replies in the thread of the ask", 201);
+
+  // When the owner opens Now and the thread of the card, and sends "Use the smaller one" with Reply here
+  await openNow(page, u.w.srv);
+  const card = askCard(page);
+  await card.getByRole("button", { name: /Show thread/ }).click();
+  await card.getByRole("button", { name: "Reply here" }).click();
+  await card.getByRole("textbox", { name: "Reply to the thread" }).fill("Use the smaller one");
+  await card.getByRole("button", { name: "Send reply" }).click();
+
+  // Then the ask leaves the main list and "You replied · waiting on the agent" lists it with the reply, without a reload
+  await expect(askCard(page)).toHaveCount(0, { timeout: 4_000 });
+  await expect(page.locator("#replied").getByRole("link", { name: new RegExp(QUESTION) })).toContainText("Use the smaller one", { timeout: 4_000 });
+  // And a toast says the ask moved to You replied
+  await expect(toastWith(page, /You replied/)).toBeVisible();
+  // And the badge no longer counts the ask
+  expect((await nowOf(u.w.owner)).badge).toBe(0);
+});
+
+scenario("A reply typed in the thread of a Replies to you card marks it read and takes it out", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given "docs" answered the owner in a thread of conversation "Deploy log"
+  const u = await uiWorld({ server, page, context }, { agents: ["devtool", "docs"], live: ["devtool"] });
+  const docs = await startSession(u.w.box, "docs", "docs");
+  const deploy = await createConversation(u.w.owner, { title: "Deploy log", participants: ["devtool", "docs"] });
+  const root = await ownerSays(u.w.owner, deploy, "Did the deploy finish?");
+  must(await agentPost(u.w.srv, docs.lease, deploy, "It finished at noon.", { thread_root_id: root }), "docs answers in the thread", 201);
+
+  // When the owner opens Now and the thread of the card, and sends "Thanks" with Reply here
+  await openNow(page, u.w.srv);
+  const card = page.getByRole("list", { name: "Replies to you" }).getByRole("listitem").filter({ hasText: "Deploy log" });
+  await card.getByRole("button", { name: /Show thread/ }).click();
+  await card.getByRole("button", { name: "Reply here" }).click();
+  await card.getByRole("textbox", { name: "Reply to the thread" }).fill("Thanks");
+  await card.getByRole("button", { name: "Send reply" }).click();
+
+  // Then the card leaves "Replies to you" and a toast says it was marked read
+  await expect(card).toHaveCount(0, { timeout: 4_000 });
+  await expect(toastWith(page, /marked read/i)).toBeVisible();
+  // And after a reload the card is still gone
+  await page.reload();
+  await page.getByRole("heading", { name: "Now", exact: true }).waitFor();
+  await expect(page.getByRole("list", { name: "Replies to you" }).getByRole("listitem").filter({ hasText: "Deploy log" })).toHaveCount(0);
+});
+
+scenario("Quick reply on an ask card says where the ask went", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given an open ask of "devtool" in Now
+  const u = await uiWorld({ server, page, context }, { agents: ["devtool"], live: ["devtool"] });
+  const conv = await createConversation(u.w.owner, { title: "Ship search filters", participants: ["devtool"] });
+  await agentAsks(u.w.srv, u.sessions.devtool!.lease, conv);
+  await openNow(page, u.w.srv);
+
+  // When the owner sends "Use the smaller one" with Quick reply
+  const card = askCard(page);
+  await card.getByRole("button", { name: "Quick reply" }).click();
+  await card.getByRole("textbox", { name: "Quick reply" }).fill("Use the smaller one");
+  await card.getByRole("button", { name: "Send", exact: true }).click();
+
+  // Then the ask leaves the main list, "Answered today" lists it with the reply, and a toast says it moved there
+  await expect(askCard(page)).toHaveCount(0, { timeout: 4_000 });
+  await openFold(page, "Answered today");
+  await expect(page.getByText(/Replied · Use the smaller one/)).toBeVisible();
+  await expect(toastWith(page, /Answered today/)).toBeVisible();
+});
+
+scenario("Go on a permission ask says where the ask went", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given an open permission ask of "devtool" in Now
+  const u = await uiWorld({ server, page, context }, { agents: ["devtool"], live: ["devtool"] });
+  const conv = await createConversation(u.w.owner, { title: "Ship search filters", participants: ["devtool"] });
+  await agentAsksPermission(u.w.srv, u.sessions.devtool!.lease, conv);
+  await openNow(page, u.w.srv);
+
+  // When the owner taps "Go"
+  await page.getByRole("button", { name: "Go", exact: true }).click();
+
+  // Then the ask leaves the main list, "Answered today" lists it, and a toast says it moved there
+  await expect(page.getByRole("button", { name: "Go", exact: true })).toHaveCount(0, { timeout: 4_000 });
+  await expect(toastWith(page, /Answered today/)).toBeVisible();
+  await openFold(page, "Answered today");
+  await expect(page.getByText(/Merge PR 415 into main|Answered · Go/).first()).toBeVisible();
 });
