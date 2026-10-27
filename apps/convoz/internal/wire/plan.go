@@ -20,6 +20,8 @@ type PlanRequest struct {
 	Waiting   []string `json:"waiting,omitempty"`
 	// Done are items finished since the last plan; they go in front of the Done history.
 	Done []string `json:"done,omitempty"`
+	// Deliver adds deliverables or moves their dates; the plan keeps the ones not named, and a Done item with a deliverable's text ships it.
+	Deliver []PlanDeliverRequest `json:"deliver,omitempty"`
 	// ClientID names the request: a retry with the same one after a lost answer changes nothing (I-24).
 	ClientID string `json:"client_id,omitempty"`
 }
@@ -29,6 +31,20 @@ type PlanNowRequest struct {
 	Text string `json:"text"`
 	Step string `json:"step,omitempty"`
 	ETA  string `json:"eta,omitempty"`
+}
+
+// PlanDeliverRequest is one deliverable of a request: what, and when it is due as a duration ("2d", "1d4h", "30m"), a time "HH:MM" or a
+// date "YYYY-MM-DD HH:MM", the last two in the zone of utc_offset.
+type PlanDeliverRequest struct {
+	Text string `json:"text"`
+	Due  string `json:"due"`
+}
+
+// PlanDeliver is one deliverable of a plan: what, when it is due and since when it is promised (epoch ms).
+type PlanDeliver struct {
+	Text  string `json:"text"`
+	Due   int64  `json:"due"`
+	Since int64  `json:"since"`
 }
 
 // PlanNow is one thing the agent does now, with its own step and estimate.
@@ -55,6 +71,8 @@ type PlanWaiting struct {
 type PlanDone struct {
 	Text string `json:"text"`
 	At   int64  `json:"at"`
+	// Shipped says the item was a deliverable.
+	Shipped bool `json:"shipped,omitempty"`
 }
 
 // Plan is one agent's plan in one conversation.
@@ -72,6 +90,7 @@ type Plan struct {
 	Next       []string      `json:"next"`
 	Waiting    []PlanWaiting `json:"waiting"`
 	Done       []PlanDone    `json:"done"` // newest first, at most 20
+	Deliver    []PlanDeliver `json:"deliver"`
 	UpdatedAt  int64         `json:"updated_at"`
 	// DueAt is when the plan turns overdue by its own clock: the ETA, or 2 h after the update for a Doing with no ETA.
 	DueAt int64 `json:"due_at,omitempty"`

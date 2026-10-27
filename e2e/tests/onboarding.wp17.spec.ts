@@ -54,7 +54,20 @@ const running = (page: Page) => page.evaluate(() => navigator.serviceWorker.cont
  * Deploy a new build while the app is open: a worker at another URL of the same scope is what a new build's worker is to the browser.
  * The page that registers it is reloaded under it, so the evaluate may lose its page; that is the point.
  */
-const deploy = (page: Page) => page.evaluate(async () => void (await navigator.serviceWorker.register("/sw.js?build=2", { type: "module", scope: "/" }))).catch(() => {});
+const deploy = (page: Page) =>
+  page.evaluate(async () => void (await navigator.serviceWorker.register("/sw.js?build=2", { type: "module", scope: "/" }))).catch((err: Error) => {
+    if (!/context was destroyed|Target .*closed|navigat/i.test(err.message)) throw err; // a failed register is not a reload
+  });
+
+/** The workers of the scope by state, to name the one that never took over when the update does not. */
+const workers = (page: Page) =>
+  page
+    .evaluate(async () => {
+      const r = await navigator.serviceWorker.getRegistration("/");
+      const at = (w?: ServiceWorker | null) => (w ? `${w.scriptURL} (${w.state})` : "none");
+      return `installing ${at(r?.installing)}, waiting ${at(r?.waiting)}, active ${at(r?.active)}, controller ${at(navigator.serviceWorker.controller)}`;
+    })
+    .catch((err: Error) => `unreadable: ${err.message}`);
 
 scenario("An update takes over by itself", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
   info.setTimeout(90_000);
@@ -71,7 +84,9 @@ scenario("An update takes over by itself", { tag: ["@browser"] }, async ({ serve
   await deploy(page);
 
   // Then the new version runs without a tap
-  await expect.poll(() => running(page), { timeout: 30_000 }).toContain("build=2");
+  await expect.poll(() => running(page), { timeout: 30_000 }).toContain("build=2").catch(async (err: Error) => {
+    throw new Error(`${err.message}\nworkers: ${await workers(page)}`);
+  });
   expect(before).not.toContain("build=2");
 
   // And the page reloads once

@@ -117,9 +117,9 @@ scenario("On a phone the bottom bar leads to Now, Conversations and Crew", { tag
   const u = await uiWorld({ server, page, context });
   await page.goto(`${u.w.srv.origin}/`);
 
-  // Then a bottom bar shows "Now", "Conversations" and "Crew"
+  // Then a bottom bar shows "Now", "Conversations", "Deliveries" and "Crew"
   const nav = mainNav(page);
-  await expect(nav.getByRole("link")).toHaveText(["Now", "Conversations", "Crew"]);
+  await expect(nav.getByRole("link")).toHaveText(["Now", "Conversations", "Deliveries", "Crew"]);
   await expect(nav.getByRole("link", { name: "Now" })).toHaveAttribute("aria-current", "page");
   const bar = await box(nav);
   expect(bar.y + bar.height).toBeGreaterThanOrEqual(VIEW.height - 12.5); // the bar floats 12 px above the edge
@@ -215,7 +215,7 @@ scenario("In New conversation the owner picks several agents from the @ list and
 
   // Then the new conversation has "devtool" and "docs" as participants
   await expect.poll(async () => handlesOf(await viewOf(u.w.owner, conv)).sort()).toEqual(expect.arrayContaining(["devtool", "docs"]));
-  expect((await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["@devtool @docs please look at the build"]);
+  await expect.poll(async () => (await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["@devtool @docs please look at the build"]);
 
   // And "devtool" and "docs" each get a mention item
   for (const who of ["devtool", "docs"]) {
@@ -779,7 +779,7 @@ scenario("A sent message shows at once and then confirms", { tag: ["@browser"] }
   release();
   await expect(bubble).not.toContainText("sending");
   await expect(bubble).not.toContainText("failed");
-  expect((await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["on it"]);
+  await expect.poll(async () => (await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["on it"]);
 });
 
 scenario("On a phone the composer stays above the keyboard and grows to a limit", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
@@ -872,7 +872,7 @@ scenario("On a phone Enter adds a line and Send sends", { tag: ["@browser", "@ph
   await expect(sent).toBeVisible();
   await expect(messageLog(page).getByRole("article")).toHaveCount(1);
   expect(await sent.evaluate((e) => (e as HTMLElement).innerText)).toContain("one\ntwo");
-  expect((await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["one\ntwo"]);
+  await expect.poll(async () => (await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["one\ntwo"]);
   await expect(composer(page)).toHaveValue("");
   await expect(sendButton(page)).toBeDisabled();
 });
@@ -903,7 +903,7 @@ scenario("Enter sends on a desktop and adds a line on a phone", { tag: ["@browse
   // Then the chat shows one message with two lines
   await expect(message(page, "one")).toBeVisible();
   await expect(messageLog(page).getByRole("article")).toHaveCount(1);
-  expect((await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["one\ntwo"]);
+  await expect.poll(async () => (await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["one\ntwo"]);
   await expect(composer(page)).toHaveValue("");
 });
 
@@ -935,7 +935,7 @@ scenario("On a phone a failed send is retried once without a duplicate", { tag: 
   expect(tries).toHaveLength(2);
   expect(tries[1]!.client_id).toBe(tries[0]!.client_id);
   await expect(message(page, "retry me")).toHaveCount(1);
-  expect((await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["retry me"]);
+  await expect.poll(async () => (await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["retry me"]);
 });
 
 // Owner msg 2315: a refused send showed the server's raw JSON. The bubble says why in words, never the JSON.

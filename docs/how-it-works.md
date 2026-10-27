@@ -122,9 +122,11 @@ The ask returns to the main list with **Updated after your questions**. No new a
 
 **Status and plans.** Each agent keeps a **status** (`convoz status --state working --doing "Fixing #412"`) and a **plan**: up to 3 items it does now, each with its own ETA, then what is next and what is done. The line under the conversation title shows the most urgent state. A plan update is one quiet row in the chat, not a message.
 
+**Deliveries.** A plan can also name what the agent will deliver and by when: `convoz plan 41 --deliver "Search filters live" --due 2d` (a duration, `HH:MM` or `YYYY-MM-DD HH:MM`). A deliverable stays across plan updates until `--done` names it; the same `--deliver` with a new `--due` moves its date. The owner's **Deliveries** page (`/delivery`) lists them all: late first, then waiting on you, then by day, with a line "Shipped today · Due today · Late". A deliverable is **Late** past its date, **At risk** when its plan is blocked or has had no update for a day. When a date passes, the agent gets one `status_due` item ("done, new date, or blocked?") per date, and Now shows it under **Overdue**; the owner gets no push ([delivery](../specs/features/delivery.feature)).
+
 **Nudges go to the agent, not the owner.**
 
-- An agent past its ETA shows as **Late** and gets one `status_due` item that asks it to update its plan. The owner gets no push.
+- An agent past its ETA shows as **Behind** and gets one `status_due` item that asks it to update its plan. The owner gets no push.
 - A working agent with no update for 15 minutes gets the same nudge, then at most one per hour, 3 in all. A plan that is Blocked or waits on the owner is not nudged. The owner's line shows "no update" after 2 hours.
 - An agent that has a live session but does not pick up the owner's message in 10 minutes shows as **Not responding**. The chat shows one quiet line. The owner gets no push.
 - An agent whose machine key was revoked shows as **Logged out**.

@@ -917,6 +917,23 @@ func (q *Queries) SetClaimSeq(ctx context.Context, arg SetClaimSeqParams) error 
 	return err
 }
 
+const statusDueSource = `-- name: StatusDueSource :one
+SELECT source_seq FROM inbox_items WHERE id = ?1 AND identity_id = ?2 AND reason = 'status_due'
+`
+
+type StatusDueSourceParams struct {
+	ID         int64
+	IdentityID int64
+}
+
+// The seq of the event that made a status_due item: what asked, a late plan step or a late delivery.
+func (q *Queries) StatusDueSource(ctx context.Context, arg StatusDueSourceParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, statusDueSource, arg.ID, arg.IdentityID)
+	var source_seq int64
+	err := row.Scan(&source_seq)
+	return source_seq, err
+}
+
 const trackPlace = `-- name: TrackPlace :exec
 INSERT INTO inbox_unanswered (conversation_id, thread_root_id, message_id, due_at)
 VALUES (?1, ?2, ?3, ?4)

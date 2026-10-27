@@ -100,3 +100,22 @@ func TestAsk_ConfidenceUnder80IsRefusedWithTheGetConfidentFirstText(t *testing.T
 		}
 	}
 }
+
+func TestPlan_DeliverTakesWhatAndDue(t *testing.T) {
+	plan, _ := Lookup("plan")
+	v, _ := newValidator(plan.InputSchema)
+	if err := v.check(json.RawMessage(`{"conversation":41,"deliver":[{"what":"Search live","due":"2d"}]}`)); err != nil {
+		t.Fatalf("a delivery with a date: %v", err)
+	}
+	if err := v.check(json.RawMessage(`{"conversation":41,"deliver":[{"what":"Search live"}]}`)); err == nil {
+		t.Fatal("a delivery without a date must be refused")
+	}
+}
+
+func TestRules_NameTheDeliveryFlags(t *testing.T) {
+	for _, flag := range []string{"--deliver", "--due", "--done"} {
+		if !strings.Contains(wire.RulesText, flag) {
+			t.Errorf("the rules must name %s", flag)
+		}
+	}
+}

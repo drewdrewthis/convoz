@@ -192,6 +192,10 @@ VALUES (sqlc.arg(identity_id), 'app_result', sqlc.arg(conversation_id), sqlc.arg
 INSERT INTO inbox_items (identity_id, reason, conversation_id, count, mention_count, source_seq, state, created_at, updated_at)
 VALUES (sqlc.arg(identity_id), 'status_due', sqlc.arg(conversation_id), 1, 0, sqlc.arg(source_seq), 'ready', sqlc.arg(now), sqlc.arg(now));
 
+-- name: StatusDueSource :one
+-- The seq of the event that made a status_due item: what asked, a late plan step or a late delivery.
+SELECT source_seq FROM inbox_items WHERE id = sqlc.arg(id) AND identity_id = sqlc.arg(identity_id) AND reason = 'status_due';
+
 -- name: HasOpenStatusDue :one
 SELECT EXISTS (SELECT 1 FROM inbox_items WHERE identity_id = sqlc.arg(identity_id) AND conversation_id = sqlc.arg(conversation_id)
                AND reason = 'status_due' AND state IN ('ready','claimed'));

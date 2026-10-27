@@ -105,6 +105,9 @@ func (s *Server) sweepPlans(ctx context.Context) error {
 	if err := s.nudgeLate(ctx); err != nil {
 		return err
 	}
+	if err := s.nudgeDeliveries(ctx); err != nil {
+		return err
+	}
 	if err := s.noteUnresponsive(ctx); err != nil {
 		return err
 	}

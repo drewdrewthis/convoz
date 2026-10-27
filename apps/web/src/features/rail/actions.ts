@@ -47,6 +47,16 @@ export async function setStar(id: number, starred: boolean): Promise<void> {
   await patch(id, { starred });
 }
 
+/** setClosed closes a conversation (the stale mark: the rail folds it into Older until the next message) or reopens it. */
+export async function setClosed(id: number, closed: boolean): Promise<void> {
+  data.patchConversation(id, { stale: closed || undefined });
+  try {
+    await call(client.POST("/api/conversations/{id}/stale", { params: { path: { id } }, body: closed ? { force: true } : { reopen: true } }));
+  } finally {
+    void data.loadConversations().catch(() => {});
+  }
+}
+
 /** setMute mutes for good, or unmutes. A muted conversation pushes nothing but stays in Now. */
 export async function setMute(id: number, muted: boolean): Promise<void> {
   if (muted) data.patchConversation(id, { muted_until: FOREVER });
