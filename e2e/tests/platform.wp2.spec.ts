@@ -30,7 +30,7 @@ scenario("A failed write leaves no event behind", { tag: ["@api"] }, async ({ se
   expect(delta.cursor).toBe(at);
 
   // And conversation 41 shows no new message
-  expect((await messagesOf(w.owner, conv)).map((m) => m.body)).toEqual(["first"]);
+  await expect.poll(async () => (await messagesOf(w.owner, conv)).map((m) => m.body)).toEqual(["first"]);
 });
 
 scenario("Stored events cannot be changed", { tag: ["@api"] }, async ({ server, dataDir }) => {

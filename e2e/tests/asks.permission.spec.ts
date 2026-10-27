@@ -334,7 +334,7 @@ scenario("Go and Not this answer a permission ask", { tag: ["@api"] }, async ({ 
   // Then the answers read "Go" and "Not this: Wait for PR 412" for the owner and in the conversation
   expect((await askOf(w.owner, go)).answer).toBe("Go");
   expect((await askOf(w.owner, not)).answer).toBe("Not this: Wait for PR 412");
-  expect((await messagesOf(w.owner, conv)).map((m) => m.body)).toEqual(expect.arrayContaining(["Go", "Not this: Wait for PR 412"]));
+  await expect.poll(async () => (await messagesOf(w.owner, conv)).map((m) => m.body)).toEqual(expect.arrayContaining(["Go", "Not this: Wait for PR 412"]));
 
   // And the agent reads the same answers in its inbox, and a second, different answer is refused
   const items = (await inboxItems(w.box, devtool.sid, ["--peek"])) as unknown as { message: { id: number; ask?: { answer?: string } } }[];

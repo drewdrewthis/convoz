@@ -83,9 +83,10 @@ scenario("Enter sends or adds a new line", { tag: ["@browser"] }, async ({ serve
       await expect(composer(page), label).toHaveValue(`${text}\n`);
       await composer(page).fill("");
     }
-    expect((await messagesOf(w.owner, conv)).map((m) => m.body), label).toHaveLength(sent);
+    // The composer shows a sent message at once, before the server has it.
+    await expect.poll(async () => (await messagesOf(w.owner, conv)).length, { message: label }).toBe(sent);
   }
-  expect((await messagesOf(w.owner, conv)).map((m) => m.body)).toEqual(["row 1", "row 4"]);
+  await expect.poll(async () => (await messagesOf(w.owner, conv)).map((m) => m.body)).toEqual(["row 1", "row 4"]);
 });
 
 scenario("A failed send can be retried", { tag: ["@browser"] }, async ({ server, page, context }) => {
@@ -124,7 +125,7 @@ scenario("A failed send can be retried", { tag: ["@browser"] }, async ({ server,
   await expect(bubble).not.toContainText("sending");
   expect(tries).toHaveLength(6);
   expect(new Set(tries.map((t) => t.client_id)).size).toBe(1); // every try is the same send
-  expect((await messagesOf(w.owner, conv)).map((m) => m.body)).toEqual(["retry me"]);
+  await expect.poll(async () => (await messagesOf(w.owner, conv)).map((m) => m.body)).toEqual(["retry me"]);
   await expect(message(page, "retry me")).toHaveCount(1);
 });
 
@@ -234,7 +235,7 @@ scenario("A disabled agent is not offered and not added", { tag: ["@browser", "@
 
   // And "release-bot" is not a participant
   expect(handlesOf(await viewOf(w.owner, conv))).not.toContain("release-bot");
-  expect((await messagesOf(w.owner, conv)).map((m) => m.body)).toEqual(["@release-bot ship it"]);
+  await expect.poll(async () => (await messagesOf(w.owner, conv)).map((m) => m.body)).toEqual(["@release-bot ship it"]);
 });
 
 scenario("A mention inside code does not add an agent", { tag: ["@browser", "@I-18"] }, async ({ server, page, context }) => {
@@ -255,7 +256,7 @@ scenario("A mention inside code does not add an agent", { tag: ["@browser", "@I-
   await expect.poll(async () => (await messagesOf(w.owner, conv)).length).toBe(1); // the bubble shows before the server holds the message
 
   // Then "docs" is not a participant
-  expect((await messagesOf(w.owner, conv)).map((m) => m.body)).toEqual(["run `@docs build`"]);
+  await expect.poll(async () => (await messagesOf(w.owner, conv)).map((m) => m.body)).toEqual(["run `@docs build`"]);
   expect(handlesOf(await viewOf(w.owner, conv))).not.toContain("docs");
 });
 
