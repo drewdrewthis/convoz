@@ -18,7 +18,7 @@ interface FeedThreadProps {
  * FeedThread is the thread of a feed card folded under it (owner, conv 179 msg 7988: "Show expandable thread in feed item directly").
  * It draws nothing for a thread with no replies. Opening it reads the replies through the threads store, as a conversation does, and
  * draws them in place with the conversation's own message rendering; folding it hides them again. The owner stays in Now.
- * "Reply here" answers in the thread without leaving Now (owner, conv 179 msg 8239): the reply shows in the thread as sending, then sent.
+ * "Reply here", under the open thread, answers in it without leaving Now (owner, conv 179 msg 8239): the reply shows in the thread as sending, then sent.
  */
 export function FeedThread({ conversation, root, count: known, onReplied }: FeedThreadProps) {
   const [open, setOpen] = useState(false);
@@ -58,7 +58,7 @@ export function FeedThread({ conversation, root, count: known, onReplied }: Feed
           <div className="ithbody">{Replies && replies ? <Replies conversation={conversation} root={root} replies={replies} /> : null}</div>
         </div>
       ) : null}
-      {writing ? (
+      {!open ? null : writing ? (
         <form className="flex items-center gap-8" onSubmit={send}>
           {/* eslint-disable-next-line convoz/no-raw-input -- a pill with no visible label (aria-label); Field draws a label above its input */}
           <input
