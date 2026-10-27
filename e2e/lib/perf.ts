@@ -51,12 +51,18 @@ export async function phoneProfile(browser: Browser, context: BrowserContext, pa
 async function workerLinks(browser: Browser, origin: string): Promise<{ set(conditions: object): Promise<void>; close(): Promise<void> }> {
   const b = await browser.newBrowserCDPSession();
   const { targetInfos } = await b.send("Target.getTargets");
+  // A worker listed a moment ago can be gone by now (emptyCache has just removed it, or the browser stopped it): it has no link left to set.
+  const gone = (err: unknown) => {
+    if (!/No (target|session) with given id/.test(String(err))) throw err;
+  };
+  let id = 0;
+  const say = (sessionId: string, method: string, params: object) =>
+    b.send("Target.sendMessageToTarget", { sessionId, message: JSON.stringify({ id: ++id, method, params }) }).then(() => {}, gone);
   const sessions: string[] = [];
   for (const t of targetInfos.filter((t) => t.type === "service_worker" && t.url.startsWith(`${origin}/`))) {
-    sessions.push((await b.send("Target.attachToTarget", { targetId: t.targetId, flatten: false })).sessionId);
+    const attached = await b.send("Target.attachToTarget", { targetId: t.targetId, flatten: false }).catch(gone);
+    if (attached) sessions.push(attached.sessionId);
   }
-  let id = 0;
-  const say = (sessionId: string, method: string, params: object) => b.send("Target.sendMessageToTarget", { sessionId, message: JSON.stringify({ id: ++id, method, params }) });
   for (const s of sessions) await say(s, "Network.enable", {});
   return {
     set: async (conditions) => {
