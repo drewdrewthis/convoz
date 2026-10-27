@@ -203,6 +203,22 @@ func (q *Queries) RecordNudge(ctx context.Context, arg RecordNudgeParams) error 
 	return err
 }
 
+const setPlanBody = `-- name: SetPlanBody :exec
+UPDATE plans SET body_json = ?1 WHERE agent_id = ?2 AND conversation_id = ?3
+`
+
+type SetPlanBodyParams struct {
+	BodyJson       string
+	AgentID        int64
+	ConversationID int64
+}
+
+// Rewrites the items alone (a deliverable's asked-about date): the update time and the nudge count stay.
+func (q *Queries) SetPlanBody(ctx context.Context, arg SetPlanBodyParams) error {
+	_, err := q.db.ExecContext(ctx, setPlanBody, arg.BodyJson, arg.AgentID, arg.ConversationID)
+	return err
+}
+
 const upsertPlan = `-- name: UpsertPlan :exec
 INSERT INTO plans (agent_id, conversation_id, body_json, eta, updated_at, nudges, nudged_at, nudge_anchor)
 VALUES (?1, ?2, ?3, ?4, ?5, 0, NULL, 0)

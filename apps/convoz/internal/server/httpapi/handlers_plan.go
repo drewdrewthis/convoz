@@ -97,6 +97,10 @@ func (s *Server) putPlan(w http.ResponseWriter, r *http.Request, c *call) {
 		_, _, err = sayLine(ctx, d, now, who, conv, line)
 		return err
 	})
+	if errors.Is(err, plan.ErrTooManyDeliver) {
+		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "deliver", "a plan holds at most 5 deliverables: ship one first with --done")
+		return
+	}
 	if err != nil {
 		s.internalError(w, r, err)
 		return
@@ -144,6 +148,9 @@ func parsePlan(in wire.PlanRequest, now time.Time, handle, displayName string) (
 	if len(in.ClientID) > 64 {
 		return pi, "client_id", "client_id is at most 64 characters"
 	}
+	if pi.Deliver, field, why = parseDeliver(in, now); field != "" {
+		return pi, field, why
+	}
 	waiting, why := plan.OwnWaiting(in.Waiting, handle, displayName)
 	if why != "" {
 		return pi, "waiting", why
@@ -172,7 +179,7 @@ func quote(items []string) string {
 
 func planView(dir directory, p plan.Plan) wire.Plan {
 	v := wire.Plan{ConversationID: p.Conversation, IdentityID: p.Agent, Handle: dir[p.Agent].Handle, Blocked: p.Blocked, Now: []wire.PlanNow{},
-		Next: append([]string{}, p.Next...), Waiting: []wire.PlanWaiting{}, Done: []wire.PlanDone{}, UpdatedAt: p.UpdatedAt, DueAt: p.DueAt()}
+		Next: append([]string{}, p.Next...), Waiting: []wire.PlanWaiting{}, Done: []wire.PlanDone{}, Deliver: []wire.PlanDeliver{}, UpdatedAt: p.UpdatedAt, DueAt: p.DueAt()}
 	if p.Nudges > 0 {
 		v.NudgedAt = p.NudgedAt
 	}
@@ -191,7 +198,10 @@ func planView(dir directory, p plan.Plan) wire.Plan {
 		v.Waiting = append(v.Waiting, wire.PlanWaiting{Text: x.Text, Since: x.Since})
 	}
 	for _, x := range p.Done {
-		v.Done = append(v.Done, wire.PlanDone{Text: x.Text, At: x.At})
+		v.Done = append(v.Done, wire.PlanDone{Text: x.Text, At: x.At, Shipped: x.Shipped})
+	}
+	for _, x := range p.Deliver {
+		v.Deliver = append(v.Deliver, wire.PlanDeliver{Text: x.Text, Due: x.Due, Since: x.Since})
 	}
 	return v
 }

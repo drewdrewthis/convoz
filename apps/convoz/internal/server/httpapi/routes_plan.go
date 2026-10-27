@@ -7,4 +7,6 @@ var planRoutes = []Route{
 	// The agent replaces its own plan; it rides on the status scope, as a plan also moves the agent's status.
 	{Method: "PUT", Pattern: "/api/conversations/:id/plan", Auth: authz.Lease, Scope: "status", handle: (*Server).putPlan},
 	{Method: "GET", Pattern: "/api/plans", Auth: authz.Human, handle: (*Server).getPlans},
+	// Every deliverable of every plan, for the owner's Deliveries page (delivery.feature).
+	{Method: "GET", Pattern: "/api/deliveries", Auth: authz.Owner, handle: (*Server).getDeliveries},
 }

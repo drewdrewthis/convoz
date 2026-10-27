@@ -61,21 +61,24 @@ func (n *nowItems) fail(msg string) {
 
 // Plan runs `convoz plan <conv> ...`: it replaces the agent's whole plan for the conversation at once, so the owner never sees half
 // of it. The owner sees the line under the conversation's title, the details panel and a dot in the list. A plan with --doing also
-// sets the agent's status to working (Crew). --done items are added to the Done history; everything else is replaced, so a
-// plan without --waiting has nothing waiting on the owner any more. It prints the plan as stored.
+// sets the agent's status to working (Crew). --done items are added to the Done history; deliverables (--deliver with --due) are
+// kept until a --done names them; everything else is replaced, so a plan without --waiting has nothing waiting on the owner any more. It prints the plan as stored.
 func Plan(args []string, io IO) int {
 	f := newChatFlags("plan", io)
 	var now nowItems
 	f.fs.Var(nowFlag{&now, "doing"}, "doing", "what you do now (200 characters); up to 3 times when you work in parallel")
 	f.fs.Var(nowFlag{&now, "step"}, "step", "the step of the --doing before it, as N/M (step 2 of 3 is 2/3)")
 	f.fs.Var(nowFlag{&now, "eta"}, "eta", "when the --doing before it should be done: a duration (30m, 1h30m) or a time HH:MM on this machine's clock")
+	var deliver deliverItems
+	f.fs.Var(deliverFlag{&deliver, false}, "deliver", "what you will deliver (up to 5); it stays on the owner's Deliveries until you name it in --done")
+	f.fs.Var(deliverFlag{&deliver, true}, "due", "when the --deliver before it is due: a duration (2d, 1d4h), a time HH:MM or a date YYYY-MM-DD HH:MM")
 	blocked := f.fs.String("blocked", "", "what blocks you here (not the owner: use --waiting for that)")
 	var next, waiting, done repeated
 	f.fs.Var(&next, "next", "what you do next, in order (up to 5 times)")
 	f.fs.Var(&waiting, "waiting", "what only the owner must do (no name prefix); up to 5 times, and something new pushes the owner")
 	f.fs.Var(&done, "done", "an item you finished (up to 5 times); a quiet line tells the owner")
 	clientID := f.fs.String("client-id", "", "the id that makes a retry safe; random when not given")
-	usage := "usage: convoz plan <conv> [--doing D [--step N/M] [--eta 30m|HH:MM]]... [--blocked B] [--next N]... [--waiting W]... [--done D]..."
+	usage := "usage: convoz plan <conv> [--doing D [--step N/M] [--eta 30m|HH:MM]]... [--deliver X --due 2d|HH:MM]... [--blocked B] [--next N]... [--waiting W]... [--done D]..."
 	pos, ok := f.parse(args, io)
 	if !ok {
 		return ExitUsage
@@ -89,6 +92,9 @@ func Plan(args []string, io IO) int {
 	}
 	if now.bad != "" {
 		return usageError(io, now.bad)
+	}
+	if bad := deliver.problem(); bad != "" {
+		return usageError(io, bad)
 	}
 	if len(now.items) > maxPlanNow {
 		return usageError(io, fmt.Sprintf("--doing is at most %d items", maxPlanNow))
@@ -119,7 +125,7 @@ func Plan(args []string, io IO) int {
 		*clientID = "convoz-" + randomHex(8)
 	}
 	_, offset := time.Now().Zone()
-	req := wire.PlanRequest{UTCOffset: offset, Blocked: *blocked, Next: next, Waiting: waiting, Done: done, ClientID: *clientID}
+	req := wire.PlanRequest{UTCOffset: offset, Blocked: *blocked, Next: next, Waiting: waiting, Done: done, Deliver: deliver.items, ClientID: *clientID}
 	if len(now.items) == 1 { // one item goes in the older form, which every server reads
 		req.Doing, req.Step, req.ETA = now.items[0].Text, now.items[0].Step, now.items[0].ETA
 	} else {
@@ -150,6 +156,7 @@ func planText(p wire.Plan) string {
 		}
 		b.WriteString(line + "\n")
 	}
+	b.WriteString(deliverLines(p))
 	if p.Blocked != "" {
 		b.WriteString("Blocked: " + plain(p.Blocked) + "\n")
 	}

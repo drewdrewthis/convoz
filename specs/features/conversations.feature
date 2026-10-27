@@ -324,7 +324,7 @@ Feature: Conversations
     @v1 @browser @phone
     Scenario: On a phone the bottom bar leads to Now, Conversations and Crew
       Given the owner opens Convoz on a phone
-      Then a bottom bar shows "Now", "Conversations" and "Crew"
+      Then a bottom bar shows "Now", "Conversations", "Deliveries" and "Crew"
       When the owner taps "Conversations"
       Then the Conversations list shows with a "New conversation" button
       And "Conversations" is marked as the current tab
@@ -610,3 +610,16 @@ Feature: Conversations
       Given the owner has a conversation with messages from both sides
       When the owner opens Conversations, New conversation and the conversation in dark and in light
       Then the dark pages are dark and the light pages are light
+
+    # Owner (conv 179 msg 4100): agent handles should be clickable. Issue 34.
+    @v1 @browser
+    Scenario: The agent handle under the title of a conversation opens that agent
+      Given a conversation with "devtool" is open
+      When the owner clicks the handle @devtool under the title
+      Then the agent page of "devtool" opens
+
+    @v1 @browser
+    Scenario: The agent handle on its card in the details panel opens that agent
+      Given a conversation with "devtool" is open with its details showing
+      When the owner clicks the handle @devtool on its card
+      Then the agent page of "devtool" opens

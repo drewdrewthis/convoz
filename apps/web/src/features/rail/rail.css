@@ -1,6 +1,6 @@
 /* Rail: the desktop sidebar (prototype v41), the groups of the phone Chats list, the drag line, the toast and the shortcuts list. */
 @layer components {
-  .rail { display: none; }
+  .rail, .rail-resize { display: none; }
   /* The desktop canvas behind the sidebar: soft blends of the palette's three tints over a quiet base, and grain (prototype v41). */
   :root {
     --canvas: url("/assets/grain-dark.svg"),
@@ -23,18 +23,20 @@
   .chatlist li.muted .rowtitle { color: var(--color-muted); }
 
   @media (min-width: 900px) {
-    body[data-desk] { padding: 8px 8px 8px 240px; background: var(--canvas); }
+    body[data-desk] { padding: 8px 8px 8px var(--rail-w, 240px); background: var(--canvas); }
     body[data-desk] .appbar { border-radius: 14px 14px 0 0; border: 1px solid var(--color-border); border-bottom-color: var(--color-border); }
     body[data-desk] .screen { background: var(--color-surface); border: 1px solid var(--color-border); border-top: 0; border-radius: 0 0 14px 14px; }
     body[data-desk] .rail {
-      position: fixed; left: 0; top: 0; bottom: 0; z-index: 5; width: 240px; display: flex; flex-direction: column; gap: 12px; padding: 14px 10px;
+      position: fixed; left: 0; top: 0; bottom: 0; z-index: 5; width: var(--rail-w, 240px); display: flex; flex-direction: column; gap: 12px; padding: 14px 10px;
       overflow: hidden;
     }
-    body[data-desk] .chatframe { left: 240px; right: 8px; top: 8px; bottom: 8px; height: auto; border: 1px solid var(--color-border); border-radius: 14px; overflow: hidden; }
+    /* A 6px hit area centred on the rail's outer edge, above the page. */
+    .rail-resize { display: block; position: fixed; top: 0; bottom: 0; left: calc(var(--rail-w, 240px) - 3px); width: 6px; z-index: 6; }
+    body[data-desk] .chatframe { left: var(--rail-w, 240px); right: 8px; top: 8px; bottom: 8px; height: auto; border: 1px solid var(--color-border); border-radius: 14px; overflow: hidden; }
     /* Now in the rail (Cmd+.): the rail widens to hold the Now cards and the page moves with it, as for the fold. The Now page keeps the plain rail. */
-    body[data-desk][data-rail-now]:not([data-rail-folded], [data-page="now"]) { padding-left: 360px; }
-    body[data-desk][data-rail-now]:not([data-rail-folded], [data-page="now"]) .rail { width: 360px; }
-    body[data-desk][data-rail-now]:not([data-rail-folded], [data-page="now"]) .chatframe { left: 360px; }
+    body[data-desk][data-rail-now]:not([data-rail-folded], [data-page="now"]) { padding-left: calc(var(--rail-w, 240px) + 120px); }
+    body[data-desk][data-rail-now]:not([data-rail-folded], [data-page="now"]) .rail { width: calc(var(--rail-w, 240px) + 120px); }
+    body[data-desk][data-rail-now]:not([data-rail-folded], [data-page="now"]) .chatframe { left: calc(var(--rail-w, 240px) + 120px); }
     /* Folded (Cmd+\\): a thin strip with the button that unfolds it, and the page takes the room. */
     body[data-desk][data-rail-folded] { padding-left: 52px; }
     body[data-desk][data-rail-folded] .rail { width: 52px; align-items: center; padding: 14px 0; }

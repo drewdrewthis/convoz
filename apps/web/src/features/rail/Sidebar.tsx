@@ -1,5 +1,6 @@
 import { Button } from "@convoz/ui/Button";
 import { IconButton } from "@convoz/ui/IconButton";
+import { ResizeHandle } from "@convoz/ui/ResizeHandle";
 import { PlanIcon } from "../plan/index.ts";
 import type { Conversation } from "@convoz/api-client";
 import { Fragment, useCallback, useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent } from "react";
@@ -7,16 +8,19 @@ import { humanError } from "../../shared/api.ts";
 import { visit } from "../../shared/navigate.ts";
 import { data, loadListOnMount, useData, useLive } from "../../shared/data.ts";
 import { Now, needsYouCount, useNow } from "../now/index.ts";
+import { useDeliveries } from "../delivery/index.ts";
 import { toast } from "../pins-stars/index.ts";
 import { useSearchUi } from "../search/index.ts";
 import { startDrag, type Drop } from "./drag.ts";
 import { Logo } from "./Logo.tsx";
 import { RowMenu, type RowMenuAt } from "./RowMenu.tsx";
-import { BackArrow, ChevronIcon, ComposeGlyph, CrewGlyph, InviteGlyph, FoldAllGlyph, ForwardArrow, DotsIcon, GripIcon, PanelGlyph, NowGlyph, SearchGlyph, StarIcon } from "./icons.tsx";
+import { BackArrow, ChevronIcon, ComposeGlyph, CrewGlyph, DeliveryGlyph, InviteGlyph, FoldAllGlyph, ForwardArrow, DotsIcon, GripIcon, PanelGlyph, NowGlyph, SearchGlyph, StarIcon } from "./icons.tsx";
 import { groups, isOlder, rowLabel, titleOf } from "./model.ts";
 import { ThreadFold, ThreadRows, rowUnread, useThreadFold } from "../threads/index.ts";
 import { useFold } from "./fold.ts";
 import { useRailMode } from "./mode.ts";
+import { useRailWidth } from "./width.ts";
+import { RAIL_MAX, RAIL_MIN } from "./widthRange.ts";
 import { moveRow, setStar, stepRow } from "./actions.ts";
 
 // A row with thread rows carries their fold chevron at its right end, so its star and grip sit 24px further in.
@@ -29,7 +33,7 @@ const openedId = (): number => Number(/^\/chats\/(\d+)$/.exec(location.pathname)
 
 /**
  * Sidebar is the desktop rail (prototype v41): search and new conversation at the top, Now, the groups Starred and Conversations in the
- * owner's own order, the folded Older group, and Crew at the bottom. Drag a row, or Alt plus an arrow on it, to move it.
+ * owner's own order, the folded Older group, and Deliveries and Crew at the bottom. Drag a row, or Alt plus an arrow on it, to move it.
  * Now switches the rail to the Now list (proposal §1): the page keeps the open conversation, and a pick opens its conversation beside the
  * list. "Conversations", Escape in the rail, or Now again switch back. On the Now page the rail stays as it is: the page is that list.
  */
@@ -37,6 +41,8 @@ export default function Sidebar() {
   const list = useData((s) => s.conversations);
   const waiting = needsYouCount(useNow((s) => s.now), list);
   const crew = useData((s) => s.identities?.filter((p) => p.kind === "agent" && !p.disabled).length ?? null);
+  const late = useDeliveries((s) => s.data?.deliveries.filter((d) => d.state === "late").length ?? 0);
+  useEffect(() => useDeliveries.getState().ensure(), []);
   const [olderOpen, setOlderOpen] = useState(false);
   const [said, setSaid] = useState("");
   const [focusId, setFocusId] = useState(0);
@@ -45,6 +51,7 @@ export default function Sidebar() {
   const closeMenu = useCallback(() => setMenu(null), []);
   const current = openedId();
   const { folded, toggle } = useFold();
+  const { width, set: setWidth, reset: resetWidth } = useRailWidth();
   const onNowPage = document.body.dataset.page === "now";
   const showNow = useRailMode((s) => s.now) && !onNowPage;
   const setMode = useRailMode((s) => s.set);
@@ -186,6 +193,7 @@ export default function Sidebar() {
   }
 
   return (
+    <>
     <nav className="rail" aria-label="Conversations" data-testid="rail" onKeyDown={escape} onMouseLeave={() => setHot(0)}>
       <div className="rail-top">
         {foldButton}
@@ -274,6 +282,11 @@ export default function Sidebar() {
         )}
       </div>
       <div className="rail-foot">
+        <a className="rnav" href="/delivery" aria-current={location.pathname === "/delivery" ? "page" : undefined}>
+          <DeliveryGlyph />
+          <span>Deliveries</span>
+          <span className="rsum">{late ? `${late} late` : ""}</span>
+        </a>
         <a className="rnav" href="/crew" aria-current={location.pathname.startsWith("/crew") ? "page" : undefined}>
           <CrewGlyph />
           <span>Crew</span>
@@ -285,5 +298,8 @@ export default function Sidebar() {
         {said}
       </p>
     </nav>
+    {/* Beside the rail, on its edge, so it never covers a row's buttons. Not in Now (its width is not the chosen one) nor folded. */}
+    {showNow ? null : <ResizeHandle className="rail-resize" label="Resize sidebar" value={width} min={RAIL_MIN} max={RAIL_MAX} onChange={setWidth} onReset={resetWidth} />}
+    </>
   );
 }

@@ -180,7 +180,7 @@ scenario("The line under the title shows the most urgent state", { tag: ["@brows
         await testApi(p.w.srv).advanceClock(60 * MIN);
         await mustPlan(p, p.docs, ["--doing", "Docs", "--eta", "1h"]);
       },
-      line: async (p) => `Late · was due ${await clockIn(page, (await planOf(p, "devtool"))!.eta!, (await board(p)).now)}`,
+      line: async (p) => `Behind · was due ${await clockIn(page, (await planOf(p, "devtool"))!.eta!, (await board(p)).now)}`,
       tone: "amber",
     },
     {
@@ -376,9 +376,9 @@ scenario("The panel says when an agent is late or blocked", { tag: ["@browser"] 
   await planLine(page).click();
   const agents = detailsPanel(page).getByRole("region", { name: "Agents · 2" });
 
-  // Then the card of "@devtool" shows "Late", "Was due" and "Ask for an update"
+  // Then the card of "@devtool" shows "Behind", "Was due" and "Ask for an update"
   const dev = agents.getByRole("listitem").filter({ hasText: "@devtool" }).first();
-  await expect(dev).toContainText("Late");
+  await expect(dev).toContainText("Behind");
   await expect(dev).toContainText("Was due");
   await expect(dev.getByRole("button", { name: "Ask for an update" })).toBeVisible();
 
@@ -623,7 +623,7 @@ scenario("A late agent is nudged once to update its plan, and the owner is not p
   // When 31 minutes pass with no plan or status update from "devtool"
   await testApi(p.w.srv).advanceClock(31 * MIN);
 
-  // Then the line of conversation 41 is "Late"
+  // Then the line of conversation 41 is "Behind"
   expect(await attentionOf(p)).toBe("late");
 
   // And "convoz inbox" gives one item with the reason "status_due" for conversation 41 that asks it to update its plan

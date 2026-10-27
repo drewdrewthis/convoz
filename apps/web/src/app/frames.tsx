@@ -1,6 +1,6 @@
 // The two page frames around the features: a focused flow (the wordmark and one task) and the signed-in shell (app bar,
 // account menu, floating tab bar). A conversation draws its own full-screen frame (features/conversations).
-import { AccountIcon, BackIcon, ChatIcon, CrewIcon, NowIcon, PlusIcon } from "@convoz/ui/icons";
+import { AccountIcon, BackIcon, ChatIcon, CrewIcon, DeliveryIcon, NowIcon, PlusIcon } from "@convoz/ui/icons";
 import { IconButton } from "@convoz/ui/IconButton";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { signOut } from "../shared/api.ts";
@@ -50,6 +50,7 @@ export function FocusFrame({ def, children }: { def: PageDef; children: ReactNod
 const TABS = [
   { tab: "now", href: "/", label: "Now", Icon: NowIcon, badge: true },
   { tab: "chats", href: "/chats", label: "Conversations", Icon: ChatIcon, badge: false },
+  { tab: "delivery", href: "/delivery", label: "Deliveries", Icon: DeliveryIcon, badge: false },
   { tab: "crew", href: "/crew", label: "Crew", Icon: CrewIcon, badge: false },
 ] as const;
 
