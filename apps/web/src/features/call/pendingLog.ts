@@ -18,9 +18,16 @@ const read = (): Pending[] => {
 };
 const write = (all: Pending[]): void => (all.length ? localStorage.setItem(KEY, JSON.stringify(all)) : localStorage.removeItem(KEY));
 
-/** postLog sends one call log, quiet and by voice. The same client id twice is one message, so a retry never doubles it. */
-export async function postLog(conversation: number, p: Pending): Promise<void> {
-  await client.POST("/api/conversations/{id}/messages", { params: { path: { id: conversation } }, body: { client_id: p.client_id, body: p.body, format: "plain", via_voice: true, quiet: true }, keepalive: true });
+/**
+ * postLog sends one call log, quiet and by voice. The same client id twice is one message, so a retry never doubles it.
+ * Resolves true when the log is settled: the server took it (2xx), or refused it for good (4xx but 401/408/429: a retry cannot
+ * succeed, and keeping it would loop forever). Resolves false when a later try may work (5xx, 401, 408, 429).
+ * A network failure throws, and the log stays kept.
+ */
+export async function postLog(conversation: number, p: Pending): Promise<boolean> {
+  const { response } = await client.POST("/api/conversations/{id}/messages", { params: { path: { id: conversation } }, body: { client_id: p.client_id, body: p.body, format: "plain", via_voice: true, quiet: true }, keepalive: true });
+  const s = response.status;
+  return s < 500 && ![401, 408, 429].includes(s);
 }
 
 /**
@@ -44,8 +51,7 @@ export async function sendKeptLogs(): Promise<void> {
   try {
     const conversation = await callsConversation();
     for (const p of kept) {
-      await postLog(conversation, p);
-      forgetLog(p);
+      if (await postLog(conversation, p)) forgetLog(p);
     }
   } catch {
     /* kept for the next load */

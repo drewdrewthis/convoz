@@ -262,7 +262,19 @@ scenario("A Now call that ends with a reload still leaves its log", { tag: ["@br
   // And the call has found or made its log's conversation (a reload before then has nowhere to post the log)
   await expect.poll(async () => (await nowCallLogs(u.w)).conversations.length).toBe(1);
 
-  // When the owner reloads the page
+  // And the server fails the first post of the log (503)
+  let failed = 0;
+  await page.route("**/api/conversations/*/messages", async (route) => {
+    if (route.request().method() !== "POST" || failed) return route.fallback();
+    failed++;
+    await route.fulfill({ status: 503, body: "down" });
+  });
+
+  // When the owner reloads the page, and the failed post is kept for the next load
+  await page.reload();
+  await page.getByRole("heading", { name: "Now", exact: true }).waitFor();
+  await expect.poll(() => failed).toBe(1);
+  expect((await nowCallLogs(u.w)).logs).toHaveLength(0);
   await page.reload();
   await page.getByRole("heading", { name: "Now", exact: true }).waitFor();
 

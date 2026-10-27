@@ -354,8 +354,7 @@ async function saveCallLog(home: number | Promise<number>, log: CallLog): Promis
   // Written down first: a page that unloads before the conversation is known leaves the log for the next load (pendingLog.ts).
   const kept = keepLog(log.render());
   try {
-    await postLog(typeof home === "number" ? home : await home, kept);
-    forgetLog(kept);
+    if (await postLog(typeof home === "number" ? home : await home, kept)) forgetLog(kept);
   } catch {
     /* the call is over; a log that cannot be saved is sent on the next load, not shown as an error */
   }
