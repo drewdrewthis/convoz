@@ -1,9 +1,9 @@
 package httpapi
 
 import (
-	"fmt"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -151,7 +151,9 @@ func TestAnAgentCannotCloseWhereTheOwnerWroteLastNorReopen(t *testing.T) {
 	}
 
 	time.Sleep(5 * time.Millisecond)
-	rig.inTx(t, func(ctx context.Context, d pdb.DBTX) error { return conversation.MarkStale(ctx, d, rig.s.Clock.Now(), rig.conv, "") })
+	rig.inTx(t, func(ctx context.Context, d pdb.DBTX) error {
+		return conversation.MarkStale(ctx, d, rig.s.Clock.Now(), rig.conv, "")
+	})
 	if code, _ := rig.staleAs(t, 900, `{"reopen":true}`); code != http.StatusForbidden {
 		t.Errorf("an agent reopens: %d, want 403", code)
 	}
