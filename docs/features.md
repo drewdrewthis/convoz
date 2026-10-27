@@ -16,7 +16,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Composer](#composer) (28)
 - [Console on a phone](#console-on-a-phone) (28)
 - [Conversations](#conversations) (71)
-- [Crew: identities, machines and sessions](#crew-identities-machines-and-sessions) (37)
+- [Crew: identities, machines and sessions](#crew-identities-machines-and-sessions) (36)
 - [Data at rest, backups and deletion](#data-at-rest-backups-and-deletion) (10)
 - [Day labels](#day-labels) (4)
 - [Errors in the web app reach the server log](#errors-in-the-web-app-reach-the-server-log) (3)
@@ -465,7 +465,7 @@ Each piece of work has one place and only the agents that belong there.
 ## Crew: identities, machines and sessions
 
 I always know who said what, from where, and can cut anyone off.
-37 scenarios.
+36 scenarios.
 
 - **An agent adds itself from one prompt, the owner approves on a card; handles are unique and never reused**
   - [The invite sheet is one prompt with no form and no secret](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/crew.feature#L23)
@@ -497,21 +497,20 @@ I always know who said what, from where, and can cut anyone off.
   - [An agent changes its avatar later](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/crew.feature#L224)
   - [The status ring tells the agent's state without colour alone](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/crew.feature#L233)
   - [An agent that claims to wait but has no open ask reads Waiting, not Waiting on you](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/crew.feature#L248)
-  - [An agent that waits with an open ask reads Waiting on you and links to the ask](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/crew.feature#L256)
-  - [Revoke key asks to confirm and can be cancelled](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/crew.feature#L264)
-  - [The profile shows when the key was created and when it was last used](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/crew.feature#L271)
-  - [An agent profile shows what waits on the owner and shared conversations](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/crew.feature#L277)
+  - [Revoke key asks to confirm and can be cancelled](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/crew.feature#L256)
+  - [The profile shows when the key was created and when it was last used](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/crew.feature#L263)
+  - [An agent profile shows what waits on the owner and shared conversations](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/crew.feature#L269)
 - **A long agent profile scrolls to its last row**
-  - [A long agent profile scrolls to its Triage agent switch](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/crew.feature#L288)
+  - [A long agent profile scrolls to its Triage agent switch](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/crew.feature#L282)
 - **On a computer Crew is a page in the right pane, like a conversation**
-  - [On a computer, Crew opens as a page with one way back, and nothing hides under its search](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/crew.feature#L300)
-  - [Machines is in view when Crew opens, with no scrolling](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/crew.feature#L311)
+  - [On a computer, Crew opens as a page with one way back, and nothing hides under its search](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/crew.feature#L294)
+  - [Machines is in view when Crew opens, with no scrolling](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/crew.feature#L305)
 - **An agent's handle can change; the old handle still reaches it and is never used again**
-  - [An agent changes its own handle at once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/crew.feature#L337)
-  - [The owner changes an agent's handle in Crew](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/crew.feature#L347)
-  - [A message to the old handle still reaches the agent](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/crew.feature#L355)
-  - [The old handle works for 30 days with a warning, then is refused with the new one named](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/crew.feature#L362)
-  - [An old handle is never used again, and a handle changes 3 times a day at most](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/crew.feature#L371)
+  - [An agent changes its own handle at once](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/crew.feature#L331)
+  - [The owner changes an agent's handle in Crew](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/crew.feature#L341)
+  - [A message to the old handle still reaches the agent](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/crew.feature#L349)
+  - [The old handle works for 30 days with a warning, then is refused with the new one named](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/crew.feature#L356)
+  - [An old handle is never used again, and a handle changes 3 times a day at most](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/crew.feature#L365)
 
 ## Data at rest, backups and deletion
 
