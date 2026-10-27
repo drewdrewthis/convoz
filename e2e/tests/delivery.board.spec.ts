@@ -247,6 +247,43 @@ scenario("When a due date passes, the agent is asked once: done, new date, or bl
   expect(again[0]!.message.body).toContain('"Search filters live"');
 });
 
+scenario("A late step and a late delivery each ask once, with their own text", { tag: ["@cli"] }, async ({ server, testApi }) => {
+  const p = await planWorld(server, { docsIn: false, env: { CONVOZ_TEST_PLAINTEXT: "1" } });
+  // Given "devtool" runs "convoz plan 41 --doing 'Building invites' --eta 30m --deliver 'Search filters live' --due 1h"
+  await mustPlan(p, p.dev, ["--doing", "Building invites", "--eta", "30m", "--deliver", "Search filters live", "--due", "1h"]);
+
+  // When 31 minutes pass
+  await testApi(p.w.srv).advanceClock(31 * MIN);
+  // Then "devtool" gets one "status_due" item that names "Building invites" and does not ask about the delivery
+  const step = await dueItems(p, p.dev);
+  expect(step).toHaveLength(1);
+  expect(step[0]!.message.body).toContain('"Building invites"');
+  expect(step[0]!.message.body).not.toContain("done, new date, or blocked?");
+
+  // When the due date passes while that item is not acked
+  await testApi(p.w.srv).advanceClock(31 * MIN);
+  // Then the same item still reads about the step
+  const same = await dueItems(p, p.dev);
+  expect(same).toHaveLength(1);
+  expect(same[0]!.message.body).not.toContain("done, new date, or blocked?");
+
+  // When "devtool" acks it
+  const ack = await convoz(p.w.box, p.dev.sid, ["ack", `${same[0]!.id}:${same[0]!.claim_token}`]);
+  expect(ack.code, ack.stderr).toBe(0);
+  // Then "devtool" gets one "status_due" item that asks "done, new date, or blocked?" about "Search filters live"
+  const delivery = await dueItems(p, p.dev);
+  expect(delivery).toHaveLength(1);
+  expect(delivery[0]!.message.body).toContain('"Search filters live"');
+  expect(delivery[0]!.message.body).toContain("done, new date, or blocked?");
+
+  // When "devtool" acks it and 90 minutes pass
+  const ack2 = await convoz(p.w.box, p.dev.sid, ["ack", `${delivery[0]!.id}:${delivery[0]!.claim_token}`]);
+  expect(ack2.code, ack2.stderr).toBe(0);
+  await testApi(p.w.srv).advanceClock(90 * MIN);
+  // Then no item asks about the delivery again
+  expect((await dueItems(p, p.dev)).filter((i) => i.message.body.includes("done, new date, or blocked?"))).toEqual([]);
+});
+
 scenario("Now lists late deliverables under Overdue until the agent gives a new date", { tag: ["@browser"] }, async ({ server, page, context, testApi }, info) => {
   info.setTimeout(60_000);
   const p = await planUi({ server, page, context }, { docsIn: false });
