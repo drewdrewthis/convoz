@@ -161,3 +161,24 @@ func TestAnAgentCannotCloseWhereTheOwnerWroteLastNorReopen(t *testing.T) {
 		t.Error("a refused reopen changed the conversation")
 	}
 }
+
+// A human who is not the owner (a guest or member: no session either) is treated like an agent: no force, no reopen.
+func TestAGuestIsTreatedLikeAnAgentWhenClosingAndReopening(t *testing.T) {
+	rig := openRig(t, "owner")
+	rig.ownerPosts(t, false)
+	guest := func(body string) int {
+		req := httptest.NewRequest(http.MethodPost, "/api/conversations/"+strconv.FormatInt(rig.conv, 10)+"/stale", strings.NewReader(body))
+		req.SetPathValue("id", strconv.FormatInt(rig.conv, 10))
+		rec := httptest.NewRecorder()
+		p := rig.c.p
+		p.Role = "member"
+		rig.s.markStale(rec, req, &call{p: p})
+		return rec.Code
+	}
+	if code := guest(`{"force":true}`); code == http.StatusOK || rig.conversationNow(t).Stale() {
+		t.Errorf("a guest forces a close where the owner wrote last: %d stale=%v, want a refusal", code, rig.conversationNow(t).Stale())
+	}
+	if code := guest(`{"reopen":true}`); code != http.StatusForbidden {
+		t.Errorf("a guest reopens: %d, want 403", code)
+	}
+}

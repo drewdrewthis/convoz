@@ -28,7 +28,8 @@ func (s *Server) markStale(w http.ResponseWriter, r *http.Request, c *call) {
 	if !decode(w, r, &in) {
 		return
 	}
-	if in.Reopen && c.p.SessionID != 0 {
+	byOwner := c.p.SessionID == 0 && c.p.Role == "owner" // a guest or member (no session either) counts as an agent here
+	if in.Reopen && !byOwner {
 		writeErr(w, http.StatusForbidden, "forbidden", "Only the owner may reopen a conversation.")
 		return
 	}
@@ -38,7 +39,6 @@ func (s *Server) markStale(w http.ResponseWriter, r *http.Request, c *call) {
 		return
 	}
 	who, now := c.p.Identity(), s.Clock.Now()
-	byOwner := c.p.SessionID == 0
 	// The owner closing from the rail asks for it (force), so the owner-spoke-last guard does not bind him; the call's model and agents keep it.
 	skipGuard := byOwner && (in.Force || in.Reopen)
 	var visible, ownerLast bool
