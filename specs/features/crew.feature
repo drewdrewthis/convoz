@@ -253,6 +253,14 @@ Feature: Crew: identities, machines and sessions
       Then the state reads "Waiting" and the profile has no "Waiting on you" section
 
     @v1 @browser
+    Scenario: An agent that waits with an open ask reads Waiting on you and links to the ask
+      Given "devtool" has the status "waiting" and 1 open ask
+      When the owner opens Crew
+      Then "devtool" sits in the group "Waiting on you" with the label "Waiting on you"
+      When the owner opens the profile of "devtool"
+      Then the "Waiting on you" section links to the ask
+
+    @v1 @browser
     Scenario: Revoke key asks to confirm and can be cancelled
       When the owner taps "Revoke key" on the profile of "devtool"
       Then the profile asks "Revoke the key for @devtool?" with Confirm and Cancel

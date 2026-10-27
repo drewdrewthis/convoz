@@ -605,6 +605,32 @@ scenario("An agent that claims to wait but has no open ask reads Waiting, not Wa
   await expect(page.getByText(/waiting on you/i).filter({ visible: true })).toHaveCount(0);
 });
 
+scenario("An agent that waits with an open ask reads Waiting on you and links to the ask", { tag: ["@browser"] }, async ({ server, dataDir, page, context }) => {
+  // Given "devtool" has the status "waiting" and 1 open ask
+  const c = await crewWorld({ server, page, context }, {
+    agents: ["devtool"],
+    live: ["devtool"],
+    plaintext: true,
+    beforeSignIn: async (x) => {
+      const conv = await createConversation(x.w.owner, { participants: ["devtool"], title: "Ship it" });
+      seedAsk(dataDir, conv, x.ids.devtool!, x.ids.drew!, "Deploy to production?", "open");
+      expect((await convoz(x.w.box, x.sessions.devtool!.sid, ["status", "--state", "waiting"])).code).toBe(0);
+    },
+  });
+
+  // When the owner opens Crew
+  await page.goto(`${c.w.srv.origin}/crew`);
+
+  // Then "devtool" sits in the group "Waiting on you" with the label "Waiting on you"
+  await expect(page.getByRole("region", { name: "Waiting on you" }).getByRole("link", { name: /devtool/ })).toContainText("Waiting on you");
+
+  // When the owner opens the profile of "devtool"
+  await crewRow(page, "devtool").click();
+
+  // Then the "Waiting on you" section links to the ask
+  await expect(page.getByRole("region", { name: "Waiting on you" }).getByRole("link", { name: "Deploy to production?" })).toBeVisible();
+});
+
 scenario("An agent profile shows what waits on the owner and shared conversations", { tag: ["@browser"] }, async ({ server, dataDir, page, context }) => {
   // Given "devtool" has 2 open asks and shares 4 conversations with the owner
   const titles = ["Ship search filters", "Deploy alerts runbook", "Weekly usage", "Bug #8642"];

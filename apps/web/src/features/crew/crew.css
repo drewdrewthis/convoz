@@ -18,7 +18,7 @@
   .crew-mach { display: flex; align-items: center; gap: 10px; min-height: 48px; margin: 0 4px 8px; padding: 0 14px; border: 1px solid var(--color-edge); border-radius: 999px; background: var(--color-raised); color: var(--color-accent-text); font-size: 14px; font-weight: 600; text-decoration: none; }
   .crew-mach span { flex: 1 1 auto; min-width: 0; }
   .crew-mach svg { flex: none; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-  .cgrp[data-group="waiting"] h3 i { background: var(--color-amber); }
+  .cgrp[data-group="needs"] h3 i, .cgrp[data-group="waiting"] h3 i { background: var(--color-amber); }
   .cgrp[data-group="working"] h3 i { background: var(--gradring); }
 
   .crew-top .addagent {
