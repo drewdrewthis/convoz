@@ -15,7 +15,7 @@ import { PendingAdd } from "./PendingAdd.tsx";
 import { Mentions, OtherChats, Replies, unreadRows, useTriage } from "./Unread.tsx";
 import { useAskActions } from "./useAskActions.ts";
 import { needsYouCount, useNow } from "./store.ts";
-import { sendKeptLogs } from "../call/pendingLog.ts";
+import { sendKeptLogs } from "../call/index.ts";
 
 interface NowProps {
   /** Drawn in the desktop rail (proposal §1): no notes and no wordmark, and it polls on its own, since no Now page around it does. */
