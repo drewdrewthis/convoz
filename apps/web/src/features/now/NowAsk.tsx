@@ -1,7 +1,7 @@
 import type { Ask } from "@convoz/api-client";
 import { AskCard, type Answer } from "@convoz/app-kit";
 import { Button } from "@convoz/ui/Button";
-import { useId, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { navigate } from "../../shared/navigate.ts";
 import { toast } from "../pins-stars/index.ts";
 import { AskApp } from "./AskApp.tsx";
@@ -26,6 +26,17 @@ interface NowAskProps {
   compact?: boolean;
 }
 
+/** DismissFoot is Dismiss alone: a one-way card has Review as its only way into the conversation. */
+function DismissFoot({ onDismiss }: { onDismiss(): void }) {
+  return (
+    <div className="-ml-8 flex">
+      <Button variant="text" size="inline" onClick={onDismiss}>
+        Dismiss
+      </Button>
+    </div>
+  );
+}
+
 /** CompactFoot is the quiet row under the sidebar card's answer: the way into the conversation and Dismiss. "Open" alone read as the ask's state (owner, conv 179 msg 8524). */
 function CompactFoot({ href, onDismiss }: { href: string; onDismiss(): void }) {
   return (
@@ -45,6 +56,8 @@ function CompactAsk({ ask, busy, answer, dismiss, thread }: Pick<NowAskProps, "a
   const id = useId();
   const first = ask.options[0];
   const p = ask.permission;
+  const [notThis, setNotThis] = useState(false);
+  const [why, setWhy] = useState("");
   if (p) {
     const href = `/chats/${ask.conversation_id}`;
     return (
@@ -62,17 +75,40 @@ function CompactAsk({ ask, busy, answer, dismiss, thread }: Pick<NowAskProps, "a
         </dl>
         {thread}
         {p.one_way ? (
-          <Button size="option" href={href}>
-            Review
-          </Button>
+          <>
+            <Button size="option" href={href}>
+              Review
+            </Button>
+            <DismissFoot onDismiss={() => dismiss(ask)} />
+          </>
         ) : (
           <>
-            <Button size="option" variant="primary" disabled={busy} onClick={() => answer(ask, { choice: "recommended" })}>
-              Go
-            </Button>
+            <div className="flex gap-8 [&>*]:flex-1">
+              <Button size="option" variant="primary" disabled={busy} onClick={() => answer(ask, { choice: "recommended" })}>
+                Go
+              </Button>
+              <Button size="option" aria-expanded={notThis} disabled={busy} onClick={() => setNotThis((v) => !v)}>
+                Not this
+              </Button>
+            </div>
+            {notThis ? (
+              <form
+                className="flex items-center gap-8"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (why.trim()) answer(ask, { choice: "alternative", index: 1, text: why.trim() });
+                }}
+              >
+                {/* eslint-disable-next-line convoz/no-raw-input -- a pill like the full card's reason box */}
+                <input aria-label={`Why not? @${ask.asker.handle} reads this.`} type="text" autoFocus value={why} maxLength={4000} onChange={(e) => setWhy(e.target.value)} className="h-44 w-full min-w-0 flex-auto rounded-full border border-solid border-edge bg-raised px-14 text-15 text-text [font-family:inherit]" />
+                <Button variant="primary" size="inline" type="submit" disabled={busy || !why.trim()}>
+                  Send
+                </Button>
+              </form>
+            ) : null}
+            <CompactFoot href={href} onDismiss={() => dismiss(ask)} />
           </>
         )}
-        <CompactFoot href={href} onDismiss={() => dismiss(ask)} />
       </article>
     );
   }
