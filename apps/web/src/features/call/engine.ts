@@ -78,7 +78,7 @@ class Call implements CallControl {
   private stop: (() => void)[] = [];
   /**
    * Where the log goes, known before the hang-up: then the log's post leaves at once with keepalive and survives a reload or a closed
-   * tab. A conversation call's own conversation; a Now call's is looked up (or made) as soon as the token comes.
+   * tab. A conversation call's own conversation; a Now call's is looked up (or made) as soon as the microphone is granted.
    */
   private logHome: number | Promise<number> | null;
   private readonly hangUpOnLeave = () => this.close();
@@ -100,11 +100,12 @@ class Call implements CallControl {
     try {
       const stream = await gesture.mic.catch(() => Promise.reject(new Error("Microphone is off. Allow it in Settings, then call again.")));
       if (this.closed) return;
+      // Beside the token, not after it: the id must be in hand long before a reload, whose pagehide cannot wait for two requests.
+      if (this.logHome === null) void this.findLogHome();
       const body = conversation === null ? { scope: "now" as const } : { conversation_id: conversation };
       const token = await call(client.POST("/api/voice/token", { body })).catch((err) => {
         throw new Error(REFUSALS[err instanceof ApiError ? (err.code ?? "") : ""] ?? "The call could not start.");
       });
-      if (this.logHome === null) void this.findLogHome();
       if (this.closed) return;
       const { GoogleGenAI, FunctionResponseScheduling } = await import("@google/genai");
       if (this.closed) return;
