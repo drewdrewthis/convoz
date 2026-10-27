@@ -13,7 +13,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Apps inside messages](#apps-inside-messages) (14)
 - [Asks and their state machine](#asks-and-their-state-machine) (61)
 - [Brief, handoff, read and search for agents](#brief-handoff-read-and-search-for-agents) (17)
-- [Composer](#composer) (26)
+- [Composer](#composer) (28)
 - [Console on a phone](#console-on-a-phone) (28)
 - [Conversations](#conversations) (71)
 - [Crew: identities, machines and sessions](#crew-identities-machines-and-sessions) (35)
@@ -292,7 +292,7 @@ A fresh Claude session can pick up the work without the owner explaining it agai
 ## Composer
 
 Talking to agents feels like texting.
-26 scenarios.
+28 scenarios.
 
 - **Sending is instant and safe to repeat**
   - [A sent message shows at once and then confirms](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L19)
@@ -305,29 +305,31 @@ Talking to agents feels like texting.
   - [Enter sends or adds a new line](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L73)
 - **Mentions bring agents in (I-18)**
   - [Picking an agent from the mention list adds it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L88)
-  - [A disabled agent is not offered and not added](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L95)
-  - [A mention inside code does not add an agent](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L102)
+  - [Letters typed after the at sign find a handle by order, not only by its start](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L95)
+  - [The mention list puts the closest handle first](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L100)
+  - [A disabled agent is not offered and not added](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L105)
+  - [A mention inside code does not add an agent](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L112)
 - **Files attach by button or drop and bind once (I-31)**
-  - [Dropping files attaches them to the next message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L109)
-  - [Pending attachments show as previews before send](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L115)
-  - [The owner removes a file before sending](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L124)
-  - [More than 10 attachments are refused in the composer](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L130)
+  - [Dropping files attaches them to the next message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L119)
+  - [Pending attachments show as previews before send](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L125)
+  - [The owner removes a file before sending](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L134)
+  - [More than 10 attachments are refused in the composer](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L140)
 - **Pasted files attach like picked ones; pasted text stays text**
-  - [Pasting a file into the composer attaches it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L139)
-  - [Pasting text into the composer stays a normal paste](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L152)
+  - [Pasting a file into the composer attaches it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L149)
+  - [Pasting text into the composer stays a normal paste](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L162)
 - **The phone composer is compact and the page does not zoom**
-  - [The phone composer is compact and the page does not zoom](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L163)
+  - [The phone composer is compact and the page does not zoom](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L173)
 - **The @ mention and the paperclip work on a phone with the keyboard up**
-  - [The @ text stays as typed while the list is open on a phone](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L176)
-  - [Tapping a name leaves the handle in the box on a phone](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L183)
-  - [A mention sent from a phone is in the message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L190)
-  - [The paperclip works after the owner types on a phone](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L197)
+  - [The @ text stays as typed while the list is open on a phone](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L186)
+  - [Tapping a name leaves the handle in the box on a phone](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L193)
+  - [A mention sent from a phone is in the message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L200)
+  - [The paperclip works after the owner types on a phone](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L207)
 - **The conversation header floats over the messages**
-  - [The conversation's name and buttons at the top are floating circle buttons](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L207)
+  - [The conversation's name and buttons at the top are floating circle buttons](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L217)
 - **The microphone note says why it is not available**
-  - [Chrome on iPhone without a microphone API is told to use Safari](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L219)
-  - [Another browser without a microphone API says it cannot record](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L226)
-  - [A refused microphone says access is off](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L233)
+  - [Chrome on iPhone without a microphone API is told to use Safari](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L229)
+  - [Another browser without a microphone API says it cannot record](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L236)
+  - [A refused microphone says access is off](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/composer.feature#L243)
 
 ## Console on a phone
 
