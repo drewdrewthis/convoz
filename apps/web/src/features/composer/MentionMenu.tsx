@@ -4,9 +4,10 @@ import type { Identity } from "@convoz/api-client";
 import { useEffect, useRef, useState, type Dispatch, type KeyboardEvent, type SetStateAction } from "react";
 import { initials, paletteOf, stripCf } from "../../shared/chat.ts";
 import { TriageBadge } from "../../shared/TriageBadge.tsx";
+import { fuzzyMatch } from "./fuzzyMatch.ts";
 import { keepFocus } from "./keepFocus.ts";
 
-/** The open "@" menu: the agents whose handle starts with what follows the "@", and the highlighted row. */
+/** The open "@" menu: the agents whose handle or name matches what follows the "@", closest first, and the highlighted row. */
 export interface MentionMenuState {
   shown: Identity[];
   active: number;
@@ -46,7 +47,7 @@ export function useMentionMenu({ text, setText, crew, focus, onPick, onInvite }:
 
   const menuFor = (value: string, agents: Identity[]) => {
     const m = /(?:^|\s)@([a-z0-9-]*)$/.exec(value);
-    const shown = m ? agents.filter((p) => p.handle.startsWith(m[1]!)) : [];
+    const shown = m ? fuzzyMatch(agents, m[1]!) : [];
     // "Invite a new agent…" ends the list whenever the box is on an "@", so a handle nobody has yet still leads somewhere.
     return shown.length || (m && onInvite) ? { shown, active: 0 } : null;
   };

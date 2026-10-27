@@ -14,7 +14,7 @@ import { asAgent, browserWorld, handlesOf, idsOf, seedDb, startSession, viewOf }
  *   key press so a change applies at once (design §11: device settings live on the device). "on" sends on Enter, "off" adds a line, and
  *   "auto" sends when the device has a hardware keyboard and adds a line when it has only a touch keyboard. The app decides that with
  *   matchMedia("(pointer: coarse), (max-width: 600px)"): a match is "only a touch keyboard". Shift+Enter always adds a line.
- * THE @ LIST in a conversation: typing "@" and some letters opens the list "Agents" of the enabled agents whose handle starts with them
+ * THE @ LIST in a conversation: typing "@" and some letters opens the list "Agents" of the enabled agents whose handle or name has those letters in order, the closest first (exact, prefix, word start, then fuzzy)
  *   (a disabled agent is never in it); a button "@docs ..." picks one and writes "@docs " in place of what was typed. The server brings
  *   the agent in when the person sends the message (I-18); a mention in code, a quote or a link adds nobody.
  * A FAILED SEND shows "failed · retry" (retry is a button) and a send in flight shows "sending" (design §9); Retry sends the same client id again.
@@ -140,7 +140,7 @@ scenario("Picking an agent from the mention list adds it", { tag: ["@browser", "
 
   // When the owner types "@do" in conversation 41 and picks "docs" from the list
   await composer(page).fill("@do");
-  await expect(agentChoice(page, "devtool")).toHaveCount(0); // only what starts with "do"
+  await expect(page.getByRole("list", { name: "Agents" }).locator(".handle").first()).toHaveText("docs"); // the prefix match leads; "devtool" has d, o in order and follows
   await agentChoice(page, "docs").click();
   await expect(box(page)).toHaveValue("@docs ");
 
