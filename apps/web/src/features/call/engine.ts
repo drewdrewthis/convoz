@@ -1,12 +1,12 @@
 import type { Message } from "@convoz/api-client";
 import type { FunctionResponseScheduling, LiveServerMessage, Session } from "@google/genai";
 import { ApiError, call, client } from "../../shared/api.ts";
-import { newId } from "../../shared/chat.ts";
 import { data } from "../../shared/data.ts";
 import { Player, toBase64 } from "./audio.ts";
 import { release, type Gesture } from "./gesture.ts";
 import { OwnerIntent } from "./guard.ts";
 import { CallLog } from "./log.ts";
+import { forgetLog, keepLog, postLog } from "./pendingLog.ts";
 import { callsConversation, readNow } from "./now.ts";
 import { listConversations, readConversation, searchMessages } from "./reads.ts";
 import { runTool, type ToolDeps } from "./tools.ts";
@@ -351,10 +351,12 @@ async function postAsk(conversation: number, body: string): Promise<number> {
  */
 async function saveCallLog(home: number | Promise<number>, log: CallLog): Promise<void> {
   if (log.empty) return;
+  // Written down first: a page that unloads before the conversation is known leaves the log for the next load (pendingLog.ts).
+  const kept = keepLog(log.render());
   try {
-    const conversation = typeof home === "number" ? home : await home;
-    await client.POST("/api/conversations/{id}/messages", { params: { path: { id: conversation } }, body: { client_id: newId(), body: log.render(), format: "plain", via_voice: true, quiet: true }, keepalive: true });
+    await postLog(typeof home === "number" ? home : await home, kept);
+    forgetLog(kept);
   } catch {
-    /* the call is over; a log that cannot be saved is lost, not shown as an error */
+    /* the call is over; a log that cannot be saved is sent on the next load, not shown as an error */
   }
 }

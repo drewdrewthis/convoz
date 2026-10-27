@@ -247,6 +247,12 @@ scenario("A Now call that ends with a reload still leaves its log", { tag: ["@br
   const u = await callWorld({ server, page, context });
   await voiceKey(u.w, KEY);
 
+  // The log's conversation is made, but its answer never reaches the page: the id is unknown when the page unloads
+  await page.route("**/api/conversations", async (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    await route.fetch();
+  });
+
   // Given the owner is on a Now call and the model read Now
   const model = await onANowCall(page, u.w.srv);
   model.hear("what waits on me?");

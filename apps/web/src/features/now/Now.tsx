@@ -15,6 +15,7 @@ import { PendingAdd } from "./PendingAdd.tsx";
 import { Mentions, OtherChats, Replies, unreadRows, useTriage } from "./Unread.tsx";
 import { useAskActions } from "./useAskActions.ts";
 import { needsYouCount, useNow } from "./store.ts";
+import { sendKeptLogs } from "../call/index.ts";
 
 interface NowProps {
   /** Drawn in the desktop rail (proposal §1): no notes and no wordmark, and it polls on its own, since no Now page around it does. */
@@ -38,6 +39,7 @@ export function Now({ compact = false, current = 0 }: NowProps = {}) {
   const [joined, setJoined] = useState<readonly string[]>([]);
   const deepLinked = useRef(false);
 
+  useEffect(() => void sendKeptLogs(), []);
   useEffect(() => {
     (async () => {
       setMe(await data.loadMe());
