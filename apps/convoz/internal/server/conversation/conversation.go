@@ -254,6 +254,11 @@ func MarkStale(ctx context.Context, d pdb.DBTX, now time.Time, id int64, reason 
 	return db.New(d).MarkStale(ctx, db.MarkStaleParams{At: now.UnixMilli(), Reason: reason, ID: id})
 }
 
+// ClearStale takes the stale mark off, so the conversation is back in the owner's list at once (the owner's Reopen).
+func ClearStale(ctx context.Context, d pdb.DBTX, id int64) error {
+	return db.New(d).MarkStale(ctx, db.MarkStaleParams{At: 0, Reason: "", ID: id})
+}
+
 // Rename sets a title that by (TitleHuman or TitleAgent) chose. Later messages never change it (the source is "manual").
 func Rename(ctx context.Context, d pdb.DBTX, id int64, title, by string) error {
 	return db.New(d).SetTitle(ctx, db.SetTitleParams{Title: sql.NullString{String: title, Valid: true}, TitleSetBy: by, ID: id})

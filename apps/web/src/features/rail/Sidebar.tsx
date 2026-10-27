@@ -13,7 +13,8 @@ import { toast } from "../pins-stars/index.ts";
 import { useSearchUi } from "../search/index.ts";
 import { startDrag, type Drop } from "./drag.ts";
 import { Logo } from "./Logo.tsx";
-import { BackArrow, ChevronIcon, ComposeGlyph, CrewGlyph, DeliveryGlyph, InviteGlyph, FoldAllGlyph, ForwardArrow, GripIcon, PanelGlyph, NowGlyph, SearchGlyph, StarIcon } from "./icons.tsx";
+import { RowMenu, type RowMenuAt } from "./RowMenu.tsx";
+import { BackArrow, ChevronIcon, ComposeGlyph, CrewGlyph, DeliveryGlyph, InviteGlyph, FoldAllGlyph, ForwardArrow, DotsIcon, GripIcon, PanelGlyph, NowGlyph, SearchGlyph, StarIcon } from "./icons.tsx";
 import { groups, isOlder, rowLabel, titleOf } from "./model.ts";
 import { ThreadFold, ThreadRows, rowUnread, useThreadFold } from "../threads/index.ts";
 import { useFold } from "./fold.ts";
@@ -45,6 +46,9 @@ export default function Sidebar() {
   const [olderOpen, setOlderOpen] = useState(false);
   const [said, setSaid] = useState("");
   const [focusId, setFocusId] = useState(0);
+  const [hot, setHot] = useState(0); // the row the pointer last moved over: it keeps its dots when a new message reorders the rows under a still pointer
+  const [menu, setMenu] = useState<RowMenuAt | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
   const current = openedId();
   const { folded, toggle } = useFold();
   const { width, set: setWidth, reset: resetWidth } = useRailWidth();
@@ -114,7 +118,7 @@ export default function Sidebar() {
 
   const row = (c: Conversation, grp: "starred" | "mid" | "older") => (
     <Fragment key={c.id}>
-    <div className="rrow group/rrow" data-rid={grp === "older" ? undefined : c.id} data-grp={grp} data-current={c.id === current ? "true" : undefined} onPointerDown={grp === "older" ? undefined : (e) => startDrag(e, drop)} onKeyDown={(e) => key(e, c)}>
+    <div className="rrow group/rrow" data-rid={grp === "older" ? undefined : c.id} data-grp={grp} data-current={c.id === current ? "true" : undefined} onPointerDown={grp === "older" ? undefined : (e) => startDrag(e, drop)} onKeyDown={(e) => key(e, c)} onMouseMove={() => hot !== c.id && setHot(c.id)}>
       <a className={`rgo${unreadOf(c) > 0 ? " unread" : ""}${c.muted_until ? " muted" : ""}`} id={`rr-${c.id}`} href={`/chats/${c.id}`} onClick={(e) => visit(e, `/chats/${c.id}`)} aria-current={c.id === current ? "page" : undefined} aria-label={rowLabel(c, unreadOf(c))} draggable={false}>
         <span className="rtitle">{titleOf(c)}</span>
         <PlanIcon id={c.id} />
@@ -138,6 +142,24 @@ export default function Sidebar() {
         onClick={() => void star(c)}
       >
         <StarIcon filled={c.starred} />
+      </IconButton>
+      {/* The dots show with the pointer or focus, left of the grip. Hidden (display none) they own no box, so a closed menu moves nothing in the row. */}
+      <IconButton
+        variant="muted"
+        size={28}
+        glyph="self"
+        className={`absolute top-1/2 ${folds(c) ? "right-80" : "right-56"} -mt-14 ${hot === c.id ? "flex" : "hidden"} [@media(hover:none)]:flex group-focus-within/rrow:flex`}
+        id={`rm-${c.id}`}
+        label={`More actions for ${titleOf(c)}`}
+        aria-haspopup="menu"
+        aria-expanded={menu?.c.id === c.id}
+        data-nodrag=""
+        onClick={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          setMenu(menu?.c.id === c.id ? null : { c, x: r.left, y: r.bottom + 4 });
+        }}
+      >
+        <DotsIcon />
       </IconButton>
       {grp === "older" ? null : (
         // The grip is for the keyboard and shows on focus only; w-22! because the size prop is square.
@@ -172,7 +194,7 @@ export default function Sidebar() {
 
   return (
     <>
-    <nav className="rail" aria-label="Conversations" data-testid="rail" onKeyDown={escape}>
+    <nav className="rail" aria-label="Conversations" data-testid="rail" onKeyDown={escape} onMouseLeave={() => setHot(0)}>
       <div className="rail-top">
         {foldButton}
         <a className="brand" href="/">
@@ -271,6 +293,7 @@ export default function Sidebar() {
           <span className="rsum">{crew ?? ""}</span>
         </a>
       </div>
+      {menu ? <RowMenu at={menu} onClose={closeMenu} /> : null}
       <p className="sr" role="status" aria-live="polite">
         {said}
       </p>
