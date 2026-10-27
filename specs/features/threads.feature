@@ -158,6 +158,16 @@ Feature: Threads
       When the owner hovers message 900 and taps its "Reply in thread" arrow
       Then a reply box opens under message 900 and has the focus
 
+  # Issue 83 (https://github.com/drewdrewthis/convoz/issues/83): the owner's reply sat in a bubble at the right of the thread, so it began mid-screen.
+  Rule: The owner's reply sits at the left edge of its thread
+
+    @v1 @browser
+    Scenario: On a wide window the owner's thread reply starts at the left edge of the thread
+      Given the owner and "devtool" replied in thread 900
+      When the owner opens conversation 41 on a wide window
+      Then the owner's reply starts within 64 px of the thread's left edge: its author line and its text
+      And it starts where the agent's reply starts
+
   Rule: A thread is one tap away on a phone
 
     # Owner ruling 2026-10-18 (iPhone, Chrome): "Also opening it requires a double click."
