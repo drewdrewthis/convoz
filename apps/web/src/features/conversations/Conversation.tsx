@@ -16,6 +16,7 @@ import { rememberChat } from "../search/index.ts";
 import { useThreads } from "../threads/index.ts";
 import { Details } from "./Details.tsx";
 import { MessageDetails } from "./MessageDetails.tsx";
+import { OriginLink } from "./OriginLink.tsx";
 import { PlanLine } from "./PlanLine.tsx";
 import type { PlanActions } from "./PlanSections.tsx";
 import { useFocusReport } from "../notifications/index.ts";
@@ -290,6 +291,7 @@ export function Conversation() {
         </IconButton>
         <div className="titles">
           <h1 id="heading">{title}</h1>
+          {conversation?.origin ? <OriginLink origin={conversation.origin} /> : null}
           {conversation?.muted_until ? <span className="mutedtag">Muted</span> : null}
           {attention ? <PlanLine attention={attention} onOpen={() => setInfo(true)} /> : null}
           <p id="subtitle" className="subtitle" hidden={!presence || Boolean(attention)}>

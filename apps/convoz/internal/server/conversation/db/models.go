@@ -32,6 +32,13 @@ type Conversation struct {
 	StaleReason    string
 }
 
+type ConversationOrigin struct {
+	ConversationID       int64
+	SourceConversationID int64
+	MessageID            int64
+	CreatedAt            int64
+}
+
 type Participant struct {
 	ConversationID    int64
 	IdentityID        int64

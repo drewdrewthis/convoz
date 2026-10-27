@@ -1129,6 +1129,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/conversations/{id}/threads/{root}/conversation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The owner turns the thread of a message into a conversation of its own, linked back to the message.
+         * @description Only the owner may do it (403 otherwise). The new conversation is titled by the root message, holds the people active in the one the thread
+         *     is in, and carries `origin` (the conversation and the message it came from). Nothing is moved or copied. Asking again for the same root
+         *     answers 200 with the conversation made the first time. The root must be a top-level message of the conversation: a reply is 400.
+         */
+        post: operations["threadToConversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/conversations/{id}/stale": {
         parameters: {
             query?: never;
@@ -2598,6 +2620,21 @@ export interface components {
             started_by?: components["schemas"]["Person"];
             /** @description The linked pull request (https). */
             link_url?: string;
+            /** @description The thread this conversation was made from. Absent for any other conversation, and when the caller cannot read the one the thread is in. */
+            origin?: {
+                /**
+                 * Format: int64
+                 * @description The conversation the thread is in.
+                 */
+                conversation_id: number;
+                /** @description Its title; absent when it has none. */
+                conversation_title?: string;
+                /**
+                 * Format: int64
+                 * @description The root message of the thread.
+                 */
+                message_id: number;
+            };
             /**
              * Format: int64
              * @description The caller muted it until this epoch ms (253402300799000 is forever). Absent when not muted.
@@ -5670,6 +5707,43 @@ export interface operations {
         };
         responses: {
             200: components["responses"]["Empty"];
+            default: components["responses"]["Error"];
+        };
+    };
+    threadToConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                root: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The thread was already a conversation; this is it. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        conversation: components["schemas"]["Conversation"];
+                    };
+                };
+            };
+            /** @description The new conversation. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        conversation: components["schemas"]["Conversation"];
+                    };
+                };
+            };
             default: components["responses"]["Error"];
         };
     };

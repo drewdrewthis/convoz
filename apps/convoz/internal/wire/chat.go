@@ -39,6 +39,13 @@ type PendingAdd struct {
 	At          int64   `json:"at"`
 }
 
+// Origin says where a conversation came from: the message a thread hangs off, and the conversation it is in.
+type Origin struct {
+	ConversationID    int64  `json:"conversation_id"`
+	ConversationTitle string `json:"conversation_title,omitempty"`
+	MessageID         int64  `json:"message_id"`
+}
+
 // Conversation is one row of the list, and the body of the single-conversation routes. The fields after Unread are
 // the details: the list sends the cheap ones (deleted_at) and the single-conversation route all of them.
 type Conversation struct {
@@ -60,6 +67,7 @@ type Conversation struct {
 
 	StartedBy   *Person      `json:"started_by,omitempty"`
 	LinkURL     *string      `json:"link_url,omitempty"`
+	Origin      *Origin      `json:"origin,omitempty"` // the thread this conversation was made from
 	MutedUntil  *int64       `json:"muted_until,omitempty"`
 	Pinned      *[]Message   `json:"pinned,omitempty"`
 	Stale       bool         `json:"stale,omitempty"`        // an agent marked it stale and no message came since: the rail folds it into Older

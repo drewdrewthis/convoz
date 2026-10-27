@@ -236,3 +236,39 @@
                 conversation: { $ref: "../openapi.yaml#/components/schemas/Conversation" }
       "409": { $ref: "../openapi.yaml#/components/responses/Error" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/conversations/{id}/threads/{root}/conversation:
+  post:
+    x-authz: { auth: owner, lease: refuse }
+    security: [{ deviceCookie: [] }]
+    operationId: threadToConversation
+    summary: The owner turns the thread of a message into a conversation of its own, linked back to the message.
+    description: |
+      Only the owner may do it (403 otherwise). The new conversation is titled by the root message, holds the people active in the one the thread
+      is in, and carries `origin` (the conversation and the message it came from). Nothing is moved or copied. Asking again for the same root
+      answers 200 with the conversation made the first time. The root must be a top-level message of the conversation: a reply is 400.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+      - name: root
+        in: path
+        required: true
+        schema: { type: integer, format: int64 }
+    responses:
+      "200":
+        description: The thread was already a conversation; this is it.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [conversation]
+              properties:
+                conversation: { $ref: "../openapi.yaml#/components/schemas/Conversation" }
+      "201":
+        description: The new conversation.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [conversation]
+              properties:
+                conversation: { $ref: "../openapi.yaml#/components/schemas/Conversation" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }

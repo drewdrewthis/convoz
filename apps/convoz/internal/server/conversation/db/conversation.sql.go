@@ -224,6 +224,38 @@ func (q *Queries) GetConversationAny(ctx context.Context, id int64) (Conversatio
 	return i, err
 }
 
+const getOrigin = `-- name: GetOrigin :one
+SELECT conversation_id, source_conversation_id, message_id, created_at FROM conversation_origins WHERE conversation_id = ?1
+`
+
+func (q *Queries) GetOrigin(ctx context.Context, conversationID int64) (ConversationOrigin, error) {
+	row := q.db.QueryRowContext(ctx, getOrigin, conversationID)
+	var i ConversationOrigin
+	err := row.Scan(
+		&i.ConversationID,
+		&i.SourceConversationID,
+		&i.MessageID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getOriginOfMessage = `-- name: GetOriginOfMessage :one
+SELECT conversation_id, source_conversation_id, message_id, created_at FROM conversation_origins WHERE message_id = ?1
+`
+
+func (q *Queries) GetOriginOfMessage(ctx context.Context, messageID int64) (ConversationOrigin, error) {
+	row := q.db.QueryRowContext(ctx, getOriginOfMessage, messageID)
+	var i ConversationOrigin
+	err := row.Scan(
+		&i.ConversationID,
+		&i.SourceConversationID,
+		&i.MessageID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getParticipant = `-- name: GetParticipant :one
 SELECT status, joined_message_id FROM participants
 WHERE conversation_id = ?1 AND identity_id = ?2
@@ -299,6 +331,28 @@ func (q *Queries) InsertConversation(ctx context.Context, arg InsertConversation
 	var id int64
 	err := row.Scan(&id)
 	return id, err
+}
+
+const insertOrigin = `-- name: InsertOrigin :exec
+INSERT INTO conversation_origins (conversation_id, source_conversation_id, message_id, created_at)
+VALUES (?1, ?2, ?3, ?4)
+`
+
+type InsertOriginParams struct {
+	ConversationID       int64
+	SourceConversationID int64
+	MessageID            int64
+	CreatedAt            int64
+}
+
+func (q *Queries) InsertOrigin(ctx context.Context, arg InsertOriginParams) error {
+	_, err := q.db.ExecContext(ctx, insertOrigin,
+		arg.ConversationID,
+		arg.SourceConversationID,
+		arg.MessageID,
+		arg.CreatedAt,
+	)
+	return err
 }
 
 const insertParticipant = `-- name: InsertParticipant :exec
