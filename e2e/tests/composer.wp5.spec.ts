@@ -170,6 +170,38 @@ scenario("Picking an agent from the mention list adds it", { tag: ["@browser", "
   expect(items[0]!.message.id).toBe(sent.id);
 });
 
+const FUZZY_CREW = ["devtool", "dash", "dashboard", "lw-dashboards", "dataset-host"];
+
+scenario("Letters typed after the at sign find a handle by order, not only by its start", { tag: ["@browser", "@I-18"] }, async ({ server, page, context }) => {
+  // Background
+  const w = await browserWorld({ server, page, context }, { agents: FUZZY_CREW });
+  const conv = await createConversation(w.owner, { participants: ["devtool"], title: TITLE });
+  await page.goto(`${w.srv.origin}/chats/${conv}`);
+  await expect(composer(page)).toBeVisible();
+
+  // When the owner types "@lwd" in conversation 41
+  await composer(page).fill("@lwd");
+
+  // Then the mention list offers "lw-dashboards" and nothing else
+  await expect(agentChoice(page, "lw-dashboards")).toBeVisible();
+  await expect(page.getByRole("list", { name: "Agents" }).getByRole("button")).toHaveCount(1);
+});
+
+scenario("The mention list puts the closest handle first", { tag: ["@browser", "@I-18"] }, async ({ server, page, context }) => {
+  // Background
+  const w = await browserWorld({ server, page, context }, { agents: FUZZY_CREW });
+  const conv = await createConversation(w.owner, { participants: ["devtool"], title: TITLE });
+  await page.goto(`${w.srv.origin}/chats/${conv}`);
+  await expect(composer(page)).toBeVisible();
+
+  // When the owner types "@dash" in conversation 41
+  await composer(page).fill("@dash");
+
+  // Then the mention list shows "dash", then "dashboard", then "lw-dashboards", then "dataset-host"
+  const handles = page.getByRole("list", { name: "Agents" }).locator(".handle");
+  await expect(handles).toHaveText(["dash", "dashboard", "lw-dashboards", "dataset-host"]);
+});
+
 scenario("A disabled agent is not offered and not added", { tag: ["@browser", "@I-18"] }, async ({ server, page, context }) => {
   // Background, and Given the owner disabled "release-bot"
   const w = await browserWorld(
