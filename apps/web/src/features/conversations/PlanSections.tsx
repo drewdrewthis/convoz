@@ -127,7 +127,9 @@ function AgentCard({ person, plan, agent, conv, act, onRemove }: { person: Perso
         <Ava handle={h} />
         <span className="pname">
           <span className="flex items-center gap-6">
-            <b>{`@${h}`}</b>
+            <a href={`/crew/${encodeURIComponent(h)}`}>
+              <b>{`@${h}`}</b>
+            </a>
             <TriageBadge handle={h} />
           </span>
           <span className="psub">

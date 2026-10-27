@@ -15,7 +15,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Brief, handoff, read and search for agents](#brief-handoff-read-and-search-for-agents) (17)
 - [Composer](#composer) (28)
 - [Console on a phone](#console-on-a-phone) (29)
-- [Conversations](#conversations) (71)
+- [Conversations](#conversations) (73)
 - [Crew: identities, machines and sessions](#crew-identities-machines-and-sessions) (35)
 - [Data at rest, backups and deletion](#data-at-rest-backups-and-deletion) (10)
 - [Day labels](#day-labels) (4)
@@ -380,7 +380,7 @@ I am never stuck at a passkey prompt that does nothing.
 ## Conversations
 
 Each piece of work has one place and only the agents that belong there.
-71 scenarios.
+73 scenarios.
 
 - **The owner starts and names conversations**
   - [A new conversation starts blank and takes a title from its first message](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L19)
@@ -462,6 +462,8 @@ Each piece of work has one place and only the agents that belong there.
   - [On a phone an agent reply shows paragraphs, code and links safely](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L591)
   - [On a phone the conversation pages fit a 320 px screen with large tap targets](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L603)
   - [On a phone the conversation pages look right in dark and light](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L609)
+  - [The agent handle under the title of a conversation opens that agent](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L616)
+  - [The agent handle on its card in the details panel opens that agent](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L622)
 
 ## Crew: identities, machines and sessions
 
