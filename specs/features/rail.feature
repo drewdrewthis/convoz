@@ -133,6 +133,22 @@ Feature: Rail
       When the owner presses Cmd+\
       Then the rail shows the conversations again
 
+    # Owner, conv 179 msg 9346: "I also want to be able to resize the sidebar. I want the width remembered also on refresh".
+    @v1 @browser
+    Scenario: The owner resizes the sidebar and the width is remembered
+      Given the owner has conversation 41 open on a wide screen
+      Then the handle does not cover the end of a row: its star works at the default width
+      When the owner drags the "Resize sidebar" handle 80 px to the right
+      Then the sidebar is 80 px wider and the conversation moves with it
+      When the owner reloads the page
+      Then the sidebar has the same width
+      When the owner presses the Left arrow on the handle
+      Then the sidebar is narrower
+      When the owner double-clicks the handle
+      Then the sidebar has its first width again
+      Then the handle is gone when the sidebar is folded or shows Now
+      And on a narrow screen there is no sidebar to resize
+
     @v1 @browser
     Scenario: The question mark opens the shortcut list
       When the owner presses "?"

@@ -1,4 +1,5 @@
 import "./app/effects.ts";
+import "./features/rail/width.ts";
 import { watchErrors } from "./shared/clientErrors.ts";
 import { createRoot } from "react-dom/client";
 import { prepare } from "./app/App.tsx";

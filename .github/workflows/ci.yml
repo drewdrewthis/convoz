@@ -46,6 +46,8 @@ jobs:
         run: pnpm --filter @convoz/web build
       - name: Web typecheck
         run: pnpm --filter @convoz/web typecheck
+      - name: Web unit tests
+        run: pnpm --filter @convoz/web test
       # The Chrome extension: its typecheck and unit tests (least access, message body). The e2e job loads its build.
       - name: Extension typecheck and unit tests
         run: pnpm --filter @convoz/extension typecheck && pnpm --filter @convoz/extension test

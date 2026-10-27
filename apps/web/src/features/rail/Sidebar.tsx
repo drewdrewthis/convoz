@@ -1,5 +1,6 @@
 import { Button } from "@convoz/ui/Button";
 import { IconButton } from "@convoz/ui/IconButton";
+import { ResizeHandle } from "@convoz/ui/ResizeHandle";
 import { PlanIcon } from "../plan/index.ts";
 import type { Conversation } from "@convoz/api-client";
 import { Fragment, useCallback, useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent } from "react";
@@ -16,6 +17,8 @@ import { groups, isOlder, rowLabel, titleOf } from "./model.ts";
 import { ThreadFold, ThreadRows, rowUnread, useThreadFold } from "../threads/index.ts";
 import { useFold } from "./fold.ts";
 import { useRailMode } from "./mode.ts";
+import { useRailWidth } from "./width.ts";
+import { RAIL_MAX, RAIL_MIN } from "./widthRange.ts";
 import { moveRow, setStar, stepRow } from "./actions.ts";
 
 // A row with thread rows carries their fold chevron at its right end, so its star and grip sit 24px further in.
@@ -41,6 +44,7 @@ export default function Sidebar() {
   const [focusId, setFocusId] = useState(0);
   const current = openedId();
   const { folded, toggle } = useFold();
+  const { width, set: setWidth, reset: resetWidth } = useRailWidth();
   const onNowPage = document.body.dataset.page === "now";
   const showNow = useRailMode((s) => s.now) && !onNowPage;
   const setMode = useRailMode((s) => s.set);
@@ -164,6 +168,7 @@ export default function Sidebar() {
   }
 
   return (
+    <>
     <nav className="rail" aria-label="Conversations" data-testid="rail" onKeyDown={escape}>
       <div className="rail-top">
         {foldButton}
@@ -262,5 +267,8 @@ export default function Sidebar() {
         {said}
       </p>
     </nav>
+    {/* Beside the rail, on its edge, so it never covers a row's buttons. Not in Now (its width is not the chosen one) nor folded. */}
+    {showNow ? null : <ResizeHandle className="rail-resize" label="Resize sidebar" value={width} min={RAIL_MIN} max={RAIL_MAX} onChange={setWidth} onReset={resetWidth} />}
+    </>
   );
 }

@@ -30,7 +30,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Plans: what each agent is doing, what is next and what waits on the owner](#plans-what-each-agent-is-doing-what-is-next-and-what-waits-on-the-owner) (25)
 - [Platform rules every module relies on](#platform-rules-every-module-relies-on) (2)
 - [Poor connections](#poor-connections) (11)
-- [Rail](#rail) (19)
+- [Rail](#rail) (20)
 - [Search](#search) (12)
 - [Security walls](#security-walls) (12)
 - [Send a web page to an agent from the browser](#send-a-web-page-to-an-agent-from-the-browser) (3)
@@ -843,7 +843,7 @@ I can trust it from anywhere.
 ## Rail
 
 Things stay where I put them and unread work stands out.
-19 scenarios.
+20 scenarios.
 
 - **Order is the owner's; a new message puts its conversation on top (I-21)**
   - [A new conversation goes to the top](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L20)
@@ -863,12 +863,13 @@ Things stay where I put them and unread work stands out.
   - [Back and forward move between visited conversations](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L115)
   - [Cmd+K opens search from anywhere](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L121)
   - [The owner folds the sidebar and it stays folded](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L127)
-  - [The question mark opens the shortcut list](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L137)
+  - [The owner resizes the sidebar and the width is remembered](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L138)
+  - [The question mark opens the shortcut list](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L153)
 - **On a wide screen Now is a view of the rail**
-  - [Now opens in the rail beside the open conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L146)
-  - [Picking a Now item opens its conversation beside the Now list](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L155)
-  - [Conversations, Escape and Now again each take the rail back to the conversations](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L164)
-  - [The rail stays in Now after a reload](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L176)
+  - [Now opens in the rail beside the open conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L162)
+  - [Picking a Now item opens its conversation beside the Now list](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L171)
+  - [Conversations, Escape and Now again each take the rail back to the conversations](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L180)
+  - [The rail stays in Now after a reload](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L192)
 
 ## Search
 
