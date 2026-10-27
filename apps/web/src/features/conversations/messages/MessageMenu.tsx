@@ -269,7 +269,7 @@ function copyLink(conversation: number, id: number) {
 function askForMiniApp(conversation: number, rootId: number, handle: string) {
   const threads = useThreads.getState();
   threads.startReply(conversation, rootId);
-  threads.reply(rootId, miniAppRequest(handle, conversation));
+  void threads.reply(rootId, miniAppRequest(handle, conversation));
 }
 
 /** miniAppRequest is the reply "Request mini app" posts: what a mini app is, when it helps, and how to make a good one. */
