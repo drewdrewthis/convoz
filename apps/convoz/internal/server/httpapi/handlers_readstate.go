@@ -247,6 +247,14 @@ func (s *Server) threadOf(ctx context.Context, d pdb.DBTX, p authz.Principal, ro
 	if err := attachUploads(ctx, d, []*wire.Message{&head}); err != nil {
 		return none, 0, err
 	}
+	if err := attachUnfurls(ctx, d, p, page, out); err != nil {
+		return none, 0, err
+	}
+	rootOut := []wire.Message{head}
+	if err := attachUnfurls(ctx, d, p, []message.Message{root}, rootOut); err != nil {
+		return none, 0, err
+	}
+	head = rootOut[0]
 	_, seen, err := seenIn(ctx, d, dir, root.ConversationID, rootID)
 	if err != nil {
 		return none, 0, err
