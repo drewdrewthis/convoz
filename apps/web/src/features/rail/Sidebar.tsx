@@ -8,11 +8,12 @@ import { humanError } from "../../shared/api.ts";
 import { visit } from "../../shared/navigate.ts";
 import { data, loadListOnMount, useData, useLive } from "../../shared/data.ts";
 import { Now, needsYouCount, useNow } from "../now/index.ts";
+import { useDeliveries } from "../delivery/index.ts";
 import { toast } from "../pins-stars/index.ts";
 import { useSearchUi } from "../search/index.ts";
 import { startDrag, type Drop } from "./drag.ts";
 import { Logo } from "./Logo.tsx";
-import { BackArrow, ChevronIcon, ComposeGlyph, CrewGlyph, InviteGlyph, FoldAllGlyph, ForwardArrow, GripIcon, PanelGlyph, NowGlyph, SearchGlyph, StarIcon } from "./icons.tsx";
+import { BackArrow, ChevronIcon, ComposeGlyph, CrewGlyph, DeliveryGlyph, InviteGlyph, FoldAllGlyph, ForwardArrow, GripIcon, PanelGlyph, NowGlyph, SearchGlyph, StarIcon } from "./icons.tsx";
 import { groups, isOlder, rowLabel, titleOf } from "./model.ts";
 import { ThreadFold, ThreadRows, rowUnread, useThreadFold } from "../threads/index.ts";
 import { useFold } from "./fold.ts";
@@ -31,7 +32,7 @@ const openedId = (): number => Number(/^\/chats\/(\d+)$/.exec(location.pathname)
 
 /**
  * Sidebar is the desktop rail (prototype v41): search and new conversation at the top, Now, the groups Starred and Conversations in the
- * owner's own order, the folded Older group, and Crew at the bottom. Drag a row, or Alt plus an arrow on it, to move it.
+ * owner's own order, the folded Older group, and Deliveries and Crew at the bottom. Drag a row, or Alt plus an arrow on it, to move it.
  * Now switches the rail to the Now list (proposal §1): the page keeps the open conversation, and a pick opens its conversation beside the
  * list. "Conversations", Escape in the rail, or Now again switch back. On the Now page the rail stays as it is: the page is that list.
  */
@@ -39,6 +40,8 @@ export default function Sidebar() {
   const list = useData((s) => s.conversations);
   const waiting = needsYouCount(useNow((s) => s.now), list);
   const crew = useData((s) => s.identities?.filter((p) => p.kind === "agent" && !p.disabled).length ?? null);
+  const late = useDeliveries((s) => s.data?.deliveries.filter((d) => d.state === "late").length ?? 0);
+  useEffect(() => useDeliveries.getState().ensure(), []);
   const [olderOpen, setOlderOpen] = useState(false);
   const [said, setSaid] = useState("");
   const [focusId, setFocusId] = useState(0);
@@ -257,6 +260,11 @@ export default function Sidebar() {
         )}
       </div>
       <div className="rail-foot">
+        <a className="rnav" href="/delivery" aria-current={location.pathname === "/delivery" ? "page" : undefined}>
+          <DeliveryGlyph />
+          <span>Deliveries</span>
+          <span className="rsum">{late ? `${late} late` : ""}</span>
+        </a>
         <a className="rnav" href="/crew" aria-current={location.pathname.startsWith("/crew") ? "page" : undefined}>
           <CrewGlyph />
           <span>Crew</span>

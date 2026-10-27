@@ -75,6 +75,8 @@ type Waiting struct {
 type Done struct {
 	Text string `json:"text"`
 	At   int64  `json:"at"`
+	// Shipped says the item was a deliverable (deliver.go): it counts as shipped on the owner's Deliveries.
+	Shipped bool `json:"shipped,omitempty"`
 }
 
 // Body is the plan's items, stored as one JSON document.
@@ -84,6 +86,8 @@ type Body struct {
 	Next    []string  `json:"next,omitempty"`
 	Waiting []Waiting `json:"waiting,omitempty"`
 	Done    []Done    `json:"done,omitempty"` // newest first
+	// Deliver lists what the agent will deliver and by when; unlike the rest it is kept across replacements (deliver.go).
+	Deliver []Deliverable `json:"deliver,omitempty"`
 	// ClientID is the id of the request that wrote the plan: the retry of a request whose answer was lost changes nothing (I-24).
 	ClientID string `json:"client_id,omitempty"`
 }
@@ -106,6 +110,8 @@ type Input struct {
 	Next    []string
 	Waiting []string
 	Done    []string
+	// Deliver adds deliverables or moves their dates; the ones it does not name are kept.
+	Deliver []DeliverInput
 	// ClientID names the request, so a retry of it is recognised; "" for none.
 	ClientID string
 }
@@ -292,8 +298,13 @@ func Replace(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int64, 
 		}
 		b.Waiting = append(b.Waiting, Waiting{Text: t, Since: since})
 	}
+	deliver, shipped, err := mergeDeliver(old.Deliver, in.Deliver, in.Done, at)
+	if err != nil {
+		return Plan{}, Change{}, err
+	}
+	b.Deliver = deliver
 	for i := len(in.Done) - 1; i >= 0; i-- { // the last one given is the newest
-		b.Done = append(b.Done, Done{Text: in.Done[i], At: at})
+		b.Done = append(b.Done, Done{Text: in.Done[i], At: at, Shipped: slices.Contains(shipped, in.Done[i])})
 	}
 	ch.Done = slices.Clone(in.Done)
 	b.Done = append(b.Done, old.Done...)
