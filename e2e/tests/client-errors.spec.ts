@@ -7,6 +7,7 @@ import type { ServerHandle } from "../lib/fixtures.ts";
 import { send } from "../lib/http.ts";
 import { allow, bearer, createAgents, loginMachine } from "../lib/machines.ts";
 import { apiServer, bootstrapOwner } from "../lib/owner.ts";
+import { installed } from "../lib/wp17.ts";
 import { expect, scenario } from "../lib/scenario.ts";
 
 /*
@@ -65,6 +66,8 @@ scenario("A crash shows a reload message instead of a blank page", { tag: ["@bro
   await page.goto(`${u.w.srv.origin}/chats`);
   await expect(page.getByRole("link", { name: new RegExp(TITLE) }).first()).toBeVisible();
   await expect(page.getByText("Something went wrong.")).toHaveCount(0);
+  // The reload must come through the service worker: a cold page carries the list inline, where the route below cannot reach it
+  await installed(page);
 
   // When the page crashes while it draws (the list is answered with rows the page cannot draw)
   await page.route("**/api/conversations", (route) => route.fulfill({ json: [{ id: 1, participants: null, last: null }] }));
