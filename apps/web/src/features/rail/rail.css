@@ -88,7 +88,7 @@
   .rgo .planicon + .rcnt { margin-left: -4px; }
   .rrow:hover .rgo .planicon, .rrow:focus-within .rgo .planicon { opacity: 0; }
   .railmenu { z-index: 9; right: auto; min-width: 12rem; }
-  .railmenu > button { min-height: 40px; color: var(--color-text); }
+  .menu.railmenu > button { min-height: 40px; color: var(--color-text); }
   .railmenu > .field { padding: 8px; }
   .rrow.dragging { position: relative; z-index: 5; box-shadow: var(--float); background: var(--color-raised); transition: none; will-change: transform; }
   .dropline { position: absolute; display: none; height: 2px; border-radius: 2px; background: var(--color-accent); pointer-events: none; z-index: 6; }
