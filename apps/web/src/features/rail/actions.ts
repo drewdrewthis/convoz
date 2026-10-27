@@ -51,7 +51,7 @@ export async function setStar(id: number, starred: boolean): Promise<void> {
 export async function setClosed(id: number, closed: boolean): Promise<void> {
   data.patchConversation(id, { stale: closed || undefined });
   try {
-    await call(client.POST("/api/conversations/{id}/stale", { params: { path: { id } }, body: closed ? {} : { reopen: true } }));
+    await call(client.POST("/api/conversations/{id}/stale", { params: { path: { id } }, body: closed ? { force: true } : { reopen: true } }));
   } finally {
     void data.loadConversations().catch(() => {});
   }

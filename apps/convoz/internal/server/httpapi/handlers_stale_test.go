@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"fmt"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -122,10 +123,39 @@ func TestTheOwnerClosesAndReopensAConversationEvenWhenHeWroteLast(t *testing.T) 
 		rig.s.markStale(rec, req, rig.c)
 		return rec.Code
 	}
-	if code := owner(`{}`); code != http.StatusOK || !rig.conversationNow(t).Stale() {
+	if code := owner(`{}`); code != http.StatusConflict {
+		t.Fatalf("without force (the voice call) the guard holds: %d, want 409", code)
+	}
+	if code := owner(`{"force":true}`); code != http.StatusOK || !rig.conversationNow(t).Stale() {
 		t.Fatalf("the owner closes it after his own message: %d stale=%v", code, rig.conversationNow(t).Stale())
 	}
 	if code := owner(`{"reopen":true}`); code != http.StatusOK || rig.conversationNow(t).StaleAt != 0 {
 		t.Errorf("reopen: %d stale_at=%d, want 200 and 0", code, rig.conversationNow(t).StaleAt)
+	}
+}
+
+// Who may NOT close or reopen: an agent cannot close a chat the owner wrote last, and cannot reopen one.
+func TestAnAgentCannotCloseWhereTheOwnerWroteLastNorReopen(t *testing.T) {
+	rig := openRig(t, "owner")
+	dbtest.Exec(t, rig.s.Store,
+		`INSERT INTO identities (id, kind, handle, display_name, display_skeleton, avatar_letter, avatar_palette, created_at) VALUES (900,'agent','devtool','Devtool','devtool','D',0,1)`,
+		`INSERT INTO agents (identity_id, created_by_human) VALUES (900,1)`,
+		`INSERT INTO participants (conversation_id, identity_id, status, joined_seq, added_by, added_at, status_at) VALUES (`+strconv.FormatInt(rig.conv, 10)+`,900,'active',0,1,1,1)`)
+	rig.ownerPosts(t, false)
+
+	if code, body := rig.staleAs(t, 900, `{"force":true}`); code != http.StatusConflict || !strings.Contains(fmt.Sprint(body), "owner_spoke_last") {
+		t.Errorf("an agent closes where the owner wrote last, even with force: %d %v, want 409 owner_spoke_last", code, body)
+	}
+	if rig.conversationNow(t).Stale() {
+		t.Fatal("a refused close made the conversation stale")
+	}
+
+	time.Sleep(5 * time.Millisecond)
+	rig.inTx(t, func(ctx context.Context, d pdb.DBTX) error { return conversation.MarkStale(ctx, d, rig.s.Clock.Now(), rig.conv, "") })
+	if code, _ := rig.staleAs(t, 900, `{"reopen":true}`); code != http.StatusForbidden {
+		t.Errorf("an agent reopens: %d, want 403", code)
+	}
+	if !rig.conversationNow(t).Stale() {
+		t.Error("a refused reopen changed the conversation")
 	}
 }

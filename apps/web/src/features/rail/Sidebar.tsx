@@ -40,6 +40,7 @@ export default function Sidebar() {
   const [olderOpen, setOlderOpen] = useState(false);
   const [said, setSaid] = useState("");
   const [focusId, setFocusId] = useState(0);
+  const [hot, setHot] = useState(0); // the row the pointer last moved over: it keeps its dots when a new message reorders the rows under a still pointer
   const [menu, setMenu] = useState<RowMenuAt | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
   const current = openedId();
@@ -110,7 +111,7 @@ export default function Sidebar() {
 
   const row = (c: Conversation, grp: "starred" | "mid" | "older") => (
     <Fragment key={c.id}>
-    <div className="rrow group/rrow" data-rid={grp === "older" ? undefined : c.id} data-grp={grp} data-current={c.id === current ? "true" : undefined} onPointerDown={grp === "older" ? undefined : (e) => startDrag(e, drop)} onKeyDown={(e) => key(e, c)}>
+    <div className="rrow group/rrow" data-rid={grp === "older" ? undefined : c.id} data-grp={grp} data-current={c.id === current ? "true" : undefined} onPointerDown={grp === "older" ? undefined : (e) => startDrag(e, drop)} onKeyDown={(e) => key(e, c)} onMouseMove={() => hot !== c.id && setHot(c.id)}>
       <a className={`rgo${unreadOf(c) > 0 ? " unread" : ""}${c.muted_until ? " muted" : ""}`} id={`rr-${c.id}`} href={`/chats/${c.id}`} onClick={(e) => visit(e, `/chats/${c.id}`)} aria-current={c.id === current ? "page" : undefined} aria-label={rowLabel(c, unreadOf(c))} draggable={false}>
         <span className="rtitle">{titleOf(c)}</span>
         <PlanIcon id={c.id} />
@@ -135,12 +136,12 @@ export default function Sidebar() {
       >
         <StarIcon filled={c.starred} />
       </IconButton>
-      {/* The dots sit left of the star and show with it. They stay clickable while faded: a row that moves under the pointer (a new message puts it on top) must not lose them. */}
+      {/* The dots show with the pointer or focus, left of the grip. Hidden (display none) they own no box, so a closed menu moves nothing in the row. */}
       <IconButton
         variant="muted"
         size={28}
         glyph="self"
-        className={`absolute top-1/2 ${folds(c) ? "right-52" : "right-28"} -mt-14 opacity-0 [transition:opacity_140ms_ease] [@media(hover:none)]:opacity-100 group-hover/rrow:opacity-100 group-focus-within/rrow:opacity-100`}
+        className={`absolute top-1/2 ${folds(c) ? "right-80" : "right-56"} -mt-14 ${hot === c.id ? "flex" : "hidden"} [@media(hover:none)]:flex group-focus-within/rrow:flex`}
         id={`rm-${c.id}`}
         label={`More actions for ${titleOf(c)}`}
         aria-haspopup="menu"
@@ -159,7 +160,7 @@ export default function Sidebar() {
           variant="muted"
           size={28}
           glyph="self"
-          className={`absolute top-1/2 ${folds(c) ? "right-80" : "right-56"} -mt-14 w-22! cursor-grab touch-none pointer-events-none opacity-0 [transition:opacity_140ms_ease] focus-visible:opacity-100`}
+          className={`absolute top-1/2 ${folds(c) ? "right-52" : "right-28"} -mt-14 w-22! cursor-grab touch-none pointer-events-none opacity-0 [transition:opacity_140ms_ease] focus-visible:opacity-100`}
           id={`rg-${c.id}`}
           label={`Reorder ${titleOf(c)}. Alt plus arrow keys move it.`}
         >
@@ -185,7 +186,7 @@ export default function Sidebar() {
   }
 
   return (
-    <nav className="rail" aria-label="Conversations" data-testid="rail" onKeyDown={escape}>
+    <nav className="rail" aria-label="Conversations" data-testid="rail" onKeyDown={escape} onMouseLeave={() => setHot(0)}>
       <div className="rail-top">
         {foldButton}
         <a className="brand" href="/">

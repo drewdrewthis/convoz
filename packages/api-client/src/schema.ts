@@ -1141,8 +1141,8 @@ export interface paths {
         /**
          * An agent in the conversation marks it stale (`convoz stale`). The rail folds it into Older at once; the next message brings it back.
          * @description An agent that is a participant may mark it (403 otherwise), and so may the owner (his voice call, the row menu of the rail). While the owner wrote the last
-         *     message the conversation waits on the agents and cannot be marked by an agent: 409 owner_spoke_last; the owner is not bound by it. The owner may send
-         *     `reopen: true` to take the mark off. The reason, when given, is kept with
+         *     message the conversation waits on the agents and cannot be marked by an agent: 409 owner_spoke_last; the owner is not bound by it when he sends
+         *     `force: true` (the rail). He may send `reopen: true` to take the mark off. The reason, when given, is kept with
          *     the mark (stale_reason). Marking it again moves the time of the mark and replaces the reason. No system line is written.
          */
         post: operations["markStale"];
@@ -5688,7 +5688,9 @@ export interface operations {
                 "application/json": {
                     /** @description Why it is stale */
                     reason?: string;
-                    /** @description The owner takes the stale mark off (the rail's Reopen). Ignored from an agent. */
+                    /** @description The owner closes it although he wrote the last message (the rail's Close). Ignored from an agent. */
+                    force?: boolean;
+                    /** @description The owner takes the stale mark off (the rail's Reopen). An agent that sends it gets 403. */
                     reopen?: boolean;
                 };
             };
