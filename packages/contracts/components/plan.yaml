@@ -13,6 +13,21 @@ PlanRequest:
     waiting: { type: array, maxItems: 5, items: { type: string, minLength: 1, maxLength: 200 }, description: What waits on the owner. }
     done: { type: array, maxItems: 5, items: { type: string, minLength: 1, maxLength: 200 }, description: Items finished since the last plan. }
     client_id: { type: string, maxLength: 64, description: A retry with the same id after a lost answer changes nothing. }
+    deliver: { type: array, maxItems: 5, items: { $ref: "../openapi.yaml#/components/schemas/PlanDeliverRequest" }, description: "Adds deliverables or moves their dates. The plan keeps the ones not named; a done item with a deliverable's text ships it." }
+PlanDeliverRequest:
+  type: object
+  additionalProperties: false
+  required: [text, due]
+  properties:
+    text: { type: string, minLength: 1, maxLength: 200 }
+    due: { type: string, description: "A duration up to 60 days (2d, 1d4h, 30m), HH:MM, or YYYY-MM-DD HH:MM; the last two in the zone of utc_offset." }
+PlanDeliver:
+  type: object
+  required: [text, due, since]
+  properties:
+    text: { type: string }
+    due: { type: integer, format: int64, description: Epoch ms on the server clock. }
+    since: { type: integer, format: int64, description: When the deliverable was first set. }
 PlanNowRequest:
   type: object
   additionalProperties: false
@@ -47,6 +62,7 @@ PlanDone:
   properties:
     text: { type: string }
     at: { type: integer, format: int64 }
+    shipped: { type: boolean, description: The item was a deliverable. }
 Plan:
   type: object
   required: [conversation_id, identity_id, handle, now, doing, next, waiting, done, updated_at]
@@ -63,6 +79,7 @@ Plan:
     next: { type: array, items: { type: string } }
     waiting: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/PlanWaiting" } }
     done: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/PlanDone" }, description: Newest first, at most 20. }
+    deliver: { type: array, maxItems: 5, items: { $ref: "../openapi.yaml#/components/schemas/PlanDeliver" }, description: What the agent will deliver and by when. }
     updated_at: { type: integer, format: int64 }
     due_at: { type: integer, format: int64, description: "When the plan turns overdue: its eta, or 2 h after the update for a Doing with no eta." }
     nudged_at: { type: integer, format: int64, description: When Convoz last asked the agent to update this plan. }
@@ -99,6 +116,40 @@ PlanBoard:
     asks: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/OpenAsk" } }
     attention: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/PlanAttention" }, description: One line per conversation with something to show. }
     next_change_at: { type: integer, format: int64 }
+Delivery:
+  type: object
+  required: [conversation_id, title, identity_id, handle, text, due, since, state, stale, doing, waiting, plan_updated_at]
+  properties:
+    conversation_id: { type: integer, format: int64 }
+    title: { type: string }
+    identity_id: { type: integer, format: int64 }
+    handle: { type: string }
+    text: { type: string }
+    due: { type: integer, format: int64, description: Epoch ms on the server clock. }
+    since: { type: integer, format: int64 }
+    state: { type: string, enum: [late, waiting, at_risk, on_track], description: "late: past due; waiting: the plan waits on the owner; at_risk: the plan is blocked or has had no update for a day." }
+    stale: { type: boolean, description: The plan has had no update for a day. }
+    doing: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/PlanNow" } }
+    waiting: { type: integer, description: How many items of the plan wait on the owner. }
+    blocked: { type: string }
+    plan_updated_at: { type: integer, format: int64 }
+ShippedDelivery:
+  type: object
+  required: [conversation_id, title, handle, text, at]
+  properties:
+    conversation_id: { type: integer, format: int64 }
+    title: { type: string }
+    handle: { type: string }
+    text: { type: string }
+    at: { type: integer, format: int64 }
+Deliveries:
+  type: object
+  required: [now, deliveries, shipped]
+  properties:
+    now: { type: integer, format: int64, description: The server's clock. }
+    deliveries: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Delivery" }, description: The late ones first, then by due date. }
+    shipped: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/ShippedDelivery" }, description: Shipped in the last 48 hours, newest first. }
+    next_change_at: { type: integer, format: int64, description: When time alone changes a state next; read again then. }
 PlanChangedFrame:
   description: SSE plan.changed (people who can see the conversation); read the plans of the conversation again.
   type: object

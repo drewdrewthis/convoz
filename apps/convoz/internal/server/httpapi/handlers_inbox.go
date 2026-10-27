@@ -656,7 +656,11 @@ func (s *Server) statusDueItem(ctx context.Context, d pdb.DBTX, now time.Time, p
 	}
 	conv := strconv.FormatInt(it.ConversationID, 10)
 	body := "Your plan in conversation " + conv + " needs an update."
-	if pl, err := plan.Get(ctx, d, p.Identity(), it.ConversationID); err == nil {
+	pl, perr := plan.Get(ctx, d, p.Identity(), it.ConversationID)
+	dv, missed := pl.LateDeliverable(now.UnixMilli())
+	if missed = missed && perr == nil; missed {
+		body = deliveryNudge(it.ConversationID, dv) // a missed delivery date comes before a late step
+	} else if perr == nil {
 		it, state := pl.MostOverdue(pl.UpdatedAt, now.UnixMilli())
 		if state == "" && len(pl.Now) > 0 { // nudged before the owner's line turns stale
 			it, state = pl.Now[0], "stale"
@@ -668,7 +672,9 @@ func (s *Server) statusDueItem(ctx context.Context, d pdb.DBTX, now time.Time, p
 			body = "Your plan in conversation " + conv + " has had no update for " + strconv.FormatInt((now.UnixMilli()-pl.UpdatedAt)/60000, 10) + " min: \"" + it.Text + "\"."
 		}
 	}
-	body += " Say where you are: convoz plan " + conv + " --doing \"…\" --eta 30m (or --done, --blocked, --waiting)."
+	if !missed {
+		body += " Say where you are: convoz plan " + conv + " --doing \"…\" --eta 30m (or --done, --blocked, --waiting)."
+	}
 	wi := wire.InboxItem{ID: it.ID, State: it.State, Reason: it.Reason, Count: it.Count, Deliveries: it.Deliveries, Conversation: wire.InboxConversation{ID: it.ConversationID},
 		Message: wire.Message{Author: systemAuthor, Body: body, Format: "plain", Kind: "system", CreatedAt: now.UnixMilli()}}
 	if cv.Title != "" {

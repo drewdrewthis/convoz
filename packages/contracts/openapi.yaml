@@ -116,6 +116,7 @@ paths:
   # ---- plan
   /api/conversations/{id}/plan: { $ref: "paths/plan.yaml#/~1api~1conversations~1{id}~1plan" }
   /api/plans: { $ref: "paths/plan.yaml#/~1api~1plans" }
+  /api/deliveries: { $ref: "paths/plan.yaml#/~1api~1deliveries" }
   # ---- ask
   /api/asks: { $ref: "paths/ask.yaml#/~1api~1asks" }
   /api/asks/{id}: { $ref: "paths/ask.yaml#/~1api~1asks~1{id}" }
@@ -387,6 +388,11 @@ components:
     PlanRequest: { $ref: "components/plan.yaml#/PlanRequest" }
     PlanStep: { $ref: "components/plan.yaml#/PlanStep" }
     PlanNowRequest: { $ref: "components/plan.yaml#/PlanNowRequest" }
+    PlanDeliverRequest: { $ref: "components/plan.yaml#/PlanDeliverRequest" }
+    PlanDeliver: { $ref: "components/plan.yaml#/PlanDeliver" }
+    Delivery: { $ref: "components/plan.yaml#/Delivery" }
+    ShippedDelivery: { $ref: "components/plan.yaml#/ShippedDelivery" }
+    Deliveries: { $ref: "components/plan.yaml#/Deliveries" }
     PlanNow: { $ref: "components/plan.yaml#/PlanNow" }
     PlanWaiting: { $ref: "components/plan.yaml#/PlanWaiting" }
     PlanDone: { $ref: "components/plan.yaml#/PlanDone" }
