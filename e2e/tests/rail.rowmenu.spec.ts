@@ -1,6 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 import { ownerSays } from "../lib/chat.ts";
-import { agentSays, openRail, railGroup, railRow, railWorld, TITLES } from "../lib/rail-wp9.ts";
+import { agentSays, openRail, rail, railGroup, railRow, railWorld, TITLES } from "../lib/rail-wp9.ts";
 import { expect, scenario } from "../lib/scenario.ts";
 
 /*
@@ -69,4 +69,15 @@ scenario("The row menu stars, unstars and marks read", { tag: ["@browser"] }, as
   await expect(railGroup(page, "Starred").locator(".rtitle", { hasText: T60 })).toBeVisible();
   await pick(page, T60, "Unstar");
   await expect(railGroup(page, "Conversations").locator(".rtitle", { hasText: T60 })).toBeVisible();
+
+  // Then the menu button stays clickable on a narrow rail: the resize handle on the rail edge does not take the click
+  for (const narrow of [240, 200]) {
+    await page.evaluate((w) => localStorage.setItem("convoz.rail.width", String(w)), narrow);
+    await page.reload();
+    await expect.poll(async () => Math.round((await rail(page).boundingBox())!.width)).toBe(narrow);
+    await pick(page, T60, "Star");
+    await expect(railGroup(page, "Starred").locator(".rtitle", { hasText: T60 })).toBeVisible();
+    await pick(page, T60, "Unstar");
+    await expect(railGroup(page, "Conversations").locator(".rtitle", { hasText: T60 })).toBeVisible();
+  }
 });

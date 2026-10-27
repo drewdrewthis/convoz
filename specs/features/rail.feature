@@ -228,3 +228,5 @@ Feature: Rail
       Then conversation 60 is in the Starred group
       When the owner opens the menu of conversation 60 and picks "Unstar"
       Then conversation 60 is in the Conversations group
+      When the owner sets the sidebar to 240 px, then to 200 px
+      Then at each width the menu button of conversation 60 can be clicked, and "Star" and "Unstar" work
