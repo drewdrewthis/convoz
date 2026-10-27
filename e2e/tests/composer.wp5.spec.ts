@@ -149,14 +149,14 @@ scenario("Picking an agent from the mention list adds it", { tag: ["@browser", "
   await expect(box(page)).toHaveValue("@docs please write the release note");
   await sendButton(page).click();
   await expect(message(page, "@docs please write the release note")).toBeVisible();
-  await expect.poll(async () => (await messagesOf(w.owner, conv)).length).toBe(2); // the bubble shows before the server holds the message
+  await expect.poll(async () => (await messagesOf(w.owner, conv)).length).toBe(3); // the message and the "@drew added @docs" system line (74212e5); the bubble shows before the server holds them
 
   // Then "docs" is a participant of conversation 41 from that message
-  const sent = (await messagesOf(w.owner, conv)).at(-1)!;
+  const sent = (await messagesOf(w.owner, conv)).find((m) => m.body === "@docs please write the release note")!;
   expect(sent.body).toBe("@docs please write the release note");
   expect(handlesOf(await viewOf(w.owner, conv))).toContain("docs");
   const docsRead = await asAgent(w.srv, w.sessions.docs!.lease, "GET", `/api/conversations/${conv}/messages`);
-  expect(docsRead.json().messages.map((m: { body: string }) => m.body)).toEqual(["an earlier note", "@docs please write the release note"]);
+  expect(docsRead.json().messages.map((m: { body: string }) => m.body)).toEqual(["an earlier note", "@docs please write the release note", "@drew added @docs"]);
   const floor = seedDb(dataDir, (db) =>
     Number(
       (db.prepare("SELECT p.joined_message_id AS n FROM participants p JOIN identities i ON i.id = p.identity_id WHERE p.conversation_id = ? AND i.handle = 'docs'").get(conv) as { n: number }).n,
@@ -366,7 +366,7 @@ scenario("A mention sent from a phone is in the message", { tag: ["@browser", "@
   await page.touchscreen.tap(send.x + send.width / 2, send.y + send.height / 2);
 
   // Then the message is "@claude-convoz hi" and "claude-convoz" is in the conversation
-  await expect.poll(async () => (await messagesOf(w.owner, conv)).map((m) => m.body)).toEqual(["@claude-convoz hi"]);
+  await expect.poll(async () => (await messagesOf(w.owner, conv)).map((m) => m.body)).toEqual(["@claude-convoz hi", "@drew added @claude-convoz"]);
   await expect(message(page, "@claude-convoz hi")).toBeVisible();
   expect(handlesOf(await viewOf(w.owner, conv))).toContain("claude-convoz");
 });

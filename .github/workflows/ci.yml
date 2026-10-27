@@ -96,14 +96,20 @@ jobs:
         run: make testhooks
       # The browser scenarios run in chromium. The Playwright version is pinned exactly in e2e/package.json
       # (checked by scripts/check_pins.py), and that version names the browser build it installs.
-      # Off by owner order (Convoz msg 4211) until the 30 red e2e tests are fixed; turn back on then.
       - name: Playwright chromium
-        if: false
         run: pnpm --filter @convoz/e2e exec playwright install --with-deps chromium
-      # Off by owner order (Convoz msg 4211) until the 30 red e2e tests are fixed; turn back on then.
       - name: E2E
-        if: false
         run: pnpm e2e
+      - name: E2E artifacts (failure only)
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: e2e-results
+          path: |
+            /tmp/convoz-e2e-results
+            e2e/report
+          if-no-files-found: ignore
+          retention-days: 14
       # Off by owner order (Convoz msg 4211) until the 30 red e2e tests are fixed; turn back on then.
       - name: Proof page
         if: false

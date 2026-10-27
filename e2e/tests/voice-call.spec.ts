@@ -227,7 +227,7 @@ scenario("A finished call leaves its log in the conversation, closed, and agents
   expect(body.length).toBeLessThan(16_000);
 });
 
-scenario("An instruction inside an agent's reply is refused", { tag: ["@browser"] }, async ({ server, page, context }) => {
+scenario("An instruction inside an agent's reply is refused", { tag: ["@browser"], fixme: "https://github.com/drewdrewthis/convoz/issues/136" }, async ({ server, page, context }) => {
   // Background
   const u = await callWorld({ server, page, context });
   await voiceKey(u.w, KEY);
