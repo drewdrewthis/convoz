@@ -6,6 +6,7 @@ import { ReplyCount } from "./ReplyCount.tsx";
 import { AskMenu, MenuItem } from "./AskMenu.tsx";
 import { Answers } from "./Answers.tsx";
 import { AskActions } from "./AskActions.tsx";
+import { QuickReply } from "./QuickReply.tsx";
 import { PermissionBody } from "./PermissionBody.tsx";
 import { clock, historyText, stateLine, waitingLine, whoLine, type Answer, type AskData, type SnoozePreset } from "./askData.ts";
 
@@ -280,29 +281,7 @@ export function AskCard({ ask, where, labelId, as = "article", presets, busy, no
         ) : null}
       </div>
       )}
-      {panel === "reply" && !permission ? (
-        <form
-          className="mt-6 flex items-center gap-8"
-          onSubmit={(e) => {
-            e.preventDefault();
-            send();
-          }}
-        >
-          {/* eslint-disable-next-line convoz/no-raw-input -- a pill with no visible label (aria-label); Field draws a label above its input */}
-          <input
-            aria-label="Quick reply"
-            type="text"
-            autoFocus
-            value={text}
-            maxLength={4000}
-            onChange={(e) => setText(e.target.value)}
-            className="h-52 w-full min-w-0 flex-auto rounded-full border border-solid border-edge bg-raised px-16 text-16 text-text [font-family:inherit]"
-          />
-          <Button variant="primary" size="inline" type="submit" disabled={busy || !text.trim()}>
-            Send
-          </Button>
-        </form>
-      ) : null}
+      {panel === "reply" && !permission ? <QuickReply text={text} setText={setText} busy={busy} onSend={send} /> : null}
       {sheetOpen ? <div ref={gap} aria-hidden="true" /> : null}
       {panel === "history" ? (
         <ul className="m-0 mt-8 flex list-none flex-col gap-4 border-0 border-t border-solid border-border p-0 pt-8 text-13 text-muted" aria-label="History">
