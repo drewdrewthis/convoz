@@ -1,7 +1,7 @@
 import type { FeedItem } from "@convoz/api-client";
 import { Button } from "@convoz/ui/Button";
 import { useState, type FormEvent } from "react";
-import { ItemFrame } from "./ItemFrame.tsx";
+import { ItemFrame } from "./DevFrame.tsx";
 import { laterOptionsAt } from "./presets.ts";
 import type { useServerFeed } from "./serverFeed.ts";
 

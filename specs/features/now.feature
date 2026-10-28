@@ -14,6 +14,26 @@ Feature: Now
     And machine "box-2" is logged in with allow-list "devtool" and "docs"
     And "devtool" and "docs" are active participants of conversation 41 "Ship search filters"
 
+  Rule: The one-list Now, the right drawer and the Work screen are in the dev build (/dev) only; the main app is unchanged
+
+    @v1 @browser @unimplemented
+    Scenario: The dev build opens Now in a right-side drawer with the address ?panel=now
+      Given the owner is in the dev build with a conversation open
+      When the owner presses Cmd+.
+      Then Now opens in a drawer on the right, the conversation stays visible, and the address has "?panel=now"
+
+    @v1 @browser @unimplemented
+    Scenario: The dev build names Deliveries as Work
+      Given the owner is in the dev build
+      When the owner opens "/work"
+      Then the page is Work, and "/delivery" opens the same page
+
+    @v1 @browser @unimplemented
+    Scenario: The main app keeps its Now cards, its sidebar Now list and its Deliveries page
+      Given the owner is in the main app
+      When the owner opens Now, the sidebar Now list and Deliveries
+      Then they look and act as before
+
   Rule: Now is one list of feed items, newest first, each following one piece of work: started, blocking or done
 
     @v1 @browser @unimplemented

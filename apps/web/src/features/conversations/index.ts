@@ -6,9 +6,8 @@ import { useConversations } from "./store.ts";
 
 export { Conversations } from "./Conversations.tsx";
 export { markAllRead, rename as renameConversation } from "./actions.ts";
-/** The plan pieces other pages draw as the details panel does, and the hash that opens the panel on an agent's plan card (Work). */
+/** The plan pieces the Deliveries page draws as the details panel does (owner msg 9982). */
 export { NowBlock, planRequest } from "./PlanBits.tsx";
-export { planHash } from "./messages/PlanNote.tsx";
 
 // The list is a first screen, so this chunk holds only it; one conversation, its 404 and the trash are a chunk of their own
 // (design §12.2). The route loads the page before the first render, as with any other page.
@@ -41,3 +40,4 @@ registerHandler("pin.", (frame) => {
 
 /** The replies of a thread drawn as a conversation draws them; a chunk of its own, since the transcript is large. */
 export const loadFeedReplies = () => import("./FeedReplies.tsx").then((p) => p.FeedReplies);
+export { planHash } from "./messages/PlanNote.tsx";

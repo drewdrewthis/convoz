@@ -3,7 +3,8 @@ import { useEffect } from "react";
 import { create } from "zustand";
 import { Button } from "@convoz/ui/Button";
 import { useFold } from "./fold.ts";
-import { togglePanel } from "../drawer/index.ts";
+// Also loads the rail mode in the main bundle, so its mark is on the page before the sidebar chunk loads (no jump from 240 to 360 px).
+import { useRailMode } from "./mode.ts";
 
 /** Every key the app answers to, for the "Keyboard shortcuts" dialog. Keep it equal to what the handlers below and the pages do. */
 export const SHORTCUTS: readonly { keys: string; does: string }[] = [
@@ -12,7 +13,7 @@ export const SHORTCUTS: readonly { keys: string; does: string }[] = [
   { keys: "Cmd+[", does: "Back to the conversation you came from" },
   { keys: "Cmd+]", does: "Forward again" },
   { keys: "Cmd+\\", does: "Fold or unfold the sidebar" },
-  { keys: "Cmd+.", does: "Show Now in the right drawer, or close it" },
+  { keys: "Cmd+.", does: "Show Now in the sidebar, or the conversations again" },
   { keys: "Alt+ArrowUp", does: "Move the conversation in focus up the rail" },
   { keys: "Alt+ArrowDown", does: "Move the conversation in focus down the rail" },
   { keys: "I", does: "Show or hide the details of a conversation" },
@@ -26,7 +27,7 @@ const typing = (el: EventTarget | null) => el instanceof HTMLElement && Boolean(
 
 /**
  * useRailShortcuts handles the keys that belong to no page: Cmd+[ and Cmd+] move through the conversations visited (a page is a
- * full load, so this is the browser's own history), Cmd+\ folds the sidebar, Cmd+. opens or closes the Now drawer, and "?" opens the list of keys, unless the person is typing.
+ * full load, so this is the browser's own history), Cmd+\ folds the sidebar, Cmd+. switches the sidebar between Now and the conversations, and "?" opens the list of keys, unless the person is typing.
  */
 export function useRailShortcuts(): void {
   useEffect(() => {
@@ -39,10 +40,11 @@ export function useRailShortcuts(): void {
       } else if (cmd && !event.altKey && !event.shiftKey && event.key === "\\") {
         event.preventDefault();
         useFold.getState().toggle();
-      } else if (cmd && !event.altKey && !event.shiftKey && event.key === "." && document.body.dataset.page !== "now") {
-        // Not on the Now page: the page is the Now list.
+      } else if (cmd && !event.altKey && !event.shiftKey && event.key === "." && document.body.hasAttribute("data-desk") && document.body.dataset.page !== "now") {
+        // Only where the rail shows it: a phone has no rail, and on the Now page the page is the Now list.
         event.preventDefault();
-        togglePanel("now");
+        const mode = useRailMode.getState();
+        mode.set(!mode.now);
       } else if (event.key === "?" && !cmd && !event.altKey && !typing(event.target) && !document.querySelector("dialog[open]")) {
         event.preventDefault();
         useHelp.getState().set(true);

@@ -3,12 +3,11 @@ import { IconButton } from "@convoz/ui/IconButton";
 import { ResizeHandle } from "@convoz/ui/ResizeHandle";
 import { PlanIcon } from "../plan/index.ts";
 import type { Conversation } from "@convoz/api-client";
-import { Fragment, useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { humanError } from "../../shared/api.ts";
 import { visit } from "../../shared/navigate.ts";
 import { data, loadListOnMount, useData, useLive } from "../../shared/data.ts";
-import { needsYouCount, useNow } from "../now/index.ts";
-import { togglePanel, usePanel } from "../drawer/index.ts";
+import { Now, needsYouCount, useNow } from "../now/index.ts";
 import { useDeliveries } from "../delivery/index.ts";
 import { toast } from "../pins-stars/index.ts";
 import { useSearchUi } from "../search/index.ts";
@@ -19,6 +18,7 @@ import { BackArrow, ChevronIcon, ComposeGlyph, CrewGlyph, DeliveryGlyph, InviteG
 import { groups, isOlder, rowLabel, titleOf } from "./model.ts";
 import { ThreadFold, ThreadRows, rowUnread, useThreadFold } from "../threads/index.ts";
 import { useFold } from "./fold.ts";
+import { useRailMode } from "./mode.ts";
 import { useRailWidth } from "./width.ts";
 import { RAIL_MAX, RAIL_MIN } from "./widthRange.ts";
 import { moveRow, setStar, stepRow } from "./actions.ts";
@@ -34,8 +34,9 @@ const openedId = (): number => Number(/^\/chats\/(\d+)$/.exec(appPath())?.[1] ??
 
 /**
  * Sidebar is the desktop rail (prototype v41): search and new conversation at the top, Now, the groups Starred and Conversations in the
- * owner's own order, the folded Older group, and Work and Crew at the bottom. Drag a row, or Alt plus an arrow on it, to move it.
- * The rail is navigation and quick find only: Now opens in the right drawer (features/drawer), beside the open conversation.
+ * owner's own order, the folded Older group, and Deliveries and Crew at the bottom. Drag a row, or Alt plus an arrow on it, to move it.
+ * Now switches the rail to the Now list (proposal §1): the page keeps the open conversation, and a pick opens its conversation beside the
+ * list. "Conversations", Escape in the rail, or Now again switch back. On the Now page the rail stays as it is: the page is that list.
  */
 export default function Sidebar() {
   const list = useData((s) => s.conversations);
@@ -53,7 +54,8 @@ export default function Sidebar() {
   const { folded, toggle } = useFold();
   const { width, set: setWidth, reset: resetWidth } = useRailWidth();
   const onNowPage = document.body.dataset.page === "now";
-  const showNow = usePanel() === "now" && !onNowPage;
+  const showNow = useRailMode((s) => s.now) && !onNowPage;
+  const setMode = useRailMode((s) => s.set);
   useLive(() => void data.loadConversations().catch(() => {}));
   useEffect(() => {
     Promise.all([data.loadMe(), loadListOnMount(), data.loadIdentities()]).catch(() => {});
@@ -99,6 +101,19 @@ export default function Sidebar() {
   const threaded = useMemo(() => (list ?? []).filter(folds).map((c) => c.id), [list]);
   const allFolded = threaded.length > 0 && threaded.every((id) => foldedIds.includes(id));
   const unreadOf = (c: Conversation) => rowUnread(c, foldedIds.includes(c.id));
+  // Escape first closes what is open inside the rail (a field, a card's menu); then it leaves Now. The Now button keeps the focus.
+  const escape = (e: KeyboardEvent<HTMLElement>) => {
+    if (e.key !== "Escape" || !showNow || e.defaultPrevented) return;
+    const t = e.target as Element;
+    if (t.closest("input, textarea, select, [contenteditable]") || t.closest("[data-ask]")?.querySelector("[aria-haspopup][aria-expanded='true']")) return;
+    setMode(false);
+    document.getElementById("rail-now")?.focus();
+  };
+  // A pick in the Now list opens its conversation without a page load, so the list beside it does not flash.
+  const pick = (e: MouseEvent<HTMLElement>) => {
+    const to = (e.target as Element).closest("a")?.getAttribute("href");
+    if (to?.startsWith("/chats/")) visit(e, to);
+  };
   const star = (c: Conversation) =>
     setStar(c.id, !c.starred).then(() => toast(c.starred ? "Unstarred" : "Starred"), fail);
 
@@ -180,7 +195,7 @@ export default function Sidebar() {
 
   return (
     <>
-    <nav className="rail" aria-label="Conversations" data-testid="rail" onMouseLeave={() => setHot(0)}>
+    <nav className="rail" aria-label="Conversations" data-testid="rail" onKeyDown={escape} onMouseLeave={() => setHot(0)}>
       <div className="rail-top">
         {foldButton}
         <a className="brand" href="/">
@@ -213,6 +228,12 @@ export default function Sidebar() {
       <div className="rail-scroll" data-rscroll="1">
         {/* The Now button keeps its place (the slot before it is empty in Conversations), so it keeps the focus across the switch. */}
         <div className="rmode">
+          {showNow ? (
+            <Button variant="text" size="inline" className={PILL} onClick={() => setMode(false)}>
+              <BackArrow />
+              <span>Conversations</span>
+            </Button>
+          ) : null}
           {onNowPage ? (
             <a className="rnav now" href="/" aria-current="page">
               <NowGlyph />
@@ -220,14 +241,19 @@ export default function Sidebar() {
               {waiting ? <span className="rbadge">{String(waiting)}</span> : null}
             </a>
           ) : (
-            <Button variant="text" size="inline" className={`${PILL} now`} id="rail-now" aria-pressed={showNow} aria-keyshortcuts="Meta+." title="Now · ⌘." onClick={() => togglePanel("now")}>
+            <Button variant="text" size="inline" className={`${PILL} now`} id="rail-now" aria-pressed={showNow} aria-keyshortcuts="Meta+." title="Now · ⌘." onClick={() => setMode(!showNow)}>
               <NowGlyph />
               <span>Now</span>
               {waiting ? <span className="rbadge">{String(waiting)}</span> : null}
             </Button>
           )}
         </div>
-        <>
+        {showNow ? (
+          <div className="rnow" onClick={pick}>
+            <Now compact current={current} />
+          </div>
+        ) : (
+          <>
           {g.starred.length ? (
             <div className="rgroup" role="group" aria-label="Starred">
               <div className="rghdr" data-ghdr="starred">
@@ -253,12 +279,13 @@ export default function Sidebar() {
               {olderOpen ? g.older.map((c) => row(c, "older")) : null}
             </div>
           ) : null}
-        </>
+          </>
+        )}
       </div>
       <div className="rail-foot">
-        <a className="rnav" href="/work" aria-current={appPath() === "/work" ? "page" : undefined}>
+        <a className="rnav" href="/delivery" aria-current={appPath() === "/delivery" ? "page" : undefined}>
           <DeliveryGlyph />
-          <span>Work</span>
+          <span>Deliveries</span>
           <span className="rsum">{late ? `${late} late` : ""}</span>
         </a>
         <a className="rnav" href="/crew" aria-current={appPath().startsWith("/crew") ? "page" : undefined}>
@@ -272,8 +299,8 @@ export default function Sidebar() {
         {said}
       </p>
     </nav>
-    {/* Beside the rail, on its edge, so it never covers a row's buttons. */}
-    <ResizeHandle className="rail-resize" label="Resize sidebar" value={width} min={RAIL_MIN} max={RAIL_MAX} onChange={setWidth} onReset={resetWidth} />
+    {/* Beside the rail, on its edge, so it never covers a row's buttons. Not in Now (its width is not the chosen one) nor folded. */}
+    {showNow ? null : <ResizeHandle className="rail-resize" label="Resize sidebar" value={width} min={RAIL_MIN} max={RAIL_MAX} onChange={setWidth} onReset={resetWidth} />}
     </>
   );
 }

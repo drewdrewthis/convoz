@@ -9,7 +9,6 @@
 @import "tailwindcss/utilities.css" layer(utilities);
 @import "../features/conversations/conversations.css";
 @import "../features/rail/rail.css";
-@import "../features/drawer/drawer.css";
 @import "../features/search/search.css";
 @import "../features/threads/threads.css";
 @import "../features/composer/composer.css";

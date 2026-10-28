@@ -15,14 +15,12 @@ export interface FrameProps {
   tag?: string;
   /** The conversation the item belongs to: the From link. */
   from: { id: number; title: string };
-  /** Later steps of the same plan, drawn quietly under the item. */
-  next?: string[];
   /** The thread folded inside the item (FeedThread); the frame only gives it its place. */
   thread?: ReactNode;
   /** The snooze choices; none hides the Snooze button (no server support for that item). */
   snooze?: { presets: SnoozePreset[]; pick: (key: string) => void };
   /** The buttons, first the main one. */
-  actions?: ReactNode;
+  actions: ReactNode;
   busy?: boolean;
   dataId?: number;
 }
@@ -63,7 +61,7 @@ function Snooze({ presets, pick, busy }: { presets: SnoozePreset[]; pick: (key: 
 }
 
 /** ItemFrame is one feed item: Title, Context, From, the thread, then the actions and Snooze. */
-export function ItemFrame({ kind, title, context, tag, next, from, thread, snooze, actions, busy, dataId }: FrameProps) {
+export function ItemFrame({ kind, title, context, tag, from, thread, snooze, actions, busy, dataId }: FrameProps) {
   const href = `/chats/${from.id}`;
   return (
     <article className="flex min-w-0 flex-col gap-4 rounded-[14px] border border-solid border-border bg-raised px-14 pt-12 pb-4" data-item={kind} data-ask={dataId} tabIndex={-1} aria-label={title}>
@@ -75,7 +73,6 @@ export function ItemFrame({ kind, title, context, tag, next, from, thread, snooz
           {context}
         </p>
       ) : null}
-      {next?.length ? <p className="m-0 text-12 text-muted [overflow-wrap:anywhere]">{`Next: ${next.join(" · ")}`}</p> : null}
       <p className="m-0 text-13 text-muted">
         {"From "}
         <a className="text-inherit underline" href={href} onClick={(e) => visit(e, href)}>
@@ -83,14 +80,10 @@ export function ItemFrame({ kind, title, context, tag, next, from, thread, snooz
         </a>
       </p>
       {thread}
-      {actions || snooze ? (
-        <div className="-mx-8 flex flex-wrap items-center" role="group" aria-label="Actions">
-          {actions}
-          {snooze ? <Snooze presets={snooze.presets} pick={snooze.pick} busy={busy} /> : null}
-        </div>
-      ) : (
-        <div className="pb-8" />
-      )}
+      <div className="-mx-8 flex flex-wrap items-center" role="group" aria-label="Actions">
+        {actions}
+        {snooze ? <Snooze presets={snooze.presets} pick={snooze.pick} busy={busy} /> : null}
+      </div>
     </article>
   );
 }

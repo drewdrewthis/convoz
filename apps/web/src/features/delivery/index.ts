@@ -1,2 +1,4 @@
-// The owner's deliverables (delivery.feature): the store that Work, the rail and Now read for the late ones. Owner (Drew, conv 179, msg 9734).
+// Deliveries (delivery.feature): every agent's current plan and what it will deliver by when, on one owner page, with Request update on
+// each; and the store that the rail and Now read for the late deliverables. Owner (Drew, conv 179, msgs 9734 and 9982).
+export { Deliveries } from "./Deliveries.tsx";
 export { useDeliveries } from "./store.ts";

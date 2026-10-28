@@ -324,7 +324,7 @@ Feature: Conversations
     @v1 @browser @phone
     Scenario: On a phone the bottom bar leads to Now, Conversations and Crew
       Given the owner opens Convoz on a phone
-      Then a bottom bar shows "Now", "Conversations", "Work" and "Crew"
+      Then a bottom bar shows "Now", "Conversations", "Deliveries" and "Crew"
       When the owner taps "Conversations"
       Then the Conversations list shows with a "New conversation" button
       And "Conversations" is marked as the current tab

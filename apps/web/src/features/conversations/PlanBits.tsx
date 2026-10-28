@@ -1,4 +1,4 @@
-// The plan pieces that the details panel (PlanSections.tsx) and other pages draw: the message that asks
+// The plan pieces that the details panel (PlanSections.tsx) and the Deliveries page (features/delivery) both draw: the message that asks
 // an agent for its plan, a Now item and its step bar.
 import type { Plan } from "@convoz/api-client";
 import { span, when } from "../plan/index.ts";

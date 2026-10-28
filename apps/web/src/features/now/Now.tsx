@@ -7,17 +7,15 @@ import { markUseful } from "../../shared/perf.ts";
 import { data, useData, useLive } from "../../shared/data.ts";
 import { agentRequests, RequestCard } from "./requests.tsx";
 import { AllClear, NoDecisions } from "./AllClear.tsx";
-import { shown, useServerFeed } from "./serverFeed.ts";
+import { FeedItems } from "./FeedItems.tsx";
 import { Folds, type FoldKey } from "./Folds.tsx";
-import { NeedsYou } from "./NeedsYou.tsx";
-import { useFyi } from "./fyi.ts";
-import { DEV } from "../../shared/base.ts";
+import { NowAsk } from "./NowAsk.tsx";
 import { NowReplied } from "./NowReplied.tsx";
 import { Overdue, useOverdue } from "./Overdue.tsx";
 import { PendingAdd } from "./PendingAdd.tsx";
 import { Mentions, OtherChats, Replies, unreadRows, useTriage } from "./Unread.tsx";
 import { useAskActions } from "./useAskActions.ts";
-import { useNow } from "./store.ts";
+import { needsYouCount, useNow } from "./store.ts";
 import { sendKeptLogs } from "../call/index.ts";
 import { appPath } from "../../shared/base.ts";
 
@@ -28,7 +26,7 @@ interface NowProps {
   current?: number;
 }
 
-/** Now is /: what needs the owner. In one list, newest first, with no section headings: the open asks and plan steps that block the owner, and the fyi items (plan steps done today). Then the (urgent, then the newest), the adds agents
+/** Now is /: what needs the owner. Under "Needs you · N" (N is needsYouCount, the number of the Now badges): open asks (urgent, then the newest), the adds agents
  *  wait on, the machines and agents waiting to connect, and the messages that @mention the owner. Then "Replies to you", then the asks the owner replied to and
  *  the agent has not answered, then Other chats; Snoozed, Answered today and Dismissed today fold away above. With nothing waiting, the wordmark, "All clear"
  *  and the folds are centred, in that order. The desktop rail draws the same list `compact`, beside the open conversation (owner, conv 179 msg 6018). */
@@ -76,23 +74,15 @@ export function Now({ compact = false, current = 0 }: NowProps = {}) {
   const connecting = agentRequests(now);
   const waiting = plain.length + connecting.length;
   const asks = now?.asks ?? [];
-  const waitingPlans = now?.waiting_plans ?? [];
-  const feed = useServerFeed();
-  const cards_ = shown(feed.items, Date.now());
-  const skew = useNow((s) => s.skew);
-  // A step the server keeps as an item is not also drawn from the plan lines.
-  const kept = new Set(feed.items.map((i) => `${i.conversation_id}:${i.handle}`));
-  const fyi = useFyi(conversations, mine ?? "").filter((f) => !f.handle || !kept.has(`${f.conversation_id}:${f.handle}`));
-  const titles = (id: number) => conversations?.find((c) => c.id === id)?.title ?? "";
-  // The owner's questions replace the mention and reply cards in the dev build; ?old=1 brings the cards back.
-  const cards = !DEV || new URLSearchParams(location.search).get("old") === "1";
   // Held on the device before the "replied" list existed: none then.
   const replied = now?.replied ?? [];
   const adds = now?.pending_adds ?? [];
-  const some = Boolean(pending && (waiting || asks.length || adds.length || waitingPlans.length));
+  const some = Boolean(pending && (waiting || asks.length || adds.length));
   // A deliverable past its date is no decision, but the page is not all clear while one waits (ux spec, conv 179).
   const overdue = useOverdue();
-  const clear = Boolean(now) && !some && conversations !== null && (cards ? unread.length === 0 : rest.length === 0) && !overdue.length && !fyi.length && !cards_.length;
+  const clear = Boolean(now) && !some && conversations !== null && unread.length === 0 && !overdue.length;
+
+  const needsYou = needsYouCount(now, conversations) ?? 0;
 
   const reload = useCallback(() => load().then(() => undefined), [load]);
   const { busy, presets, answer, dismiss, snooze, unsnooze, reopen } = useAskActions({ now, asks, reload, onAnswered: () => setFolds((f) => ({ ...f, answered: true })) });
@@ -152,9 +142,17 @@ export function Now({ compact = false, current = 0 }: NowProps = {}) {
         reopen={reopen}
         centered={clear}
       />
-      <div onKeyDown={moveFocus}>
-        <NeedsYou asks={asks} waiting={waitingPlans} fyi={fyi} server={{ shown: cards_, all: feed.items, feed, titles, skew }} busy={busy} presets={presets} answer={answer} dismiss={dismiss} snooze={snooze} current={current} compact={compact} />
-      </div>
+      {needsYou ? <p className="ghdr">{`Needs you · ${needsYou}`}</p> : null}
+      <FeedItems />
+      {asks.length ? (
+        <section id="asks" className="mb-8 flex flex-col gap-8" onKeyDown={moveFocus}>
+          {asks.map((ask) => (
+            <div key={ask.id} className="flex flex-col gap-8" data-conv={ask.conversation_id} aria-current={ask.conversation_id === current ? "page" : undefined}>
+              <NowAsk ask={ask} busy={busy.has(ask.id)} presets={presets} answer={answer} dismiss={dismiss} snooze={snooze} compact={compact} />
+            </div>
+          ))}
+        </section>
+      ) : null}
       {adds.length ? (
         <section id="adds" className="block" aria-label="Adds to decide">
           {adds.map((add) => (
@@ -191,8 +189,8 @@ export function Now({ compact = false, current = 0 }: NowProps = {}) {
         </div>
       </section>
       <Overdue late={overdue} />
-      {cards && mentions.length ? <Mentions items={mentions} current={current} /> : null}
-      {cards && replies.length ? <Replies items={replies} current={current} /> : null}
+      {mentions.length ? <Mentions items={mentions} current={current} /> : null}
+      {replies.length ? <Replies items={replies} current={current} /> : null}
       {replied.length ? <NowReplied asks={replied} /> : null}
       {rest.length ? <OtherChats rows={rest} current={current} compact={compact} /> : null}
     </>

@@ -12,8 +12,6 @@ interface FeedThreadProps {
   count?: number;
   /** Runs once the server took a reply typed in the card (`ok`), or lost it (!ok). The card changes here: the caller knows where it goes. */
   onReplied?: (ok: boolean) => void;
-  /** A number that goes up each time the item asks for the thread to open with its reply box focused ("Add info"). It shows even with no replies yet. */
-  request?: number;
 }
 
 /**
@@ -22,7 +20,7 @@ interface FeedThreadProps {
  * draws them in place with the conversation's own message rendering; folding it hides them again. The owner stays in Now.
  * "Reply here", under the open thread, answers in it without leaving Now (owner, conv 179 msg 8239): the reply shows in the thread as sending, then sent.
  */
-export function FeedThread({ conversation, root, count: known, onReplied, request = 0 }: FeedThreadProps) {
+export function FeedThread({ conversation, root, count: known, onReplied }: FeedThreadProps) {
   const [open, setOpen] = useState(false);
   const [writing, setWriting] = useState(false);
   const [text, setText] = useState("");
@@ -36,12 +34,7 @@ export function FeedThread({ conversation, root, count: known, onReplied, reques
     void useThreads.getState().load(conversation, root).catch(() => {});
     void loadFeedReplies().then((c) => setReplies(() => c));
   }, [open, conversation, root]);
-  useEffect(() => {
-    if (!request) return;
-    setOpen(true);
-    setWriting(true);
-  }, [request]);
-  if (!count && !request) return null;
+  if (!count) return null;
 
   const send = (e: FormEvent) => {
     e.preventDefault();

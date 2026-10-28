@@ -179,7 +179,7 @@ Feature: Console on a phone
       Given the owner is signed in on a phone
       When the owner opens the account menu
       Then the menu lists "Passkeys", "Recovery codes" and "Sign out"
-      And the bottom nav shows "Now", "Conversations", "Work" and "Crew"
+      And the bottom nav shows "Now", "Conversations", "Deliveries" and "Crew"
 
     @v1 @browser @phone
     Scenario: Sign out from the account menu ends the session
