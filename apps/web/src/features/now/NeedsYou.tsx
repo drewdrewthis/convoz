@@ -9,14 +9,13 @@ import { entries } from "./entries.ts";
 import { ItemFrame } from "./ItemFrame.tsx";
 import { NowAsk } from "./NowAsk.tsx";
 import { useNow } from "./store.ts";
-import type { Fyi } from "./Updates.tsx";
+import type { Fyi } from "./feed.ts";
 
 interface NeedsYouProps {
   asks: Ask[];
   waiting: NowWaiting[];
-  /** fyi items: plan steps done today, not yet acknowledged. */
-  done: Fyi[];
-  ack: (f: Fyi) => void;
+  /** fyi items: plan steps started or done, and the owner's questions. */
+  fyi: Fyi[];
   busy: ReadonlySet<number>;
   presets: SnoozePreset[];
   answer: (ask: Ask, a: Answer) => void;
@@ -59,21 +58,9 @@ function AskItem({ ask, busy, presets, answer, snooze }: { ask: Ask; busy: boole
   );
 }
 
-/** FyiItem is a plan step started or done today: the owner only needs to know. Got it is kept on this device (see Updates.tsx). */
-function FyiItem({ item: f, ack }: { item: Fyi; ack: (f: Fyi) => void }) {
-  return (
-    <ItemFrame
-      kind={f.state}
-      title={f.state === "done" ? `${f.text} — done` : f.text}
-      context={`@${f.handle} ${f.state === "done" ? "finished this" : "started this"} at ${clockOf(f.at)}`}
-      from={{ id: f.conversation_id, title: f.title }}
-      actions={
-        <Button variant="primary" size="inline" className="mr-8 ml-8" onClick={() => ack(f)}>
-          Got it
-        </Button>
-      }
-    />
-  );
+/** FyiItem is a piece of work started or done, or an answered question: the owner only needs to know. It has no action yet: Got it comes with the server's feed record. */
+function FyiItem({ item: f }: { item: Fyi }) {
+  return <ItemFrame kind={f.state} title={f.title} context={f.context} next={f.next} from={{ id: f.conversation_id, title: f.from }} />;
 }
 
 /** PlanItem is a plan step that waits on the owner. The server has no snooze for it and no thread of its own, so both buttons open the conversation for now. */
@@ -100,8 +87,8 @@ function PlanItem({ plan }: { plan: NowWaiting }) {
 }
 
 /** NeedsYou is the one list of Now: one frame for every item, blocking or fyi, newest first. An ask with a draft keeps the full ask card, whose Send carries the draft. */
-export function NeedsYou({ asks, waiting, done, ack, busy, presets, answer, dismiss, snooze, current, compact }: NeedsYouProps) {
-  const list = entries(asks, waiting, done);
+export function NeedsYou({ asks, waiting, fyi, busy, presets, answer, dismiss, snooze, current, compact }: NeedsYouProps) {
+  const list = entries(asks, waiting, fyi);
   if (!list.length) return null;
   return (
     <section id="asks" className="mb-8 flex flex-col gap-8">
@@ -114,9 +101,9 @@ export function NeedsYou({ asks, waiting, done, ack, busy, presets, answer, dism
               <AskItem ask={e.ask} busy={busy.has(e.ask.id)} presets={presets} answer={answer} snooze={snooze} />
             )}
           </div>
-        ) : "done" in e ? (
-          <div key={`d${e.done.step}`} aria-current={e.done.conversation_id === current ? "page" : undefined}>
-            <FyiItem item={e.done} ack={ack} />
+        ) : "fyi" in e ? (
+          <div key={`f${e.fyi.key}`} aria-current={e.fyi.conversation_id === current ? "page" : undefined}>
+            <FyiItem item={e.fyi} />
           </div>
         ) : (
           <div key={`p${e.plan.conversation.id}-${e.plan.text}`} data-conv={e.plan.conversation.id} aria-current={e.plan.conversation.id === current ? "page" : undefined}>

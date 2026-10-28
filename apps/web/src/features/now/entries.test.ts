@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Ask, NowWaiting } from "@convoz/api-client";
-import type { Fyi } from "./Updates.tsx";
+import type { Fyi } from "./feed.ts";
 import { entries } from "./entries.ts";
 
 test("entries lists asks and waiting plan items together, newest first", () => {

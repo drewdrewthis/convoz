@@ -47,26 +47,44 @@ Feature: Now
       And the item has no "Snooze" button
 
     @v1 @browser
-    Scenario: A step done today is a done item and Got it removes it
-      Given "devtool" finished the deliverable "Search filters" today
+    Scenario: A step done today is a done item with no action yet
+      Given the plan of "devtool" in conversation 41 lists "Search filters" as done today
       When the owner opens Now
       Then the item shows the state "Done", the title "Search filters — done" and the link "From Ship search filters"
-      And its only action is "Got it"
-      When the owner presses "Got it"
-      Then the item leaves Now and stays gone after a reload on this device
+      And the item has no "Got it" button
 
     @v1 @browser
-    Scenario: A step the agent started today is a started item
-      Given "devtool" started the plan step "Index the filters" today
+    Scenario: The first Now line of a plan is the item and the rest are Next
+      Given the plan of "devtool" in conversation 41 has the Now lines "Index the filters" and "Write the docs" and the Next line "Ship"
       When the owner opens Now
-      Then the item shows the state "Started", the title "Index the filters" and the link "From Ship search filters"
-      And its only action is "Got it"
+      Then one item shows the state "Started" and the title "Index the filters"
+      And it shows the quiet line "Next: Write the docs · Ship"
 
     @v1 @browser
     Scenario: The same step is one row that moves from started to done
-      Given "devtool" started the plan step "Index the filters" today
-      When "devtool" finishes "Index the filters"
+      Given the plan of "devtool" lists "Index the filters" in Now
+      When "devtool" moves "Index the filters" to done
       Then Now lists one row for "Index the filters", with the state "Done"
+
+    @v1 @browser
+    Scenario: A question the owner asked, once an agent replied, is an item
+      Given the owner wrote "Why is CI red?" in conversation 41 and "devtool" replied "A flaky test. Fixed."
+      When the owner opens Now
+      Then the item shows the state "Done", the title "Your question: Why is CI red?", the context "A flaky test. Fixed." and the link "From Ship search filters"
+
+    @v1 @browser
+    Scenario: A question the owner followed up on is started
+      Given the owner wrote "Why is CI red?", "devtool" replied, and the owner wrote again in its thread
+      When the owner opens Now
+      Then the item shows the state "Started" and the title "Your question: Why is CI red?"
+
+    @v1 @browser
+    Scenario: The dev build hides the mention and reply cards unless old=1
+      Given a message that mentions the owner is unread in conversation 41
+      When the owner opens Now in the dev build
+      Then no mention card is listed
+      When the owner opens Now with "?old=1"
+      Then the mention card is listed
 
   Rule: Now lists what waits on the owner, most urgent first
 
