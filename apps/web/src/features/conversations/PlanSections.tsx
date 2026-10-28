@@ -208,6 +208,13 @@ function PlanBody({ plan, now }: { plan: Plan; now: number }) {
       )}
       {late && plan.nudged_at ? <p className="pnote">{`Convoz asked it for an update at ${when(plan.nudged_at, now)}.`}</p> : null}
       {plan.blocked ? <p className="pblk">{`Blocked: ${plan.blocked}`}</p> : null}
+      {/* What it waits on and what it will deliver, as on Work: a plan opens with all its items (owner, conv 179). */}
+      {plan.waiting.map((w) => (
+        <p key={w.text} className="pwhen amber">{`Waiting on you: ${w.text}`}</p>
+      ))}
+      {(plan.deliver ?? []).map((d) => (
+        <p key={d.text} className={`pwhen ${now >= d.due ? "amber" : ""}`}>{`Delivers: ${d.text} · ${now >= d.due ? "was due" : "due"} ${when(d.due, now)}`}</p>
+      ))}
       {plan.next.length ? (
         <div className="pnextbox">
           <p className="plbl">Next</p>

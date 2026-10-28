@@ -1,13 +1,13 @@
 // The route table: every URL the server serves the app at, how its page is framed, and the feature that draws it. Each
 // feature is its own chunk, loaded through its index.ts before the first render (so a page never flashes empty). The two first
-// screens (Now and the conversation list) and Deliveries (Now and the rail show its late items) are the exception: they are in the main bundle, which a cold page carries inline
+// screens (Now and the conversation list) and Work (Now and the rail show its late items) are the exception: they are in the main bundle, which a cold page carries inline
 // (design §12.2), so they show without another request. Features that draw inside other pages instead of at a URL (rail,
 // threads, voice, search, pins-stars, notifications, apps-host) are mounted by their host page through that feature's index.ts.
 // Prototype v41 names each screen.
 import type { ComponentType } from "react";
 import * as conversations from "../features/conversations/index.ts";
-import { Deliveries } from "../features/delivery/index.ts";
 import { Now } from "../features/now/index.ts";
+import { Work } from "../features/work/index.ts";
 
 export interface PageDef {
   name: string;
@@ -20,7 +20,7 @@ export interface PageDef {
   public?: boolean;
   /** The page names itself once it knows (a setup link says what it is worth). */
   hideHeading?: boolean;
-  tab?: "now" | "chats" | "delivery" | "crew";
+  tab?: "now" | "chats" | "work" | "crew";
   /** Where the top bar's Back goes. */
   back?: string;
   /** A "New conversation" button floats above the tab bar. */
@@ -45,7 +45,7 @@ export const PAGES = {
   chat: page({ name: "chat", title: "Conversation", heading: "Conversation", frame: "chat", load: conversations.loadConversation }),
   notfound: page({ name: "notfound", title: "Conversation not found", heading: "Conversation not found", frame: "shell", tab: "chats", back: "/chats", load: conversations.loadNotFound }),
   trash: page({ name: "trash", title: "Trash", heading: "Trash", frame: "shell", back: "/account", load: conversations.loadTrash }),
-  delivery: page({ name: "delivery", title: "Deliveries", heading: "Deliveries", frame: "shell", tab: "delivery", back: "/", load: () => Promise.resolve(Deliveries) }),
+  work: page({ name: "work", title: "Work", heading: "Work", frame: "shell", tab: "work", back: "/", load: () => Promise.resolve(Work) }),
   crew: page({ name: "crew", title: "Crew", heading: "Crew", frame: "shell", tab: "crew", back: "/", load: () => import("../features/crew/index.ts").then((f) => f.Crew) }),
   agent: page({ name: "agent", title: "Agent", heading: "Agent", frame: "shell", tab: "crew", back: "/crew", load: () => import("../features/crew/index.ts").then((f) => f.AgentProfile) }),
   machines: page({ name: "machines", title: "Machines", heading: "Machines", frame: "shell", tab: "crew", back: "/crew", load: () => import("../features/crew/index.ts").then((f) => f.Machines) }),
@@ -66,7 +66,8 @@ const EXACT: Record<string, PageDef> = {
   "/onboarding": PAGES.onboarding,
   "/chats": PAGES.chats,
   "/chats/new": PAGES.chat,
-  "/delivery": PAGES.delivery,
+  "/work": PAGES.work,
+  "/delivery": PAGES.work, // the old address; the page puts /work in the address bar
   "/crew": PAGES.crew,
   "/crew/machines": PAGES.machines,
   "/settings": PAGES.settings,
