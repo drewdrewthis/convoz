@@ -174,7 +174,7 @@ scenario("An agent with no plan is asked once it has worked in the conversation 
   expect(due[0]).toContain(`You have no plan in conversation ${p.conv}.`);
 });
 
-scenario("An agent with no plan is not asked in a conversation the owner did not write in", { tag: ["@api"] }, async ({ server, testApi }) => {
+scenario("An agent with no plan is not asked in a feed no one wrote in", { tag: ["@api"] }, async ({ server, testApi }) => {
   const p = await planWorld(server, { docsIn: false });
   // When "devtool" posts 3 messages, 31 minutes pass and it posts 3 more, with no message from the owner, then no status_due item
   await posts(p, 3);
