@@ -117,12 +117,19 @@ scenario("A page back from the back-forward cache checks the session again", { t
   await dropStreams(page);
   await page.route((url) => url.pathname.startsWith("/api/") && url.pathname !== "/api/me", (route) => route.abort());
 
+  // Hold the page's own session checks until it comes back, so nothing but the pageshow can move it to sign in
+  // before the evaluate below returns (a navigation there destroys the execution context: flake, issue 142).
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  await page.route((url) => url.pathname === "/api/me", async (route) => { await gate; await route.continue().catch(() => {}); });
+
   // When the session ends and the page comes back from the back-forward cache
   const out = await context.request.post(`${u.w.srv.origin}/api/auth/logout`, { headers: { Origin: u.w.srv.origin, "X-Convoz": "1", "Content-Type": "application/json" }, data: "{}" });
   expect(out.status(), "logout").toBe(204);
   const asked = page.waitForRequest((r) => new URL(r.url()).pathname === "/api/me", { timeout: 2_000 });
   // From a timer, so the evaluate returns before the 401 it causes moves the page to sign in (that would destroy its context).
   await page.evaluate(() => void setTimeout(() => dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true }))));
+  release();
 
   // Then the browser opens sign in
   await asked; // the page asked who is signed in at once, before its next poll could notice
