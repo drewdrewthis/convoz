@@ -5,8 +5,14 @@ on:
   # right? so you can also leverage the draft feature"). Set at the skeleton (5b3efa8) with no ruling before this.
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+  # The full suite runs after every merge into feat/web-react and master, and every 6 hours: a PR runs only what its change touches (the
+  # `changes` job), so these runs are what keeps the rest from going untested. A schedule runs the default branch's copy of this file and
+  # checks out feat/web-react (below), so it starts to fire once this file is on the default branch.
   push:
-    branches: [master]
+    branches: [master, feat/web-react]
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -15,8 +21,51 @@ env:
   GOFLAGS: -mod=readonly
 
 jobs:
+  # Owner (Convoz 179 #10792): "we don't need to test what hasn't changed". On a PR this decides, from the files changed against the base,
+  # which parts run. Every other event (push, schedule, manual) runs everything. A PR that touches shared code (the list below) runs
+  # everything too, because a change there can break code it does not touch.
+  changes:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      go: ${{ steps.diff.outputs.go }}
+      web: ${{ steps.diff.outputs.web }}
+      e2e: ${{ steps.diff.outputs.e2e }}
+      contracts: ${{ steps.diff.outputs.contracts }}
+      base: ${{ steps.diff.outputs.base }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event_name == 'schedule' && 'feat/web-react' || '' }}
+      - name: Which parts changed
+        id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          out() { echo "go=$1" >> "$GITHUB_OUTPUT"; echo "web=$2" >> "$GITHUB_OUTPUT"; echo "e2e=$3" >> "$GITHUB_OUTPUT"; echo "contracts=$4" >> "$GITHUB_OUTPUT"; echo "base=origin/$BASE_REF" >> "$GITHUB_OUTPUT"; echo "go=$1 web=$2 e2e=$3 contracts=$4"; }
+          if [ "$EVENT" != pull_request ]; then out true true full true; exit 0; fi
+          files="$(git diff --name-only "origin/$BASE_REF...HEAD")"
+          echo "$files"
+          has() { printf '%s\n' "$files" | grep -Eq "$1"; }
+          # Full-run triggers (keep in step with the PR body, "Full-run triggers").
+          contracts='^(packages/(contracts|api-client)/|specs/contracts/|schemas/)'
+          full="$contracts|^packages/(ui|app-kit)/|^apps/convoz/internal/server/platform/|\\.sql$|(^|/)sqlc\\.ya?ml$|^e2e/lib/|^e2e/playwright\\.config\\.ts$|^\\.github/workflows/|(^|/)package\\.json$|^pnpm-(lock|workspace)\\.yaml$|(^|/)go\\.(mod|sum|work|work\\.sum)$"
+          docs='\\.md$|^docs/|^specs/(features|stories|coverage|red-green|scripts)'
+          ct=false; has "$contracts" && ct=true
+          if has "$full"; then out true true full $ct; exit 0; fi
+          go=false; has '^apps/convoz/' && go=true
+          web=false; has '^(apps/(web|extension)/|packages/)' && web=true
+          code="$(printf '%s\n' "$files" | grep -Evc "$docs" || true)"
+          if [ "$code" = 0 ]; then out false false none $ct; exit 0; fi
+          out $go $web changed $ct
+
   # Static checks, unit tests and the Go build. The browser scenarios run in `e2e`, in parallel; `verify` joins both.
   checks:
+    needs: changes
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -25,6 +74,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+          ref: ${{ github.event_name == 'schedule' && 'feat/web-react' || '' }}
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
@@ -44,55 +94,71 @@ jobs:
         run: pnpm install --frozen-lockfile
       # The web app first: Go embeds its build (console/web), so vet, test and the binaries see the real UI.
       - name: Web build
+        if: needs.changes.outputs.go == 'true' || needs.changes.outputs.web == 'true'
         run: pnpm --filter @convoz/web build
       - name: Web typecheck
+        if: needs.changes.outputs.web == 'true'
         run: pnpm --filter @convoz/web typecheck
       - name: Web unit tests
+        if: needs.changes.outputs.web == 'true'
         run: pnpm --filter @convoz/web test
       # The Chrome extension: its typecheck and unit tests (least access, message body). The e2e job loads its build.
       - name: Extension typecheck and unit tests
+        if: needs.changes.outputs.web == 'true'
         run: pnpm --filter @convoz/extension typecheck && pnpm --filter @convoz/extension test
       # AC-16 web side: a feature used past its index.ts, or app code in packages/ui, fails here and names the file.
       - name: boundaries
+        if: needs.changes.outputs.web == 'true'
         run: pnpm lint
       # Generated client code must match the contract (packages/contracts); a hand edit of schema.ts fails here.
       - name: contract-drift
+        if: needs.changes.outputs.web == 'true'
         run: pnpm --filter @convoz/api-client gen:check
       - name: size-limit
+        if: needs.changes.outputs.web == 'true'
         run: pnpm --filter @convoz/web size
       - name: Check specs
         run: python3 -I specs/scripts/check_specs.py specs
       - name: Check pins
         run: python3 -I scripts/check_pins.py
       - name: Go vet
+        if: needs.changes.outputs.go == 'true'
         working-directory: apps/convoz
         run: go vet ./...
       - name: sqlc drift
+        if: needs.changes.outputs.go == 'true'
         working-directory: apps/convoz
         run: make sqlc-check
       - name: go-imports
+        if: needs.changes.outputs.go == 'true'
         working-directory: apps/convoz
         run: make lint-go-imports
       - name: table-ownership
+        if: needs.changes.outputs.go == 'true'
         working-directory: apps/convoz
         run: make lint-table-ownership
       - name: Go test
+        if: needs.changes.outputs.go == 'true'
         working-directory: apps/convoz
         run: |
           go test -timeout 300s ./...
           go test -timeout 300s -tags testhooks ./...
       - name: Go mod verify
+        if: needs.changes.outputs.go == 'true'
         working-directory: apps/convoz
         run: go mod verify
       - name: Go mod verify (sqlc tool)
+        if: needs.changes.outputs.go == 'true'
         working-directory: apps/convoz/tools/sqlc
         env:
           GOWORK: "off"
         run: go mod verify
       - name: Release build
+        if: needs.changes.outputs.go == 'true'
         working-directory: apps/convoz
         run: make release
       - name: Release guard
+        if: needs.changes.outputs.go == 'true'
         run: python3 -I scripts/release_guard.py apps/convoz/bin/convoz
       # Off by owner order (Convoz msg 4211) until the 30 red e2e tests are fixed; turn back on then.
       - name: Proof page
@@ -120,7 +186,8 @@ jobs:
   # The browser scenarios, split in 4 Playwright shards (every project: headless, chromium, mobile, perf). Each shard builds only the
   # testhooks binary it runs (web 2 s + CLIs + go build, ~10 s), which costs less than an artifact upload and download.
   e2e:
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: (github.event_name != 'pull_request' || !github.event.pull_request.draft) && needs.changes.outputs.e2e != 'none'
     name: e2e (${{ matrix.shard }}/4)
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -133,6 +200,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+          ref: ${{ github.event_name == 'schedule' && 'feat/web-react' || '' }}
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
@@ -157,8 +225,33 @@ jobs:
       # (checked by scripts/check_pins.py), and that version names the browser build it installs.
       - name: Playwright chromium
         run: pnpm --filter @convoz/e2e exec playwright install --with-deps chromium
+      # full: the whole suite. changed: the specs that import a changed file (Playwright --only-changed), plus the API and CLI specs
+      # when Go changed and the browser specs when the web app or extension changed (no spec imports those files, so --only-changed
+      # alone would run nothing for them). Perf is part of the full run only.
       - name: E2E
-        run: pnpm e2e --shard=${{ matrix.shard }}/4
+        env:
+          MODE: ${{ needs.changes.outputs.e2e }}
+          BASE: ${{ needs.changes.outputs.base }}
+          GO: ${{ needs.changes.outputs.go }}
+          WEB: ${{ needs.changes.outputs.web }}
+          SHARD: ${{ matrix.shard }}/4
+        run: |
+          if [ "$MODE" = full ]; then pnpm e2e --shard="$SHARD"; exit $?; fi
+          pw() { pnpm --filter @convoz/e2e exec playwright test --pass-with-no-tests --shard="$SHARD" "$@"; }
+          rc=0
+          pw --only-changed="$BASE" || rc=1
+          [ "$GO" = true ] && { pw --grep "@api|@cli" || rc=1; }
+          [ "$WEB" = true ] && { pw --grep "@browser" || rc=1; }
+          exit $rc
+      # The JSON report of this shard, for the parity job (contract changes only, which run the full suite).
+      - name: E2E report
+        if: always() && needs.changes.outputs.contracts == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: e2e-report-${{ matrix.shard }}
+          path: e2e/report/results.json
+          if-no-files-found: ignore
+          retention-days: 3
       - name: E2E artifacts (failure only)
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -170,16 +263,86 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  # A change to the contracts (packages/contracts, packages/api-client, specs/contracts, schemas) runs the full suite above, which
+  # includes the specs/contracts scenarios, and then the parity gate over the joined shard reports.
+  parity:
+    needs: [changes, e2e]
+    if: needs.changes.outputs.contracts == 'true' && needs.e2e.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event_name == 'schedule' && 'feat/web-react' || '' }}
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: e2e-report-*
+          path: shard-reports
+      - name: Join the shard reports and run parity
+        run: |
+          mkdir -p e2e/report
+          python3 -I -c "import json,glob;r=[json.load(open(f)) for f in sorted(glob.glob('shard-reports/*/results.json'))];r[0]['suites']=[s for x in r for s in x.get('suites',[])];json.dump(r[0],open('e2e/report/results.json','w'))"
+          python3 -I specs/scripts/parity.py specs e2e/tests e2e/report/results.json
+
   # The one check name that auto-deploy and the advisor key on. It passes only when every job it needs passed (a skipped one is a fail),
   # and it skips with them on a draft PR.
   verify:
     if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
-    needs: [checks, e2e]
+    needs: [changes, checks, e2e, parity]
     runs-on: ubuntu-24.04
     steps:
-      - name: All jobs passed
+      - name: All jobs passed or were skipped on purpose
         env:
-          RESULTS: ${{ needs.checks.result }} ${{ needs.e2e.result }}
+          RESULTS: ${{ needs.changes.result }} ${{ needs.checks.result }} ${{ needs.e2e.result }} ${{ needs.parity.result }}
         run: |
-          echo "checks e2e: $RESULTS"
-          [ "$RESULTS" = "success success" ]
+          echo "changes checks e2e parity: $RESULTS"
+          case " $RESULTS " in *failure*|*cancelled*) exit 1;; esac
+          # changes and checks always run on a ready PR; a skip there is a fault. e2e and parity skip when nothing needs them.
+          set -- $RESULTS
+          [ "$1" = success ] && [ "$2" = success ]
+
+  # For the CD hook: the linux/arm64 server binary of the exact merged sha, built once the full suite above has passed on it.
+  release-arm64:
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/feat/web-react'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: apps/convoz/go.mod
+          cache-dependency-path: |
+            apps/convoz/go.sum
+            apps/convoz/tools/sqlc/go.sum
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Web and CLI builds (embedded in the server)
+        run: make -C apps/convoz web cli-dist
+      - name: Build linux/arm64
+        working-directory: apps/convoz
+        env:
+          CGO_ENABLED: "0"
+          GOOS: linux
+          GOARCH: arm64
+        run: |
+          go build -trimpath -o "convoz-${{ github.sha }}-arm64" ./cmd/convoz
+          sha256sum "convoz-${{ github.sha }}-arm64" > "convoz-${{ github.sha }}-arm64.sha256"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: convoz-${{ github.sha }}-arm64
+          path: |
+            apps/convoz/convoz-${{ github.sha }}-arm64
+            apps/convoz/convoz-${{ github.sha }}-arm64.sha256
+          retention-days: 7
