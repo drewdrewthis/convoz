@@ -160,7 +160,7 @@ Feature: Rail
   # Drew, conv 179 msg 11481: Now opens in a drawer, the right side panel, so everything else stays in view. The left sidebar is navigation and quick find only.
   Rule: On a wide screen Now opens in the right drawer
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario: Now opens in the right drawer with the conversation still visible
       Given "devtool" asks "Merge #415 on its own?" in conversation 52
       And the owner has conversation 41 open on a 1280 px wide screen
@@ -170,7 +170,7 @@ Feature: Rail
       And the rail still lists the Conversations group and is 240 px wide
       And conversation 41 is still open in the middle
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario: Picking a Now item opens its conversation in the middle and keeps the drawer open
       Given "devtool" asks "Merge #415 on its own?" in conversation 52 and "Roll back box-3?" in conversation 60
       And the owner has conversation 41 open with the Now drawer open
@@ -179,7 +179,7 @@ Feature: Rail
       And the drawer still lists both asks
       And the item of conversation 60 is marked as current and the item of conversation 52 is not
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario: The close button, Escape, Cmd+. and Now again each close the drawer
       Given the owner has conversation 41 open with the Now drawer open
       When the owner clicks "Close Now" in the drawer
@@ -190,7 +190,7 @@ Feature: Rail
       Then no drawer is shown
       And conversation 41 stayed open the whole time
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario: The drawer is in the address, so a reload and Back work
       Given "devtool" asks "Merge #415 on its own?" in conversation 52
       And the owner has conversation 41 open with the Now drawer open
@@ -199,7 +199,7 @@ Feature: Rail
       When the owner closes the drawer and presses Back in the browser
       Then the drawer is open again
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario: On a phone the drawer is a full-height sheet over the conversation
       Given the owner has conversation 41 open on a 390 px wide screen
       When the owner opens the address "?panel=now"

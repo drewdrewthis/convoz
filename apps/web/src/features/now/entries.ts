@@ -18,3 +18,8 @@ export function shown(items: readonly FeedItem[], now: number): FeedItem[] {
 export function nextOf(items: readonly FeedItem[], item: FeedItem): string[] {
   return items.filter((n) => n.state === "pending" && n.agent_id === item.agent_id && n.conversation_id === item.conversation_id).sort((a, b) => a.seq - b.seq).map((n) => n.title);
 }
+
+/** itemsOrEmpty reads the feed response; a refusal (403, a member who is not the owner) or a missing route (404) is an empty list, never an error on the page. */
+export async function itemsOrEmpty(read: Promise<{ items: FeedItem[] }>): Promise<FeedItem[]> {
+  return read.then((r) => r.items, () => []);
+}

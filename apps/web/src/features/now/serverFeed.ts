@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ApiError, call, client, humanError } from "../../shared/api.ts";
 import { useLive } from "../../shared/data.ts";
 import { useNotice } from "../../shared/notice.tsx";
+import { itemsOrEmpty } from "./entries.ts";
 export { nextOf, shown } from "./entries.ts";
 
 /** The server's own word for a refused move on a changed item (409): the owner reads the item again, then decides. */
@@ -13,7 +14,7 @@ export function useServerFeed() {
   const { fail } = useNotice();
   const [items, setItems] = useState<readonly FeedItem[]>([]);
   const [busy, setBusy] = useState(0);
-  const load = useCallback(() => call(client.GET("/api/feed")).then((r) => setItems(r.items), () => setItems([])), []);
+  const load = useCallback(() => itemsOrEmpty(call(client.GET("/api/feed"))).then(setItems), []);
   useEffect(() => void load(), [load]);
   useLive(() => void load());
   /** act runs one move on an item, then reads the feed again. A 409 reads again too and says the item changed. */

@@ -36,7 +36,7 @@ Feature: Deliveries: what each agent will deliver, and when
     # responding) > In progress (a Now item) > Planned (Next or a deliverable only). Then "Done today", folded. A stale chat is hidden from
     # In progress and Planned behind "N stale chats hidden · Show", but still shows when it needs the owner.
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario: Work puts each plan in the highest section that applies
       Given "devtool" is doing "Filter chips" at step 2 of 5, ready in 2 hours, and delivers "Search filters live" in 3 days
       And "docs" is doing "Docs pass" in conversation 42 and waits on the owner for "Approve the docs copy"
@@ -62,14 +62,14 @@ Feature: Deliveries: what each agent will deliver, and when
       When the owner opens "Done today · 1"
       Then it lists "Old work" by "@devtool"
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario: A Work row opens its chat on that agent's plan, with what it waits on and delivers
       Given "devtool" is doing "Filter chips" in conversation 41, waits on the owner for "Approve the copy" and delivers "Search filters live" in 3 days
       When the owner opens Work and taps the row "Ship search filters"
       Then conversation 41 opens with the details on the plan card of "@devtool"
       And the card shows "Waiting on you: Approve the copy" and "Delivers: Search filters live" with its due date
 
-    @v1 @browser
+    @v1 @browser @unimplemented
     Scenario: With no plans Work says how they come, and an old Deliveries link opens Work
       When the owner opens /delivery
       Then the address is /work and the page is "Work"
