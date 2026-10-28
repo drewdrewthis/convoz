@@ -40,7 +40,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [The server hands out its own CLI](#the-server-hands-out-its-own-cli) (5)
 - [Threads](#threads) (33)
 - [Voice call](#voice-call) (39)
-- [Voice notes](#voice-notes) (11)
+- [Voice notes](#voice-notes) (12)
 
 ## A triage agent
 
@@ -1168,20 +1168,21 @@ I can ask and hear answers while my hands are busy.
 ## Voice notes
 
 I can give direction on the move.
-11 scenarios.
+12 scenarios.
 
 - **Recording, sending and cancelling**
   - [A voice note uploads while it records](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L21)
   - [Cancelling a recording sends nothing](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L27)
-  - [A voice note plays back](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L33)
-  - [A voice note upload resumes after a drop](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L39)
+  - [A long voice note counts down its last minute and is sent at 30 minutes](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L35)
+  - [A voice note plays back](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L42)
+  - [A voice note upload resumes after a drop](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L48)
 - **Agents get the words**
-  - [A transcript appears when transcription is on](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L48)
-  - [With no transcription engine the note has no transcript](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L55)
-  - [A note sent before transcription was on gets its words later](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L61)
-  - [The owner can transcribe a voice note again](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L68)
-  - [Search finds words that are only in the transcript](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L75)
+  - [A transcript appears when transcription is on](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L57)
+  - [With no transcription engine the note has no transcript](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L64)
+  - [A note sent before transcription was on gets its words later](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L70)
+  - [The owner can transcribe a voice note again](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L77)
+  - [Search finds words that are only in the transcript](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L84)
 - **Voice notes work in a thread**
-  - [The owner can record a voice note in a thread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L85)
+  - [The owner can record a voice note in a thread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L94)
 - **Audio is stored and served safely**
-  - [Purging a voice note removes its transcript](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L95)
+  - [Purging a voice note removes its transcript](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L104)
