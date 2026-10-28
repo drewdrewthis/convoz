@@ -606,24 +606,40 @@ scenario("An agent that claims to wait but has no open ask reads Waiting, not Wa
 });
 
 scenario("An agent profile shows what waits on the owner and shared conversations", { tag: ["@browser"] }, async ({ server, dataDir, page, context }) => {
-  // Given "devtool" has the status "waiting", 2 open asks and shares 4 conversations with the owner
+  // Given "devtool" is working and shares 4 conversations with the owner
+  const convs: number[] = [];
   const titles = ["Ship search filters", "Deploy alerts runbook", "Weekly usage", "Bug #8642"];
   const c = await crewWorld({ server, page, context }, {
     agents: ["devtool", "docs"],
     live: ["devtool"],
     plaintext: true,
     beforeSignIn: async (x) => {
-      expect((await convoz(x.w.box, x.sessions.devtool!.sid, ["status", "--state", "waiting"])).code).toBe(0);
-      const convs: number[] = [];
+      expect((await convoz(x.w.box, x.sessions.devtool!.sid, ["status", "--state", "working"])).code).toBe(0);
       for (const title of titles) convs.push(await createConversation(x.w.owner, { participants: ["devtool"], title }));
       await createConversation(x.w.owner, { participants: ["docs"], title: "Docs only" });
-      seedAsk(dataDir, convs[0]!, x.ids.devtool!, x.ids.drew!, "Deploy to production?", "open");
-      seedAsk(dataDir, convs[1]!, x.ids.devtool!, x.ids.drew!, "Use the small runner?", "open");
     },
   });
 
   // When the owner opens the profile of "devtool"
   await page.goto(`${c.w.srv.origin}/crew`);
+  await expect(page.getByRole("region", { name: "Working" }).getByRole("link", { name: /devtool/ })).toBeVisible();
+
+  // When "devtool" gets 2 open asks and turns to "waiting" while the owner's view of its asks is still being read
+  seedAsk(dataDir, convs[0]!, c.ids.devtool!, c.ids.drew!, "Deploy to production?", "open");
+  seedAsk(dataDir, convs[1]!, c.ids.devtool!, c.ids.drew!, "Use the small runner?", "open");
+  let release!: () => void;
+  const held = new Promise<void>((r) => (release = r));
+  await page.route("**/api/status", async (route) => {
+    await held;
+    await route.continue();
+  });
+  expect((await convoz(c.w.box, c.sessions.devtool!.sid, ["status", "--state", "waiting"])).code).toBe(0);
+
+  // Then "devtool" is never placed under "Waiting" on a guess of 0 asks (a short wait lets the status frame land first)
+  await page.waitForTimeout(1000);
+  await expect(page.getByRole("region", { name: "Waiting", exact: true })).toHaveCount(0);
+  release();
+
   // Then "devtool" sits in the group "Waiting on you" with the label "Waiting on you"
   await expect(page.getByRole("region", { name: "Waiting on you" }).getByRole("link", { name: /devtool/ })).toContainText("Waiting on you");
   await crewRow(page, "devtool").click();
