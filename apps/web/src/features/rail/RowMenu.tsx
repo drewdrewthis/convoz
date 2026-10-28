@@ -60,7 +60,7 @@ export function RowMenu({ at, onClose }: { at: RowMenuAt; onClose(): void }) {
   const canClose = c.stale || (!c.starred && !isOlder(c));
   return (
     // eslint-disable-next-line convoz/no-style-prop -- the place is the button's position on the screen, known only at run time
-    <div ref={box} tabIndex={-1} className="menu railmenu" role="menu" aria-label={`Actions for ${titleOf(c)}`} style={{ position: "fixed", left: Math.min(at.x, innerWidth - 232), top: at.y }} onKeyDown={key}>
+    <div ref={box} tabIndex={-1} className="menu railmenu" role="menu" aria-label={`Actions for ${titleOf(c)}`} style={{ position: "fixed", left: Math.max(8, Math.min(at.x, innerWidth - 296)), top: at.y }} onKeyDown={key}>
       {renaming ? (
         <Field label="Rename conversation" defaultValue={titleOf(c)} maxLength={120} onKeyDown={saveName} />
       ) : (
