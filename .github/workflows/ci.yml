@@ -351,7 +351,10 @@ jobs:
         with:
           pattern: e2e-report-*
           path: shard-reports
+      # Not blocking yet: the parity gate is off by owner order (Convoz msg 4211) until the red e2e tests are fixed, and on the first push run it
+      # reported 40 problems (run 40667383137). It still runs and shows its problems; turn this off when parity is green.
       - name: Join the shard reports and run parity
+        continue-on-error: true
         run: |
           mkdir -p e2e/report
           python3 -I -c "import json,glob;r=[json.load(open(f)) for f in sorted(glob.glob('shard-reports/*/results.json'))];r[0]['suites']=[s for x in r for s in x.get('suites',[])];json.dump(r[0],open('e2e/report/results.json','w'))"
