@@ -28,41 +28,58 @@ Feature: Deliveries: what each agent will deliver, and when
       When "devtool" runs "convoz plan 41 --done 'Search filters live'"
       Then the owner's deliveries no longer list it, and list it as shipped
 
-  Rule: The owner sees every deliverable on one page: what to act on first, then by day
+  Rule: The owner sees every agent's current plan on one page, the most urgent first, and asks for an update right there
+    # Owner (Drew, conv 179, msg 9982): "The deliveries should show all the plans with the ability to request the updates right there."
+    # One row per plan (agent and conversation). A plan with only finished items, or in a closed or trashed conversation, is left out.
 
     @v1 @browser
-    Scenario: Deliveries shows what is late first, then what waits on the owner, then each day
-      Given "devtool" delivers "Search filters live" in 30 minutes and "Reply chip" in 3 days
-      And "docs" delivers "Docs refresh live" in 2 days and waits on the owner for "Approve the docs copy"
+    Scenario: Deliveries lists every agent's current plan, the most urgent first
+      Given "devtool" is doing "Filter chips" at step 2 of 5 and delivers "Search filters live" in 30 minutes and "Reply chip" in 3 days
+      And "docs" is doing "Docs pass" in conversation 42 and waits on the owner for "Approve the docs copy"
+      And "devtool" is doing "Deploy preview" in conversation 43 "Blocked one" and is blocked on "CI is down"
+      And "devtool" has only finished items in conversation 44 "Wrapped up"
+      And "devtool" has a plan in conversation 45 "Closed one", which the owner closed, and in conversation 46 "Thrown away", which is in the trash
       When 31 minutes pass
       And "docs" ships "README live"
       And the owner opens Deliveries from the rail on a computer, or from the bottom bar on a phone
       Then the page reads "Shipped today 1 · Late 1" at the top
-      And the groups read "Late · 1", "Waiting on you · 1" and "This week · 1", in that order
-      And the row "Search filters live" shows the glyph "Late", "Late · 1 min" and "@devtool · Late · was due" its time
-      And the row "Docs refresh live" shows the glyph "Waiting on you" and "@docs · Waiting on you"
-      And the row "Reply chip" shows "@devtool · On track"
+      And the groups read "Late · 1", "Waiting on you · 1" and "Blocked · 1", in that order
+      And the row "Filter chips" shows the glyph "Late", "Late · 1 min" and "@devtool · Late · Ship search filters", and is open
+      And open, it shows "Step 2 of 5", "Search filters live", "Reply chip", "Request update" and "Open chat"
+      And the row "Docs pass" shows the glyph "Waiting on you" and "@docs · Waiting on you · Docs refresh", and is closed
+      And the row "Deploy preview" shows the glyph "Blocked" and "@devtool · Blocked: CI is down", and is open
+      And no row comes from "Wrapped up", "Closed one" or "Thrown away"
       And on a phone the page does not scroll sideways
       When the owner opens "Shipped today · 1"
       Then it lists "README live" by "@docs"
-      When the owner taps the row "Search filters live"
+      When the owner taps "Open chat" on the row "Filter chips"
       Then conversation 41 opens
 
     @v1 @browser
-    Scenario: A deliverable whose plan is blocked or a day old shows as at risk
-      Given "devtool" delivers "Search filters live" in 3 days
-      And "docs" delivers "Docs refresh live" in 3 days and is blocked on "CI is down"
+    Scenario: Request update on a plan asks its agent in that conversation
+      Given "devtool" is doing "Filter chips" in conversation 41, ready in 30 minutes
       When the owner opens Deliveries
-      Then the row "Docs refresh live" shows the glyph "At risk" and "@docs · At risk · Blocked: CI is down"
-      And the row "Search filters live" shows "@devtool · On track"
-      When 25 hours pass with no plan update from "devtool" and the owner opens Deliveries again
-      Then the row "Search filters live" shows the glyph "At risk" and "no plan update since"
-      And it stays in its day group
+      Then the row "Filter chips" is under "No date · 1", reads "updated just now" and is closed
+      When the owner opens the row
+      Then on a phone "Request update" and "Open chat" are full width, one above the other, and 44 px tall
+      When the owner taps "Request update"
+      Then the button reads "Requested" and cannot be pressed, and the row says "Requested" with its time and "no update yet"
+      And "devtool" has an inbox item for conversation 41 whose message starts "@devtool, please update your plan"
+      When "devtool" runs "convoz plan 41 --doing 'Filter chips' --step 3/5"
+      Then the row says "Updated" with its time, and "Request update" can be pressed again
 
     @v1 @browser
-    Scenario: With no deliverables the page says how they come
+    Scenario: A plan with no update for a day shows as at risk
+      Given "devtool" delivers "Search filters live" in 3 days
       When the owner opens Deliveries
-      Then the page says "No deliveries yet. When an agent commits to a date, it shows here."
+      Then the row "Search filters live" is under "This week · 1" and shows "@devtool · On track · Ship search filters"
+      When 25 hours pass with no plan update from "devtool" and the owner opens Deliveries again
+      Then the row "Search filters live" is under "At risk · 1" and shows the glyph "At risk" and "@devtool · At risk · Ship search filters"
+
+    @v1 @browser
+    Scenario: With no plans the page says how they come
+      When the owner opens Deliveries
+      Then the page says "No plans yet. When an agent sets a plan in a chat, it shows here."
 
   Rule: When a due date passes, the agent is asked first, once per date, and the owner sees it on Now without a push
 
