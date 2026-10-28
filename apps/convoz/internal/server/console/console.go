@@ -98,7 +98,7 @@ func Page(w http.ResponseWriter, _ *http.Request) { writePage(w, http.StatusOK, 
 func NotFound(w http.ResponseWriter, _ *http.Request) { writePage(w, http.StatusNotFound, notFound) }
 
 // File serves one public file of the build at a fixed URL (icons, the manifest, the font licence). They keep their names
-// across builds, so the browser revalidates them.
+// across builds, so the browser revalidates them: each answer carries a strong ETag and a repeat that holds it gets a 304.
 func File(name, contentType string) http.HandlerFunc {
 	body, err := dist.ReadFile("web/" + name)
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -108,8 +108,11 @@ func File(name, contentType string) http.HandlerFunc {
 		}
 		h := w.Header()
 		h.Set("Content-Type", contentType)
-		h.Set("Cache-Control", "no-cache")
-		_, _ = w.Write(body)
+		h.Set("Cache-Control", assetCacheControl(name))
+		if !hashedName(name) {
+			h.Set("ETag", contentETag(body))
+		}
+		http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(body)) // a matching If-None-Match is a 304; HEAD and ranges work
 	}
 }
 
