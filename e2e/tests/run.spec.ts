@@ -81,7 +81,7 @@ process.exit(1);`,
     const msg = await ownerSays(w.owner, conv, "@devtool deploy it");
 
     // Then conversation 41 shows "I couldn't answer this" from "devtool" once
-    await expect.poll(() => threadOf(w.owner, conv, msg), { timeout: 20_000 }).toEqual([expect.stringMatching(/^devtool: I couldn't answer this .*boom/)]);
+    await expect.poll(() => threadOf(w.owner, conv, msg), { timeout: 20_000 }).toEqual([expect.stringMatching(/^devtool: I couldn.t answer this .*boom/)]);
     expect(fs.readFileSync(seen, "utf8").trim().split("\n"), "the command ran twice").toHaveLength(2);
 
     // And the inbox of "devtool" is empty

@@ -249,11 +249,26 @@ Feature: Threads
       Then the row of thread 900 shows no count
 
     @v1 @browser @I-21
-    Scenario: Threads with no reply since yesterday fold into Older under their conversation
-      Given thread 900 has a recent reply and thread 901 has no reply since yesterday
+    Scenario: Threads with no unread message fold into Older under their conversation
+      Given thread 900 has an unread reply, thread 901 has only the owner's own reply, and thread 902 has an unread reply from 2 days ago
       When the owner opens the Conversations list
-      Then conversation 41 lists thread 900 and the toggle "Older · 1" under it
+      Then threads 900 and 902 show, and thread 901 sits under the toggle "Older · 1"
       And expanding "Older · 1" shows thread 901
+
+    @v1 @browser
+    Scenario: A conversation folds its threads by its chevron, and stays folded after a reload
+      Given "devtool" replied in thread 900 of conversation 41
+      When the owner opens the Conversations list and taps the chevron of conversation 41
+      Then thread 900 is not listed, and the chevron says it shows the threads
+      And after a reload the threads stay folded
+      And tapping the chevron again lists thread 900
+
+    @v1 @browser
+    Scenario: One button folds the threads of every conversation, and stays folded after a reload
+      Given conversations 41 and a second one each have a thread with a reply
+      When the owner opens the list and presses "Fold all threads"
+      Then no thread row is listed, also after a reload, and the button says "Show all threads"
+      And pressing it lists the threads again
 
     @v1 @browser @I-14
     Scenario: A long thread preview stays inside the row and keeps its unread count in view

@@ -37,7 +37,7 @@ WHERE id = sqlc.arg(id) AND message_id IS NULL AND state = 'complete';
 
 -- name: UploadsOfMessages :many
 SELECT id, public_id, message_id, kind, declared_size, mime_sniffed, serve_inline, filename, width, height, duration_ms, waveform
-FROM uploads WHERE message_id IN (sqlc.slice('message_ids')) AND state = 'complete' AND in_app = 0 ORDER BY id;
+FROM uploads WHERE message_id IN (sqlc.slice('message_ids')) AND state = 'complete' AND in_app = 0 ORDER BY bound_at, id;
 
 -- name: SumUploadedSince :one
 -- What an identity has started today: the declared size, or for a length not yet known (a voice note still recording) what has arrived so far.

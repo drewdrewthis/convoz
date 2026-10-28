@@ -92,6 +92,7 @@ scenario("An updated ask shows each question and its answer in a section under a
   await expectQaSection(page, askCard(page));
   await page.goto(`${u.w.srv.origin}/chats/${conv}`);
   await expectQaSection(page, askCard(page).first());
+  await expect(askCard(page).first()).toBeVisible();
 });
 
 scenario("Answers with no Q and A marks show in full, and an ask never updated shows no section", { tag: ["@browser"] }, async ({ server, page, context }, info) => {

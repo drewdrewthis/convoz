@@ -272,3 +272,9 @@ Feature: Agent inbox
       When the watch prints the item and 6 minutes pass without an ack
       Then the watch prints nothing more and "devtool" has no item waiting
       And "convoz ack" with that item still succeeds
+
+    @v1 @cli
+    Scenario: A voice call log is not a message that waits for an answer
+      Given "devtool" answered the owner in conversation 41
+      When the owner's voice call posts its call log and 11 minutes pass
+      Then "devtool" and "docs" have no "unanswered" item

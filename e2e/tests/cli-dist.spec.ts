@@ -200,6 +200,34 @@ scenario("A CLI older than its server runs and warns at most once an hour", { ta
   expect({ code: same.code, stderr: same.stderr }).toEqual({ code: 0, stderr: "" });
 });
 
+scenario("A CLI refuses a server with another API number", { tag: ["@cli"] }, async ({ convoz }) => {
+  // Given a machine logged in to a server that says it speaks another API number than the convoz does
+  const answer = (api: number | undefined) => (url: string) => (url === "/api/version" ? { body: JSON.stringify({ version: "other-0", api }) } : { status: 404, body: JSON.stringify({ error: { code: "not_found", message: "no" } }) });
+  const loggedIn = (origin: string) => {
+    const home = scratch("convoz-home-");
+    fs.mkdirSync(path.join(home, ".config", "convoz"), { recursive: true });
+    fs.writeFileSync(path.join(home, ".config", "convoz", "credentials"), JSON.stringify({ server: origin }), { mode: 0o600 });
+    return { HOME: home, CONVOZ_TEST_VERSION: OLD };
+  };
+  const other = await fakeServer(answer(99));
+  const unnamed = await fakeServer(answer(undefined));
+  try {
+    // When the agent runs "convoz inbox --peek"
+    const refused = await convoz(["inbox", "--peek"], { env: loggedIn(other.origin) });
+
+    // Then the CLI exits 7 and prints "convoz cannot talk to this server (API <here> here, <there> there). Run: convoz upgrade"
+    expect({ code: refused.code, stderr: refused.stderr }).toEqual({ code: 7, stderr: expect.stringMatching(/^convoz cannot talk to this server \(API \d+ here, 99 there\)\. Run: convoz upgrade\n$/) });
+
+    // And a server that names no API number is taken as compatible
+    const taken = await convoz(["inbox", "--peek"], { env: loggedIn(unnamed.origin) });
+    expect(taken.code).not.toBe(7);
+    expect(taken.stderr).not.toContain("cannot talk to this server");
+  } finally {
+    await other.close();
+    await unnamed.close();
+  }
+});
+
 scenario("convoz upgrade replaces the binary and the skill", { tag: ["@cli"] }, async ({ server }) => {
   // Given a machine logged in to a server, with a convoz older than that server and a stale skill file
   const w = await chatWorld(server, { agents: ["devtool"] });

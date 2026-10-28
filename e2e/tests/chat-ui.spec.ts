@@ -367,10 +367,12 @@ async function firstSendBeforeCrew(fx: { server: Parameters<typeof uiWorld>[0]["
 
 scenario("A first send made before the crew has loaded keeps its message", { tag: ["@browser"] }, async ({ server, page, context }) => {
   await firstSendBeforeCrew({ server, page, context }, false);
+  await expect(page).toHaveURL(/\/chats\/\d+$/);
 });
 
 scenario("A first send whose conversation is still being made when the crew loads keeps its message", { tag: ["@browser"] }, async ({ server, page, context }) => {
   await firstSendBeforeCrew({ server, page, context }, true);
+  await expect(page).toHaveURL(/\/chats\/\d+$/);
 });
 
 scenario("On a phone a new conversation takes its title from the first message and goes to the top of Conversations", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {

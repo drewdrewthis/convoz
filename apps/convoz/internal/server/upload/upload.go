@@ -213,7 +213,8 @@ func (s *Service) Create(ctx context.Context, d pdb.DBTX, now time.Time, in NewR
 	return r, err
 }
 
-// beforeInsert is a seam for a test: it runs between the look-up of the client id and the insert.
+// beforeInsert is a seam for a test: it runs between the look-up of the client id and the insert. It is a package variable: a test
+// that sets it must not run in parallel (no t.Parallel()), or it would hit the other tests' uploads.
 var beforeInsert func()
 
 // replayOf finds the upload this identity already started under the request's client id. found is false when there is none. It is
@@ -312,7 +313,8 @@ func Bind(ctx context.Context, d pdb.DBTX, now time.Time, a BindArgs) ([]Bound, 
 	q := db.New(d)
 	out := make([]Bound, 0, len(a.PublicIDs))
 	seen := map[string]bool{}
-	for _, pub := range a.PublicIDs {
+	for i, pub := range a.PublicIDs {
+		at := now.Add(time.Duration(i) * time.Millisecond) // bound_at carries the order the files were sent in
 		if seen[pub] {
 			return nil, ErrNotYours
 		}
@@ -330,9 +332,9 @@ func Bind(ctx context.Context, d pdb.DBTX, now time.Time, a BindArgs) ([]Bound, 
 		}
 		var n int64
 		if slices.Contains(a.AppIDs, pub) {
-			n, err = q.BindAppUpload(ctx, db.BindAppUploadParams(bindArgs(a.MessageID, now, r.ID)))
+			n, err = q.BindAppUpload(ctx, db.BindAppUploadParams(bindArgs(a.MessageID, at, r.ID)))
 		} else {
-			n, err = q.BindUpload(ctx, db.BindUploadParams(bindArgs(a.MessageID, now, r.ID)))
+			n, err = q.BindUpload(ctx, db.BindUploadParams(bindArgs(a.MessageID, at, r.ID)))
 		}
 		if err != nil {
 			return nil, err
@@ -370,7 +372,7 @@ type Attached struct {
 	Waveform                        []byte
 }
 
-// OfMessages lists the uploads of the given messages, oldest first.
+// OfMessages lists the uploads of the given messages, in the order they were bound (the order they were sent in).
 func OfMessages(ctx context.Context, d pdb.DBTX, messageIDs []int64) ([]Attached, error) {
 	if len(messageIDs) == 0 {
 		return nil, nil

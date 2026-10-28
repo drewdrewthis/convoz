@@ -186,6 +186,27 @@ func TestAnUploadStartedAgainUnderTheSameClientIDIsTheSameUpload(t *testing.T) {
 	}
 }
 
+// Files dropped together keep the order they were sent in, whichever finished its upload first (and so has the lower id).
+func TestFilesOfOneMessageKeepTheOrderTheyWereBoundIn(t *testing.T) {
+	s, svc := seeded(t)
+	seedMessages(t, s)
+	first, _ := create(t, s, svc, 1, 41, 100)
+	second, _ := create(t, s, svc, 1, 41, 100)
+	finish(t, s, first)
+	finish(t, s, second)
+	if err := bind(t, s, 1, 41, 1, second.PublicID, first.PublicID); err != nil {
+		t.Fatal(err)
+	}
+	var got []upload.Attached
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) (err error) {
+		got, err = upload.OfMessages(ctx, d, []int64{1})
+		return err
+	})
+	if len(got) != 2 || got[0].PublicID != second.PublicID || got[1].PublicID != first.PublicID {
+		t.Fatalf("the files of the message: %+v, want the second upload then the first", got)
+	}
+}
+
 // The replay of a start must ask the same thing: another size or checksum under the same client id is refused (advisor, issue 193).
 func TestAnUploadStartedAgainWithAnotherSizeOrChecksumIsRefused(t *testing.T) {
 	s, svc := seeded(t)

@@ -716,11 +716,11 @@ scenario("On a computer, Crew opens as a page with one way back, and nothing hid
   }
 });
 
-for (const [width, height] of [[390, 844], [1280, 720]] as const) {
-  scenario(`Machines is in view when Crew opens, with no scrolling (${width} by ${height})`, { tag: ["@browser"] }, async ({ server, page, context }) => {
-    // Given eight agents and a window <width> wide and <height> high
-    const agents = ["devtool", "docs", "scout", "ops", "build", "review", "triage", "deploy"];
-    const c = await crewWorld({ server, page, context }, { agents });
+scenario("Machines is in view when Crew opens, with no scrolling", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given eight agents and a window <width> wide and <height> high (the Examples rows run inside this one test)
+  const agents = ["devtool", "docs", "scout", "ops", "build", "review", "triage", "deploy"];
+  const c = await crewWorld({ server, page, context }, { agents });
+  for (const [width, height] of [[390, 844], [1280, 720]] as const) {
     await page.setViewportSize({ width, height });
 
     // When the owner opens Crew
@@ -738,5 +738,5 @@ for (const [width, height] of [[390, 844], [1280, 720]] as const) {
     // And the link opens the machines page
     await link.click();
     await expect(page.getByRole("heading", { name: "Machines", exact: true })).toBeVisible();
-  });
-}
+  }
+});

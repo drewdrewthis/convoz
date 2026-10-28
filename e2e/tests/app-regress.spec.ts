@@ -290,6 +290,7 @@ scenario("Crew keeps its look", { tag: ["@browser"] }, async ({ server, page, co
   // When the owner opens Crew, Then it matches its frame
   await page.goto(`${u.w.srv.origin}/crew`);
   await ready(page, "Crew");
+  await expect(page.locator("#crew")).toBeVisible();
   await matchesItself(page, info, "crew");
 });
 

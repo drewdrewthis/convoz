@@ -289,13 +289,13 @@ Feature: Now
 
     # Owner said (msg 1202, relayed in msg 1204): "wherever a message shows 'Reply in thread', add a small count of the replies, and of the new ones. Then you can tell at a glance that a thread exists and has something new."
     @v1 @browser
-    Scenario: Reply in thread on an ask and on a fold row shows the replies
+    Scenario: I have questions on an ask and on a fold row shows the replies
       Given an open ask of "devtool" in Now that "docs" replied to twice in its thread, and an answered ask with one reply
       When the owner opens Now
-      Then "Reply in thread" on the open ask shows "2 replies"
+      Then "I have questions" on the open ask shows "2 replies"
       When the owner opens the folds in Now
       Then "Reply in thread" on the answered row shows "1 reply"
-      And an ask with no reply shows "Reply in thread" with no count
+      And an ask with no reply shows "I have questions" with no count
 
     @v1 @browser
     Scenario: The ask bar works from the keyboard
@@ -336,9 +336,9 @@ Feature: Now
       Then the row shows "3 replies" with no "new"
 
     @v1 @browser
-    Scenario: Reply in thread opens the thread without a page load, and the ask moves on return
+    Scenario: I have questions opens the thread without a page load, and the ask moves on return
       Given an open ask of "devtool" in Now
-      When the owner taps "Reply in thread" on the ask in Now
+      When the owner taps "I have questions" on the ask in Now
       Then the thread opens and its Reply box has focus, and the page was not loaded again
       When the owner sends "Which runner?" in the thread and goes back to Now
       Then the ask is under "You replied · waiting on the agent" at once, without waiting for a poll
