@@ -213,7 +213,8 @@ func (s *Service) Create(ctx context.Context, d pdb.DBTX, now time.Time, in NewR
 	return r, err
 }
 
-// beforeInsert is a seam for a test: it runs between the look-up of the client id and the insert.
+// beforeInsert is a seam for a test: it runs between the look-up of the client id and the insert. It is a package variable: a test
+// that sets it must not run in parallel (no t.Parallel()), or it would hit the other tests' uploads.
 var beforeInsert func()
 
 // replayOf finds the upload this identity already started under the request's client id. found is false when there is none. It is
