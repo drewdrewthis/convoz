@@ -14,6 +14,132 @@ Feature: Now
     And machine "box-2" is logged in with allow-list "devtool" and "docs"
     And "devtool" and "docs" are active participants of conversation 41 "Ship search filters"
 
+  Rule: The one-list Now, the right drawer and the Work screen are in the dev build (/dev) only; the main app is unchanged
+
+    @v1 @browser @unimplemented
+    Scenario: The dev build opens Now in a right-side drawer with the address ?panel=now
+      Given the owner is in the dev build with a conversation open
+      When the owner presses Cmd+.
+      Then Now opens in a drawer on the right, the conversation stays visible, and the address has "?panel=now"
+
+    @v1 @browser @unimplemented
+    Scenario: The dev build names Deliveries as Work
+      Given the owner is in the dev build
+      When the owner opens "/work"
+      Then the page is Work, and "/delivery" opens the same page
+
+    @v1 @browser @unimplemented
+    Scenario: The main app keeps its Now cards, its sidebar Now list and its Deliveries page
+      Given the owner is in the main app
+      When the owner opens Now, the sidebar Now list and Deliveries
+      Then they look and act as before
+
+  Rule: Now is one list of feed items, newest first, each following one piece of work: started, blocking or done
+
+    @v1 @browser @unimplemented
+    Scenario: The list has no section headings and mixes blocking and fyi items
+      Given "devtool" asked "Merge #415 on its own?" and "docs" finished the deliverable "Search filters" today
+      When the owner opens Now
+      Then there are no headings "Needs you" and "Updates"
+      And the items are listed newest first in one list
+
+    @v1 @browser @unimplemented
+    Scenario: A blocking item shows the frame and Accept answers with the first option
+      Given "devtool" asked "Merge #415 on its own?" with the recommended option "Merge" because "CI is green"
+      When the owner opens Now
+      Then the item shows the marker "Blocking", the title "Merge #415 on its own?", the context "Recommended: Merge", the link "From Ship search filters" and the actions "Accept", "Add info" and "Snooze"
+      And the item has no "Dismiss" button and no list of options
+      When the owner presses "Accept"
+      Then the ask is answered with "Merge"
+
+    @v1 @browser @unimplemented
+    Scenario: Add info opens the thread inside the item with the reply box in focus
+      Given "devtool" asked "Merge #415 on its own?"
+      When the owner opens Now and presses "Add info"
+      Then the thread opens inside the item and the reply box has focus
+
+    @v1 @browser @unimplemented
+    Scenario: A plan step that waits on the owner is a blocking item
+      Given the plan of "devtool" in conversation 41 waits on the owner for "Pick the launch date"
+      When the owner opens Now
+      Then the item shows the marker "Blocking", the title "Pick the launch date" and the link "From Ship search filters"
+      And "Accept" and "Add info" open conversation 41
+      And the item has no "Snooze" button
+
+    @v1 @browser @unimplemented
+    Scenario: A step done today is a done item with no action yet
+      Given the plan of "devtool" in conversation 41 lists "Search filters" as done today
+      When the owner opens Now
+      Then the item shows the state "Done", the title "Search filters — done" and the link "From Ship search filters"
+      And the item has no "Got it" button
+
+    @v1 @browser @unimplemented
+    Scenario: The first Now line of a plan is the item and the rest are Next
+      Given the plan of "devtool" in conversation 41 has the Now lines "Index the filters" and "Write the docs" and the Next line "Ship"
+      When the owner opens Now
+      Then one item shows the state "Started" and the title "Index the filters"
+      And it shows the quiet line "Next: Write the docs · Ship"
+
+    @v1 @browser @unimplemented
+    Scenario: The same step is one row that moves from started to done
+      Given the plan of "devtool" lists "Index the filters" in Now
+      When "devtool" moves "Index the filters" to done
+      Then Now lists one row for "Index the filters", with the state "Done"
+
+    @v1 @browser @unimplemented
+    Scenario: A question the owner asked, once an agent replied, is an item
+      Given the owner wrote "Why is CI red?" in conversation 41 and "devtool" replied "A flaky test. Fixed."
+      When the owner opens Now
+      Then the item shows the state "Done", the title "Your question: Why is CI red?", the context "A flaky test. Fixed." and the link "From Ship search filters"
+
+    @v1 @browser @unimplemented
+    Scenario: A question the owner followed up on is started
+      Given the owner wrote "Why is CI red?", "devtool" replied, and the owner wrote again in its thread
+      When the owner opens Now
+      Then the item shows the state "Started" and the title "Your question: Why is CI red?"
+
+    @v1 @browser @unimplemented
+    Scenario: The dev build hides the mention and reply cards unless old=1
+      Given a message that mentions the owner is unread in conversation 41
+      When the owner opens Now in the dev build
+      Then no mention card is listed
+      When the owner opens Now with "?old=1"
+      Then the mention card is listed
+
+  Rule: Items the server keeps (GET /api/feed) join the list with real actions
+
+    @v1 @browser @unimplemented
+    Scenario: A blocking item that recommends something can be accepted
+      Given "devtool" has a blocking item "Pick the launch date" recommending "Friday" in conversation 41
+      When the owner opens Now and presses "Accept"
+      Then the item is done and leaves the list
+
+    @v1 @browser @unimplemented
+    Scenario: Accepting an item that changed is refused and the owner is told
+      Given the owner sees a blocking item and "devtool" raises its version
+      When the owner presses "Accept"
+      Then Now reads the feed again and says "This changed, look again."
+
+    @v1 @browser @unimplemented
+    Scenario: Add info sends the owner's words through the item
+      Given "devtool" has a blocking item "Pick the launch date"
+      When the owner presses "Add info" and sends "Friday works"
+      Then the agent receives "Friday works" on the item
+
+    @v1 @browser @unimplemented
+    Scenario: Got it hides an fyi item and Snooze hides any item until its time
+      Given "devtool" has an fyi item "Search filters shipped"
+      When the owner presses "Got it"
+      Then the item leaves the list on every device
+      When the owner snoozes another item until tomorrow
+      Then it is hidden until tomorrow 9:00
+
+    @v1 @browser @unimplemented
+    Scenario: With no items the list looks like the rest of Now
+      Given no agent has used items
+      When the owner opens Now
+      Then no empty item section is drawn
+
   Rule: Now lists what waits on the owner, most urgent first
 
     @v1 @browser

@@ -40,3 +40,4 @@ registerHandler("pin.", (frame) => {
 
 /** The replies of a thread drawn as a conversation draws them; a chunk of its own, since the transcript is large. */
 export const loadFeedReplies = () => import("./FeedReplies.tsx").then((p) => p.FeedReplies);
+export { planHash } from "./messages/PlanNote.tsx";

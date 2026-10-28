@@ -6,7 +6,9 @@
 // Prototype v41 names each screen.
 import type { ComponentType } from "react";
 import * as conversations from "../features/conversations/index.ts";
+import { DEV } from "../shared/base.ts";
 import { Deliveries } from "../features/delivery/index.ts";
+import { Work } from "../features/work/index.ts";
 import { Now } from "../features/now/index.ts";
 
 export interface PageDef {
@@ -45,7 +47,7 @@ export const PAGES = {
   chat: page({ name: "chat", title: "Conversation", heading: "Conversation", frame: "chat", load: conversations.loadConversation }),
   notfound: page({ name: "notfound", title: "Conversation not found", heading: "Conversation not found", frame: "shell", tab: "chats", back: "/chats", load: conversations.loadNotFound }),
   trash: page({ name: "trash", title: "Trash", heading: "Trash", frame: "shell", back: "/account", load: conversations.loadTrash }),
-  delivery: page({ name: "delivery", title: "Deliveries", heading: "Deliveries", frame: "shell", tab: "delivery", back: "/", load: () => Promise.resolve(Deliveries) }),
+  delivery: page({ name: "delivery", title: DEV ? "Work" : "Deliveries", heading: DEV ? "Work" : "Deliveries", frame: "shell", tab: "delivery", back: "/", load: () => Promise.resolve(DEV ? Work : Deliveries) }),
   crew: page({ name: "crew", title: "Crew", heading: "Crew", frame: "shell", tab: "crew", back: "/", load: () => import("../features/crew/index.ts").then((f) => f.Crew) }),
   agent: page({ name: "agent", title: "Agent", heading: "Agent", frame: "shell", tab: "crew", back: "/crew", load: () => import("../features/crew/index.ts").then((f) => f.AgentProfile) }),
   machines: page({ name: "machines", title: "Machines", heading: "Machines", frame: "shell", tab: "crew", back: "/crew", load: () => import("../features/crew/index.ts").then((f) => f.Machines) }),
@@ -67,6 +69,7 @@ const EXACT: Record<string, PageDef> = {
   "/chats": PAGES.chats,
   "/chats/new": PAGES.chat,
   "/delivery": PAGES.delivery,
+  ...(DEV ? { "/work": PAGES.delivery } : {}), // the dev build's Work page
   "/crew": PAGES.crew,
   "/crew/machines": PAGES.machines,
   "/settings": PAGES.settings,
