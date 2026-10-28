@@ -9,7 +9,8 @@ import { agentRequests, RequestCard } from "./requests.tsx";
 import { AllClear, NoDecisions } from "./AllClear.tsx";
 import { FeedItems } from "./FeedItems.tsx";
 import { Folds, type FoldKey } from "./Folds.tsx";
-import { NowAsk } from "./NowAsk.tsx";
+import { NeedsYou } from "./NeedsYou.tsx";
+import { Updates, useUpdates } from "./Updates.tsx";
 import { NowReplied } from "./NowReplied.tsx";
 import { Overdue, useOverdue } from "./Overdue.tsx";
 import { PendingAdd } from "./PendingAdd.tsx";
@@ -74,13 +75,15 @@ export function Now({ compact = false, current = 0 }: NowProps = {}) {
   const connecting = agentRequests(now);
   const waiting = plain.length + connecting.length;
   const asks = now?.asks ?? [];
+  const waitingPlans = now?.waiting_plans ?? [];
+  const updates = useUpdates();
   // Held on the device before the "replied" list existed: none then.
   const replied = now?.replied ?? [];
   const adds = now?.pending_adds ?? [];
-  const some = Boolean(pending && (waiting || asks.length || adds.length));
+  const some = Boolean(pending && (waiting || asks.length || adds.length || waitingPlans.length));
   // A deliverable past its date is no decision, but the page is not all clear while one waits (ux spec, conv 179).
   const overdue = useOverdue();
-  const clear = Boolean(now) && !some && conversations !== null && unread.length === 0 && !overdue.length;
+  const clear = Boolean(now) && !some && conversations !== null && unread.length === 0 && !overdue.length && !updates.list.length;
 
   const needsYou = needsYouCount(now, conversations) ?? 0;
 
@@ -143,16 +146,10 @@ export function Now({ compact = false, current = 0 }: NowProps = {}) {
         centered={clear}
       />
       {needsYou ? <p className="ghdr">{`Needs you · ${needsYou}`}</p> : null}
-      <FeedItems />
-      {asks.length ? (
-        <section id="asks" className="mb-8 flex flex-col gap-8" onKeyDown={moveFocus}>
-          {asks.map((ask) => (
-            <div key={ask.id} className="flex flex-col gap-8" data-conv={ask.conversation_id} aria-current={ask.conversation_id === current ? "page" : undefined}>
-              <NowAsk ask={ask} busy={busy.has(ask.id)} presets={presets} answer={answer} dismiss={dismiss} snooze={snooze} compact={compact} />
-            </div>
-          ))}
-        </section>
-      ) : null}
+      <div onKeyDown={moveFocus}>
+        <NeedsYou asks={asks} waiting={waitingPlans} busy={busy} presets={presets} answer={answer} dismiss={dismiss} snooze={snooze} current={current} compact={compact} />
+      </div>
+      <Updates list={updates.list} ack={updates.ack} current={current} />
       {adds.length ? (
         <section id="adds" className="block" aria-label="Adds to decide">
           {adds.map((add) => (
