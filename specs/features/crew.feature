@@ -109,7 +109,7 @@ Feature: Crew: identities, machines and sessions
       And Now shows no request card
       And Crew still lists the disabled "release-bot" with its old messages
 
-    @v1 @browser @I-3
+    @v1 @browser @cli @I-3
     Scenario: A look-alike of an existing name is refused
       Given the agent "devtool" exists
       When an agent runs "convoz login --name box-5 --as devtoo1"

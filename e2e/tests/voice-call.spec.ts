@@ -184,7 +184,7 @@ scenario("The call says once that no answer came in two minutes", { tag: ["@brow
   expect(log).toMatch(/model: No answer yet from dot\n/);
 });
 
-scenario("A finished call leaves its log in the conversation, closed, and agents can read it", { tag: ["@browser"] }, async ({ server, page, context }) => {
+scenario("A finished call leaves its log in the conversation, closed, and agents can read it", { tag: ["@browser", "@cli"] }, async ({ server, page, context }) => {
   // Background
   const u = await callWorld({ server, page, context });
   await voiceKey(u.w, KEY);

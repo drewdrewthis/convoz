@@ -623,3 +623,35 @@ Feature: Conversations
       Given a conversation with "devtool" is open with its details showing
       When the owner clicks the handle @devtool on its card
       Then the agent page of "devtool" opens
+
+    @v1 @browser
+    Scenario: A conversation link in the sidebar switches the conversation in place
+      Given conversation A is open
+      When the owner clicks conversation B in the sidebar
+      Then B shows, the URL is /chats/B, and the page did not reload
+      When the owner clicks conversation A again
+      Then A shows again without a reload
+      When the owner presses Back
+      Then B shows, still without a reload
+      When the owner reloads the page
+      Then B shows again
+
+    @v1 @browser
+    Scenario: A deep link opens its conversation
+      Given two conversations
+      When the owner opens /chats/B in a new tab
+      Then B shows
+
+    @v1 @browser @phone
+    Scenario: On a phone the Conversations list keeps each row on one line and the last row clear of New conversation
+      Given starred "Ship search filters" has a read thread (Older) and a newer thread with 2 unread replies
+      And its last message is longer than the row, as most are
+      And 8 more conversations with unread messages from "devtool"
+      And 15 asks wait on the owner
+      When the owner opens Conversations on a phone
+      Then the fold chevron sits on the conversation's row, not on a line of its own
+      And the Now badge reads "15" on one line
+      And the unread counts of the conversation rows share one right edge
+      And a row without a fold keeps its link across the empty fold column and its count on the same right edge
+      When the owner scrolls to the end of the list
+      Then the last row ends above the New conversation button, a round "+" that keeps its name for a screen reader

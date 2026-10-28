@@ -101,22 +101,22 @@ Feature: Asks and their state machine
       And "devtool" gets an "ask_resolved" item with the custom text
 
     @v1 @browser
-    Scenario: An ask has a Reply in thread button
+    Scenario: An ask has a I have questions button
       Given an open ask of "devtool" and an answered ask of "devtool" in conversation 41
       When the owner opens the ask menu in the conversation
       Then the ask menu has no Reply item
-      When the owner taps "Reply in thread" on the open ask
+      When the owner taps "I have questions" on the open ask
       Then the thread of the ask opens and its Reply box has focus
-      When the owner taps "Reply in thread" on the ask in Now
+      When the owner taps "I have questions" on the ask in Now
       Then conversation 41 opens with the thread of the ask and its Reply box has focus
-      And the answered ask has no option buttons and keeps "Reply in thread"
+      And the answered ask has no option buttons and keeps "I have questions"
 
     # Owner said (msg 1202, relayed in msg 1204): "wherever a message shows 'Reply in thread', add a small count of the replies, and of the new ones. Then you can tell at a glance that a thread exists and has something new."
     @v1 @browser
-    Scenario: The Reply in thread button of an ask shows the replies
+    Scenario: The I have questions button of an ask shows the replies
       Given an open ask of "devtool" in conversation 41 and "docs" replied in its thread
       When the owner opens conversation 41
-      Then "Reply in thread" on the ask shows "1 reply"
+      Then "I have questions" on the ask shows "1 reply"
 
     @v1 @browser
     Scenario: The ask menu opens once
@@ -301,7 +301,7 @@ Feature: Asks and their state machine
       Then the ask is still open
 
     @v1 @cli
-    Scenario: An agent is told to answer in the thread and update the same ask
+    Scenario: An agent is told to answer in the thread and send the updated ask there
       Given an open ask of "devtool" that the owner then snoozed
       When the owner replies in the thread of the ask
       Then the ask is still open and records the reply and its message

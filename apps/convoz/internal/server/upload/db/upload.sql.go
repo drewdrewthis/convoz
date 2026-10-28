@@ -458,7 +458,7 @@ func (q *Queries) UploadOfClientID(ctx context.Context, arg UploadOfClientIDPara
 
 const uploadsOfMessages = `-- name: UploadsOfMessages :many
 SELECT id, public_id, message_id, kind, declared_size, mime_sniffed, serve_inline, filename, width, height, duration_ms, waveform
-FROM uploads WHERE message_id IN (/*SLICE:message_ids*/?) AND state = 'complete' AND in_app = 0 ORDER BY id
+FROM uploads WHERE message_id IN (/*SLICE:message_ids*/?) AND state = 'complete' AND in_app = 0 ORDER BY bound_at, id
 `
 
 type UploadsOfMessagesRow struct {
