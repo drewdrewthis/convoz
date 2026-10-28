@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -52,6 +53,9 @@ func versionGate(command string, io IO) int {
 	}
 	now := time.Now()
 	info := serverInfoFor(dir, server, Version, now, fetchServerInfo)
+	if info.Version == "" {
+		fmt.Fprintln(io.Stderr, "convoz: could not check the server version (slow network); running anyway")
+	}
 	switch decideVersion(Version, info, lastWarned(dir), now) {
 	case versionRefuse:
 		fmt.Fprintf(io.Stderr, "convoz cannot talk to this server (API %d here, %d there). Run: convoz upgrade\n", wire.APIVersion, info.API)
@@ -171,16 +175,31 @@ func serverVersion(dir, server, local string, now time.Time, fetch func(server s
 	return serverInfoFor(dir, server, local, now, func(s string) serverInfo { return serverInfo{Version: fetch(s)} }).Version
 }
 
+// versionProbeTimeout is the whole budget of the version probe, retry included: a Tailscale Funnel relay (DERP) needs 2 to 4 seconds
+// for TLS alone, so 3 seconds failed on slow links. A command never waits longer than this for the question.
+var versionProbeTimeout = 10 * time.Second
+
 // fetchServerInfo asks GET /api/version; the zero value when the server cannot be reached or answers without a version.
-func fetchServerInfo(server string) serverInfo {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+func fetchServerInfo(server string) serverInfo { return probeServerInfo(server, versionProbeTimeout) }
+
+// probeServerInfo asks GET /api/version within one budget. A quick network error (a reset connection) is tried once more inside
+// the same budget; once the budget is spent it gives up, so the retry never adds to the wait.
+func probeServerInfo(server string, budget time.Duration) serverInfo {
+	ctx, cancel := context.WithTimeout(context.Background(), budget)
 	defer cancel()
-	var got struct {
-		Version string `json:"version"`
-		API     int    `json:"api"`
+	c := newClient(server).withTimeout(budget)
+	for try := 0; try < 2; try++ {
+		var got struct {
+			Version string `json:"version"`
+			API     int    `json:"api"`
+		}
+		err := c.call(ctx, "GET", "/api/version", "", nil, &got)
+		if err == nil {
+			return serverInfo{got.Version, got.API}
+		}
+		if ctx.Err() != nil || !errors.Is(err, errUnreachable) {
+			break
+		}
 	}
-	if err := newClient(server).call(ctx, "GET", "/api/version", "", nil, &got); err != nil {
-		return serverInfo{}
-	}
-	return serverInfo{got.Version, got.API}
+	return serverInfo{}
 }

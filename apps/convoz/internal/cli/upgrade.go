@@ -22,8 +22,8 @@ func init() {
 		Usage: "convoz upgrade"})
 }
 
-// downloadTimeout bounds the download of one binary.
-const downloadTimeout = 2 * time.Minute
+// downloadTimeout bounds one try of the download of one binary: 15 MB over a relayed link takes 30 to 200 seconds.
+var downloadTimeout = 10 * time.Minute
 
 // maxBinaryBytes bounds what a server may send as a binary: far above the real size, far below a full disk.
 const maxBinaryBytes = 256 << 20
@@ -105,8 +105,17 @@ func refreshSkill(io IO, exe string) int {
 	return ExitOK
 }
 
-// download reads one file of the server, whole; anything but a 200 is an error.
+// download reads one file of the server, whole, and tries once more on a network error (no progress output). Anything but a 200 is an
+// error that is not tried again; the digest is checked by the caller before the binary is replaced.
 func download(url string) ([]byte, error) {
+	body, err := downloadOnce(url)
+	if errors.Is(err, errUnreachable) {
+		return downloadOnce(url)
+	}
+	return body, err
+}
+
+func downloadOnce(url string) ([]byte, error) {
 	res, err := (&http.Client{Timeout: downloadTimeout}).Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", errUnreachable, err)
@@ -117,7 +126,7 @@ func download(url string) ([]byte, error) {
 	}
 	body, err := io.ReadAll(io.LimitReader(res.Body, maxBinaryBytes+1))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", errUnreachable, err)
 	}
 	if len(body) > maxBinaryBytes {
 		return nil, errors.New("the file is larger than any convoz")
