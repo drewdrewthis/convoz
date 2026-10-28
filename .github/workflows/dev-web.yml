@@ -29,9 +29,16 @@ jobs:
         with:
           python-version: "3.13"
       # The gate is the copy on the base branch, never this push's own copy: a push cannot loosen the check it is held to.
+      # The one exception is a head with the same sha as the base branch (already merged through the full gate).
       - name: Fast-lane gate (base copy)
         run: |
           set -euo pipefail
+          # A head that IS the base branch's head (same sha) was merged after the full gate: nothing to judge, build it.
+          # Any other head, an empty diff included, goes through the gate below.
+          if [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/feat/web-react)" ]; then
+            echo "dev-web head is origin/feat/web-react (same sha): merged after the full gate, gate skipped"
+            exit 0
+          fi
           git show origin/feat/web-react:scripts/fast_lane.py > "$RUNNER_TEMP/fast_lane.py"
           status=0
           verdict="$(python3 -I "$RUNNER_TEMP/fast_lane.py" origin/feat/web-react)" || status=$?
