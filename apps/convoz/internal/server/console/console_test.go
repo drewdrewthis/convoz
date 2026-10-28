@@ -350,7 +350,9 @@ func TestOnlyAHashedAssetIsCachedForAYear(t *testing.T) {
 	}
 	get := func(name string) string {
 		rec := httptest.NewRecorder()
-		Asset(rec, httptest.NewRequest("GET", "/assets/"+name, nil), false)
+		req := httptest.NewRequest("GET", "/assets/"+name, nil)
+		req.SetPathValue("file", name)
+		Asset(rec, req, false)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("/assets/%s: %d", name, rec.Code)
 		}
