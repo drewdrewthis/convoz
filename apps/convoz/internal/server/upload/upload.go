@@ -12,6 +12,7 @@ import (
 
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/upload/db"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
 
 // Limits (design §13.1).
@@ -136,6 +137,7 @@ func ByID(ctx context.Context, d pdb.DBTX, id int64) (Row, bool, error) {
 type NewRequest struct {
 	Uploader, Session, Conversation int64
 	Kind, Filename                  string
+	ClientID                        string // names the request: a retry with the same one gets the first upload back; "" for none
 	Size                            int64  // 0 for a length not known yet
 	SHA256                          []byte // nil when the length is not known
 }
@@ -151,6 +153,22 @@ func (s *Service) Create(ctx context.Context, d pdb.DBTX, now time.Time, in NewR
 	if !ValidKind(in.Kind) || in.Filename == "" || len(in.Filename) > 255 || in.Size < 0 || in.Size > MaxSize || (in.Size > 0 && len(in.SHA256) != 32) {
 		return Row{}, ErrBadRequest
 	}
+	q := db.New(d)
+	if in.ClientID != "" {
+		if !wire.ValidClientID(in.ClientID) {
+			return Row{}, ErrBadRequest
+		}
+		switch first, err := q.UploadOfClientID(ctx, db.UploadOfClientIDParams{UploaderID: in.Uploader, ClientID: sql.NullString{String: in.ClientID, Valid: true}}); {
+		case err == nil:
+			if first.ConversationID != in.Conversation || first.Kind != in.Kind || first.Filename != in.Filename {
+				return Row{}, ErrBadRequest // one client id names one upload
+			}
+			r, _, err := ByID(ctx, d, first.ID)
+			return r, err
+		case !errors.Is(err, sql.ErrNoRows):
+			return Row{}, err
+		}
+	}
 	limit := int64(MaxSize)
 	if in.Kind == KindApp {
 		limit = MaxAppBytes
@@ -162,7 +180,6 @@ func (s *Service) Create(ctx context.Context, d pdb.DBTX, now time.Time, in NewR
 	if size == 0 {
 		size, sum = limit, make([]byte, 32) // the cap now, the real length with the last chunk
 	}
-	q := db.New(d)
 	used, err := q.SumUploadedSince(ctx, db.SumUploadedSinceParams{UploaderID: in.Uploader, Since: now.Add(-24 * time.Hour).UnixMilli()})
 	if err != nil {
 		return Row{}, err
@@ -185,6 +202,7 @@ func (s *Service) Create(ctx context.Context, d pdb.DBTX, now time.Time, in NewR
 	id, err := q.InsertUpload(ctx, db.InsertUploadParams{
 		PublicID: pub, UploaderID: in.Uploader, SessionID: nullInt(in.Session), ConversationID: in.Conversation, Kind: in.Kind,
 		DeclaredSize: size, DeclaredSha256: sum, Filename: in.Filename, StorageName: storage, DekID: dekGeneration, FileKeyWrapped: wrapped, CreatedAt: now.UnixMilli(),
+		ClientID: sql.NullString{String: in.ClientID, Valid: in.ClientID != ""},
 	})
 	if err != nil {
 		return Row{}, err

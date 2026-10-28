@@ -320,9 +320,9 @@ func (q *Queries) GetUploadByPublicID(ctx context.Context, publicID string) (Get
 }
 
 const insertUpload = `-- name: InsertUpload :one
-INSERT INTO uploads (public_id, uploader_id, session_id, conversation_id, kind, declared_size, declared_sha256, filename, storage_name, dek_id, file_key_wrapped, created_at)
+INSERT INTO uploads (public_id, uploader_id, session_id, conversation_id, kind, declared_size, declared_sha256, filename, storage_name, dek_id, file_key_wrapped, created_at, client_id)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7,
-        ?8, ?9, ?10, ?11, ?12)
+        ?8, ?9, ?10, ?11, ?12, ?13)
 RETURNING id
 `
 
@@ -339,6 +339,7 @@ type InsertUploadParams struct {
 	DekID          int64
 	FileKeyWrapped []byte
 	CreatedAt      int64
+	ClientID       sql.NullString
 }
 
 func (q *Queries) InsertUpload(ctx context.Context, arg InsertUploadParams) (int64, error) {
@@ -355,6 +356,7 @@ func (q *Queries) InsertUpload(ctx context.Context, arg InsertUploadParams) (int
 		arg.DekID,
 		arg.FileKeyWrapped,
 		arg.CreatedAt,
+		arg.ClientID,
 	)
 	var id int64
 	err := row.Scan(&id)
@@ -423,6 +425,35 @@ func (q *Queries) SumUploadedSince(ctx context.Context, arg SumUploadedSincePara
 	var bytes int64
 	err := row.Scan(&bytes)
 	return bytes, err
+}
+
+const uploadOfClientID = `-- name: UploadOfClientID :one
+SELECT id, conversation_id, kind, filename FROM uploads WHERE uploader_id = ?1 AND client_id = ?2
+`
+
+type UploadOfClientIDParams struct {
+	UploaderID int64
+	ClientID   sql.NullString
+}
+
+type UploadOfClientIDRow struct {
+	ID             int64
+	ConversationID int64
+	Kind           string
+	Filename       string
+}
+
+// The upload an identity started under a client id, for the retry of a start whose answer was lost: its id, conversation, kind and file name.
+func (q *Queries) UploadOfClientID(ctx context.Context, arg UploadOfClientIDParams) (UploadOfClientIDRow, error) {
+	row := q.db.QueryRowContext(ctx, uploadOfClientID, arg.UploaderID, arg.ClientID)
+	var i UploadOfClientIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.ConversationID,
+		&i.Kind,
+		&i.Filename,
+	)
+	return i, err
 }
 
 const uploadsOfMessages = `-- name: UploadsOfMessages :many

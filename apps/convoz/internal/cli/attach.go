@@ -173,9 +173,10 @@ func (k *chatCmd) sendFile(conv int64, f attachment, earlier string, started fun
 	return st.ID, err
 }
 
-// createUpload starts an upload (POST /api/uploads). The server refuses a size or a conversation here, before any bytes are sent.
+// createUpload starts an upload (POST /api/uploads). Its client id is the same on every try (callRetry), so a try whose answer was lost
+// gets the first upload back and leaves no orphan. The server refuses a size or a conversation here, before any bytes are sent.
 func (k *chatCmd) createUpload(conv int64, kind, name string, size int64, sum []byte) (st wire.UploadState, err error) {
-	req := wire.CreateUploadRequest{ConversationID: conv, Kind: kind, Filename: name, Size: size, SHA256: hex.EncodeToString(sum)}
+	req := wire.CreateUploadRequest{ConversationID: conv, Kind: kind, Filename: name, Size: size, SHA256: hex.EncodeToString(sum), ClientID: "convoz-" + randomHex(8)}
 	err = k.callRetry("POST", "/api/uploads", req, &st)
 	return st, err
 }
