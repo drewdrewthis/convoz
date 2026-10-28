@@ -175,11 +175,15 @@ func (w *statusWriter) WriteHeader(code int) {
 // Unwrap lets http.NewResponseController reach the real writer's Flush, which streams and long polls need.
 func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
-// logRequests writes one line per request: method, path, status, duration. Never the query, a header or a body.
+// logRequests writes one line per request: method, path (a path holding "cvz_" is "[redacted]"), status and duration. On the
+// agent listener it adds ip=, the client address. On the owner listener it adds dev=, the owner device's row id once the cookie
+// is known, and tab= and load=, the X-Convoz-Tab and X-Convoz-Load ids, each only when it is exactly 8 lowercase hex digits
+// (accesslog.go). It never logs the query, a body, a token, or any other header value.
 func (s *Server) logRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := s.Clock.Now()
 		sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
+		served, note := withAccessNote(r)
 		defer func() {
 			if v := recover(); v != nil {
 				s.Log.Printf("panic serving %s %s", r.Method, loggablePath(r))
@@ -187,13 +191,15 @@ func (s *Server) logRequests(next http.Handler) http.Handler {
 					writeErr(sw, http.StatusInternalServerError, "internal", "Something went wrong on the server.")
 				}
 			}
-			ip := ""
+			var tail string
 			if c := agentClient(r.Context()); c != "" {
-				ip = " ip=" + c // the agent listener: the address the request came from, never the header of a stranger
+				tail = " ip=" + c // the agent listener: the address the request came from, never the header of a stranger
+			} else {
+				tail = ownerFields(r, note)
 			}
-			s.Log.Printf("%s %s %d %dms%s", r.Method, loggablePath(r), sw.status, s.Clock.Now().Sub(start)/time.Millisecond, ip)
+			s.Log.Printf("%s %s %d %dms%s", r.Method, loggablePath(r), sw.status, s.Clock.Now().Sub(start)/time.Millisecond, tail)
 		}()
-		next.ServeHTTP(sw, r)
+		next.ServeHTTP(sw, served)
 	})
 }
 

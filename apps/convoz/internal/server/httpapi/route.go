@@ -162,6 +162,7 @@ func (s *Server) authenticate(w http.ResponseWriter, r *http.Request) (*call, er
 		setDeviceCookie(w, cookie.Value, left)
 	}
 	c.p = authz.Principal{Authenticated: true, HumanID: h.ID, DeviceID: dev.ID, Limited: dev.Limited, Role: h.Role}
+	noteDevice(ctx, dev.ID) // the access log names the device, never the person
 	c.dev = dev
 	c.human = auth.Human{ID: h.ID, Handle: h.Handle, DisplayName: h.DisplayName, Role: h.Role}
 	c.token = cookie.Value
