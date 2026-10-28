@@ -25,3 +25,31 @@ export function coalesce(fn: () => Promise<void>): () => Promise<void> {
     return running;
   };
 }
+
+/** coalescePer is coalesce with one run slot per key: a burst of calls for one conversation becomes at most two runs, other keys do not wait. */
+export function coalescePer<K>(fn: (key: K) => Promise<void>): (key: K) => Promise<void> {
+  const runs = new Map<K, () => Promise<void>>();
+  return (key) => {
+    let run = runs.get(key);
+    if (!run) runs.set(key, (run = coalesce(() => fn(key))));
+    return run();
+  };
+}
+
+/**
+ * debouncePer runs fn(key) once `ms` after the last call for that key, so a burst spread over a second (a slow runner, a catch-up) is one
+ * run, where coalescePer would still run again for each call that lands while a run is on its way.
+ */
+export function debouncePer<K>(fn: (key: K) => Promise<void> | void, ms: number): (key: K) => void {
+  const timers = new Map<K, ReturnType<typeof setTimeout>>();
+  return (key) => {
+    clearTimeout(timers.get(key));
+    timers.set(
+      key,
+      setTimeout(() => {
+        timers.delete(key);
+        void Promise.resolve(fn(key)).catch(() => {});
+      }, ms),
+    );
+  };
+}
