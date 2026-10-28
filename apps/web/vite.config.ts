@@ -372,6 +372,24 @@ const OUTSIDE_MAIN = /[\\/]src[\\/](sw[\\/](worker|cache|push|errors|module)\.ts
  *     client that takes brotli (design §12.3): on a slow link the first load is bound by these bytes, and compressing per request
  *     runs at a low quality. The service worker never lists them.
  */
+/** writeBrotliCopies writes <file>.br (highest quality) next to every script and stylesheet of assets/ among the build's files. */
+function writeBrotliCopies(dir: string, fileNames: string[]): void {
+  for (const fileName of fileNames) {
+    if (!fileName.startsWith("assets/") || !/\.(js|css)$/.test(fileName)) continue;
+    const written = path.join(dir, fileName);
+    writeFileSync(`${written}.br`, brotliCompressSync(readFileSync(written), { params: { [constants.BROTLI_PARAM_QUALITY]: constants.BROTLI_MAX_QUALITY } }));
+  }
+}
+
+/** devBrotli gives the dev build the same brotli copies as prod (the /dev route sends them to a client that takes brotli). */
+function devBrotli(): Plugin {
+  return {
+    name: "dev-brotli",
+    apply: "build",
+    writeBundle: { order: "post", sequential: true, handler: (options, bundle) => writeBrotliCopies(options.dir!, Object.keys(bundle)) },
+  };
+}
+
 function coldBuild(): Plugin {
   return {
     name: "cold-build",
@@ -413,11 +431,7 @@ function coldBuild(): Plugin {
         // The server reads the same list for the reads a cold page carries (src/early.ts asks for them on the lean shell).
         writeFileSync(path.join(dir, "first-reads.json"), readFileSync(path.resolve(import.meta.dirname, "src/first-reads.json")));
 
-        for (const file of Object.values(bundle)) {
-          if (!file.fileName.startsWith("assets/") || !/\.(js|css)$/.test(file.fileName)) continue;
-          const written = path.join(dir, file.fileName);
-          writeFileSync(`${written}.br`, brotliCompressSync(readFileSync(written), { params: { [constants.BROTLI_PARAM_QUALITY]: constants.BROTLI_MAX_QUALITY } }));
-        }
+        writeBrotliCopies(dir, Object.keys(bundle));
       },
     },
   };
@@ -460,7 +474,7 @@ function devBuild() {
   if (!outDir) throw new Error("vite build --mode dev: set CONVOZ_DEV_WEB_OUT to the folder the dev build goes to");
   return {
     base: "/dev/",
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), devBrotli()],
     define: { __BUILD__: JSON.stringify(buildId()) },
     resolve: { alias: preact, dedupe: REACT ? [] : ["preact"] },
     build: {

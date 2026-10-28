@@ -180,5 +180,5 @@ func devRoot(_ *Server, w http.ResponseWriter, r *http.Request, _ *call) {
 
 // devPage serves a file of the owner's dev build (console.ServeDev), read from the folder at each request.
 func (s *Server) devPage(w http.ResponseWriter, r *http.Request, _ *call) {
-	console.ServeDev(w, r, s.Cfg.DevWebDir, r.PathValue("path"))
+	console.ServeDev(w, r, s.Cfg.DevWebDir, r.PathValue("path"), chooseEncoding(r.Header.Get("Accept-Encoding")) == "br")
 }
