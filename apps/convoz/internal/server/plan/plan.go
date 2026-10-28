@@ -56,7 +56,7 @@ const (
 	// ActivePosts is how many top-level posts (thread replies do not count) in the conversation within AskRest, all after the plan's update, make an agent at work there;
 	// one answer is not work.
 	ActivePosts = 3
-	// HumanWithin is how recently a person must have written in a conversation for an agent with no plan there to be asked for one:
+	// HumanWithin is how recently the owner must have written in a conversation for an agent with no plan there to be asked for one:
 	// in a feed no one wrote in (PR events, a board) the agent's one-line posts are not work for anyone.
 	HumanWithin = 2 * time.Hour
 	// AskRest is the shortest gap after any plan ask in a conversation before an agent at work there is asked again.

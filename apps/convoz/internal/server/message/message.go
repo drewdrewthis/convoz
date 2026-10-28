@@ -299,9 +299,9 @@ func RecentPosts(ctx context.Context, d pdb.DBTX, author, conv, after int64) (n 
 	return int(r.Posts), r.FirstAt, err
 }
 
-// HumanPostedSince reports whether a person wrote a text or ask in the conversation after the time (epoch ms).
-func HumanPostedSince(ctx context.Context, d pdb.DBTX, conv, after int64) (bool, error) {
-	n, err := db.New(d).HumanPostedSince(ctx, db.HumanPostedSinceParams{ConversationID: conv, After: after})
+// PostedSince reports whether the author wrote a text or ask in the conversation after the time (epoch ms).
+func PostedSince(ctx context.Context, d pdb.DBTX, author, conv, after int64) (bool, error) {
+	n, err := db.New(d).PostedSince(ctx, db.PostedSinceParams{AuthorID: nullInt(author), ConversationID: conv, After: after})
 	return n, err
 }
 

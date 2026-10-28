@@ -147,26 +147,6 @@ func (q *Queries) GetMessage(ctx context.Context, id int64) (MessageRow, error) 
 	return i, err
 }
 
-const humanPostedSince = `-- name: HumanPostedSince :one
-SELECT EXISTS (
-  SELECT 1 FROM messages m JOIN identities i ON i.id = m.author_id
-  WHERE m.conversation_id = ?1 AND i.kind = 'human' AND m.kind IN ('text','ask') AND m.deleted_at IS NULL AND m.created_at > ?2
-) AS posted
-`
-
-type HumanPostedSinceParams struct {
-	ConversationID int64
-	After          int64
-}
-
-// Whether a person (not an agent) wrote a text or ask in the conversation, not deleted, after the time (epoch ms): the work there is for him.
-func (q *Queries) HumanPostedSince(ctx context.Context, arg HumanPostedSinceParams) (bool, error) {
-	row := q.db.QueryRowContext(ctx, humanPostedSince, arg.ConversationID, arg.After)
-	var posted bool
-	err := row.Scan(&posted)
-	return posted, err
-}
-
 const insertEdit = `-- name: InsertEdit :exec
 INSERT INTO message_edits (message_id, prev_body, prev_format, edited_by, edited_at)
 VALUES (?1, ?2, ?3, ?4, ?5)
@@ -559,6 +539,27 @@ func (q *Queries) PageNewest(ctx context.Context, arg PageNewestParams) ([]Messa
 		return nil, err
 	}
 	return items, nil
+}
+
+const postedSince = `-- name: PostedSince :one
+SELECT EXISTS (
+  SELECT 1 FROM messages
+  WHERE conversation_id = ?1 AND author_id = ?2 AND kind IN ('text','ask') AND deleted_at IS NULL AND created_at > ?3
+) AS posted
+`
+
+type PostedSinceParams struct {
+	ConversationID int64
+	AuthorID       sql.NullInt64
+	After          int64
+}
+
+// Whether the author wrote a text or ask in the conversation, not deleted, after the time (epoch ms).
+func (q *Queries) PostedSince(ctx context.Context, arg PostedSinceParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, postedSince, arg.ConversationID, arg.AuthorID, arg.After)
+	var posted bool
+	err := row.Scan(&posted)
+	return posted, err
 }
 
 const recentPosts = `-- name: RecentPosts :one
