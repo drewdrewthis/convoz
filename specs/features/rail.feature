@@ -239,6 +239,17 @@ Feature: Rail
       When the owner opens "Older · 1", long presses conversation 52 and picks "Bring back"
       Then conversation 52 is back in the Conversations list
 
+    # A starred conversation is never Older, so its menu offers Unstar but neither Mark stale nor Bring back (rail and phone).
+    @v1 @browser
+    Scenario: A starred conversation has no Mark stale in its row menu
+      When the owner stars conversation 52 from its row menu and opens the menu again
+      Then the menu offers "Unstar" and neither "Mark stale" nor "Bring back"
+
+    @v1 @browser @phone
+    Scenario: On a phone a starred conversation has no Mark stale in its long press menu
+      When the owner stars conversation 52 by long press and long presses it again
+      Then the menu offers "Unstar conversation" and no "Mark stale"
+
     @v1 @browser
     Scenario: The row menu stars, unstars and marks read
       Given "devtool" posts in conversation 60
