@@ -1,4 +1,4 @@
-import type { Page, TestInfo } from "@playwright/test";
+import type { Locator, Page, TestInfo } from "@playwright/test";
 import { convoz, createConversation, inboxItems, type AgentSession } from "../lib/chat.ts";
 import { mainNav } from "../lib/chat-ui.ts";
 import { openNow } from "../lib/asks.ts";
@@ -19,9 +19,12 @@ import { expect, scenario } from "../lib/scenario.ts";
  *     state: late|waiting|at_risk|on_track, stale, doing, waiting, blocked?, plan_updated_at}], shipped: [{conversation_id, title, handle, text, at}],
  *     next_change_at?}
  *   When a due date passes the agent gets one inbox item "status_due" per date, whose text names the deliverable and asks "done, new date, or blocked?".
- * Page contract (/delivery): #daily is the daily line; each group is a region named by its label with an h2 "<label> · N"; each row is a link
- * to /chats/<conv> whose text holds the deliverable, its sub line "@agent · <state word> · <detail>" and its due text, and a glyph
- * (role img, named Late, At risk or Waiting on you) for a state that needs one. "Shipped today · N" is a chip that opens the shipped list.
+ * Page contract (/delivery, owner msg 9982): #daily is the daily line; each group is a region named by its label with an h2 "<label> · N"
+ * (Late, Waiting on you, Blocked, At risk, Today, Tomorrow, This week, Later, No date). Each plan (agent and conversation) is a list item:
+ * a row button with aria-expanded holding the title (first Now item, else first deliverable), its sub line "@agent · <state word> ·
+ * <conversation title>" (blocked: "@agent · Blocked: <reason>"), its due text and a glyph (role img, named Late, Waiting on you, Blocked or
+ * At risk); open, it shows the plan and the actions "Request update" (a button) and "Open chat" (a link to /chats/<conv>). A request
+ * posts the owner's "@agent, please update your plan …" message in the conversation. "Shipped today · N" is a chip that opens the shipped list.
  * Now: #overdue holds "Overdue · N", up to 3 rows and the link "See all deliveries". The desktop rail and the phone's bottom bar link "Deliveries".
  */
 
@@ -62,7 +65,10 @@ async function openDeliveries(page: Page, p: PlanWorld, info: TestInfo): Promise
   await expect(page.getByRole("heading", { name: "Deliveries", exact: true })).toBeVisible();
 }
 
-const row = (page: Page, text: string) => page.locator("#deliveries").getByRole("link").filter({ hasText: text });
+/** One plan of the page (a list item), found by a text of its closed row. */
+const row = (page: Page, text: string) => page.locator("#deliveries").getByRole("listitem").filter({ has: page.locator("button[aria-expanded]", { hasText: text }) });
+/** The row that opens and closes a plan: a button with aria-expanded. */
+const toggle = (item: Locator) => item.locator("button[aria-expanded]").first();
 
 async function shoot(page: Page, info: TestInfo, name: string): Promise<void> {
   await page.screenshot({ path: info.outputPath(`${name}-${info.project.name}.png`), fullPage: true });
@@ -104,51 +110,73 @@ scenario("An agent sets a deliverable with a due date, and it stays until it shi
   expect(shipped.shipped).toMatchObject([{ text: "Search filters live", handle: "devtool" }]);
 });
 
-// ---- Rule: The owner sees every deliverable on one page: what to act on first, then by day ------------------------------------------
+// ---- Rule: The owner sees every agent's current plan on one page, the most urgent first, and asks for an update right there --------
 
-scenario("Deliveries shows what is late first, then what waits on the owner, then each day", { tag: ["@browser"] }, async ({ server, page, context, testApi }, info) => {
+scenario("Deliveries lists every agent's current plan, the most urgent first", { tag: ["@browser"] }, async ({ server, page, context, testApi }, info) => {
   info.setTimeout(90_000);
   const p = await planUi({ server, page, context }, { docsIn: false });
   const docsConv = await withDocs(p);
-  // Given "devtool" delivers "Search filters live" in 30 minutes and "Reply chip" in 3 days
-  await mustPlan(p, p.dev, ["--deliver", "Search filters live", "--due", "30m", "--deliver", "Reply chip", "--due", "3d"]);
-  // And "docs" delivers "Docs refresh live" in 2 days and waits on the owner for "Approve the docs copy"
-  const docsWaits = ["--waiting", "Approve the docs copy"];
-  await mustPlan(p, p.docs, ["--deliver", "Docs refresh live", "--due", "2d", "--deliver", "README live", "--due", "1h", ...docsWaits], docsConv);
+  const titled = (title: string) => createConversation(p.w.owner, { title, participants: ["devtool"] });
+  // Given "devtool" is doing "Filter chips" at step 2 of 5 and delivers "Search filters live" in 30 minutes and "Reply chip" in 3 days
+  await mustPlan(p, p.dev, ["--doing", "Filter chips", "--step", "2/5", "--deliver", "Search filters live", "--due", "30m", "--deliver", "Reply chip", "--due", "3d"]);
+  // And "docs" is doing "Docs pass" in conversation 42 and waits on the owner for "Approve the docs copy"
+  const docsPlan = ["--doing", "Docs pass", "--waiting", "Approve the docs copy"];
+  await mustPlan(p, p.docs, [...docsPlan, "--deliver", "README live", "--due", "1h"], docsConv);
+  // And "devtool" is doing "Deploy preview" in conversation 43 "Blocked one" and is blocked on "CI is down"
+  await mustPlan(p, p.dev, ["--doing", "Deploy preview", "--blocked", "CI is down"], await titled("Blocked one"));
+  // And "devtool" has only finished items in conversation 44 "Wrapped up"
+  await mustPlan(p, p.dev, ["--done", "Old work"], await titled("Wrapped up"));
+  // And "devtool" has a plan in conversation 45 "Closed one", which the owner closed, and in conversation 46 "Thrown away", which is in the trash
+  const closed = await titled("Closed one");
+  await mustPlan(p, p.dev, ["--doing", "Closed work"], closed);
+  must(await p.w.owner.client.post(`/api/conversations/${closed}/stale`, { force: true }), "close the conversation");
+  const trashed = await titled("Thrown away");
+  await mustPlan(p, p.dev, ["--doing", "Trashed work"], trashed);
+  must(await p.w.owner.client.del(`/api/conversations/${trashed}`), "trash the conversation");
 
   // When 31 minutes pass
   await testApi(p.w.srv).advanceClock(31 * MIN);
   // And "docs" ships "README live"
-  await mustPlan(p, p.docs, ["--done", "README live", ...docsWaits], docsConv);
+  await mustPlan(p, p.docs, [...docsPlan, "--done", "README live"], docsConv);
 
   // And the owner opens Deliveries from the rail on a computer, or from the bottom bar on a phone
-  if (info.project.name !== "mobile") {
-    await page.goto(`${p.w.srv.origin}/`);
-    await expect(page.getByRole("navigation", { name: "Conversations" }).getByRole("link", { name: /^Deliveries/ })).toContainText("1 late");
-  }
   await openDeliveries(page, p, info);
 
   // Then the page reads "Shipped today 1 · Late 1" at the top
   await expect(page.locator("#daily")).toHaveText("Shipped today 1 · Late 1");
+  // And the groups read "Late · 1", "Waiting on you · 1" and "Blocked · 1", in that order
+  await expect(page.locator("#deliveries h2")).toHaveText(["Late · 1", "Waiting on you · 1", "Blocked · 1"]);
 
-  // And the groups read "Late · 1", "Waiting on you · 1" and "This week · 1", in that order
-  await expect(page.locator("#deliveries h2")).toHaveText(["Late · 1", "Waiting on you · 1", "This week · 1"]);
+  // And the row "Filter chips" shows the glyph "Late", "Late · 1 min" and "@devtool · Late · Ship search filters", and is open
+  const late = row(page, "Filter chips");
+  await expect(toggle(late).getByRole("img", { name: "Late" })).toBeVisible();
+  await expect(toggle(late)).toContainText("Late · 1 min");
+  await expect(toggle(late)).toContainText("@devtool · Late · Ship search filters");
+  await expect(toggle(late)).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("region", { name: "Late" })).toContainText("Filter chips");
+  // And open, it shows "Step 2 of 5", "Search filters live", "Reply chip", "Request update" and "Open chat"
+  await expect(late.getByRole("img", { name: "Step 2 of 5" })).toBeVisible();
+  await expect(late).toContainText("Search filters live");
+  await expect(late).toContainText("Reply chip");
+  await expect(late.getByRole("button", { name: "Request update" })).toBeEnabled();
+  await expect(late.getByRole("link", { name: "Open chat" })).toBeVisible();
 
-  // And the row "Search filters live" shows the glyph "Late", "Late · 1 min" and "@devtool · Late · was due" its time
-  const late = row(page, "Search filters live");
-  await expect(late.getByRole("img", { name: "Late" })).toBeVisible();
-  await expect(late).toContainText("Late · 1 min");
-  await expect(late).toContainText("@devtool · Late · was due ");
-  await expect(page.getByRole("region", { name: "Late" })).toContainText("Search filters live");
+  // And the row "Docs pass" shows the glyph "Waiting on you" and "@docs · Waiting on you · Docs refresh", and is closed
+  const waits = row(page, "Docs pass");
+  await expect(toggle(waits).getByRole("img", { name: "Waiting on you" })).toBeVisible();
+  await expect(toggle(waits)).toContainText("@docs · Waiting on you · Docs refresh");
+  await expect(toggle(waits)).toHaveAttribute("aria-expanded", "false");
+  await expect(waits.getByRole("button", { name: "Request update" })).toHaveCount(0);
 
-  // And the row "Docs refresh live" shows the glyph "Waiting on you" and "@docs · Waiting on you"
-  const waits = row(page, "Docs refresh live");
-  await expect(waits.getByRole("img", { name: "Waiting on you" })).toBeVisible();
-  await expect(waits).toContainText("@docs · Waiting on you");
+  // And the row "Deploy preview" shows the glyph "Blocked" and "@devtool · Blocked: CI is down", and is open
+  const blocked = row(page, "Deploy preview");
+  await expect(toggle(blocked).getByRole("img", { name: "Blocked" })).toBeVisible();
+  await expect(toggle(blocked)).toContainText("@devtool · Blocked: CI is down");
+  await expect(toggle(blocked)).toHaveAttribute("aria-expanded", "true");
 
-  // And the row "Reply chip" shows "@devtool · On track"
-  await expect(row(page, "Reply chip")).toContainText("@devtool · On track");
-  await expect(row(page, "Reply chip").getByRole("img")).toHaveCount(0);
+  // And no row comes from "Wrapped up", "Closed one" or "Thrown away"
+  await expect(page.locator("#deliveries").getByRole("listitem")).toHaveCount(3);
+  for (const gone of ["Wrapped up", "Closed one", "Thrown away", "Old work", "Closed work", "Trashed work"]) await expect(page.locator("#deliveries")).not.toContainText(gone);
 
   // And on a phone the page does not scroll sideways
   if (info.project.name === "mobile") expect(await overflowX(page)).toBe(0);
@@ -160,50 +188,94 @@ scenario("Deliveries shows what is late first, then what waits on the owner, the
   await expect(page.getByRole("region", { name: "Shipped today" })).toContainText("README live");
   await expect(page.getByRole("region", { name: "Shipped today" })).toContainText("@docs");
 
-  // When the owner taps the row "Search filters live"
-  await late.click();
+  // When the owner taps "Open chat" on the row "Filter chips"
+  await late.getByRole("link", { name: "Open chat" }).click();
   // Then conversation 41 opens
   await expect(page).toHaveURL(new RegExp(`/chats/${p.conv}$`));
 });
 
-scenario("A deliverable whose plan is blocked or a day old shows as at risk", { tag: ["@browser"] }, async ({ server, page, context, testApi }, info) => {
+scenario("Request update on a plan asks its agent in that conversation", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
   info.setTimeout(60_000);
   const p = await planUi({ server, page, context }, { docsIn: false });
-  const docsConv = await withDocs(p);
-  // Given "devtool" delivers "Search filters live" in 3 days
-  await mustPlan(p, p.dev, ["--deliver", "Search filters live", "--due", "3d"]);
-  // And "docs" delivers "Docs refresh live" in 3 days and is blocked on "CI is down"
-  await mustPlan(p, p.docs, ["--deliver", "Docs refresh live", "--due", "3d", "--blocked", "CI is down"], docsConv);
+  // Given "devtool" is doing "Filter chips" in conversation 41, ready in 30 minutes
+  await mustPlan(p, p.dev, ["--doing", "Filter chips", "--eta", "30m"]);
 
   // When the owner opens Deliveries
   await openDeliveries(page, p, info);
+  // Then the row "Filter chips" is under "No date · 1", reads "updated just now" and is closed
+  await expect(page.locator("#deliveries h2")).toHaveText(["No date · 1"]);
+  const r = row(page, "Filter chips");
+  await expect(page.getByRole("region", { name: "No date" })).toContainText("Filter chips");
+  await expect(toggle(r)).toContainText("updated just now");
+  await expect(toggle(r)).toHaveAttribute("aria-expanded", "false");
 
-  // Then the row "Docs refresh live" shows the glyph "At risk" and "@docs · At risk · Blocked: CI is down"
-  await expect(row(page, "Docs refresh live").getByRole("img", { name: "At risk" })).toBeVisible();
-  await expect(row(page, "Docs refresh live")).toContainText("@docs · At risk · Blocked: CI is down");
-  // And the row "Search filters live" shows "@devtool · On track"
-  await expect(row(page, "Search filters live")).toContainText("@devtool · On track");
+  // When the owner opens the row
+  await toggle(r).click();
+  await expect(toggle(r)).toHaveAttribute("aria-expanded", "true");
+  const ask = r.getByRole("button", { name: "Request update" });
+  const open = r.getByRole("link", { name: "Open chat" });
+  // Then on a phone "Request update" and "Open chat" are full width, one above the other, and 44 px tall
+  if (info.project.name === "mobile") {
+    const [a, o, whole] = await Promise.all([ask.boundingBox(), open.boundingBox(), r.boundingBox()]);
+    expect(a!.height).toBeGreaterThanOrEqual(44);
+    expect(o!.height).toBeGreaterThanOrEqual(44);
+    expect(o!.y).toBeGreaterThanOrEqual(a!.y + a!.height);
+    expect(Math.abs(a!.width - o!.width)).toBeLessThanOrEqual(1);
+    expect(a!.width).toBeGreaterThanOrEqual(whole!.width - 40);
+    expect(await overflowX(page)).toBe(0);
+  }
+
+  // When the owner taps "Request update"
+  await ask.click();
+  // Then the button reads "Requested" and cannot be pressed, and the row says "Requested" with its time and "no update yet"
+  await expect(r.getByRole("button", { name: /^Requested/ })).toBeDisabled();
+  await expect(r).toContainText(/Requested \d{2}:\d{2} · no update yet/);
+  await shoot(page, info, "deliveries-requested");
+
+  // And "devtool" has an inbox item for conversation 41 whose message starts "@devtool, please update your plan"
+  await expect
+    .poll(async () => (await inboxItems(p.w.box, p.dev.sid, ["--peek"])).filter((i) => i.conversation.id === p.conv).map((i) => i.message.body))
+    .toContainEqual(expect.stringMatching(new RegExp(`^@devtool, please update your plan[\\s\\S]*convoz plan ${p.conv}`)));
+
+  // When "devtool" runs "convoz plan 41 --doing 'Filter chips' --step 3/5"
+  await mustPlan(p, p.dev, ["--doing", "Filter chips", "--step", "3/5"]);
+  // Then the row says "Updated" with its time, and "Request update" can be pressed again
+  await expect(r).toContainText(/Updated \d{2}:\d{2}/);
+  await expect(r).not.toContainText("no update yet");
+  await expect(r.getByRole("button", { name: "Request update" })).toBeEnabled();
+});
+
+scenario("A plan with no update for a day shows as at risk", { tag: ["@browser"] }, async ({ server, page, context, testApi }, info) => {
+  info.setTimeout(60_000);
+  const p = await planUi({ server, page, context }, { docsIn: false });
+  // Given "devtool" delivers "Search filters live" in 3 days
+  await mustPlan(p, p.dev, ["--deliver", "Search filters live", "--due", "3d"]);
+
+  // When the owner opens Deliveries
+  await openDeliveries(page, p, info);
+  // Then the row "Search filters live" is under "This week · 1" and shows "@devtool · On track · Ship search filters"
+  await expect(page.locator("#deliveries h2")).toHaveText(["This week · 1"]);
+  await expect(toggle(row(page, "Search filters live"))).toContainText("@devtool · On track · Ship search filters");
+  await expect(toggle(row(page, "Search filters live")).getByRole("img")).toHaveCount(0);
 
   // When 25 hours pass with no plan update from "devtool" and the owner opens Deliveries again
   await testApi(p.w.srv).advanceClock(25 * HOUR);
   await page.reload();
 
-  // Then the row "Search filters live" shows the glyph "At risk" and "no plan update since"
-  const stale = row(page, "Search filters live");
+  // Then the row "Search filters live" is under "At risk · 1" and shows the glyph "At risk" and "@devtool · At risk · Ship search filters"
+  await expect(page.locator("#deliveries h2")).toHaveText(["At risk · 1"]);
+  const stale = toggle(row(page, "Search filters live"));
   await expect(stale.getByRole("img", { name: "At risk" })).toBeVisible();
-  await expect(stale).toContainText("@devtool · At risk · no plan update since ");
-  // And it stays in its day group
-  await expect(page.getByRole("region", { name: "Late" })).toHaveCount(0);
-  await expect(page.locator("#deliveries h2")).toHaveText([/^(Tomorrow|This week) · 2$/]);
+  await expect(stale).toContainText("@devtool · At risk · Ship search filters");
   await shoot(page, info, "deliveries-at-risk");
 });
 
-scenario("With no deliverables the page says how they come", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+scenario("With no plans the page says how they come", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
   const p = await planUi({ server, page, context }, { docsIn: false });
   // When the owner opens Deliveries
   await openDeliveries(page, p, info);
-  // Then the page says "No deliveries yet. When an agent commits to a date, it shows here."
-  await expect(page.getByText("No deliveries yet. When an agent commits to a date, it shows here.")).toBeVisible();
+  // Then the page says "No plans yet. When an agent sets a plan in a chat, it shows here."
+  await expect(page.getByText("No plans yet. When an agent sets a plan in a chat, it shows here.")).toBeVisible();
 });
 
 // ---- Rule: When a due date passes, the agent is asked first, once per date, and the owner sees it on Now without a push -------------

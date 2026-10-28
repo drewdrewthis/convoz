@@ -6,22 +6,14 @@ import { useEffect, useRef, useState } from "react";
 import { initials, paletteOf, stripCf } from "../../shared/chat.ts";
 import { TriageBadge } from "../../shared/TriageBadge.tsx";
 import { AskInline, useNow } from "../now/index.ts";
-import { ago, clock, dayLabel, span, usePlans, when, type Tone } from "../plan/index.ts";
+import { ago, clock, dayLabel, usePlans, when, type Tone } from "../plan/index.ts";
 import { planHash } from "./messages/PlanNote.tsx";
+import { NowBlock, planRequest } from "./PlanBits.tsx";
 
 /** What the panel's plan parts can do in the conversation: post a message as the owner, or start one in the composer. */
 export interface PlanActions {
   say(text: string): void;
   reply(text: string): void;
-}
-
-/**
- * planRequest is the message "Ask for a plan" and "Ask for an update" post: it says how to set the plan, not only to share one,
- * so the agent runs `convoz plan` and the panel fills, instead of writing the plan as a chat message (owner msg 594).
- */
-export function planRequest(handle: string, conv: number, kind: "share" | "update"): string {
-  const ask = kind === "share" ? "please set your plan for this conversation" : "please update your plan for this conversation";
-  return `@${handle}, ${ask}. Use \`convoz plan ${conv}\`, not a chat message, so it shows in the panel:\n\n\`\`\`\nconvoz plan ${conv} --doing "what you do now" --eta 30m --next "then this" --next "then that" --done "what you finished"\n\`\`\`\n\nAdd \`--waiting "what you need from me"\` or \`--blocked "what stops you"\` if any. Up to 3 things at once? Repeat \`--doing\`, each with its own \`--eta\` and \`--step\`. Keep it current as you work. With MCP, use the \`plan\` tool. See \`convoz plan --help\`.`;
 }
 
 const serverNow = () => Date.now() + usePlans.getState().skew;
@@ -201,36 +193,6 @@ function AgentMenu({ handle, onRemove }: { handle: string; onRemove(): void }) {
         </div>
       ) : null}
     </span>
-  );
-}
-
-/** StepBar is "step N of M" as a row of segments, up to 12 (a longer plan is shown to scale). */
-function StepBar({ at, of }: { at: number; of: number }) {
-  const n = Math.min(of, 12);
-  const on = Math.round((at / of) * n);
-  return (
-    <span className="pstep">
-      <span className="pbar" role="img" aria-label={`Step ${at} of ${of}`}>
-        {Array.from({ length: n }, (_, i) => (
-          <i key={i} data-on={i < on || undefined} />
-        ))}
-      </span>
-      <span aria-hidden="true">{`${at} of ${of}`}</span>
-    </span>
-  );
-}
-
-/** NowBlock is one Now item: its title, its step bar and one muted line of times. Each parallel item has its own (owner msg 659). */
-function NowBlock({ item, now }: { item: NonNullable<Plan["now"]>[number]; now: number }) {
-  const late = Boolean(item.eta && now >= item.eta);
-  const meta = [item.since ? `Started ${when(item.since, now)}` : "", item.eta && !late ? `ready ~${when(item.eta, now)}` : ""].filter(Boolean).join(" · ");
-  return (
-    <div className="pnow">
-      <p className="plbl">Now</p>
-      <p className="pwhat">{item.text}</p>
-      {item.step ? <StepBar at={item.step.at} of={item.step.of} /> : null}
-      {late ? <p className="pwhen amber">{`Was due ${when(item.eta!, now)} · ${span(now - item.eta!)} late`}</p> : meta ? <p className="pwhen">{meta}</p> : null}
-    </div>
   );
 }
 
