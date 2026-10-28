@@ -591,9 +591,9 @@ scenario("The account menu lists Passkeys, Recovery codes and Sign out", { tag: 
   const menu = page.getByRole("menu");
   await expect(menu.getByRole("menuitem")).toHaveText(["Passkeys", "Recovery codes", "Sign out"]);
 
-  // And the bottom nav shows "Now", "Conversations", "Deliveries" and "Crew"
+  // And the bottom nav shows "Now", "Conversations", "Work" and "Crew"
   const nav = page.getByRole("navigation", { name: "Main" });
-  await expect(nav.getByRole("link")).toHaveText(["Now", "Conversations", "Deliveries", "Crew"]);
+  await expect(nav.getByRole("link")).toHaveText(["Now", "Conversations", "Work", "Crew"]);
 });
 
 scenario("Sign out from the account menu ends the session", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {

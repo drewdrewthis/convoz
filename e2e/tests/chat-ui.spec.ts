@@ -117,9 +117,9 @@ scenario("On a phone the bottom bar leads to Now, Conversations and Crew", { tag
   const u = await uiWorld({ server, page, context });
   await page.goto(`${u.w.srv.origin}/`);
 
-  // Then a bottom bar shows "Now", "Conversations", "Deliveries" and "Crew"
+  // Then a bottom bar shows "Now", "Conversations", "Work" and "Crew"
   const nav = mainNav(page);
-  await expect(nav.getByRole("link")).toHaveText(["Now", "Conversations", "Deliveries", "Crew"]);
+  await expect(nav.getByRole("link")).toHaveText(["Now", "Conversations", "Work", "Crew"]);
   await expect(nav.getByRole("link", { name: "Now" })).toHaveAttribute("aria-current", "page");
   const bar = await box(nav);
   expect(bar.y + bar.height).toBeGreaterThanOrEqual(VIEW.height - 12.5); // the bar floats 12 px above the edge
