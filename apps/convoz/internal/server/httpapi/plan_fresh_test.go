@@ -28,6 +28,7 @@ type freshRig struct {
 	conv  int64
 	agent *call
 	n     int
+	owner int64
 }
 
 func newFreshRig(t *testing.T) *freshRig {
@@ -39,6 +40,7 @@ func newFreshRig(t *testing.T) *freshRig {
 		t.Fatal(err)
 	}
 	r := &freshRig{s: NewServer(store, clock, nil, nil, Config{}, log.New(io.Discard, "", 0)), clock: clock}
+	r.owner = boot.Owner.ID
 	owner := strconv.FormatInt(boot.Owner.ID, 10)
 	dbtest.Exec(t, store,
 		`INSERT INTO identities (id, kind, handle, display_name, display_skeleton, avatar_letter, avatar_palette, created_at) VALUES (901,'agent','alpha','Alpha','alpha','A',0,1)`,
@@ -81,6 +83,12 @@ func (r *freshRig) posts(t *testing.T, n int) {
 	}
 }
 
+// ownerSays has the owner write in the conversation now: the work there is for him.
+func (r *freshRig) ownerSays(t *testing.T) {
+	t.Helper()
+	dbtest.Exec(t, r.s.Store, `INSERT INTO messages (conversation_id, author_id, kind, body, created_at) VALUES (`+strconv.FormatInt(r.conv, 10)+`,`+strconv.FormatInt(r.owner, 10)+`,'text','please',`+strconv.FormatInt(r.clock.Now().UnixMilli(), 10)+`)`)
+}
+
 // setPlan replaces the agent's plan at the clock's now.
 func (r *freshRig) setPlan(t *testing.T, in plan.Input) {
 	t.Helper()
@@ -117,12 +125,12 @@ func TestAnAgentThatKeepsPostingWithAPlanBehindIsAskedOnceAnHour(t *testing.T) {
 	r := newFreshRig(t)
 	r.setPlan(t, plan.Input{Now: []plan.Item{{Text: "Building invites"}}, Waiting: []string{"Approve the deploy"}})
 
-	r.clock.add(10 * time.Minute)
+	r.clock.add(5 * time.Minute)
 	r.posts(t, 3)
 	if n := r.asks(t); n != 0 {
 		t.Fatalf("a plan 10 minutes old: %d asks, want 0", n)
 	}
-	r.clock.add(21 * time.Minute) // 31 minutes after the update; the three posts above count
+	r.clock.add(26 * time.Minute) // 31 minutes after the update (5, 3 posts of 10 s, 26); the three posts above count
 	r.posts(t, 1)
 	if n := r.asks(t); n != 1 {
 		t.Fatalf("posting with a plan 31 minutes old: %d asks, want 1", n)
@@ -148,6 +156,7 @@ func TestAnAgentThatKeepsPostingWithAPlanBehindIsAskedOnceAnHour(t *testing.T) {
 // are not behind (CI run 40622514604: a third answer must not start a fourth turn of `convoz run`, nor a second ack in the audit).
 func TestAnAgentWithNoPlanIsAskedOnceItHasWorkedThereHalfAnHour(t *testing.T) {
 	r := newFreshRig(t)
+	r.ownerSays(t)
 	r.posts(t, 3)
 	if n := r.asks(t); n != 0 {
 		t.Fatalf("three quick posts with no plan: %d asks, want 0", n)
@@ -160,6 +169,80 @@ func TestAnAgentWithNoPlanIsAskedOnceItHasWorkedThereHalfAnHour(t *testing.T) {
 	got := statusDueBody(41, plan.Plan{}, plan.ErrNotFound, askedByStep, r.clock.Now().UnixMilli())
 	if !strings.Contains(got, "You have no plan in conversation 41.") || !strings.Contains(got, "convoz plan 41 --doing") {
 		t.Errorf("the ask with no plan: %q", got)
+	}
+}
+
+// A feed no person wrote in (PR events, a board) is not work for anyone: its agent is never asked for a plan there, however many
+// one-line posts it makes. A plan that exists and is late is asked about all the same, and a person writing there turns the ask on.
+func TestAnAgentInAFeedNoOneWroteInIsNotAskedForAPlan(t *testing.T) {
+	r := newFreshRig(t)
+	r.posts(t, 3)
+	r.clock.add(31 * time.Minute)
+	r.posts(t, 3)
+	if n := r.asks(t); n != 0 {
+		t.Fatalf("a feed with no person's message: %d asks, want 0", n)
+	}
+	r.ownerSays(t)
+	r.posts(t, 1)
+	if n := r.asks(t); n != 1 {
+		t.Fatalf("a person wrote there and the agent keeps posting: %d asks, want 1", n)
+	}
+}
+
+// With no plan, replies in threads are not work: an agent that only answers in threads (a PR-events feed, a busy chat it answers in)
+// is never asked for a first plan, however many replies and however long it goes on. Its top-level posts still count.
+func TestAThreadReplyIsNotWorkThatAsksForAPlan(t *testing.T) {
+	r := newFreshRig(t)
+	r.ownerSays(t)
+	rig := &streamRig{s: r.s, conv: r.conv}
+	code, root := rig.postAs(t, r.agent, `{"client_id":"fresh-root","body":"PR 1 opened","needs_you":false}`)
+	if code != http.StatusCreated {
+		t.Fatalf("root: %d %v", code, root)
+	}
+	rootID := strconv.FormatInt(int64(root["id"].(float64)), 10)
+	for i := range 6 {
+		if code, body := rig.postAs(t, r.agent, `{"client_id":"fresh-reply-`+strconv.Itoa(i)+`","body":"merged","thread_root_id":`+rootID+`}`); code != http.StatusCreated {
+			t.Fatalf("reply %d: %d %v", i, code, body)
+		}
+		r.clock.add(5 * time.Minute)
+	}
+	r.posts(t, 1) // a second top-level post, half an hour in
+	if n := r.asks(t); n != 0 {
+		t.Fatalf("one root, six thread replies and one more top-level post over half an hour: %d asks, want 0", n)
+	}
+	r.posts(t, 1) // the third top-level post: now the agent is at work, and has had no plan for over half an hour
+	if n := r.asks(t); n != 1 {
+		t.Fatalf("three top-level posts over half an hour with no plan: %d asks, want 1", n)
+	}
+}
+
+// With a plan that is late, thread replies count like any post: an agent that works only in threads is asked all the same.
+func TestAnAgentWithALatePlanThatOnlyRepliesInThreadsIsStillAsked(t *testing.T) {
+	r := newFreshRig(t)
+	r.setPlan(t, plan.Input{Now: []plan.Item{{Text: "Building invites"}}})
+	r.ownerSays(t)
+	var root int64
+	r.tx(t, func(ctx context.Context, d pdb.DBTX) error {
+		return d.QueryRowContext(ctx, `SELECT max(id) FROM messages WHERE conversation_id = ?`, r.conv).Scan(&root)
+	})
+	rig := &streamRig{s: r.s, conv: r.conv}
+	reply := func(i int) {
+		t.Helper()
+		if code, body := rig.postAs(t, r.agent, `{"client_id":"late-reply-`+strconv.Itoa(i)+`","body":"merged","thread_root_id":`+strconv.FormatInt(root, 10)+`}`); code != http.StatusCreated {
+			t.Fatalf("reply %d: %d %v", i, code, body)
+		}
+	}
+	for i := range 3 {
+		r.clock.add(10 * time.Second) // after the plan's update, as the posts of the rig are
+		reply(i)
+	}
+	if n := r.asks(t); n != 0 {
+		t.Fatalf("a plan a few seconds old: %d asks, want 0", n)
+	}
+	r.clock.add(31 * time.Minute)
+	reply(3)
+	if n := r.asks(t); n != 1 {
+		t.Fatalf("thread replies only, with a plan 31 minutes old: %d asks, want 1", n)
 	}
 }
 

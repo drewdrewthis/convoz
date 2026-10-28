@@ -1,4 +1,4 @@
-import { inboxItems, convoz, ownerSays, messagesOf, agentSays } from "../lib/chat.ts";
+import { inboxItems, convoz, ownerSays, messagesOf, agentSays, agentPost } from "../lib/chat.ts";
 import { send } from "../lib/http.ts";
 import { bearer, stepped } from "../lib/machines.ts";
 import { board, mustPlan, putPlan, planWorld, type Board, type PlanWorld } from "../lib/plan.ts";
@@ -148,6 +148,8 @@ scenario("An agent that keeps posting with a plan 30 minutes old is asked once a
 
 scenario("An agent with no plan is asked once it has worked in the conversation for 30 minutes", { tag: ["@api"] }, async ({ server, testApi }) => {
   const p = await planWorld(server, { docsIn: false });
+  // Given the owner wrote in the conversation (the work there is for him)
+  await ownerSays(p.w.owner, p.conv, "Please build the invites");
   // When "devtool" posts 3 messages where it has no plan, then no status_due item
   await posts(p, 3);
   expect(await asks(p)).toEqual([]);
@@ -157,6 +159,28 @@ scenario("An agent with no plan is asked once it has worked in the conversation 
   const due = await asks(p);
   expect(due).toHaveLength(1);
   expect(due[0]).toContain(`You have no plan in conversation ${p.conv}.`);
+});
+
+scenario("An agent with no plan is not asked in a conversation the owner did not write in", { tag: ["@api"] }, async ({ server, testApi }) => {
+  const p = await planWorld(server, { docsIn: false });
+  // When "devtool" posts 3 messages, 31 minutes pass and it posts 3 more, with no message from the owner, then no status_due item
+  await posts(p, 3);
+  await testApi(p.w.srv).advanceClock(31 * MIN);
+  await posts(p, 3);
+  expect(await asks(p)).toEqual([]);
+});
+
+scenario("An agent with a late plan that only replies in threads is still asked", { tag: ["@api"] }, async ({ server, testApi }) => {
+  const p = await planWorld(server, { docsIn: false });
+  // Given "devtool" has a plan in conversation 41 that is 31 minutes old
+  must(await putPlan(p.w.srv, p.dev.lease, p.conv, { doing: "Building invites" }), "plan");
+  const root = await ownerSays(p.w.owner, p.conv, "Please build the invites");
+  await testApi(p.w.srv).advanceClock(31 * MIN);
+  // When "devtool" posts 4 replies in threads of conversation 41
+  for (let i = 0; i < 4; i++) must(await agentPost(p.w.srv, p.dev.lease, p.conv, `merged ${i + 1}`, { thread_root_id: root }), "thread reply", 201);
+  // Then "devtool" gets one "status_due" item that tells it to update its plan
+  const due = await asks(p);
+  expect(due).toHaveLength(1);
 });
 
 scenario("A plan with a delivery and no update for a day is asked about once a day", { tag: ["@api"] }, async ({ server, testApi }) => {

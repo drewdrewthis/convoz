@@ -541,16 +541,38 @@ func (q *Queries) PageNewest(ctx context.Context, arg PageNewestParams) ([]Messa
 	return items, nil
 }
 
+const postedSince = `-- name: PostedSince :one
+SELECT EXISTS (
+  SELECT 1 FROM messages
+  WHERE conversation_id = ?1 AND author_id = ?2 AND kind IN ('text','ask') AND deleted_at IS NULL AND created_at > ?3
+) AS posted
+`
+
+type PostedSinceParams struct {
+	ConversationID int64
+	AuthorID       sql.NullInt64
+	After          int64
+}
+
+// Whether the author wrote a text or ask in the conversation, not deleted, after the time (epoch ms).
+func (q *Queries) PostedSince(ctx context.Context, arg PostedSinceParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, postedSince, arg.ConversationID, arg.AuthorID, arg.After)
+	var posted bool
+	err := row.Scan(&posted)
+	return posted, err
+}
+
 const recentPosts = `-- name: RecentPosts :one
 SELECT COUNT(*) AS posts, CAST(COALESCE(MIN(created_at), 0) AS INTEGER) AS first_at
-FROM (SELECT conversation_id, kind, deleted_at, created_at FROM messages WHERE author_id = ?1 ORDER BY id DESC LIMIT 100)
-WHERE conversation_id = ?2 AND created_at > ?3 AND kind IN ('text','ask') AND deleted_at IS NULL
+FROM (SELECT conversation_id, kind, deleted_at, created_at, thread_root_id FROM messages WHERE author_id = ?1 ORDER BY id DESC LIMIT 100)
+WHERE conversation_id = ?2 AND created_at > ?3 AND kind IN ('text','ask') AND deleted_at IS NULL AND (thread_root_id IS NULL OR CAST(?4 AS INTEGER) = 0)
 `
 
 type RecentPostsParams struct {
 	AuthorID       sql.NullInt64
 	ConversationID int64
 	After          int64
+	TopLevelOnly   int64
 }
 
 type RecentPostsRow struct {
@@ -558,11 +580,16 @@ type RecentPostsRow struct {
 	FirstAt int64
 }
 
-// The texts and asks among the author's newest 100 messages that are in the conversation, not deleted, written after the time: how
+// The texts and asks (thread replies too, unless top_level_only) among the author's newest 100 messages that are in the conversation, not deleted, written after the time: how
 // many, and when the first was written (0 for none). Whether an agent is at work there, and since when. The newest 100 bound the scan
 // of an author with a long history.
 func (q *Queries) RecentPosts(ctx context.Context, arg RecentPostsParams) (RecentPostsRow, error) {
-	row := q.db.QueryRowContext(ctx, recentPosts, arg.AuthorID, arg.ConversationID, arg.After)
+	row := q.db.QueryRowContext(ctx, recentPosts,
+		arg.AuthorID,
+		arg.ConversationID,
+		arg.After,
+		arg.TopLevelOnly,
+	)
 	var i RecentPostsRow
 	err := row.Scan(&i.Posts, &i.FirstAt)
 	return i, err
