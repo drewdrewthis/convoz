@@ -151,6 +151,9 @@ func Withdraw(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, id, agent
 	if a.AskerID != agent {
 		return Ask{}, ErrNotAsker
 	}
+	if a.State == Closed && a.CloseReason == ReasonWithdrawn {
+		return a, nil // taken back already, as this call wants: a retry after a lost answer is not an error
+	}
 	if a.State != Open && a.State != Dismissed {
 		return Ask{}, conflict(a)
 	}

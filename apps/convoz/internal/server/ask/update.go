@@ -42,6 +42,9 @@ func Update(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, in Updating
 	if a.State != Open {
 		return Ask{}, conflict(a)
 	}
+	if replayed(a, in) {
+		return a, nil // the update that was just made, sent again after a lost answer: nothing changes and the version stays
+	}
 	next, changed, err := apply(a, in)
 	if err != nil {
 		return Ask{}, err
@@ -87,6 +90,19 @@ func Update(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, in Updating
 		return Ask{}, err
 	}
 	return Get(ctx, d, a.ID)
+}
+
+// replayed is true when in is the update the ask just had: its last step is an update by the same agent, the owner has not written since
+// (an update clears the owner's reply), nothing it gives differs from the ask, and its answers are the ones the ask holds. Sent
+// again it would bump the version a second time for no change.
+func replayed(a Ask, in Updating) bool {
+	if n := len(a.History); n == 0 || a.History[n-1].Event != "updated" || a.History[n-1].By != in.By || a.OwnerRepliedAt > 0 {
+		return false
+	}
+	probe := in
+	probe.Answers = "-" // so apply never refuses it for having nothing to change; what it reports is the content that differs
+	_, changed, err := apply(a, probe)
+	return err == nil && len(changed) == 1 && changed[0] == "answers" && strings.TrimSpace(in.Answers) == strings.TrimSpace(a.Answers)
 }
 
 // apply checks an update against the ask and returns the ask as it will stand, and what changed ("question", "options", "owner's call",

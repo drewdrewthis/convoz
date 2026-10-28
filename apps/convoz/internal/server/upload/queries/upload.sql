@@ -1,8 +1,12 @@
 -- name: InsertUpload :one
-INSERT INTO uploads (public_id, uploader_id, session_id, conversation_id, kind, declared_size, declared_sha256, filename, storage_name, dek_id, file_key_wrapped, created_at)
+INSERT INTO uploads (public_id, uploader_id, session_id, conversation_id, kind, declared_size, declared_sha256, filename, storage_name, dek_id, file_key_wrapped, created_at, client_id)
 VALUES (sqlc.arg(public_id), sqlc.arg(uploader_id), sqlc.narg(session_id), sqlc.arg(conversation_id), sqlc.arg(kind), sqlc.arg(declared_size), sqlc.arg(declared_sha256),
-        sqlc.arg(filename), sqlc.arg(storage_name), sqlc.arg(dek_id), sqlc.arg(file_key_wrapped), sqlc.arg(created_at))
+        sqlc.arg(filename), sqlc.arg(storage_name), sqlc.arg(dek_id), sqlc.arg(file_key_wrapped), sqlc.arg(created_at), sqlc.narg(client_id))
 RETURNING id;
+
+-- name: UploadOfClientID :one
+-- The upload an identity started under a client id, for the retry of a start whose answer was lost: its id, conversation, kind and file name.
+SELECT id, conversation_id, kind, filename FROM uploads WHERE uploader_id = sqlc.arg(uploader_id) AND client_id = sqlc.arg(client_id);
 
 -- name: GetUploadByPublicID :one
 SELECT id, public_id, uploader_id, session_id, conversation_id, message_id, kind, state, declared_size, committed_bytes, declared_sha256, mime_sniffed, serve_inline,
