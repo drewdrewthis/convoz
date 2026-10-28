@@ -86,3 +86,10 @@ SELECT identity_id FROM mentions WHERE message_id = sqlc.arg(message_id) ORDER B
 SELECT COUNT(*) AS posts, CAST(COALESCE(MIN(created_at), 0) AS INTEGER) AS first_at
 FROM (SELECT conversation_id, kind, deleted_at, created_at, thread_root_id FROM messages WHERE author_id = sqlc.arg(author_id) ORDER BY id DESC LIMIT 100)
 WHERE conversation_id = sqlc.arg(conversation_id) AND created_at > sqlc.arg(after) AND kind IN ('text','ask') AND deleted_at IS NULL AND thread_root_id IS NULL;
+
+-- name: HumanPostedSince :one
+-- Whether a person (not an agent) wrote a text or ask in the conversation, not deleted, after the time (epoch ms): the work there is for him.
+SELECT EXISTS (
+  SELECT 1 FROM messages m JOIN identities i ON i.id = m.author_id
+  WHERE m.conversation_id = sqlc.arg(conversation_id) AND i.kind = 'human' AND m.kind IN ('text','ask') AND m.deleted_at IS NULL AND m.created_at > sqlc.arg(after)
+) AS posted;

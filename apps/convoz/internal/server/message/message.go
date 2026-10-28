@@ -299,6 +299,12 @@ func RecentPosts(ctx context.Context, d pdb.DBTX, author, conv, after int64) (n 
 	return int(r.Posts), r.FirstAt, err
 }
 
+// HumanPostedSince reports whether a person wrote a text or ask in the conversation after the time (epoch ms).
+func HumanPostedSince(ctx context.Context, d pdb.DBTX, conv, after int64) (bool, error) {
+	n, err := db.New(d).HumanPostedSince(ctx, db.HumanPostedSinceParams{ConversationID: conv, After: after})
+	return n, err
+}
+
 // ThreadAuthors lists the identity ids that wrote a text or ask message in the thread of root (the root too).
 func ThreadAuthors(ctx context.Context, d pdb.DBTX, root int64) ([]int64, error) {
 	rows, err := db.New(d).ThreadAuthors(ctx, nullInt(root))

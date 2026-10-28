@@ -147,6 +147,26 @@ func (q *Queries) GetMessage(ctx context.Context, id int64) (MessageRow, error) 
 	return i, err
 }
 
+const humanPostedSince = `-- name: HumanPostedSince :one
+SELECT EXISTS (
+  SELECT 1 FROM messages m JOIN identities i ON i.id = m.author_id
+  WHERE m.conversation_id = ?1 AND i.kind = 'human' AND m.kind IN ('text','ask') AND m.deleted_at IS NULL AND m.created_at > ?2
+) AS posted
+`
+
+type HumanPostedSinceParams struct {
+	ConversationID int64
+	After          int64
+}
+
+// Whether a person (not an agent) wrote a text or ask in the conversation, not deleted, after the time (epoch ms): the work there is for him.
+func (q *Queries) HumanPostedSince(ctx context.Context, arg HumanPostedSinceParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, humanPostedSince, arg.ConversationID, arg.After)
+	var posted bool
+	err := row.Scan(&posted)
+	return posted, err
+}
+
 const insertEdit = `-- name: InsertEdit :exec
 INSERT INTO message_edits (message_id, prev_body, prev_format, edited_by, edited_at)
 VALUES (?1, ?2, ?3, ?4, ?5)
