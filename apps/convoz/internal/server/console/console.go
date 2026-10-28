@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"net/http"
 	"path"
+	"regexp"
 	"strings"
 	"sync/atomic"
 )
@@ -118,7 +119,20 @@ var hashedTypes = map[string]string{
 	".png":   "image/png",
 }
 
-// Asset serves web/assets/<file>, a content-hashed build file: it never changes under its name, so it is cached for a year.
+// viteHash is the content hash Vite puts before the extension of a built file: "-" and 8 characters (main-DwQgiNMS.js).
+var viteHash = regexp.MustCompile(`-[A-Za-z0-9_-]{8}\.[A-Za-z0-9]+$`)
+
+// assetCacheControl is the Cache-Control of one file of assets/ (name may hold folders): a year for a name with a Vite hash, which a
+// new build changes; revalidation for a name without one (the manifest names the icons, the stylesheet names the grain).
+func assetCacheControl(name string) string {
+	if viteHash.MatchString(path.Base(name)) {
+		return "public, max-age=31536000, immutable"
+	}
+	return "no-cache"
+}
+
+// Asset serves web/assets/<file>. A content-hashed build file never changes under its name, so it is cached for a year; a file of
+// public/ (grain, icons) keeps its name from build to build, so it is revalidated (assetCacheControl).
 // When the client takes brotli (`br`, decided by the caller) and the build compressed the file ahead (<file>.br, at the
 // highest quality, design §12.3), that copy goes out as it is: on a slow link the first load is bound by these bytes.
 func Asset(w http.ResponseWriter, r *http.Request, br bool) {
@@ -134,7 +148,7 @@ func Asset(w http.ResponseWriter, r *http.Request, br bool) {
 		if br {
 			h.Set("Content-Type", contentType)
 			h.Set("Content-Encoding", "br")
-			h.Set("Cache-Control", "public, max-age=31536000, immutable")
+			h.Set("Cache-Control", assetCacheControl(name))
 			_, _ = w.Write(packed)
 			return
 		}
@@ -145,6 +159,6 @@ func Asset(w http.ResponseWriter, r *http.Request, br bool) {
 		return
 	}
 	h.Set("Content-Type", contentType)
-	h.Set("Cache-Control", "public, max-age=31536000, immutable")
+	h.Set("Cache-Control", assetCacheControl(name))
 	_, _ = w.Write(body)
 }

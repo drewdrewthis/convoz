@@ -98,11 +98,12 @@ func openDev(root *os.Root, name string) (io.ReadSeekCloser, error) {
 	return f, nil
 }
 
-// devCacheControl is the Cache-Control of one served name: a year for a hashed file under assets/ (a new build has new names), none
+// devCacheControl is the Cache-Control of one served name: a year for a hashed file under assets/ (a new build has new names),
+// revalidation for an unhashed one there (assetCacheControl), none
 // for the page, the manifest and anything else, whose names stay the same from build to build.
 func devCacheControl(name string) string {
 	if strings.HasPrefix(name, "assets/") {
-		return "public, max-age=31536000, immutable"
+		return assetCacheControl(name)
 	}
 	return "no-store"
 }

@@ -340,3 +340,30 @@ func TestPolicyNamesGoogleOnlyWhileVoiceIsOn(t *testing.T) {
 		t.Errorf("voice changes more than connect-src: %s", policy())
 	}
 }
+
+// Files of public/ keep their names (the manifest names the icons), so a new build can change them under the same name: only a name
+// with a Vite content hash is cached for good.
+func TestOnlyAHashedAssetIsCachedForAYear(t *testing.T) {
+	names, err := fs.Glob(dist, "web/assets/main-*.css")
+	if err != nil || len(names) == 0 {
+		t.Skip("no web build embedded")
+	}
+	get := func(name string) string {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/assets/"+name, nil)
+		req.SetPathValue("file", name)
+		Asset(rec, req, false)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("/assets/%s: %d", name, rec.Code)
+		}
+		return rec.Header().Get("Cache-Control")
+	}
+	if got := get(strings.TrimPrefix(names[0], "web/assets/")); !strings.Contains(got, "immutable") {
+		t.Errorf("hashed file: Cache-Control %q, want immutable", got)
+	}
+	for _, name := range []string{"grain-dark.svg", "icon-192.png"} {
+		if got := get(name); strings.Contains(got, "immutable") || got != "no-cache" {
+			t.Errorf("%s: Cache-Control %q, want no-cache", name, got)
+		}
+	}
+}
