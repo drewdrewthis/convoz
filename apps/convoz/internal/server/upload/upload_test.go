@@ -183,6 +183,8 @@ func TestAnUploadStartedAgainUnderTheSameClientIDIsTheSameUpload(t *testing.T) {
 	b, _ := start(1, 41, "a.bin", "")
 	if a.PublicID == b.PublicID {
 		t.Error("two starts with no client id must stay two uploads")
+	}
+}
 
 // Files dropped together keep the order they were sent in, whichever finished its upload first (and so has the lower id).
 func TestFilesOfOneMessageKeepTheOrderTheyWereBoundIn(t *testing.T) {
