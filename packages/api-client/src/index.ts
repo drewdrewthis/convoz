@@ -2,7 +2,7 @@
 export * from "./types.ts";
 export { createConvozClient, type ConvozClient } from "./client.ts";
 export { clientIdHeaders, randomId, tabIdFrom } from "./clientIds.ts";
-export { coalesce } from "./coalesce.ts";
+export { coalesce, coalescePer, debouncePer } from "./coalesce.ts";
 export type { DataSource, MessagePage } from "./source.ts";
 export { openLink, backoff, type Link, type LinkHandlers, type Place } from "./sync/link.ts";
 export { formatCursor, parseCursor, type Cursor } from "./sync/cursor.ts";

@@ -545,3 +545,13 @@ Feature: Asks and their state machine
       Then the card shows "You said Go" and hides the risk, the undo and the considered ways
       When the owner taps "Details"
       Then the risk, the undo and the considered ways show
+
+  Rule: A burst of lines the conversation says about itself reads the conversation again once, not once per line
+
+    @v1 @browser
+    Scenario: Ten system lines in one tick read a conversation at most twice
+      Given "devtool" asked in conversation 41 and the owner has the ask card open
+      When ten system lines arrive in conversation 41 in one tick
+      Then the page reads conversation 41, its messages and its plans at most twice each
+      And one resume of the app makes the same reads at most twice each
+      And lines that only quote a plan change make it read no messages

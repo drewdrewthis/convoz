@@ -1,6 +1,6 @@
 // The app's one shared data cache and sync engine (packages/api-client), over the network and the offline cache. Features read server data
 // with useData and keep their UI state in their own store (features/<f>/store.ts).
-import { createDataCache, createSync, cursorStore, idbOutbox, startOfflineCache, type DataCache, type DataSource, type DataState } from "@convoz/api-client";
+import { createDataCache, createSync, cursorStore, idbOutbox, startOfflineCache, type DataCache, type DataSource, type MessagePage, type DataState } from "@convoz/api-client";
 import { useEffect, useRef } from "react";
 import { useStore } from "zustand";
 import { ApiError, call, client, isRevoking } from "./api.ts";
@@ -8,6 +8,18 @@ import { onResume } from "./chat.ts";
 import { unreachable } from "./connection.ts";
 import { offline } from "./offline.ts";
 import { afterFirstScreen } from "./perf.ts";
+
+const messageReads = new Map<string, Promise<MessagePage>>();
+/** The same page asked twice while the first is on its way is one request (a burst of frames asks for the same newest page). */
+function sharedRead(id: number, page: Parameters<DataSource["messages"]>[1], read: (page: Parameters<DataSource["messages"]>[1]) => Promise<MessagePage>): Promise<MessagePage> {
+  const key = JSON.stringify([id, page.before, page.after, page.limit]);
+  let held = messageReads.get(key);
+  if (!held) {
+    held = read(page).finally(() => messageReads.delete(key));
+    messageReads.set(key, held);
+  }
+  return held;
+}
 
 /** network reads and writes through the generated API client. */
 export const source: DataSource = {
@@ -17,8 +29,9 @@ export const source: DataSource = {
   conversation: async (id) => (await call(client.GET("/api/conversations/{id}", { params: { path: { id } } }))).conversation,
   createConversation: async (clientId, participants) =>
     (await call(client.POST("/api/conversations", { body: { client_id: clientId, participants } }))).conversation,
-  messages: (id, { before, after, limit }) =>
+  messages: (id, page) => sharedRead(id, page, ({ before, after, limit }) =>
     call(client.GET("/api/conversations/{id}/messages", { params: { path: { id }, query: { before, after, limit } } })),
+  ),
   post: (id, clientId, body, uploadIds) =>
     call(client.POST("/api/conversations/{id}/messages", { params: { path: { id } }, body: { client_id: clientId, body, upload_ids: uploadIds?.length ? uploadIds : undefined } })),
   markRead: async (id, mainId, keepalive = false) => {
