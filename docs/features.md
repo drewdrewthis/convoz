@@ -21,6 +21,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Day labels](#day-labels) (4)
 - [Deliveries: what each agent will deliver, and when](#deliveries-what-each-agent-will-deliver-and-when) (10)
 - [Errors in the web app reach the server log](#errors-in-the-web-app-reach-the-server-log) (3)
+- [Feed items: one step of an agent's work, from start to done](#feed-items-one-step-of-an-agents-work-from-start-to-done) (1)
 - [Machine login with a device flow](#machine-login-with-a-device-flow) (23)
 - [Messages and their types](#messages-and-their-types) (14)
 - [Notifications](#notifications) (21)
@@ -588,6 +589,14 @@ I can find and fix it with journalctl, with no third party watching.
 - [An uncaught error in the web app reaches the server log](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/client-errors.feature#L15)
 - [A crash shows a reload message instead of a blank page](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/client-errors.feature#L22)
 - [An error in the service worker reaches the server log](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/client-errors.feature#L30)
+
+## Feed items: one step of an agent's work, from start to done
+
+I see what is going on and answer in one tap.
+1 scenarios.
+
+- **An agent moves its steps one call at a time; the first is now and the rest wait**
+  - [The next step starts by itself when the one now is done](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/feed-items.feature#L18)
 
 ## Machine login with a device flow
 

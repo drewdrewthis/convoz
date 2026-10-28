@@ -1,0 +1,129 @@
+# Paths of the item module (specs/contracts/feed-items.feature). Only the work package that owns items edits this file.
+/api/conversations/{id}/items/{key}/{event}:
+  post:
+    x-authz: { auth: lease, scope: status }
+    security: [{ leaseBearer: [] }]
+    operationId: postItem
+    summary: An agent moves one of its own steps; one call per transition.
+    description: |
+      The agent comes from the lease, never the body, so it reaches only its own items. `event` is start, block, done, fyi, drop or say.
+      The first step of an agent in a conversation is now; later ones are pending, and when the now step leaves (done, fyi, drop) the next one
+      is promoted in the same transaction. Saying start or block again for a key edits the step; block always raises the version. A move the
+      state does not allow is 409 and changes nothing. Title, context and recommendation are plain text (no markdown, no links): title 1 to 200
+      characters, context 2000, recommendation 500, key 1 to 64; anything else is 400. There is no cap on open items.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+      - { name: key, in: path, required: true, schema: { type: string } }
+      - { name: event, in: path, required: true, schema: { type: string, enum: [start, block, done, fyi, drop, say] } }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "../openapi.yaml#/components/schemas/ItemRequest" }
+    responses:
+      "200":
+        description: The item as it now is.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/FeedItem" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/feed:
+  get:
+    x-authz: { auth: owner, lease: refuse }
+    operationId: getFeed
+    summary: The owner's feed items.
+    description: Owner only. Open items in plan order, then the last 20 finished ones.
+    responses:
+      "200":
+        description: The feed.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/FeedResponse" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/feed/{id}/accept:
+  post:
+    x-authz: { auth: owner, lease: refuse }
+    operationId: feedAccept
+    summary: Accept what the item recommends; it is done at once.
+    description: Owner only; an agent lease is refused. 404 for an unknown item, 409 for a state or version that does not allow it.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "../openapi.yaml#/components/schemas/FeedAcceptRequest" }
+    responses:
+      "200":
+        description: The item as it now is.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/FeedItem" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/feed/{id}/answer:
+  post:
+    x-authz: { auth: owner, lease: refuse }
+    operationId: feedAnswer
+    summary: Add info to a blocking item; with resolves it is done.
+    description: Owner only; an agent lease is refused. 404 for an unknown item, 409 for a state or version that does not allow it.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "../openapi.yaml#/components/schemas/FeedAnswerRequest" }
+    responses:
+      "200":
+        description: The item as it now is.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/FeedItem" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/feed/{id}/ack:
+  post:
+    x-authz: { auth: owner, lease: refuse }
+    operationId: feedAck
+    summary: "Got it, acknowledge an fyi. The state stays; the feed hides it."
+    description: Owner only; an agent lease is refused. 404 for an unknown item, 409 for a state or version that does not allow it.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    responses:
+      "200":
+        description: The item as it now is.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/FeedItem" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/feed/{id}/snooze:
+  put:
+    x-authz: { auth: owner, lease: refuse }
+    operationId: feedSnooze
+    summary: Hide an item until a time ahead.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "../openapi.yaml#/components/schemas/FeedSnoozeRequest" }
+    responses:
+      "200":
+        description: The item as it now is.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/FeedItem" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+  delete:
+    x-authz: { auth: owner, lease: refuse }
+    operationId: feedUnsnooze
+    summary: Bring a snoozed item back.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    responses:
+      "200":
+        description: The item as it now is.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/FeedItem" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }

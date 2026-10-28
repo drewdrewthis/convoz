@@ -1,0 +1,57 @@
+# Components of the item module (specs/contracts/feed-items.feature).
+ItemRequest:
+  type: object
+  additionalProperties: false
+  properties:
+    title: { type: string, description: Plain text, 1 to 200 characters (start and block). }
+    context: { type: string, description: Plain text, up to 2000 characters. }
+    recommend: { type: string, description: "Plain text, up to 500 characters: the one action the owner can accept. Without it the owner can only add info." }
+    outcome: { type: string, description: The note of done, fyi and say. Plain text, up to 2000 characters. }
+    due: { type: string, description: "A duration (2d, 1d4h, 30m), a time HH:MM or a date YYYY-MM-DD HH:MM; display only." }
+    utc_offset: { type: integer, description: Seconds east of UTC, for due. }
+FeedItem:
+  type: object
+  required: [id, conversation_id, agent_id, key, seq, state, title, can_accept, version, updated_at]
+  properties:
+    id: { type: integer, format: int64 }
+    conversation_id: { type: integer, format: int64 }
+    agent_id: { type: integer, format: int64 }
+    handle: { type: string }
+    key: { type: string }
+    seq: { type: integer, format: int64, description: Order inside the plan of one agent in one conversation. }
+    state: { type: string, enum: [pending, started, blocking, done, fyi, dropped] }
+    title: { type: string }
+    context: { type: string }
+    recommendation: { type: string }
+    can_accept: { type: boolean, description: False for a blocking item with no recommendation; it takes info only. }
+    due_at: { type: integer, format: int64 }
+    acked_at: { type: integer, format: int64 }
+    ack_kind: { type: string, enum: [accept, answer, got_it] }
+    snoozed_until: { type: integer, format: int64 }
+    version: { type: integer, format: int64, description: Every edit by the agent raises it; Accept names the one it saw. }
+    updated_at: { type: integer, format: int64 }
+FeedResponse:
+  type: object
+  required: [items, done]
+  properties:
+    items: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/FeedItem" }, description: Open items in plan order per conversation and agent; an fyi the owner has not acknowledged. }
+    done: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/FeedItem" }, description: The last 20 finished items. }
+FeedAcceptRequest:
+  type: object
+  additionalProperties: false
+  required: [if_version]
+  properties:
+    if_version: { type: integer, format: int64 }
+FeedAnswerRequest:
+  type: object
+  additionalProperties: false
+  required: [text]
+  properties:
+    text: { type: string }
+    resolves: { type: boolean, description: This answers it; the item is done. }
+FeedSnoozeRequest:
+  type: object
+  additionalProperties: false
+  required: [until]
+  properties:
+    until: { type: integer, format: int64, description: Epoch ms, ahead of now. }

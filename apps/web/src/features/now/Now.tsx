@@ -7,6 +7,7 @@ import { markUseful } from "../../shared/perf.ts";
 import { data, useData, useLive } from "../../shared/data.ts";
 import { agentRequests, RequestCard } from "./requests.tsx";
 import { AllClear, NoDecisions } from "./AllClear.tsx";
+import { FeedItems } from "./FeedItems.tsx";
 import { Folds, type FoldKey } from "./Folds.tsx";
 import { NowAsk } from "./NowAsk.tsx";
 import { NowReplied } from "./NowReplied.tsx";
@@ -142,6 +143,7 @@ export function Now({ compact = false, current = 0 }: NowProps = {}) {
         centered={clear}
       />
       {needsYou ? <p className="ghdr">{`Needs you · ${needsYou}`}</p> : null}
+      <FeedItems />
       {asks.length ? (
         <section id="asks" className="mb-8 flex flex-col gap-8" onKeyDown={moveFocus}>
           {asks.map((ask) => (

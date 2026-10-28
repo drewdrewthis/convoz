@@ -38,6 +38,7 @@ export type PlanChangedFrame = S["PlanChangedFrame"];
 export type Delivery = S["Delivery"];
 export type ShippedDelivery = S["ShippedDelivery"];
 export type Deliveries = S["Deliveries"];
+export type FeedItem = S["FeedItem"];
 export type ConversationChangedFrame = S["ConversationChangedFrame"];
 export type SyncEvent = S["SyncEvent"];
 export type SyncAnswer = S["SyncAnswer"];
