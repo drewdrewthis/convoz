@@ -41,3 +41,6 @@ ORDER BY conversation_id, agent_id, seq;
 
 -- name: RecentDone :many
 SELECT * FROM feed_items WHERE state = 'done' ORDER BY updated_at DESC, id DESC LIMIT sqlc.arg(max);
+
+-- name: SetThreadRoot :exec
+UPDATE feed_items SET thread_root_id = sqlc.arg(thread_root_id) WHERE id = sqlc.arg(id) AND thread_root_id IS NULL;

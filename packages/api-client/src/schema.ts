@@ -3590,6 +3590,11 @@ export interface components {
             title: string;
             context?: string;
             recommendation?: string;
+            /**
+             * Format: int64
+             * @description The message the item's thread hangs on (the agent posts the title when it makes the item). Absent for an item made before threads.
+             */
+            thread_root_id?: number;
             /** @description False for a blocking item with no recommendation; it takes info only. */
             can_accept: boolean;
             /** Format: int64 */

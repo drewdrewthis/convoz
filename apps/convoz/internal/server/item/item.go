@@ -67,6 +67,7 @@ type Item struct {
 	Version        int64
 	CreatedAt      int64
 	UpdatedAt      int64
+	ThreadRoot     int64 // the message the item's thread hangs on; 0 for none
 }
 
 // Fields are what an agent says about an item.
@@ -121,7 +122,7 @@ func nint(n int64) sql.NullInt64   { return sql.NullInt64{Int64: n, Valid: n != 
 func fromRow(r db.FeedItem) Item {
 	return Item{ID: r.ID, Agent: r.AgentID, Conversation: r.ConversationID, Key: r.WorkKey, Seq: r.Seq, State: r.State, OwnerStep: r.OwnerStep == 1,
 		Title: r.Title, Context: r.Context, Recommendation: r.Recommendation.String, DueAt: r.DueAt.Int64, AckedAt: r.AckedAt.Int64, AckedBy: r.AckedBy.Int64,
-		AckKind: r.AckKind.String, SnoozedUntil: r.SnoozedUntil.Int64, Version: r.Version, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
+		AckKind: r.AckKind.String, SnoozedUntil: r.SnoozedUntil.Int64, Version: r.Version, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, ThreadRoot: r.ThreadRootID.Int64}
 }
 
 // save writes the item as it now is and one audit line; bump raises the version first (every change the owner may need to see).

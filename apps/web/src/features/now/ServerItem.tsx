@@ -1,6 +1,7 @@
 import type { FeedItem } from "@convoz/api-client";
 import { Button } from "@convoz/ui/Button";
 import { useState, type FormEvent } from "react";
+import { FeedThread } from "./DevFeedThread.tsx";
 import { ItemFrame } from "./DevFrame.tsx";
 import { laterOptionsAt } from "./presets.ts";
 import type { useServerFeed } from "./serverFeed.ts";
@@ -40,7 +41,14 @@ export function ServerItem({ item, next, feed, from, skew }: { item: FeedItem; n
       next={next}
       from={{ id: item.conversation_id, title: from }}
       busy={busy}
-      thread={adding ? <AddInfo busy={busy} send={(t) => void feed.answer(item, t).then(() => setAdding(false))} /> : undefined}
+      thread={
+        item.thread_root_id || adding ? (
+          <>
+            {item.thread_root_id ? <FeedThread conversation={item.conversation_id} root={item.thread_root_id} direct /> : null}
+            {adding ? <AddInfo busy={busy} send={(t) => void feed.answer(item, t).then(() => setAdding(false))} /> : null}
+          </>
+        ) : undefined
+      }
       snooze={{ presets: options.map((o) => ({ key: o.label, label: o.label })), pick: (k) => void feed.snooze(item, options.find((o) => o.label === k)?.until ?? 0) }}
       actions={
         <>

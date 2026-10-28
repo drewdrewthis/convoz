@@ -3,10 +3,12 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/item"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/plan"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
@@ -85,11 +87,44 @@ func (s *Server) postItem(w http.ResponseWriter, r *http.Request, c *call) {
 		writeErr(w, http.StatusNotFound, "not_found", "No such item event.")
 		return
 	}
-	s.itemChange(w, r, c, move)
+	var wake []int64
+	if event == "start" || event == "block" {
+		move = s.withThreadRoot(c, conv, key, move, &wake)
+	}
+	s.itemChangeWake(w, r, c, move, &wake)
+}
+
+// withThreadRoot makes the one message an item's thread hangs on: when the move creates the item, the agent posts its title in the
+// item's conversation and the message id is kept as the item's thread root (the same transaction). Later moves, and an item that
+// already exists, post nothing. The owner reads and writes the thread in Now (owner, 179 msgs 12145-12146).
+func (s *Server) withThreadRoot(c *call, conv int64, key string, move func(ctx context.Context, d pdb.DBTX, now time.Time) (item.Item, error), wake *[]int64) func(ctx context.Context, d pdb.DBTX, now time.Time) (item.Item, error) {
+	return func(ctx context.Context, d pdb.DBTX, now time.Time) (item.Item, error) {
+		_, err := item.ByKey(ctx, d, c.p.Identity(), conv, key)
+		isNew := errors.Is(err, item.ErrNotFound)
+		it, err := move(ctx, d, now)
+		if err != nil || !isNew {
+			return it, err
+		}
+		posted, err := message.Post(ctx, d, messagePorts(c.p), now, message.Draft{
+			Conversation: conv, Author: c.p.Identity(), Session: c.p.SessionID, Device: c.dev.ID, Origin: message.Origin{Label: c.lease.Label, Machine: c.lease.Machine},
+			ClientID: fmt.Sprintf("item-%d-thread", it.ID), Body: it.Title, Format: "plain",
+		})
+		if err != nil {
+			return item.Item{}, err
+		}
+		*wake = append(*wake, posted.Wake...)
+		it.ThreadRoot = posted.Message.ID
+		return it, item.SetThreadRoot(ctx, d, it.ID, it.ThreadRoot)
+	}
 }
 
 // itemChange runs one move in one transaction and writes the item.
 func (s *Server) itemChange(w http.ResponseWriter, r *http.Request, c *call, move func(ctx context.Context, d pdb.DBTX, now time.Time) (item.Item, error)) {
+	s.itemChangeWake(w, r, c, move, nil)
+}
+
+// itemChangeWake is itemChange that also wakes the agents a posted message went to, after the commit.
+func (s *Server) itemChangeWake(w http.ResponseWriter, r *http.Request, c *call, move func(ctx context.Context, d pdb.DBTX, now time.Time) (item.Item, error), wake *[]int64) {
 	var it item.Item
 	now := s.Clock.Now()
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) (err error) {
@@ -99,7 +134,11 @@ func (s *Server) itemChange(w http.ResponseWriter, r *http.Request, c *call, mov
 	if s.itemRefused(w, r, err) {
 		return
 	}
-	s.Bus.Notify()
+	if wake != nil {
+		s.Bus.Notify(*wake...)
+	} else {
+		s.Bus.Notify()
+	}
 	dir, err := loadDirectory(r.Context(), s.reader())
 	if err != nil {
 		s.internalError(w, r, err)
@@ -111,7 +150,7 @@ func (s *Server) itemChange(w http.ResponseWriter, r *http.Request, c *call, mov
 func feedItemView(dir directory, it item.Item) wire.FeedItem {
 	return wire.FeedItem{ID: it.ID, ConversationID: it.Conversation, AgentID: it.Agent, Handle: dir[it.Agent].Handle, Key: it.Key, Seq: it.Seq, State: it.State,
 		Title: it.Title, Context: it.Context, Recommendation: it.Recommendation, CanAccept: it.State == item.Blocking && it.Recommendation != "",
-		DueAt: it.DueAt, AckedAt: it.AckedAt, AckKind: it.AckKind, SnoozedUntil: it.SnoozedUntil, Version: it.Version, UpdatedAt: it.UpdatedAt}
+		ThreadRootID: it.ThreadRoot, DueAt: it.DueAt, AckedAt: it.AckedAt, AckKind: it.AckKind, SnoozedUntil: it.SnoozedUntil, Version: it.Version, UpdatedAt: it.UpdatedAt}
 }
 
 // getFeed is GET /api/feed: open items in plan order, the finished ones last. Owner only.

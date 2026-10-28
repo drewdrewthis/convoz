@@ -1,3 +1,4 @@
+import { messagesOf } from "../lib/chat.ts";
 import { send } from "../lib/http.ts";
 import { bearer } from "../lib/machines.ts";
 import { planWorld, type PlanWorld } from "../lib/plan.ts";
@@ -97,4 +98,18 @@ scenario("Markdown, links and over-long text are refused with 400", { tag: ["@ap
     expect((await item(p, p.dev.lease, "k", "block", body)).status).toBe(400);
   }
   expect((await item(p, p.dev.lease, "k", "block", { title: x(200), context: x(2000), recommend: x(500) })).status).toBe(200);
+});
+
+scenario("The first move posts one message and keeps its id as the thread root; later moves post nothing", { tag: ["@api"] }, async ({ server }) => {
+  const p = await planWorld(server);
+  const first = (await item(p, p.dev.lease, "a", "block", { title: "Merge the filters", recommend: "Go" })).json();
+  expect(first.thread_root_id).toBeGreaterThan(0);
+  const said = (await messagesOf(p.w.owner, p.conv)).filter((m) => m.id === first.thread_root_id);
+  expect(said.map((m) => m.body)).toEqual(["Merge the filters"]);
+  const before = (await messagesOf(p.w.owner, p.conv)).length;
+  const again = (await item(p, p.dev.lease, "a", "block", { title: "Merge the filters now", recommend: "Go" })).json();
+  expect(again.thread_root_id).toBe(first.thread_root_id);
+  expect((await item(p, p.dev.lease, "a", "fyi", { outcome: "Done without you" })).status).toBe(200);
+  expect((await messagesOf(p.w.owner, p.conv)).length).toBe(before);
+  expect((await feed(p)).done.concat((await feed(p)).items).every((i: any) => i.key !== "a" || i.thread_root_id === first.thread_root_id)).toBe(true);
 });

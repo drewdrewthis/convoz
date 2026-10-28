@@ -23,6 +23,7 @@ FeedItem:
     title: { type: string }
     context: { type: string }
     recommendation: { type: string }
+    thread_root_id: { type: integer, format: int64, description: "The message the item's thread hangs on (the agent posts the title when it makes the item). Absent for an item made before threads." }
     can_accept: { type: boolean, description: False for a blocking item with no recommendation; it takes info only. }
     due_at: { type: integer, format: int64 }
     acked_at: { type: integer, format: int64 }

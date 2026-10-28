@@ -27,6 +27,8 @@ type FeedItem struct {
 	Title          string `json:"title"`
 	Context        string `json:"context,omitempty"`
 	Recommendation string `json:"recommendation,omitempty"`
+	// ThreadRootID is the message the item's thread hangs on; 0 for an item made before threads (no thread).
+	ThreadRootID int64 `json:"thread_root_id,omitempty"`
 	// CanAccept is false for a blocking item with no recommendation: Add info only.
 	CanAccept    bool   `json:"can_accept"`
 	DueAt        int64  `json:"due_at,omitempty"`

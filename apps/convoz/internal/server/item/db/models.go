@@ -27,6 +27,7 @@ type FeedItem struct {
 	Version        int64
 	CreatedAt      int64
 	UpdatedAt      int64
+	ThreadRootID   sql.NullInt64
 }
 
 type FeedItemEvent struct {
