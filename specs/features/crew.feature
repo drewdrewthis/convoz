@@ -267,8 +267,10 @@ Feature: Crew: identities, machines and sessions
 
     @v1 @browser
     Scenario: An agent profile shows what waits on the owner and shared conversations
-      Given "devtool" has the status "waiting", 2 open asks and shares 4 conversations with the owner
+      Given "devtool" is working, has 2 open asks and shares 4 conversations with the owner
       When the owner opens Crew
+      And "devtool" turns to "waiting" while the owner's view of its asks is still being read
+      Then "devtool" is never placed under "Waiting" on a guess of 0 asks
       Then "devtool" sits in the group "Waiting on you" with the label "Waiting on you"
       When the owner opens the profile of "devtool"
       Then "Waiting on you · 2" and "Conversations together" list them
