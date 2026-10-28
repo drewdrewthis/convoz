@@ -89,7 +89,10 @@ async function settle(page: Page, scheme: "light" | "dark"): Promise<void> {
   await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
   await page.evaluate(() => document.fonts.ready);
   await expect.poll(() => page.evaluate(() => document.documentElement.getAttribute("data-theme")), { message: `the app paints ${scheme}` }).toBe(scheme);
-  await expect.poll(() => page.evaluate(() => document.getAnimations().length), { message: "no animation is running" }).toBe(0);
+  // Spinners turn for ever, also under reduced motion (the screenshot below stops them: animations "disabled"); every other animation must be over.
+  await expect
+    .poll(() => page.evaluate(() => document.getAnimations().filter((a) => a.effect?.getComputedTiming().iterations !== Infinity).length), { message: "no animation but the spinners is running" })
+    .toBe(0);
   await page.mouse.move(0, 0); // no hover state on a row
 }
 
