@@ -119,11 +119,10 @@ func (r *freshRig) sweep(t *testing.T) {
 	}
 }
 
-// An agent that keeps posting while its plan is 30 minutes old is asked once, even when the plan waits on the owner (it waited on a
-// trash in conv 179 while the agent kept working); then it rests an hour. A fresh plan is never asked about.
+// An agent that keeps posting while its plan is 30 minutes old is asked once; then it rests an hour. A fresh plan is never asked about.
 func TestAnAgentThatKeepsPostingWithAPlanBehindIsAskedOnceAnHour(t *testing.T) {
 	r := newFreshRig(t)
-	r.setPlan(t, plan.Input{Now: []plan.Item{{Text: "Building invites"}}, Waiting: []string{"Approve the deploy"}})
+	r.setPlan(t, plan.Input{Now: []plan.Item{{Text: "Building invites"}}})
 
 	r.clock.add(5 * time.Minute)
 	r.posts(t, 3)
@@ -276,5 +275,35 @@ func TestAPlanWithADeliveryAndNoUpdateForADayIsAskedOnceADay(t *testing.T) {
 	p := plan.Plan{UpdatedAt: updated, Body: plan.Body{Deliver: []plan.Deliverable{{Text: "Search filters live", Due: updated + 5*24*3600_000}}}}
 	if got := statusDueBody(41, p, nil, askedByStep, updated+25*3600_000); !strings.Contains(got, "has had no update for 25 h") {
 		t.Errorf("the ask about a quiet plan: %q", got)
+	}
+}
+
+// A plan that is done, or waits on someone else, or is blocked has nothing that is behind: the agent that goes on posting is not asked
+// for an update (conv 346 and 405: a plan marked --done and a --waiting plan got "no update for 71 min"). A plan still being worked on is.
+func TestOnlyAPlanBeingWorkedOnIsAskedForAnUpdateWhileTheAgentKeepsPosting(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		in   plan.Input
+		want int
+	}{
+		{"done", plan.Input{Done: []string{"Board feed"}}, 0},
+		{"waiting on the owner", plan.Input{Now: []plan.Item{{Text: "Building invites"}}, Waiting: []string{"Approve the deploy"}}, 0},
+		{"waiting with nothing in Now", plan.Input{Waiting: []string{"Approve the deploy"}}, 0},
+		{"blocked", plan.Input{Now: []plan.Item{{Text: "Building invites"}}, Blocked: "CI is down"}, 0},
+		{"doing", plan.Input{Now: []plan.Item{{Text: "Building invites"}}}, 1},
+		{"doing past its estimate", plan.Input{Now: []plan.Item{{Text: "Building invites", ETA: 1}}}, 1},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			r := newFreshRig(t)
+			if len(c.in.Now) > 0 && c.in.Now[0].ETA != 0 { // an estimate 10 minutes out, passed by the 31 that follow
+				c.in.Now[0].ETA = r.clock.Now().Add(10 * time.Minute).UnixMilli()
+			}
+			r.setPlan(t, c.in)
+			r.clock.add(31 * time.Minute)
+			r.posts(t, 3)
+			if n := r.asks(t); n != c.want {
+				t.Fatalf("%s: %d asks, want %d", c.name, n, c.want)
+			}
+		})
 	}
 }
