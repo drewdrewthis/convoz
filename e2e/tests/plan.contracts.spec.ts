@@ -148,6 +148,8 @@ scenario("An agent that keeps posting with a plan 30 minutes old is asked once a
 
 scenario("An agent with no plan is asked once it has worked in the conversation for 30 minutes", { tag: ["@api"] }, async ({ server, testApi }) => {
   const p = await planWorld(server, { docsIn: false });
+  // Given the owner wrote in the conversation (the work there is for him)
+  await ownerSays(p.w.owner, p.conv, "Please build the invites");
   // When "devtool" posts 3 messages where it has no plan, then no status_due item
   await posts(p, 3);
   expect(await asks(p)).toEqual([]);
@@ -157,6 +159,15 @@ scenario("An agent with no plan is asked once it has worked in the conversation 
   const due = await asks(p);
   expect(due).toHaveLength(1);
   expect(due[0]).toContain(`You have no plan in conversation ${p.conv}.`);
+});
+
+scenario("An agent with no plan is not asked in a conversation the owner did not write in", { tag: ["@api"] }, async ({ server, testApi }) => {
+  const p = await planWorld(server, { docsIn: false });
+  // When "devtool" posts 3 messages, 31 minutes pass and it posts 3 more, with no message from the owner, then no status_due item
+  await posts(p, 3);
+  await testApi(p.w.srv).advanceClock(31 * MIN);
+  await posts(p, 3);
+  expect(await asks(p)).toEqual([]);
 });
 
 scenario("A plan with a delivery and no update for a day is asked about once a day", { tag: ["@api"] }, async ({ server, testApi }) => {
