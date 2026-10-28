@@ -286,3 +286,51 @@ func TestDownloadDoesNotRetryAnAnswerOfTheServer(t *testing.T) {
 		t.Errorf("err = %v, tries = %d, want an error after 1 try", err, hits.Load())
 	}
 }
+
+// gateSays runs the version gate against a server that answers with handler, and returns what it printed.
+func gateSays(t *testing.T, budget time.Duration, handler http.HandlerFunc) string {
+	t.Helper()
+	srv := httptest.NewServer(handler)
+	t.Cleanup(srv.Close)
+	home := t.TempDir()
+	dir := filepath.Join(home, "convoz")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, credentialsFile), []byte(`{"server":"`+srv.URL+`"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	oldV, oldB := Version, versionProbeTimeout
+	Version, versionProbeTimeout = "abc1234", budget
+	t.Cleanup(func() { Version, versionProbeTimeout = oldV, oldB })
+	var out strings.Builder
+	versionGate("inbox", IO{Stderr: &out, Getenv: func(k string) string {
+		if k == "XDG_CONFIG_HOME" {
+			return home
+		}
+		return ""
+	}})
+	return out.String()
+}
+
+const slowNetworkLine = "could not check the server version (slow network)"
+
+func TestOnlyANetworkFailureOfTheVersionProbeSaysSlowNetwork(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		handler http.HandlerFunc
+		want    bool
+	}{
+		{"a server that does not answer in time", func(w http.ResponseWriter, r *http.Request) { <-r.Context().Done() }, true},
+		{"an older server that answers 200 without a version", func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, `{}`) }, false},
+		{"a server that answers 404", func(w http.ResponseWriter, r *http.Request) { http.NotFound(w, r) }, false},
+		{"a server that answers 503", func(w http.ResponseWriter, r *http.Request) { http.Error(w, "down", http.StatusServiceUnavailable) }, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			got := gateSays(t, 300*time.Millisecond, c.handler)
+			if has := strings.Contains(got, slowNetworkLine); has != c.want {
+				t.Errorf("stderr %q: says slow network = %v, want %v", got, has, c.want)
+			}
+		})
+	}
+}
