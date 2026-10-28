@@ -89,7 +89,10 @@
   .rgo .planicon { width: 18px; height: 18px; transition: opacity 140ms ease; }
   .rgo .planicon + .rcnt { margin-left: -4px; }
   .rrow:hover .rgo .planicon, .rrow:focus-within .rgo .planicon { opacity: 0; }
-  .railmenu { z-index: 9; right: auto; min-width: 12rem; }
+  /* .menu (app.css, same layer, loaded later) sets right: 12px; at equal specificity it won and stretched the fixed menu to the right edge */
+  .menu.railmenu { z-index: 9; right: auto; width: max-content; min-width: 12rem; max-width: min(18rem, calc(100vw - 16px)); }
+  /* the menu now ends near the rail edge and sits in the rail's stacking layer, under the resize handle: the handle gives way while it is open */
+  .rail:has(.railmenu) + .rail-resize { pointer-events: none; }
   .menu.railmenu > button { min-height: 40px; color: var(--color-text); }
   .railmenu > .field { padding: 8px; }
   .rrow.dragging { position: relative; z-index: 5; box-shadow: var(--float); background: var(--color-raised); transition: none; will-change: transform; }

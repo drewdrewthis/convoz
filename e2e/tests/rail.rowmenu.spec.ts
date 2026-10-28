@@ -18,6 +18,24 @@ async function pick(page: Page, title: string, item: string): Promise<void> {
   await page.getByRole("menuitem", { name: item, exact: true }).click();
 }
 
+/** The open menu is content-sized, starts at its dots button and stays inside the window. */
+async function expectMenuFitsItsButton(page: Page, title: string): Promise<void> {
+  const row = railRow(page, title);
+  await row.hover();
+  const button = row.getByRole("button", { name: `More actions for ${title}` });
+  await button.click();
+  const menu = page.getByRole("menu");
+  const m = (await menu.boundingBox())!;
+  const b = (await button.boundingBox())!;
+  const view = page.viewportSize()!;
+  expect(m.width, "menu width").toBeLessThanOrEqual(280);
+  expect(Math.abs(m.x - b.x), "menu left edge against the dots button").toBeLessThanOrEqual(16);
+  expect(m.x).toBeGreaterThanOrEqual(0);
+  expect(m.x + m.width).toBeLessThanOrEqual(view.width);
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+}
+
 async function open(fx: Parameters<typeof railWorld>[0]) {
   const u = await railWorld(fx);
   await openRail(fx.page, u.w.srv);
@@ -63,6 +81,7 @@ scenario("The row menu stars, unstars and marks read", { tag: ["@browser"] }, as
   await agentSays(u.w, "devtool", u.c[60], "Report ready");
   await expect(railRow(page, T60).getByRole("link")).toHaveClass(/unread/);
   await pick(page, T60, "Mark read");
+  await expectMenuFitsItsButton(page, T60);
   await expect(railRow(page, T60).getByRole("link")).not.toHaveClass(/unread/);
 
   await pick(page, T60, "Star");
@@ -75,6 +94,7 @@ scenario("The row menu stars, unstars and marks read", { tag: ["@browser"] }, as
     await page.evaluate((w) => localStorage.setItem("convoz.rail.width", String(w)), narrow);
     await page.reload();
     await expect.poll(async () => Math.round((await rail(page).boundingBox())!.width)).toBe(narrow);
+    await expectMenuFitsItsButton(page, T60);
     await pick(page, T60, "Star");
     await expect(railGroup(page, "Starred").locator(".rtitle", { hasText: T60 })).toBeVisible();
     await pick(page, T60, "Unstar");
