@@ -53,7 +53,7 @@ const (
 	// with no plan, how long the agent may work there (from its first recent post) before it is asked to set one (owner, conv 179
 	// msg 10021: he should not have to ask).
 	BehindAfter = 30 * time.Minute
-	// ActivePosts is how many posts in the conversation within AskRest, all after the plan's update, make an agent at work there;
+	// ActivePosts is how many top-level posts (thread replies do not count) in the conversation within AskRest, all after the plan's update, make an agent at work there;
 	// one answer is not work.
 	ActivePosts = 3
 	// AskRest is the shortest gap after any plan ask in a conversation before an agent at work there is asked again.

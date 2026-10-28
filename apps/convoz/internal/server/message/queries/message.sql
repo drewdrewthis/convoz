@@ -80,9 +80,9 @@ WHERE (thread_root_id = sqlc.arg(root) OR id = sqlc.arg(root)) AND kind IN ('tex
 SELECT identity_id FROM mentions WHERE message_id = sqlc.arg(message_id) ORDER BY identity_id;
 
 -- name: RecentPosts :one
--- The texts and asks among the author's newest 100 messages that are in the conversation, not deleted, written after the time: how
+-- The top-level texts and asks (not thread replies) among the author's newest 100 messages that are in the conversation, not deleted, written after the time: how
 -- many, and when the first was written (0 for none). Whether an agent is at work there, and since when. The newest 100 bound the scan
 -- of an author with a long history.
 SELECT COUNT(*) AS posts, CAST(COALESCE(MIN(created_at), 0) AS INTEGER) AS first_at
-FROM (SELECT conversation_id, kind, deleted_at, created_at FROM messages WHERE author_id = sqlc.arg(author_id) ORDER BY id DESC LIMIT 100)
-WHERE conversation_id = sqlc.arg(conversation_id) AND created_at > sqlc.arg(after) AND kind IN ('text','ask') AND deleted_at IS NULL;
+FROM (SELECT conversation_id, kind, deleted_at, created_at, thread_root_id FROM messages WHERE author_id = sqlc.arg(author_id) ORDER BY id DESC LIMIT 100)
+WHERE conversation_id = sqlc.arg(conversation_id) AND created_at > sqlc.arg(after) AND kind IN ('text','ask') AND deleted_at IS NULL AND thread_root_id IS NULL;
