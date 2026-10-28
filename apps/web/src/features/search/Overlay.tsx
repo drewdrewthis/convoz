@@ -8,6 +8,7 @@ import { navigate } from "../../shared/navigate.ts";
 import { nowCallLive, startNowCall, useVoiceOn } from "../call/index.ts";
 import { recentChats } from "./recent.ts";
 import { useSearchUi } from "./store.ts";
+import { appPath, withBase } from "../../shared/base.ts";
 
 /** Rows a group shows before "Show all". */
 const GROUP_ROWS = 5;
@@ -80,7 +81,7 @@ export default function Overlay() {
     hide();
     const [path = "", hash = ""] = href.split("#");
     // A document load would end a Now call, so while one is on the app draws the page itself.
-    if (location.pathname !== path) return nowCallLive() ? navigate(href) : location.assign(href);
+    if (appPath() !== path) return nowCallLive() ? navigate(href) : location.assign(withBase(href));
     const same = location.hash === (hash && `#${hash}`);
     location.hash = hash;
     // The same hash again fires no hashchange, and the page listens to that event to open a thread or scroll to a message.

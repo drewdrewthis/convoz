@@ -14,13 +14,14 @@ import { Button } from "@convoz/ui/Button";
 import { EmptyState } from "@convoz/ui/EmptyState";
 import { Field } from "@convoz/ui/Field";
 import { List, ListRow } from "@convoz/ui/ListRow";
+import { appPath } from "../../shared/base.ts";
 
 const TABS = ["Sessions", "Handoffs"] as const;
 
 /** AgentProfile is /crew/<handle>: who the agent is, what waits on the owner, the shared conversations, its sessions and notes. */
 export function AgentProfile() {
   const { say, fail } = useNotice();
-  const asked = decodeURIComponent(location.pathname.split("/")[2] ?? "");
+  const asked = decodeURIComponent(appPath().split("/")[2] ?? "");
   const everyone = useData((s) => s.identities);
   const conversations = useData((s) => s.conversations);
   const statuses = useCrew((s) => s.statuses);

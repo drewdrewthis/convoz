@@ -476,3 +476,19 @@
   .fab { width: 56px; height: 56px; padding: 0; justify-content: center; }
   .fab .fablabel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
+
+/* The owner's dev build (shared/dev.ts): a small fixed badge on every screen, so the dev app is never taken for the real one. */
+.dev-badge {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483647;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #d92d20;
+  color: #fff;
+  font: 700 11px/16px system-ui, sans-serif;
+  letter-spacing: 0.08em;
+  pointer-events: none;
+}

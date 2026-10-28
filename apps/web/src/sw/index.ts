@@ -1,5 +1,7 @@
 // The service worker registry, window side. The worker itself is worker.ts (built to /sw.js); each module of the worker is
 // one file next to it (cache.ts, push.ts, ...) that worker.ts picks up on its own, so adding a module edits no shared file.
+import { DEV } from "../shared/base.ts";
+
 /** The worker's modules, found at build time. With none, no worker is registered and the app behaves as a plain page. */
 const MODULES = Object.keys(import.meta.glob(["./*.ts", "!./index.ts", "!./worker.ts", "!./module.ts"]));
 
@@ -79,7 +81,8 @@ export function ensureServiceWorker(): Promise<ServiceWorkerRegistration> {
  * build at each start and whenever the app comes back to the screen; a new build takes over and reloads the page by itself.
  */
 export function registerServiceWorker(): void {
-  if (!MODULES.length || !("serviceWorker" in navigator)) return;
+  // The owner's dev build (/dev/) registers no worker: the real app's worker, scope /, leaves its requests alone (shared/devScope.ts).
+  if (DEV || !MODULES.length || !("serviceWorker" in navigator)) return;
   // Signing out cleared the device (Clear-Site-Data): a worker installed now would fill Cache Storage again at once.
   if (new URLSearchParams(location.search).has("signed_out")) return;
   reloadOnUpdate();

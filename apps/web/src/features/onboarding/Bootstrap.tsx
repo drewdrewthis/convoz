@@ -8,6 +8,7 @@ import { data } from "../../shared/data.ts";
 import { bootstrapTicket, supported } from "../../shared/tickets.ts";
 import { Button } from "@convoz/ui/Button";
 import { Field } from "@convoz/ui/Field";
+import { withBase } from "../../shared/base.ts";
 
 /**
  * Bootstrap is /bootstrap#cvz_b_…: step 1 of 3 registers the first passkey from a setup link, step 2 shows the recovery codes
@@ -139,7 +140,7 @@ function FirstPasskey({ token, onCodes }: { token: string; onCodes: (codes: stri
       const done = await call(client.POST("/api/auth/bootstrap/verify", { body: started }));
       page.leaving = true; // the link is spent: no more options to fetch
       if (done.recovery_codes) onCodes(done.recovery_codes);
-      else location.assign("/");
+      else location.assign(withBase("/"));
     },
     { fail, also: valid },
   );
@@ -195,7 +196,7 @@ function SaveCodes({ codes }: { codes: string[] }) {
       <CodesBlock codes={codes} />
       <div className="actions">
         <Field as="check" type="checkbox" id="saved" label="I saved them" checked={saved} onChange={(e) => setSaved(e.target.checked)} />
-        <Button variant="primary" disabled={!saved} onClick={() => location.assign("/onboarding")}>
+        <Button variant="primary" disabled={!saved} onClick={() => location.assign(withBase("/onboarding"))}>
           Continue
         </Button>
       </div>

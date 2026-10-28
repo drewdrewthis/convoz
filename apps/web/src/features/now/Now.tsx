@@ -16,6 +16,7 @@ import { Mentions, OtherChats, Replies, unreadRows, useTriage } from "./Unread.t
 import { useAskActions } from "./useAskActions.ts";
 import { needsYouCount, useNow } from "./store.ts";
 import { sendKeptLogs } from "../call/index.ts";
+import { appPath } from "../../shared/base.ts";
 
 interface NowProps {
   /** Drawn in the desktop rail (proposal §1): no notes and no wordmark, and it polls on its own, since no Now page around it does. */
@@ -108,7 +109,7 @@ export function Now({ compact = false, current = 0 }: NowProps = {}) {
 
   // /now/machine/:id (the link in the push) brings that request's card into view.
   useEffect(() => {
-    const id = /^\/now\/machine\/(\d+)$/.exec(location.pathname)?.[1];
+    const id = /^\/now\/machine\/(\d+)$/.exec(appPath())?.[1];
     if (id && pending?.some((r) => r.id === Number(id)) && !deepLinked.current) {
       deepLinked.current = true;
       document.querySelector<HTMLElement>(`[data-request="/api/machines/requests/${id}"]`)?.scrollIntoView({ block: "center" });

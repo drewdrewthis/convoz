@@ -58,6 +58,7 @@ func serve(args []string) int {
 	tailscaleMode := fs.String("tailscale", "check", "check: read tailscale status at start and refuse if funnel is on; off: skip (development)")
 	transcribe := fs.String("transcribe", "auto", "voice transcription: auto uses the keys in $CREDENTIALS_DIRECTORY (groq_api_key, openai_api_key, gemini_api_key) in that order, none turns it off; audio then goes to the service that answers")
 	extensionOrigin := fs.String("extension-origin", os.Getenv("CONVOZ_EXTENSION_ORIGIN"), "one extra Origin allowed to write: chrome-extension://<32-letter id> (default $CONVOZ_EXTENSION_ORIGIN; empty = off)")
+	devWebDir := fs.String("dev-web-dir", os.Getenv("CONVOZ_DEV_WEB_DIR"), "the folder of the owner's dev build of the web app, served at /dev/ to the owner only; its current entry names the live build (default $CONVOZ_DEV_WEB_DIR; empty = off)")
 	readyFile := fs.String("ready-file", "", "write {listen,admin,pid} here once listening")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -171,7 +172,7 @@ func serve(args []string) int {
 		}
 	}
 
-	cfg := httpapi.Config{Host: name, Unix: spec.unix, PublicPort: publicPort, Version: version, TailscaleBin: *tailscaleBin, TailscaleOn: *tailscaleMode == "check", DataDir: dir, BlobKey: blobDEK, ExtensionOrigin: *extensionOrigin}
+	cfg := httpapi.Config{Host: name, Unix: spec.unix, PublicPort: publicPort, Version: version, TailscaleBin: *tailscaleBin, TailscaleOn: *tailscaleMode == "check", DataDir: dir, BlobKey: blobDEK, ExtensionOrigin: *extensionOrigin, DevWebDir: *devWebDir}
 	if !spec.unix {
 		cfg.Port = pub.Addr().(*net.TCPAddr).Port
 	}

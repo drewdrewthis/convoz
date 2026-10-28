@@ -12,14 +12,17 @@ import { pullToRefresh } from "./shared/pull.ts";
 import { refreshApp, registerServiceWorker } from "./sw/index.ts";
 import "./styles/app.css";
 import "./styles/appearance.css";
+import { DEV, appPath } from "./shared/base.ts";
+import { installDev } from "./shared/dev.ts";
 
+if (DEV) installDev(); // the dev build: its badge, and every path under /dev/ (shared/dev.ts)
 watchErrors(); // before anything else runs, so a failure while the app starts is reported too
-const def = route(location.pathname, document.documentElement.dataset.status);
+const def = route(appPath(), document.documentElement.dataset.status);
 prepare(def);
 if (!def.useful) noFirstScreen();
 registerServiceWorker();
 pullToRefresh(() => void refreshApp());
-void def.load().then((Page) => createRoot(document.getElementById("root")!).render(<Root first={{ path: location.pathname, def, Page }} />));
+void def.load().then((Page) => createRoot(document.getElementById("root")!).render(<Root first={{ path: appPath(), def, Page }} />));
 // After the first screen: the saved look and the owner's palette. The boot script already painted what this device had.
 void afterFirstScreen()
   .then(() => import("./features/settings/index.ts"))

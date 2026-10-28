@@ -24,6 +24,10 @@ var coreRoutes = []Route{
 	{Method: "GET", Pattern: "/settings/recovery", Auth: authz.Human, Page: true, handle: appPage},
 	{Method: "GET", Pattern: "/account", Auth: authz.Human, Page: true, handle: appPage},
 	{Method: "GET", Pattern: "/trash", Auth: authz.Human, Page: true, handle: appPage},
+	// The owner's dev build of the web app (--dev-web-dir): only the owner's device session; anyone else, and every server without
+	// the folder, gets a 404 as for an unknown path. Never on the agent listener (no Agent reason).
+	{Method: "GET", Pattern: "/dev", Auth: authz.Owner, Hidden: true, handle: devRoot},
+	{Method: "GET", Pattern: "/dev/{path...}", Auth: authz.Owner, Hidden: true, handle: (*Server).devPage},
 	// The app's hashed build files (cached for a year), and the public files that keep their names.
 	{Method: "GET", Pattern: "/assets/:file", Auth: authz.Pub, handle: appAsset},
 	{Method: "GET", Pattern: "/assets/lookalikes.js", Auth: authz.Pub, handle: lookalikesAsset},

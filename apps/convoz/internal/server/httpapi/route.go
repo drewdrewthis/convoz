@@ -71,6 +71,10 @@ func (s *Server) serveRoute(rt Route) http.HandlerFunc {
 			return
 		}
 		c := &call{}
+		if rt.Hidden && r.Header.Get("Authorization") != "" {
+			http.NotFound(w, r)
+			return
+		}
 		if rt.Auth != authz.Pub {
 			var err error
 			if c, err = s.authenticate(w, r); errors.Is(err, errAnswered) {
@@ -104,8 +108,12 @@ func (s *Server) serveRoute(rt Route) http.HandlerFunc {
 	}
 }
 
-// deny answers a failed Auth check: a page redirects, the API says 401 or 403.
+// deny answers a failed Auth check: a hidden route says 404, a page redirects, the API says 401 or 403.
 func (s *Server) deny(w http.ResponseWriter, r *http.Request, rt Route, err error) {
+	if rt.Hidden {
+		http.NotFound(w, r)
+		return
+	}
 	if rt.Page {
 		to := "/signin"
 		if r.URL.Path != "/" {
