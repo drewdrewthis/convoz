@@ -86,7 +86,6 @@
   /* Working is motion, not a static green dot (owner msgs 1310, 1924): a small ring that turns while the agent works. */
   .pdot[data-tone="green"] { background: none; border: 2px solid color-mix(in srgb, var(--color-success) 30%, transparent); border-top-color: var(--color-success); animation: pdotspin 0.9s linear infinite; }
   @keyframes pdotspin { to { transform: rotate(360deg); } }
-  @media (prefers-reduced-motion: reduce) { .pdot[data-tone="green"] { animation: none; border-color: var(--color-success); } }
   .pdot[data-tone="amber"] { background: var(--color-amber); }
   .pdot[data-tone="red"] { background: var(--color-danger); }
   /* The status icon of a row (msg 382): right of the title, next to the unread count and as tall as it. */
@@ -97,7 +96,6 @@
   .planicon svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
   /* Working turns, it does not blink (owner msg 2041): a blinking dot reads as a live connection. */
   .planicon .spin { box-sizing: border-box; width: 12px; height: 12px; border-radius: 999px; border: 2px solid color-mix(in srgb, currentColor 25%, transparent); border-top-color: currentColor; animation: pdotspin 0.9s linear infinite; }
-  @media (prefers-reduced-motion: reduce) { .planicon .spin { animation: none; border-color: currentColor; } }
   .chatrow .planicon + .count { margin-left: 4px; }
   /* The line keeps the header compact: its 44 px tap target overlaps the title's lower half instead of pushing the bar down. */
   .planline {

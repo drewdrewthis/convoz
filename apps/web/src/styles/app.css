@@ -216,6 +216,11 @@
   @keyframes rise { from { transform: translateY(48px); opacity: 0; } to { transform: none; opacity: 1; } }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+    /* A spinner says "working" and nothing else does: it keeps turning, slowly, for the owner who asked for less motion (a desktop that
+       sets reduce motion showed a dead ring where the phone showed a turning one). */
+    .working::before { animation: workspin 1.8s linear infinite !important; }
+    .pdot[data-tone="green"], .planicon .spin { animation: pdotspin 1.8s linear infinite !important; }
+    .ring[data-st="working"]::before { animation: ringspin 4.8s linear infinite !important; }
   }
 
   /* ---- Conversations ---- */
