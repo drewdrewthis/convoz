@@ -44,7 +44,7 @@ func Upgrade(args []string, io IO) int {
 	if server == "" {
 		return fail(io, errNotLoggedIn)
 	}
-	theirs := fetchServerVersion(server)
+	theirs := fetchServerInfo(server).Version
 	if theirs == "" {
 		return fail(io, fmt.Errorf("%w: cannot ask %s which version it runs", errUnreachable, server))
 	}

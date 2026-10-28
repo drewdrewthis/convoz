@@ -247,6 +247,22 @@ jobs:
           [ "$GO" = true ] && { pw --grep "@api|@cli" || rc=1; }
           [ "$WEB" = true ] && { pw --grep "@browser" || rc=1; }
           exit $rc
+      # An API change must not break the CLIs already on agents' machines. Runs only when the server, the contract or the client changes:
+      # the CLI of the base branch (built with the testhooks tag, so it can take the shared test version) does whoami, inbox, read and
+      # post against the server of this PR's head. The base build also covers a PR that edits the CLI itself. One shard runs it.
+      - name: Previous CLI against this server
+        if: github.event_name == 'pull_request' && matrix.shard == 1
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if git diff --quiet "origin/$BASE_REF"...HEAD -- apps/convoz packages/contracts packages/api-client; then
+            echo "no server, contract or client change: skipped"
+            exit 0
+          fi
+          base="$(git merge-base "origin/$BASE_REF" HEAD)"
+          git worktree add "$RUNNER_TEMP/base-cli" "$base"
+          (cd "$RUNNER_TEMP/base-cli/apps/convoz" && go build -trimpath -tags testhooks -o "$RUNNER_TEMP/convoz-base" ./cmd/convoz-cli)
+          CONVOZ_CLI_BIN="$RUNNER_TEMP/convoz-base" pnpm --filter @convoz/e2e exec playwright test --project=headless -g "previous CLI still does"
       # The JSON report of this shard, for the parity job (contract changes only, which run the full suite).
       - if: always() && needs.changes.outputs.contracts == 'true'
         name: E2E report

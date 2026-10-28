@@ -172,8 +172,8 @@ function copyOfConvoz(): string {
   return file;
 }
 
-scenario("An out-of-date CLI is told to upgrade", { tag: ["@cli"] }, async ({ server }) => {
-  // Given a machine logged in to a server, with a convoz older than that server
+scenario("A CLI older than its server runs and warns at most once an hour", { tag: ["@cli"] }, async ({ server }) => {
+  // Given a machine logged in to a server, with a convoz older than that server and the same API number
   const w = await chatWorld(server, { agents: ["devtool"] });
   const current = (await send(w.srv.target, "GET", "/api/version")).json().version as string;
   const old = { env: { CONVOZ_TEST_VERSION: OLD } };
@@ -181,16 +181,13 @@ scenario("An out-of-date CLI is told to upgrade", { tag: ["@cli"] }, async ({ se
   // When the agent runs "convoz inbox --peek"
   const first = await w.box.run(["inbox", "--peek", "--as", "devtool"], old);
 
-  // Then the CLI exits 7 and prints the message
-  const message = `convoz is out of date (you have ${OLD}, the server runs ${current}). Run: convoz upgrade\n`;
-  expect({ code: first.code, stderr: first.stderr, stdout: first.stdout }).toEqual({ code: 7, stderr: message, stdout: "" });
+  // Then the command runs and exits 0, and stderr has one line telling it to upgrade
+  const message = `convoz: the server runs ${current}, you have ${OLD}. Still works; run: convoz upgrade\n`;
+  expect({ code: first.code, stderr: first.stderr }).toEqual({ code: 0, stderr: message });
 
-  // And running it again within 10 minutes prints the same without asking the server again: the answer is kept, and not rewritten
-  const kept = path.join(w.box.configDir, "version-check");
-  const stamp = fs.statSync(kept).mtimeMs;
+  // And running it again within an hour prints no such line
   const second = await w.box.run(["inbox", "--peek", "--as", "devtool"], old);
-  expect({ code: second.code, stderr: second.stderr }).toEqual({ code: 7, stderr: message });
-  expect(fs.statSync(kept).mtimeMs).toBe(stamp);
+  expect({ code: second.code, stderr: second.stderr }).toEqual({ code: 0, stderr: "" });
 
   // And "convoz help", "convoz version" and "convoz whoami" still run
   for (const argv of [["help"], ["version"], ["whoami"]]) {

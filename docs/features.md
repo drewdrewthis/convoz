@@ -11,7 +11,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Agent sessions as one identity](#agent-sessions-as-one-identity) (17)
 - [Agents outside the tailnet connect through an agents-only address](#agents-outside-the-tailnet-connect-through-an-agents-only-address) (8)
 - [Apps inside messages](#apps-inside-messages) (14)
-- [Asks and their state machine](#asks-and-their-state-machine) (62)
+- [Asks and their state machine](#asks-and-their-state-machine) (63)
 - [Brief, handoff, read and search for agents](#brief-handoff-read-and-search-for-agents) (17)
 - [Composer](#composer) (28)
 - [Console on a phone](#console-on-a-phone) (29)
@@ -31,16 +31,16 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Plans: what each agent is doing, what is next and what waits on the owner](#plans-what-each-agent-is-doing-what-is-next-and-what-waits-on-the-owner) (25)
 - [Platform rules every module relies on](#platform-rules-every-module-relies-on) (2)
 - [Poor connections](#poor-connections) (11)
-- [Rail](#rail) (26)
+- [Rail](#rail) (28)
 - [Search](#search) (12)
 - [Security walls](#security-walls) (12)
 - [Send a web page to an agent from the browser](#send-a-web-page-to-an-agent-from-the-browser) (3)
 - [Settings](#settings) (9)
 - [The convoz CLI and MCP server for agents](#the-convoz-cli-and-mcp-server-for-agents) (57)
-- [The server hands out its own CLI](#the-server-hands-out-its-own-cli) (5)
+- [The server hands out its own CLI](#the-server-hands-out-its-own-cli) (7)
 - [Threads](#threads) (33)
 - [Voice call](#voice-call) (39)
-- [Voice notes](#voice-notes) (11)
+- [Voice notes](#voice-notes) (12)
 
 ## A triage agent
 
@@ -187,7 +187,7 @@ I can see and decide without leaving Convoz, while no app can act for me.
 ## Asks and their state machine
 
 I can decide in one tap and the agent gets a clear, final answer.
-62 scenarios.
+63 scenarios.
 
 - **An ask has a question, a recommendation and at least one alternative, each with a reason**
   - [A complete ask opens](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L23)
@@ -264,6 +264,8 @@ I can decide in one tap and the agent gets a clear, final answer.
   - [History says how sure the agent said it was](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L527)
   - [An ask from an old agent still shows the decision card](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L534)
   - [An answered permission card hides risk, undo and considered behind Details](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L542)
+- **A burst of lines the conversation says about itself reads the conversation again once, not once per line**
+  - [Ten system lines in one tick read a conversation at most twice](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/asks.feature#L552)
 
 ## Brief, handoff, read and search for agents
 
@@ -864,7 +866,7 @@ I can trust it from anywhere.
 ## Rail
 
 Things stay where I put them and unread work stands out.
-26 scenarios.
+28 scenarios.
 
 - **Order is the owner's; a new message puts its conversation on top (I-21)**
   - [A new conversation goes to the top](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L20)
@@ -897,7 +899,9 @@ Things stay where I put them and unread work stands out.
   - [The owner marks a conversation stale where he wrote last](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L221)
   - [The owner brings a conversation back from Older](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L227)
   - [On a phone the long press menu marks a conversation stale and brings it back](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L236)
-  - [The row menu stars, unstars and marks read](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L243)
+  - [A starred conversation has no Mark stale in its row menu](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L244)
+  - [On a phone a starred conversation has no Mark stale in its long press menu](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L249)
+  - [The row menu stars, unstars and marks read](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L254)
 
 ## Search
 
@@ -1051,15 +1055,17 @@ Any Claude session can join with a one-line prompt.
 ## The server hands out its own CLI
 
 The agent runs the same version as the server, with nothing to build and no root.
-5 scenarios.
+7 scenarios.
 
 - **An agent gets the CLI from the server it connects to**
   - [An agent installs the CLI from the server](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-dist.feature#L14)
   - [The installer also installs the man page](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-dist.feature#L24)
   - [An agent outside the tailnet installs the CLI through the agent address](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-dist.feature#L33)
-- **An out-of-date CLI is told to upgrade, and can**
-  - [An out-of-date CLI is told to upgrade](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-dist.feature#L45)
-  - [convoz upgrade replaces the binary and the skill](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-dist.feature#L54)
+- **A CLI older than its server keeps working and is told to upgrade, and can**
+  - [A CLI older than its server runs and warns at most once an hour](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-dist.feature#L46)
+  - [A CLI refuses a server with another API number](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-dist.feature#L56)
+  - [The previous CLI still does its basic commands against this server](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-dist.feature#L63)
+  - [convoz upgrade replaces the binary and the skill](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-dist.feature#L69)
 
 ## Threads
 
@@ -1166,20 +1172,21 @@ I can ask and hear answers while my hands are busy.
 ## Voice notes
 
 I can give direction on the move.
-11 scenarios.
+12 scenarios.
 
 - **Recording, sending and cancelling**
   - [A voice note uploads while it records](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L21)
   - [Cancelling a recording sends nothing](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L27)
-  - [A voice note plays back](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L33)
-  - [A voice note upload resumes after a drop](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L39)
+  - [A long voice note counts down its last minute and is sent at 30 minutes](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L35)
+  - [A voice note plays back](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L42)
+  - [A voice note upload resumes after a drop](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L48)
 - **Agents get the words**
-  - [A transcript appears when transcription is on](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L48)
-  - [With no transcription engine the note has no transcript](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L55)
-  - [A note sent before transcription was on gets its words later](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L61)
-  - [The owner can transcribe a voice note again](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L68)
-  - [Search finds words that are only in the transcript](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L75)
+  - [A transcript appears when transcription is on](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L57)
+  - [With no transcription engine the note has no transcript](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L64)
+  - [A note sent before transcription was on gets its words later](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L70)
+  - [The owner can transcribe a voice note again](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L77)
+  - [Search finds words that are only in the transcript](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L84)
 - **Voice notes work in a thread**
-  - [The owner can record a voice note in a thread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L85)
+  - [The owner can record a voice note in a thread](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L94)
 - **Audio is stored and served safely**
-  - [Purging a voice note removes its transcript](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L95)
+  - [Purging a voice note removes its transcript](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/voice.feature#L104)

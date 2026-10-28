@@ -29,6 +29,15 @@ Feature: Voice notes
       Then conversation 41 shows no new message
       And the partial upload is gone after 24 hours
 
+    # Owner: a voice note stopped by itself at 5 minutes, without a word. The cap is 30 minutes and the last minute counts down.
+    # No end-to-end binding by owner order (no e2e for this change); the cap is a constant in the recorder and the server.
+    @v1 @browser @unimplemented
+    Scenario: A long voice note counts down its last minute and is sent at 30 minutes
+      When the owner records for 29 minutes
+      Then the recording shows how long is left, counting down from "1:00 left"
+      And at 30 minutes the recording stops by itself and the note is sent, not dropped
+      And the voice message has a 30:00 duration
+
     @v1 @browser
     Scenario: A voice note plays back
       Given the owner sent a voice note
