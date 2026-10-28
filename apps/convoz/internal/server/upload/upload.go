@@ -1,6 +1,7 @@
 package upload
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"database/sql"
@@ -158,15 +159,8 @@ func (s *Service) Create(ctx context.Context, d pdb.DBTX, now time.Time, in NewR
 		if !wire.ValidClientID(in.ClientID) {
 			return Row{}, ErrBadRequest
 		}
-		switch first, err := q.UploadOfClientID(ctx, db.UploadOfClientIDParams{UploaderID: in.Uploader, ClientID: sql.NullString{String: in.ClientID, Valid: true}}); {
-		case err == nil:
-			if first.ConversationID != in.Conversation || first.Kind != in.Kind || first.Filename != in.Filename {
-				return Row{}, ErrBadRequest // one client id names one upload
-			}
-			r, _, err := ByID(ctx, d, first.ID)
+		if r, found, err := replayOf(ctx, d, in); found || err != nil {
 			return r, err
-		case !errors.Is(err, sql.ErrNoRows):
-			return Row{}, err
 		}
 	}
 	limit := int64(MaxSize)
@@ -199,16 +193,54 @@ func (s *Service) Create(ctx context.Context, d pdb.DBTX, now time.Time, in NewR
 	if err != nil {
 		return Row{}, err
 	}
+	if beforeInsert != nil {
+		beforeInsert()
+	}
 	id, err := q.InsertUpload(ctx, db.InsertUploadParams{
 		PublicID: pub, UploaderID: in.Uploader, SessionID: nullInt(in.Session), ConversationID: in.Conversation, Kind: in.Kind,
 		DeclaredSize: size, DeclaredSha256: sum, Filename: in.Filename, StorageName: storage, DekID: dekGeneration, FileKeyWrapped: wrapped, CreatedAt: now.UnixMilli(),
 		ClientID: sql.NullString{String: in.ClientID, Valid: in.ClientID != ""},
 	})
+	if err != nil && in.ClientID != "" && pdb.IsUniqueViolation(err) { // a start of the same client id got in between: it is the first one
+		if r, found, rerr := replayOf(ctx, d, in); found || rerr != nil {
+			return r, rerr
+		}
+	}
 	if err != nil {
 		return Row{}, err
 	}
 	r, _, err := ByID(ctx, d, id)
 	return r, err
+}
+
+// beforeInsert is a seam for a test: it runs between the look-up of the client id and the insert.
+var beforeInsert func()
+
+// replayOf finds the upload this identity already started under the request's client id. found is false when there is none. It is
+// ErrBadRequest when the request differs from the first one in anything it asks (conversation, kind, name, size or checksum): one
+// client id names one upload.
+func replayOf(ctx context.Context, d pdb.DBTX, in NewRequest) (Row, bool, error) {
+	first, err := db.New(d).UploadOfClientID(ctx, db.UploadOfClientIDParams{UploaderID: in.Uploader, ClientID: sql.NullString{String: in.ClientID, Valid: true}})
+	if errors.Is(err, sql.ErrNoRows) {
+		return Row{}, false, nil
+	}
+	if err != nil {
+		return Row{}, false, err
+	}
+	r, _, err := ByID(ctx, d, first.ID)
+	if err != nil {
+		return Row{}, false, err
+	}
+	same := r.ConversationID == in.Conversation && r.Kind == in.Kind && r.Filename == in.Filename
+	if in.Size == 0 {
+		same = same && allZero(r.SHA256) // a start with no length keeps the zero checksum
+	} else {
+		same = same && !allZero(r.SHA256) && r.DeclaredSize == in.Size && bytes.Equal(r.SHA256, in.SHA256)
+	}
+	if !same {
+		return Row{}, true, ErrBadRequest
+	}
+	return r, true, nil
 }
 
 // newPublicID is 128 random bits as 22 URL-safe characters: the id in URLs and in each segment's AAD.

@@ -185,3 +185,56 @@ func TestAnUploadStartedAgainUnderTheSameClientIDIsTheSameUpload(t *testing.T) {
 		t.Error("two starts with no client id must stay two uploads")
 	}
 }
+
+// The replay of a start must ask the same thing: another size or checksum under the same client id is refused (advisor, issue 193).
+func TestAnUploadStartedAgainWithAnotherSizeOrChecksumIsRefused(t *testing.T) {
+	s, svc := seeded(t)
+	start := func(size int64, sum byte) (row upload.Row, err error) {
+		err = dbtest.TxErr(t, s, func(ctx context.Context, d pdb.DBTX) (e error) {
+			row, e = svc.Create(ctx, d, t0, upload.NewRequest{Uploader: 1, Conversation: 41, Kind: upload.KindFile, Filename: "a.bin", Size: size, SHA256: bytes.Repeat([]byte{sum}, 32), ClientID: "convoz-size0001"}, 0)
+			return e
+		})
+		return row, err
+	}
+	first, err := start(100, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again, err := start(100, 1); err != nil || again.PublicID != first.PublicID {
+		t.Fatalf("the same start again: %v, %v", again.PublicID, err)
+	}
+	if _, err := start(200, 1); !errors.Is(err, upload.ErrBadRequest) {
+		t.Errorf("another size: %v, want ErrBadRequest", err)
+	}
+	if _, err := start(100, 2); !errors.Is(err, upload.ErrBadRequest) {
+		t.Errorf("another checksum: %v, want ErrBadRequest", err)
+	}
+}
+
+// Two starts with one client id that meet at the insert: the loser reads the winner's row, it does not fail (advisor, issue 193).
+func TestTwoStartsOfOneClientIDMeetingAtTheInsertAreOneUpload(t *testing.T) {
+	s, svc := seeded(t)
+	req := upload.NewRequest{Uploader: 1, Conversation: 41, Kind: upload.KindFile, Filename: "a.bin", Size: 100, SHA256: bytes.Repeat([]byte{1}, 32), ClientID: "convoz-race0001"}
+	var winner upload.Row
+	err := dbtest.TxErr(t, s, func(ctx context.Context, d pdb.DBTX) (e error) {
+		first := true
+		defer upload.SetBeforeInsert(func() { // the other start gets its row in after this one looked and found none
+			if !first {
+				return
+			}
+			first = false
+			winner, e = svc.Create(ctx, d, t0, req, 0)
+		})()
+		var got upload.Row
+		if got, e = svc.Create(ctx, d, t0, req, 0); e != nil {
+			return e
+		}
+		if winner.PublicID == "" || got.PublicID != winner.PublicID {
+			t.Errorf("the loser got %q; want the winner's upload %q", got.PublicID, winner.PublicID)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
