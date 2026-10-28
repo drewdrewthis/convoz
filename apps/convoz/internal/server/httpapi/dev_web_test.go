@@ -18,7 +18,7 @@ func devDir(t *testing.T) string {
 	}
 	dir := filepath.Join(top, "dev")
 	build := filepath.Join(dir, "releases", "20261028T120000Z-abc1234")
-	for name, body := range map[string]string{"index.html": "<!doctype html><title>DEV SHELL</title>", "assets/main-abc.js": "console.log(1)", "manifest.webmanifest": "{}"} {
+	for name, body := range map[string]string{"index.html": "<!doctype html><title>DEV SHELL</title>", "assets/main-abc.js": "console.log(1)", "assets/main-abc.js.br": "BR-BYTES", "manifest.webmanifest": "{}"} {
 		p := filepath.Join(build, name)
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			t.Fatal(err)
@@ -183,4 +183,43 @@ func TestTheDevRouteIsTheOwnersAndNotTheAgentPorts(t *testing.T) {
 	if found != 2 {
 		t.Errorf("%d dev routes, want 2 (/dev and /dev/{path...})", found)
 	}
+}
+
+// The build holds a brotli copy next to each script and stylesheet (<file>.br); a client that takes brotli gets it as it is, one that
+// does not gets the plain file, and the answer says it depends on Accept-Encoding.
+func TestTheDevRouteSendsTheBrotliCopyToAClientThatTakesIt(t *testing.T) {
+	rig := newDevRig(t, devDir(t))
+	t.Run("a client that takes br gets the .br copy", func(t *testing.T) {
+		rec := rig.do("GET", "/dev/assets/main-abc.js", "", map[string]string{"Accept-Encoding": "gzip, br"})
+		if rec.Code != http.StatusOK || rec.Body.String() != "BR-BYTES" {
+			t.Fatalf("status %d body %q, want 200 with the .br bytes", rec.Code, rec.Body.String())
+		}
+		h := rec.Header()
+		if h.Get("Content-Encoding") != "br" || h.Get("Vary") != "Accept-Encoding" {
+			t.Errorf("Content-Encoding %q Vary %q, want br and Accept-Encoding", h.Get("Content-Encoding"), h.Get("Vary"))
+		}
+		if got := h.Get("Content-Type"); !strings.Contains(got, "javascript") {
+			t.Errorf("Content-Type %q, want the type of the plain file, not of the .br", got)
+		}
+		if got := h.Get("Cache-Control"); got != "public, max-age=31536000, immutable" {
+			t.Errorf("Cache-Control %q, want immutable", got)
+		}
+	})
+	t.Run("a client that does not take br gets the plain file", func(t *testing.T) {
+		for _, accept := range []string{"", "gzip", "br;q=0"} {
+			rec := rig.do("GET", "/dev/assets/main-abc.js", "", map[string]string{"Accept-Encoding": accept})
+			if rec.Body.String() != "console.log(1)" || rec.Header().Get("Content-Encoding") != "" {
+				t.Errorf("Accept-Encoding %q: body %q Content-Encoding %q, want the plain file", accept, rec.Body.String(), rec.Header().Get("Content-Encoding"))
+			}
+			if rec.Header().Get("Vary") != "Accept-Encoding" {
+				t.Errorf("Accept-Encoding %q: Vary %q, want Accept-Encoding", accept, rec.Header().Get("Vary"))
+			}
+		}
+	})
+	t.Run("a file with no .br copy is sent plain", func(t *testing.T) {
+		rec := rig.do("GET", "/dev/", "", map[string]string{"Accept-Encoding": "br"})
+		if !strings.Contains(rec.Body.String(), "DEV SHELL") || rec.Header().Get("Content-Encoding") != "" {
+			t.Errorf("body %q Content-Encoding %q, want the plain page", rec.Body.String(), rec.Header().Get("Content-Encoding"))
+		}
+	})
 }
