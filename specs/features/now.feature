@@ -14,7 +14,7 @@ Feature: Now
     And machine "box-2" is logged in with allow-list "devtool" and "docs"
     And "devtool" and "docs" are active participants of conversation 41 "Ship search filters"
 
-  Rule: Now is one list of feed items, newest first, each blocking or fyi
+  Rule: Now is one list of feed items, newest first, each following one piece of work: started, blocking or done
 
     @v1 @browser
     Scenario: The list has no section headings and mixes blocking and fyi items
@@ -47,13 +47,26 @@ Feature: Now
       And the item has no "Snooze" button
 
     @v1 @browser
-    Scenario: A deliverable done today is an fyi item and Got it removes it
+    Scenario: A step done today is a done item and Got it removes it
       Given "devtool" finished the deliverable "Search filters" today
       When the owner opens Now
-      Then the item shows no "Blocking" marker, the title "Search filters — done" and the link "From Ship search filters"
+      Then the item shows the state "Done", the title "Search filters — done" and the link "From Ship search filters"
       And its only action is "Got it"
       When the owner presses "Got it"
       Then the item leaves Now and stays gone after a reload on this device
+
+    @v1 @browser
+    Scenario: A step the agent started today is a started item
+      Given "devtool" started the plan step "Index the filters" today
+      When the owner opens Now
+      Then the item shows the state "Started", the title "Index the filters" and the link "From Ship search filters"
+      And its only action is "Got it"
+
+    @v1 @browser
+    Scenario: The same step is one row that moves from started to done
+      Given "devtool" started the plan step "Index the filters" today
+      When "devtool" finishes "Index the filters"
+      Then Now lists one row for "Index the filters", with the state "Done"
 
   Rule: Now lists what waits on the owner, most urgent first
 

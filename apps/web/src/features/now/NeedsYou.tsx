@@ -1,4 +1,4 @@
-import type { Ask, NowWaiting, ShippedDelivery } from "@convoz/api-client";
+import type { Ask, NowWaiting } from "@convoz/api-client";
 import { whoLine, type Answer, type SnoozePreset } from "@convoz/app-kit";
 import { Button } from "@convoz/ui/Button";
 import { useState } from "react";
@@ -9,13 +9,14 @@ import { entries } from "./entries.ts";
 import { ItemFrame } from "./ItemFrame.tsx";
 import { NowAsk } from "./NowAsk.tsx";
 import { useNow } from "./store.ts";
+import type { Fyi } from "./Updates.tsx";
 
 interface NeedsYouProps {
   asks: Ask[];
   waiting: NowWaiting[];
   /** fyi items: plan steps done today, not yet acknowledged. */
-  done: ShippedDelivery[];
-  ack: (d: ShippedDelivery) => void;
+  done: Fyi[];
+  ack: (f: Fyi) => void;
   busy: ReadonlySet<number>;
   presets: SnoozePreset[];
   answer: (ask: Ask, a: Answer) => void;
@@ -58,16 +59,16 @@ function AskItem({ ask, busy, presets, answer, snooze }: { ask: Ask; busy: boole
   );
 }
 
-/** FyiItem is a plan step done today: the owner only needs to know. Got it is kept on this device (see Updates.tsx). */
-function FyiItem({ done: d, ack }: { done: ShippedDelivery; ack: (d: ShippedDelivery) => void }) {
+/** FyiItem is a plan step started or done today: the owner only needs to know. Got it is kept on this device (see Updates.tsx). */
+function FyiItem({ item: f, ack }: { item: Fyi; ack: (f: Fyi) => void }) {
   return (
     <ItemFrame
-      kind="fyi"
-      title={`${d.text} — done`}
-      context={`@${d.handle} finished this at ${clockOf(d.at)}`}
-      from={{ id: d.conversation_id, title: d.title }}
+      kind={f.state}
+      title={f.state === "done" ? `${f.text} — done` : f.text}
+      context={`@${f.handle} ${f.state === "done" ? "finished this" : "started this"} at ${clockOf(f.at)}`}
+      from={{ id: f.conversation_id, title: f.title }}
       actions={
-        <Button variant="primary" size="inline" className="mr-8 ml-8" onClick={() => ack(d)}>
+        <Button variant="primary" size="inline" className="mr-8 ml-8" onClick={() => ack(f)}>
           Got it
         </Button>
       }
@@ -114,8 +115,8 @@ export function NeedsYou({ asks, waiting, done, ack, busy, presets, answer, dism
             )}
           </div>
         ) : "done" in e ? (
-          <div key={`d${e.done.conversation_id}:${e.done.at}:${e.done.text}`} aria-current={e.done.conversation_id === current ? "page" : undefined}>
-            <FyiItem done={e.done} ack={ack} />
+          <div key={`d${e.done.step}`} aria-current={e.done.conversation_id === current ? "page" : undefined}>
+            <FyiItem item={e.done} ack={ack} />
           </div>
         ) : (
           <div key={`p${e.plan.conversation.id}-${e.plan.text}`} data-conv={e.plan.conversation.id} aria-current={e.plan.conversation.id === current ? "page" : undefined}>
