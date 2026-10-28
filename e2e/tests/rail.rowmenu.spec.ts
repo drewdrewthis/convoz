@@ -142,6 +142,37 @@ scenario("On a phone a starred conversation has no Mark stale in its long press 
   await expect(menu.getByRole("menuitem", { name: "Mark stale", exact: true })).toHaveCount(0);
 });
 
+scenario("On a 200 px rail Rename takes clicks over the resize handle and its field stays within the menu cap", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  await open({ server, page, context });
+  await page.evaluate(() => localStorage.setItem("convoz.rail.width", "200"));
+  await page.reload();
+  await expect.poll(async () => Math.round((await rail(page).boundingBox())!.width)).toBe(200);
+  const handle = (await page.getByRole("separator", { name: "Resize sidebar" }).boundingBox())!;
+
+  // When the menu is open, the item Rename is the topmost element at its centre, also where it lies over the resize handle
+  const row = railRow(page, T52);
+  await row.hover();
+  await row.getByRole("button", { name: `More actions for ${T52}` }).click();
+  const rename = page.getByRole("menuitem", { name: "Rename", exact: true });
+  const box = (await rename.boundingBox())!;
+  expect(box.x + box.width, "the menu reaches the resize handle").toBeGreaterThan(handle.x);
+  const hit = await page.evaluate(([x, y]) => document.elementFromPoint(x!, y!)?.closest("[role=menuitem]")?.textContent, [handle.x + handle.width / 2, box.y + box.height / 2] as const);
+  expect(hit, "the element under the pointer over the handle").toBe("Rename");
+
+  // And clicking Rename opens the field, no wider than the 18 rem cap and inside the window
+  await rename.click();
+  const field = page.getByRole("textbox", { name: "Rename conversation" });
+  await expect(field).toBeVisible();
+  const menuBox = (await page.getByRole("menu").boundingBox())!;
+  expect(menuBox.width, "menu with the Rename field").toBeLessThanOrEqual(288);
+  expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+
+  // Then Escape closes the menu and the title stays
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(railRow(page, T52)).toBeVisible();
+});
+
 scenario("The row menu stars, unstars and marks read", { tag: ["@browser"] }, async ({ server, page, context }) => {
   const u = await open({ server, page, context });
   await agentSays(u.w, "devtool", u.c[60], "Report ready");

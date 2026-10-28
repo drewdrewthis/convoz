@@ -250,6 +250,17 @@ Feature: Rail
       When the owner stars conversation 52 by long press and long presses it again
       Then the menu offers "Unstar conversation" and no "Mark stale"
 
+    # Follow-up of the advisor review of PR 170 (issue 167): the open menu lies over the resize handle on a narrow rail and takes the clicks.
+    @v1 @browser
+    Scenario: On a 200 px rail Rename takes clicks over the resize handle and its field stays within the menu cap
+      Given the sidebar is 200 px wide
+      When the owner opens the menu of conversation 52
+      Then "Rename" is the element under the pointer where the menu lies over the resize handle
+      When the owner picks "Rename"
+      Then the field is no wider than 18 rem and inside the window
+      When the owner presses Escape
+      Then the menu is closed and the title stays
+
     @v1 @browser
     Scenario: The row menu stars, unstars and marks read
       Given "devtool" posts in conversation 60

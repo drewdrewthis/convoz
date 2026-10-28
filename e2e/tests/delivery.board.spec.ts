@@ -245,6 +245,52 @@ scenario("Request update on a plan asks its agent in that conversation", { tag: 
   await expect(r.getByRole("button", { name: "Request update" })).toBeEnabled();
 });
 
+scenario("A long No date group folds behind a chip and opens on a press", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(120_000);
+  const p = await planUi({ server, page, context }, { docsIn: false });
+  // Given "devtool" and "docs" are doing a step in 11 conversations in all, none with a date
+  // (the server lets one agent write 10 plans in 50 seconds, so the 11 are split over two agents)
+  const titles = Array.from({ length: 11 }, (_, i) => `Step number ${i + 1}`);
+  for (const [i, t] of titles.entries()) {
+    const who = i % 2 === 0 ? p.dev : p.docs;
+    const conv = await createConversation(p.w.owner, { participants: ["devtool", "docs"], title: `Chat for ${t}` });
+    await mustPlan(p, who, ["--doing", t], conv);
+  }
+
+  // When the owner opens Deliveries
+  await openDeliveries(page, p, info);
+  // Then "No date · 11" is a closed chip and no row shows
+  const chip = page.getByRole("button", { name: "No date · 11" });
+  await expect(chip).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator("#deliveries h2")).toHaveCount(0);
+  await expect(page.locator("#deliveries button[aria-expanded]").filter({ hasText: "Step number" })).toHaveCount(0);
+
+  // When the owner presses the chip
+  await chip.click();
+  // Then all 11 rows show, and the chip says it is open
+  await expect(chip).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("#deliveries button[aria-expanded]").filter({ hasText: "Step number" })).toHaveCount(11);
+});
+
+scenario("Request update rests for 10 minutes and then can be pressed again", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(60_000);
+  const p = await planUi({ server, page, context }, { docsIn: false });
+  await mustPlan(p, p.dev, ["--doing", "Filter chips", "--eta", "30m"]);
+  await page.clock.install();
+  await openDeliveries(page, p, info);
+  const r = row(page, "Filter chips");
+  await toggle(r).click();
+  await r.getByRole("button", { name: "Request update" }).click();
+  await expect(r.getByRole("button", { name: /^Requested/ })).toBeDisabled();
+
+  // When 9 minutes pass, then it still rests
+  await page.clock.fastForward("09:00");
+  await expect(r.getByRole("button", { name: /^Requested/ })).toBeDisabled();
+  // When 10 minutes have passed in all, then "Request update" can be pressed again
+  await page.clock.fastForward("01:05");
+  await expect(r.getByRole("button", { name: "Request update" })).toBeEnabled();
+});
+
 scenario("A plan with no update for a day shows as at risk", { tag: ["@browser"] }, async ({ server, page, context, testApi }, info) => {
   info.setTimeout(60_000);
   const p = await planUi({ server, page, context }, { docsIn: false });

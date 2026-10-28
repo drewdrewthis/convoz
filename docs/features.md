@@ -19,7 +19,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Crew: identities, machines and sessions](#crew-identities-machines-and-sessions) (36)
 - [Data at rest, backups and deletion](#data-at-rest-backups-and-deletion) (10)
 - [Day labels](#day-labels) (4)
-- [Deliveries: what each agent will deliver, and when](#deliveries-what-each-agent-will-deliver-and-when) (8)
+- [Deliveries: what each agent will deliver, and when](#deliveries-what-each-agent-will-deliver-and-when) (10)
 - [Errors in the web app reach the server log](#errors-in-the-web-app-reach-the-server-log) (3)
 - [Machine login with a device flow](#machine-login-with-a-device-flow) (23)
 - [Messages and their types](#messages-and-their-types) (14)
@@ -31,7 +31,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Plans: what each agent is doing, what is next and what waits on the owner](#plans-what-each-agent-is-doing-what-is-next-and-what-waits-on-the-owner) (25)
 - [Platform rules every module relies on](#platform-rules-every-module-relies-on) (2)
 - [Poor connections](#poor-connections) (11)
-- [Rail](#rail) (28)
+- [Rail](#rail) (29)
 - [Search](#search) (12)
 - [Security walls](#security-walls) (12)
 - [Send a web page to an agent from the browser](#send-a-web-page-to-an-agent-from-the-browser) (3)
@@ -556,19 +556,21 @@ I know when things happened without opening each message.
 ## Deliveries: what each agent will deliver, and when
 
 I know when things will be delivered, and a missed date is chased without me.
-8 scenarios.
+10 scenarios.
 
 - **An agent names what it will deliver and by when, and it stays until it ships**
   - [An agent sets a deliverable with a due date, and it stays until it ships](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L21)
 - **The owner sees every agent's current plan on one page, the most urgent first, and asks for an update right there**
   - [Deliveries lists every agent's current plan, the most urgent first](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L36)
   - [Request update on a plan asks its agent in that conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L59)
-  - [A plan with no update for a day shows as at risk](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L72)
-  - [With no plans the page says how they come](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L80)
+  - [A long No date group folds behind a chip and opens on a press](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L73)
+  - [Request update rests for 10 minutes and then can be pressed again](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L81)
+  - [A plan with no update for a day shows as at risk](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L89)
+  - [With no plans the page says how they come](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L97)
 - **When a due date passes, the agent is asked first, once per date, and the owner sees it on Now without a push**
-  - [When a due date passes, the agent is asked once: done, new date, or blocked](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L87)
-  - [A late step and a late delivery each ask once, with their own text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L99)
-  - [Now lists late deliverables under Overdue until the agent gives a new date](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L111)
+  - [When a due date passes, the agent is asked once: done, new date, or blocked](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L104)
+  - [A late step and a late delivery each ask once, with their own text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L116)
+  - [Now lists late deliverables under Overdue until the agent gives a new date](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L128)
 
 ## Errors in the web app reach the server log
 
@@ -866,7 +868,7 @@ I can trust it from anywhere.
 ## Rail
 
 Things stay where I put them and unread work stands out.
-28 scenarios.
+29 scenarios.
 
 - **Order is the owner's; a new message puts its conversation on top (I-21)**
   - [A new conversation goes to the top](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L20)
@@ -901,7 +903,8 @@ Things stay where I put them and unread work stands out.
   - [On a phone the long press menu marks a conversation stale and brings it back](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L236)
   - [A starred conversation has no Mark stale in its row menu](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L244)
   - [On a phone a starred conversation has no Mark stale in its long press menu](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L249)
-  - [The row menu stars, unstars and marks read](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L254)
+  - [On a 200 px rail Rename takes clicks over the resize handle and its field stays within the menu cap](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L255)
+  - [The row menu stars, unstars and marks read](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L265)
 
 ## Search
 
