@@ -320,3 +320,60 @@ func TestUpdate_ChangesTheAskInPlaceAfterTheOwnersQuestions(t *testing.T) {
 		t.Errorf("updated ask = %+v (history %+v, counter %d)", a, last, cv.open)
 	}
 }
+
+// A retry of an update whose answer was lost must not bump the version a second time (issue 193).
+func TestUpdate_TheSameUpdateSentAgainChangesNothing(t *testing.T) {
+	s := world(t)
+	cv := &fakeConversations{open: 4}
+	p := ask.Ports{Threads: threads{}, Messages: &fakeMessages{}, Conversations: cv, Inbox: &fakeInbox{}, Journal: &fakeJournal{}}
+	ownerReplied(t, s, p, 6, 60)
+	update := func(in ask.Updating) (a ask.Ask, err error) {
+		dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error { a, err = ask.Update(ctx, d, p, t0, in); return nil })
+		return
+	}
+	in := ask.Updating{ID: 7, By: 2, Question: "Merge it, now?", Answers: "Behind a flag.", Recommended: &ask.Option{Label: "Yes", Why: "Green"}, Alternatives: []ask.Option{{Label: "No", Why: "Wait"}}}
+	first, err := update(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := update(in)
+	if err != nil {
+		t.Fatalf("the update sent again: %v", err)
+	}
+	if again.Version != first.Version || len(again.History) != len(first.History) {
+		t.Errorf("after the retry the ask is at version %d with %d steps, want %d with %d", again.Version, len(again.History), first.Version, len(first.History))
+	}
+	// A content-only update is replayed the same way, and an update with other answers is a new update.
+	only := ask.Updating{ID: 7, By: 2, Question: "Merge it today?"}
+	second, err := update(only)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if retry, err := update(only); err != nil || retry.Version != second.Version {
+		t.Errorf("a content-only update sent again: version %d (want %d), err %v", retry.Version, second.Version, err)
+	}
+	if next, err := update(ask.Updating{ID: 7, By: 2, Answers: "Now merged."}); err != nil || next.Version != second.Version+1 {
+		t.Errorf("an update with new answers: version %d (want %d), err %v", next.Version, second.Version+1, err)
+	}
+}
+
+// A withdraw sent again after the first one went through ends as the first did: the ask is withdrawn, and the call is not an error.
+func TestWithdraw_SentAgainAfterItWentThroughIsNotAnError(t *testing.T) {
+	s := world(t)
+	p := ask.Ports{Threads: threads{}, Messages: &fakeMessages{}, Conversations: &fakeConversations{open: 4}, Inbox: &fakeInbox{}, Journal: &fakeJournal{}}
+	withdraw := func(by int64) (a ask.Ask, err error) {
+		dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error { a, err = ask.Withdraw(ctx, d, p, t0, 7, by); return nil })
+		return
+	}
+	first, err := withdraw(2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := withdraw(2)
+	if err != nil || again.State != ask.Closed || again.CloseReason != ask.ReasonWithdrawn || again.Version != first.Version {
+		t.Errorf("withdraw sent again: %+v, err %v; want the same withdrawn ask at version %d", again, err, first.Version)
+	}
+	if _, err := withdraw(3); err != ask.ErrNotAsker {
+		t.Errorf("another agent withdrawing: %v, want ErrNotAsker", err)
+	}
+}

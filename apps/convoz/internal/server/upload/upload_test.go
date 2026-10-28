@@ -147,3 +147,41 @@ func TestAVoiceNoteIsTheOnlyUploadOfItsMessage(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+// A start whose answer was lost is sent again with the same client id: it gets the first upload back and no orphan row is made (issue 193).
+func TestAnUploadStartedAgainUnderTheSameClientIDIsTheSameUpload(t *testing.T) {
+	s, svc := seeded(t)
+	start := func(who, conv int64, name, clientID string) (row upload.Row, err error) {
+		err = dbtest.TxErr(t, s, func(ctx context.Context, d pdb.DBTX) (e error) {
+			row, e = svc.Create(ctx, d, t0, upload.NewRequest{Uploader: who, Conversation: conv, Kind: upload.KindFile, Filename: name, Size: 100, SHA256: bytes.Repeat([]byte{1}, 32), ClientID: clientID}, 0)
+			return e
+		})
+		return row, err
+	}
+	count := func() (n int) {
+		dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error {
+			return d.QueryRowContext(ctx, `SELECT count(*) FROM uploads`).Scan(&n)
+		})
+		return n
+	}
+	first, err := start(1, 41, "a.bin", "convoz-0123abcd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := start(1, 41, "a.bin", "convoz-0123abcd")
+	if err != nil || again.PublicID != first.PublicID || count() != 1 {
+		t.Fatalf("the start sent again: %+v, err %v, %d rows; want the first upload and 1 row", again.PublicID, err, count())
+	}
+	if _, err := start(1, 52, "a.bin", "convoz-0123abcd"); !errors.Is(err, upload.ErrBadRequest) {
+		t.Errorf("the same client id for another conversation: %v, want ErrBadRequest", err)
+	}
+	other, err := start(2, 41, "a.bin", "convoz-0123abcd")
+	if err != nil || other.PublicID == first.PublicID {
+		t.Errorf("another identity under the same client id: %+v, err %v; want its own upload", other.PublicID, err)
+	}
+	a, _ := start(1, 41, "a.bin", "")
+	b, _ := start(1, 41, "a.bin", "")
+	if a.PublicID == b.PublicID {
+		t.Error("two starts with no client id must stay two uploads")
+	}
+}
