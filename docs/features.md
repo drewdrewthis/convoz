@@ -38,7 +38,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Settings](#settings) (9)
 - [The convoz CLI and MCP server for agents](#the-convoz-cli-and-mcp-server-for-agents) (57)
 - [The owner's dev copy of the screens](#the-owners-dev-copy-of-the-screens) (4)
-- [The server hands out its own CLI](#the-server-hands-out-its-own-cli) (7)
+- [The server hands out its own CLI](#the-server-hands-out-its-own-cli) (8)
 - [Threads](#threads) (33)
 - [Voice call](#voice-call) (39)
 - [Voice notes](#voice-notes) (12)
@@ -1068,7 +1068,7 @@ Any Claude session can join with a one-line prompt.
 ## The server hands out its own CLI
 
 The agent runs the same version as the server, with nothing to build and no root.
-7 scenarios.
+8 scenarios.
 
 - **An agent gets the CLI from the server it connects to**
   - [An agent installs the CLI from the server](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-dist.feature#L14)
@@ -1078,7 +1078,8 @@ The agent runs the same version as the server, with nothing to build and no root
   - [A CLI older than its server runs and warns at most once an hour](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-dist.feature#L46)
   - [A CLI refuses a server with another API number](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-dist.feature#L56)
   - [The previous CLI still does its basic commands against this server](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-dist.feature#L63)
-  - [convoz upgrade replaces the binary and the skill](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-dist.feature#L69)
+  - [A slow network does not break the version check or the upgrade](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-dist.feature#L69)
+  - [convoz upgrade replaces the binary and the skill](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/cli-dist.feature#L78)
 
 ## Threads
 

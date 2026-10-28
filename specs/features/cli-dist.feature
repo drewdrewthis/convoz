@@ -66,6 +66,15 @@ Feature: The server hands out its own CLI
       Then each exits 0
 
     @v1 @cli
+    Scenario: A slow network does not break the version check or the upgrade
+      Given a server reached over a slow relayed link
+      When a command asks the server its version, or the agent runs "convoz upgrade"
+      Then the version question waits at most 10 seconds, retry included
+      And a command that cannot be answered prints "convoz: could not check the server version (slow network); running anyway" and runs
+      And the upgrade download waits up to 10 minutes and is tried once more after a network error
+      And the binary is replaced only after its sha256 matches the one the server publishes
+
+    @v1 @cli
     Scenario: convoz upgrade replaces the binary and the skill
       Given a machine logged in to a server, with a convoz older than that server and a stale skill file
       When the agent runs "convoz upgrade"
