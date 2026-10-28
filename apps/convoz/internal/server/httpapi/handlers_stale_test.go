@@ -104,6 +104,7 @@ func TestStaleHoldsOnlyWhileNoMessageCameAfterTheMark(t *testing.T) {
 		{"marked after the last message", 200, 100, true},
 		{"marked in the same millisecond", 100, 100, true},
 		{"a message after the mark", 100, 200, false},
+		{"brought back by the owner (a negative mark)", -300, 100, false},
 	} {
 		if got := (conversation.Conversation{StaleAt: tc.staleAt, LastActivityAt: tc.last}).Stale(); got != tc.want {
 			t.Errorf("%s: %v, want %v", tc.name, got, tc.want)
@@ -111,26 +112,39 @@ func TestStaleHoldsOnlyWhileNoMessageCameAfterTheMark(t *testing.T) {
 	}
 }
 
-// The owner closes a conversation from the rail even where he wrote the last message, and reopens it with reopen:true.
-func TestTheOwnerClosesAndReopensAConversationEvenWhenHeWroteLast(t *testing.T) {
+// The owner marks a conversation stale from the rail even where he wrote the last message, and brings it back with reopen:true. Bring
+// back also restarts the 48 hour quiet clock (back_at), so a quiet row leaves Older too (Drew, conv 179 msg 10071).
+func TestTheOwnerMarksStaleAndBringsBackEvenWhenHeWroteLast(t *testing.T) {
 	rig := openRig(t, "owner")
 	rig.ownerPosts(t, false)
 	time.Sleep(5 * time.Millisecond)
-	owner := func(body string) int {
+	owner := func(body string) (int, map[string]any) {
 		req := httptest.NewRequest(http.MethodPost, "/api/conversations/"+strconv.FormatInt(rig.conv, 10)+"/stale", strings.NewReader(body))
 		req.SetPathValue("id", strconv.FormatInt(rig.conv, 10))
 		rec := httptest.NewRecorder()
 		rig.s.markStale(rec, req, rig.c)
-		return rec.Code
+		var out map[string]any
+		_ = json.Unmarshal(rec.Body.Bytes(), &out)
+		return rec.Code, out
 	}
-	if code := owner(`{}`); code != http.StatusConflict {
+	if code, _ := owner(`{}`); code != http.StatusConflict {
 		t.Fatalf("without force (the voice call) the guard holds: %d, want 409", code)
 	}
-	if code := owner(`{"force":true}`); code != http.StatusOK || !rig.conversationNow(t).Stale() {
-		t.Fatalf("the owner closes it after his own message: %d stale=%v", code, rig.conversationNow(t).Stale())
+	if code, _ := owner(`{"force":true}`); code != http.StatusOK || !rig.conversationNow(t).Stale() {
+		t.Fatalf("the owner marks it stale after his own message: %d stale=%v", code, rig.conversationNow(t).Stale())
 	}
-	if code := owner(`{"reopen":true}`); code != http.StatusOK || rig.conversationNow(t).StaleAt != 0 {
-		t.Errorf("reopen: %d stale_at=%d, want 200 and 0", code, rig.conversationNow(t).StaleAt)
+	before := rig.s.Clock.Now().UnixMilli()
+	code, body := owner(`{"reopen":true}`)
+	cv := rig.conversationNow(t)
+	if code != http.StatusOK || cv.Stale() || cv.BackAt() < before {
+		t.Errorf("bring back: %d stale=%v back_at=%d, want 200, false and at least %d", code, cv.Stale(), cv.BackAt(), before)
+	}
+	if got, _ := body["conversation"].(map[string]any); got["stale"] != nil || got["back_at"] != float64(cv.BackAt()) {
+		t.Errorf("the answer shows it brought back: %v", body)
+	}
+	time.Sleep(5 * time.Millisecond)
+	if code, _ := owner(`{"force":true}`); code != http.StatusOK || !rig.conversationNow(t).Stale() || rig.conversationNow(t).BackAt() != 0 {
+		t.Errorf("a new mark after bring back: %d stale=%v back_at=%d, want stale and no back_at", code, rig.conversationNow(t).Stale(), rig.conversationNow(t).BackAt())
 	}
 }
 

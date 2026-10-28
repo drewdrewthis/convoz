@@ -52,7 +52,9 @@ Feature: Rail
     # Drew, 2026-10-22 (msg 2678, #42): Older = not starred, the owner did not write the last message, and either no message for 48 hours
     # (it was "no message since yesterday", prototype v41 P:6089-6091) or an agent in it marked it stale. "If it's my message it can't go
     # stale, but if it's an agent's maybe it's no longer relevant." Only the conversations list goes Older; Now and the feed never do. It is
-    # a view; the order stays the owner's. The rail has no action to mark one stale or to bring one back (his voice call can mark one: voice-call.feature).
+    # a view; the order stays the owner's. Drew, 2026-10-28 (conv 179 msg 10071, "why can't I mark things as stale yet?"): the row menu marks
+    # one stale and brings one back, also one that is Older from 48 hours quiet (rule "Each rail row has a menu of actions"). His voice call
+    # can mark one too (voice-call.feature).
     @v1 @browser @I-21 @C-9
     Scenario: Conversations with no message for 48 hours fold into Older
       Given conversation 41 is not starred and its last message was 2 days ago
@@ -206,18 +208,36 @@ Feature: Rail
       When the owner opens the menu again, picks "Rename", changes the text and presses Escape
       Then the row still reads "Runbook v2"
 
+    # Drew, 2026-10-28 (conv 179 msg 10071): the items are named for what they do, "Mark stale" and "Bring back". The owner's mark is not
+    # refused when he wrote last: that refusal guards him from agents. "Bring back" holds until the next quiet 48 hours or the next mark.
     @v1 @browser
-    Scenario: The row menu closes a conversation into Older and reopens it
-      When the owner opens the menu of conversation 52 in the rail and picks "Close"
+    Scenario: The owner marks a conversation stale from its row menu
+      When the owner opens the menu of conversation 52 in the rail and picks "Mark stale"
       Then conversation 52 sits under "Older · 1"
-      When the owner opens the menu of conversation 52 and picks "Reopen"
+      When the owner opens the menu of conversation 52 and picks "Bring back"
       Then conversation 52 is back in the Conversations group
 
     @v1 @browser
-    Scenario: The row menu closes a conversation where the owner wrote last
+    Scenario: The owner marks a conversation stale where he wrote last
       Given the owner wrote the last message in conversation 41
-      When the owner opens the menu of conversation 41 in the rail and picks "Close"
+      When the owner opens the menu of conversation 41 in the rail and picks "Mark stale"
       Then conversation 41 sits under "Older · 1"
+
+    @v1 @browser
+    Scenario: The owner brings a conversation back from Older
+      Given conversation 41 is not starred and its last message was 2 days ago
+      When the owner opens the rail
+      Then conversation 41 sits under "Older · 1"
+      When the owner opens the menu of conversation 41 and picks "Bring back"
+      Then conversation 41 is back in the Conversations group
+      And it stays there after a reload
+
+    @v1 @browser @phone
+    Scenario: On a phone the long press menu marks a conversation stale and brings it back
+      When the owner long presses conversation 52 in the Conversations list and picks "Mark stale"
+      Then conversation 52 sits under "Older · 1"
+      When the owner opens "Older · 1", long presses conversation 52 and picks "Bring back"
+      Then conversation 52 is back in the Conversations list
 
     @v1 @browser
     Scenario: The row menu stars, unstars and marks read
