@@ -199,6 +199,9 @@ func (s *Service) Create(ctx context.Context, d pdb.DBTX, now time.Time, in NewR
 	if err != nil {
 		return Row{}, err
 	}
+	if beforeInsert != nil {
+		beforeInsert()
+	}
 	id, err := q.InsertUpload(ctx, db.InsertUploadParams{
 		PublicID: pub, UploaderID: in.Uploader, SessionID: nullInt(in.Session), ConversationID: in.Conversation, Kind: in.Kind,
 		DeclaredSize: size, DeclaredSha256: sum, Filename: in.Filename, StorageName: storage, DekID: dekGeneration, FileKeyWrapped: wrapped, CreatedAt: now.UnixMilli(),
@@ -410,3 +413,6 @@ func KnownFiles(ctx context.Context, d pdb.DBTX) (map[string]bool, error) {
 func BoundAudioAfter(ctx context.Context, d pdb.DBTX, after int64, limit int) ([]int64, error) {
 	return db.New(d).BoundAudioAfter(ctx, db.BoundAudioAfterParams{AfterID: after, MaxRows: int64(limit)})
 }
+
+// beforeInsert is a seam for a test: it runs between the look-up of the client id and the insert.
+var beforeInsert func()
