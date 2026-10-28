@@ -8,6 +8,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"regexp"
 	"slices"
 	"strconv"
@@ -365,5 +366,64 @@ func TestOnlyAHashedAssetIsCachedForAYear(t *testing.T) {
 		if got := get(name); strings.Contains(got, "immutable") || got != "no-cache" {
 			t.Errorf("%s: Cache-Control %q, want no-cache", name, got)
 		}
+	}
+}
+
+// The hash rule is a name pattern, so a file of public/assets/ (which keeps its name) must never look hashed: the server would cache
+// it for a year under a name a new build reuses. A name whose last word has 8 characters, like icon-maskable.png, does look hashed:
+// rename it (icon-mask.png) before adding it.
+func TestNoFileOfPublicAssetsLooksHashed(t *testing.T) {
+	for _, name := range []string{"icon-maskable.png", "grain-darkmode.svg", "main-DwQgiNMS.js", "icons-DwQgiNMS.js"} {
+		if !viteHash.MatchString(name) {
+			t.Errorf("%s: the guard must see it as hashed", name)
+		}
+	}
+	for _, name := range []string{"icon-192.png", "icon-512.png", "grain-dark.svg", "grain-light.svg", "icon-mask.png", "main.js"} {
+		if viteHash.MatchString(name) {
+			t.Errorf("%s: the guard must not see it as hashed", name)
+		}
+	}
+	files, err := os.ReadDir("../../../../web/public/assets")
+	if err != nil || len(files) == 0 {
+		t.Fatalf("apps/web/public/assets: %v (%d files)", err, len(files))
+	}
+	for _, f := range files {
+		if viteHash.MatchString(f.Name()) {
+			t.Errorf("apps/web/public/assets/%s looks content-hashed and would be cached for a year; rename it", f.Name())
+		}
+	}
+}
+
+// A file that keeps its name is revalidated, so it carries a validator: a repeat request that holds the tag gets a 304 with no body.
+// A hashed file has none (it is not asked again for a year).
+func TestAnUnhashedAssetHasAnETagAndAnswers304(t *testing.T) {
+	get := func(name, match string, br bool) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/assets/"+name, nil)
+		req.SetPathValue("file", name)
+		if match != "" {
+			req.Header.Set("If-None-Match", match)
+		}
+		Asset(rec, req, br)
+		return rec
+	}
+	first := get("icon-192.png", "", false)
+	tag := first.Header().Get("ETag")
+	if first.Code != http.StatusOK || !strings.HasPrefix(tag, `"`) || first.Header().Get("Cache-Control") != "no-cache" {
+		t.Fatalf("first GET: %d ETag %q Cache-Control %q, want 200 with a strong tag and no-cache", first.Code, tag, first.Header().Get("Cache-Control"))
+	}
+	if again := get("icon-192.png", tag, false); again.Code != http.StatusNotModified || again.Body.Len() != 0 {
+		t.Errorf("matching If-None-Match: %d with %d bytes, want 304 and none", again.Code, again.Body.Len())
+	}
+	if other := get("icon-192.png", `"other"`, false); other.Code != http.StatusOK || other.Body.Len() == 0 {
+		t.Errorf("another tag: %d, want the file", other.Code)
+	}
+	names, _ := fs.Glob(dist, "web/assets/main-*.css")
+	if len(names) == 0 {
+		t.Skip("no web build embedded")
+	}
+	hashed := get(strings.TrimPrefix(names[0], "web/assets/"), "", false)
+	if hashed.Header().Get("ETag") != "" || !strings.Contains(hashed.Header().Get("Cache-Control"), "immutable") {
+		t.Errorf("hashed file: ETag %q Cache-Control %q, want no tag and immutable", hashed.Header().Get("ETag"), hashed.Header().Get("Cache-Control"))
 	}
 }

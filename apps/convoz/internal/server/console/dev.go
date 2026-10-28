@@ -1,6 +1,7 @@
 package console
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"io/fs"
@@ -67,7 +68,18 @@ func ServeDev(w http.ResponseWriter, r *http.Request, dir, name string, br bool)
 	h.Set("Content-Type", contentType)
 	h.Set("Content-Security-Policy", policy())
 	h.Set("Cache-Control", devCacheControl(name))
-	http.ServeContent(w, r, "", time.Time{}, file)
+	var content io.ReadSeeker = file
+	if strings.HasPrefix(name, "assets/") && !hashedName(name) {
+		// An unhashed file keeps its name from build to build: it carries a validator, so that an unchanged one is a 304.
+		body, err := io.ReadAll(file)
+		if err != nil {
+			http.Error(w, "read failed", http.StatusInternalServerError)
+			return
+		}
+		h.Set("ETag", contentETag(body))
+		content = bytes.NewReader(body)
+	}
+	http.ServeContent(w, r, "", time.Time{}, content)
 }
 
 // errSymlink is a name that passes through a symlink inside the build: it is refused, never followed.

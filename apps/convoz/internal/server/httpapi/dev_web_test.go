@@ -226,3 +226,25 @@ func TestTheDevRouteSendsTheBrotliCopyToAClientThatTakesIt(t *testing.T) {
 		}
 	})
 }
+
+// An unhashed file under assets/ is revalidated: it has a strong ETag from its bytes, and a matching If-None-Match gets a 304. A
+// hashed one has no tag (it is cached for a year), and neither has the page (no-store).
+func TestTheDevRouteGivesAnUnhashedAssetAnETag(t *testing.T) {
+	rig := newDevRig(t, devDir(t))
+	first := rig.do("GET", "/dev/assets/icon-192.png", "", nil)
+	tag := first.Header().Get("ETag")
+	if first.Code != http.StatusOK || !strings.HasPrefix(tag, `"`) || first.Body.String() != "PNG" {
+		t.Fatalf("first GET: %d ETag %q body %q", first.Code, tag, first.Body.String())
+	}
+	if again := rig.do("GET", "/dev/assets/icon-192.png", "", map[string]string{"If-None-Match": tag}); again.Code != http.StatusNotModified || again.Body.Len() != 0 {
+		t.Errorf("matching If-None-Match: %d with %d bytes, want 304 and none", again.Code, again.Body.Len())
+	}
+	if other := rig.do("GET", "/dev/assets/icon-192.png", "", map[string]string{"If-None-Match": `"other"`}); other.Code != http.StatusOK {
+		t.Errorf("another tag: %d, want 200", other.Code)
+	}
+	for _, path := range []string{"/dev/assets/main-Abc12345.js", "/dev/"} {
+		if got := rig.do("GET", path, "", nil).Header().Get("ETag"); got != "" {
+			t.Errorf("%s: ETag %q, want none", path, got)
+		}
+	}
+}
