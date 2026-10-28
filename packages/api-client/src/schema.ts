@@ -1522,6 +1522,128 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/conversations/{id}/items/{key}/{event}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * An agent moves one of its own steps; one call per transition.
+         * @description The agent comes from the lease, never the body, so it reaches only its own items. `event` is start, block, done, fyi, drop or say.
+         *     The first step of an agent in a conversation is now; later ones are pending, and when the now step leaves (done, fyi, drop) the next one
+         *     is promoted in the same transaction. Saying start or block again for a key edits the step; block always raises the version. A move the
+         *     state does not allow is 409 and changes nothing. Title, context and recommendation are plain text (no markdown, no links): title 1 to 200
+         *     characters, context 2000, recommendation 500, key 1 to 64; anything else is 400. There is no cap on open items.
+         */
+        post: operations["postItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The owner's feed items.
+         * @description Owner only. Open items in plan order, then the last 20 finished ones.
+         */
+        get: operations["getFeed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/feed/{id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept what the item recommends; it is done at once.
+         * @description Owner only; an agent lease is refused. 404 for an unknown item, 409 for a state or version that does not allow it.
+         */
+        post: operations["feedAccept"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/feed/{id}/answer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add info to a blocking item; with resolves it is done.
+         * @description Owner only; an agent lease is refused. 404 for an unknown item, 409 for a state or version that does not allow it.
+         */
+        post: operations["feedAnswer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/feed/{id}/ack": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Got it, acknowledge an fyi. The state stays; the feed hides it.
+         * @description Owner only; an agent lease is refused. 404 for an unknown item, 409 for a state or version that does not allow it.
+         */
+        post: operations["feedAck"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/feed/{id}/snooze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Hide an item until a time ahead. */
+        put: operations["feedSnooze"];
+        post?: never;
+        /** Bring a snoozed item back. */
+        delete: operations["feedUnsnooze"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/asks": {
         parameters: {
             query?: never;
@@ -3434,6 +3556,79 @@ export interface components {
             blocked?: string;
             /** Format: int64 */
             plan_updated_at: number;
+        };
+        ItemRequest: {
+            /** @description Plain text */
+            title?: string;
+            /** @description Plain text */
+            context?: string;
+            /** @description Plain text, up to 500 characters: the one action the owner can accept. Without it the owner can only add info. */
+            recommend?: string;
+            /** @description The note of done */
+            outcome?: string;
+            /** @description A duration (2d, 1d4h, 30m), a time HH:MM or a date YYYY-MM-DD HH:MM; display only. */
+            due?: string;
+            /** @description Seconds east of UTC */
+            utc_offset?: number;
+        };
+        FeedItem: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            conversation_id: number;
+            /** Format: int64 */
+            agent_id: number;
+            handle?: string;
+            key: string;
+            /**
+             * Format: int64
+             * @description Order inside the plan of one agent in one conversation.
+             */
+            seq: number;
+            /** @enum {string} */
+            state: "pending" | "started" | "blocking" | "done" | "fyi" | "dropped";
+            title: string;
+            context?: string;
+            recommendation?: string;
+            /** @description False for a blocking item with no recommendation; it takes info only. */
+            can_accept: boolean;
+            /** Format: int64 */
+            due_at?: number;
+            /** Format: int64 */
+            acked_at?: number;
+            /** @enum {string} */
+            ack_kind?: "accept" | "answer" | "got_it";
+            /** Format: int64 */
+            snoozed_until?: number;
+            /**
+             * Format: int64
+             * @description Every edit by the agent raises it; Accept names the one it saw.
+             */
+            version: number;
+            /** Format: int64 */
+            updated_at: number;
+        };
+        FeedResponse: {
+            /** @description Open items in plan order per conversation and agent; an fyi the owner has not acknowledged. */
+            items: components["schemas"]["FeedItem"][];
+            /** @description The last 20 finished items. */
+            done: components["schemas"]["FeedItem"][];
+        };
+        FeedAcceptRequest: {
+            /** Format: int64 */
+            if_version: number;
+        };
+        FeedAnswerRequest: {
+            text: string;
+            /** @description This answers it; the item is done. */
+            resolves?: boolean;
+        };
+        FeedSnoozeRequest: {
+            /**
+             * Format: int64
+             * @description Epoch ms
+             */
+            until: number;
         };
         ShippedDelivery: {
             /** Format: int64 */
@@ -6409,6 +6604,183 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Deliveries"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    postItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                key: string;
+                event: "start" | "block" | "done" | "fyi" | "drop" | "say";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ItemRequest"];
+            };
+        };
+        responses: {
+            /** @description The item as it now is. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedItem"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getFeed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The feed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedResponse"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    feedAccept: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedAcceptRequest"];
+            };
+        };
+        responses: {
+            /** @description The item as it now is. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedItem"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    feedAnswer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedAnswerRequest"];
+            };
+        };
+        responses: {
+            /** @description The item as it now is. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedItem"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    feedAck: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The item as it now is. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedItem"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    feedSnooze: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedSnoozeRequest"];
+            };
+        };
+        responses: {
+            /** @description The item as it now is. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedItem"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    feedUnsnooze: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The item as it now is. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedItem"];
                 };
             };
             default: components["responses"]["Error"];

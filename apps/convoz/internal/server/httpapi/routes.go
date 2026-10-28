@@ -54,7 +54,7 @@ func (r Route) check(p authz.Principal) error {
 // Each module keeps its rows in its own routes_<module>.go, so parallel work never edits this list.
 var Routes = slices.Concat(
 	coreRoutes, cliRoutes, authRoutes, identityRoutes, auditRoutes, conversationRoutes, messageRoutes, readstateRoutes, eventRoutes, inboxRoutes,
-	askRoutes, prefsRoutes, uploadRoutes, transcriptRoutes, searchRoutes, notifyRoutes, settingsRoutes, unfurlRoutes, appkitRoutes, opsRoutes, planRoutes, voiceRoutes,
+	askRoutes, prefsRoutes, uploadRoutes, transcriptRoutes, searchRoutes, notifyRoutes, settingsRoutes, unfurlRoutes, appkitRoutes, opsRoutes, planRoutes, itemRoutes, voiceRoutes,
 )
 
 // appPage serves the app for a page URL: the cold page with the first screen's reads inline when this page has a first screen
