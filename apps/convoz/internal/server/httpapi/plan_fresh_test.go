@@ -353,3 +353,42 @@ func TestANewPlanReplacesTheAskAboutTheOldOne(t *testing.T) {
 		t.Fatalf("an ask about the old plan after the new plan was set: %d open, want 0", n)
 	}
 }
+
+// The agent answers a plan ask by setting a plan while it holds the ask claimed; its wrapper then acks the claim. The ack must go
+// through (the ask is answered), never report a lost claim, and the ask stays out of the queue.
+func TestAckingAPlanAskThatTheNewPlanAnsweredSucceeds(t *testing.T) {
+	r := newFreshRig(t)
+	r.setPlan(t, plan.Input{Now: []plan.Item{{Text: "Old plan step", ETA: r.clock.Now().Add(10 * time.Minute).UnixMilli()}}})
+	r.clock.add(11 * time.Minute)
+	r.sweep(t)
+	token := "00112233445566778899aabbccddeeff"
+	var id int64
+	r.tx(t, func(ctx context.Context, d pdb.DBTX) error {
+		if err := d.QueryRowContext(ctx, `SELECT id FROM inbox_items WHERE identity_id = 901 AND reason = 'status_due' AND state = 'ready'`).Scan(&id); err != nil {
+			return err
+		}
+		_, err := d.ExecContext(ctx, `UPDATE inbox_items SET state='claimed', claim_session_id=9001, claim_token=x'`+token+`', claim_until=?, visibility_ms=60000 WHERE id=?`, r.clock.Now().Add(time.Minute).UnixMilli(), id)
+		return err
+	})
+	put := httptest.NewRequest(http.MethodPut, "/api/conversations/"+strconv.FormatInt(r.conv, 10)+"/plan", strings.NewReader(`{"doing":"New plan step"}`))
+	put.SetPathValue("id", strconv.FormatInt(r.conv, 10))
+	if rec := httptest.NewRecorder(); func() bool { r.s.putPlan(rec, put, r.agent); return rec.Code != http.StatusOK }() {
+		t.Fatalf("PUT plan: %d", rec.Code)
+	}
+	ack := httptest.NewRequest(http.MethodPost, "/api/inbox/ack", strings.NewReader(`{"items":[{"id":`+strconv.FormatInt(id, 10)+`,"claim_token":"`+token+`"}]}`))
+	rec := httptest.NewRecorder()
+	r.s.ackInbox(rec, ack, &call{p: r.agent.p, lease: r.agent.lease})
+	if rec.Code/100 != 2 {
+		t.Errorf("ack of the answered ask: %d %s, want 2xx", rec.Code, rec.Body.String())
+	}
+	if n := r.openAsks(t); n != 0 {
+		t.Errorf("%d asks still open", n)
+	}
+	var state string
+	r.tx(t, func(ctx context.Context, d pdb.DBTX) error {
+		return d.QueryRowContext(ctx, `SELECT state FROM inbox_items WHERE id = ?`, id).Scan(&state)
+	})
+	if state == "ready" || state == "claimed" {
+		t.Errorf("the ask is %q, want out of the queue", state)
+	}
+}
