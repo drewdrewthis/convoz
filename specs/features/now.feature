@@ -14,13 +14,20 @@ Feature: Now
     And machine "box-2" is logged in with allow-list "devtool" and "docs"
     And "devtool" and "docs" are active participants of conversation 41 "Ship search filters"
 
-  Rule: Every feed item has one frame, and there are two kinds
+  Rule: Now is one list of feed items, newest first, each blocking or fyi
 
     @v1 @browser
-    Scenario: A Needs you item shows the frame and Accept answers with the first option
+    Scenario: The list has no section headings and mixes blocking and fyi items
+      Given "devtool" asked "Merge #415 on its own?" and "docs" finished the deliverable "Search filters" today
+      When the owner opens Now
+      Then there are no headings "Needs you" and "Updates"
+      And the items are listed newest first in one list
+
+    @v1 @browser
+    Scenario: A blocking item shows the frame and Accept answers with the first option
       Given "devtool" asked "Merge #415 on its own?" with the recommended option "Merge" because "CI is green"
       When the owner opens Now
-      Then the item shows the title "Merge #415 on its own?", the context "Recommended: Merge", the link "From Ship search filters" and the actions "Accept", "Add info" and "Snooze"
+      Then the item shows the marker "Blocking", the title "Merge #415 on its own?", the context "Recommended: Merge", the link "From Ship search filters" and the actions "Accept", "Add info" and "Snooze"
       And the item has no "Dismiss" button and no list of options
       When the owner presses "Accept"
       Then the ask is answered with "Merge"
@@ -32,18 +39,19 @@ Feature: Now
       Then the thread opens inside the item and the reply box has focus
 
     @v1 @browser
-    Scenario: A plan step that waits on the owner is a Needs you item
+    Scenario: A plan step that waits on the owner is a blocking item
       Given the plan of "devtool" in conversation 41 waits on the owner for "Pick the launch date"
       When the owner opens Now
-      Then the item shows the title "Pick the launch date" and the link "From Ship search filters"
+      Then the item shows the marker "Blocking", the title "Pick the launch date" and the link "From Ship search filters"
       And "Accept" and "Add info" open conversation 41
       And the item has no "Snooze" button
 
     @v1 @browser
-    Scenario: A deliverable done today is an Update and Got it removes it
+    Scenario: A deliverable done today is an fyi item and Got it removes it
       Given "devtool" finished the deliverable "Search filters" today
       When the owner opens Now
-      Then the Updates section lists "Search filters — done" with the link "From Ship search filters"
+      Then the item shows no "Blocking" marker, the title "Search filters — done" and the link "From Ship search filters"
+      And its only action is "Got it"
       When the owner presses "Got it"
       Then the item leaves Now and stays gone after a reload on this device
 

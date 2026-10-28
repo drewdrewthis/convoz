@@ -10,13 +10,13 @@ import { AllClear, NoDecisions } from "./AllClear.tsx";
 import { FeedItems } from "./FeedItems.tsx";
 import { Folds, type FoldKey } from "./Folds.tsx";
 import { NeedsYou } from "./NeedsYou.tsx";
-import { Updates, useUpdates } from "./Updates.tsx";
+import { useUpdates } from "./Updates.tsx";
 import { NowReplied } from "./NowReplied.tsx";
 import { Overdue, useOverdue } from "./Overdue.tsx";
 import { PendingAdd } from "./PendingAdd.tsx";
 import { Mentions, OtherChats, Replies, unreadRows, useTriage } from "./Unread.tsx";
 import { useAskActions } from "./useAskActions.ts";
-import { needsYouCount, useNow } from "./store.ts";
+import { useNow } from "./store.ts";
 import { sendKeptLogs } from "../call/index.ts";
 import { appPath } from "../../shared/base.ts";
 
@@ -27,7 +27,7 @@ interface NowProps {
   current?: number;
 }
 
-/** Now is /: what needs the owner. Under "Needs you · N" (N is needsYouCount, the number of the Now badges): open asks (urgent, then the newest), the adds agents
+/** Now is /: what needs the owner. In one list, newest first, with no section headings: the open asks and plan steps that block the owner, and the fyi items (plan steps done today). Then the (urgent, then the newest), the adds agents
  *  wait on, the machines and agents waiting to connect, and the messages that @mention the owner. Then "Replies to you", then the asks the owner replied to and
  *  the agent has not answered, then Other chats; Snoozed, Answered today and Dismissed today fold away above. With nothing waiting, the wordmark, "All clear"
  *  and the folds are centred, in that order. The desktop rail draws the same list `compact`, beside the open conversation (owner, conv 179 msg 6018). */
@@ -84,8 +84,6 @@ export function Now({ compact = false, current = 0 }: NowProps = {}) {
   // A deliverable past its date is no decision, but the page is not all clear while one waits (ux spec, conv 179).
   const overdue = useOverdue();
   const clear = Boolean(now) && !some && conversations !== null && unread.length === 0 && !overdue.length && !updates.list.length;
-
-  const needsYou = needsYouCount(now, conversations) ?? 0;
 
   const reload = useCallback(() => load().then(() => undefined), [load]);
   const { busy, presets, answer, dismiss, snooze, unsnooze, reopen } = useAskActions({ now, asks, reload, onAnswered: () => setFolds((f) => ({ ...f, answered: true })) });
@@ -145,11 +143,9 @@ export function Now({ compact = false, current = 0 }: NowProps = {}) {
         reopen={reopen}
         centered={clear}
       />
-      {needsYou ? <p className="ghdr">{`Needs you · ${needsYou}`}</p> : null}
       <div onKeyDown={moveFocus}>
-        <NeedsYou asks={asks} waiting={waitingPlans} busy={busy} presets={presets} answer={answer} dismiss={dismiss} snooze={snooze} current={current} compact={compact} />
+        <NeedsYou asks={asks} waiting={waitingPlans} done={updates.list} ack={updates.ack} busy={busy} presets={presets} answer={answer} dismiss={dismiss} snooze={snooze} current={current} compact={compact} />
       </div>
-      <Updates list={updates.list} ack={updates.ack} current={current} />
       {adds.length ? (
         <section id="adds" className="block" aria-label="Adds to decide">
           {adds.map((add) => (

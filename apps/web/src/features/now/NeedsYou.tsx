@@ -1,4 +1,4 @@
-import type { Ask, NowWaiting } from "@convoz/api-client";
+import type { Ask, NowWaiting, ShippedDelivery } from "@convoz/api-client";
 import { whoLine, type Answer, type SnoozePreset } from "@convoz/app-kit";
 import { Button } from "@convoz/ui/Button";
 import { useState } from "react";
@@ -13,6 +13,9 @@ import { useNow } from "./store.ts";
 interface NeedsYouProps {
   asks: Ask[];
   waiting: NowWaiting[];
+  /** fyi items: plan steps done today, not yet acknowledged. */
+  done: ShippedDelivery[];
+  ack: (d: ShippedDelivery) => void;
   busy: ReadonlySet<number>;
   presets: SnoozePreset[];
   answer: (ask: Ask, a: Answer) => void;
@@ -32,7 +35,7 @@ function AskItem({ ask, busy, presets, answer, snooze }: { ask: Ask; busy: boole
   const recommended = ask.options[0]?.label;
   return (
     <ItemFrame
-      kind="needs-you"
+      kind="blocking"
       title={ask.question}
       context={[recommended ? `Recommended: ${recommended}` : "", why, `Asked by ${whoLine(ask.asker)}`].filter(Boolean).join(". ")}
       tag={ask.urgent ? "Urgent" : undefined}
@@ -55,12 +58,29 @@ function AskItem({ ask, busy, presets, answer, snooze }: { ask: Ask; busy: boole
   );
 }
 
+/** FyiItem is a plan step done today: the owner only needs to know. Got it is kept on this device (see Updates.tsx). */
+function FyiItem({ done: d, ack }: { done: ShippedDelivery; ack: (d: ShippedDelivery) => void }) {
+  return (
+    <ItemFrame
+      kind="fyi"
+      title={`${d.text} — done`}
+      context={`@${d.handle} finished this at ${clockOf(d.at)}`}
+      from={{ id: d.conversation_id, title: d.title }}
+      actions={
+        <Button variant="primary" size="inline" className="mr-8 ml-8" onClick={() => ack(d)}>
+          Got it
+        </Button>
+      }
+    />
+  );
+}
+
 /** PlanItem is a plan step that waits on the owner. The server has no snooze for it and no thread of its own, so both buttons open the conversation for now. */
 function PlanItem({ plan }: { plan: NowWaiting }) {
   const href = `/chats/${plan.conversation.id}`;
   return (
     <ItemFrame
-      kind="needs-you"
+      kind="blocking"
       title={plan.text}
       context={`${whoLine(plan.agent)} is waiting on you since ${clockOf(plan.since)}`}
       from={{ id: plan.conversation.id, title: plan.conversation.title ?? "" }}
@@ -78,9 +98,9 @@ function PlanItem({ plan }: { plan: NowWaiting }) {
   );
 }
 
-/** NeedsYou is the Needs you section of Now: one frame for every item, newest first. An ask with a draft keeps the full ask card, whose Send carries the draft. */
-export function NeedsYou({ asks, waiting, busy, presets, answer, dismiss, snooze, current, compact }: NeedsYouProps) {
-  const list = entries(asks, waiting);
+/** NeedsYou is the one list of Now: one frame for every item, blocking or fyi, newest first. An ask with a draft keeps the full ask card, whose Send carries the draft. */
+export function NeedsYou({ asks, waiting, done, ack, busy, presets, answer, dismiss, snooze, current, compact }: NeedsYouProps) {
+  const list = entries(asks, waiting, done);
   if (!list.length) return null;
   return (
     <section id="asks" className="mb-8 flex flex-col gap-8">
@@ -92,6 +112,10 @@ export function NeedsYou({ asks, waiting, busy, presets, answer, dismiss, snooze
             ) : (
               <AskItem ask={e.ask} busy={busy.has(e.ask.id)} presets={presets} answer={answer} snooze={snooze} />
             )}
+          </div>
+        ) : "done" in e ? (
+          <div key={`d${e.done.conversation_id}:${e.done.at}:${e.done.text}`} aria-current={e.done.conversation_id === current ? "page" : undefined}>
+            <FyiItem done={e.done} ack={ack} />
           </div>
         ) : (
           <div key={`p${e.plan.conversation.id}-${e.plan.text}`} data-conv={e.plan.conversation.id} aria-current={e.plan.conversation.id === current ? "page" : undefined}>

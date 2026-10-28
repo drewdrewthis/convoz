@@ -3,9 +3,10 @@ import { Button } from "@convoz/ui/Button";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { visit } from "../../shared/navigate.ts";
 
-/** What one feed item shows. The two kinds of Now (Needs you, Update) draw the same frame; only the actions differ (owner, conv 179 msg 11603). */
+/** What one feed item shows. Every item of Now draws this frame; its state (blocking or fyi) sets the marker and the actions (owner, conv 179 msg 11603). */
 export interface FrameProps {
-  kind: "needs-you" | "update";
+  /** blocking: waits on the owner. fyi: to be known, then acknowledged. */
+  kind: "blocking" | "fyi";
   /** One line: the action, or the outcome. */
   title: string;
   /** A short why, what or recommendation. */
@@ -64,6 +65,7 @@ export function ItemFrame({ kind, title, context, tag, from, thread, snooze, act
   const href = `/chats/${from.id}`;
   return (
     <article className="flex min-w-0 flex-col gap-4 rounded-[14px] border border-solid border-border bg-raised px-14 pt-12 pb-4" data-item={kind} data-ask={dataId} tabIndex={-1} aria-label={title}>
+      {kind === "blocking" ? <span className="text-12 font-bold tracking-[.04em] text-danger uppercase">Blocking</span> : null}
       <h3 className="m-0 text-17 leading-[22px] font-semibold [overflow-wrap:anywhere]">{title}</h3>
       {context || tag ? (
         <p className="m-0 text-13 leading-[18px] text-muted [overflow-wrap:anywhere]">
