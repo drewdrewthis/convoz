@@ -19,8 +19,8 @@ import (
 // comes from one build. name is the path under /dev/ ("" for the page itself). The resolved folder is opened as an os.Root, so no
 // name or ".." reaches a file outside it, and no symlink inside the tree is followed at all (a build holds only files and folders):
 // such a name is a 404. A name that is no file of the build gets the build's index.html, so the app picks the screen from the
-// URL; a missing file under assets/ is a 404, never a page in place of a script. Nothing is cached: the next build must show at the
-// next load. With no folder (dir empty, missing, or no build in it), every name is a 404, the same answer as an unknown path.
+// URL; a missing file under assets/ is a 404, never a page in place of a script. A file under assets/ has a content-hashed name (Vite), so it is cached for a year as the prod console does (Asset);
+// the page and every other file are never cached: the next build must show at the next load. With no folder (dir empty, missing, or no build in it), every name is a 404, the same answer as an unknown path.
 func ServeDev(w http.ResponseWriter, r *http.Request, dir, name string) {
 	if dir == "" || (name != "" && !fs.ValidPath(name)) {
 		http.NotFound(w, r)
@@ -57,7 +57,7 @@ func ServeDev(w http.ResponseWriter, r *http.Request, dir, name string) {
 	}
 	h.Set("Content-Type", contentType)
 	h.Set("Content-Security-Policy", policy())
-	h.Set("Cache-Control", "no-store")
+	h.Set("Cache-Control", devCacheControl(name))
 	http.ServeContent(w, r, "", time.Time{}, file)
 }
 
@@ -87,4 +87,13 @@ func openDev(root *os.Root, name string) (io.ReadSeekCloser, error) {
 		return nil, fs.ErrNotExist
 	}
 	return f, nil
+}
+
+// devCacheControl is the Cache-Control of one served name: a year for a hashed file under assets/ (a new build has new names), none
+// for the page, the manifest and anything else, whose names stay the same from build to build.
+func devCacheControl(name string) string {
+	if strings.HasPrefix(name, "assets/") {
+		return "public, max-age=31536000, immutable"
+	}
+	return "no-store"
 }
