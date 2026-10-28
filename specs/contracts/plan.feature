@@ -49,6 +49,43 @@ Feature: Plans (contracts)
       When "devtool" plans Doing "Building invites" and Blocked "CI is down" and 3 hours pass
       Then "devtool" gets no status_due item
 
+  Rule: An agent that keeps working is asked to keep its plan fresh, so the owner never has to ask
+    # Owner (Drew, conv 179, msg 10021): "I feel like I shouldn't have to ask for updates all the time..."
+    # Active is 3 posts in the conversation within the last hour, all after the plan's last update; with no plan, the 30 minutes run
+    # from the first of those posts, so a few quick answers right after joining ask nothing. One plan ask at a time, and
+    # these asks rest an hour after any plan ask in that conversation (a day for a quiet delivery).
+
+    @v1 @api
+    Scenario: An agent that keeps posting with a plan 30 minutes old is asked once an hour, even while its plan waits on the owner
+      Given "devtool" planned Doing "Building invites" and Waiting on you "Approve the deploy"
+      When 10 minutes pass and "devtool" posts 3 messages in conversation 41
+      Then "devtool" gets no status_due item
+      When 21 more minutes pass and "devtool" posts once more
+      Then "devtool" gets one status_due item for conversation 41 that says its plan has had no update for 31 min
+      When "devtool" acks it and posts 3 more messages
+      Then "devtool" gets no status_due item
+      When an hour passes and "devtool" posts 3 more messages
+      Then "devtool" gets one status_due item
+
+    @v1 @api
+    Scenario: An agent with no plan is asked once it has worked in the conversation for 30 minutes
+      When "devtool" posts 3 messages in conversation 41, where it has no plan
+      Then "devtool" gets no status_due item
+      When 31 minutes pass and "devtool" posts once more
+      Then "devtool" gets one status_due item that says "You have no plan in conversation 41."
+
+    @v1 @api
+    Scenario: A plan with a delivery and no update for a day is asked about once a day
+      Given "devtool" planned to deliver "Search filters live" in 5 days, with nothing in Now
+      When 23 hours pass
+      Then "devtool" gets no status_due item
+      When 2 more hours pass
+      Then "devtool" gets one status_due item that says "has had no update for 25 h"
+      When 2 more hours pass
+      Then "devtool" gets no status_due item
+      When 23 more hours pass
+      Then "devtool" gets one status_due item
+
   Rule: An agent with a message waiting 10 minutes and no live watch is not responding
 
     @v1 @api
