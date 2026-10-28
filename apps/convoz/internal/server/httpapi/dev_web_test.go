@@ -18,7 +18,7 @@ func devDir(t *testing.T) string {
 	}
 	dir := filepath.Join(top, "dev")
 	build := filepath.Join(dir, "releases", "20261028T120000Z-abc1234")
-	for name, body := range map[string]string{"index.html": "<!doctype html><title>DEV SHELL</title>", "assets/main-abc.js": "console.log(1)", "assets/main-abc.js.br": "BR-BYTES", "manifest.webmanifest": "{}"} {
+	for name, body := range map[string]string{"index.html": "<!doctype html><title>DEV SHELL</title>", "assets/main-Abc12345.js": "console.log(1)", "assets/main-Abc12345.js.br": "BR-BYTES", "assets/grain-dark.svg": "<svg/>", "assets/icon-192.png": "PNG", "manifest.webmanifest": "{}"} {
 		p := filepath.Join(build, name)
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			t.Fatal(err)
@@ -30,7 +30,7 @@ func devDir(t *testing.T) string {
 	if err := os.Symlink(filepath.Join(top, "secret.txt"), filepath.Join(build, "escape.txt")); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(filepath.Join("assets", "main-abc.js"), filepath.Join(build, "inside.js")); err != nil {
+	if err := os.Symlink(filepath.Join("assets", "main-Abc12345.js"), filepath.Join(build, "inside.js")); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Symlink("assets", filepath.Join(build, "linked")); err != nil {
@@ -55,10 +55,13 @@ func TestTheOwnerGetsTheDevBuildWithItsHashedAssetsCached(t *testing.T) {
 	rig := newDevRig(t, devDir(t))
 	const immutable = "public, max-age=31536000, immutable"
 	for path, c := range map[string]struct{ body, cache string }{
-		"/dev/":                     {"DEV SHELL", "no-store"},
-		"/dev/chats/12":             {"DEV SHELL", "no-store"}, // a screen URL gets the shell; the app picks the screen
-		"/dev/manifest.webmanifest": {"{}", "no-store"},        // not under assets/: never a year
-		"/dev/assets/main-abc.js":   {"console.log(1)", immutable},
+		"/dev/":                        {"DEV SHELL", "no-store"},
+		"/dev/chats/12":                {"DEV SHELL", "no-store"}, // a screen URL gets the shell; the app picks the screen
+		"/dev/manifest.webmanifest":    {"{}", "no-store"},        // not under assets/: never a year
+		"/dev/assets/main-Abc12345.js": {"console.log(1)", immutable},
+		// Files of public/ keep their names (the manifest names the icons), so a new build can change them: revalidate.
+		"/dev/assets/grain-dark.svg": {"<svg/>", "no-cache"},
+		"/dev/assets/icon-192.png":   {"PNG", "no-cache"},
 	} {
 		want := c.body
 		t.Run(path, func(t *testing.T) {
@@ -100,7 +103,7 @@ func TestTheDevBuildIsA404ForEveryoneButTheOwner(t *testing.T) {
 		"a lease with a cookie": {cookie: rig.cookie, header: map[string]string{"Authorization": "Bearer " + lease}},
 		"an unknown cookie":     {cookie: "not-a-device"},
 	} {
-		for _, path := range []string{"/dev", "/dev/", "/dev/chats", "/dev/assets/main-abc.js"} {
+		for _, path := range []string{"/dev", "/dev/", "/dev/chats", "/dev/assets/main-Abc12345.js"} {
 			t.Run(name+" "+path, func(t *testing.T) {
 				rec := rig.send(c.cookie, "GET", path, "", c.header)
 				if rec.Code != http.StatusNotFound || strings.Contains(rec.Body.String(), "DEV SHELL") {
@@ -124,7 +127,7 @@ func TestTheDevRouteNeverLeavesItsFolder(t *testing.T) {
 			}
 		})
 	}
-	for _, path := range []string{"/dev/escape.txt", "/dev/inside.js", "/dev/linked/main-abc.js"} {
+	for _, path := range []string{"/dev/escape.txt", "/dev/inside.js", "/dev/linked/main-Abc12345.js"} {
 		t.Run("a symlink in the build is a 404: "+path, func(t *testing.T) {
 			if rec := rig.do("GET", path, "", nil); rec.Code != http.StatusNotFound {
 				t.Errorf("status %d body %q, want 404", rec.Code, rec.Body.String())
@@ -190,7 +193,7 @@ func TestTheDevRouteIsTheOwnersAndNotTheAgentPorts(t *testing.T) {
 func TestTheDevRouteSendsTheBrotliCopyToAClientThatTakesIt(t *testing.T) {
 	rig := newDevRig(t, devDir(t))
 	t.Run("a client that takes br gets the .br copy", func(t *testing.T) {
-		rec := rig.do("GET", "/dev/assets/main-abc.js", "", map[string]string{"Accept-Encoding": "gzip, br"})
+		rec := rig.do("GET", "/dev/assets/main-Abc12345.js", "", map[string]string{"Accept-Encoding": "gzip, br"})
 		if rec.Code != http.StatusOK || rec.Body.String() != "BR-BYTES" {
 			t.Fatalf("status %d body %q, want 200 with the .br bytes", rec.Code, rec.Body.String())
 		}
@@ -207,7 +210,7 @@ func TestTheDevRouteSendsTheBrotliCopyToAClientThatTakesIt(t *testing.T) {
 	})
 	t.Run("a client that does not take br gets the plain file", func(t *testing.T) {
 		for _, accept := range []string{"", "gzip", "br;q=0"} {
-			rec := rig.do("GET", "/dev/assets/main-abc.js", "", map[string]string{"Accept-Encoding": accept})
+			rec := rig.do("GET", "/dev/assets/main-Abc12345.js", "", map[string]string{"Accept-Encoding": accept})
 			if rec.Body.String() != "console.log(1)" || rec.Header().Get("Content-Encoding") != "" {
 				t.Errorf("Accept-Encoding %q: body %q Content-Encoding %q, want the plain file", accept, rec.Body.String(), rec.Header().Get("Content-Encoding"))
 			}
