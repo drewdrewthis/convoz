@@ -62,7 +62,12 @@ async function agentDrafts(box: CliMachine, sid: string, conv: number, extra: st
 /** What the agent reads once the owner answered: the inbox item and the line of its watch, each with the reply of the ask. */
 async function agentReads(w: World, sid: string, ask: number): Promise<{ inbox: unknown; watch: unknown }> {
   // Peek first: a watch finishes what it prints (owner msg 821, "Probably don't need an ack"), so the inbox is empty after it.
-  const item = (await inboxItems(w.box, sid, ["--peek"])).find((i) => i.message.id === ask) as unknown as { reason: string; message: { ask?: Draftable } };
+  // The owner's tap is a request still on its way when the test gets here: wait for the item to land (poll, no sleep).
+  let item: { reason: string; message: { ask?: Draftable } } | undefined;
+  await expect
+    .poll(async () => (item = (await inboxItems(w.box, sid, ["--peek"])).find((i) => i.message.id === ask) as unknown as typeof item) !== undefined, { message: "the answer to the ask reaches the agent's inbox", timeout: 10_000 })
+    .toBe(true);
+  if (!item) throw new Error("no inbox item");
   const watch = startWatch(w.box, sid);
   try {
     const lines = await watchLines(watch, 1, 10_000);
