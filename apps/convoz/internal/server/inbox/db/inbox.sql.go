@@ -287,6 +287,25 @@ func (q *Queries) DeleteItem(ctx context.Context, id int64) error {
 	return err
 }
 
+const dropStatusDue = `-- name: DropStatusDue :exec
+UPDATE inbox_items
+SET state = 'expired', expired_reason = 'removed', claim_session_id = NULL, claim_token = NULL,
+    claim_until = NULL, visibility_ms = NULL, updated_at = ?1
+WHERE identity_id = ?2 AND conversation_id = ?3 AND reason = 'status_due' AND state IN ('ready','claimed')
+`
+
+type DropStatusDueParams struct {
+	Now            int64
+	IdentityID     int64
+	ConversationID sql.NullInt64
+}
+
+// The agent set a new plan: the ask to update the old one is answered, so it leaves the queue.
+func (q *Queries) DropStatusDue(ctx context.Context, arg DropStatusDueParams) error {
+	_, err := q.db.ExecContext(ctx, dropStatusDue, arg.Now, arg.IdentityID, arg.ConversationID)
+	return err
+}
+
 const duePlaces = `-- name: DuePlaces :many
 SELECT conversation_id, thread_root_id, message_id FROM inbox_unanswered
 WHERE due_at <= ?1 ORDER BY due_at, conversation_id, thread_root_id LIMIT ?2

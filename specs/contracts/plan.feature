@@ -56,8 +56,8 @@ Feature: Plans (contracts)
     # these asks rest an hour after any plan ask in that conversation (a day for a quiet delivery).
 
     @v1 @api
-    Scenario: An agent that keeps posting with a plan 30 minutes old is asked once an hour, even while its plan waits on the owner
-      Given "devtool" planned Doing "Building invites" and Waiting on you "Approve the deploy"
+    Scenario: An agent that keeps posting with a plan 30 minutes old is asked once an hour
+      Given "devtool" planned Doing "Building invites" with an estimate of 3 hours
       When 10 minutes pass and "devtool" posts 3 messages in conversation 41
       Then "devtool" gets no status_due item
       When 21 more minutes pass and "devtool" posts once more
@@ -66,6 +66,14 @@ Feature: Plans (contracts)
       Then "devtool" gets no status_due item
       When an hour passes and "devtool" posts 3 more messages
       Then "devtool" gets one status_due item
+
+    # Conv 346 and 405: a plan marked --done and a --waiting plan got "no update for 71 min". A plan with nothing in Now, one that waits
+    # on the owner and one that is blocked have nothing behind: they wait on someone else, or are finished.
+    @v1 @api
+    Scenario: A plan that is done, waits on the owner or is blocked is not asked for an update while the agent keeps posting
+      Given "devtool" planned Done "Board feed", then in turn Doing "Building invites" with Waiting on you "Approve the deploy", and Doing "Building invites" with Blocked "CI is down"
+      When 31 minutes pass after each plan and "devtool" posts 3 messages
+      Then "devtool" gets no status_due item
 
     @v1 @api
     Scenario: An agent with no plan is asked once it has worked in the conversation for 30 minutes

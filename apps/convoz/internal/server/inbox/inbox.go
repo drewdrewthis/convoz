@@ -328,6 +328,11 @@ func Release(ctx context.Context, d pdb.DBTX, now time.Time, sessionID int64) ([
 	return out, err
 }
 
+// DropStatusDue takes the agent's open asks to update its plan in the conversation out of the queue: it set a new plan, which answers them.
+func DropStatusDue(ctx context.Context, d pdb.DBTX, now time.Time, identityID, conversationID int64) error {
+	return db.New(d).DropStatusDue(ctx, db.DropStatusDueParams{Now: now.UnixMilli(), IdentityID: identityID, ConversationID: nullInt(conversationID)})
+}
+
 // ExpireNotVisible takes an item out of the queue because its message can no longer be shown to the agent.
 func ExpireNotVisible(ctx context.Context, d pdb.DBTX, now time.Time, id int64) error {
 	return db.New(d).ExpireNotVisible(ctx, db.ExpireNotVisibleParams{Now: now.UnixMilli(), ID: id})

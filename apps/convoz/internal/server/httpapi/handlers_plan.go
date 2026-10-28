@@ -76,6 +76,9 @@ func (s *Server) putPlan(w http.ResponseWriter, r *http.Request, c *call) {
 		if ch.Repeat {
 			return nil
 		}
+		if err := inbox.DropStatusDue(ctx, d, now, who, conv); err != nil { // a new plan answers the ask about the old one
+			return err
+		}
 		if len(p.Now) > 0 {
 			next := ""
 			if len(p.Next) > 0 {

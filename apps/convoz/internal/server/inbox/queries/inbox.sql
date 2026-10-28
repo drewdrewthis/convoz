@@ -114,6 +114,13 @@ FROM inbox_items
 WHERE identity_id = sqlc.arg(identity_id) AND state IN ('ready','claimed')
 ORDER BY id;
 
+-- name: DropStatusDue :exec
+-- The agent set a new plan: the ask to update the old one is answered, so it leaves the queue.
+UPDATE inbox_items
+SET state = 'expired', expired_reason = 'removed', claim_session_id = NULL, claim_token = NULL,
+    claim_until = NULL, visibility_ms = NULL, updated_at = sqlc.arg(now)
+WHERE identity_id = sqlc.arg(identity_id) AND conversation_id = sqlc.arg(conversation_id) AND reason = 'status_due' AND state IN ('ready','claimed');
+
 -- name: ExpireNotVisible :exec
 UPDATE inbox_items
 SET state = 'expired', expired_reason = 'not_visible', claim_session_id = NULL, claim_token = NULL,
