@@ -227,7 +227,7 @@ jobs:
         run: pnpm --filter @convoz/e2e exec playwright install --with-deps chromium
       # full: the whole suite. changed: the specs that import a changed file (Playwright --only-changed), plus the API and CLI specs
       # when Go changed and the browser specs when the web app or extension changed (no spec imports those files, so --only-changed
-      # alone would run nothing for them). Perf is part of the full run only.
+      # alone would run nothing for them). Perf runs in its own job, in the full run only.
       - name: E2E
         env:
           MODE: ${{ needs.changes.outputs.e2e }}
@@ -236,7 +236,11 @@ jobs:
           WEB: ${{ needs.changes.outputs.web }}
           SHARD: ${{ matrix.shard }}/4
         run: |
-          if [ "$MODE" = full ]; then pnpm e2e --shard="$SHARD"; exit $?; fi
+          if [ "$MODE" = full ]; then
+            # Without CONVOZ_PERF=1 the perf project is not the teardown of "alone", so the shards leave it to the `perf` job.
+            pnpm --filter @convoz/e2e exec playwright test --shard="$SHARD" --project=headless --project=chromium --project=mobile
+            exit $?
+          fi
           pw() { pnpm --filter @convoz/e2e exec playwright test --pass-with-no-tests --shard="$SHARD" "$@"; }
           rc=0
           pw --only-changed="$BASE" || rc=1
@@ -257,6 +261,54 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: e2e-results-${{ matrix.shard }}
+          path: |
+            /tmp/convoz-e2e-results
+            e2e/report
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # The perf budget (design §12.2) measures the client's time on an otherwise idle box, so it never shares a runner with the shards:
+  # the old single job ran it last, alone, as the teardown of "alone". One worker, its own runner.
+  perf:
+    needs: changes
+    if: (github.event_name != 'pull_request' || !github.event.pull_request.draft) && needs.changes.outputs.e2e == 'full'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event_name == 'schedule' && 'feat/web-react' || '' }}
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: apps/convoz/go.mod
+          cache-dependency-path: |
+            apps/convoz/go.sum
+            apps/convoz/tools/sqlc/go.sum
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Testhooks build
+        working-directory: apps/convoz
+        run: make testhooks
+      - name: Playwright chromium
+        run: pnpm --filter @convoz/e2e exec playwright install --with-deps chromium
+      - name: Perf
+        run: pnpm --filter @convoz/e2e exec playwright test --project=perf --workers=1
+      - name: Perf artifacts (failure only)
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: perf-results
           path: |
             /tmp/convoz-e2e-results
             e2e/report
@@ -292,14 +344,14 @@ jobs:
   # and it skips with them on a draft PR.
   verify:
     if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
-    needs: [changes, checks, e2e, parity]
+    needs: [changes, checks, e2e, perf, parity]
     runs-on: ubuntu-24.04
     steps:
       - name: All jobs passed or were skipped on purpose
         env:
-          RESULTS: ${{ needs.changes.result }} ${{ needs.checks.result }} ${{ needs.e2e.result }} ${{ needs.parity.result }}
+          RESULTS: ${{ needs.changes.result }} ${{ needs.checks.result }} ${{ needs.e2e.result }} ${{ needs.perf.result }} ${{ needs.parity.result }}
         run: |
-          echo "changes checks e2e parity: $RESULTS"
+          echo "changes checks e2e perf parity: $RESULTS"
           case " $RESULTS " in *failure*|*cancelled*) exit 1;; esac
           # changes and checks always run on a ready PR; a skip there is a fault. e2e and parity skip when nothing needs them.
           set -- $RESULTS
