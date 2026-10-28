@@ -1,14 +1,16 @@
-import type { Ask, NowWaiting } from "@convoz/api-client";
+import type { Ask, FeedItem, NowWaiting } from "@convoz/api-client";
 import { whoLine, type Answer, type SnoozePreset } from "@convoz/app-kit";
 import { Button } from "@convoz/ui/Button";
 import { useState } from "react";
 import { visit } from "../../shared/navigate.ts";
 import { toast } from "../pins-stars/index.ts";
 import { FeedThread } from "./FeedThread.tsx";
-import { entries } from "./entries.ts";
+import { entries, nextOf } from "./entries.ts";
 import { ItemFrame } from "./ItemFrame.tsx";
 import { NowAsk } from "./NowAsk.tsx";
 import { useNow } from "./store.ts";
+import { ServerItem } from "./ServerItem.tsx";
+import type { useServerFeed } from "./serverFeed.ts";
 import type { Fyi } from "./feed.ts";
 
 interface NeedsYouProps {
@@ -16,6 +18,8 @@ interface NeedsYouProps {
   waiting: NowWaiting[];
   /** fyi items: plan steps started or done, and the owner's questions. */
   fyi: Fyi[];
+  /** The items the server keeps, already filtered to cards. */
+  server: { shown: FeedItem[]; all: readonly FeedItem[]; feed: ReturnType<typeof useServerFeed>; titles: (id: number) => string; skew: number };
   busy: ReadonlySet<number>;
   presets: SnoozePreset[];
   answer: (ask: Ask, a: Answer) => void;
@@ -87,8 +91,8 @@ function PlanItem({ plan }: { plan: NowWaiting }) {
 }
 
 /** NeedsYou is the one list of Now: one frame for every item, blocking or fyi, newest first. An ask with a draft keeps the full ask card, whose Send carries the draft. */
-export function NeedsYou({ asks, waiting, fyi, busy, presets, answer, dismiss, snooze, current, compact }: NeedsYouProps) {
-  const list = entries(asks, waiting, fyi);
+export function NeedsYou({ asks, waiting, fyi, server, busy, presets, answer, dismiss, snooze, current, compact }: NeedsYouProps) {
+  const list = entries(asks, waiting, fyi, server.shown);
   if (!list.length) return null;
   return (
     <section id="asks" className="mb-8 flex flex-col gap-8">
@@ -100,6 +104,10 @@ export function NeedsYou({ asks, waiting, fyi, busy, presets, answer, dismiss, s
             ) : (
               <AskItem ask={e.ask} busy={busy.has(e.ask.id)} presets={presets} answer={answer} snooze={snooze} />
             )}
+          </div>
+        ) : "item" in e ? (
+          <div key={`i${e.item.id}`} data-conv={e.item.conversation_id} aria-current={e.item.conversation_id === current ? "page" : undefined}>
+            <ServerItem item={e.item} next={nextOf(server.all, e.item)} feed={server.feed} from={server.titles(e.item.conversation_id)} skew={server.skew} />
           </div>
         ) : "fyi" in e ? (
           <div key={`f${e.fyi.key}`} aria-current={e.fyi.conversation_id === current ? "page" : undefined}>

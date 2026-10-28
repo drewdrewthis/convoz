@@ -7,7 +7,7 @@ import { markUseful } from "../../shared/perf.ts";
 import { data, useData, useLive } from "../../shared/data.ts";
 import { agentRequests, RequestCard } from "./requests.tsx";
 import { AllClear, NoDecisions } from "./AllClear.tsx";
-import { FeedItems } from "./FeedItems.tsx";
+import { shown, useServerFeed } from "./serverFeed.ts";
 import { Folds, type FoldKey } from "./Folds.tsx";
 import { NeedsYou } from "./NeedsYou.tsx";
 import { useFyi } from "./fyi.ts";
@@ -77,7 +77,13 @@ export function Now({ compact = false, current = 0 }: NowProps = {}) {
   const waiting = plain.length + connecting.length;
   const asks = now?.asks ?? [];
   const waitingPlans = now?.waiting_plans ?? [];
-  const fyi = useFyi(conversations, mine ?? "");
+  const feed = useServerFeed();
+  const cards_ = shown(feed.items, Date.now());
+  const skew = useNow((s) => s.skew);
+  // A step the server keeps as an item is not also drawn from the plan lines.
+  const kept = new Set(feed.items.map((i) => `${i.conversation_id}:${i.handle}`));
+  const fyi = useFyi(conversations, mine ?? "").filter((f) => !f.handle || !kept.has(`${f.conversation_id}:${f.handle}`));
+  const titles = (id: number) => conversations?.find((c) => c.id === id)?.title ?? "";
   // The owner's questions replace the mention and reply cards in the dev build; ?old=1 brings the cards back.
   const cards = !DEV || new URLSearchParams(location.search).get("old") === "1";
   // Held on the device before the "replied" list existed: none then.
@@ -86,7 +92,7 @@ export function Now({ compact = false, current = 0 }: NowProps = {}) {
   const some = Boolean(pending && (waiting || asks.length || adds.length || waitingPlans.length));
   // A deliverable past its date is no decision, but the page is not all clear while one waits (ux spec, conv 179).
   const overdue = useOverdue();
-  const clear = Boolean(now) && !some && conversations !== null && (cards ? unread.length === 0 : rest.length === 0) && !overdue.length && !fyi.length;
+  const clear = Boolean(now) && !some && conversations !== null && (cards ? unread.length === 0 : rest.length === 0) && !overdue.length && !fyi.length && !cards_.length;
 
   const reload = useCallback(() => load().then(() => undefined), [load]);
   const { busy, presets, answer, dismiss, snooze, unsnooze, reopen } = useAskActions({ now, asks, reload, onAnswered: () => setFolds((f) => ({ ...f, answered: true })) });
@@ -147,7 +153,7 @@ export function Now({ compact = false, current = 0 }: NowProps = {}) {
         centered={clear}
       />
       <div onKeyDown={moveFocus}>
-        <NeedsYou asks={asks} waiting={waitingPlans} fyi={fyi} busy={busy} presets={presets} answer={answer} dismiss={dismiss} snooze={snooze} current={current} compact={compact} />
+        <NeedsYou asks={asks} waiting={waitingPlans} fyi={fyi} server={{ shown: cards_, all: feed.items, feed, titles, skew }} busy={busy} presets={presets} answer={answer} dismiss={dismiss} snooze={snooze} current={current} compact={compact} />
       </div>
       {adds.length ? (
         <section id="adds" className="block" aria-label="Adds to decide">

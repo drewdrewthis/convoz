@@ -86,6 +86,40 @@ Feature: Now
       When the owner opens Now with "?old=1"
       Then the mention card is listed
 
+  Rule: Items the server keeps (GET /api/feed) join the list with real actions
+
+    @v1 @browser
+    Scenario: A blocking item that recommends something can be accepted
+      Given "devtool" has a blocking item "Pick the launch date" recommending "Friday" in conversation 41
+      When the owner opens Now and presses "Accept"
+      Then the item is done and leaves the list
+
+    @v1 @browser
+    Scenario: Accepting an item that changed is refused and the owner is told
+      Given the owner sees a blocking item and "devtool" raises its version
+      When the owner presses "Accept"
+      Then Now reads the feed again and says "This changed, look again."
+
+    @v1 @browser
+    Scenario: Add info sends the owner's words through the item
+      Given "devtool" has a blocking item "Pick the launch date"
+      When the owner presses "Add info" and sends "Friday works"
+      Then the agent receives "Friday works" on the item
+
+    @v1 @browser
+    Scenario: Got it hides an fyi item and Snooze hides any item until its time
+      Given "devtool" has an fyi item "Search filters shipped"
+      When the owner presses "Got it"
+      Then the item leaves the list on every device
+      When the owner snoozes another item until tomorrow
+      Then it is hidden until tomorrow 9:00
+
+    @v1 @browser
+    Scenario: With no items the list looks like the rest of Now
+      Given no agent has used items
+      When the owner opens Now
+      Then no empty item section is drawn
+
   Rule: Now lists what waits on the owner, most urgent first
 
     @v1 @browser

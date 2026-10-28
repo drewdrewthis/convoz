@@ -8,6 +8,8 @@ export interface Fyi {
   key: string;
   state: "started" | "done";
   conversation_id: number;
+  /** The agent of a plan step; a question has none. */
+  handle?: string;
   /** The conversation's name, for the From link. */
   from: string;
   title: string;
@@ -30,7 +32,7 @@ export function planItems(board: PlanBoard | undefined, fromOf: (conversation: n
   const rows = new Map<string, Fyi>();
   for (const p of board.plans) {
     const key = (text: string) => `${p.conversation_id}:${p.handle}:${text}`;
-    const base = { conversation_id: p.conversation_id, from: fromOf(p.conversation_id) };
+    const base = { conversation_id: p.conversation_id, handle: p.handle, from: fromOf(p.conversation_id) };
     const [first, ...later] = p.now;
     if (first) {
       const at = first.since ?? p.doing_since ?? board.now;
