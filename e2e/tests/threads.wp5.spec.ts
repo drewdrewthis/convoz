@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { agentSays, convoz, createConversation, ownerSays, startWatch, watchLines } from "../lib/chat.ts";
-import { backButton, message, messageLog, unreadDot } from "../lib/chat-ui.ts";
+import { backButton, message, messageLog, recordStreams, streamOpen, unreadDot } from "../lib/chat-ui.ts";
 import { send } from "../lib/http.ts";
 import { agentDeletes, agentPostWith, ownerPostWith } from "../lib/messages-wp4.ts";
 import { must } from "../lib/owner.ts";
@@ -246,7 +246,10 @@ scenario("Messages that never count as unread", { tag: ["@browser", "@I-14"] }, 
   // Background
   const t = await threadWorld({ server, page, context }, { browser: true });
   await ownerHasRead(t);
+  await recordStreams(context);
   await freshRail(page, t);
+  // The rail learns of a new message by the live stream: a post made before the stream opens is never pushed to the page.
+  await streamOpen(page);
 
   // Control: a message from another person does count, and the rail shows it without a reload
   await agentSays(t.w.srv, t.dev, t.conv, "this one counts");
