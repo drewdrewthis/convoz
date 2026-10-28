@@ -31,7 +31,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Plans: what each agent is doing, what is next and what waits on the owner](#plans-what-each-agent-is-doing-what-is-next-and-what-waits-on-the-owner) (25)
 - [Platform rules every module relies on](#platform-rules-every-module-relies-on) (2)
 - [Poor connections](#poor-connections) (11)
-- [Rail](#rail) (24)
+- [Rail](#rail) (26)
 - [Search](#search) (12)
 - [Security walls](#security-walls) (12)
 - [Send a web page to an agent from the browser](#send-a-web-page-to-an-agent-from-the-browser) (3)
@@ -864,7 +864,7 @@ I can trust it from anywhere.
 ## Rail
 
 Things stay where I put them and unread work stands out.
-24 scenarios.
+26 scenarios.
 
 - **Order is the owner's; a new message puts its conversation on top (I-21)**
   - [A new conversation goes to the top](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L20)
@@ -873,29 +873,31 @@ Things stay where I put them and unread work stands out.
   - [The keyboard can reorder the rail](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L39)
   - [Many drags between the same two rows keep a stable order](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L45)
 - **Older conversations fold away**
-  - [Conversations with no message for 48 hours fold into Older](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L57)
-  - [Only unstarred conversations with no message for 48 hours fold into Older](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L64)
-  - [An agent marks a conversation stale and the next message brings it back](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L76)
-  - [A conversation where the owner wrote last never goes Older](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L84)
+  - [Conversations with no message for 48 hours fold into Older](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L59)
+  - [Only unstarred conversations with no message for 48 hours fold into Older](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L66)
+  - [An agent marks a conversation stale and the next message brings it back](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L78)
+  - [A conversation where the owner wrote last never goes Older](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L86)
 - **Rows tell what is new (I-14)**
-  - [The row preview names the last writer](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L94)
-  - [Unread conversations are bold with a count](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L106)
+  - [The row preview names the last writer](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L96)
+  - [Unread conversations are bold with a count](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L108)
 - **The rail is quick to move around**
-  - [Back and forward move between visited conversations](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L115)
-  - [Cmd+K opens search from anywhere](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L121)
-  - [The owner folds the sidebar and it stays folded](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L127)
-  - [The owner resizes the sidebar and the width is remembered](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L138)
-  - [The question mark opens the shortcut list](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L153)
+  - [Back and forward move between visited conversations](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L117)
+  - [Cmd+K opens search from anywhere](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L123)
+  - [The owner folds the sidebar and it stays folded](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L129)
+  - [The owner resizes the sidebar and the width is remembered](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L140)
+  - [The question mark opens the shortcut list](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L155)
 - **On a wide screen Now is a view of the rail**
-  - [Now opens in the rail beside the open conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L162)
-  - [Picking a Now item opens its conversation beside the Now list](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L171)
-  - [Conversations, Escape and Now again each take the rail back to the conversations](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L180)
-  - [The rail stays in Now after a reload](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L192)
+  - [Now opens in the rail beside the open conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L164)
+  - [Picking a Now item opens its conversation beside the Now list](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L173)
+  - [Conversations, Escape and Now again each take the rail back to the conversations](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L182)
+  - [The rail stays in Now after a reload](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L194)
 - **Each rail row has a menu of actions**
-  - [The row menu renames a conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L202)
-  - [The row menu closes a conversation into Older and reopens it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L210)
-  - [The row menu closes a conversation where the owner wrote last](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L217)
-  - [The row menu stars, unstars and marks read](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L223)
+  - [The row menu renames a conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L204)
+  - [The owner marks a conversation stale from its row menu](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L214)
+  - [The owner marks a conversation stale where he wrote last](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L221)
+  - [The owner brings a conversation back from Older](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L227)
+  - [On a phone the long press menu marks a conversation stale and brings it back](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L236)
+  - [The row menu stars, unstars and marks read](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/rail.feature#L243)
 
 ## Search
 
