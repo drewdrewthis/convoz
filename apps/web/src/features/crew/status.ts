@@ -13,7 +13,7 @@ export interface Look {
 
 export const LOOK: Record<Shown, Look> = {
   working: { label: "Working", ring: "moving gradient ring" },
-  waiting: { label: "Waiting on you", ring: "amber ring" },
+  waiting: { label: "Waiting", ring: "amber ring" },
   blocked: { label: "Blocked", ring: "red ring" },
   idle: { label: "Idle", ring: "grey ring" },
   offline: { label: "Offline", ring: "hollow grey dot" },
@@ -25,12 +25,24 @@ export function shownState(online: boolean | undefined, state: AgentState | unde
   return state === "waiting" || state === "blocked" || state === "working" ? state : "idle";
 }
 
+/** labelOf is the word next to the ring: an agent's own "waiting" claim reads "Waiting on you" only when an open ask backs it. */
+export const labelOf = (shown: Shown, asks: number): string => (shown === "waiting" && asks > 0 ? "Waiting on you" : LOOK[shown].label);
+
+export type GroupKey = "needs" | "waiting" | "working" | "idle";
+
+/** groupOf files an agent: under "Waiting on you" only with an open ask (blocked or waiting); a bare claim sits under "Waiting". */
+export function groupOf(shown: Shown, asks: number): GroupKey {
+  if (shown === "waiting" || shown === "blocked") return asks > 0 ? "needs" : "waiting";
+  return shown === "working" ? "working" : "idle";
+}
+
 /** The groups of the Crew list, in order. Offline agents sit under Idle: the prototype's list has no group of its own for them. */
-export const GROUPS = [
-  { key: "waiting", label: "Waiting on you", shown: ["waiting", "blocked"] },
-  { key: "working", label: "Working", shown: ["working"] },
-  { key: "idle", label: "Idle", shown: ["idle", "offline"] },
-] as const;
+export const GROUPS: readonly { key: GroupKey; label: string }[] = [
+  { key: "needs", label: "Waiting on you" },
+  { key: "waiting", label: "Waiting" },
+  { key: "working", label: "Working" },
+  { key: "idle", label: "Idle" },
+];
 
 /** nameOf is "Search Dev @dev-search"; the handle alone when the display name only repeats it (I-3). */
 export const sameName = (p: Pick<Identity, "handle" | "display_name">): boolean => p.display_name.toLowerCase() === p.handle.toLowerCase();

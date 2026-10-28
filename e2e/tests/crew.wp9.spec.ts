@@ -560,7 +560,7 @@ scenario("The status ring tells the agent's state without colour alone", { tag: 
   const sid = c.sessions.devtool!.sid;
   const rows = [
     { state: "working", label: "working", ring: "moving gradient ring" },
-    { state: "waiting", label: "waiting on you", ring: "amber ring" },
+    { state: "waiting", label: "waiting", ring: "amber ring" },
     { state: "idle", label: "idle", ring: "grey ring" },
     { state: "offline", label: "offline", ring: "hollow grey dot" },
   ];
@@ -585,13 +585,35 @@ scenario("The status ring tells the agent's state without colour alone", { tag: 
   }
 });
 
+scenario("An agent that claims to wait but has no open ask reads Waiting, not Waiting on you", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given "devtool" has the status "waiting" and no open ask
+  const c = await crewWorld({ server, page, context }, { agents: ["devtool"], live: ["devtool"] });
+  expect((await convoz(c.w.box, c.sessions.devtool!.sid, ["status", "--state", "waiting"])).code).toBe(0);
+
+  // When the owner opens Crew
+  await page.goto(`${c.w.srv.origin}/crew`);
+
+  // Then "devtool" shows the label "Waiting" and no group or count says "Waiting on you"
+  await expect(crewRow(page, "devtool")).toContainText("Waiting");
+  await expect(page.getByText(/waiting on you/i).filter({ visible: true })).toHaveCount(0);
+
+  // When the owner opens the profile of "devtool"
+  await crewRow(page, "devtool").click();
+
+  // Then the state reads "Waiting" and the profile has no "Waiting on you" section
+  await expect(page.locator(".pstate")).toHaveText("Waiting");
+  await expect(page.getByText(/waiting on you/i).filter({ visible: true })).toHaveCount(0);
+});
+
 scenario("An agent profile shows what waits on the owner and shared conversations", { tag: ["@browser"] }, async ({ server, dataDir, page, context }) => {
-  // Given "devtool" has 2 open asks and shares 4 conversations with the owner
+  // Given "devtool" has the status "waiting", 2 open asks and shares 4 conversations with the owner
   const titles = ["Ship search filters", "Deploy alerts runbook", "Weekly usage", "Bug #8642"];
   const c = await crewWorld({ server, page, context }, {
     agents: ["devtool", "docs"],
+    live: ["devtool"],
     plaintext: true,
     beforeSignIn: async (x) => {
+      expect((await convoz(x.w.box, x.sessions.devtool!.sid, ["status", "--state", "waiting"])).code).toBe(0);
       const convs: number[] = [];
       for (const title of titles) convs.push(await createConversation(x.w.owner, { participants: ["devtool"], title }));
       await createConversation(x.w.owner, { participants: ["docs"], title: "Docs only" });
@@ -602,9 +624,11 @@ scenario("An agent profile shows what waits on the owner and shared conversation
 
   // When the owner opens the profile of "devtool"
   await page.goto(`${c.w.srv.origin}/crew`);
+  // Then "devtool" sits in the group "Waiting on you" with the label "Waiting on you"
+  await expect(page.getByRole("region", { name: "Waiting on you" }).getByRole("link", { name: /devtool/ })).toContainText("Waiting on you");
   await crewRow(page, "devtool").click();
 
-  // Then "Waiting on you · 2" and "Conversations together" list them
+  // And "Waiting on you · 2" and "Conversations together" list them
   await expect(page.getByText("Waiting on you · 2", { exact: true })).toBeVisible();
   const waiting = page.getByRole("region", { name: "Waiting on you" });
   await expect(waiting.getByRole("link")).toHaveText(["Use the small runner?", "Deploy to production?"]);
