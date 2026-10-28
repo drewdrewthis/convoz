@@ -434,6 +434,8 @@ scenario("Account, passkeys, privacy, machines and trash keep their look", { tag
   await matchesItself(page, info, "trash");
   await page.getByRole("button", { name: "Restore Team updates" }).click();
   await expect(page.getByText("Trash is empty.")).toBeVisible();
+  // The restored chat lands in the desktop rail a moment later: wait for it, so the frame is never shot half way (the phone has no rail).
+  if (info.project.name === "chromium") await expect(page.getByRole("navigation", { name: "Conversations" }).getByRole("link", { name: /^Team updates/ })).toBeVisible();
   await matchesItself(page, info, "trash-empty");
 });
 

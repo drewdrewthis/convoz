@@ -270,13 +270,13 @@
   ],
   "a \"usage-bot, 2 unread\"#0": [
    10,
-   332.8,
+   365.8,
    220,
    32
   ],
   "button \"Star conversation usage-bot\"#0": [
    202,
-   334.8,
+   367.8,
    28,
    28
   ],
@@ -288,7 +288,7 @@
   ],
   "button \"Reorder usage-bot. Alt plus arrow keys move it.\"#0": [
    180,
-   334.8,
+   367.8,
    22,
    28
   ],
@@ -300,13 +300,13 @@
   ],
   "a \"scrum-master, 1 unread\"#0": [
    10,
-   365.8,
+   398.8,
    220,
    32
   ],
   "button \"Star conversation scrum-master\"#0": [
    202,
-   367.8,
+   400.8,
    28,
    28
   ],
@@ -318,7 +318,7 @@
   ],
   "button \"Reorder scrum-master. Alt plus arrow keys move it.\"#0": [
    180,
-   367.8,
+   400.8,
    22,
    28
   ],
@@ -330,13 +330,13 @@
   ],
   "a \"Why did the nightly export get slower?\"#0": [
    10,
-   398.8,
+   431.8,
    220,
    32
   ],
   "button \"Star conversation Why did the nightly export get slower?\"#0": [
    202,
-   400.8,
+   433.8,
    28,
    28
   ],
@@ -348,7 +348,7 @@
   ],
   "button \"Reorder Why did the nightly export get slower?. Alt plus arrow keys move it.\"#0": [
    180,
-   400.8,
+   433.8,
    22,
    28
   ],
@@ -360,13 +360,13 @@
   ],
   "a \"night-watch\"#0": [
    10,
-   431.8,
+   464.8,
    220,
    32
   ],
   "button \"Star conversation night-watch\"#0": [
    202,
-   433.8,
+   466.8,
    28,
    28
   ],
@@ -378,7 +378,7 @@
   ],
   "button \"Reorder night-watch. Alt plus arrow keys move it.\"#0": [
    180,
-   433.8,
+   466.8,
    22,
    28
   ],
@@ -395,8 +395,8 @@
    32
   ],
   "svg \"\"#26": [
-   18,
-   651,
+   209,
+   473.8,
    14,
    14
   ],
@@ -407,8 +407,8 @@
    32
   ],
   "svg \"\"#27": [
-   18,
-   683,
+   184,
+   473.8,
    14,
    14
   ],
@@ -419,10 +419,10 @@
    44
   ],
   "svg \"\"#28": [
-   258,
-   28,
-   22,
-   22
+   18,
+   651,
+   14,
+   14
   ],
   "h1 \"Trash\"#0": [
    295,
@@ -437,6 +437,36 @@
    44
   ],
   "svg \"\"#29": [
+   18,
+   683,
+   14,
+   14
+  ],
+  "a \"Team updates\"#0": [
+   10,
+   332.8,
+   220,
+   32
+  ],
+  "button \"Star conversation Team updates\"#0": [
+   202,
+   334.8,
+   28,
+   28
+  ],
+  "button \"Reorder Team updates. Alt plus arrow keys move it.\"#0": [
+   180,
+   334.8,
+   22,
+   28
+  ],
+  "svg \"\"#30": [
+   258,
+   28,
+   22,
+   22
+  ],
+  "svg \"\"#31": [
    1229,
    29,
    20,
