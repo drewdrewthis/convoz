@@ -18,7 +18,7 @@ func devDir(t *testing.T) string {
 	}
 	dir := filepath.Join(top, "dev")
 	build := filepath.Join(dir, "releases", "20261028T120000Z-abc1234")
-	for name, body := range map[string]string{"index.html": "<!doctype html><title>DEV SHELL</title>", "assets/main-abc.js": "console.log(1)"} {
+	for name, body := range map[string]string{"index.html": "<!doctype html><title>DEV SHELL</title>", "assets/main-abc.js": "console.log(1)", "manifest.webmanifest": "{}"} {
 		p := filepath.Join(build, name)
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			t.Fatal(err)
@@ -49,20 +49,25 @@ func newDevRig(t *testing.T, dir string) *telRig {
 	return rig
 }
 
-func TestTheOwnerGetsTheDevBuildUncached(t *testing.T) {
+// A hashed file under assets/ never changes under its name, so a browser keeps it for a year, as the prod console does. The page, a
+// screen URL and every other file stay uncached, so a new build shows at the next load.
+func TestTheOwnerGetsTheDevBuildWithItsHashedAssetsCached(t *testing.T) {
 	rig := newDevRig(t, devDir(t))
-	for path, want := range map[string]string{
-		"/dev/":                   "DEV SHELL",
-		"/dev/chats/12":           "DEV SHELL", // a screen URL gets the shell; the app picks the screen
-		"/dev/assets/main-abc.js": "console.log(1)",
+	const immutable = "public, max-age=31536000, immutable"
+	for path, c := range map[string]struct{ body, cache string }{
+		"/dev/":                     {"DEV SHELL", "no-store"},
+		"/dev/chats/12":             {"DEV SHELL", "no-store"}, // a screen URL gets the shell; the app picks the screen
+		"/dev/manifest.webmanifest": {"{}", "no-store"},        // not under assets/: never a year
+		"/dev/assets/main-abc.js":   {"console.log(1)", immutable},
 	} {
+		want := c.body
 		t.Run(path, func(t *testing.T) {
 			rec := rig.do("GET", path, "", nil)
 			if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), want) {
 				t.Fatalf("status %d body %q, want 200 with %q", rec.Code, rec.Body.String(), want)
 			}
-			if got := rec.Header().Get("Cache-Control"); got != "no-store" {
-				t.Errorf("Cache-Control %q, want no-store", got)
+			if got := rec.Header().Get("Cache-Control"); got != c.cache {
+				t.Errorf("Cache-Control %q, want %q", got, c.cache)
 			}
 			if got := rec.Header().Get("Content-Security-Policy"); !strings.Contains(got, "script-src 'self'") {
 				t.Errorf("Content-Security-Policy %q, want the console's policy", got)
