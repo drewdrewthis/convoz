@@ -14,6 +14,8 @@ interface FeedThreadProps {
   onReplied?: (ok: boolean) => void;
   /** A number that goes up each time the item asks for the thread to open with its reply box focused ("Add info"). It shows even with no replies yet. */
   request?: number;
+  /** The thread opens with the item, with its reply box ready, even with no replies yet (owner, conv 179 msg 12145). */
+  direct?: boolean;
 }
 
 /**
@@ -22,9 +24,9 @@ interface FeedThreadProps {
  * draws them in place with the conversation's own message rendering; folding it hides them again. The owner stays in Now.
  * "Reply here", under the open thread, answers in it without leaving Now (owner, conv 179 msg 8239): the reply shows in the thread as sending, then sent.
  */
-export function FeedThread({ conversation, root, count: known, onReplied, request = 0 }: FeedThreadProps) {
-  const [open, setOpen] = useState(false);
-  const [writing, setWriting] = useState(false);
+export function FeedThread({ conversation, root, count: known, onReplied, request = 0, direct = false }: FeedThreadProps) {
+  const [open, setOpen] = useState(direct);
+  const [writing, setWriting] = useState(direct);
   const [text, setText] = useState("");
   const [Replies, setReplies] = useState<Replies | null>(null);
   const id = useId();
@@ -41,14 +43,14 @@ export function FeedThread({ conversation, root, count: known, onReplied, reques
     setOpen(true);
     setWriting(true);
   }, [request]);
-  if (!count && !request) return null;
+  if (!count && !request && !direct) return null;
 
   const send = (e: FormEvent) => {
     e.preventDefault();
     const body = text.trim();
     if (!body) return;
     setText("");
-    setWriting(false);
+    setWriting(direct);
     setOpen(true);
     const { load, reply } = useThreads.getState();
     void load(conversation, root).catch(() => {});
@@ -71,7 +73,7 @@ export function FeedThread({ conversation, root, count: known, onReplied, reques
           <input
             aria-label="Reply to the thread"
             type="text"
-            autoFocus
+            autoFocus={!direct || !!request}
             value={text}
             maxLength={4000}
             onChange={(e) => setText(e.target.value)}
