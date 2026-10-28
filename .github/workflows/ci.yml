@@ -273,6 +273,15 @@ jobs:
           path: e2e/report/results.json
           if-no-files-found: ignore
           retention-days: 3
+      # The screenshots a scenario keeps as use-proof (e2e/tests/delivery.work.spec.ts), on every run.
+      - if: always()
+        name: E2E screenshots
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: work-shots-${{ matrix.shard }}
+          path: /tmp/convoz-e2e-shots
+          if-no-files-found: ignore
+          retention-days: 14
       - if: failure()
         name: E2E artifacts (failure only)
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

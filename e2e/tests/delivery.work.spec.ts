@@ -35,6 +35,11 @@ async function shoot(page: Page, info: TestInfo, name: string): Promise<void> {
   await page.screenshot({ path: info.outputPath(`${name}-${info.project.name}.png`), fullPage: true });
 }
 
+/** SHOTS is where CI keeps the Work screenshots on every run, pass or fail (artifact "work-shots-<shard>"), as the PR's use-proof. */
+const SHOTS = "/tmp/convoz-e2e-shots";
+const proof = (page: Page, info: TestInfo): Promise<Buffer> =>
+  page.screenshot({ path: `${SHOTS}/work-${info.project.name === "mobile" ? "phone" : "desktop"}.png`, fullPage: true });
+
 scenario("Work puts each plan in the highest section that applies", { tag: ["@browser"] }, async ({ server, page, context, testApi }, info) => {
   info.setTimeout(120_000);
   const p = await planUi({ server, page, context }, { docsIn: false });
@@ -100,6 +105,7 @@ scenario("Work puts each plan in the highest section that applies", { tag: ["@br
     for (const box of await Promise.all((await work(page).getByRole("link").all()).map((l) => l.boundingBox()))) expect(box!.height).toBeLessThanOrEqual(76);
   }
   await shoot(page, info, "work");
+  await proof(page, info);
 
   // When the owner taps "Show"
   await work(page).getByRole("button", { name: "Show", exact: true }).click();
