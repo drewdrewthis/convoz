@@ -117,7 +117,7 @@ func TestAnAgentThatKeepsPostingWithAPlanBehindIsAskedOnceAnHour(t *testing.T) {
 	r := newFreshRig(t)
 	r.setPlan(t, plan.Input{Now: []plan.Item{{Text: "Building invites"}}, Waiting: []string{"Approve the deploy"}})
 
-	r.clock.add(10 * time.Minute)
+	r.clock.add(5 * time.Minute)
 	r.posts(t, 3)
 	if n := r.asks(t); n != 0 {
 		t.Fatalf("a plan 10 minutes old: %d asks, want 0", n)
@@ -160,6 +160,32 @@ func TestAnAgentWithNoPlanIsAskedOnceItHasWorkedThereHalfAnHour(t *testing.T) {
 	got := statusDueBody(41, plan.Plan{}, plan.ErrNotFound, askedByStep, r.clock.Now().UnixMilli())
 	if !strings.Contains(got, "You have no plan in conversation 41.") || !strings.Contains(got, "convoz plan 41 --doing") {
 		t.Errorf("the ask with no plan: %q", got)
+	}
+}
+
+// Replies in threads are not work on a plan: an agent that only answers in threads (a PR-events feed, a busy chat it answers in)
+// is never asked for a plan, however many replies and however long it goes on. Its top-level posts still count.
+func TestAThreadReplyIsNotWorkThatAsksForAPlan(t *testing.T) {
+	r := newFreshRig(t)
+	rig := &streamRig{s: r.s, conv: r.conv}
+	code, root := rig.postAs(t, r.agent, `{"client_id":"fresh-root","body":"PR 1 opened","needs_you":false}`)
+	if code != http.StatusCreated {
+		t.Fatalf("root: %d %v", code, root)
+	}
+	rootID := strconv.FormatInt(int64(root["id"].(float64)), 10)
+	for i := range 6 {
+		if code, body := rig.postAs(t, r.agent, `{"client_id":"fresh-reply-`+strconv.Itoa(i)+`","body":"merged","thread_root_id":`+rootID+`}`); code != http.StatusCreated {
+			t.Fatalf("reply %d: %d %v", i, code, body)
+		}
+		r.clock.add(5 * time.Minute)
+	}
+	r.posts(t, 1) // a second top-level post, half an hour in
+	if n := r.asks(t); n != 0 {
+		t.Fatalf("one root, six thread replies and one more top-level post over half an hour: %d asks, want 0", n)
+	}
+	r.posts(t, 1) // the third top-level post: now the agent is at work, and has had no plan for over half an hour
+	if n := r.asks(t); n != 1 {
+		t.Fatalf("three top-level posts over half an hour with no plan: %d asks, want 1", n)
 	}
 }
 
