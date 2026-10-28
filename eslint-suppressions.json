@@ -57,7 +57,7 @@
   },
   "apps/web/src/features/conversations/Conversations.tsx": {
     "convoz/no-raw-button": {
-      "count": 8
+      "count": 2
     },
     "convoz/no-style-prop": {
       "count": 1
