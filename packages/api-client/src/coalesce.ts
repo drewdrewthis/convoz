@@ -38,18 +38,23 @@ export function coalescePer<K>(fn: (key: K) => Promise<void>): (key: K) => Promi
 
 /**
  * debouncePer runs fn(key) once `ms` after the last call for that key, so a burst spread over a second (a slow runner, a catch-up) is one
- * run, where coalescePer would still run again for each call that lands while a run is on its way.
+ * run, where coalescePer would still run again for each call that lands while a run is on its way. `maxWait` bounds the wait: a key
+ * pending that long runs even if calls keep coming, so a steady stream cannot starve it.
  */
-export function debouncePer<K>(fn: (key: K) => Promise<void> | void, ms: number): (key: K) => void {
-  const timers = new Map<K, ReturnType<typeof setTimeout>>();
+export function debouncePer<K>(fn: (key: K) => Promise<void> | void, ms: number, maxWait = 1000): (key: K) => void {
+  const pending = new Map<K, { timer: ReturnType<typeof setTimeout>; since: number }>();
   return (key) => {
-    clearTimeout(timers.get(key));
-    timers.set(
-      key,
-      setTimeout(() => {
-        timers.delete(key);
+    const now = Date.now();
+    const prev = pending.get(key);
+    clearTimeout(prev?.timer);
+    const since = prev?.since ?? now;
+    const wait = Math.max(0, Math.min(ms, since + maxWait - now));
+    pending.set(key, {
+      since,
+      timer: setTimeout(() => {
+        pending.delete(key);
         void Promise.resolve(fn(key)).catch(() => {});
-      }, ms),
-    );
+      }, wait),
+    });
   };
 }
