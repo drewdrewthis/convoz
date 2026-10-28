@@ -14,6 +14,20 @@ Feature: Now
     And machine "box-2" is logged in with allow-list "devtool" and "docs"
     And "devtool" and "docs" are active participants of conversation 41 "Ship search filters"
 
+  Rule: In the dev build an item opens directly into a thread about it
+
+    @v1 @browser @unimplemented
+    Scenario: An open ask shows its thread with a reply box, without a click
+      Given an agent has an open ask in Now in the dev build
+      Then the ask's frame shows its thread and a reply box
+      When the owner writes a reply
+      Then it shows in the thread and the owner stays in Now
+
+    @v1 @browser @unimplemented
+    Scenario: The owner's answered question shows its thread the same way
+      Given the owner asked a question in a conversation and an agent answered
+      Then the question's item in Now shows the conversation thread of that question with a reply box
+
   Rule: The one-list Now, the right drawer and the Work screen are in the dev build (/dev) only; the main app is unchanged
 
     @v1 @browser @unimplemented

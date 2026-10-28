@@ -14,6 +14,8 @@ export interface Fyi {
   from: string;
   title: string;
   context?: string;
+  /** The message the thread hangs on: only the owner's question has one (a plan step is no message). */
+  root?: number;
   /** The later Now lines and the Next lines of the same plan, shown quietly under the item. */
   next?: string[];
   at: number;
@@ -66,6 +68,7 @@ export function questionsOf(conversation: number, from: string, list: readonly M
   const spoke = after.some((m) => mine(m) && m.id > last.id);
   return {
     key: `q:${conversation}:${q.id}`,
+    root: q.id,
     state: spoke ? "started" : "done",
     conversation_id: conversation,
     from,

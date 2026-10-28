@@ -44,7 +44,7 @@ function AskItem({ ask, busy, presets, answer, snooze }: { ask: Ask; busy: boole
       context={[recommended ? `Recommended: ${recommended}` : "", why, `Asked by ${whoLine(ask.asker)}`].filter(Boolean).join(". ")}
       tag={ask.urgent ? "Urgent" : undefined}
       from={{ id: ask.conversation_id, title: ask.conversation?.title ?? "" }}
-      thread={<FeedThread conversation={ask.conversation_id} root={root} count={ask.reply_count} request={request} onReplied={(ok) => (void useNow.getState().load().catch(() => {}), ok && toast("Replied. The ask moved to You replied."))} />}
+      thread={<FeedThread conversation={ask.conversation_id} root={root} count={ask.reply_count} request={request} direct onReplied={(ok) => (void useNow.getState().load().catch(() => {}), ok && toast("Replied. The ask moved to You replied."))} />}
       snooze={{ presets, pick: (k) => snooze(ask, k) }}
       busy={busy}
       dataId={ask.id}
@@ -64,7 +64,7 @@ function AskItem({ ask, busy, presets, answer, snooze }: { ask: Ask; busy: boole
 
 /** FyiItem is a piece of work started or done, or an answered question: the owner only needs to know. It has no action yet: Got it comes with the server's feed record. */
 function FyiItem({ item: f }: { item: Fyi }) {
-  return <ItemFrame kind={f.state} title={f.title} context={f.context} next={f.next} from={{ id: f.conversation_id, title: f.from }} />;
+  return <ItemFrame kind={f.state} title={f.title} context={f.context} next={f.next} from={{ id: f.conversation_id, title: f.from }} thread={f.root ? <FeedThread conversation={f.conversation_id} root={f.root} direct /> : undefined} />;
 }
 
 /** PlanItem is a plan step that waits on the owner. The server has no snooze for it and no thread of its own, so both buttons open the conversation for now. */
