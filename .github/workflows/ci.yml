@@ -132,3 +132,4 @@ jobs:
         if: github.event_name == 'pull_request'
         env:
           BASE_REF: ${{ github.base_ref }}
+        run: python3 -I specs/scripts/spec_diff.py "origin/$BASE_REF" HEAD
