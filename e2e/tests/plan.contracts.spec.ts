@@ -123,10 +123,10 @@ async function posts(p: PlanWorld, n: number): Promise<void> {
   for (let i = 0; i < n; i++) await agentSays(p.w.srv, p.dev.lease, p.conv, `working on it ${i + 1}`);
 }
 
-scenario("An agent that keeps posting with a plan 30 minutes old is asked once an hour, even while its plan waits on the owner", { tag: ["@api"] }, async ({ server, testApi }) => {
+scenario("An agent that keeps posting with a plan 30 minutes old is asked once an hour", { tag: ["@api"] }, async ({ server, testApi }) => {
   const p = await planWorld(server, { docsIn: false });
-  // Given "devtool" planned Doing "Building invites" and Waiting on you "Approve the deploy"
-  must(await putPlan(p.w.srv, p.dev.lease, p.conv, { doing: "Building invites", waiting: ["Approve the deploy"] }), "waiting plan");
+  // Given "devtool" planned Doing "Building invites"
+  must(await putPlan(p.w.srv, p.dev.lease, p.conv, { doing: "Building invites" }), "plan");
   // When 10 minutes pass and "devtool" posts 3 messages, then it gets no status_due item
   await testApi(p.w.srv).advanceClock(10 * MIN);
   await posts(p, 3);
@@ -144,6 +144,19 @@ scenario("An agent that keeps posting with a plan 30 minutes old is asked once a
   await testApi(p.w.srv).advanceClock(HOUR);
   await posts(p, 3);
   expect(await asks(p)).toHaveLength(1);
+});
+
+scenario("A plan that is done, waits on the owner or is blocked is not asked for an update while the agent keeps posting", { tag: ["@api"] }, async ({ server, testApi }) => {
+  const p = await planWorld(server, { docsIn: false });
+  // Given "devtool" planned Done "Board feed", then in turn Doing "Building invites" with Waiting on you "Approve the deploy", and Doing with Blocked "CI is down"
+  for (const body of [{ done: ["Board feed"] }, { doing: "Building invites", waiting: ["Approve the deploy"] }, { doing: "Building invites", blocked: "CI is down" }]) {
+    must(await putPlan(p.w.srv, p.dev.lease, p.conv, body), "plan");
+    // When 31 minutes pass after each plan and "devtool" posts 3 messages
+    await testApi(p.w.srv).advanceClock(31 * MIN);
+    await posts(p, 3);
+    // Then "devtool" gets no status_due item
+    expect(await asks(p)).toEqual([]);
+  }
 });
 
 scenario("An agent with no plan is asked once it has worked in the conversation for 30 minutes", { tag: ["@api"] }, async ({ server, testApi }) => {

@@ -41,7 +41,8 @@ func (s *Server) askIfBehind(ctx context.Context, agent, conv int64) {
 	}
 }
 
-// planBehind reports whether an agent is at work in the conversation with a plan that is behind: plan.ActivePosts posts there within
+// planBehind reports whether an agent is at work in the conversation with a plan that is behind (a plan with nothing in Now, or one that
+// waits on the owner or is blocked, never is: it waits on someone else or is finished): plan.ActivePosts posts there within
 // plan.AskRest, all after its plan's update, while that update is plan.BehindAfter old. With no plan, the owner must have written in the conversation within plan.HumanWithin, and the age runs from the first of
 // those posts: an agent that just joined and answers a few questions is not behind yet.
 func planBehind(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int64) (bool, error) {
@@ -50,6 +51,9 @@ func planBehind(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int6
 	p, err := plan.Get(ctx, d, agent, conv)
 	switch {
 	case err == nil:
+		if len(p.Now) == 0 || len(p.Waiting) > 0 || p.Blocked != "" { // done, or waiting on someone else, or blocked: nothing is behind
+			return false, nil
+		}
 		if since = p.UpdatedAt; nowMs-since < behind {
 			return false, nil
 		}
