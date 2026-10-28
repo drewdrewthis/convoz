@@ -70,3 +70,4 @@ Convoz is **not licensed for use yet**. The code is public for feedback; all rig
 The plan is that forks share features by sharing scenarios. A feature is its Gherkin scenarios, their e2e bindings, and the code that passes them. To take a feature from another fork, copy its scenarios and bindings and make them pass in your code. This is not open yet.
 
 Never put real keys, hostnames or private chat content in an issue.
+
