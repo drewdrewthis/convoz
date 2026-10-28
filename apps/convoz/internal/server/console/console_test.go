@@ -427,3 +427,28 @@ func TestAnUnhashedAssetHasAnETagAndAnswers304(t *testing.T) {
 		t.Errorf("hashed file: ETag %q Cache-Control %q, want no tag and immutable", hashed.Header().Get("ETag"), hashed.Header().Get("Cache-Control"))
 	}
 }
+
+// The icons are served by File (routes_core.go), not Asset: they too keep their name, so they too carry a strong tag and answer 304.
+func TestAFileOfPublicHasAnETagAndAnswers304(t *testing.T) {
+	serve := File("assets/icon-192.png", "image/png")
+	get := func(match string) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/assets/icon-192.png", nil)
+		if match != "" {
+			req.Header.Set("If-None-Match", match)
+		}
+		serve(rec, req)
+		return rec
+	}
+	first := get("")
+	tag := first.Header().Get("ETag")
+	if first.Code != http.StatusOK || !strings.HasPrefix(tag, `"`) || first.Header().Get("Cache-Control") != "no-cache" || first.Header().Get("Content-Type") != "image/png" {
+		t.Fatalf("first GET: %d ETag %q Cache-Control %q Content-Type %q, want 200, a strong tag, no-cache, image/png", first.Code, tag, first.Header().Get("Cache-Control"), first.Header().Get("Content-Type"))
+	}
+	if again := get(tag); again.Code != http.StatusNotModified || again.Body.Len() != 0 {
+		t.Errorf("matching If-None-Match: %d with %d bytes, want 304 and none", again.Code, again.Body.Len())
+	}
+	if other := get(`"other"`); other.Code != http.StatusOK || other.Body.Len() == 0 {
+		t.Errorf("another tag: %d, want the file", other.Code)
+	}
+}
