@@ -68,6 +68,23 @@ Feature: Deliveries: what each agent will deliver, and when
       When "devtool" runs "convoz plan 41 --doing 'Filter chips' --step 3/5"
       Then the row says "Updated" with its time, and "Request update" can be pressed again
 
+    # Follow-ups of the advisor review of PR 166 (issue 167).
+    @v1 @browser
+    Scenario: A long No date group folds behind a chip and opens on a press
+      Given "devtool" is doing a step in 11 conversations, none with a date
+      When the owner opens Deliveries
+      Then "No date · 11" is a closed chip and no row shows
+      When the owner presses the chip
+      Then all 11 rows show
+
+    @v1 @browser
+    Scenario: Request update rests for 10 minutes and then can be pressed again
+      Given the owner requested an update of a plan
+      When 9 minutes pass
+      Then "Request update" still rests
+      When 10 minutes have passed in all
+      Then "Request update" can be pressed again
+
     @v1 @browser
     Scenario: A plan with no update for a day shows as at risk
       Given "devtool" delivers "Search filters live" in 3 days
