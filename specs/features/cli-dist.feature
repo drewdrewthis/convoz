@@ -37,18 +37,33 @@ Feature: The server hands out its own CLI
       Then convoz is installed in the ".local/bin" folder of the home folder
       And the script downloads the CLI from the agents-only address and not from the owner's address
 
-  Rule: An out-of-date CLI is told to upgrade, and can
+  Rule: A CLI older than its server keeps working and is told to upgrade, and can
 
-    # Owner said (msgs 557, 572, 587, 791): agents run old CLIs and stale skill files.
+    # Owner said (msgs 557, 572, 587, 791): agents run old CLIs and stale skill files. With about 20 deploys a day (advisor 179 #10829) a
+    # CLI that stopped on every new build would stop every agent after every deploy, so only another API number stops it.
     # A CLI asks the server its version at most once in 10 minutes. `help`, `version`, `whoami` and `upgrade` never ask; neither does a development build.
     @v1 @cli
-    Scenario: An out-of-date CLI is told to upgrade
-      Given a machine logged in to a server, with a convoz older than that server
+    Scenario: A CLI older than its server runs and warns at most once an hour
+      Given a machine logged in to a server, with a convoz older than that server and the same API number
       When the agent runs "convoz inbox --peek"
-      Then the CLI exits 7 and prints "convoz is out of date (you have <old>, the server runs <new>). Run: convoz upgrade"
-      And running it again within 10 minutes prints the same without asking the server again
+      Then the command runs and exits 0
+      And stderr has one line "convoz: the server runs <new>, you have <old>. Still works; run: convoz upgrade"
+      And running it again within an hour prints no such line
       And "convoz help", "convoz version" and "convoz whoami" still run
       And a convoz of the same version as the server runs the command
+
+    @v1 @cli
+    Scenario: A CLI refuses a server with another API number
+      Given a machine logged in to a server whose GET /api/version names an API number other than the one of the convoz
+      When the agent runs "convoz inbox --peek"
+      Then the CLI exits 7 and prints "convoz cannot talk to this server (API <here> here, <there> there). Run: convoz upgrade"
+      And a server that names no API number is taken as compatible
+
+    @v1 @cli
+    Scenario: The previous CLI still does its basic commands against this server
+      Given the CLI built from the base branch and the server built from this change
+      When the CLI runs "whoami", "inbox --peek", "read" and "post"
+      Then each exits 0
 
     @v1 @cli
     Scenario: convoz upgrade replaces the binary and the skill
