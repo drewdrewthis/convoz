@@ -248,11 +248,13 @@ scenario("Request update on a plan asks its agent in that conversation", { tag: 
 scenario("A long No date group folds behind a chip and opens on a press", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
   info.setTimeout(120_000);
   const p = await planUi({ server, page, context }, { docsIn: false });
-  // Given "devtool" is doing a step in 11 conversations, none with a date
+  // Given "devtool" and "docs" are doing a step in 11 conversations in all, none with a date
+  // (the server lets one agent write 10 plans in 50 seconds, so the 11 are split over two agents)
   const titles = Array.from({ length: 11 }, (_, i) => `Step number ${i + 1}`);
-  for (const t of titles) {
-    const conv = await createConversation(p.w.owner, { participants: ["devtool"], title: `Chat for ${t}` });
-    await mustPlan(p, p.dev, ["--doing", t], conv);
+  for (const [i, t] of titles.entries()) {
+    const who = i % 2 === 0 ? p.dev : p.docs;
+    const conv = await createConversation(p.w.owner, { participants: ["devtool", "docs"], title: `Chat for ${t}` });
+    await mustPlan(p, who, ["--doing", t], conv);
   }
 
   // When the owner opens Deliveries
