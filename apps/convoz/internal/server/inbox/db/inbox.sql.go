@@ -731,6 +731,24 @@ func (q *Queries) ItemConversation(ctx context.Context, arg ItemConversationPara
 	return conversation_id, err
 }
 
+const lastStatusDueAt = `-- name: LastStatusDueAt :one
+SELECT CAST(COALESCE(MAX(created_at), 0) AS INTEGER) AS at FROM inbox_items
+WHERE identity_id = ?1 AND conversation_id = ?2 AND reason = 'status_due'
+`
+
+type LastStatusDueAtParams struct {
+	IdentityID     int64
+	ConversationID sql.NullInt64
+}
+
+// When the agent was last asked to update its plan in the conversation (0 for never): the rest between two freshness asks.
+func (q *Queries) LastStatusDueAt(ctx context.Context, arg LastStatusDueAtParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, lastStatusDueAt, arg.IdentityID, arg.ConversationID)
+	var at int64
+	err := row.Scan(&at)
+	return at, err
+}
+
 const makeItemReady = `-- name: MakeItemReady :exec
 UPDATE inbox_items
 SET state = 'ready', claim_session_id = NULL, claim_token = NULL, claim_until = NULL, visibility_ms = NULL, updated_at = ?1

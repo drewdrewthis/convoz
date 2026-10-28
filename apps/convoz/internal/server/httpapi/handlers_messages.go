@@ -131,6 +131,7 @@ func (s *Server) postMessage(w http.ResponseWriter, r *http.Request, c *call) {
 		if isAgent {
 			s.countDailyPost(c, now)
 			s.publishWorking(r.Context(), who, convID, false, 0)
+			s.askIfBehind(r.Context(), who, convID)
 		}
 	}
 	writeJSON(w, status, wire.PostResponse{ID: posted.Message.ID, ConversationID: convID, CreatedAt: posted.Message.CreatedAt})

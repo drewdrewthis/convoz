@@ -1,7 +1,7 @@
-import { inboxItems, convoz, ownerSays, messagesOf } from "../lib/chat.ts";
+import { inboxItems, convoz, ownerSays, messagesOf, agentSays } from "../lib/chat.ts";
 import { send } from "../lib/http.ts";
 import { bearer, stepped } from "../lib/machines.ts";
-import { board, putPlan, planWorld, type Board } from "../lib/plan.ts";
+import { board, mustPlan, putPlan, planWorld, type Board, type PlanWorld } from "../lib/plan.ts";
 import { must } from "../lib/owner.ts";
 import { expect, scenario } from "../lib/scenario.ts";
 
@@ -109,6 +109,78 @@ scenario("A plan that is blocked or waits on the owner is not nudged", { tag: ["
   // When 3 hours pass, then "devtool" gets no status_due item
   await testApi(p.w.srv).advanceClock(3 * HOUR);
   expect(await nudges()).toBe(0);
+});
+
+/** The agent's open status_due items in the conversation, each acked; their message texts. */
+async function asks(p: PlanWorld): Promise<string[]> {
+  const due = (await inboxItems(p.w.box, p.dev.sid, [])).filter((i) => i.reason === "status_due" && i.conversation.id === p.conv);
+  for (const d of due) expect((await convoz(p.w.box, p.dev.sid, ["ack", `${d.id}:${d.claim_token}`])).code).toBe(0);
+  return due.map((d) => d.message.body);
+}
+
+/** "devtool" posts n messages in the conversation. */
+async function posts(p: PlanWorld, n: number): Promise<void> {
+  for (let i = 0; i < n; i++) await agentSays(p.w.srv, p.dev.lease, p.conv, `working on it ${i + 1}`);
+}
+
+scenario("An agent that keeps posting with a plan 30 minutes old is asked once an hour, even while its plan waits on the owner", { tag: ["@api"] }, async ({ server, testApi }) => {
+  const p = await planWorld(server, { docsIn: false });
+  // Given "devtool" planned Doing "Building invites" and Waiting on you "Approve the deploy"
+  must(await putPlan(p.w.srv, p.dev.lease, p.conv, { doing: "Building invites", waiting: ["Approve the deploy"] }), "waiting plan");
+  // When 10 minutes pass and "devtool" posts 3 messages, then it gets no status_due item
+  await testApi(p.w.srv).advanceClock(10 * MIN);
+  await posts(p, 3);
+  expect(await asks(p)).toEqual([]);
+  // When 21 more minutes pass and "devtool" posts once more, then one status_due item says no update for 31 min
+  await testApi(p.w.srv).advanceClock(21 * MIN);
+  await posts(p, 1);
+  const first = await asks(p);
+  expect(first).toHaveLength(1);
+  expect(first[0]).toContain("has had no update for 31 min");
+  // When "devtool" acks it and posts 3 more messages, then no status_due item
+  await posts(p, 3);
+  expect(await asks(p)).toEqual([]);
+  // When an hour passes and "devtool" posts 3 more messages, then one status_due item
+  await testApi(p.w.srv).advanceClock(HOUR);
+  await posts(p, 3);
+  expect(await asks(p)).toHaveLength(1);
+});
+
+scenario("An agent with no plan is asked once it has worked in the conversation for 30 minutes", { tag: ["@api"] }, async ({ server, testApi }) => {
+  const p = await planWorld(server, { docsIn: false });
+  // When "devtool" posts 3 messages where it has no plan, then no status_due item
+  await posts(p, 3);
+  expect(await asks(p)).toEqual([]);
+  // When 31 minutes pass and "devtool" posts once more, then one status_due item says it has no plan
+  await testApi(p.w.srv).advanceClock(31 * MIN);
+  await posts(p, 1);
+  const due = await asks(p);
+  expect(due).toHaveLength(1);
+  expect(due[0]).toContain(`You have no plan in conversation ${p.conv}.`);
+});
+
+scenario("A plan with a delivery and no update for a day is asked about once a day", { tag: ["@api"] }, async ({ server, testApi }) => {
+  const p = await planWorld(server, { docsIn: false });
+  // The clock moves at most 10 hours between two inbox calls, so the 12-hour lease of "devtool" stays alive.
+  const after = async (hours: number): Promise<string[]> => {
+    const got: string[] = [];
+    for (let left = hours; left > 0; left -= 10) {
+      await testApi(p.w.srv).advanceClock(Math.min(left, 10) * HOUR);
+      got.push(...(await asks(p)));
+    }
+    return got;
+  };
+  // Given "devtool" planned to deliver "Search filters live" in 5 days, with nothing in Now
+  await mustPlan(p, p.dev, ["--deliver", "Search filters live", "--due", "5d"]);
+  // When 23 hours pass, then no status_due item
+  expect(await after(23)).toEqual([]);
+  // When 2 more hours pass, then one status_due item that says no update for 25 h
+  const due = await after(2);
+  expect(due).toHaveLength(1);
+  expect(due[0]).toContain("has had no update for 25 h");
+  // When 2 more hours pass, then none; 23 more hours, then one
+  expect(await after(2)).toEqual([]);
+  expect(await after(23)).toHaveLength(1);
 });
 
 scenario("The liveness of an agent follows its watch, its acks and its session", { tag: ["@api"] }, async ({ server, testApi }) => {

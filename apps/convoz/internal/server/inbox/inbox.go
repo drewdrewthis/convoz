@@ -378,6 +378,11 @@ func StatusDue(ctx context.Context, d pdb.DBTX, now time.Time, identityID, conve
 	return db.New(d).InsertStatusDueItem(ctx, db.InsertStatusDueItemParams{IdentityID: identityID, ConversationID: nullInt(conversationID), SourceSeq: sourceSeq, Now: now.UnixMilli()})
 }
 
+// LastStatusDueAt is when the agent was last asked to update its plan in the conversation (epoch ms; 0 for never).
+func LastStatusDueAt(ctx context.Context, d pdb.DBTX, identityID, conversationID int64) (int64, error) {
+	return db.New(d).LastStatusDueAt(ctx, db.LastStatusDueAtParams{IdentityID: identityID, ConversationID: nullInt(conversationID)})
+}
+
 // StatusDueSource is the seq of the event that made a status_due item.
 func StatusDueSource(ctx context.Context, d pdb.DBTX, identityID, itemID int64) (int64, error) {
 	return db.New(d).StatusDueSource(ctx, db.StatusDueSourceParams{ID: itemID, IdentityID: identityID})

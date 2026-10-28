@@ -229,3 +229,8 @@ WHERE due_at <= sqlc.arg(now) ORDER BY due_at, conversation_id, thread_root_id L
 -- No event stands behind it, so source_seq is 0 (nothing reads it).
 INSERT INTO inbox_items (identity_id, reason, conversation_id, first_message_id, message_id, count, mention_count, source_seq, state, created_at, updated_at)
 VALUES (sqlc.arg(identity_id), 'unanswered', sqlc.arg(conversation_id), sqlc.arg(message_id), sqlc.arg(message_id), 1, 0, 0, 'ready', sqlc.arg(now), sqlc.arg(now));
+
+-- name: LastStatusDueAt :one
+-- When the agent was last asked to update its plan in the conversation (0 for never): the rest between two freshness asks.
+SELECT CAST(COALESCE(MAX(created_at), 0) AS INTEGER) AS at FROM inbox_items
+WHERE identity_id = sqlc.arg(identity_id) AND conversation_id = sqlc.arg(conversation_id) AND reason = 'status_due';

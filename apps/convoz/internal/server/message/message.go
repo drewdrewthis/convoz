@@ -292,6 +292,13 @@ func Mentioned(ctx context.Context, d pdb.DBTX, id int64) ([]int64, error) {
 	return db.New(d).ListMentions(ctx, id)
 }
 
+// RecentPosts counts the texts and asks the author wrote in the conversation after the time (epoch ms), among its newest 100 messages,
+// and tells when the first of them was written (0 for none).
+func RecentPosts(ctx context.Context, d pdb.DBTX, author, conv, after int64) (n int, first int64, err error) {
+	r, err := db.New(d).RecentPosts(ctx, db.RecentPostsParams{AuthorID: nullInt(author), ConversationID: conv, After: after})
+	return int(r.Posts), r.FirstAt, err
+}
+
 // ThreadAuthors lists the identity ids that wrote a text or ask message in the thread of root (the root too).
 func ThreadAuthors(ctx context.Context, d pdb.DBTX, root int64) ([]int64, error) {
 	rows, err := db.New(d).ThreadAuthors(ctx, nullInt(root))

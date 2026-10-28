@@ -142,6 +142,12 @@ func DeliveryStale(p Plan, now int64) bool {
 	return now-p.UpdatedAt >= DeliveryStaleAfter.Milliseconds()
 }
 
+// QuietAtRisk reports whether a deliverable of the plan shows At risk because the plan had no update for DeliveryStaleAfter: its
+// agent is asked then, once per DeliveryStaleAfter.
+func (p Plan) QuietAtRisk(now int64) bool {
+	return DeliveryStale(p, now) && slices.ContainsFunc(p.Deliver, func(d Deliverable) bool { return DeliveryState(p, d, now) == DeliveryAtRisk })
+}
+
 // DeliveriesToNudge lists the index of each deliverable whose due date passed and that the agent was not asked about for that date.
 func (p Plan) DeliveriesToNudge(now int64) (out []int) {
 	for i, d := range p.Deliver {

@@ -692,11 +692,22 @@ func statusDueSource(ctx context.Context, d pdb.DBTX, agent, item int64) (string
 	return askedByDelivery, nil
 }
 
+// askAge is a span for an ask: minutes up to 2 hours, then hours.
+func askAge(ms int64) string {
+	if m := ms / 60000; m < 120 {
+		return strconv.FormatInt(m, 10) + " min"
+	}
+	return strconv.FormatInt(ms/3600000, 10) + " h"
+}
+
 // statusDueBody is the text of the ask. A delivery ask whose deliverable is gone (shipped, say) reads as a plan ask.
 func statusDueBody(conv int64, pl plan.Plan, planErr error, source string, nowMs int64) string {
 	c := strconv.FormatInt(conv, 10)
 	body := "Your plan in conversation " + c + " needs an update."
-	if planErr == nil {
+	switch {
+	case errors.Is(planErr, plan.ErrNotFound): // an agent at work with no plan there
+		body = "You have no plan in conversation " + c + "."
+	case planErr == nil:
 		if dv, late := pl.LateDeliverable(nowMs); late && source == askedByDelivery {
 			return deliveryNudge(conv, dv)
 		}
@@ -704,11 +715,14 @@ func statusDueBody(conv int64, pl plan.Plan, planErr error, source string, nowMs
 		if state == "" && len(pl.Now) > 0 { // nudged before the owner's line turns stale
 			it, state = pl.Now[0], "stale"
 		}
-		switch state {
-		case "late":
+		quiet := "Your plan in conversation " + c + " has had no update for " + askAge(nowMs-pl.UpdatedAt)
+		switch {
+		case state == "late":
 			body = "Your plan in conversation " + c + " is late: \"" + it.Text + "\" was due " + time.UnixMilli(it.ETA).UTC().Format(time.RFC3339) + "."
-		case "stale":
-			body = "Your plan in conversation " + c + " has had no update for " + strconv.FormatInt((nowMs-pl.UpdatedAt)/60000, 10) + " min: \"" + it.Text + "\"."
+		case state == "stale":
+			body = quiet + ": \"" + it.Text + "\"."
+		case len(pl.Now) == 0: // an agent at work, or a quiet delivery, with nothing in Now
+			body = quiet + "."
 		}
 	}
 	return body + " Say where you are: convoz plan " + c + " --doing \"…\" --eta 30m (or --done, --blocked, --waiting)."
