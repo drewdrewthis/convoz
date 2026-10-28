@@ -5,6 +5,9 @@ Usage: python3 -I scripts/fast_lane.py [BASE_REF]     (default origin/feat/web-r
        python3 -I scripts/fast_lane.py --rules        (print the rules, for a PR body)
 
 Prints ELIGIBLE (exit 0), or FULL GATE plus each disallowed file and why (exit 1).
+An empty diff prints "FULL GATE: empty diff" (exit 1): nothing to judge is not a pass.
+Always run the BASE copy, never the copy on the branch under test:
+  git show origin/feat/web-react:scripts/fast_lane.py | python3 -I - origin/feat/web-react
 A file is allowed only under ALLOW. DENY wins over ALLOW. Any added line that issues a
 write call (WRITE_CALL) also forces the FULL GATE, whatever the path.
 """
@@ -18,7 +21,7 @@ DEFAULT_BASE = "origin/feat/web-react"
 # Only these paths may ride the fast lane.
 ALLOW = [
     "apps/web/src/*",  # screens, components, styles
-    "specs/*",
+    "specs/*.feature",  # scenarios only; spec scripts and tooling take the full gate
 ]
 
 # Disallowed even inside ALLOW. (glob, why). fnmatch: "*" also crosses "/".
@@ -52,8 +55,13 @@ DENY = [
 # An added line that issues a write call.
 WRITE_CALL = re.compile(
     r"\bclient\s*\.\s*(POST|PUT|PATCH|DELETE)\b"
-    r"|\bmethod\s*:\s*[\"'`](POST|PUT|PATCH|DELETE)[\"'`]"
-    r"|\.(post|put|patch|delete)\s*\(",
+    r"|\bmethod\s*:(?!\s*[\"'`]GET[\"'`])"  # fetch options: any method that is not a literal GET, variables included
+    r"|\bmethod\s*[,}]"  # shorthand { method }
+    r"|\.(post|put|patch|delete)\s*\("
+    r"|\bsendBeacon\b"
+    r"|\bXMLHttpRequest\b"
+    r"|\bnew\s+WebSocket\b"
+    r"|\b\w*(ws|socket|sock)\w*\s*\.\s*send\s*\(",  # WebSocket send
     re.IGNORECASE,
 )
 
@@ -104,6 +112,9 @@ def main(argv):
         return 0
     base = argv[0] if argv else DEFAULT_BASE
     files, mb = changed_files(base)
+    if not files:
+        print("FULL GATE: empty diff")
+        return 1
     bad = check(files, lambda f: added_write_calls(f, mb))
     if not bad:
         print("ELIGIBLE")
