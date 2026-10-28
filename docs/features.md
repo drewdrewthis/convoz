@@ -19,7 +19,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Crew: identities, machines and sessions](#crew-identities-machines-and-sessions) (36)
 - [Data at rest, backups and deletion](#data-at-rest-backups-and-deletion) (10)
 - [Day labels](#day-labels) (4)
-- [Deliveries: what each agent will deliver, and when](#deliveries-what-each-agent-will-deliver-and-when) (10)
+- [Deliveries: what each agent will deliver, and when](#deliveries-what-each-agent-will-deliver-and-when) (7)
 - [Errors in the web app reach the server log](#errors-in-the-web-app-reach-the-server-log) (3)
 - [Machine login with a device flow](#machine-login-with-a-device-flow) (23)
 - [Messages and their types](#messages-and-their-types) (14)
@@ -557,21 +557,18 @@ I know when things happened without opening each message.
 ## Deliveries: what each agent will deliver, and when
 
 I know when things will be delivered, and a missed date is chased without me.
-10 scenarios.
+7 scenarios.
 
 - **An agent names what it will deliver and by when, and it stays until it ships**
   - [An agent sets a deliverable with a due date, and it stays until it ships](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L21)
-- **The owner sees every agent's current plan on one page, the most urgent first, and asks for an update right there**
-  - [Deliveries lists every agent's current plan, the most urgent first](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L36)
-  - [Request update on a plan asks its agent in that conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L59)
-  - [A long No date group folds behind a chip and opens on a press](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L73)
-  - [Request update rests for 10 minutes and then can be pressed again](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L81)
-  - [A plan with no update for a day shows as at risk](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L89)
-  - [With no plans the page says how they come](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L97)
+- **Work shows every plan, in the highest section that applies, and stays current without a button**
+  - [Work puts each plan in the highest section that applies](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L40)
+  - [A Work row opens its chat on that agent's plan, with what it waits on and delivers](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L66)
+  - [With no plans Work says how they come, and an old Deliveries link opens Work](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L73)
 - **When a due date passes, the agent is asked first, once per date, and the owner sees it on Now without a push**
-  - [When a due date passes, the agent is asked once: done, new date, or blocked](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L104)
-  - [A late step and a late delivery each ask once, with their own text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L116)
-  - [Now lists late deliverables under Overdue until the agent gives a new date](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L128)
+  - [When a due date passes, the agent is asked once: done, new date, or blocked](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L81)
+  - [A late step and a late delivery each ask once, with their own text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L93)
+  - [Now lists late deliverables under Overdue until the agent gives a new date](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L105)
 
 ## Errors in the web app reach the server log
 
@@ -814,27 +811,27 @@ I know which conversations are active, and an agent that went quiet is noticed.
   - [The line under the title shows the most urgent state](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L78)
   - [Times show in the owner's time zone with "~" for an estimate](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L92)
 - **Tapping the line opens the details panel: the asks and joins that wait on the owner, then one card per agent, then the settings**
-  - [The details panel shows each agent's plan, then the settings, and no plan item that waits on the owner](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L104)
-  - [Ask for a plan tells the agent the command that sets it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L120)
-  - [Request plan update asks the agent to update its plan](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L129)
-  - [The plan card puts Remove in a menu and shows the step as a bar](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L138)
-  - [The card and the line show each parallel Now item with its own estimate](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L149)
-  - [The panel says when an agent is late or blocked](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L157)
+  - [The details panel shows each agent's plan with what it waits on, then the settings](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L105)
+  - [Ask for a plan tells the agent the command that sets it](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L121)
+  - [Request plan update asks the agent to update its plan](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L130)
+  - [The plan card puts Remove in a menu and shows the step as a bar](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L139)
+  - [The card and the line show each parallel Now item with its own estimate](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L150)
+  - [The panel says when an agent is late or blocked](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L158)
 - **Each row of the Conversations list shows a small status icon next to its count**
-  - [Each conversation row shows a status icon next to its count and the list never reorders](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L169)
+  - [Each conversation row shows a status icon next to its count and the list never reorders](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L170)
 - **Updates come live; only something new that waits on the owner pushes**
-  - [A plan update in the chat is one quiet row that expands](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L187)
-  - [The line and the panel update live, and a quiet line marks a finished item](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L198)
-  - [Only something new that waits on the owner pushes](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L207)
+  - [A plan update in the chat is one quiet row that expands](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L188)
+  - [The line and the panel update live, and a quiet line marks a finished item](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L199)
+  - [Only something new that waits on the owner pushes](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L208)
 - **An agent that goes quiet is nudged, and the owner sees it without a push**
-  - [A late agent is nudged once to update its plan, and the owner is not pushed](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L222)
-  - [A working agent is nudged after 15 minutes, and its line says no update after 2 hours](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L236)
-  - [An agent that does not pick up a message shows as not responding](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L246)
-  - [An agent whose machine key was revoked shows as logged out](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L258)
+  - [A late agent is nudged once to update its plan, and the owner is not pushed](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L223)
+  - [A working agent is nudged after 15 minutes, and its line says no update after 2 hours](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L237)
+  - [An agent that does not pick up a message shows as not responding](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L247)
+  - [An agent whose machine key was revoked shows as logged out](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L259)
 - **What an agent waits on the owner for shows in the conversation**
-  - [What waits on the owner shows only as the plan, the line under the title and the row icon, with no card or button](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L268)
-  - [A waiting item that names someone else is refused](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L287)
-  - [A waiting item missed while offline shows after reconnect](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L296)
+  - [What waits on the owner shows only as the plan, the line under the title and the row icon, with no card or button](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L269)
+  - [A waiting item that names someone else is refused](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L288)
+  - [A waiting item missed while offline shows after reconnect](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L297)
 
 ## Platform rules every module relies on
 

@@ -16,7 +16,8 @@ var coreRoutes = []Route{
 	{Method: "GET", Pattern: "/chats/new", Auth: authz.Human, Page: true, handle: appPage},
 	{Method: "GET", Pattern: "/chats/:id", Auth: authz.Human, Page: true, handle: (*Server).chatPage},
 	{Method: "GET", Pattern: "/crew", Auth: authz.Human, Page: true, handle: appPage},
-	{Method: "GET", Pattern: "/delivery", Auth: authz.Human, Page: true, handle: appPage},
+	{Method: "GET", Pattern: "/work", Auth: authz.Human, Page: true, handle: appPage},
+	{Method: "GET", Pattern: "/delivery", Auth: authz.Human, Page: true, handle: appPage}, // the old address of Work; the page shows /work
 	{Method: "GET", Pattern: "/crew/machines", Auth: authz.Human, Page: true, handle: appPage},
 	{Method: "GET", Pattern: "/crew/:handle", Auth: authz.Human, Page: true, handle: appPage},
 	{Method: "GET", Pattern: "/onboarding", Auth: authz.Human, Page: true, handle: appPage},

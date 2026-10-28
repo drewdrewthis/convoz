@@ -50,7 +50,7 @@ export function FocusFrame({ def, children }: { def: PageDef; children: ReactNod
 const TABS = [
   { tab: "now", href: "/", label: "Now", Icon: NowIcon, badge: true },
   { tab: "chats", href: "/chats", label: "Conversations", Icon: ChatIcon, badge: false },
-  { tab: "delivery", href: "/delivery", label: "Deliveries", Icon: DeliveryIcon, badge: false },
+  { tab: "work", href: "/work", label: "Work", Icon: DeliveryIcon, badge: false },
   { tab: "crew", href: "/crew", label: "Crew", Icon: CrewIcon, badge: false },
 ] as const;
 
