@@ -57,7 +57,7 @@ Feature: Plans (contracts)
 
     @v1 @api
     Scenario: An agent that keeps posting with a plan 30 minutes old is asked once an hour
-      Given "devtool" planned Doing "Building invites"
+      Given "devtool" planned Doing "Building invites" with an estimate of 3 hours
       When 10 minutes pass and "devtool" posts 3 messages in conversation 41
       Then "devtool" gets no status_due item
       When 21 more minutes pass and "devtool" posts once more

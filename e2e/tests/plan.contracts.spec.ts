@@ -125,8 +125,8 @@ async function posts(p: PlanWorld, n: number): Promise<void> {
 
 scenario("An agent that keeps posting with a plan 30 minutes old is asked once an hour", { tag: ["@api"] }, async ({ server, testApi }) => {
   const p = await planWorld(server, { docsIn: false });
-  // Given "devtool" planned Doing "Building invites"
-  must(await putPlan(p.w.srv, p.dev.lease, p.conv, { doing: "Building invites" }), "plan");
+  // Given "devtool" planned Doing "Building invites" with an estimate of 3 hours (so the timed nudge for a late step stays out of it)
+  must(await putPlan(p.w.srv, p.dev.lease, p.conv, { doing: "Building invites", eta: "180m" }), "plan");
   // When 10 minutes pass and "devtool" posts 3 messages, then it gets no status_due item
   await testApi(p.w.srv).advanceClock(10 * MIN);
   await posts(p, 3);
