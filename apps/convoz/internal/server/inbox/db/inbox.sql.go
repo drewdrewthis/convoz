@@ -291,7 +291,7 @@ const dropStatusDue = `-- name: DropStatusDue :exec
 UPDATE inbox_items
 SET state = 'expired', expired_reason = 'removed', claim_session_id = NULL, claim_token = NULL,
     claim_until = NULL, visibility_ms = NULL, updated_at = ?1
-WHERE identity_id = ?2 AND conversation_id = ?3 AND reason = 'status_due' AND state IN ('ready','claimed')
+WHERE identity_id = ?2 AND conversation_id = ?3 AND reason = 'status_due' AND state = 'ready'
 `
 
 type DropStatusDueParams struct {
@@ -502,6 +502,26 @@ func (q *Queries) ExtendClaims(ctx context.Context, arg ExtendClaimsParams) ([]E
 		return nil, err
 	}
 	return items, nil
+}
+
+const finishClaimedStatusDue = `-- name: FinishClaimedStatusDue :exec
+UPDATE inbox_items
+SET state = 'acked', acked_at = ?1, acked_by_session = claim_session_id, acked_by_watch = 1, claim_session_id = NULL, claim_token = NULL,
+    claim_until = NULL, visibility_ms = NULL, updated_at = ?1
+WHERE identity_id = ?2 AND conversation_id = ?3 AND reason = 'status_due' AND state = 'claimed'
+`
+
+type FinishClaimedStatusDueParams struct {
+	Now            sql.NullInt64
+	IdentityID     int64
+	ConversationID sql.NullInt64
+}
+
+// The same for an ask the agent holds claimed: it is finished for its claimer (as the watch finishes an item), so the ack its wrapper
+// sends next is a no-op that succeeds.
+func (q *Queries) FinishClaimedStatusDue(ctx context.Context, arg FinishClaimedStatusDueParams) error {
+	_, err := q.db.ExecContext(ctx, finishClaimedStatusDue, arg.Now, arg.IdentityID, arg.ConversationID)
+	return err
 }
 
 const hasOpenStatusDue = `-- name: HasOpenStatusDue :one

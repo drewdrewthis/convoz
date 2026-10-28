@@ -119,7 +119,15 @@ ORDER BY id;
 UPDATE inbox_items
 SET state = 'expired', expired_reason = 'removed', claim_session_id = NULL, claim_token = NULL,
     claim_until = NULL, visibility_ms = NULL, updated_at = sqlc.arg(now)
-WHERE identity_id = sqlc.arg(identity_id) AND conversation_id = sqlc.arg(conversation_id) AND reason = 'status_due' AND state IN ('ready','claimed');
+WHERE identity_id = sqlc.arg(identity_id) AND conversation_id = sqlc.arg(conversation_id) AND reason = 'status_due' AND state = 'ready';
+
+-- name: FinishClaimedStatusDue :exec
+-- The same for an ask the agent holds claimed: it is finished for its claimer (as the watch finishes an item), so the ack its wrapper
+-- sends next is a no-op that succeeds.
+UPDATE inbox_items
+SET state = 'acked', acked_at = sqlc.arg(now), acked_by_session = claim_session_id, acked_by_watch = 1, claim_session_id = NULL, claim_token = NULL,
+    claim_until = NULL, visibility_ms = NULL, updated_at = sqlc.arg(now)
+WHERE identity_id = sqlc.arg(identity_id) AND conversation_id = sqlc.arg(conversation_id) AND reason = 'status_due' AND state = 'claimed';
 
 -- name: ExpireNotVisible :exec
 UPDATE inbox_items
