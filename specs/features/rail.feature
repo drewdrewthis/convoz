@@ -148,7 +148,7 @@ Feature: Rail
       Then the sidebar is narrower
       When the owner double-clicks the handle
       Then the sidebar has its first width again
-      Then the handle is gone when the sidebar is folded or shows Now
+      Then the handle is gone when the sidebar is folded
       And on a narrow screen there is no sidebar to resize
 
     @v1 @browser
@@ -157,45 +157,55 @@ Feature: Rail
       Then the "Keyboard shortcuts" dialog lists every key
       And Escape closes it and returns focus where it was
 
-  # Owner, conv 179 (msgs 4291 to 4334), UX plan §1: Now is a view of the left rail, not a page that replaces the conversation.
-  Rule: On a wide screen Now is a view of the rail
+  # Drew, conv 179 msg 11481: Now opens in a drawer, the right side panel, so everything else stays in view. The left sidebar is navigation and quick find only.
+  Rule: On a wide screen Now opens in the right drawer
 
     @v1 @browser
-    Scenario: Now opens in the rail beside the open conversation
+    Scenario: Now opens in the right drawer with the conversation still visible
       Given "devtool" asks "Merge #415 on its own?" in conversation 52
       And the owner has conversation 41 open on a 1280 px wide screen
       When the owner clicks "Now" in the rail
-      Then the rail lists the ask "Merge #415 on its own?" and no Conversations group
-      And the rail is about 360 px wide and the conversation moves with it
-      And conversation 41 is still open in the page
+      Then the right drawer "Now" lists the ask "Merge #415 on its own?"
+      And the address has "panel=now"
+      And the rail still lists the Conversations group and is 240 px wide
+      And conversation 41 is still open in the middle
 
     @v1 @browser
-    Scenario: Picking a Now item opens its conversation beside the Now list
+    Scenario: Picking a Now item opens its conversation in the middle and keeps the drawer open
       Given "devtool" asks "Merge #415 on its own?" in conversation 52 and "Roll back box-3?" in conversation 60
-      And the owner has conversation 41 open with Now in the rail
-      When the owner picks "Open conversation" on the ask "Roll back box-3?" in the rail
-      Then conversation 60 is open in the page
-      And the rail still lists both asks
+      And the owner has conversation 41 open with the Now drawer open
+      When the owner picks "Open conversation" on the ask "Roll back box-3?" in the drawer
+      Then conversation 60 is open in the middle
+      And the drawer still lists both asks
       And the item of conversation 60 is marked as current and the item of conversation 52 is not
 
     @v1 @browser
-    Scenario: Conversations, Escape and Now again each take the rail back to the conversations
-      Given "devtool" asks "Merge #415 on its own?" in conversation 52
-      And the owner has conversation 41 open with Now in the rail
-      When the owner clicks "Conversations" at the top of the rail
-      Then the rail lists the Conversations group and is 240 px wide
-      When the owner presses Cmd+. and then Escape with the focus in the rail
-      Then the rail lists the Conversations group and is 240 px wide
+    Scenario: The close button, Escape, Cmd+. and Now again each close the drawer
+      Given the owner has conversation 41 open with the Now drawer open
+      When the owner clicks "Close Now" in the drawer
+      Then no drawer is shown and the address has no "panel"
+      When the owner presses Cmd+. and then Escape with the focus in the drawer
+      Then no drawer is shown
       When the owner clicks "Now" twice
-      Then the rail lists the Conversations group and is 240 px wide
+      Then no drawer is shown
       And conversation 41 stayed open the whole time
 
     @v1 @browser
-    Scenario: The rail stays in Now after a reload
+    Scenario: The drawer is in the address, so a reload and Back work
       Given "devtool" asks "Merge #415 on its own?" in conversation 52
-      And the owner has conversation 41 open with Now in the rail
+      And the owner has conversation 41 open with the Now drawer open
       When the owner reloads the page
-      Then the rail still lists the ask "Merge #415 on its own?" and is about 360 px wide
+      Then the drawer still lists the ask "Merge #415 on its own?"
+      When the owner closes the drawer and presses Back in the browser
+      Then the drawer is open again
+
+    @v1 @browser
+    Scenario: On a phone the drawer is a full-height sheet over the conversation
+      Given the owner has conversation 41 open on a 390 px wide screen
+      When the owner opens the address "?panel=now"
+      Then a sheet "Now" covers the full height of the screen with a close control
+      When the owner clicks "Close Now"
+      Then conversation 41 shows again
 
   # Drew, 2026-10-27 (conv 179 msg 8722): the owner can close, rename and star a conversation from the sidebar, in a menu on each row.
   Rule: Each rail row has a menu of actions

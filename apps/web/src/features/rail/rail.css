@@ -33,10 +33,6 @@
     /* A 6px hit area centred on the rail's outer edge, above the page. */
     .rail-resize { display: block; position: fixed; top: 0; bottom: 0; left: calc(var(--rail-w, 240px) - 3px); width: 6px; z-index: 6; }
     body[data-desk] .chatframe { left: var(--rail-w, 240px); right: 8px; top: 8px; bottom: 8px; height: auto; border: 1px solid var(--color-border); border-radius: 14px; overflow: hidden; }
-    /* Now in the rail (Cmd+.): the rail widens to hold the Now cards and the page moves with it, as for the fold. The Now page keeps the plain rail. */
-    body[data-desk][data-rail-now]:not([data-rail-folded], [data-page="now"]) { padding-left: calc(var(--rail-w, 240px) + 120px); }
-    body[data-desk][data-rail-now]:not([data-rail-folded], [data-page="now"]) .rail { width: calc(var(--rail-w, 240px) + 120px); }
-    body[data-desk][data-rail-now]:not([data-rail-folded], [data-page="now"]) .chatframe { left: calc(var(--rail-w, 240px) + 120px); }
     /* Folded (Cmd+\\): a thin strip with the button that unfolds it, and the page takes the room. */
     body[data-desk][data-rail-folded] { padding-left: 52px; }
     body[data-desk][data-rail-folded] .rail { width: 52px; align-items: center; padding: 14px 0; }

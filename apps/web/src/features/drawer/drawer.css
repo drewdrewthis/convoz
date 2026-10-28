@@ -1,0 +1,13 @@
+/* Drawer: the right-side panel slot (features/drawer). Wide: a column at the right edge and the page makes room. Phone: a full-height sheet. */
+@layer components {
+  .drawer { position: fixed; z-index: 30; inset: 0; display: flex; flex-direction: column; background: var(--color-surface); }
+  .drawerbar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: calc(var(--top, 0px) + 8px) 8px 8px 16px; border-bottom: 1px solid var(--color-border); }
+  .drawerbar h2 { margin: 0; font-size: 16px; }
+  .drawerbody { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 8px 12px calc(24px + var(--bottom, 0px)); }
+  @media (min-width: 900px) {
+    .drawer { inset: 8px 8px 8px auto; width: var(--drawer-w, 400px); border: 1px solid var(--color-border); border-radius: 14px; overflow: hidden; }
+    .drawerbar { padding-top: 8px; }
+    body[data-desk][data-drawer] { padding-right: calc(var(--drawer-w, 400px) + 16px); }
+    body[data-desk][data-drawer] .chatframe { right: calc(var(--drawer-w, 400px) + 16px); }
+  }
+}
