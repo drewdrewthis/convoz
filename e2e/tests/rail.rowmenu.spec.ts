@@ -118,6 +118,30 @@ scenario("On a phone the long press menu marks a conversation stale and brings i
   await expect(chatList(page).getByRole("heading")).toHaveText([T60, T52, T41]);
 });
 
+scenario("A starred conversation has no Mark stale in its row menu", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  await open({ server, page, context });
+  await pick(page, T52, "Star");
+  const starred = railGroup(page, "Starred").locator(".rtitle", { hasText: T52 });
+  await expect(starred).toBeVisible();
+  const row = railRow(page, T52);
+  await row.hover();
+  await row.getByRole("button", { name: `More actions for ${T52}` }).click();
+  await expect(page.getByRole("menuitem", { name: "Unstar", exact: true })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Mark stale", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("menuitem", { name: "Bring back", exact: true })).toHaveCount(0);
+});
+
+scenario("On a phone a starred conversation has no Mark stale in its long press menu", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
+  const u = await railWorld({ server, page, context });
+  await page.goto(`${u.w.srv.origin}/chats`);
+  const menu = page.getByRole("menu", { name: "Conversation actions" });
+  await chatRow(page, T52).dispatchEvent("contextmenu");
+  await menu.getByRole("menuitem", { name: "Star conversation", exact: true }).click();
+  await chatRow(page, T52).dispatchEvent("contextmenu");
+  await expect(menu.getByRole("menuitem", { name: "Unstar conversation", exact: true })).toBeVisible();
+  await expect(menu.getByRole("menuitem", { name: "Mark stale", exact: true })).toHaveCount(0);
+});
+
 scenario("The row menu stars, unstars and marks read", { tag: ["@browser"] }, async ({ server, page, context }) => {
   const u = await open({ server, page, context });
   await agentSays(u.w, "devtool", u.c[60], "Report ready");
