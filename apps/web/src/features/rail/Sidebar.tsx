@@ -22,6 +22,7 @@ import { useRailMode } from "./mode.ts";
 import { useRailWidth } from "./width.ts";
 import { RAIL_MAX, RAIL_MIN } from "./widthRange.ts";
 import { moveRow, setStar, stepRow } from "./actions.ts";
+import { appPath } from "../../shared/base.ts";
 
 // A row with thread rows carries their fold chevron at its right end, so its star and grip sit 24px further in.
 const folds = (c: Conversation): boolean => (c.threads ?? []).some((t) => t.reply_count > 0);
@@ -29,7 +30,7 @@ const folds = (c: Conversation): boolean => (c.threads ?? []).some((t) => t.repl
 // The rail's buttons that read as its rows (Now, "Conversations"): the app's Button in the size and colours of a rail row.
 const PILL = "rnav min-h-32! justify-start! gap-8! text-left! text-14! text-text! hover:bg-[color-mix(in_srgb,var(--color-text)_6%,transparent)] aria-pressed:bg-selection";
 
-const openedId = (): number => Number(/^\/chats\/(\d+)$/.exec(location.pathname)?.[1] ?? 0);
+const openedId = (): number => Number(/^\/chats\/(\d+)$/.exec(appPath())?.[1] ?? 0);
 
 /**
  * Sidebar is the desktop rail (prototype v41): search and new conversation at the top, Now, the groups Starred and Conversations in the
@@ -282,12 +283,12 @@ export default function Sidebar() {
         )}
       </div>
       <div className="rail-foot">
-        <a className="rnav" href="/delivery" aria-current={location.pathname === "/delivery" ? "page" : undefined}>
+        <a className="rnav" href="/delivery" aria-current={appPath() === "/delivery" ? "page" : undefined}>
           <DeliveryGlyph />
           <span>Deliveries</span>
           <span className="rsum">{late ? `${late} late` : ""}</span>
         </a>
-        <a className="rnav" href="/crew" aria-current={location.pathname.startsWith("/crew") ? "page" : undefined}>
+        <a className="rnav" href="/crew" aria-current={appPath().startsWith("/crew") ? "page" : undefined}>
           <CrewGlyph />
           <span>Crew</span>
           <span className="rsum">{crew ?? ""}</span>

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "node ../../packages/tokens/build.mjs && vite build",
+    "build:dev": "node ../../packages/tokens/build.mjs && vite build --mode dev",
     "typecheck": "tsc --noEmit && tsc --noEmit -p src/sw",
     "size": "size-limit",
     "test": "node --test \"src/**/*.test.ts\""

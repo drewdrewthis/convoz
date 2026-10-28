@@ -33,6 +33,9 @@ type Route struct {
 	RefuseLease bool   // a lease is told 403, not 401: an agent credential can never do this
 	NoCSRF      bool   // a write that carries no cookie and no Authorization (a CLI), so the browser Origin check does not apply
 	NoLimit     bool   // exempt from the per-source public limit (its own protocol limits it)
+	// Hidden: a caller who does not meet Auth is told 404, as for a path the server does not know, so the route is not revealed; a
+	// request with an Authorization header (an agent's or a machine's credential, never the owner's) is told 404 before it is read.
+	Hidden bool
 	// Agent is the reason the agent listener serves a route that needs no credential ("" refuses it there). A route that a
 	// lease (Lease) or a machine key (Auth) meets is served without saying so; see AgentReason.
 	Agent  string
@@ -168,4 +171,14 @@ func lookalikesAsset(_ *Server, w http.ResponseWriter, r *http.Request, _ *call)
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request, _ *call) {
 	_, _ = w.Write([]byte("ok"))
+}
+
+// devRoot sends the owner from /dev to /dev/, where the dev build's relative URLs resolve.
+func devRoot(_ *Server, w http.ResponseWriter, r *http.Request, _ *call) {
+	http.Redirect(w, r, "/dev/", http.StatusFound)
+}
+
+// devPage serves a file of the owner's dev build (console.ServeDev), read from the folder at each request.
+func (s *Server) devPage(w http.ResponseWriter, r *http.Request, _ *call) {
+	console.ServeDev(w, r, s.Cfg.DevWebDir, r.PathValue("path"))
 }

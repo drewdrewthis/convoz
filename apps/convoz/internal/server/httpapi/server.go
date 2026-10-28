@@ -47,6 +47,9 @@ type Config struct {
 	// DataDir and BlobKey (the keyring's blob DEK) open the sealed upload files under <DataDir>/blobs. Without them there are no uploads.
 	DataDir string
 	BlobKey []byte
+
+	// DevWebDir is the folder of the owner's dev build of the web app, served at /dev/ (console.ServeDev); empty turns /dev/ off.
+	DevWebDir string
 }
 
 // Server is the state the public handlers share. There is one per process and public listener.

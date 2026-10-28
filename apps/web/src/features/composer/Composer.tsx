@@ -10,6 +10,7 @@ import { pasteFiles, type Attachments } from "./attachments.ts";
 import { enterSends } from "./enterToSend.ts";
 import { keepFocus } from "./keepFocus.ts";
 import { MentionMenu, useMentionMenu } from "./MentionMenu.tsx";
+import { appPath } from "../../shared/base.ts";
 
 export interface ComposerProps {
   /** The agent the message goes to; with none (and none typed as an @mention), Send stays disabled. */
@@ -36,7 +37,7 @@ export interface ComposerProps {
  * microphone (in Send's place while there is nothing to send) swaps the box for the recording bar.
  */
 export function Composer({ agent, label, conversationId, attachments, onSend, textRef, mentions }: ComposerProps) {
-  const [text, setText] = useState(() => loadDraft(location.pathname));
+  const [text, setText] = useState(() => loadDraft(appPath()));
   const picker = useRef<HTMLInputElement>(null);
   const voice = useVoiceNote(conversationId, (sent) => onSend("", [sent]));
   const files = attachments.items;
@@ -46,7 +47,7 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
   const canSend = (Boolean(agent) || named) && !empty && files.every((f) => f.state === "done" || f.state === "held");
 
   // Every change is kept at once: an update can reload the page at any moment (sw/index.ts), and the box is filled again from it.
-  useEffect(() => saveDraft(location.pathname, text), [text]);
+  useEffect(() => saveDraft(appPath(), text), [text]);
 
   useLayoutEffect(() => {
     const box = textRef.current;
@@ -90,7 +91,7 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
           const sent = files.filter((f) => f.upload).map((f) => f.upload!);
           const held = files.filter((f) => f.state === "held").map((f) => f.file);
           setText("");
-          saveDraft(location.pathname, ""); // now: the first send of a new conversation moves the page to its URL before the effect runs
+          saveDraft(appPath(), ""); // now: the first send of a new conversation moves the page to its URL before the effect runs
           attachments.clear();
           textRef.current?.focus(); // the keyboard stays up
           onSend(body, sent, held);

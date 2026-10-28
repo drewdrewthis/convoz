@@ -4,6 +4,7 @@ import { createConvozClient, type ApiErrorBody } from "@convoz/api-client";
 import { reachable, unreachable } from "./connection.ts";
 import { dropEarly, takeEarly } from "./early.ts";
 import { forgetOffline } from "./offline.ts";
+import { appPath, withBase } from "./base.ts";
 
 // A read the page started before the app loaded (src/early.ts) is answered from that head start.
 export const client = createConvozClient("", (request) => takeEarly(request) ?? globalThis.fetch(request));
@@ -46,7 +47,7 @@ export function toSignin(): void {
   if (page.leaving) return;
   page.leaving = true;
   const here = location.pathname + location.search;
-  location.assign(here === "/" ? "/signin" : `/signin?next=${encodeURIComponent(here)}`);
+  location.assign(withBase(appPath() === "/" ? "/signin" : `/signin?next=${encodeURIComponent(here)}`));
 }
 
 interface Answer<T> {
@@ -131,7 +132,7 @@ export async function signOut(fail: (message: string) => void): Promise<void> {
   }
   dropEarly();
   await forgetOffline();
-  location.assign("/signin?signed_out=1");
+  location.assign(withBase("/signin?signed_out=1"));
 }
 
 /** fmtDate is a date and time in the reader's locale. */

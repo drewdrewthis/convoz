@@ -24,6 +24,7 @@ import { backLabel, useBackCount } from "./backCount.ts";
 import { useConversations, type PendingSend } from "./store.ts";
 import { keyboardOpen, virtualKeyboard, type Screen } from "./keyboard.ts";
 import { firstUnread, Transcript, type TranscriptControl } from "./Transcript.tsx";
+import { appPath } from "../../shared/base.ts";
 
 const GONE = "This conversation does not exist, or it is not yours.";
 const NONE: Message[] = [];
@@ -40,9 +41,9 @@ const PLAN_HASH = /^#plan(-[a-z0-9-]+)?$/;
  * send makes the conversation and moves the URL to it.
  */
 export function Conversation() {
-  const [isNew] = useState(() => location.pathname === "/chats/new");
+  const [isNew] = useState(() => appPath() === "/chats/new");
   // Each New conversation page has its own key: a page left with a send in flight keeps it, and the next New conversation starts blank.
-  const [key] = useState(() => (isNew ? `new-${newId()}` : location.pathname.split("/")[2]!));
+  const [key] = useState(() => (isNew ? `new-${newId()}` : appPath().split("/")[2]!));
   const thread = useConversations((s) => s.threads[key]);
   const convId = thread?.convId ?? 0;
   const conversation = useData((s) => (convId ? s.rows[convId] : undefined));

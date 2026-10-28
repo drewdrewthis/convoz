@@ -7,6 +7,7 @@ import { useCallLinks } from "./callLinks.ts";
 import { FocusFrame, ShellFrame } from "./frames.tsx";
 import type { PageDef } from "./routes.tsx";
 import { Status } from "./Status.tsx";
+import { appPath, withBase } from "../shared/base.ts";
 
 /** From this width the signed-in app is a sidebar rail and the page (prototype v41 desktop); under it, the phone UI. */
 const DESK = "(min-width: 900px)";
@@ -39,7 +40,7 @@ export function prepare(def: PageDef): void {
   document.addEventListener("keydown", (event) => {
     if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "j") {
       event.preventDefault();
-      if (location.pathname !== "/chats/new") location.assign("/chats/new");
+      if (appPath() !== "/chats/new") location.assign(withBase("/chats/new"));
     }
   });
 }
