@@ -53,7 +53,7 @@ func versionGate(command string, io IO) int {
 	}
 	now := time.Now()
 	info := serverInfoFor(dir, server, Version, now, fetchServerInfo)
-	if info.Version == "" {
+	if info.Version == "" && info.Unreached { // a server that answered without a version (older, or not 200) is not a slow network
 		fmt.Fprintln(io.Stderr, "convoz: could not check the server version (slow network); running anyway")
 	}
 	switch decideVersion(Version, info, lastWarned(dir), now) {
@@ -150,13 +150,13 @@ func serverInfoFor(dir, server, local string, now time.Time, fetch func(server s
 		var kept versionAnswer
 		if json.Unmarshal(raw, &kept) == nil && kept.Server == server && kept.Version != "" && (kept.Local == local || !outOfDate(local, kept.Version)) {
 			if age := now.Sub(time.Unix(kept.At, 0)); age >= 0 && age < versionCheckEvery {
-				return serverInfo{kept.Version, kept.API}
+				return serverInfo{Version: kept.Version, API: kept.API}
 			}
 		}
 	}
 	v := fetch(server)
 	if v.Version == "" {
-		return serverInfo{}
+		return serverInfo{Unreached: v.Unreached}
 	}
 	if raw, err := json.Marshal(versionAnswer{Server: server, Version: v.Version, API: v.API, Local: local, At: now.Unix()}); err == nil {
 		_ = writePrivate(path, raw) // best effort: without it the next command asks again
@@ -168,6 +168,9 @@ func serverInfoFor(dir, server, local string, now time.Time, fetch func(server s
 type serverInfo struct {
 	Version string
 	API     int
+	// Unreached is true when the question got no answer on the network (a timeout, a reset, a cut-off body): the zero value of a
+	// server that answered, with another status or with no version, has it false.
+	Unreached bool
 }
 
 // serverVersion is the version alone, for callers that do not care about the API.
@@ -188,18 +191,19 @@ func probeServerInfo(server string, budget time.Duration) serverInfo {
 	ctx, cancel := context.WithTimeout(context.Background(), budget)
 	defer cancel()
 	c := newClient(server).withTimeout(budget)
+	var err error
 	for try := 0; try < 2; try++ {
 		var got struct {
 			Version string `json:"version"`
 			API     int    `json:"api"`
 		}
-		err := c.call(ctx, "GET", "/api/version", "", nil, &got)
+		err = c.call(ctx, "GET", "/api/version", "", nil, &got)
 		if err == nil {
-			return serverInfo{got.Version, got.API}
+			return serverInfo{Version: got.Version, API: got.API}
 		}
 		if ctx.Err() != nil || !errors.Is(err, errUnreachable) {
 			break
 		}
 	}
-	return serverInfo{}
+	return serverInfo{Unreached: errors.Is(err, errUnreachable) || ctx.Err() != nil}
 }

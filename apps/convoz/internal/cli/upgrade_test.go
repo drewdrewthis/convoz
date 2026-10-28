@@ -177,15 +177,15 @@ func TestDecideVersion(t *testing.T) {
 		warned time.Time
 		want   versionAction
 	}{
-		{"same build runs", "abc1234", serverInfo{"abc1234", 1}, never, versionRun},
-		{"newer server warns", "abc1234", serverInfo{"999aaaa", 1}, never, versionWarn},
-		{"server before the api field warns, does not refuse", "abc1234", serverInfo{"999aaaa", 0}, never, versionWarn},
-		{"warned 10 minutes ago stays quiet", "abc1234", serverInfo{"999aaaa", 1}, now.Add(-10 * time.Minute), versionRun},
-		{"warned 61 minutes ago warns again", "abc1234", serverInfo{"999aaaa", 1}, now.Add(-61 * time.Minute), versionWarn},
-		{"another api refuses", "abc1234", serverInfo{"999aaaa", 2}, never, versionRefuse},
-		{"another api refuses even when quiet", "abc1234", serverInfo{"999aaaa", 2}, now, versionRefuse},
-		{"dev build never acts", "dev", serverInfo{"999aaaa", 2}, never, versionRun},
-		{"server with no version runs", "abc1234", serverInfo{"", 0}, never, versionRun},
+		{"same build runs", "abc1234", serverInfo{"abc1234", 1, false}, never, versionRun},
+		{"newer server warns", "abc1234", serverInfo{"999aaaa", 1, false}, never, versionWarn},
+		{"server before the api field warns, does not refuse", "abc1234", serverInfo{"999aaaa", 0, false}, never, versionWarn},
+		{"warned 10 minutes ago stays quiet", "abc1234", serverInfo{"999aaaa", 1, false}, now.Add(-10 * time.Minute), versionRun},
+		{"warned 61 minutes ago warns again", "abc1234", serverInfo{"999aaaa", 1, false}, now.Add(-61 * time.Minute), versionWarn},
+		{"another api refuses", "abc1234", serverInfo{"999aaaa", 2, false}, never, versionRefuse},
+		{"another api refuses even when quiet", "abc1234", serverInfo{"999aaaa", 2, false}, now, versionRefuse},
+		{"dev build never acts", "dev", serverInfo{"999aaaa", 2, false}, never, versionRun},
+		{"server with no version runs", "abc1234", serverInfo{"", 0, false}, never, versionRun},
 	}
 	for _, c := range cases {
 		if got := decideVersion(c.local, c.server, c.warned, now); got != c.want {
