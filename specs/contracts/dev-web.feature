@@ -15,7 +15,7 @@ Feature: The owner's dev copy of the screens (contracts)
     Scenario: The owner gets the dev build, uncached, under the console's policy
       Given --dev-web-dir names a dev build
       When the owner's device session asks for /dev/, /dev/chats/12 and /dev/assets/<file>
-      Then each answers 200 with Cache-Control no-store and the console's Content-Security-Policy
+      Then each answers 200 with the console's Content-Security-Policy, and Cache-Control no-store (a hashed file under assets/ is kept a year)
       And a screen path answers the build's index.html, and a missing file under assets/ answers 404
       And /dev answers a redirect to /dev/
 
@@ -48,7 +48,8 @@ Feature: The owner's dev copy of the screens (contracts)
 
   Rule: The dev build stays under /dev/ and leaves the real app alone
 
-    @v1 @api
+    # Needs a vite build of the dev app inside the e2e job (apps/web unit tests cover the base path and the scope).
+    @later @api
     Scenario: The dev build is the app with base /dev/, no service worker and a DEV badge
       When apps/web is built with `pnpm --filter @convoz/web build:dev`
       Then its index.html loads its files from /dev/assets/, and the app reads and writes every path under /dev/

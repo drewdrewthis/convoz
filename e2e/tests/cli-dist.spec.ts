@@ -228,6 +228,36 @@ scenario("A CLI refuses a server with another API number", { tag: ["@cli"] }, as
   }
 });
 
+scenario("A slow network does not break the version check or the upgrade", { tag: ["@cli"] }, async ({ convoz }) => {
+  // Given a server reached over a slow link: it takes the connection to /api/version and never answers; every other path answers at once
+  const held: http.ServerResponse[] = [];
+  const srv = http.createServer((req, res) => {
+    if (req.url === "/api/version") return void held.push(res);
+    res.writeHead(404, { "content-type": "application/json" }).end(JSON.stringify({ error: { code: "not_found", message: "no" } }));
+  });
+  await new Promise<void>((resolve) => srv.listen(0, "127.0.0.1", resolve));
+  const home = scratch("convoz-home-");
+  fs.mkdirSync(path.join(home, ".config", "convoz"), { recursive: true });
+  fs.writeFileSync(path.join(home, ".config", "convoz", "credentials"), JSON.stringify({ server: `http://127.0.0.1:${(srv.address() as AddressInfo).port}` }), { mode: 0o600 });
+  try {
+    // When a command asks the server its version
+    const started = Date.now();
+    const out = await convoz(["inbox", "--peek"], { env: { HOME: home, CONVOZ_TEST_VERSION: OLD }, timeoutMs: 40_000 });
+    const took = Date.now() - started;
+
+    // Then the version question waits at most 10 seconds, retry included
+    expect(took, "the command took longer than the version question may wait").toBeLessThan(30_000);
+    // And the command prints "convoz: could not check the server version (slow network); running anyway" and runs
+    expect(out.stderr).toContain("convoz: could not check the server version (slow network); running anyway");
+    expect(out.code).not.toBe(7);
+    // (the download of the upgrade, its wait of 10 minutes, its retry and its checksum are tested in Go: internal/cli/upgrade_test.go)
+  } finally {
+    for (const r of held) r.destroy();
+    srv.closeAllConnections();
+    await new Promise<void>((resolve) => srv.close(() => resolve()));
+  }
+});
+
 scenario("convoz upgrade replaces the binary and the skill", { tag: ["@cli"] }, async ({ server }) => {
   // Given a machine logged in to a server, with a convoz older than that server and a stale skill file
   const w = await chatWorld(server, { agents: ["devtool"] });

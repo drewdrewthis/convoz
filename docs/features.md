@@ -37,7 +37,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Send a web page to an agent from the browser](#send-a-web-page-to-an-agent-from-the-browser) (3)
 - [Settings](#settings) (9)
 - [The convoz CLI and MCP server for agents](#the-convoz-cli-and-mcp-server-for-agents) (57)
-- [The owner's dev copy of the screens](#the-owners-dev-copy-of-the-screens) (4)
+- [The owner's dev copy of the screens](#the-owners-dev-copy-of-the-screens) (2)
 - [The server hands out its own CLI](#the-server-hands-out-its-own-cli) (8)
 - [Threads](#threads) (35)
 - [Voice call](#voice-call) (38)
@@ -1067,12 +1067,10 @@ Any Claude session can join with a one-line prompt.
 
 ## The owner's dev copy of the screens
 
-4 scenarios.
+2 scenarios.
 
-- [The owner opens the dev copy and always knows it is the dev copy](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/dev-web.feature#L12)
-- [Links and moves inside the dev copy stay in the dev copy](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/dev-web.feature#L20)
-- [A new dev build shows at the next load, with no restart](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/dev-web.feature#L26)
-- [Nobody else can tell the dev copy exists](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/dev-web.feature#L34)
+- [A new dev build shows at the next load, with no restart](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/dev-web.feature#L28)
+- [Nobody else can tell the dev copy exists](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/dev-web.feature#L36)
 
 ## The server hands out its own CLI
 
