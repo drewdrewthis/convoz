@@ -339,6 +339,7 @@ jobs:
         run: |
           go build -trimpath -o "convoz-${{ github.sha }}-arm64" ./cmd/convoz
           sha256sum "convoz-${{ github.sha }}-arm64" > "convoz-${{ github.sha }}-arm64.sha256"
+          echo "::notice title=sha256::$(sha256sum convoz-${{ github.sha }}-arm64 | cut -d' ' -f1)"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: convoz-${{ github.sha }}-arm64
