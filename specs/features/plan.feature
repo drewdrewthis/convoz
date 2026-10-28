@@ -99,7 +99,7 @@ Feature: Plans: what each agent is doing, what is next and what waits on the own
 
     # Owner (Drew), on the panel design: "approved with comments: panel: hmm, it's a good start. you could probably as the UI/UX expert
     # about this". The UX pass (phase 1) is what is built: Waiting on you with the action in place, Agents with Now, Next and Done folded.
-    @v1 @browser @unimplemented
+    @v1 @browser
     # Drew, conv 151: the plan items that wait on the owner show in the line under the title, not as a card with buttons. Drew, conv 179
     # (the Work screen): a plan opens with its items, the same on Work and in the details, so the card lists them as a plain line.
     Scenario: The details panel shows each agent's plan with what it waits on, then the settings

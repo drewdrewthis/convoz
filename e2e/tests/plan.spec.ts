@@ -220,7 +220,7 @@ scenario("The line under the title shows the most urgent state", { tag: ["@brows
 
 // ---- Rule: Tapping the line opens the details panel -----------------------------------------------------------------------
 
-scenario("The details panel shows each agent's plan, then the settings, and no plan item that waits on the owner", { tag: ["@browser"] }, async ({ server, page, context }) => {
+scenario("The details panel shows each agent's plan with what it waits on, then the settings", { tag: ["@browser"] }, async ({ server, page, context }) => {
   const p = await planUi({ server, page, context });
   // Given "devtool" finished five items, then planned Doing at step 2 of 3 ready in 15 minutes, two Next and one Waiting on you
   await mustPlan(p, p.dev, ["--done", "One-time invites", "--done", "Reply chip v0", "--done", "Invite page", "--done", "Rename sheet", "--done", "Search fix"]);
@@ -235,9 +235,9 @@ scenario("The details panel shows each agent's plan, then the settings, and no p
   // Then the panel shows "Agents · 2", then "Conversation", in that order
   await expect(panel.getByRole("heading", { level: 3 })).toHaveText(["Agents · 2", "Pinned in this conversation", "Conversation"]);
 
-  // And it does not list "Paste the prompt to dot": a plan item that waits on the owner shows in the header line, not here (conv 151)
+  // And the card of "@devtool" lists "Waiting on you: Paste the prompt to dot" as a line, with no "Waiting on you" card (conv 151, conv 179)
   await expect(panel.getByRole("region", { name: /^Waiting on you/ })).toHaveCount(0);
-  await expect(panel).not.toContainText("Paste the prompt to dot");
+  await expect(panel.getByText("Waiting on you: Paste the prompt to dot")).toBeVisible();
 
   // And the card of "@devtool" shows "Working", Now with "Step 2 of 3" and "ready ~", and Next numbered
   const agents = panel.getByRole("region", { name: "Agents · 2" });
