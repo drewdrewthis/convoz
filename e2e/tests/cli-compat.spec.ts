@@ -10,7 +10,8 @@ scenario("The previous CLI still does its basic commands against this server", {
   const conv = await createConversation(w.owner, { title: "Compat", participants: ["devtool"] });
   const s = await startSession(w.box, "devtool", "s1");
 
-  const who = await convoz(w.box, s.sid, ["whoami"]);
+  // whoami takes no --sid or --timeout, so it is run as it is; the base CLI may know fewer flags than the head one.
+  const who = await w.box.run(["whoami"]);
   expect(who.code, who.stderr).toBe(0);
 
   await ownerSays(w.owner, conv, "hello from the owner");
