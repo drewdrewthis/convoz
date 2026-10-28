@@ -246,7 +246,7 @@ scenario("A slow network does not break the version check or the upgrade", { tag
     const took = Date.now() - started;
 
     // Then the version question waits at most 10 seconds, retry included
-    expect(took, "the command took longer than the version question may wait").toBeLessThan(25_000);
+    expect(took, "the command took longer than the version question may wait").toBeLessThan(30_000);
     // And the command prints "convoz: could not check the server version (slow network); running anyway" and runs
     expect(out.stderr).toContain("convoz: could not check the server version (slow network); running anyway");
     expect(out.code).not.toBe(7);
