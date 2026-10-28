@@ -19,7 +19,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Crew: identities, machines and sessions](#crew-identities-machines-and-sessions) (36)
 - [Data at rest, backups and deletion](#data-at-rest-backups-and-deletion) (10)
 - [Day labels](#day-labels) (4)
-- [Deliveries: what each agent will deliver, and when](#deliveries-what-each-agent-will-deliver-and-when) (7)
+- [Deliveries: what each agent will deliver, and when](#deliveries-what-each-agent-will-deliver-and-when) (8)
 - [Errors in the web app reach the server log](#errors-in-the-web-app-reach-the-server-log) (3)
 - [Machine login with a device flow](#machine-login-with-a-device-flow) (23)
 - [Messages and their types](#messages-and-their-types) (14)
@@ -554,18 +554,19 @@ I know when things happened without opening each message.
 ## Deliveries: what each agent will deliver, and when
 
 I know when things will be delivered, and a missed date is chased without me.
-7 scenarios.
+8 scenarios.
 
 - **An agent names what it will deliver and by when, and it stays until it ships**
   - [An agent sets a deliverable with a due date, and it stays until it ships](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L21)
-- **The owner sees every deliverable on one page: what to act on first, then by day**
-  - [Deliveries shows what is late first, then what waits on the owner, then each day](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L34)
-  - [A deliverable whose plan is blocked or a day old shows as at risk](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L52)
-  - [With no deliverables the page says how they come](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L63)
+- **The owner sees every agent's current plan on one page, the most urgent first, and asks for an update right there**
+  - [Deliveries lists every agent's current plan, the most urgent first](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L36)
+  - [Request update on a plan asks its agent in that conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L59)
+  - [A plan with no update for a day shows as at risk](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L72)
+  - [With no plans the page says how they come](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L80)
 - **When a due date passes, the agent is asked first, once per date, and the owner sees it on Now without a push**
-  - [When a due date passes, the agent is asked once: done, new date, or blocked](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L70)
-  - [A late step and a late delivery each ask once, with their own text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L82)
-  - [Now lists late deliverables under Overdue until the agent gives a new date](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L94)
+  - [When a due date passes, the agent is asked once: done, new date, or blocked](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L87)
+  - [A late step and a late delivery each ask once, with their own text](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L99)
+  - [Now lists late deliverables under Overdue until the agent gives a new date](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/delivery.feature#L111)
 
 ## Errors in the web app reach the server log
 
