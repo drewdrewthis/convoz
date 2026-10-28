@@ -65,7 +65,12 @@ const workers = (page: Page) =>
     .evaluate(async () => {
       const r = await navigator.serviceWorker.getRegistration("/");
       const at = (w?: ServiceWorker | null) => (w ? `${w.scriptURL} (${w.state})` : "none");
-      return `installing ${at(r?.installing)}, waiting ${at(r?.waiting)}, active ${at(r?.active)}, controller ${at(navigator.serviceWorker.controller)}`;
+      // A worker waits while the old one still has a request in flight (a stream the page holds): name those requests.
+      const open = performance
+        .getEntriesByType("resource")
+        .filter((e) => (e as PerformanceResourceTiming).responseEnd === 0)
+        .map((e) => e.name.replace(location.origin, ""));
+      return `installing ${at(r?.installing)}, waiting ${at(r?.waiting)}, active ${at(r?.active)}, controller ${at(navigator.serviceWorker.controller)}, requests still open ${JSON.stringify(open)}`;
     })
     .catch((err: Error) => `unreadable: ${err.message}`);
 
