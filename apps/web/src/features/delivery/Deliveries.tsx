@@ -1,51 +1,22 @@
-import type { Delivery, ShippedDelivery } from "@convoz/api-client";
+import type { ShippedDelivery } from "@convoz/api-client";
 import { Button } from "@convoz/ui/Button";
 import { EmptyState } from "@convoz/ui/EmptyState";
-import { AlertIcon, ClockIcon, DeliveryIcon, HandIcon, TickIcon } from "@convoz/ui/icons";
+import { DeliveryIcon, TickIcon } from "@convoz/ui/icons";
 import { List, ListRow } from "@convoz/ui/ListRow";
 import { useEffect, useId, useState } from "react";
 import { humanError } from "../../shared/api.ts";
-import { useLive } from "../../shared/data.ts";
-import { visit } from "../../shared/navigate.ts";
+import { loadListOnMount, useData, useLive } from "../../shared/data.ts";
 import { useNotice } from "../../shared/notice.tsx";
-import { clock } from "../plan/index.ts";
-import { daily, dailyLine, dueText, grouped, STATE, subText } from "./look.ts";
+import { ALL, clock, usePlans } from "../plan/index.ts";
+import { daily, dailyLine, grouped, rowsOf, type PlanRow } from "./look.ts";
+import { PlanItem } from "./PlanItem.tsx";
 import { useDeliveries } from "./store.ts";
 
-const GLYPHS = { clock: ClockIcon, alert: AlertIcon, hand: HandIcon };
-const TONES = { red: "text-danger", amber: "text-warning", green: "text-success", grey: "text-muted" };
+/** loadAll reads what the page joins: the deliverables (the daily line, Shipped), every plan, and the conversations (titles, members). */
+const loadAll = () => Promise.all([useDeliveries.getState().load(), usePlans.getState().load(ALL), loadListOnMount()]);
 
-/** Glyph is a row's state as a shape with its word as the name; an on-track row keeps the empty slot, so the titles line up. */
-function Glyph({ d }: { d: Delivery }) {
-  const look = STATE[d.state];
-  const Icon = look.glyph ? GLYPHS[look.glyph] : null;
-  return (
-    <span
-      className={`inline-flex size-20 flex-none items-center justify-center ${TONES[look.tone]} [&_svg]:size-15 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round] [&_svg]:[stroke-width:2.2]`}
-      {...(Icon ? { role: "img", "aria-label": look.word, title: look.word } : { "aria-hidden": true })}
-      data-tone={look.tone}
-    >
-      {Icon ? <Icon /> : null}
-    </span>
-  );
-}
-
-/** Row is one deliverable: the whole row opens its conversation, with no buttons on it. */
-function Row({ d, now }: { d: Delivery; now: number }) {
-  const href = `/chats/${d.conversation_id}`;
-  return (
-    <ListRow
-      as="a"
-      href={href}
-      onClick={(e) => visit(e, href)}
-      chevron
-      leading={<Glyph d={d} />}
-      title={<span className="line-clamp-2 [overflow-wrap:anywhere]">{d.text}</span>}
-      sub={<span className="[display:block] overflow-hidden text-ellipsis whitespace-nowrap">{subText(d, now)}</span>}
-      trailing={<span className={`max-w-[25%] flex-none text-right text-13 tabular-nums ${d.state === "late" ? "font-semibold text-danger" : "text-muted"}`}>{dueText(d, now)}</span>}
-    />
-  );
-}
+/** A No date group longer than this folds behind its chip. */
+const FOLD_OVER = 10;
 
 /** Shipped is the closed chip "Shipped today · N" and, open, what shipped today. */
 function Shipped({ items }: { items: ShippedDelivery[] }) {
@@ -68,23 +39,51 @@ function Shipped({ items }: { items: ShippedDelivery[] }) {
   );
 }
 
-/** Deliveries is /delivery: every deliverable of every agent, what the owner must act on first, then by day (owner, conv 179 msg 9734). */
+/** Group is one group of plans under its heading "<label> · N"; a long No date group folds behind a chip. */
+function Group({ k, label, rows, now }: { k: string; label: string; rows: PlanRow[]; now: number }) {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  const folded = k === "none" && rows.length > FOLD_OVER;
+  const list = (
+    <List flush id={id}>
+      {rows.map((r) => (
+        <PlanItem key={r.key} r={r} now={now} />
+      ))}
+    </List>
+  );
+  return (
+    <section aria-label={label}>
+      {folded ? null : <h2 className="ghdr">{`${label} · ${rows.length}`}</h2>}
+      {folded ? (
+        <Button variant="muted" size="chip" aria-expanded={open} aria-controls={id} onClick={() => setOpen((o) => !o)}>
+          {`${label} · ${rows.length}`}
+        </Button>
+      ) : null}
+      {!folded || open ? list : null}
+    </section>
+  );
+}
+
+/** Deliveries is /delivery: every agent's current plan, what the owner must act on first, then by delivery date (owner, conv 179 msgs 9734, 9982). */
 export function Deliveries() {
   const { fail } = useNotice();
   const data = useDeliveries((s) => s.data);
-  const skew = useDeliveries((s) => s.skew);
-  useLive(() => void useDeliveries.getState().load().catch(() => {}));
+  const board = usePlans((s) => s.boards[ALL]);
+  const skew = usePlans((s) => s.skew);
+  const convs = useData((s) => s.conversations);
+  useLive(() => void loadAll().catch(() => {}));
   useEffect(() => {
-    useDeliveries.getState().load().catch((err) => fail(humanError(err)));
+    loadAll().catch((err) => fail(humanError(err)));
   }, [fail]);
-  if (!data) return <div id="deliveries" aria-busy="true" />;
+  if (!data || !board || !convs) return <div id="deliveries" aria-busy="true" />;
   const now = Date.now() + skew;
   const day = daily(data, now);
+  const rows = rowsOf(board, convs, now);
   const shippedToday = data.shipped.filter((s) => new Date(s.at).toDateString() === new Date(now).toDateString());
-  if (!data.deliveries.length && !shippedToday.length) {
+  if (!rows.length && !shippedToday.length) {
     return (
       <EmptyState id="deliveries" variant="page" icon={<DeliveryIcon />}>
-        No deliveries yet. When an agent commits to a date, it shows here.
+        No plans yet. When an agent sets a plan in a chat, it shows here.
       </EmptyState>
     );
   }
@@ -98,15 +97,8 @@ export function Deliveries() {
         )}
         <span>{dailyLine(day)}</span>
       </p>
-      {grouped(data.deliveries, now).map((g) => (
-        <section key={g.key} aria-label={g.label}>
-          <h2 className="ghdr">{`${g.label} · ${g.rows.length}`}</h2>
-          <List as="div" flush>
-            {g.rows.map((d) => (
-              <Row key={`${d.conversation_id}-${d.identity_id}-${d.text}`} d={d} now={now} />
-            ))}
-          </List>
-        </section>
+      {grouped(rows).map((g) => (
+        <Group key={g.key} k={g.key} label={g.label} rows={g.rows} now={now} />
       ))}
       <Shipped items={shippedToday} />
     </div>
