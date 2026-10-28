@@ -189,8 +189,8 @@ func TestAnAgentInAFeedNoOneWroteInIsNotAskedForAPlan(t *testing.T) {
 	}
 }
 
-// Replies in threads are not work on a plan: an agent that only answers in threads (a PR-events feed, a busy chat it answers in)
-// is never asked for a plan, however many replies and however long it goes on. Its top-level posts still count.
+// With no plan, replies in threads are not work: an agent that only answers in threads (a PR-events feed, a busy chat it answers in)
+// is never asked for a first plan, however many replies and however long it goes on. Its top-level posts still count.
 func TestAThreadReplyIsNotWorkThatAsksForAPlan(t *testing.T) {
 	r := newFreshRig(t)
 	r.ownerSays(t)
@@ -213,6 +213,36 @@ func TestAThreadReplyIsNotWorkThatAsksForAPlan(t *testing.T) {
 	r.posts(t, 1) // the third top-level post: now the agent is at work, and has had no plan for over half an hour
 	if n := r.asks(t); n != 1 {
 		t.Fatalf("three top-level posts over half an hour with no plan: %d asks, want 1", n)
+	}
+}
+
+// With a plan that is late, thread replies count like any post: an agent that works only in threads is asked all the same.
+func TestAnAgentWithALatePlanThatOnlyRepliesInThreadsIsStillAsked(t *testing.T) {
+	r := newFreshRig(t)
+	r.setPlan(t, plan.Input{Now: []plan.Item{{Text: "Building invites"}}})
+	r.ownerSays(t)
+	var root int64
+	r.tx(t, func(ctx context.Context, d pdb.DBTX) error {
+		return d.QueryRowContext(ctx, `SELECT max(id) FROM messages WHERE conversation_id = ?`, r.conv).Scan(&root)
+	})
+	rig := &streamRig{s: r.s, conv: r.conv}
+	reply := func(i int) {
+		t.Helper()
+		if code, body := rig.postAs(t, r.agent, `{"client_id":"late-reply-`+strconv.Itoa(i)+`","body":"merged","thread_root_id":`+strconv.FormatInt(root, 10)+`}`); code != http.StatusCreated {
+			t.Fatalf("reply %d: %d %v", i, code, body)
+		}
+	}
+	for i := range 3 {
+		r.clock.add(10 * time.Second) // after the plan's update, as the posts of the rig are
+		reply(i)
+	}
+	if n := r.asks(t); n != 0 {
+		t.Fatalf("a plan a few seconds old: %d asks, want 0", n)
+	}
+	r.clock.add(31 * time.Minute)
+	reply(3)
+	if n := r.asks(t); n != 1 {
+		t.Fatalf("thread replies only, with a plan 31 minutes old: %d asks, want 1", n)
 	}
 }
 

@@ -243,8 +243,8 @@ Feature: Plans: what each agent is doing, what is next and what waits on the own
       Then the line of conversation 41 reads "Building invites · no update for 2 h"
 
     # Owner, 2026-10-28 (coordinator): "You have no plan in conversation N" landed in feeds (PR events, a board) where an agent only posts
-    # one-liners. An agent at work counts by its top-level posts (not thread replies), and with no plan it is asked only where the owner
-    # wrote within the last 2 hours: the work there is for him. A plan that exists and is late is asked about as before.
+    # one-liners. With no plan, an agent at work counts by its top-level posts (not thread replies) and is asked only where the owner
+    # wrote within the last 2 hours: the work there is for him. A plan that exists and is late counts every post, thread replies too, as before.
     @v1 @cli
     Scenario: An agent with no plan is not asked in a feed no one wrote in
       Given "devtool" has no plan in conversation 41 and the owner has not written there in 2 hours
@@ -252,6 +252,12 @@ Feature: Plans: what each agent is doing, what is next and what waits on the own
       Then "convoz inbox" of "devtool" has no item with the reason "status_due" for conversation 41
       When the owner writes in conversation 41 and "devtool" posts again
       Then "devtool" gets one "status_due" item that tells it to set a plan
+
+    @v1 @cli
+    Scenario: An agent with a late plan that only replies in threads is still asked
+      Given "devtool" has a plan in conversation 41 that is 31 minutes old
+      When "devtool" posts 4 replies in threads of conversation 41
+      Then "devtool" gets one "status_due" item that tells it to update its plan
 
     @v1 @browser
     Scenario: An agent that does not pick up a message shows as not responding

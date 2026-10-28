@@ -28,7 +28,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Onboarding and sign in](#onboarding-and-sign-in) (16)
 - [One command serves an agent's inbox with a short-lived process per item](#one-command-serves-an-agents-inbox-with-a-short-lived-process-per-item) (6)
 - [Pins, stars and mute](#pins-stars-and-mute) (8)
-- [Plans: what each agent is doing, what is next and what waits on the owner](#plans-what-each-agent-is-doing-what-is-next-and-what-waits-on-the-owner) (26)
+- [Plans: what each agent is doing, what is next and what waits on the owner](#plans-what-each-agent-is-doing-what-is-next-and-what-waits-on-the-owner) (27)
 - [Platform rules every module relies on](#platform-rules-every-module-relies-on) (2)
 - [Poor connections](#poor-connections) (11)
 - [Rail](#rail) (26)
@@ -798,7 +798,7 @@ The important things stay in reach and the noise stays quiet.
 ## Plans: what each agent is doing, what is next and what waits on the owner
 
 I know which conversations are active, and an agent that went quiet is noticed.
-26 scenarios.
+27 scenarios.
 
 - **An agent keeps one plan per conversation, replaced whole by one command**
   - [An agent sets its plan with one command](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L28)
@@ -827,12 +827,13 @@ I know which conversations are active, and an agent that went quiet is noticed.
   - [A late agent is nudged once to update its plan, and the owner is not pushed](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L222)
   - [A working agent is nudged after 15 minutes, and its line says no update after 2 hours](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L236)
   - [An agent with no plan is not asked in a feed no one wrote in](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L249)
-  - [An agent that does not pick up a message shows as not responding](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L257)
-  - [An agent whose machine key was revoked shows as logged out](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L269)
+  - [An agent with a late plan that only replies in threads is still asked](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L257)
+  - [An agent that does not pick up a message shows as not responding](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L263)
+  - [An agent whose machine key was revoked shows as logged out](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L275)
 - **What an agent waits on the owner for shows in the conversation**
-  - [What waits on the owner shows only as the plan, the line under the title and the row icon, with no card or button](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L279)
-  - [A waiting item that names someone else is refused](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L298)
-  - [A waiting item missed while offline shows after reconnect](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L307)
+  - [What waits on the owner shows only as the plan, the line under the title and the row icon, with no card or button](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L285)
+  - [A waiting item that names someone else is refused](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L304)
+  - [A waiting item missed while offline shows after reconnect](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/plan.feature#L313)
 
 ## Platform rules every module relies on
 

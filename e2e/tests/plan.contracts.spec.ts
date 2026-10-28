@@ -1,4 +1,4 @@
-import { inboxItems, convoz, ownerSays, messagesOf, agentSays } from "../lib/chat.ts";
+import { inboxItems, convoz, ownerSays, messagesOf, agentSays, agentPost } from "../lib/chat.ts";
 import { send } from "../lib/http.ts";
 import { bearer, stepped } from "../lib/machines.ts";
 import { board, mustPlan, putPlan, planWorld, type Board, type PlanWorld } from "../lib/plan.ts";
@@ -168,6 +168,19 @@ scenario("An agent with no plan is not asked in a conversation the owner did not
   await testApi(p.w.srv).advanceClock(31 * MIN);
   await posts(p, 3);
   expect(await asks(p)).toEqual([]);
+});
+
+scenario("An agent with a late plan that only replies in threads is still asked", { tag: ["@api"] }, async ({ server, testApi }) => {
+  const p = await planWorld(server, { docsIn: false });
+  // Given "devtool" has a plan in conversation 41 that is 31 minutes old
+  must(await putPlan(p.w.srv, p.dev.lease, p.conv, { doing: "Building invites" }), "plan");
+  const root = await ownerSays(p.w.owner, p.conv, "Please build the invites");
+  await testApi(p.w.srv).advanceClock(31 * MIN);
+  // When "devtool" posts 4 replies in threads of conversation 41
+  for (let i = 0; i < 4; i++) must(await agentPost(p.w.srv, p.dev.lease, p.conv, `merged ${i + 1}`, { thread_root_id: root }), "thread reply", 201);
+  // Then "devtool" gets one "status_due" item that tells it to update its plan
+  const due = await asks(p);
+  expect(due).toHaveLength(1);
 });
 
 scenario("A plan with a delivery and no update for a day is asked about once a day", { tag: ["@api"] }, async ({ server, testApi }) => {

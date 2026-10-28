@@ -46,7 +46,7 @@ func (s *Server) askIfBehind(ctx context.Context, agent, conv int64) {
 // those posts: an agent that just joined and answers a few questions is not behind yet.
 func planBehind(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int64) (bool, error) {
 	nowMs, behind := now.UnixMilli(), plan.BehindAfter.Milliseconds()
-	since := int64(0)
+	since, noPlan := int64(0), false
 	p, err := plan.Get(ctx, d, agent, conv)
 	switch {
 	case err == nil:
@@ -56,6 +56,7 @@ func planBehind(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int6
 	case !errors.Is(err, plan.ErrNotFound):
 		return false, err
 	default: // no plan: only where the work is for a person (a feed of one-line posts that no one wrote in is not asked)
+		noPlan = true
 		owner, err := identity.Owner(ctx, d)
 		if err != nil {
 			return false, err
@@ -64,7 +65,7 @@ func planBehind(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int6
 			return false, err
 		}
 	}
-	posts, first, err := message.RecentPosts(ctx, d, agent, conv, max(since, now.Add(-plan.AskRest).UnixMilli()))
+	posts, first, err := message.RecentPosts(ctx, d, agent, conv, max(since, now.Add(-plan.AskRest).UnixMilli()), noPlan) // thread replies count toward a late plan, not toward asking for a first one
 	if err != nil || posts < plan.ActivePosts {
 		return false, err
 	}
