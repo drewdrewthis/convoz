@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
@@ -108,6 +109,15 @@ func (r *freshRig) asks(t *testing.T) int {
 		}
 		_, err := d.ExecContext(ctx, `UPDATE inbox_items SET state = 'acked', acked_at = ? WHERE identity_id = 901 AND reason = 'status_due' AND state = 'ready'`, r.clock.Now().UnixMilli())
 		return err
+	})
+	return n
+}
+
+// openAsks counts the agent's status_due items that still wait, without acking them.
+func (r *freshRig) openAsks(t *testing.T) (n int) {
+	t.Helper()
+	r.tx(t, func(ctx context.Context, d pdb.DBTX) error {
+		return d.QueryRowContext(ctx, `SELECT count(*) FROM inbox_items WHERE identity_id = 901 AND conversation_id = ? AND reason = 'status_due' AND state IN ('ready','claimed')`, r.conv).Scan(&n)
 	})
 	return n
 }
@@ -305,5 +315,41 @@ func TestOnlyAPlanBeingWorkedOnIsAskedForAnUpdateWhileTheAgentKeepsPosting(t *te
 				t.Fatalf("%s: %d asks, want %d", c.name, n, c.want)
 			}
 		})
+	}
+}
+
+// A new plan answers the ask about the old one. Plan A is due soon; the agent sets plan B before that: A's due time asks nothing, B
+// stays, and an ask already made about A is gone once B is set (conv 402: the old plan's text came back after a new plan was set).
+func TestANewPlanReplacesTheAskAboutTheOldOne(t *testing.T) {
+	r := newFreshRig(t)
+	soon := r.clock.Now().Add(10 * time.Minute).UnixMilli()
+	r.setPlan(t, plan.Input{Now: []plan.Item{{Text: "Old plan step", ETA: soon}}})
+	r.clock.add(5 * time.Minute)
+	r.setPlan(t, plan.Input{Now: []plan.Item{{Text: "New plan step"}}})
+	r.clock.add(6 * time.Minute) // past A's estimate, B is 6 minutes old
+	r.sweep(t)
+	if n := r.asks(t); n != 0 {
+		t.Fatalf("past the old plan's estimate, with a newer plan: %d asks, want 0", n)
+	}
+	r.tx(t, func(ctx context.Context, d pdb.DBTX) error {
+		p, err := plan.Get(ctx, d, 901, r.conv)
+		if err != nil || len(p.Now) != 1 || p.Now[0].Text != "New plan step" {
+			t.Errorf("the plan after the old one came due: %+v, %v; want the new plan", p.Now, err)
+		}
+		return nil
+	})
+
+	// An ask made while plan A was late is dropped when plan B is set.
+	r2 := newFreshRig(t)
+	r2.setPlan(t, plan.Input{Now: []plan.Item{{Text: "Old plan step", ETA: r2.clock.Now().Add(10 * time.Minute).UnixMilli()}}})
+	r2.clock.add(11 * time.Minute)
+	r2.sweep(t)
+	req := httptest.NewRequest(http.MethodPut, "/api/conversations/"+strconv.FormatInt(r2.conv, 10)+"/plan", strings.NewReader(`{"doing":"New plan step"}`))
+	req.SetPathValue("id", strconv.FormatInt(r2.conv, 10))
+	if rec := httptest.NewRecorder(); func() bool { r2.s.putPlan(rec, req, r2.agent); return rec.Code != http.StatusOK }() {
+		t.Fatalf("PUT plan: %d", rec.Code)
+	}
+	if n := r2.openAsks(t); n != 0 {
+		t.Fatalf("an ask about the old plan after the new plan was set: %d open, want 0", n)
 	}
 }
