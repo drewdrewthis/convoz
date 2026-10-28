@@ -49,6 +49,8 @@ export interface LiveRoute {
   scope: string;
   step_up: string;
   page: boolean;
+  /** A refused caller is told 404, as for an unknown path (the owner's /dev copy). */
+  hidden: boolean;
 }
 
 const METHODS = ["get", "post", "put", "patch", "delete", "head"];
