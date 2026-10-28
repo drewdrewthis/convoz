@@ -11,8 +11,9 @@ import (
 )
 
 // markStale is POST /api/conversations/:id/stale: an agent in the conversation says it is done for now, so the owner's rail folds it into
-// Older at once (Drew, 2026-10-22). The owner may mark it too, from his voice call (features/call/writes.ts, convoz#43). The next
-// message brings it back; nothing clears the mark. Only a participant may mark it, and not
+// Older at once (Drew, 2026-10-22). The owner may mark it too, from his voice call (features/call/writes.ts, convoz#43) or the rail's
+// row menu. The next message brings it back, and so does the owner's reopen (the rail's Bring back), which also restarts the 48 hour
+// quiet clock (Drew, conv 179 msg 10071). Only a participant may mark it, and not
 // while the owner wrote the last message: that conversation waits on the agents, so it never goes stale (#42, Drew msg 2678). No
 // system line is written: a line would be a message after the mark. The reason is kept with the mark and shown with the conversation.
 func (s *Server) markStale(w http.ResponseWriter, r *http.Request, c *call) {
@@ -39,7 +40,7 @@ func (s *Server) markStale(w http.ResponseWriter, r *http.Request, c *call) {
 		return
 	}
 	who, now := c.p.Identity(), s.Clock.Now()
-	// The owner closing from the rail asks for it (force), so the owner-spoke-last guard does not bind him; the call's model and agents keep it.
+	// The owner marking from the rail asks for it (force), so the owner-spoke-last guard does not bind him; the call's model and agents keep it.
 	skipGuard := byOwner && (in.Force || in.Reopen)
 	var visible, ownerLast bool
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) error {
@@ -61,7 +62,7 @@ func (s *Server) markStale(w http.ResponseWriter, r *http.Request, c *call) {
 			}
 		}
 		if in.Reopen && byOwner {
-			err = conversation.ClearStale(ctx, d, convID)
+			err = conversation.BringBack(ctx, d, now, convID)
 		} else {
 			err = conversation.MarkStale(ctx, d, now, convID, reason)
 		}

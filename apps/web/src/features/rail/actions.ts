@@ -47,11 +47,14 @@ export async function setStar(id: number, starred: boolean): Promise<void> {
   await patch(id, { starred });
 }
 
-/** setClosed closes a conversation (the stale mark: the rail folds it into Older until the next message) or reopens it. */
-export async function setClosed(id: number, closed: boolean): Promise<void> {
-  data.patchConversation(id, { stale: closed || undefined });
+/**
+ * setStale marks a conversation stale (the rail folds it into Older until the next message) or brings it back from Older: the mark goes
+ * and the 48 hour quiet clock restarts, so a quiet row comes back too (Drew, conv 179 msg 10071).
+ */
+export async function setStale(id: number, stale: boolean): Promise<void> {
+  data.patchConversation(id, stale ? { stale: true } : { stale: undefined, back_at: Date.now() });
   try {
-    await call(client.POST("/api/conversations/{id}/stale", { params: { path: { id } }, body: closed ? { force: true } : { reopen: true } }));
+    await call(client.POST("/api/conversations/{id}/stale", { params: { path: { id } }, body: stale ? { force: true } : { reopen: true } }));
   } finally {
     void data.loadConversations().catch(() => {});
   }

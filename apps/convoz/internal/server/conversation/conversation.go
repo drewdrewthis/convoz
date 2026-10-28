@@ -46,12 +46,15 @@ type Conversation struct {
 	MessageCount   int64
 	DeletedAt      int64
 	DeletedBy      int64
-	StaleAt        int64  // when an agent marked it stale; it counts only while no message came after (see Stale)
+	StaleAt        int64  // when it was marked stale (see Stale); below 0, when the owner brought it back (see BackAt); one column, no migration
 	StaleReason    string // the agent's why with the last mark; may be empty
 }
 
-// Stale reports whether an agent's stale mark still holds: no message moved the conversation since it was marked.
-func (c Conversation) Stale() bool { return c.StaleAt != 0 && c.StaleAt >= c.LastActivityAt }
+// Stale reports whether a stale mark still holds: no message moved the conversation since it was marked.
+func (c Conversation) Stale() bool { return c.StaleAt > 0 && c.StaleAt >= c.LastActivityAt }
+
+// BackAt is when the owner last brought it back from Older (0: never, or marked stale since); the rail's 48 hour quiet clock restarts there.
+func (c Conversation) BackAt() int64 { return max(-c.StaleAt, 0) }
 
 // Participant is an active member and the first message it may see (0 = all history).
 type Participant struct {
@@ -248,15 +251,14 @@ func Touch(ctx context.Context, d pdb.DBTX, now time.Time, id int64) error {
 // MaxStaleReasonRunes is the longest reason a stale mark keeps.
 const MaxStaleReasonRunes = 200
 
-// MarkStale records that an agent called the conversation done for now, and why (reason may be empty, at most MaxStaleReasonRunes,
-// cleaned like an agent's title); the rail folds it into Older until the next message.
+// MarkStale records a stale mark and why (reason may be empty, at most MaxStaleReasonRunes); the rail folds it into Older until the next message.
 func MarkStale(ctx context.Context, d pdb.DBTX, now time.Time, id int64, reason string) error {
 	return db.New(d).MarkStale(ctx, db.MarkStaleParams{At: now.UnixMilli(), Reason: reason, ID: id})
 }
 
-// ClearStale takes the stale mark off, so the conversation is back in the owner's list at once (the owner's Reopen).
-func ClearStale(ctx context.Context, d pdb.DBTX, id int64) error {
-	return db.New(d).MarkStale(ctx, db.MarkStaleParams{At: 0, Reason: "", ID: id})
+// BringBack takes the stale mark off and restarts the quiet clock, so the conversation is back in the owner's list at once (Drew, conv 179 msg 10071).
+func BringBack(ctx context.Context, d pdb.DBTX, now time.Time, id int64) error {
+	return db.New(d).MarkStale(ctx, db.MarkStaleParams{At: -now.UnixMilli(), Reason: "", ID: id})
 }
 
 // Rename sets a title that by (TitleHuman or TitleAgent) chose. Later messages never change it (the source is "manual").

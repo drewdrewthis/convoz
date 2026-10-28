@@ -20,7 +20,7 @@ export const OLDER_AFTER_MS = 48 * 3_600_000;
  * (that one waits on the agents, #42). A new conversation with no message yet counts from when it was made.
  */
 export function isOlder(c: Conversation, now = Date.now()): boolean {
-  return !c.starred && (c.stale === true || (!c.owner_last && c.last_activity_at < now - OLDER_AFTER_MS));
+  return !c.starred && (c.stale === true || (!c.owner_last && Math.max(c.last_activity_at, c.back_at ?? 0) < now - OLDER_AFTER_MS));
 }
 
 /** groups splits the list into Starred, Conversations and Older. Every group is in the owner's order (desktop and phone alike). */

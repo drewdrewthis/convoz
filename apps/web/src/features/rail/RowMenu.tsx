@@ -6,7 +6,7 @@ import { markAllRead, renameConversation } from "../conversations/index.ts";
 import { toast } from "../pins-stars/index.ts";
 import { humanError } from "../../shared/api.ts";
 import { isOlder, titleOf } from "./model.ts";
-import { setClosed, setStar } from "./actions.ts";
+import { setStale, setStar } from "./actions.ts";
 
 /** Where the menu opens: under the dots button of conversation `c`. */
 export interface RowMenuAt {
@@ -16,9 +16,9 @@ export interface RowMenuAt {
 }
 
 /**
- * RowMenu is the menu of one rail row (its dots button): Rename, Close or Reopen, Star or Unstar, Mark read. Rename turns the menu into
- * a field: Enter saves, Escape cancels. Close is the stale mark (the row folds into Older); a starred row, or one already Older by age,
- * has no Close because the rail would not move it. Escape or a press anywhere else closes the menu and the focus goes back to its button.
+ * RowMenu is the menu of one rail row (its dots button): Rename, Mark stale or Bring back, Star or Unstar, Mark read. Rename turns the
+ * menu into a field: Enter saves, Escape cancels. A row under Older has Bring back, whether marked stale or quiet for 48 hours; a starred
+ * row has neither, as it never goes Older. Escape or a press anywhere else closes the menu and the focus goes back to its button.
  */
 export function RowMenu({ at, onClose }: { at: RowMenuAt; onClose(): void }) {
   const { c } = at;
@@ -57,7 +57,7 @@ export function RowMenu({ at, onClose }: { at: RowMenuAt; onClose(): void }) {
     e.preventDefault();
     run(title === titleOf(c) ? Promise.resolve() : renameConversation(c.id, title), "Renamed");
   };
-  const canClose = c.stale || (!c.starred && !isOlder(c));
+  const older = isOlder(c);
   return (
     // eslint-disable-next-line convoz/no-style-prop -- the place is the button's position on the screen, known only at run time
     <div ref={box} tabIndex={-1} className="menu railmenu" role="menu" aria-label={`Actions for ${titleOf(c)}`} style={{ position: "fixed", left: Math.max(8, Math.min(at.x, innerWidth - 296)), top: at.y }} onKeyDown={key}>
@@ -66,7 +66,7 @@ export function RowMenu({ at, onClose }: { at: RowMenuAt; onClose(): void }) {
       ) : (
         <>
           <MenuItem onClick={() => setRenaming(true)}>Rename</MenuItem>
-          {canClose ? <MenuItem onClick={() => run(setClosed(c.id, !c.stale), c.stale ? "Reopened" : "Closed")}>{c.stale ? "Reopen" : "Close"}</MenuItem> : null}
+          {c.starred ? null : <MenuItem onClick={() => run(setStale(c.id, !older), older ? "Brought back" : "Marked stale")}>{older ? "Bring back" : "Mark stale"}</MenuItem>}
           <MenuItem onClick={() => run(setStar(c.id, !c.starred), c.starred ? "Unstarred" : "Starred")}>{c.starred ? "Unstar" : "Star"}</MenuItem>
           <MenuItem onClick={() => run(markAllRead(c.id), "Marked read")}>Mark read</MenuItem>
         </>

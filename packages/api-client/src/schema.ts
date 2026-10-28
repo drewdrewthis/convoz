@@ -1142,7 +1142,8 @@ export interface paths {
          * An agent in the conversation marks it stale (`convoz stale`). The rail folds it into Older at once; the next message brings it back.
          * @description An agent that is a participant may mark it (403 otherwise), and so may the owner (his voice call, the row menu of the rail). While the owner wrote the last
          *     message the conversation waits on the agents and cannot be marked by an agent: 409 owner_spoke_last; the owner is not bound by it when he sends
-         *     `force: true` (the rail). He may send `reopen: true` to take the mark off. The reason, when given, is kept with
+         *     `force: true` (the rail's Mark stale). He may send `reopen: true` (the rail's Bring back) to take the mark off and restart the 48 hour
+         *     quiet clock (back_at), so a conversation that is Older from quiet comes back too. The reason, when given, is kept with
          *     the mark (stale_reason). Marking it again moves the time of the mark and replaces the reason. No system line is written.
          */
         post: operations["markStale"];
@@ -2644,10 +2645,15 @@ export interface components {
              * @description The caller's read cursor in the main list when the row was built; absent when it has none. The single-conversation route only. The page keeps the value from when it opened
              */
             last_read?: number;
-            /** @description An agent in it marked it stale (`convoz stale`) and no message came since. The rail folds it into Older. Absent when not. */
+            /** @description An agent in it (`convoz stale`) or the owner (the rail's Mark stale) marked it stale and no message came since. The rail folds it into Older. Absent when not. */
             stale?: boolean;
             /** @description Why */
             stale_reason?: string;
+            /**
+             * Format: int64
+             * @description When the owner last brought it back from Older (`reopen`). The rail's 48 hour quiet clock starts at the later of this and last_activity_at. Absent when never, or when it was marked stale since.
+             */
+            back_at?: number;
             /**
              * Format: int64
              * @description In the trash since.
@@ -5790,9 +5796,9 @@ export interface operations {
                 "application/json": {
                     /** @description Why it is stale */
                     reason?: string;
-                    /** @description The owner closes it although he wrote the last message (the rail's Close). Ignored from an agent. */
+                    /** @description The owner marks it although he wrote the last message (the rail's Mark stale). Ignored from an agent. */
                     force?: boolean;
-                    /** @description The owner takes the stale mark off (the rail's Reopen). An agent that sends it gets 403. */
+                    /** @description The owner brings it back from Older (the rail's Bring back): no stale mark, and the quiet clock restarts. An agent that sends it gets 403. */
                     reopen?: boolean;
                 };
             };

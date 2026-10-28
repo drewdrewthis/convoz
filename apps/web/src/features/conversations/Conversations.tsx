@@ -6,11 +6,12 @@ import { humanError } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { markUseful } from "../../shared/perf.ts";
 import { data, loadListOnMount, useData, useLive } from "../../shared/data.ts";
-import { ChevronIcon, groups, moveRow, setMute, setStar, stepRow, titleOf, type Drop } from "../rail/index.ts";
+import { ChevronIcon, groups, isOlder, moveRow, setMute, setStale, setStar, stepRow, titleOf, type Drop } from "../rail/index.ts";
 import { toast } from "../pins-stars/index.ts";
 import { markAllRead } from "./actions.ts";
 import { Row, type ReorderMode } from "./Row.tsx";
 import { Button } from "@convoz/ui/Button";
+import { MenuItem } from "@convoz/ui/MenuItem";
 import { EmptyState } from "@convoz/ui/EmptyState";
 
 const VirtualList = lazy(() => import("./VirtualList.tsx"));
@@ -70,7 +71,7 @@ export function Conversations() {
     if (ready) markUseful();
   }, [ready]);
 
-  // A long press or a right click on a row opens its menu: Mark all read.
+  // A long press or a right click on a row opens its menu: Mark all read, Star, Mute, Mark stale or Bring back, Move, Reorder.
   const onContextMenu = (event: MouseEvent<HTMLDivElement>) => {
     const row = (event.target as HTMLElement).closest<HTMLElement>("li[data-id]");
     if (!row) return;
@@ -193,26 +194,31 @@ function RowMenu({ at, row, onRead, onReorder, onClose, onFail }: { at: { x: num
   };
   return (
     <div className="menu rowmenu" role="menu" aria-label="Conversation actions" style={{ position: "fixed", left: Math.min(at.x, innerWidth - 240), top: at.y }}>
-      <button ref={first} type="button" role="menuitem" onClick={onRead}>
+      <MenuItem ref={first} onClick={onRead}>
         Mark all read
-      </button>
+      </MenuItem>
       {row ? (
         <>
-          <button type="button" role="menuitem" onClick={() => act(setStar(row.id, !row.starred), row.starred ? "Unstarred" : "Starred")}>
+          <MenuItem onClick={() => act(setStar(row.id, !row.starred), row.starred ? "Unstarred" : "Starred")}>
             {row.starred ? "Unstar conversation" : "Star conversation"}
-          </button>
-          <button type="button" role="menuitem" onClick={() => act(setMute(row.id, !row.muted_until), row.muted_until ? "Unmuted" : "Muted")}>
+          </MenuItem>
+          <MenuItem onClick={() => act(setMute(row.id, !row.muted_until), row.muted_until ? "Unmuted" : "Muted")}>
             {row.muted_until ? "Unmute" : "Mute"}
-          </button>
-          <button type="button" role="menuitem" onClick={() => act(stepRow(row.id, -1).then(() => undefined))}>
+          </MenuItem>
+          {row.starred ? null : (
+            <MenuItem onClick={() => act(setStale(row.id, !isOlder(row)), isOlder(row) ? "Brought back" : "Marked stale")}>
+              {isOlder(row) ? "Bring back" : "Mark stale"}
+            </MenuItem>
+          )}
+          <MenuItem onClick={() => act(stepRow(row.id, -1).then(() => undefined))}>
             Move up
-          </button>
-          <button type="button" role="menuitem" onClick={() => act(stepRow(row.id, 1).then(() => undefined))}>
+          </MenuItem>
+          <MenuItem onClick={() => act(stepRow(row.id, 1).then(() => undefined))}>
             Move down
-          </button>
-          <button type="button" role="menuitem" onClick={onReorder}>
+          </MenuItem>
+          <MenuItem onClick={onReorder}>
             Reorder…
-          </button>
+          </MenuItem>
         </>
       ) : null}
     </div>

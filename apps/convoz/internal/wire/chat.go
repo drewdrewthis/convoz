@@ -64,6 +64,7 @@ type Conversation struct {
 	Pinned      *[]Message   `json:"pinned,omitempty"`
 	Stale       bool         `json:"stale,omitempty"`        // an agent marked it stale and no message came since: the rail folds it into Older
 	StaleReason string       `json:"stale_reason,omitempty"` // why, when the agent said so (only while Stale)
+	BackAt      int64        `json:"back_at,omitempty"`      // when the owner brought it back from Older: the 48 hour quiet clock starts at the later of this and last_activity_at
 	Pending     []PendingAdd `json:"pending,omitempty"`
 	Seen        []Seen       `json:"seen,omitempty"`      // agents that saw the newest message a person wrote in the main list
 	LastRead    *int64       `json:"last_read,omitempty"` // the caller's read cursor in the main list, as it stands now

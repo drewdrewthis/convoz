@@ -66,8 +66,9 @@ Conversation:
     last_read: { type: integer, format: int64, description: The caller's read cursor in the main list when the row was built; absent when it has none. The single-conversation route only. The page keeps the value from when it opened, to mark where unread began. }
     stale:
       type: boolean
-      description: An agent in it marked it stale (`convoz stale`) and no message came since. The rail folds it into Older. Absent when not.
+      description: An agent in it (`convoz stale`) or the owner (the rail's Mark stale) marked it stale and no message came since. The rail folds it into Older. Absent when not.
     stale_reason: { type: string, description: Why, when the agent that marked it stale said so. Only with stale. }
+    back_at: { type: integer, format: int64, description: "When the owner last brought it back from Older (`reopen`). The rail's 48 hour quiet clock starts at the later of this and last_activity_at. Absent when never, or when it was marked stale since." }
     deleted_at: { type: integer, format: int64, description: In the trash since. }
     purges_at: { type: integer, format: int64, description: When the trash removes it for good. }
 ConversationChangedFrame:
