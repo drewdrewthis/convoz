@@ -3,9 +3,14 @@ package cli
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -198,5 +203,86 @@ func TestWarnStampIsKept(t *testing.T) {
 	markWarned(dir, now)
 	if got := lastWarned(dir); !got.Equal(now) {
 		t.Fatalf("stamp: got %v want %v", got, now)
+	}
+}
+
+func slowServer(t *testing.T, hits *atomic.Int32) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		select {
+		case <-r.Context().Done():
+		case <-time.After(5 * time.Second):
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func TestTimeoutValues(t *testing.T) {
+	if versionProbeTimeout != 10*time.Second {
+		t.Errorf("probe timeout = %v, want 10s", versionProbeTimeout)
+	}
+	if downloadTimeout != 10*time.Minute {
+		t.Errorf("download timeout = %v, want 10m", downloadTimeout)
+	}
+}
+
+func TestProbeGivesUpWithinItsBudgetOnASlowServer(t *testing.T) {
+	var hits atomic.Int32
+	srv := slowServer(t, &hits)
+	start := time.Now()
+	got := probeServerInfo(srv.URL, 200*time.Millisecond)
+	if got.Version != "" {
+		t.Errorf("got %+v, want the zero value", got)
+	}
+	if d := time.Since(start); d > 2*time.Second {
+		t.Errorf("probe took %v, want about its 200ms budget", d)
+	}
+	if hits.Load() != 1 {
+		t.Errorf("a timeout spends the budget: %d asks, want 1", hits.Load())
+	}
+}
+
+func TestProbeRetriesOnceAfterAQuickNetworkError(t *testing.T) {
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if hits.Add(1) == 1 {
+			conn, _, _ := w.(http.Hijacker).Hijack()
+			conn.Close()
+			return
+		}
+		fmt.Fprint(w, `{"version":"abc","api":1}`)
+	}))
+	defer srv.Close()
+	if got := probeServerInfo(srv.URL, 5*time.Second); got.Version != "abc" {
+		t.Errorf("got %+v, want version abc after the retry", got)
+	}
+}
+
+func TestDownloadTimesOutOnASlowServerAndTriesTwice(t *testing.T) {
+	var hits atomic.Int32
+	srv := slowServer(t, &hits)
+	old := downloadTimeout
+	downloadTimeout = 150 * time.Millisecond
+	defer func() { downloadTimeout = old }()
+	_, err := download(srv.URL + "/cli/x")
+	if !errors.Is(err, errUnreachable) {
+		t.Fatalf("err = %v, want errUnreachable", err)
+	}
+	if hits.Load() != 2 {
+		t.Errorf("%d tries, want 2 (one retry)", hits.Load())
+	}
+}
+
+func TestDownloadDoesNotRetryAnAnswerOfTheServer(t *testing.T) {
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+	if _, err := download(srv.URL); err == nil || hits.Load() != 1 {
+		t.Errorf("err = %v, tries = %d, want an error after 1 try", err, hits.Load())
 	}
 }
