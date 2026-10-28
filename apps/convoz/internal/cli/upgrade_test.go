@@ -161,3 +161,42 @@ func TestReplaceExecutableLeavesTheOldBinaryWhenItCannotWrite(t *testing.T) {
 		t.Fatalf("the old binary changed: %q", got)
 	}
 }
+
+func TestDecideVersion(t *testing.T) {
+	now := time.Unix(1_000_000, 0)
+	never := time.Time{}
+	cases := []struct {
+		name   string
+		local  string
+		server serverInfo
+		warned time.Time
+		want   versionAction
+	}{
+		{"same build runs", "abc1234", serverInfo{"abc1234", 1}, never, versionRun},
+		{"newer server warns", "abc1234", serverInfo{"999aaaa", 1}, never, versionWarn},
+		{"server before the api field warns, does not refuse", "abc1234", serverInfo{"999aaaa", 0}, never, versionWarn},
+		{"warned 10 minutes ago stays quiet", "abc1234", serverInfo{"999aaaa", 1}, now.Add(-10 * time.Minute), versionRun},
+		{"warned 61 minutes ago warns again", "abc1234", serverInfo{"999aaaa", 1}, now.Add(-61 * time.Minute), versionWarn},
+		{"another api refuses", "abc1234", serverInfo{"999aaaa", 2}, never, versionRefuse},
+		{"another api refuses even when quiet", "abc1234", serverInfo{"999aaaa", 2}, now, versionRefuse},
+		{"dev build never acts", "dev", serverInfo{"999aaaa", 2}, never, versionRun},
+		{"server with no version runs", "abc1234", serverInfo{"", 0}, never, versionRun},
+	}
+	for _, c := range cases {
+		if got := decideVersion(c.local, c.server, c.warned, now); got != c.want {
+			t.Errorf("%s: got %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
+func TestWarnStampIsKept(t *testing.T) {
+	dir := t.TempDir()
+	if !lastWarned(dir).IsZero() {
+		t.Fatal("no stamp yet")
+	}
+	now := time.Unix(1_000_000, 0)
+	markWarned(dir, now)
+	if got := lastWarned(dir); !got.Equal(now) {
+		t.Fatalf("stamp: got %v want %v", got, now)
+	}
+}

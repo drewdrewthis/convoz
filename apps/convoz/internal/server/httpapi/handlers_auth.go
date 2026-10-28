@@ -32,7 +32,7 @@ type ownerJSON struct {
 func ownerOf(h auth.Human) ownerJSON { return ownerJSON{h.ID, h.Handle, h.DisplayName} }
 
 func (s *Server) version(w http.ResponseWriter, r *http.Request, _ *call) {
-	out := map[string]any{"version": s.Cfg.Version}
+	out := map[string]any{"version": s.Cfg.Version, "api": wire.APIVersion}
 	if agentClient(r.Context()) != "" {
 		out["version"] = wire.ShortVersion(s.Cfg.Version) // the internet sees a short commit, not the build id
 	}
