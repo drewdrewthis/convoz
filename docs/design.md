@@ -1262,7 +1262,7 @@ CREATE TABLE uploads (                                    -- resumable (§12.3)
   storage_name TEXT NOT NULL UNIQUE,
   dek_id       INTEGER NOT NULL, file_key_wrapped BLOB NOT NULL,
   width INTEGER, height INTEGER,
-  duration_ms  INTEGER CHECK (duration_ms IS NULL OR duration_ms BETWEEN 1 AND 300000),
+  duration_ms  INTEGER CHECK (duration_ms IS NULL OR duration_ms BETWEEN 1 AND 1800000),   -- 30 min (0044; was 5 min)
   waveform     BLOB CHECK (waveform IS NULL OR (kind = 'audio' AND length(waveform) <= 64)),   -- 64 peaks 0..255 from the recorder
   created_at INTEGER NOT NULL, completed_at INTEGER, bound_at INTEGER,
   CHECK ((state = 'complete') = (completed_at IS NOT NULL AND mime_sniffed IS NOT NULL AND committed_bytes = declared_size)),

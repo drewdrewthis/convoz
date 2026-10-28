@@ -27,8 +27,9 @@ const (
 	MaxSide   = 16384
 	// MaxWaveform is the number of peaks a voice note carries.
 	MaxWaveform = 64
-	// MaxDurationMS is the longest voice note (the column's check).
-	MaxDurationMS = 300000
+	// MaxDurationMS is the longest voice note: 30 minutes (the column's check, migration 0044). At the recorder's 32 kbit/s that is
+	// about 7 MB, well under MaxSize.
+	MaxDurationMS = 1_800_000
 	// QuotaIdentityDay and QuotaMachineDay are the bytes one identity and one machine may start in a day.
 	QuotaIdentityDay = 500 << 20
 	QuotaMachineDay  = 2 << 30

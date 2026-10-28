@@ -25,7 +25,7 @@ type Endpoints struct {
 	Client               *http.Client
 }
 
-// DefaultEndpoints are the real services, with the 20 s limit per engine.
+// DefaultEndpoints are the real services, with the 20 s limit per engine for a note up to 5 minutes (longer: see timeLimit).
 func DefaultEndpoints() Endpoints {
 	return Endpoints{
 		Groq:    "https://api.groq.com/openai/v1/audio/transcriptions",
@@ -124,10 +124,23 @@ func gemini(ep Endpoints, key string) func(context.Context, []byte, string) (ans
 	}
 }
 
+// shortNote is the note length the per-engine limit was set for (the old 5-minute cap).
+const shortNote = 5 * time.Minute
+
+// timeLimit is the engine's time for this note: the limit for a note up to shortNote, and in proportion for a longer one, so a
+// 30-minute note gets six times the limit (2 minutes with the real 20 s) and the first engine is not cut off while it still works.
+func timeLimit(ctx context.Context, limit time.Duration) time.Duration {
+	note, _ := ctx.Value(durationKey{}).(time.Duration)
+	if note <= shortNote {
+		return limit
+	}
+	return time.Duration(float64(limit) * float64(note) / float64(shortNote))
+}
+
 // post sends one request within the engine's time limit and decodes a 200 answer into out. Any other status becomes an error that
 // holds the status only; a refused file is ErrBadAudio.
 func post(ctx context.Context, ep Endpoints, url, authHeader, auth, contentType string, body io.Reader, out any) error {
-	ctx, cancel := context.WithTimeout(ctx, ep.Timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeLimit(ctx, ep.Timeout))
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
 	if err != nil {
