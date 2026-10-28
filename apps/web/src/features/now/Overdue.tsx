@@ -16,7 +16,7 @@ export function useOverdue(): Delivery[] {
 }
 
 /** Overdue is the Now group of deliverables past their date (owner, conv 179 msg 9734): three at most, the most overdue first, and
- *  a way to the whole Deliveries page. */
+ *  a way to the whole Work page. */
 export function Overdue({ late }: { late: Delivery[] }) {
   const now = Date.now() + useDeliveries((s) => s.skew);
   if (!late.length) return null;
@@ -33,8 +33,8 @@ export function Overdue({ late }: { late: Delivery[] }) {
           </FoldRow>
         ))}
       </FoldList>
-      <Button variant="text" size="inline" href="/delivery" onClick={(e) => visit(e, "/delivery")}>
-        See all deliveries
+      <Button variant="text" size="inline" href="/work" onClick={(e) => visit(e, "/work")}>
+        See all work
       </Button>
     </section>
   );

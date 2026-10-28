@@ -34,7 +34,7 @@ const openedId = (): number => Number(/^\/chats\/(\d+)$/.exec(appPath())?.[1] ??
 
 /**
  * Sidebar is the desktop rail (prototype v41): search and new conversation at the top, Now, the groups Starred and Conversations in the
- * owner's own order, the folded Older group, and Deliveries and Crew at the bottom. Drag a row, or Alt plus an arrow on it, to move it.
+ * owner's own order, the folded Older group, and Work and Crew at the bottom. Drag a row, or Alt plus an arrow on it, to move it.
  * Now switches the rail to the Now list (proposal §1): the page keeps the open conversation, and a pick opens its conversation beside the
  * list. "Conversations", Escape in the rail, or Now again switch back. On the Now page the rail stays as it is: the page is that list.
  */
@@ -283,9 +283,9 @@ export default function Sidebar() {
         )}
       </div>
       <div className="rail-foot">
-        <a className="rnav" href="/delivery" aria-current={appPath() === "/delivery" ? "page" : undefined}>
+        <a className="rnav" href="/work" aria-current={appPath() === "/work" ? "page" : undefined}>
           <DeliveryGlyph />
-          <span>Deliveries</span>
+          <span>Work</span>
           <span className="rsum">{late ? `${late} late` : ""}</span>
         </a>
         <a className="rnav" href="/crew" aria-current={appPath().startsWith("/crew") ? "page" : undefined}>

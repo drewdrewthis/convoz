@@ -28,75 +28,52 @@ Feature: Deliveries: what each agent will deliver, and when
       When "devtool" runs "convoz plan 41 --done 'Search filters live'"
       Then the owner's deliveries no longer list it, and list it as shipped
 
-  Rule: The owner sees every agent's current plan on one page, the most urgent first, and asks for an update right there
-    # Owner (Drew, conv 179, msg 9982): "The deliveries should show all the plans with the ability to request the updates right there."
-    # One row per plan (agent and conversation). A plan with only finished items, or in a closed or trashed conversation, is left out.
+  Rule: Work shows every plan, in the highest section that applies, and stays current without a button
+    # Owner (Drew, conv 179): one screen with, in a hierarchy, what needs him, what is blocked, what is in work and what is planned,
+    # current without pressing Request update. "Deliverables are ALL plans, not a separate thing." A row opens the plan in its chat.
+    # Design (ux-designer): Deliveries is renamed Work (/work; /delivery opens it). One row per chat and agent, in the first section that
+    # applies: Needs you (an open ask or a Waiting item) > Blocked or late (blocked, a delivery date passed, the agent logged out or not
+    # responding) > In progress (a Now item) > Planned (Next or a deliverable only). Then "Done today", folded. A stale chat is hidden from
+    # In progress and Planned behind "N stale chats hidden · Show", but still shows when it needs the owner.
 
     @v1 @browser
-    Scenario: Deliveries lists every agent's current plan, the most urgent first
-      Given "devtool" is doing "Filter chips" at step 2 of 5 and delivers "Search filters live" in 30 minutes and "Reply chip" in 3 days
+    Scenario: Work puts each plan in the highest section that applies
+      Given "devtool" is doing "Filter chips" at step 2 of 5, ready in 2 hours, and delivers "Search filters live" in 3 days
       And "docs" is doing "Docs pass" in conversation 42 and waits on the owner for "Approve the docs copy"
       And "devtool" is doing "Deploy preview" in conversation 43 "Blocked one" and is blocked on "CI is down"
-      And "devtool" has only finished items in conversation 44 "Wrapped up"
-      And "devtool" has a plan in conversation 45 "Closed one", which the owner closed, and in conversation 46 "Thrown away", which is in the trash
+      And "devtool" delivers "Release notes" in 30 minutes in conversation 44 "Late one"
+      And "devtool" has only "Write the changelog" next in conversation 45 "Next only"
+      And "devtool" is doing "Closed work" in conversation 46 "Closed one", which the owner closed
+      And "devtool" waits on the owner for "Pick a name" in conversation 47 "Old ask", which the owner closed
+      And "devtool" finished "Old work" in conversation 48 "Wrapped up"
       When 31 minutes pass
-      And "docs" ships "README live"
-      And the owner opens Deliveries from the rail on a computer, or from the bottom bar on a phone
-      Then the page reads "Shipped today 1 · Late 1" at the top
-      And the groups read "Late · 1", "Waiting on you · 1" and "Blocked · 1", in that order
-      And the row "Filter chips" shows the glyph "Late", "Late · 1 min" and "@devtool · Late · Ship search filters", and is open
-      And open, it shows "Step 2 of 5", "Search filters live", "Reply chip", "Request update" and "Open chat"
-      And the row "Docs pass" shows the glyph "Waiting on you" and "@docs · Waiting on you · Docs refresh", and is closed
-      And the row "Deploy preview" shows the glyph "Blocked" and "@devtool · Blocked: CI is down", and is open
-      And no row comes from "Wrapped up", "Closed one" or "Thrown away"
-      And on a phone the page does not scroll sideways
-      When the owner opens "Shipped today · 1"
-      Then it lists "README live" by "@docs"
-      When the owner taps "Open chat" on the row "Filter chips"
-      Then conversation 41 opens
+      And the owner opens Work from the rail on a computer, or from the bottom bar on a phone
+      Then the page reads "Live · Convoz asks agents when a plan is late" at the top
+      And the sections read "Needs you · 2", "Blocked or late · 2", "In progress · 1" and "Planned · 1", in that order
+      And "Needs you" holds "Docs refresh" with "@docs" and "Approve the docs copy", and "Old ask" with "Pick a name"
+      And "Blocked or late" holds "Blocked one" with "Blocked: CI is down" and "Late one" with "Late: Release notes"
+      And "In progress" holds "Ship search filters" with "@devtool", "Filter chips", "Step 2 of 5", a due chip and "updated 31 min ago"
+      And "Planned" holds "Next only" with "Write the changelog"
+      And no row has "Request update"
+      And no row comes from "Closed one", and the page says "1 stale chat hidden · Show"
+      And on a phone the page does not scroll sideways and each row is two lines
+      When the owner taps "Show"
+      Then "In progress" holds "Closed one"
+      When the owner opens "Done today · 1"
+      Then it lists "Old work" by "@devtool"
 
     @v1 @browser
-    Scenario: Request update on a plan asks its agent in that conversation
-      Given "devtool" is doing "Filter chips" in conversation 41, ready in 30 minutes
-      When the owner opens Deliveries
-      Then the row "Filter chips" is under "No date · 1", reads "updated just now" and is closed
-      When the owner opens the row
-      Then on a phone "Request update" and "Open chat" are full width, one above the other, and 44 px tall
-      When the owner taps "Request update"
-      Then the button reads "Requested" and cannot be pressed, and the row says "Requested" with its time and "no update yet"
-      And "devtool" has an inbox item for conversation 41 whose message starts "@devtool, please update your plan"
-      When "devtool" runs "convoz plan 41 --doing 'Filter chips' --step 3/5"
-      Then the row says "Updated" with its time, and "Request update" can be pressed again
-
-    # Follow-ups of the advisor review of PR 166 (issue 167).
-    @v1 @browser
-    Scenario: A long No date group folds behind a chip and opens on a press
-      Given "devtool" is doing a step in 11 conversations, none with a date
-      When the owner opens Deliveries
-      Then "No date · 11" is a closed chip and no row shows
-      When the owner presses the chip
-      Then all 11 rows show
+    Scenario: A Work row opens its chat on that agent's plan, with what it waits on and delivers
+      Given "devtool" is doing "Filter chips" in conversation 41, waits on the owner for "Approve the copy" and delivers "Search filters live" in 3 days
+      When the owner opens Work and taps the row "Ship search filters"
+      Then conversation 41 opens with the details on the plan card of "@devtool"
+      And the card shows "Waiting on you: Approve the copy" and "Delivers: Search filters live" with its due date
 
     @v1 @browser
-    Scenario: Request update rests for 10 minutes and then can be pressed again
-      Given the owner requested an update of a plan
-      When 9 minutes pass
-      Then "Request update" still rests
-      When 10 minutes have passed in all
-      Then "Request update" can be pressed again
-
-    @v1 @browser
-    Scenario: A plan with no update for a day shows as at risk
-      Given "devtool" delivers "Search filters live" in 3 days
-      When the owner opens Deliveries
-      Then the row "Search filters live" is under "This week · 1" and shows "@devtool · On track · Ship search filters"
-      When 25 hours pass with no plan update from "devtool" and the owner opens Deliveries again
-      Then the row "Search filters live" is under "At risk · 1" and shows the glyph "At risk" and "@devtool · At risk · Ship search filters"
-
-    @v1 @browser
-    Scenario: With no plans the page says how they come
-      When the owner opens Deliveries
-      Then the page says "No plans yet. When an agent sets a plan in a chat, it shows here."
+    Scenario: With no plans Work says how they come, and an old Deliveries link opens Work
+      When the owner opens /delivery
+      Then the address is /work and the page is "Work"
+      And the page says "Nothing in progress. When an agent sets a plan, it shows here."
 
   Rule: When a due date passes, the agent is asked first, once per date, and the owner sees it on Now without a push
 
@@ -130,8 +107,8 @@ Feature: Deliveries: what each agent will deliver, and when
       When 31 minutes pass and the owner opens Now
       Then Now shows "Overdue · 1" with "Search filters live" and "@devtool · was due" its time
       And it does not say "All clear", and the Now badge does not count it
-      When the owner taps "See all deliveries"
-      Then Deliveries opens
+      When the owner taps "See all work"
+      Then Work opens
       When "devtool" runs "convoz plan 41 --deliver 'Search filters live' --due 2h"
       And the owner opens Now
       Then Now shows no "Overdue" group

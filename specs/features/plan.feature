@@ -100,13 +100,14 @@ Feature: Plans: what each agent is doing, what is next and what waits on the own
     # Owner (Drew), on the panel design: "approved with comments: panel: hmm, it's a good start. you could probably as the UI/UX expert
     # about this". The UX pass (phase 1) is what is built: Waiting on you with the action in place, Agents with Now, Next and Done folded.
     @v1 @browser
-    # Drew, conv 151: the plan items that wait on the owner show in the line under the title, not in the panel.
-    Scenario: The details panel shows each agent's plan, then the settings, and no plan item that waits on the owner
+    # Drew, conv 151: the plan items that wait on the owner show in the line under the title, not as a card with buttons. Drew, conv 179
+    # (the Work screen): a plan opens with its items, the same on Work and in the details, so the card lists them as a plain line.
+    Scenario: The details panel shows each agent's plan with what it waits on, then the settings
       Given "devtool" finished "One-time invites", "Reply chip v0", "Invite page", "Rename sheet" and "Search fix"
       And "devtool" planned Doing "Switch on the internet door" at step 2 of 3 ready in 15 minutes, Next "Reply chip" and "Faster first load", Waiting on you "Paste the prompt to dot"
       When the owner opens conversation 41 and taps the line under the title
       Then the panel shows "Agents · 2", then "Conversation", in that order
-      And it does not list "Paste the prompt to dot"
+      And the card of "@devtool" lists "Waiting on you: Paste the prompt to dot" as a line, with no "Waiting on you" card
       And the card of "@devtool" shows "Working", Now "Switch on the internet door" with a step bar at 2 of 3 and "ready ~", and Next "Reply chip" and "Faster first load" numbered
       And its Done items are folded as "Done · 5"
       When the owner taps "Done · 5"
