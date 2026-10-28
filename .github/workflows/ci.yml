@@ -54,7 +54,7 @@ jobs:
           # Full-run triggers (keep in step with the PR body, "Full-run triggers").
           contracts='^(packages/(contracts|api-client)/|specs/contracts/|schemas/)'
           full="$contracts|^packages/(ui|app-kit)/|^apps/convoz/internal/server/platform/|\\.sql$|(^|/)sqlc\\.ya?ml$|^e2e/lib/|^e2e/playwright\\.config\\.ts$|^\\.github/workflows/|(^|/)package\\.json$|^pnpm-(lock|workspace)\\.yaml$|(^|/)go\\.(mod|sum|work|work\\.sum)$"
-          docs='\\.md$|^docs/|^specs/(features|stories|coverage|red-green|scripts)'
+          docs='\.md$|^docs/|^specs/(features|stories|coverage|red-green|scripts)'
           ct=false; has "$contracts" && ct=true
           if has "$full"; then out true true full $ct; exit 0; fi
           go=false; has '^apps/convoz/' && go=true
