@@ -54,7 +54,7 @@ Feature: The server hands out its own CLI
 
     @v1 @cli
     Scenario: A CLI refuses a server with another API number
-      Given a machine logged in to a server whose GET /api/version names an API number other than the one of the convoz
+      Given a machine logged in to a server that says it speaks another API number than the convoz does
       When the agent runs "convoz inbox --peek"
       Then the CLI exits 7 and prints "convoz cannot talk to this server (API <here> here, <there> there). Run: convoz upgrade"
       And a server that names no API number is taken as compatible
