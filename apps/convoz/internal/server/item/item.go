@@ -81,6 +81,8 @@ type Fields struct {
 	Root int64
 	// Plan names the plan on a new item; empty is main. A key that exists keeps its plan: naming another is a conflict.
 	Plan string
+	// Taken marks the item as a question taken from the owner's message (see Take).
+	Taken bool
 }
 
 // Event is one line of an item's audit.
@@ -185,8 +187,7 @@ func promote(ctx context.Context, d pdb.DBTX, now time.Time, agent int64, plan s
 		return err
 	}
 	next := fromRow(row)
-	next.State = Started
-	unack(&next)
+	next.State = Started // an ack stays: the owner has seen this item, the plan only moved on to it
 	if next.OwnerStep {
 		next.State = Blocking
 	}

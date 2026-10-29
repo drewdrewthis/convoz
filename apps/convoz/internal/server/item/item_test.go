@@ -198,7 +198,7 @@ func TestEveryLegalAndIllegalAgentMove(t *testing.T) {
 		{"none", "start"}: "started", {"none", "block"}: "blocking", {"none", "done"}: "notfound", {"none", "fyi"}: "notfound", {"none", "drop"}: "notfound",
 		{"started", "start"}: "started", {"started", "block"}: "blocking", {"started", "done"}: "done", {"started", "fyi"}: conflict, {"started", "drop"}: "dropped",
 		{"blocking", "start"}: conflict, {"blocking", "block"}: "blocking", {"blocking", "done"}: conflict, {"blocking", "fyi"}: "fyi", {"blocking", "drop"}: "dropped",
-		{"pending", "start"}: "pending", {"pending", "block"}: "pending", {"pending", "done"}: conflict, {"pending", "fyi"}: conflict, {"pending", "drop"}: "dropped",
+		{"pending", "start"}: "pending", {"pending", "block"}: "blocking", {"pending", "done"}: conflict, {"pending", "fyi"}: conflict, {"pending", "drop"}: "dropped",
 		{"done", "start"}: conflict, {"done", "block"}: conflict, {"done", "done"}: "done", {"done", "fyi"}: conflict, {"done", "drop"}: conflict,
 		{"fyi", "start"}: conflict, {"fyi", "block"}: conflict, {"fyi", "done"}: conflict, {"fyi", "fyi"}: "fyi", {"fyi", "drop"}: conflict,
 		{"dropped", "start"}: conflict, {"dropped", "block"}: conflict, {"dropped", "done"}: conflict, {"dropped", "fyi"}: conflict, {"dropped", "drop"}: "dropped",

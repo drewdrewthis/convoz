@@ -1533,13 +1533,35 @@ export interface paths {
         put?: never;
         /**
          * An agent moves one of its own steps; one call per transition.
-         * @description The agent comes from the lease, never the body, so it reaches only its own items. `event` is start, block, done, fyi, drop or say.
+         * @description The agent comes from the lease, never the body, so it reaches only its own items. `event` is start, block, done, fyi, drop, say or answer. answer replies in the thread of the item's message, quoting the item's title, and marks it done, in one transaction; `outcome` is the text (1 to 4000 characters); only a started item with a message can be answered (409 otherwise).
          *     The first step of an agent in a conversation is now; later ones are pending, and when the now step leaves (done, fyi, drop) the next one
          *     is promoted in the same transaction. Saying start or block again for a key edits the step; block always raises the version. A move the
          *     state does not allow is 409 and changes nothing. Title, context and recommendation are plain text (no markdown, no links): title 1 to 200
          *     characters, context 2000, recommendation 500, key 1 to 64; anything else is 400. There is no cap on open items.
          */
         post: operations["postItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/messages/{id}/take": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * An agent takes a question of the owner as an item on his message.
+         * @description Only a person's message in the main chat can be taken (400 for an agent's message or a reply in a thread). The first item is the
+         *     question, started (pending when the plan already has a now), the steps follow as pending items; all are rooted at the message and
+         *     nothing is posted. Without `question` the title is the message text and a message that already has an item is 409. Context is required.
+         */
+        post: operations["takeMessage"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3596,6 +3618,19 @@ export interface components {
             due?: string;
             /** @description Seconds east of UTC */
             utc_offset?: number;
+        };
+        TakeRequest: {
+            /** @description The question as the title, plain text, 1 to 200 characters. Empty: the message text is the title. */
+            question?: string;
+            /** @description Plain text */
+            context: string;
+            /** @description Research steps */
+            steps?: string[];
+            /** @description The agent's plan; empty is main. */
+            plan?: string;
+        };
+        TakeResponse: {
+            items: components["schemas"]["FeedItem"][];
         };
         FeedItem: {
             /** Format: int64 */
@@ -6652,7 +6687,7 @@ export interface operations {
             path: {
                 id: components["parameters"]["Id"];
                 key: string;
-                event: "start" | "block" | "done" | "fyi" | "drop" | "say";
+                event: "start" | "block" | "done" | "fyi" | "drop" | "say" | "answer";
             };
             cookie?: never;
         };
@@ -6669,6 +6704,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FeedItem"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    takeMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TakeRequest"];
+            };
+        };
+        responses: {
+            /** @description The items made, the question first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TakeResponse"];
                 };
             };
             default: components["responses"]["Error"];

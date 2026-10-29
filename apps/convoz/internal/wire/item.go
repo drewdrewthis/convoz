@@ -21,6 +21,19 @@ type ItemRequest struct {
 	UTCOffset int    `json:"utc_offset,omitempty"`
 }
 
+// TakeRequest is POST /api/messages/:id/take: the agent takes a question of the owner. Without a question the item is titled with the message.
+type TakeRequest struct {
+	Question string   `json:"question,omitempty"`
+	Context  string   `json:"context"`
+	Steps    []string `json:"steps,omitempty"`
+	Plan     string   `json:"plan,omitempty"`
+}
+
+// TakeResponse holds the question's item first, then the research steps in order.
+type TakeResponse struct {
+	Items []FeedItem `json:"items"`
+}
+
 // FeedItem is one feed item as the owner and the agent read it.
 type FeedItem struct {
 	ID             int64  `json:"id"`

@@ -11,6 +11,20 @@ ItemRequest:
     plan: { type: string, description: "The agent's plan for a new item, 1 to 64 letters, digits, dot, dash or underscore; empty is main. A key that exists keeps its plan (409 for another)." }
     due: { type: string, description: "A duration (2d, 1d4h, 30m), a time HH:MM or a date YYYY-MM-DD HH:MM; display only." }
     utc_offset: { type: integer, description: Seconds east of UTC, for due. }
+TakeRequest:
+  type: object
+  required: [context]
+  additionalProperties: false
+  properties:
+    question: { type: string, description: "The question as the title, plain text, 1 to 200 characters. Empty: the message text is the title." }
+    context: { type: string, description: Plain text, 1 to 2000 characters. }
+    steps: { type: array, items: { type: string }, description: Research steps, pending after the question. }
+    plan: { type: string, description: The agent's plan; empty is main. }
+TakeResponse:
+  type: object
+  required: [items]
+  properties:
+    items: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/FeedItem" } }
 FeedItem:
   type: object
   required: [id, conversation_id, agent_id, key, seq, plan, state, title, can_accept, version, updated_at]

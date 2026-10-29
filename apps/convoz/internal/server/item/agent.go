@@ -20,6 +20,11 @@ func create(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int64, k
 	if owner {
 		state, ownerStep = Blocking, 1
 	}
+	if owner {
+		if err := pauseNow(ctx, d, now, agent, f.Plan); err != nil {
+			return Item{}, err
+		}
+	}
 	if _, err := q.NowOf(ctx, db.NowOfParams{AgentID: agent, PlanKey: f.Plan}); err == nil {
 		state = Pending
 	} else if !errors.Is(err, sql.ErrNoRows) {
@@ -41,11 +46,14 @@ func create(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int64, k
 		}
 		it.ThreadRoot = f.Root
 	}
-	event := "start"
+	event, note := "start", ""
 	if owner {
 		event = "block"
 	}
-	return it, db.New(d).InsertEvent(ctx, db.InsertEventParams{ItemID: it.ID, Version: 1, Event: event, ToState: it.State, ByIdentity: nint(agent), At: now.UnixMilli()})
+	if f.Taken {
+		note = takeNote
+	}
+	return it, db.New(d).InsertEvent(ctx, db.InsertEventParams{ItemID: it.ID, Version: 1, Event: event, ToState: it.State, ByIdentity: nint(agent), Note: note, At: now.UnixMilli()})
 }
 
 func validKey(key string) bool { return len(key) >= 1 && len(key) <= 64 }
@@ -90,6 +98,12 @@ func Block(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int64, ke
 	}
 	if it.State != Started && it.State != Blocking && it.State != Pending || f.Plan != "" && it.Plan != f.Plan {
 		return Item{}, ErrConflict
+	}
+	if it.State == Pending {
+		if err := pauseNow(ctx, d, now, agent, it.Plan); err != nil {
+			return Item{}, err
+		}
+		it.State = Blocking
 	}
 	it.Title, it.Context, it.DueAt, it.OwnerStep = f.Title, f.Context, f.DueAt, true
 	it.Recommendation = f.Recommend
@@ -174,4 +188,22 @@ func Say(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int64, key,
 		return Item{}, err
 	}
 	return it, db.New(d).InsertEvent(ctx, db.InsertEventParams{ItemID: it.ID, Version: it.Version, Event: "say", ToState: it.State, ByIdentity: nint(agent), Note: note, At: now.UnixMilli()})
+}
+
+// pauseNow puts a started item of the plan back to pending at the front, so a blocker can be the now (owner, conv 179 msg 12444: "I want
+// to know if there is a blocker"). The paused item resumes first when the blocker leaves. A blocking now stays: the blocker waits behind it.
+// It runs before the blocker is written, so the one-now-per-plan index holds.
+func pauseNow(ctx context.Context, d pdb.DBTX, now time.Time, agent int64, plan string) error {
+	q := db.New(d)
+	row, err := q.NowOf(ctx, db.NowOfParams{AgentID: agent, PlanKey: plan})
+	if errors.Is(err, sql.ErrNoRows) || err == nil && row.State != Started {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if err := q.PauseItem(ctx, db.PauseItemParams{AgentID: agent, UpdatedAt: now.UnixMilli(), ID: row.ID}); err != nil {
+		return err
+	}
+	return q.InsertEvent(ctx, db.InsertEventParams{ItemID: row.ID, Version: row.Version + 1, Event: "edit", ToState: Pending, ByIdentity: nint(agent), Note: "paused for a blocker", At: now.UnixMilli()})
 }

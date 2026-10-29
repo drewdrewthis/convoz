@@ -17,6 +17,9 @@ import (
 
 // itemBudget keeps a new item inside the agent's post budgets, as its message counts like any post. An item that exists is an edit: no message.
 func (s *Server) itemBudget(w http.ResponseWriter, r *http.Request, c *call, conv int64, key, event string) bool {
+	if event == "answer" {
+		return s.withinBudgets(w, c, s.Clock.Now()) // the answer is a message
+	}
 	if event != "start" && event != "block" {
 		return true
 	}
