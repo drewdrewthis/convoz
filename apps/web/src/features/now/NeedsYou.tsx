@@ -5,6 +5,7 @@ import { useState } from "react";
 import { visit } from "../../shared/navigate.ts";
 import { toast } from "../pins-stars/index.ts";
 import { FeedThread } from "./DevFeedThread.tsx";
+import { askFrame } from "./askView.ts";
 import { entries, nextOf } from "./entries.ts";
 import { ItemFrame } from "./DevFrame.tsx";
 import { OkayGlyph, ReplyGlyph } from "./DevIcons.tsx";
@@ -36,16 +37,29 @@ const clockOf = (at: number) => new Date(at).toLocaleTimeString([], { hour: "num
 function AskItem({ ask, busy, presets, answer, snooze }: { ask: Ask; busy: boolean; presets: SnoozePreset[]; answer: NeedsYouProps["answer"]; snooze: NeedsYouProps["snooze"] }) {
   const [request, setRequest] = useState(0);
   const root = ask.thread_root_id ?? ask.id;
-  const why = ask.answers || ask.options[0]?.why || "";
-  const recommended = ask.options[0]?.label;
+  const { title, context } = askFrame(ask, whoLine(ask.asker));
   return (
     <ItemFrame
       kind="blocking"
-      title={ask.question}
-      context={[recommended ? `Recommended: ${recommended}` : "", why, `Asked by ${whoLine(ask.asker)}`].filter(Boolean).join(". ")}
+      title={title}
+      context={context}
       tag={ask.urgent ? "Urgent" : undefined}
       from={{ id: ask.conversation_id, title: ask.conversation?.title ?? "" }}
-      thread={<FeedThread conversation={ask.conversation_id} root={root} count={ask.reply_count} request={request} onReplied={(ok) => (void useNow.getState().load().catch(() => {}), ok && toast("Replied. The ask moved to You replied."))} />}
+      thread={
+        <FeedThread
+          conversation={ask.conversation_id}
+          root={root}
+          count={ask.reply_count}
+          request={request}
+          onReplied={(ok) => (
+            void useNow
+              .getState()
+              .load()
+              .catch(() => {}),
+            ok && toast("Replied. The ask moved to You replied.")
+          )}
+        />
+      }
       snooze={{ presets, pick: (k) => snooze(ask, k) }}
       busy={busy}
       dataId={ask.id}

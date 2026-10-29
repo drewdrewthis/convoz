@@ -51,6 +51,15 @@ Feature: Now
       When "devtool" replies in the item's thread
       Then the item is in the list again, even if the owner had snoozed it
 
+  Rule: Every ask in the dev build is drawn as an item (owner, conv 179 msg 12807, 12813)
+
+    @v1 @browser @unimplemented
+    Scenario: A permission ask is an item: the action is the title, risk and undo the context, with Okay, Reply and Snooze
+      Given "devtool" asked "Do you OK this?" with the action "Merge PR 12 into main", a risk, an undo and one other way
+      When the owner opens Now in the dev build
+      Then the card is titled "Merge PR 12 into main" and its context has the risk, the undo and the other way
+      And it has Okay, Reply, Snooze and the item menu, and no "Needs your OK", "I will", Go, Not this, I have questions or Dismiss
+
   Rule: Okay takes a server item out of the feed, whatever its state (dev build)
 
     @v1 @browser @unimplemented
