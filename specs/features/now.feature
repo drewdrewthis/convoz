@@ -14,6 +14,16 @@ Feature: Now
     And machine "box-2" is logged in with allow-list "devtool" and "docs"
     And "devtool" and "docs" are active participants of conversation 41 "Ship search filters"
 
+  Rule: Every item in the dev build has the actions Okay, Reply and Snooze, each with the icon of the main Now
+
+    @v1 @browser @unimplemented
+    Scenario: Okay, Reply and Snooze show a label and the icons of the ask card
+      Given a blocking item that recommends something in the dev build
+      When the owner opens Now
+      Then the item shows "Okay" with a check, "Reply" with the chat bubble and "Snooze" with the clock, and no "Add info", "Accept" or "Got it"
+      When the owner presses "Reply"
+      Then the item's thread opens and the reply box has focus, and the item stays in the list
+
   Rule: In the dev build an item opens directly into a thread about it
 
     @v1 @browser @unimplemented
@@ -68,18 +78,18 @@ Feature: Now
       And the items are listed newest first in one list
 
     @v1 @browser @unimplemented
-    Scenario: A blocking item shows the frame and Accept answers with the first option
+    Scenario: A blocking item shows the frame and Okay answers with the first option
       Given "devtool" asked "Merge #415 on its own?" with the recommended option "Merge" because "CI is green"
       When the owner opens Now
-      Then the item shows the marker "Blocking", the title "Merge #415 on its own?", the context "Recommended: Merge", the link "From Ship search filters" and the actions "Accept", "Add info" and "Snooze"
+      Then the item shows the marker "Blocking", the title "Merge #415 on its own?", the context "Recommended: Merge", the link "From Ship search filters" and the actions "Okay", "Reply" and "Snooze"
       And the item has no "Dismiss" button and no list of options
-      When the owner presses "Accept"
+      When the owner presses "Okay"
       Then the ask is answered with "Merge"
 
     @v1 @browser @unimplemented
-    Scenario: Add info opens the thread inside the item with the reply box in focus
+    Scenario: Reply opens the thread inside the item with the reply box in focus
       Given "devtool" asked "Merge #415 on its own?"
-      When the owner opens Now and presses "Add info"
+      When the owner opens Now and presses "Reply"
       Then the thread opens inside the item and the reply box has focus
 
     @v1 @browser @unimplemented
@@ -87,7 +97,7 @@ Feature: Now
       Given the plan of "devtool" in conversation 41 waits on the owner for "Pick the launch date"
       When the owner opens Now
       Then the item shows the marker "Blocking", the title "Pick the launch date" and the link "From Ship search filters"
-      And "Accept" and "Add info" open conversation 41
+      And "Okay" and "Reply" open conversation 41
       And the item has no "Snooze" button
 
     @v1 @browser @unimplemented
@@ -95,7 +105,7 @@ Feature: Now
       Given the plan of "devtool" in conversation 41 lists "Search filters" as done today
       When the owner opens Now
       Then the item shows the state "Done", the title "Search filters — done" and the link "From Ship search filters"
-      And the item has no "Got it" button
+      And the item has no "Okay" button
 
     @v1 @browser @unimplemented
     Scenario: The first Now line of a plan is the item and the rest are Next
@@ -133,27 +143,27 @@ Feature: Now
   Rule: Items the server keeps (GET /api/feed) join the list with real actions
 
     @v1 @browser @unimplemented
-    Scenario: A blocking item that recommends something can be accepted
+    Scenario: Okay on a blocking item that recommends something accepts it
       Given "devtool" has a blocking item "Pick the launch date" recommending "Friday" in conversation 41
-      When the owner opens Now and presses "Accept"
+      When the owner opens Now and presses "Okay"
       Then the item is done and leaves the list
 
     @v1 @browser @unimplemented
-    Scenario: Accepting an item that changed is refused and the owner is told
+    Scenario: Okay on an item that changed is refused and the owner is told
       Given the owner sees a blocking item and "devtool" raises its version
-      When the owner presses "Accept"
+      When the owner presses "Okay"
       Then Now reads the feed again and says "This changed, look again."
 
     @v1 @browser @unimplemented
-    Scenario: Add info sends the owner's words through the item
+    Scenario: Reply sends the owner's words in the item's thread, and the item stays
       Given "devtool" has a blocking item "Pick the launch date"
-      When the owner presses "Add info" and sends "Friday works"
-      Then the agent receives "Friday works" on the item
+      When the owner presses "Reply" and sends "Friday works"
+      Then the text shows in the item's thread, the agent is woken, and the item stays in the list
 
     @v1 @browser @unimplemented
-    Scenario: Got it hides an fyi item and Snooze hides any item until its time
+    Scenario: Okay on an fyi item hides it and Snooze hides any item until its time
       Given "devtool" has an fyi item "Search filters shipped"
-      When the owner presses "Got it"
+      When the owner presses "Okay"
       Then the item leaves the list on every device
       When the owner snoozes another item until tomorrow
       Then it is hidden until tomorrow 9:00

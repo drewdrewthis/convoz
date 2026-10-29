@@ -1,5 +1,5 @@
 import { Button } from "@convoz/ui/Button";
-import { useEffect, useId, useState, type ComponentType, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type ComponentType, type FormEvent } from "react";
 import type { Message } from "@convoz/api-client";
 import { loadFeedReplies } from "../conversations/index.ts";
 import { useThreads } from "../threads/index.ts";
@@ -12,7 +12,7 @@ interface FeedThreadProps {
   count?: number;
   /** Runs once the server took a reply typed in the card (`ok`), or lost it (!ok). The card changes here: the caller knows where it goes. */
   onReplied?: (ok: boolean) => void;
-  /** A number that goes up each time the item asks for the thread to open with its reply box focused ("Add info"). It shows even with no replies yet. */
+  /** A number that goes up each time the item asks for the thread to open with its reply box focused (the Reply button). It shows even with no replies yet. */
   request?: number;
   /** The thread opens with the item, with its reply box ready, even with no replies yet (owner, conv 179 msg 12145). */
   direct?: boolean;
@@ -38,10 +38,12 @@ export function FeedThread({ conversation, root, count: known, onReplied, reques
     void useThreads.getState().load(conversation, root).catch(() => {});
     void loadFeedReplies().then((c) => setReplies(() => c));
   }, [open, conversation, root]);
+  const input = useRef<HTMLInputElement | null>(null);
   useEffect(() => {
     if (!request) return;
     setOpen(true);
     setWriting(true);
+    input.current?.focus();
   }, [request]);
   if (!count && !request && !direct) return null;
 
@@ -71,6 +73,7 @@ export function FeedThread({ conversation, root, count: known, onReplied, reques
         <form className="flex items-center gap-8" onSubmit={send}>
           {/* eslint-disable-next-line convoz/no-raw-input -- a pill with no visible label (aria-label); Field draws a label above its input */}
           <input
+            ref={input}
             aria-label="Reply to the thread"
             type="text"
             autoFocus={!direct || !!request}

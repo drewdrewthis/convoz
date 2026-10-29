@@ -2,6 +2,7 @@ import { AskMenu, MenuItem, usePhone, type SnoozePreset } from "@convoz/app-kit"
 import { Button } from "@convoz/ui/Button";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { visit } from "../../shared/navigate.ts";
+import { SnoozeGlyph } from "./DevIcons.tsx";
 
 /** What one feed item shows. Every item of Now draws this frame; its state (started, blocking or done) sets the marker and the actions (owner, conv 179 msg 11603). */
 export interface FrameProps {
@@ -47,6 +48,7 @@ function Snooze({ presets, pick, busy }: { presets: SnoozePreset[]; pick: (key: 
   return (
     <div ref={root}>
       <Button variant="text" size="inline" disabled={busy} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <SnoozeGlyph />
         Snooze
       </Button>
       {open ? (
