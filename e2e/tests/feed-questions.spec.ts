@@ -78,3 +78,17 @@ scenario("Another agent's reply wakes the owner of an open item, and an acked it
   expect((await agentPost(p.w.srv, p.docs.lease, p.conv, "More detail", { thread_root_id: msg })).status).toBe(201);
   expect(await waiting()).toBe(settled);
 });
+
+scenario("A blocker becomes the now and the started item resumes first when it leaves", { tag: ["@api"] }, async ({ server }) => {
+  const p = await planWorld(server);
+  const msg = await ownerSays(p.w.owner, p.conv, "Why slow");
+  const q = (await take(p, p.dev.lease, msg, { question: "Why slow" })).json().items[0];
+  const state = async (key: string) => find(await feed(p), key)?.state;
+  const asked = await send(p.w.srv.target, "POST", `/api/conversations/${p.conv}/items/need/block`, { json: { title: "Which db?", context: "I need a choice" }, ...bearer(p.dev.lease) });
+  expect(asked.status, asked.text).toBe(200);
+  expect(asked.json().state).toBe("blocking");
+  expect(await state(q.key)).toBe("pending");
+  const fyi = await send(p.w.srv.target, "POST", `/api/conversations/${p.conv}/items/need/fyi`, { json: {}, ...bearer(p.dev.lease) });
+  expect(fyi.status, fyi.text).toBe(200);
+  expect(await state(q.key)).toBe("started");
+});

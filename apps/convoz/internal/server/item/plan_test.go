@@ -97,3 +97,30 @@ func TestTheFeedListsEveryAgentAndPlanTogether(t *testing.T) {
 		t.Fatalf("%+v", f.Open)
 	}
 }
+
+// A blocker is the now: the started item goes back to pending at the front and resumes first (owner, conv 179 msg 12444, 12763).
+func TestABlockerPausesTheStartedItemAndItResumesFirst(t *testing.T) {
+	s := rig(t)
+	start(t, s, 1, devtool, convA, "work")
+	start(t, s, 2, devtool, convA, "later")
+	b := block(t, s, 3, devtool, convA, "ask", "")
+	if b.State != item.Blocking {
+		t.Fatalf("the blocker is the now: %+v", b)
+	}
+	if w := get(t, s, devtool, convA, "work"); w.State != item.Pending {
+		t.Fatalf("the started item is paused: %+v", w)
+	}
+	if err := run(t, s, func(ctx context.Context, d pdb.DBTX) error {
+		_, err := item.MarkFyi(ctx, d, at(4), devtool, convA, "ask", "")
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if w, l := get(t, s, devtool, convA, "work"), get(t, s, devtool, convA, "later"); w.State != item.Started || l.State != item.Pending {
+		t.Fatalf("the paused item resumes before the others: %+v %+v", w, l)
+	}
+	// A pending item that blocks also takes the now.
+	if p := block(t, s, 5, devtool, convA, "later", ""); p.State != item.Blocking || get(t, s, devtool, convA, "work").State != item.Pending {
+		t.Fatalf("pending item blocks: %+v", p)
+	}
+}

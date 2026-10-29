@@ -148,3 +148,11 @@ Feature: Feed items (contracts)
       When the owner replies in the thread and "docs" replies again
       Then "devtool" gets no new inbox item
 
+    @v1 @api
+    Scenario: A blocker becomes the now and the started item resumes first when it leaves
+      Given "devtool" has a started question
+      When "devtool" blocks a new item
+      Then the blocker is blocking and the question is pending at the front
+      When "devtool" says fyi for the blocker
+      Then the question is started again
+
