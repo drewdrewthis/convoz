@@ -32,11 +32,11 @@ Feature: Now
   Rule: An item the server keeps opens directly into its thread (dev build)
 
     @v1 @browser @unimplemented
-    Scenario: A server item shows the thread of its message with a reply box, and an old item shows none
+    Scenario: A server item shows its thread, or an empty reply box that starts one
       Given an agent made an item with "convoz item block", and an older item has no thread root
-      Then the new item's frame shows its thread and a reply box, and the older item's frame shows no thread
-      When the owner writes a reply
-      Then it shows in the thread and the owner stays in Now
+      Then an item with a thread shows it with a reply box, and an item with none shows an empty reply box
+      When the owner writes in the empty reply box
+      Then the text starts the thread, shows in it, and the owner stays in Now
 
   Rule: The one-list Now, the right drawer and the Work screen are in the dev build (/dev) only; the main app is unchanged
 

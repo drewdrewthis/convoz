@@ -702,7 +702,7 @@ I can clear my queue from my phone in a few taps.
   - [An open ask shows its thread with a reply box, without a click](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L20)
   - [The owner's answered question shows its thread the same way](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L27)
 - **An item the server keeps opens directly into its thread (dev build)**
-  - [A server item shows the thread of its message with a reply box, and an old item shows none](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L35)
+  - [A server item shows its thread, or an empty reply box that starts one](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L35)
 - **The one-list Now, the right drawer and the Work screen are in the dev build (/dev) only; the main app is unchanged**
   - [The dev build opens Now in a right-side drawer with the address ?panel=now](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L44)
   - [The dev build names Deliveries as Work](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/now.feature#L50)

@@ -1606,6 +1606,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/feed/{id}/reply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Write in the item's thread. The first write starts it.
+         * @description Owner only; an agent lease is refused. With no thread yet the text becomes a new message with the item title quoted above it, and its id is kept as thread_root_id; otherwise it is a reply in that thread. 404 for an unknown item, 409 if another writer started the thread at the same moment (send again).
+         */
+        post: operations["feedReply"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/feed/{id}/ack": {
         parameters: {
             query?: never;
@@ -3592,7 +3612,7 @@ export interface components {
             recommendation?: string;
             /**
              * Format: int64
-             * @description The message the item's thread hangs on (the agent posts the title when it makes the item). Absent for an item made before threads.
+             * @description The message the item's thread hangs on. Absent until the first write in the thread.
              */
             thread_root_id?: number;
             /** @description False for a blocking item with no recommendation; it takes info only. */
@@ -3627,6 +3647,9 @@ export interface components {
             text: string;
             /** @description This answers it; the item is done. */
             resolves?: boolean;
+        };
+        FeedReplyRequest: {
+            text: string;
         };
         FeedSnoozeRequest: {
             /**
@@ -6703,6 +6726,33 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["FeedAnswerRequest"];
+            };
+        };
+        responses: {
+            /** @description The item as it now is. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedItem"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    feedReply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedReplyRequest"];
             };
         };
         responses: {

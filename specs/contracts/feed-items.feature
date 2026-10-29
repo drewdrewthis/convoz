@@ -60,11 +60,14 @@ Feature: Feed items (contracts)
       And a title of 201 characters, a context of 2001 and a recommendation of 501 answer 400
       And a title of 200, a context of 2000 and a recommendation of 500 answer 200
 
-  Rule: An item opens a thread on one message in its conversation
+  Rule: An item has a thread only once someone writes in it
 
     @v1 @api
-    Scenario: The first move posts one message and keeps its id as the thread root; later moves post nothing
+    Scenario: Making and moving an item posts no message; the owner's first reply starts the thread
       When "devtool" sends block for key "a" with a title and a recommendation
-      Then the answer has a thread_root_id, and that message in conversation 41 is by "devtool" and says the title
-      When "devtool" sends block for key "a" again with a new title, and then done
-      Then the thread_root_id is the same, and the conversation holds no second message for the item
+      Then the conversation gets no new message and the item has no thread_root_id
+      When the owner sends POST /api/feed/{a}/reply with a text
+      Then the answer has a thread_root_id, and that message says the title quoted above the text
+      When the owner sends POST /api/feed/{a}/reply with a second text
+      Then the thread_root_id is the same and the second text is a reply in that thread
+      And an agent lease gets 401 or 403 on the reply route

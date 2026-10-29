@@ -122,6 +122,7 @@ paths:
   /api/feed: { $ref: "paths/item.yaml#/~1api~1feed" }
   /api/feed/{id}/accept: { $ref: "paths/item.yaml#/~1api~1feed~1{id}~1accept" }
   /api/feed/{id}/answer: { $ref: "paths/item.yaml#/~1api~1feed~1{id}~1answer" }
+  /api/feed/{id}/reply: { $ref: "paths/item.yaml#/~1api~1feed~1{id}~1reply" }
   /api/feed/{id}/ack: { $ref: "paths/item.yaml#/~1api~1feed~1{id}~1ack" }
   /api/feed/{id}/snooze: { $ref: "paths/item.yaml#/~1api~1feed~1{id}~1snooze" }
   # ---- ask
@@ -403,6 +404,7 @@ components:
     FeedResponse: { $ref: "components/item.yaml#/FeedResponse" }
     FeedAcceptRequest: { $ref: "components/item.yaml#/FeedAcceptRequest" }
     FeedAnswerRequest: { $ref: "components/item.yaml#/FeedAnswerRequest" }
+    FeedReplyRequest: { $ref: "components/item.yaml#/FeedReplyRequest" }
     FeedSnoozeRequest: { $ref: "components/item.yaml#/FeedSnoozeRequest" }
     ShippedDelivery: { $ref: "components/plan.yaml#/ShippedDelivery" }
     Deliveries: { $ref: "components/plan.yaml#/Deliveries" }

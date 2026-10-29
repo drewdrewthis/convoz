@@ -23,7 +23,7 @@ FeedItem:
     title: { type: string }
     context: { type: string }
     recommendation: { type: string }
-    thread_root_id: { type: integer, format: int64, description: "The message the item's thread hangs on (the agent posts the title when it makes the item). Absent for an item made before threads." }
+    thread_root_id: { type: integer, format: int64, description: "The message the item's thread hangs on. Absent until the first write in the thread." }
     can_accept: { type: boolean, description: False for a blocking item with no recommendation; it takes info only. }
     due_at: { type: integer, format: int64 }
     acked_at: { type: integer, format: int64 }
@@ -43,6 +43,12 @@ FeedAcceptRequest:
   required: [if_version]
   properties:
     if_version: { type: integer, format: int64 }
+FeedReplyRequest:
+  type: object
+  additionalProperties: false
+  required: [text]
+  properties:
+    text: { type: string }
 FeedAnswerRequest:
   type: object
   additionalProperties: false

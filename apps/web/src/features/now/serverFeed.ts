@@ -37,6 +37,7 @@ export function useServerFeed() {
     accept: (i: FeedItem) => act(i.id, () => call(client.POST("/api/feed/{id}/accept", { ...path(i.id), body: { if_version: i.version } }))),
     ack: (i: FeedItem) => act(i.id, () => call(client.POST("/api/feed/{id}/ack", path(i.id)))),
     answer: (i: FeedItem, text: string) => act(i.id, () => call(client.POST("/api/feed/{id}/answer", { ...path(i.id), body: { text } }))),
+    reply: (i: FeedItem, text: string) => act(i.id, () => call(client.POST("/api/feed/{id}/reply", { ...path(i.id), body: { text } }))),
     snooze: (i: FeedItem, until: number) => act(i.id, () => call(client.PUT("/api/feed/{id}/snooze", { ...path(i.id), body: { until } }))),
   };
 }

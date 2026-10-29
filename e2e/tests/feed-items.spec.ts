@@ -100,16 +100,20 @@ scenario("Markdown, links and over-long text are refused with 400", { tag: ["@ap
   expect((await item(p, p.dev.lease, "k", "block", { title: x(200), context: x(2000), recommend: x(500) })).status).toBe(200);
 });
 
-scenario("The first move posts one message and keeps its id as the thread root; later moves post nothing", { tag: ["@api"] }, async ({ server }) => {
+scenario("Making and moving an item posts no message; the owner's first reply starts the thread", { tag: ["@api"] }, async ({ server }) => {
   const p = await planWorld(server);
-  const first = (await item(p, p.dev.lease, "a", "block", { title: "Merge the filters", recommend: "Go" })).json();
-  expect(first.thread_root_id).toBeGreaterThan(0);
-  const said = (await messagesOf(p.w.owner, p.conv)).filter((m) => m.id === first.thread_root_id);
-  expect(said.map((m) => m.body)).toEqual(["Merge the filters"]);
   const before = (await messagesOf(p.w.owner, p.conv)).length;
-  const again = (await item(p, p.dev.lease, "a", "block", { title: "Merge the filters now", recommend: "Go" })).json();
-  expect(again.thread_root_id).toBe(first.thread_root_id);
-  expect((await item(p, p.dev.lease, "a", "fyi", { outcome: "Done without you" })).status).toBe(200);
+  const made = (await item(p, p.dev.lease, "a", "block", { title: "Merge the filters", recommend: "Go" })).json();
+  expect(made.thread_root_id ?? 0).toBe(0);
   expect((await messagesOf(p.w.owner, p.conv)).length).toBe(before);
-  expect((await feed(p)).done.concat((await feed(p)).items).every((i: any) => i.key !== "a" || i.thread_root_id === first.thread_root_id)).toBe(true);
+  const first = await ownerPost(p, `/api/feed/${made.id}/reply`, { text: "Go, but wait for CI" });
+  expect(first.status, first.text).toBe(200);
+  const root = first.json().thread_root_id;
+  expect(root).toBeGreaterThan(0);
+  const rows = await messagesOf(p.w.owner, p.conv);
+  expect(rows.find((m) => m.id === root)?.body).toBe("> Merge the filters\n\nGo, but wait for CI");
+  const second = (await ownerPost(p, `/api/feed/${made.id}/reply`, { text: "Any news?" })).json();
+  expect(second.thread_root_id).toBe(root);
+  expect((await messagesOf(p.w.owner, p.conv, `thread=${root}`)).map((m) => m.body)).toContain("Any news?");
+  expect([401, 403]).toContain((await send(p.w.srv.target, "POST", `/api/feed/${made.id}/reply`, { json: { text: "x" }, ...bearer(p.dev.lease) })).status);
 });

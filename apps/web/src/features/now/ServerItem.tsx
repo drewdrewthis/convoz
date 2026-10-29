@@ -8,8 +8,8 @@ import type { useServerFeed } from "./serverFeed.ts";
 
 type Feed = ReturnType<typeof useServerFeed>;
 
-/** AddInfo is the small form under a blocking item: the owner's words go to the agent through the item (POST answer). */
-function AddInfo({ send, busy }: { send: (text: string) => void; busy: boolean }) {
+/** AddInfo is the small form (also the empty reply box of an item with no thread yet, which POSTs reply and starts the thread) under a blocking item: the owner's words go to the agent through the item (POST answer). */
+function AddInfo({ send, busy, label = "Add info", focus = true }: { send: (text: string) => void; busy: boolean; label?: string; focus?: boolean }) {
   const [text, setText] = useState("");
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -18,7 +18,7 @@ function AddInfo({ send, busy }: { send: (text: string) => void; busy: boolean }
   return (
     <form className="flex items-center gap-8" onSubmit={submit}>
       {/* eslint-disable-next-line convoz/no-raw-input -- a pill with no visible label (aria-label); Field draws a label above its input */}
-      <input aria-label="Add info" type="text" autoFocus value={text} maxLength={2000} onChange={(e) => setText(e.target.value)} className="h-52 w-full min-w-0 flex-auto rounded-full border border-solid border-edge bg-raised px-16 text-16 text-text [font-family:inherit]" />
+      <input aria-label={label} type="text" autoFocus={focus} value={text} maxLength={2000} onChange={(e) => setText(e.target.value)} className="h-52 w-full min-w-0 flex-auto rounded-full border border-solid border-edge bg-raised px-16 text-16 text-text [font-family:inherit]" />
       <Button variant="primary" size="inline" type="submit" disabled={busy || !text.trim()}>
         Send
       </Button>
@@ -42,12 +42,14 @@ export function ServerItem({ item, next, feed, from, skew }: { item: FeedItem; n
       from={{ id: item.conversation_id, title: from }}
       busy={busy}
       thread={
-        item.thread_root_id || adding ? (
-          <>
-            {item.thread_root_id ? <FeedThread conversation={item.conversation_id} root={item.thread_root_id} direct /> : null}
-            {adding ? <AddInfo busy={busy} send={(t) => void feed.answer(item, t).then(() => setAdding(false))} /> : null}
-          </>
-        ) : undefined
+        <>
+          {item.thread_root_id ? (
+            <FeedThread conversation={item.conversation_id} root={item.thread_root_id} direct />
+          ) : (
+            <AddInfo label="Reply" focus={false} busy={busy} send={(t) => void feed.reply(item, t)} />
+          )}
+          {adding ? <AddInfo busy={busy} send={(t) => void feed.answer(item, t).then(() => setAdding(false))} /> : null}
+        </>
       }
       snooze={{ presets: options.map((o) => ({ key: o.label, label: o.label })), pick: (k) => void feed.snooze(item, options.find((o) => o.label === k)?.until ?? 0) }}
       actions={
