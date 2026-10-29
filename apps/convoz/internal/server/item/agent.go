@@ -177,7 +177,7 @@ func Drop(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int64, key
 	return leave(ctx, d, now, it, Dropped, "drop", "")
 }
 
-// Say leaves a note on the item; state and version stay.
+// Say leaves a note on the item; state and version stay, and the item counts as moved (updated_at), so it is not called quiet.
 func Say(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int64, key, text string) (Item, error) {
 	note, err := checkText(text, 1, MaxContext)
 	if err != nil {
@@ -187,7 +187,12 @@ func Say(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int64, key,
 	if err != nil {
 		return Item{}, err
 	}
-	return it, db.New(d).InsertEvent(ctx, db.InsertEventParams{ItemID: it.ID, Version: it.Version, Event: "say", ToState: it.State, ByIdentity: nint(agent), Note: note, At: now.UnixMilli()})
+	q := db.New(d)
+	if err := q.TouchItem(ctx, db.TouchItemParams{UpdatedAt: now.UnixMilli(), ID: it.ID}); err != nil {
+		return Item{}, err
+	}
+	it.UpdatedAt = now.UnixMilli()
+	return it, q.InsertEvent(ctx, db.InsertEventParams{ItemID: it.ID, Version: it.Version, Event: "say", ToState: it.State, ByIdentity: nint(agent), Note: note, At: now.UnixMilli()})
 }
 
 // pauseNow puts a started item of the plan back to pending at the front, so a blocker can be the now (owner, conv 179 msg 12444: "I want

@@ -114,7 +114,10 @@ func (s *Server) sweepPlans(ctx context.Context) error {
 	if err := s.noteUnresponsive(ctx); err != nil {
 		return err
 	}
-	return s.remindUnanswered(ctx)
+	if err := s.remindUnanswered(ctx); err != nil {
+		return err
+	}
+	return s.remindStale(ctx)
 }
 
 // remindUnanswered makes the unanswered items of the places whose owner message waited UnansweredAfter. Each place is one writer

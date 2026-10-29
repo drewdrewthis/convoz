@@ -51,3 +51,11 @@ UPDATE feed_items SET thread_root_id = sqlc.arg(thread_root_id) WHERE id = sqlc.
 -- name: PauseItem :exec
 UPDATE feed_items SET state = 'pending', seq = (SELECT MIN(o.seq) - 1 FROM feed_items o WHERE o.agent_id = sqlc.arg(agent_id)), version = version + 1, updated_at = sqlc.arg(updated_at)
 WHERE feed_items.id = sqlc.arg(id);
+
+-- name: StartedQuietSince :many
+-- The started items nobody touched since the cutoff: the sweep reminds their agents.
+SELECT * FROM feed_items WHERE state = 'started' AND updated_at <= sqlc.arg(cutoff) ORDER BY id;
+
+-- name: TouchItem :exec
+-- A say moves the item (updated_at) without changing what the owner reads: state and version stay.
+UPDATE feed_items SET updated_at = sqlc.arg(updated_at) WHERE id = sqlc.arg(id);

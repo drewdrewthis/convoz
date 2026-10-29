@@ -3115,10 +3115,10 @@ export interface components {
             /** @enum {string} */
             state: "ready" | "claimed";
             /**
-             * @description status_due: Convoz asks the agent to update its late plan; the message is a line from the server. unanswered: the owner's message got no answer in 10 minutes; the message is that one.
+             * @description status_due: Convoz asks the agent to update its late plan; the message is a line from the server. item_stale: a feed item the agent started has had no update for 15 minutes; the message is a line from the server naming it. unanswered: the owner's message got no answer in 10 minutes; the message is that one.
              * @enum {string}
              */
-            reason: "mention" | "thread" | "activity" | "ask_resolved" | "membership" | "app_result" | "status_due" | "unanswered";
+            reason: "mention" | "thread" | "activity" | "ask_resolved" | "membership" | "app_result" | "status_due" | "unanswered" | "item_stale";
             /**
              * Format: int64
              * @description How many messages the item covers.
