@@ -87,3 +87,19 @@ Feature: Feed items (contracts)
       Then GET /api/feed still does not list it
       When "devtool" posts a reply in the item's thread
       Then GET /api/feed lists the item again, with no acked_at and no snoozed_until
+
+  Rule: An item is a message with state, and its context is never empty
+
+    @v1 @api
+    Scenario: An item is the agent's message: start and block post it and root the item on it
+      When "devtool" sends start for key "m" with a title and a context
+      Then the conversation gets one new message by "devtool" saying the title and the context
+      And the item's thread_root_id is that message and GET /api/feed shows it
+      When "devtool" sends start for key "m" again with another context
+      Then the conversation gets no new message
+      And the owner's reply on the item goes in the thread of that message
+
+    @v1 @api
+    Scenario: An empty context is refused and writes nothing
+      When "devtool" sends start or block with a context that is empty or only spaces
+      Then the answer is 400, the conversation gets no message and the feed has no item
