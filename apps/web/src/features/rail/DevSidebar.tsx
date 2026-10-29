@@ -256,7 +256,7 @@ export default function Sidebar() {
         </>
       </div>
       <div className="rail-foot">
-        <a className="rnav" href="/work" aria-current={appPath() === "/work" ? "page" : undefined}>
+        <a className="rnav" href="/delivery" aria-current={appPath() === "/delivery" ? "page" : undefined}>
           <DeliveryGlyph />
           <span>Work</span>
           <span className="rsum">{late ? `${late} late` : ""}</span>

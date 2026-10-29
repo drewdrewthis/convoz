@@ -12,7 +12,6 @@ import { Folds, type FoldKey } from "./Folds.tsx";
 import { NeedsYou } from "./NeedsYou.tsx";
 import { useFyi } from "./fyi.ts";
 import { unseen, useSeen } from "./seen.ts";
-import { DEV } from "../../shared/base.ts";
 import { NowReplied } from "./NowReplied.tsx";
 import { Overdue, useOverdue } from "./Overdue.tsx";
 import { PendingAdd } from "./PendingAdd.tsx";
@@ -91,8 +90,8 @@ export function DevNow({ compact = false, current = 0 }: NowProps = {}) {
   const marks = useSeen((s) => s.marks);
   const fyi = unseen(useFyi(conversations, mine ?? ""), marks, Date.now()).filter((f) => !f.handle || !kept.has(`${f.conversation_id}:${f.handle}`));
   const titles = (id: number) => conversations?.find((c) => c.id === id)?.title ?? "";
-  // The owner's questions replace the mention and reply cards in the dev build; ?old=1 brings the cards back.
-  const cards = !DEV || new URLSearchParams(location.search).get("old") === "1";
+  // The owner's questions replace the mention and reply cards; ?old=1 brings the cards back.
+  const cards = new URLSearchParams(location.search).get("old") === "1";
   // Held on the device before the "replied" list existed: none then.
   const replied = now?.replied ?? [];
   const adds = now?.pending_adds ?? [];

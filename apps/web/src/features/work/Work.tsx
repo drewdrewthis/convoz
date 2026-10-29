@@ -4,7 +4,6 @@ import { DeliveryIcon } from "@convoz/ui/icons";
 import { List, ListRow } from "@convoz/ui/ListRow";
 import { useEffect, useId, useState } from "react";
 import { humanError } from "../../shared/api.ts";
-import { appPath, withBase } from "../../shared/base.ts";
 import { loadListOnMount, useData, useLive } from "../../shared/data.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { useDeliveries } from "../delivery/index.ts";
@@ -60,7 +59,7 @@ function DoneToday({ items }: { items: DoneItem[] }) {
   );
 }
 
-/** Work is /work (and /delivery): every plan in the highest section that applies, current from the stream with no button (owner, conv 179). */
+/** Work is /delivery: every plan in the highest section that applies, current from the stream with no button (owner, conv 179). */
 export function Work() {
   const { fail } = useNotice();
   const data = useDeliveries((s) => s.data);
@@ -70,8 +69,6 @@ export function Work() {
   const [showStale, setShowStale] = useState(false);
   useLive(() => void loadAll().catch(() => {}));
   useEffect(() => {
-    // The old address of this page: the address bar says the new one.
-    if (appPath() === "/delivery") history.replaceState(history.state, "", withBase(`/work${location.search}${location.hash}`));
     loadAll().catch((err) => fail(humanError(err)));
   }, [fail]);
   if (!board || !convs) return <div id="work" aria-busy="true" />;

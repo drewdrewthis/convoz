@@ -3,7 +3,6 @@
 //  - every history entry the app writes gets the base (navigate, replaceState), so screens keep naming app paths;
 //  - a link to an app path ("/crew") is given the base at the moment it is used (click, middle click, keyboard), so a full page
 //    load stays in the dev build too. Links are drawn by many features; this one listener covers them all.
-import "../styles/drawer.css";
 import { withBase } from "./base.ts";
 
 function based(url: string | URL | null | undefined): string | URL | null | undefined {

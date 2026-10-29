@@ -15,6 +15,7 @@
 @import "../features/voice/voice.css";
 @import "../features/crew/crew.css";
 @import "./status.css";
+@import "./drawer.css";
 
 /* The atoms of packages/ui, and the app-kit that uses them, are written with Tailwind classes; the scan finds them there (it stops at apps/web). */
 @source "../../../../packages/ui/src";

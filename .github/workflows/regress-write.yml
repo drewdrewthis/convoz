@@ -1,0 +1,63 @@
+name: regress-write
+
+# Writes the app's own reference frames (e2e/visual/regress, app-regress.feature) on a CI runner, so a person can review them and commit
+# them: Playwright never runs on the owner's box, and the frames must come from the same chromium the e2e shards use. Start it by putting
+# the label `regress-write` on a PR (the run uses that PR's head), or by hand (workflow_dispatch, once this file is on the default branch).
+# It only uploads the frames as an artifact; it never pushes. To take them: download "regress-frames", copy it over e2e/visual/regress,
+# look at every changed frame (`git diff --stat e2e/visual/regress`), and commit.
+on:
+  pull_request:
+    types: [labeled]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GOFLAGS: -mod=readonly
+
+jobs:
+  write:
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'regress-write'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: apps/convoz/go.mod
+          cache-dependency-path: |
+            apps/convoz/go.sum
+            apps/convoz/tools/sqlc/go.sum
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Testhooks build
+        working-directory: apps/convoz
+        run: make testhooks
+      - name: Playwright chromium
+        run: pnpm --filter @convoz/e2e exec playwright install --with-deps chromium
+      # REGRESS_WRITE=1 makes the spec write every frame instead of comparing (e2e/lib/regress.ts); a screen no scenario shoots any more
+      # is not deleted here, so the PR that drops it deletes its files.
+      - name: Write the frames
+        env:
+          REGRESS_WRITE: "1"
+        run: pnpm --filter @convoz/e2e exec playwright test tests/app-regress.spec.ts --project=chromium --project=mobile --workers=2
+      - name: Upload the frames
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: regress-frames
+          path: e2e/visual/regress
+          if-no-files-found: error
+          retention-days: 14

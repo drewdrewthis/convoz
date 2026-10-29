@@ -156,14 +156,6 @@
       "count": 1
     }
   },
-  "apps/web/src/features/rail/Sidebar.tsx": {
-    "convoz/no-raw-button": {
-      "count": 2
-    },
-    "convoz/no-style-prop": {
-      "count": 1
-    }
-  },
   "apps/web/src/features/rail/icons.tsx": {
     "convoz/no-style-prop": {
       "count": 1
