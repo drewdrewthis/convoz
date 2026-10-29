@@ -87,6 +87,12 @@ type AskReplies interface {
 	OwnerReplied(ctx context.Context, d pdb.DBTX, now time.Time, m Message) (wake []int64, err error)
 }
 
+// ItemReplies tells the feed items rooted at a thread that an agent wrote there (item module): such an item comes back to the owner's
+// feed, ack and snooze cleared.
+type ItemReplies interface {
+	AgentReplied(ctx context.Context, d pdb.DBTX, now time.Time, m Message) error
+}
+
 // Indexer writes the message into full-text search, inside the same transaction (search module). It is called again with
 // the new text after an edit, so the row must be replaced, not added.
 type Indexer interface {
@@ -160,6 +166,7 @@ type Ports struct {
 	Inbox         InboxFanOut
 	Places        Places
 	Asks          AskReplies
+	Items         ItemReplies
 	Journal       Journal
 	Search        Indexer
 	Uploads       UploadBinder
@@ -264,6 +271,11 @@ func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) 
 	// A reply in words, not an answer to an ask and not the result of an app, is recorded on the open asks of its thread.
 	if p.Asks != nil && draft.ThreadRoot != 0 && draft.AnswersAsk == 0 && draft.ViaApp == nil {
 		if woken, err = p.Asks.OwnerReplied(ctx, d, now, m); err != nil {
+			return Posted{}, err
+		}
+	}
+	if p.Items != nil && draft.ThreadRoot != 0 && isAgent && !draft.Quiet {
+		if err := p.Items.AgentReplied(ctx, d, now, m); err != nil {
 			return Posted{}, err
 		}
 	}

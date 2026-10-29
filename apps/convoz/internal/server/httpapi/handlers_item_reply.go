@@ -46,7 +46,8 @@ func (s *Server) replyOnItem(ctx context.Context, d pdb.DBTX, c *call, now time.
 			return it, nil, errRootRaced
 		}
 	}
-	return it, posted.Wake, nil
+	it, err = item.OwnerReplied(ctx, d, now, c.p.HumanID, id)
+	return it, posted.Wake, err
 }
 
 // feedReply is POST /api/feed/:id/reply: the owner writes in the item's thread. Owner only; a lease is refused.

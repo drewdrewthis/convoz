@@ -17,7 +17,7 @@ import (
 func messagePorts(p authz.Principal) message.Ports {
 	search, uploads, apps, unfurls := searchPort{}, uploadPort{}, appPort{}, unfurlPort{}
 	return message.Ports{
-		Conversations: conversationPort{p: p}, Reads: readsPort{}, Threads: threadsPort{}, Inbox: inboxPort{}, Places: placesPort{owner: p.SessionID == 0 && p.Role == "owner"}, Asks: askReplyPort{owner: p.SessionID == 0 && p.Role == "owner"}, Journal: postJournal{},
+		Conversations: conversationPort{p: p}, Reads: readsPort{}, Threads: threadsPort{}, Inbox: inboxPort{}, Places: placesPort{owner: p.SessionID == 0 && p.Role == "owner"}, Items: itemReplyPort{}, Asks: askReplyPort{owner: p.SessionID == 0 && p.Role == "owner"}, Journal: postJournal{},
 		Search: search, Uploads: uploads, Apps: apps, Mentions: mentionsPort{}, Unfurls: unfurls, Audit: postAuditPort{p},
 		Events: messageEvents{},
 		// A module that keeps a copy of a message joins the delete and the purge by giving its port the two Cascade methods.
