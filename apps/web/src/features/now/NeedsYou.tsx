@@ -50,6 +50,7 @@ function AskItem({ ask, busy, presets, answer, snooze }: { ask: Ask; busy: boole
       busy={busy}
       dataId={ask.id}
       at={ask.created_at}
+      link={{ message: ask.id }}
       actions={
         <>
           <Button variant="primary" size="inline" className="mr-8 ml-8" disabled={busy} onClick={() => answer(ask, { choice: "recommended" })}>
@@ -76,6 +77,7 @@ function FyiItem({ item: f }: { item: Fyi }) {
       title={f.title}
       context={f.context}
       next={f.next}
+      link={{ message: f.root ?? undefined }}
       from={{ id: f.conversation_id, title: f.from }}
       thread={f.root ? <FeedThread conversation={f.conversation_id} root={f.root} request={request} /> : undefined}
       actions={

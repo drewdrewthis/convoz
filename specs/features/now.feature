@@ -75,6 +75,21 @@ Feature: Now
       When the owner writes in the empty reply box
       Then the text starts the thread, shows in it, and the owner stays in Now
 
+  Rule: In the dev build every item has a vertical dots menu with Copy link
+
+    @v1 @browser @unimplemented
+    Scenario: An ask copies the link of its message
+      Given an agent has an open ask in Now in the dev build
+      When the owner opens the dots menu of the ask's frame and taps "Copy link"
+      Then the clipboard holds the full link of the ask's message in its conversation
+      And the app shows "Link copied"
+
+    @v1 @browser @unimplemented
+    Scenario: A server item copies the link of its thread, else of its conversation
+      Given the server keeps an item in the feed, with a thread or without one
+      When the owner opens the dots menu of the item's frame and taps "Copy link"
+      Then the clipboard holds the full link of the thread's root message, or of the conversation when the item has no thread
+
   Rule: The one-list Now, the right drawer and the Work screen are in the dev build (/dev) only; the main app is unchanged
 
     @v1 @browser @unimplemented
