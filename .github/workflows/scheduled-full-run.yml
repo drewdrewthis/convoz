@@ -1,0 +1,22 @@
+name: scheduled-full-run
+
+# A cron fires only from the default branch's copy of a workflow, and the work happens on feat/web-react. So this small workflow lives on
+# master and starts ci.yml there, which on a manual start runs the full suite (the `changes` job treats every event but a PR as full).
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Start ci.yml on feat/web-react
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run ci.yml --ref feat/web-react
