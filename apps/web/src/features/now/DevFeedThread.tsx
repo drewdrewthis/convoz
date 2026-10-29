@@ -21,6 +21,8 @@ interface FeedThreadProps {
   request?: number;
   /** Sends the text another way (a server item: POST /api/feed/:id/reply, which also closes the item). Without it the text is a reply in the thread. */
   send?: (text: string) => void;
+  /** What the reply box starts with: a draft ask's text, to edit before it is sent. */
+  initial?: string;
 }
 
 /**
@@ -29,9 +31,9 @@ interface FeedThreadProps {
  * draws them in place with the conversation's own message rendering; folding it hides them again. The owner stays in Now.
  * "Reply here", under the open thread, answers in it without leaving Now (owner, conv 179 msg 8239): the reply shows in the thread as sending, then sent.
  */
-export function FeedThread({ conversation, root, count: known, onReplied, request = 0, send: sendText }: FeedThreadProps) {
+export function FeedThread({ conversation, root, count: known, onReplied, request = 0, send: sendText, initial = "" }: FeedThreadProps) {
   const [view, setView] = useState<Pick<ThreadState, "seen" | "open" | "writing">>({ seen: 0, open: false, writing: false });
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initial);
   const [Replies, setReplies] = useState<Replies | null>(null);
   const id = useId();
   const replies = useThreads((s) => s.threads[root]?.replies);
