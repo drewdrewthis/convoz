@@ -1,4 +1,4 @@
-import { messagesOf } from "../lib/chat.ts";
+import { agentSays, messagesOf } from "../lib/chat.ts";
 import { send } from "../lib/http.ts";
 import { bearer } from "../lib/machines.ts";
 import { planWorld, type PlanWorld } from "../lib/plan.ts";
@@ -122,4 +122,27 @@ scenario("Making and moving an item posts no message; the owner's first reply st
   expect(second.thread_root_id).toBe(root);
   expect((await messagesOf(p.w.owner, p.conv, `thread=${root}`)).map((m) => m.body)).toContain("Any news?");
   expect([401, 403]).toContain((await send(p.w.srv.target, "POST", `/api/feed/${made.id}/reply`, { json: { text: "x" }, ...bearer(p.dev.lease) })).status);
+});
+
+scenario("The owner's reply closes the item and an agent's reply in its thread reopens it, even when snoozed", { tag: ["@api"] }, async ({ server }) => {
+  const p = await planWorld(server);
+  const made = (await item(p, p.dev.lease, "a", "block", { title: "Merge the filters", recommend: "Go" })).json();
+  expect((await feed(p)).items.map((i: { id: number }) => i.id)).toEqual([made.id]);
+  const first = await ownerPost(p, `/api/feed/${made.id}/reply`, { text: "Go, but wait for CI" });
+  expect(first.status, first.text).toBe(200);
+  expect(first.json().acked_at).toBeGreaterThan(0);
+  expect(first.json().state).toBe("blocking");
+  const root = first.json().thread_root_id;
+  const hidden = (await feed(p)).items.find((i: { id: number }) => i.id === made.id);
+  expect(hidden?.acked_at).toBeGreaterThan(0);
+  const until = Date.now() + 3_600_000;
+  const sn = await p.w.owner.client.request("PUT", `/api/feed/${made.id}/snooze`, { csrf: true, json: { until } });
+  expect(sn.status, sn.text).toBe(200);
+  await agentSays(p.w.srv, p.dev.lease, p.conv, "No thread here");
+  expect((await feed(p)).items.find((i: { id: number }) => i.id === made.id)?.acked_at).toBeGreaterThan(0);
+  const said = await send(p.w.srv.target, "POST", `/api/conversations/${p.conv}/messages`, { json: { client_id: `c-${Date.now()}`, body: "CI is green", thread_root_id: root, needs_you: false }, ...bearer(p.dev.lease) });
+  expect(said.status, said.text).toBe(201);
+  const back = (await feed(p)).items.find((i: { id: number }) => i.id === made.id);
+  expect(back?.acked_at ?? 0).toBe(0);
+  expect(back?.snoozed_until ?? 0).toBe(0);
 });

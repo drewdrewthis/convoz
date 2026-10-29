@@ -75,3 +75,15 @@ Feature: Feed items (contracts)
       When the owner sends POST /api/feed/{a}/reply with a second text
       Then the thread_root_id is the same and the second text is a reply in that thread
       And an agent lease gets 401 or 403 on the reply route
+
+  Rule: The owner's reply closes an item and an agent's reply in its thread reopens it, snoozed or not
+
+    @v1 @api
+    Scenario: The owner's reply closes the item and an agent's reply in its thread reopens it, even when snoozed
+      Given "devtool" blocked "a" with a recommendation
+      When the owner sends POST /api/feed/{a}/reply with a text
+      Then the answer has acked_at set and the state still blocking
+      When the owner snoozes it and "devtool" posts a message outside its thread
+      Then the item is still acked
+      When "devtool" posts a reply in the item's thread
+      Then GET /api/feed lists the item with no acked_at and no snoozed_until
