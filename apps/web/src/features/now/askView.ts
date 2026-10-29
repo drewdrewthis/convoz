@@ -21,3 +21,13 @@ export function okayAnswer(ask: Ask): { choice: "recommended"; text?: string } {
 
 /** carriesApp is whether an agent attached an app to the ask; the item draws it under the context (owner, conv 179 msg 12448). */
 export const carriesApp = (ask: Ask): boolean => Boolean(ask.app);
+
+/** doneLine is the one line of a closed ask in its item: "Go, by drew", "Dismissed" or "Closed"; empty for an open ask. */
+export function doneLine(ask: Ask): string {
+  if (ask.state === "dismissed") return "Dismissed";
+  if (ask.state === "closed") return "Closed";
+  if (ask.state !== "answered") return "";
+  const said = ask.permission && !ask.draft ? (ask.chosen?.kind === "recommended" ? "Go" : ask.chosen?.kind === "custom" ? `Replied: ${ask.answer ?? ""}` : "Not this") : (ask.answer ?? "Answered");
+  const by = ask.resolved_by?.handle;
+  return by ? `${said}, by ${by}` : said;
+}

@@ -1,5 +1,5 @@
 // The fyi items of the Now feed, from data the server already sends: the plans (PlanBoard) and the messages of the conversations.
-// Pure functions, so they are tested without a screen. Nothing here is stored on the device (owner, conv 179 msg 11785: no fake data).
+// Pure functions, so they are tested without a screen. Nothing here is feed data stored on the device (owner, conv 179 msg 11785: no fake data); seen.ts holds only seen marks (a key and a time).
 import type { Message, PlanBoard } from "@convoz/api-client";
 
 /** One fyi item: it follows one piece of work. started: an agent works on it. done: it is finished or answered. */

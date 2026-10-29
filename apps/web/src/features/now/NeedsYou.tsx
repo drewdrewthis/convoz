@@ -6,6 +6,8 @@ import { visit } from "../../shared/navigate.ts";
 import { toast } from "../pins-stars/index.ts";
 import { FeedThread } from "./DevFeedThread.tsx";
 import { AskApp } from "./AskApp.tsx";
+import { laterOptionsAt } from "./presets.ts";
+import { useSeen } from "./seen.ts";
 import { askFrame, carriesApp, okayAnswer } from "./askView.ts";
 import { entries, nextOf } from "./entries.ts";
 import { ItemFrame } from "./DevFrame.tsx";
@@ -82,9 +84,10 @@ function AskItem({ ask, busy, presets, answer, snooze }: { ask: Ask; busy: boole
   );
 }
 
-/** FyiItem is a piece of work started or done, or an answered question: the owner only needs to know. Reply opens its thread when it has one. Okay and Snooze come with the server's feed record. */
-function FyiItem({ item: f }: { item: Fyi }) {
+/** FyiItem is a piece of work started or done, or an answered question: the owner only needs to know. Okay and Snooze are seen marks kept on the device (seen.ts), since no server row stands behind the card; Reply opens its thread when it has one. */
+function FyiItem({ item: f, presets }: { item: Fyi; presets: { key: string; label: string; until: number }[] }) {
   const [request, setRequest] = useState(0);
+  const { okay, snooze } = useSeen.getState();
   return (
     <ItemFrame
       kind={f.state}
@@ -95,13 +98,20 @@ function FyiItem({ item: f }: { item: Fyi }) {
       link={{ message: f.root ?? undefined }}
       from={{ id: f.conversation_id, title: f.from }}
       thread={f.root ? <FeedThread conversation={f.conversation_id} root={f.root} request={request} /> : undefined}
+      snooze={{ presets, pick: (k) => snooze(f, presets.find((p) => p.key === k)?.until ?? 0) }}
       actions={
-        f.root ? (
-          <Button variant="text" size="inline" className="ml-8" onClick={() => setRequest((n) => n + 1)}>
-            <ReplyGlyph />
-            Reply
+        <>
+          <Button variant="primary" size="inline" className="mr-8 ml-8" onClick={() => okay(f)}>
+            <OkayGlyph />
+            Okay
           </Button>
-        ) : undefined
+          {f.root ? (
+            <Button variant="text" size="inline" onClick={() => setRequest((n) => n + 1)}>
+              <ReplyGlyph />
+              Reply
+            </Button>
+          ) : null}
+        </>
       }
     />
   );
@@ -150,7 +160,7 @@ export function NeedsYou({ asks, waiting, fyi, server, busy, presets, answer, sn
           </div>
         ) : "fyi" in e ? (
           <div key={`f${e.fyi.key}`} aria-current={e.fyi.conversation_id === current ? "page" : undefined}>
-            <FyiItem item={e.fyi} />
+            <FyiItem item={e.fyi} presets={laterOptionsAt(Date.now() + server.skew).map((o) => ({ key: o.label, label: o.label, until: o.until }))} />
           </div>
         ) : (
           <div key={`p${e.plan.conversation.id}-${e.plan.text}`} data-conv={e.plan.conversation.id} aria-current={e.plan.conversation.id === current ? "page" : undefined}>

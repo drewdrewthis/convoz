@@ -11,6 +11,7 @@ import { shown, useServerFeed } from "./serverFeed.ts";
 import { Folds, type FoldKey } from "./Folds.tsx";
 import { NeedsYou } from "./NeedsYou.tsx";
 import { useFyi } from "./fyi.ts";
+import { unseen, useSeen } from "./seen.ts";
 import { DEV } from "../../shared/base.ts";
 import { NowReplied } from "./NowReplied.tsx";
 import { Overdue, useOverdue } from "./Overdue.tsx";
@@ -48,7 +49,12 @@ export function DevNow({ compact = false, current = 0 }: NowProps = {}) {
     (async () => {
       setMe(await data.loadMe());
       // The passkey count only shapes a hint: with no link it is left out, and Now still shows what the device kept.
-      const passkeys = compact ? null : await call(client.GET("/api/me/passkeys")).then((r) => r.passkeys, () => null);
+      const passkeys = compact
+        ? null
+        : await call(client.GET("/api/me/passkeys")).then(
+            (r) => r.passkeys,
+            () => null,
+          );
       if (passkeys) setOnePasskey(passkeys.length === 1);
       // The rail's start() below makes the first load; a second one here could let an older answer land last.
       if (!compact) await load();
@@ -82,7 +88,8 @@ export function DevNow({ compact = false, current = 0 }: NowProps = {}) {
   const skew = useNow((s) => s.skew);
   // A step the server keeps as an item is not also drawn from the plan lines.
   const kept = new Set(feed.items.map((i) => `${i.conversation_id}:${i.handle}`));
-  const fyi = useFyi(conversations, mine ?? "").filter((f) => !f.handle || !kept.has(`${f.conversation_id}:${f.handle}`));
+  const marks = useSeen((s) => s.marks);
+  const fyi = unseen(useFyi(conversations, mine ?? ""), marks, Date.now()).filter((f) => !f.handle || !kept.has(`${f.conversation_id}:${f.handle}`));
   const titles = (id: number) => conversations?.find((c) => c.id === id)?.title ?? "";
   // The owner's questions replace the mention and reply cards in the dev build; ?old=1 brings the cards back.
   const cards = !DEV || new URLSearchParams(location.search).get("old") === "1";
@@ -130,9 +137,7 @@ export function DevNow({ compact = false, current = 0 }: NowProps = {}) {
   return (
     <>
       <div id="notes" hidden={compact}>
-        {me?.recovery?.hold_until ? (
-          <p className="banner" role="status">{`You signed in with a recovery code. Codes left: ${me.recovery.codes_left}. Some actions are paused for 24 hours.`}</p>
-        ) : null}
+        {me?.recovery?.hold_until ? <p className="banner" role="status">{`You signed in with a recovery code. Codes left: ${me.recovery.codes_left}. Some actions are paused for 24 hours.`}</p> : null}
         {onePasskey ? (
           <div className="card note">
             <span>One passkey guards this account.</span>
@@ -153,7 +158,19 @@ export function DevNow({ compact = false, current = 0 }: NowProps = {}) {
         centered={clear}
       />
       <div onKeyDown={moveFocus}>
-        <NeedsYou asks={asks} waiting={waitingPlans} fyi={fyi} server={{ shown: cards_, all: feed.items, feed, titles, skew }} busy={busy} presets={presets} answer={answer} dismiss={dismiss} snooze={snooze} current={current} compact={compact} />
+        <NeedsYou
+          asks={asks}
+          waiting={waitingPlans}
+          fyi={fyi}
+          server={{ shown: cards_, all: feed.items, feed, titles, skew }}
+          busy={busy}
+          presets={presets}
+          answer={answer}
+          dismiss={dismiss}
+          snooze={snooze}
+          current={current}
+          compact={compact}
+        />
       </div>
       {adds.length ? (
         <section id="adds" className="block" aria-label="Adds to decide">
@@ -183,11 +200,17 @@ export function DevNow({ compact = false, current = 0 }: NowProps = {}) {
         </div>
         <div id="requests">
           {(pending ?? []).map((req) =>
-            req.identity ? <RequestCard key={`m${req.id}`} item={{ kind: "login", key: `m${req.id}`, machine: req }} changed={reload} approved={markJoined} /> : <RequestCard key={`m${req.id}`} item={{ kind: "plain", key: `m${req.id}`, machine: req }} changed={reload} />,
+            req.identity ? (
+              <RequestCard key={`m${req.id}`} item={{ kind: "login", key: `m${req.id}`, machine: req }} changed={reload} approved={markJoined} />
+            ) : (
+              <RequestCard key={`m${req.id}`} item={{ kind: "plain", key: `m${req.id}`, machine: req }} changed={reload} />
+            ),
           )}
-          {connecting.filter((c) => c.kind === "session").map((c) => (
-            <RequestCard key={c.key} item={c} changed={reload} approved={markJoined} />
-          ))}
+          {connecting
+            .filter((c) => c.kind === "session")
+            .map((c) => (
+              <RequestCard key={c.key} item={c} changed={reload} approved={markJoined} />
+            ))}
         </div>
       </section>
       <Overdue late={overdue} />
