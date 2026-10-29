@@ -19,7 +19,7 @@ func leave2(ctx context.Context, d pdb.DBTX, now time.Time, it Item, event strin
 	if err := save(ctx, d, &it, now, true, event, by, note); err != nil {
 		return Item{}, err
 	}
-	return it, promote(ctx, d, now, it.Agent, it.Conversation)
+	return it, promote(ctx, d, now, it.Agent, it.Plan)
 }
 
 // Accept does what the item recommends and ends it at once. ifVersion is the version the owner saw: any later edit by the agent makes it

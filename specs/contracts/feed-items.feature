@@ -101,3 +101,14 @@ Feature: Feed items (contracts)
     Scenario: An empty context is refused and writes nothing
       When "devtool" sends start or block with a context that is empty or only spaces
       Then the answer is 400, the conversation gets no message and the feed has no item
+
+  Rule: A plan belongs to an agent: one now per plan, across conversations
+
+    @v1 @api
+    Scenario: Plans belong to the agent: one now per plan, no plan is main, a key keeps its plan
+      When "devtool" starts "x" and then "z" in plan "a", and "y" in plan "b", and "m" with no plan
+      Then "x" is started, "z" is pending behind it, "y" is started and "m" is started in plan "main"
+      And starting "x" again in plan "b" answers 409 and a plan name with a space answers 400
+      When "devtool" is done with "x"
+      Then "z" is started, "y" is untouched and GET /api/feed lists the plans a, b and main together
+

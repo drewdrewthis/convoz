@@ -8,18 +8,18 @@ SELECT * FROM feed_items WHERE agent_id = sqlc.arg(agent_id) AND conversation_id
 SELECT * FROM feed_items WHERE thread_root_id = sqlc.arg(thread_root_id);
 
 -- name: NowOf :one
-SELECT * FROM feed_items WHERE agent_id = sqlc.arg(agent_id) AND conversation_id = sqlc.arg(conversation_id) AND state IN ('started','blocking');
+SELECT * FROM feed_items WHERE agent_id = sqlc.arg(agent_id) AND plan_key = sqlc.arg(plan_key) AND state IN ('started','blocking');
 
 -- name: FirstPending :one
-SELECT * FROM feed_items WHERE agent_id = sqlc.arg(agent_id) AND conversation_id = sqlc.arg(conversation_id) AND state = 'pending'
+SELECT * FROM feed_items WHERE agent_id = sqlc.arg(agent_id) AND plan_key = sqlc.arg(plan_key) AND state = 'pending'
 ORDER BY seq LIMIT 1;
 
 -- name: NextSeq :one
-SELECT CAST(COALESCE(MAX(seq), 0) + 1 AS INTEGER) FROM feed_items WHERE agent_id = sqlc.arg(agent_id) AND conversation_id = sqlc.arg(conversation_id);
+SELECT CAST(COALESCE(MAX(seq), 0) + 1 AS INTEGER) FROM feed_items WHERE agent_id = sqlc.arg(agent_id);
 
 -- name: InsertItem :one
-INSERT INTO feed_items (agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, version, created_at, updated_at)
-VALUES (sqlc.arg(agent_id), sqlc.arg(conversation_id), sqlc.arg(work_key), sqlc.arg(seq), sqlc.arg(state), sqlc.arg(owner_step), sqlc.arg(title),
+INSERT INTO feed_items (agent_id, conversation_id, plan_key, work_key, seq, state, owner_step, title, context, recommendation, due_at, version, created_at, updated_at)
+VALUES (sqlc.arg(agent_id), sqlc.arg(conversation_id), sqlc.arg(plan_key), sqlc.arg(work_key), sqlc.arg(seq), sqlc.arg(state), sqlc.arg(owner_step), sqlc.arg(title),
   sqlc.arg(context), sqlc.narg(recommendation), sqlc.narg(due_at), 1, sqlc.arg(now), sqlc.arg(now))
 RETURNING *;
 
@@ -40,7 +40,7 @@ SELECT id, item_id, version, event, to_state, by_identity, note, at FROM feed_it
 -- What the feed lists: every step still to do, and a "no longer needs you", that the owner has not acknowledged (Okay).
 SELECT * FROM feed_items
 WHERE (state IN ('pending','started','blocking','fyi')) AND acked_at IS NULL
-ORDER BY conversation_id, agent_id, seq;
+ORDER BY agent_id, plan_key, seq;
 
 -- name: RecentDone :many
 SELECT * FROM feed_items WHERE state = 'done' ORDER BY updated_at DESC, id DESC LIMIT sqlc.arg(max);

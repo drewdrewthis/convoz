@@ -8,18 +8,20 @@ ItemRequest:
     recommend: { type: string, description: "Plain text, up to 500 characters: the one action the owner can accept. Without it the owner can only add info." }
     outcome: { type: string, description: The note of done, fyi and say. Plain text, up to 2000 characters. }
     app: { type: object, additionalProperties: true, description: "An app.v1 document shown with the item; it rides on the item's message. Start and block of a new item only." }
+    plan: { type: string, description: "The agent's plan for a new item, 1 to 64 letters, digits, dot, dash or underscore; empty is main. A key that exists keeps its plan (409 for another)." }
     due: { type: string, description: "A duration (2d, 1d4h, 30m), a time HH:MM or a date YYYY-MM-DD HH:MM; display only." }
     utc_offset: { type: integer, description: Seconds east of UTC, for due. }
 FeedItem:
   type: object
-  required: [id, conversation_id, agent_id, key, seq, state, title, can_accept, version, updated_at]
+  required: [id, conversation_id, agent_id, key, seq, plan, state, title, can_accept, version, updated_at]
   properties:
     id: { type: integer, format: int64 }
     conversation_id: { type: integer, format: int64 }
     agent_id: { type: integer, format: int64 }
     handle: { type: string }
     key: { type: string }
-    seq: { type: integer, format: int64, description: Order inside the plan of one agent in one conversation. }
+    seq: { type: integer, format: int64, description: Order inside the plans of one agent (one counter per agent). }
+    plan: { type: string, description: "The agent's plan this item is in: main, a name, or c<conversation id> for an item made before plans." }
     state: { type: string, enum: [pending, started, blocking, done, fyi, dropped] }
     title: { type: string }
     context: { type: string }

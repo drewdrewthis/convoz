@@ -52,7 +52,7 @@ func (s *Server) postItem(w http.ResponseWriter, r *http.Request, c *call) {
 		return
 	}
 	key, event, agent := r.PathValue("key"), r.PathValue("event"), c.p.Identity()
-	f := item.Fields{Title: in.Title, Context: in.Context, Recommend: in.Recommend}
+	f := item.Fields{Title: in.Title, Context: in.Context, Recommend: in.Recommend, Plan: in.Plan}
 	if in.Due != "" {
 		due, ok := plan.ParseDue(in.Due, in.UTCOffset, s.Clock.Now())
 		if !ok {
@@ -119,7 +119,7 @@ func (s *Server) itemChange(w http.ResponseWriter, r *http.Request, c *call, mov
 }
 
 func feedItemView(dir directory, it item.Item) wire.FeedItem {
-	return wire.FeedItem{ID: it.ID, ConversationID: it.Conversation, AgentID: it.Agent, Handle: dir[it.Agent].Handle, Key: it.Key, Seq: it.Seq, State: it.State,
+	return wire.FeedItem{ID: it.ID, ConversationID: it.Conversation, AgentID: it.Agent, Handle: dir[it.Agent].Handle, Key: it.Key, Seq: it.Seq, Plan: it.Plan, State: it.State,
 		Title: it.Title, Context: it.Context, Recommendation: it.Recommendation, CanAccept: it.State == item.Blocking && it.Recommendation != "",
 		ThreadRootID: it.ThreadRoot, DueAt: it.DueAt, AckedAt: it.AckedAt, AckKind: it.AckKind, SnoozedUntil: it.SnoozedUntil, Version: it.Version, UpdatedAt: it.UpdatedAt}
 }

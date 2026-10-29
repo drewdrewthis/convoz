@@ -52,6 +52,7 @@ type Item struct {
 	ID             int64
 	Agent          int64
 	Conversation   int64
+	Plan           string // the plan of the agent this item is in: main, a name, or c<conversation> for an item made before plans
 	Key            string
 	Seq            int64
 	State          string
@@ -78,6 +79,8 @@ type Fields struct {
 	DueAt     int64
 	// Root is the message the item is, set when the item is made (the server posts it); 0 for none.
 	Root int64
+	// Plan names the plan on a new item; empty is main. A key that exists keeps its plan: naming another is a conflict.
+	Plan string
 }
 
 // Event is one line of an item's audit.
@@ -114,6 +117,19 @@ func NeedContext(f Fields) (Fields, error) {
 	return f, err
 }
 
+// validPlan says whether a plan key is 1 to 64 characters of letters, digits, dot, dash and underscore.
+func validPlan(p string) bool {
+	if len(p) < 1 || len(p) > 64 {
+		return false
+	}
+	for _, r := range p {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '.' || r == '-' || r == '_') {
+			return false
+		}
+	}
+	return true
+}
+
 func (f Fields) check() (Fields, error) {
 	var err error
 	if f.Title, err = checkText(f.Title, 1, MaxTitle); err != nil {
@@ -125,6 +141,9 @@ func (f Fields) check() (Fields, error) {
 	if f.Recommend, err = checkText(f.Recommend, 0, MaxRecommend); err != nil {
 		return f, err
 	}
+	if f.Plan != "" && !validPlan(f.Plan) {
+		return f, ErrText
+	}
 	return f, nil
 }
 
@@ -132,7 +151,7 @@ func nstr(s string) sql.NullString { return sql.NullString{String: s, Valid: s !
 func nint(n int64) sql.NullInt64   { return sql.NullInt64{Int64: n, Valid: n != 0} }
 
 func fromRow(r db.FeedItem) Item {
-	return Item{ID: r.ID, Agent: r.AgentID, Conversation: r.ConversationID, Key: r.WorkKey, Seq: r.Seq, State: r.State, OwnerStep: r.OwnerStep == 1,
+	return Item{ID: r.ID, Agent: r.AgentID, Conversation: r.ConversationID, Plan: r.PlanKey, Key: r.WorkKey, Seq: r.Seq, State: r.State, OwnerStep: r.OwnerStep == 1,
 		Title: r.Title, Context: r.Context, Recommendation: r.Recommendation.String, DueAt: r.DueAt.Int64, AckedAt: r.AckedAt.Int64, AckedBy: r.AckedBy.Int64,
 		AckKind: r.AckKind.String, SnoozedUntil: r.SnoozedUntil.Int64, Version: r.Version, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, ThreadRoot: r.ThreadRootID.Int64}
 }
@@ -157,8 +176,8 @@ func save(ctx context.Context, d pdb.DBTX, it *Item, now time.Time, bump bool, e
 }
 
 // promote makes the lowest pending item of the plan the new now, in the caller's transaction. A step of the owner's becomes blocking.
-func promote(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int64) error {
-	row, err := db.New(d).FirstPending(ctx, db.FirstPendingParams{AgentID: agent, ConversationID: conv})
+func promote(ctx context.Context, d pdb.DBTX, now time.Time, agent int64, plan string) error {
+	row, err := db.New(d).FirstPending(ctx, db.FirstPendingParams{AgentID: agent, PlanKey: plan})
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}

@@ -3590,6 +3590,8 @@ export interface components {
             app?: {
                 [key: string]: unknown;
             };
+            /** @description The agent's plan for a new item, 1 to 64 letters, digits, dot, dash or underscore; empty is main. A key that exists keeps its plan (409 for another). */
+            plan?: string;
             /** @description A duration (2d, 1d4h, 30m), a time HH:MM or a date YYYY-MM-DD HH:MM; display only. */
             due?: string;
             /** @description Seconds east of UTC */
@@ -3606,9 +3608,11 @@ export interface components {
             key: string;
             /**
              * Format: int64
-             * @description Order inside the plan of one agent in one conversation.
+             * @description Order inside the plans of one agent (one counter per agent).
              */
             seq: number;
+            /** @description The agent's plan this item is in: main, a name, or c<conversation id> for an item made before plans. */
+            plan: string;
             /** @enum {string} */
             state: "pending" | "started" | "blocking" | "done" | "fyi" | "dropped";
             title: string;
