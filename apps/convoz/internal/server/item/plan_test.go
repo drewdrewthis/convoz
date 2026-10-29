@@ -97,3 +97,19 @@ func TestTheFeedListsEveryAgentAndPlanTogether(t *testing.T) {
 		t.Fatalf("%+v", f.Open)
 	}
 }
+
+// An item made before plans is in c<conversation>. Start and block with no plan edit it; a named plan that differs is a conflict (0050).
+func TestAnItemOfTheOldPlanTakesEditsThatNameNoPlan(t *testing.T) {
+	s := rig(t)
+	startIn(t, s, 1, devtool, convA, "old", "c41")
+	if got := startIn(t, s, 2, devtool, convA, "old", ""); got.Plan != "c41" || got.State != item.Started {
+		t.Fatalf("start with no plan: %+v", got)
+	}
+	err := run(t, s, func(ctx context.Context, d pdb.DBTX) error {
+		_, err := item.Start(ctx, d, at(3), devtool, convA, "old", item.Fields{Title: "Step old", Context: "Because", Plan: "main"})
+		return err
+	})
+	if !errors.Is(err, item.ErrConflict) {
+		t.Fatalf("a named plan that differs: %v", err)
+	}
+}
