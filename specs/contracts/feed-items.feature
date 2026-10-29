@@ -112,3 +112,39 @@ Feature: Feed items (contracts)
       When "devtool" is done with "x"
       Then "z" is started, "y" is untouched and GET /api/feed lists the plans a, b and main together
 
+  Rule: An agent takes a question of the owner as an item on his message
+
+    @v1 @api
+    Scenario: Taking a question makes started items on his message and posts nothing
+      When "devtool" takes the owner's main-chat message with a question and a research step
+      Then the question is a started item whose thread_root_id is his message, in plan "main", and the step is pending after it
+      And no message is posted and GET /api/feed shows the question
+      And taking an agent's message or a reply in a thread answers 400, and an empty context answers 400
+
+    @v1 @api
+    Scenario: A second take of a message needs its own question
+      When "devtool" takes a message with no question
+      Then the item is titled with the message text
+      When "devtool" takes it again with no question
+      Then the answer is 409
+      When "devtool" takes it with a new question
+      Then a second item is made with that title
+
+    @v1 @api
+    Scenario: His reply closes every item on the message, an answer reopens only its own, a plain reply the rest
+      Given "devtool" took two questions Q1 and Q2 of one message
+      When the owner replies in the message's thread
+      Then both items leave the feed
+      When "devtool" answers Q1
+      Then the thread gets one reply "> Q1" and the text, Q1 is done and back in the feed, and Q2 is still closed
+      When "devtool" posts a plain reply in the thread
+      Then Q2 is back in the feed
+
+    @v1 @api @cli
+    Scenario: Another agent's reply wakes the owner of an open item, and an acked item wakes nobody
+      Given "devtool" took a question and has read its inbox
+      When "docs" replies in the message's thread
+      Then "devtool" has one ready inbox item, and "docs" cannot move the item (404)
+      When the owner replies in the thread and "docs" replies again
+      Then "devtool" gets no new inbox item
+
