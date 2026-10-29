@@ -155,6 +155,7 @@ func promote(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int64) 
 	}
 	next := fromRow(row)
 	next.State = Started
+	unack(&next)
 	if next.OwnerStep {
 		next.State = Blocking
 	}

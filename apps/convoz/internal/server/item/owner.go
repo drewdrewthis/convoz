@@ -60,13 +60,14 @@ func Answer(ctx context.Context, d pdb.DBTX, now time.Time, by, id int64, text s
 	return it, db.New(d).InsertEvent(ctx, db.InsertEventParams{ItemID: it.ID, Version: it.Version, Event: "info", ToState: it.State, ByIdentity: nint(by), Note: note, At: now.UnixMilli()})
 }
 
-// GotIt acknowledges a "no longer needs you": the state stays, the feed hides it.
+// GotIt is the owner's Okay on an item that has no move of its own: the state stays and the feed hides it. It works on a started, a blocking
+// (with or without a recommendation), a pending and an fyi item. A later move of the agent (an edit, a block, done, fyi) clears it: see unack.
 func GotIt(ctx context.Context, d pdb.DBTX, now time.Time, by, id int64) (Item, error) {
 	it, err := ByID(ctx, d, id)
 	if err != nil {
 		return Item{}, err
 	}
-	if it.State != Fyi {
+	if !snoozable(it) {
 		return Item{}, ErrConflict
 	}
 	if it.AckedAt != 0 {

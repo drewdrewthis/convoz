@@ -47,7 +47,7 @@ func (q *Queries) EventsOf(ctx context.Context, itemID int64) ([]FeedItemEvent, 
 }
 
 const firstPending = `-- name: FirstPending :one
-SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, version, created_at, updated_at, thread_root_id FROM feed_items WHERE agent_id = ?1 AND conversation_id = ?2 AND state = 'pending'
+SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, thread_root_id, version, created_at, updated_at FROM feed_items WHERE agent_id = ?1 AND conversation_id = ?2 AND state = 'pending'
 ORDER BY seq LIMIT 1
 `
 
@@ -75,10 +75,10 @@ func (q *Queries) FirstPending(ctx context.Context, arg FirstPendingParams) (Fee
 		&i.AckedBy,
 		&i.AckKind,
 		&i.SnoozedUntil,
+		&i.ThreadRootID,
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.ThreadRootID,
 	)
 	return i, err
 }
@@ -115,7 +115,7 @@ const insertItem = `-- name: InsertItem :one
 INSERT INTO feed_items (agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, version, created_at, updated_at)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7,
   ?8, ?9, ?10, 1, ?11, ?11)
-RETURNING id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, version, created_at, updated_at, thread_root_id
+RETURNING id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, thread_root_id, version, created_at, updated_at
 `
 
 type InsertItemParams struct {
@@ -163,16 +163,16 @@ func (q *Queries) InsertItem(ctx context.Context, arg InsertItemParams) (FeedIte
 		&i.AckedBy,
 		&i.AckKind,
 		&i.SnoozedUntil,
+		&i.ThreadRootID,
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.ThreadRootID,
 	)
 	return i, err
 }
 
 const itemByID = `-- name: ItemByID :one
-SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, version, created_at, updated_at, thread_root_id FROM feed_items WHERE id = ?1
+SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, thread_root_id, version, created_at, updated_at FROM feed_items WHERE id = ?1
 `
 
 func (q *Queries) ItemByID(ctx context.Context, id int64) (FeedItem, error) {
@@ -194,16 +194,16 @@ func (q *Queries) ItemByID(ctx context.Context, id int64) (FeedItem, error) {
 		&i.AckedBy,
 		&i.AckKind,
 		&i.SnoozedUntil,
+		&i.ThreadRootID,
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.ThreadRootID,
 	)
 	return i, err
 }
 
 const itemByKey = `-- name: ItemByKey :one
-SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, version, created_at, updated_at, thread_root_id FROM feed_items WHERE agent_id = ?1 AND conversation_id = ?2 AND work_key = ?3
+SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, thread_root_id, version, created_at, updated_at FROM feed_items WHERE agent_id = ?1 AND conversation_id = ?2 AND work_key = ?3
 `
 
 type ItemByKeyParams struct {
@@ -231,10 +231,10 @@ func (q *Queries) ItemByKey(ctx context.Context, arg ItemByKeyParams) (FeedItem,
 		&i.AckedBy,
 		&i.AckKind,
 		&i.SnoozedUntil,
+		&i.ThreadRootID,
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.ThreadRootID,
 	)
 	return i, err
 }
@@ -256,7 +256,7 @@ func (q *Queries) NextSeq(ctx context.Context, arg NextSeqParams) (int64, error)
 }
 
 const nowOf = `-- name: NowOf :one
-SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, version, created_at, updated_at, thread_root_id FROM feed_items WHERE agent_id = ?1 AND conversation_id = ?2 AND state IN ('started','blocking')
+SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, thread_root_id, version, created_at, updated_at FROM feed_items WHERE agent_id = ?1 AND conversation_id = ?2 AND state IN ('started','blocking')
 `
 
 type NowOfParams struct {
@@ -283,21 +283,21 @@ func (q *Queries) NowOf(ctx context.Context, arg NowOfParams) (FeedItem, error) 
 		&i.AckedBy,
 		&i.AckKind,
 		&i.SnoozedUntil,
+		&i.ThreadRootID,
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.ThreadRootID,
 	)
 	return i, err
 }
 
 const openItems = `-- name: OpenItems :many
-SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, version, created_at, updated_at, thread_root_id FROM feed_items
-WHERE state IN ('pending','started','blocking') OR (state = 'fyi' AND acked_at IS NULL)
+SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, thread_root_id, version, created_at, updated_at FROM feed_items
+WHERE (state IN ('pending','started','blocking','fyi')) AND acked_at IS NULL
 ORDER BY conversation_id, agent_id, seq
 `
 
-// What the feed lists: every step still to do, and a "no longer needs you" the owner has not acknowledged.
+// What the feed lists: every step still to do, and a "no longer needs you", that the owner has not acknowledged (Okay).
 func (q *Queries) OpenItems(ctx context.Context) ([]FeedItem, error) {
 	rows, err := q.db.QueryContext(ctx, openItems)
 	if err != nil {
@@ -323,10 +323,10 @@ func (q *Queries) OpenItems(ctx context.Context) ([]FeedItem, error) {
 			&i.AckedBy,
 			&i.AckKind,
 			&i.SnoozedUntil,
+			&i.ThreadRootID,
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.ThreadRootID,
 		); err != nil {
 			return nil, err
 		}
@@ -342,7 +342,7 @@ func (q *Queries) OpenItems(ctx context.Context) ([]FeedItem, error) {
 }
 
 const recentDone = `-- name: RecentDone :many
-SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, version, created_at, updated_at, thread_root_id FROM feed_items WHERE state = 'done' ORDER BY updated_at DESC, id DESC LIMIT ?1
+SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, thread_root_id, version, created_at, updated_at FROM feed_items WHERE state = 'done' ORDER BY updated_at DESC, id DESC LIMIT ?1
 `
 
 func (q *Queries) RecentDone(ctx context.Context, max int64) ([]FeedItem, error) {
@@ -370,10 +370,10 @@ func (q *Queries) RecentDone(ctx context.Context, max int64) ([]FeedItem, error)
 			&i.AckedBy,
 			&i.AckKind,
 			&i.SnoozedUntil,
+			&i.ThreadRootID,
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.ThreadRootID,
 		); err != nil {
 			return nil, err
 		}

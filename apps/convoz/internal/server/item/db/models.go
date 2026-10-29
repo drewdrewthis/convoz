@@ -24,10 +24,10 @@ type FeedItem struct {
 	AckedBy        sql.NullInt64
 	AckKind        sql.NullString
 	SnoozedUntil   sql.NullInt64
+	ThreadRootID   sql.NullInt64
 	Version        int64
 	CreatedAt      int64
 	UpdatedAt      int64
-	ThreadRootID   sql.NullInt64
 }
 
 type FeedItemEvent struct {

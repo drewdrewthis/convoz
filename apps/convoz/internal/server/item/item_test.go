@@ -391,15 +391,86 @@ func TestGotItSetsAckedAtAndKeepsTheState(t *testing.T) {
 	}
 }
 
-func TestGotItOnAnItemThatIsNotFyiIsAConflict(t *testing.T) {
+func TestGotItOnAFinishedItemIsAConflict(t *testing.T) {
 	s := rig(t)
 	x := start(t, s, 0, devtool, convA, "x")
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error {
+		_, err := item.MarkDone(ctx, d, at(1), devtool, convA, "x", "ok")
+		return err
+	})
 	err := run(t, s, func(ctx context.Context, d pdb.DBTX) error {
-		_, err := item.GotIt(ctx, d, at(1), drew, x.ID)
+		_, err := item.GotIt(ctx, d, at(2), drew, x.ID)
 		return err
 	})
 	if !errors.Is(err, item.ErrConflict) {
 		t.Fatal(err)
+	}
+}
+
+func inFeed(t *testing.T, s *pdb.Store, id int64) bool {
+	t.Helper()
+	for _, it := range listAll(t, s).Open {
+		if it.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+func ack(t *testing.T, s *pdb.Store, n int, id int64) item.Item {
+	t.Helper()
+	var got item.Item
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) (err error) {
+		got, err = item.GotIt(ctx, d, at(n), drew, id)
+		return err
+	})
+	return got
+}
+
+func TestOkayOnAStartedItemHidesItAndALaterMoveBringsItBack(t *testing.T) {
+	s := rig(t)
+	x := start(t, s, 0, devtool, convA, "x")
+	got := ack(t, s, 1, x.ID)
+	if got.State != item.Started || got.AckedAt == 0 || inFeed(t, s, x.ID) {
+		t.Fatalf("an acked started item stays started and leaves the feed: %+v", got)
+	}
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error {
+		_, err := item.Block(ctx, d, at(2), devtool, convA, "x", item.Fields{Title: "Need you"})
+		return err
+	})
+	if !inFeed(t, s, x.ID) || get(t, s, devtool, convA, "x").AckedAt != 0 {
+		t.Fatal("block brings it back")
+	}
+	// An edit of the same key, done and promotion also bring an acked item back.
+	ack(t, s, 3, x.ID)
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error {
+		_, err := item.MarkFyi(ctx, d, at(4), devtool, convA, "x", "got round it")
+		return err
+	})
+	if !inFeed(t, s, x.ID) {
+		t.Fatal("fyi brings an acked blocking item back")
+	}
+}
+
+func TestOkayOnABlockingItemWithNoRecommendationHidesItAndItStaysBlocking(t *testing.T) {
+	s := rig(t)
+	x := block(t, s, 0, devtool, convA, "x", "")
+	got := ack(t, s, 1, x.ID)
+	if got.State != item.Blocking || inFeed(t, s, x.ID) {
+		t.Fatalf("%+v", got)
+	}
+}
+
+func TestAnEditBringsAnAckedStartedItemBack(t *testing.T) {
+	s := rig(t)
+	x := start(t, s, 0, devtool, convA, "x")
+	ack(t, s, 1, x.ID)
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error {
+		_, err := item.Start(ctx, d, at(2), devtool, convA, "x", item.Fields{Title: "A new title"})
+		return err
+	})
+	if !inFeed(t, s, x.ID) {
+		t.Fatal("an edit brings it back")
 	}
 }
 

@@ -39,14 +39,18 @@ Feature: Feed items (contracts)
       When the owner sends POST /api/feed/{c}/answer with text and resolves true
       Then the server answers 200 with "c" done
 
-  Rule: Got it hides an fyi and keeps its state; the owner may snooze
+  Rule: Okay hides an item and keeps its state, until the agent moves it again; the owner may snooze
 
     @v1 @api
-    Scenario: Got it sets acked_at and leaves the state; snooze sets the wake time
+    Scenario: Okay sets acked_at and leaves the state; snooze sets the wake time
       Given "devtool" blocked "a" and then said fyi for it
       When the owner sends POST /api/feed/{a}/ack
       Then the server answers 200 with "a" still fyi and acked_at set, and GET /api/feed no longer lists it
       Given "devtool" started "b"
+      When the owner sends POST /api/feed/{b}/ack
+      Then the server answers 200 with "b" still started, and GET /api/feed no longer lists it
+      When "devtool" sends block for "b"
+      Then GET /api/feed lists "b" again
       When the owner sends PUT /api/feed/{b}/snooze with a time in the future
       Then the server answers 200 with snoozed_until set, and a time in the past answers 400
       And an agent lease gets 401 or 403 on every owner route

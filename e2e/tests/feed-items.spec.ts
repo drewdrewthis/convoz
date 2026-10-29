@@ -71,7 +71,7 @@ scenario("A stale Accept answers 409, and no recommendation means no Accept", { 
   expect(ans.json().state).toBe("done");
 });
 
-scenario("Got it sets acked_at and leaves the state; snooze sets the wake time", { tag: ["@api"] }, async ({ server }) => {
+scenario("Okay hides a started item until the agent moves it again; snooze sets the wake time", { tag: ["@api"] }, async ({ server }) => {
   const p = await planWorld(server);
   const a = (await item(p, p.dev.lease, "a", "block", { title: "Decide", recommend: "Go" })).json();
   expect((await item(p, p.dev.lease, "a", "fyi", { outcome: "Did it myself" })).status).toBe(200);
@@ -81,6 +81,12 @@ scenario("Got it sets acked_at and leaves the state; snooze sets the wake time",
   expect(got.json().acked_at).toBeGreaterThan(0);
   expect((await feed(p)).items).toEqual([]);
   const b = (await item(p, p.dev.lease, "b", "start", { title: "Work" })).json();
+  const okB = await ownerPost(p, `/api/feed/${b.id}/ack`);
+  expect(okB.status, okB.text).toBe(200);
+  expect(okB.json().state).toBe("started");
+  expect((await feed(p)).items).toEqual([]);
+  expect((await item(p, p.dev.lease, "b", "block", { title: "Work", recommend: "" })).status).toBe(200);
+  expect((await feed(p)).items.map((i: { id: number }) => i.id)).toEqual([b.id]);
   const until = Date.now() + 3_600_000;
   const sn = await p.w.owner.client.request("PUT", `/api/feed/${b.id}/snooze`, { csrf: true, json: { until } });
   expect(sn.status, sn.text).toBe(200);

@@ -12,7 +12,7 @@ type Feed = ReturnType<typeof useServerFeed>;
 
 /**
  * ServerItem is one item the server keeps (GET /api/feed) in the frame, with the three actions Okay, Reply and Snooze (owner, conv 179 msg 12251).
- * Okay is Accept on a blocking item that recommends something and Got it on an fyi; an item with nothing to accept or acknowledge has no Okay.
+ * Okay is Accept on a blocking item that recommends something; on any other item it is the acknowledge (POST ack): the item leaves the feed until the agent moves it again.
  * Reply opens the item's thread with the box in focus; with no thread yet the box starts one (POST reply). It does not close the item.
  */
 export function ServerItem({ item, next, feed, from, skew }: { item: FeedItem; next: string[]; feed: Feed; from: string; skew: number }) {
@@ -20,7 +20,7 @@ export function ServerItem({ item, next, feed, from, skew }: { item: FeedItem; n
   const busy = feed.busy === item.id;
   const options = laterOptionsAt(Date.now() + skew);
   const blocking = item.state === "blocking";
-  const okay = blocking && item.can_accept ? () => feed.accept(item) : item.state === "fyi" ? () => feed.ack(item) : null;
+  const okay = () => (blocking && item.can_accept ? feed.accept(item) : feed.ack(item));
   return (
     <ItemFrame
       kind={blocking ? "blocking" : item.state === "started" ? "started" : "done"}
@@ -35,12 +35,10 @@ export function ServerItem({ item, next, feed, from, skew }: { item: FeedItem; n
       snooze={{ presets: options.map((o) => ({ key: o.label, label: o.label })), pick: (k) => void feed.snooze(item, options.find((o) => o.label === k)?.until ?? 0) }}
       actions={
         <>
-          {okay ? (
-            <Button variant="primary" size="inline" className="mr-8 ml-8" disabled={busy} onClick={() => void okay()}>
-              <OkayGlyph />
-              Okay
-            </Button>
-          ) : null}
+          <Button variant="primary" size="inline" className="mr-8 ml-8" disabled={busy} onClick={() => void okay()}>
+            <OkayGlyph />
+            Okay
+          </Button>
           <Button variant="text" size="inline" onClick={() => setRequest((n) => n + 1)}>
             <ReplyGlyph />
             Reply

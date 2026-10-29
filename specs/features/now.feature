@@ -31,6 +31,16 @@ Feature: Now
       When the owner presses "Reply" on the second
       Then its thread opens with the reply box in focus and stays open
 
+  Rule: Okay takes a server item out of the feed, whatever its state (dev build)
+
+    @v1 @browser @unimplemented
+    Scenario: Okay on a started item or a blocking item with no recommendation hides it until the agent moves it again
+      Given "devtool" has a started item "Index the filters" and a blocking item "Which branch?" with no recommendation
+      When the owner opens Now in the dev build and presses "Okay" on each
+      Then both leave the list on every device
+      When "devtool" blocks "Index the filters"
+      Then it is in the list again
+
   Rule: Every item in the dev build has the actions Okay, Reply and Snooze, each with the icon of the main Now
 
     @v1 @browser @unimplemented
