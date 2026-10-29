@@ -32,6 +32,12 @@ func create(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int64, k
 		return Item{}, err
 	}
 	it := fromRow(row)
+	if f.Root != 0 {
+		if err := SetThreadRoot(ctx, d, it.ID, f.Root); err != nil {
+			return Item{}, err
+		}
+		it.ThreadRoot = f.Root
+	}
 	event := "start"
 	if owner {
 		event = "block"

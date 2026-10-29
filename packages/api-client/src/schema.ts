@@ -3580,12 +3580,16 @@ export interface components {
         ItemRequest: {
             /** @description Plain text */
             title?: string;
-            /** @description Plain text */
+            /** @description Plain text, 1 to 2000 characters on start and block (never empty). */
             context?: string;
             /** @description Plain text, up to 500 characters: the one action the owner can accept. Without it the owner can only add info. */
             recommend?: string;
             /** @description The note of done */
             outcome?: string;
+            /** @description An app.v1 document shown with the item; it rides on the item's message. Start and block of a new item only. */
+            app?: {
+                [key: string]: unknown;
+            };
             /** @description A duration (2d, 1d4h, 30m), a time HH:MM or a date YYYY-MM-DD HH:MM; display only. */
             due?: string;
             /** @description Seconds east of UTC */
