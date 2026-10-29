@@ -21,6 +21,12 @@ export interface FrameProps {
   from: { id: number; title: string };
   /** Later steps of the same plan, drawn quietly under the item. */
   next?: string[];
+  /** The item sits in its own conversation: no From link and no Copy link. */
+  inChat?: boolean;
+  /** More rows for the ⋮ menu, such as Pin and Delete. */
+  menu?: { label: string; run: () => void }[];
+  /** A small line under the item, such as the reply count. */
+  foot?: ReactNode;
   /** An app an agent attached, drawn under the context. */
   app?: ReactNode;
   /** The thread folded inside the item (FeedThread); the frame only gives it its place. */
@@ -38,7 +44,7 @@ export interface FrameProps {
 }
 
 /** ItemMenu is the ⋮ button of an item and its menu, with the same "Copy link" row the message menu has. */
-function ItemMenu({ conversation, message }: { conversation: number; message?: number }) {
+function ItemMenu({ conversation, message, inChat, menu = [] }: { conversation: number; message?: number; inChat?: boolean; menu?: FrameProps["menu"] }) {
   const phone = usePhone();
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement | null>(null);
@@ -64,9 +70,16 @@ function ItemMenu({ conversation, message }: { conversation: number; message?: n
       </IconButton>
       {open ? (
         <AskMenu sheet={phone} holder={sheet} shut={() => setOpen(false)}>
-          <MenuItem sheet={phone} onClick={() => (setOpen(false), copyUrl(url))}>
-            Copy link
-          </MenuItem>
+          {inChat ? null : (
+            <MenuItem sheet={phone} onClick={() => (setOpen(false), copyUrl(url))}>
+              Copy link
+            </MenuItem>
+          )}
+          {menu?.map((m) => (
+            <MenuItem key={m.label} sheet={phone} onClick={() => (setOpen(false), m.run())}>
+              {m.label}
+            </MenuItem>
+          ))}
         </AskMenu>
       ) : null}
     </div>
@@ -110,7 +123,7 @@ function Snooze({ presets, pick, busy }: { presets: SnoozePreset[]; pick: (key: 
 }
 
 /** ItemFrame is one feed item: Title, Context, From, the thread, then the actions and Snooze. */
-export function ItemFrame({ kind, title, context, tag, next, from, app, thread, snooze, actions, busy, dataId, at, link }: FrameProps) {
+export function ItemFrame({ kind, title, context, tag, next, from, inChat, menu, foot, app, thread, snooze, actions, busy, dataId, at, link }: FrameProps) {
   const href = `/chats/${from.id}`;
   return (
     <article className="flex min-w-0 flex-col gap-4 rounded-[14px] border border-solid border-border bg-raised px-14 pt-12 pb-4" data-item={kind} data-ask={dataId} tabIndex={-1} aria-label={title}>
@@ -120,7 +133,7 @@ export function ItemFrame({ kind, title, context, tag, next, from, app, thread, 
         </span>
         <span className="flex items-center">
           <ItemTime at={at} />
-          <ItemMenu conversation={from.id} message={link?.message} />
+          <ItemMenu conversation={from.id} message={link?.message} inChat={inChat} menu={menu} />
         </span>
       </div>
       <h3 className="m-0 text-17 leading-[22px] font-semibold [overflow-wrap:anywhere]">{title}</h3>
@@ -132,13 +145,16 @@ export function ItemFrame({ kind, title, context, tag, next, from, app, thread, 
       ) : null}
       {app}
       {next?.length ? <p className="m-0 text-12 text-muted [overflow-wrap:anywhere]">{`Next: ${next.join(" · ")}`}</p> : null}
-      <p className="m-0 text-13 text-muted">
-        {"From "}
-        <a className="text-inherit underline" href={href} onClick={(e) => visit(e, href)}>
-          {from.title || "Untitled conversation"}
-        </a>
-      </p>
+      {inChat ? null : (
+        <p className="m-0 text-13 text-muted">
+          {"From "}
+          <a className="text-inherit underline" href={href} onClick={(e) => visit(e, href)}>
+            {from.title || "Untitled conversation"}
+          </a>
+        </p>
+      )}
       {thread}
+      {foot}
       {actions || snooze ? (
         <div className="-mx-8 flex flex-wrap items-center" role="group" aria-label="Actions">
           {actions}
