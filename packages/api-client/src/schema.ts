@@ -1636,7 +1636,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Got it, acknowledge an fyi. The state stays; the feed hides it.
+         * Okay: acknowledge a pending, started, blocking or fyi item. The state stays; the feed hides it until the agent moves the item again.
          * @description Owner only; an agent lease is refused. 404 for an unknown item, 409 for a state or version that does not allow it.
          */
         post: operations["feedAck"];
