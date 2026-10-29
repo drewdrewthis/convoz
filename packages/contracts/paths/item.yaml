@@ -80,6 +80,28 @@
           application/json:
             schema: { $ref: "../openapi.yaml#/components/schemas/FeedItem" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/feed/{id}/reply:
+  post:
+    x-authz: { auth: owner, lease: refuse }
+    operationId: feedReply
+    summary: Write in the item's thread. The first write starts it.
+    description: >
+      Owner only; an agent lease is refused. With no thread yet the text becomes a new message with the item title quoted above it, and its id
+      is kept as thread_root_id; otherwise it is a reply in that thread. 404 for an unknown item, 409 if another writer started the thread at the same moment (send again).
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "../openapi.yaml#/components/schemas/FeedReplyRequest" }
+    responses:
+      "200":
+        description: The item as it now is.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/FeedItem" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/feed/{id}/ack:
   post:
     x-authz: { auth: owner, lease: refuse }

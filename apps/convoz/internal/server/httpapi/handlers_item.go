@@ -111,7 +111,7 @@ func (s *Server) itemChange(w http.ResponseWriter, r *http.Request, c *call, mov
 func feedItemView(dir directory, it item.Item) wire.FeedItem {
 	return wire.FeedItem{ID: it.ID, ConversationID: it.Conversation, AgentID: it.Agent, Handle: dir[it.Agent].Handle, Key: it.Key, Seq: it.Seq, State: it.State,
 		Title: it.Title, Context: it.Context, Recommendation: it.Recommendation, CanAccept: it.State == item.Blocking && it.Recommendation != "",
-		DueAt: it.DueAt, AckedAt: it.AckedAt, AckKind: it.AckKind, SnoozedUntil: it.SnoozedUntil, Version: it.Version, UpdatedAt: it.UpdatedAt}
+		ThreadRootID: it.ThreadRoot, DueAt: it.DueAt, AckedAt: it.AckedAt, AckKind: it.AckKind, SnoozedUntil: it.SnoozedUntil, Version: it.Version, UpdatedAt: it.UpdatedAt}
 }
 
 // getFeed is GET /api/feed: open items in plan order, the finished ones last. Owner only.

@@ -526,3 +526,17 @@ func TestTheFeedListsOpenStepsInPlanOrderAndTheLastDone(t *testing.T) {
 		t.Fatalf("%+v", f)
 	}
 }
+
+func TestAThreadRootIsKeptOnceAndAnOldItemHasNone(t *testing.T) {
+	s := rig(t)
+	dbtest.Exec(t, s, `INSERT INTO messages (id, conversation_id, author_id, kind, body, created_at) VALUES (100,10,2,'text','Step a',1),(101,10,2,'text','Other',1)`)
+	it := start(t, s, 1, devtool, convA, "a")
+	if it.ThreadRoot != 0 {
+		t.Fatalf("a new row has no thread root until the caller posts one, got %d", it.ThreadRoot)
+	}
+	must(t, 0, run(t, s, func(ctx context.Context, d pdb.DBTX) error { return item.SetThreadRoot(ctx, d, it.ID, 100) }))
+	must(t, 0, run(t, s, func(ctx context.Context, d pdb.DBTX) error { return item.SetThreadRoot(ctx, d, it.ID, 101) }))
+	if got := get(t, s, devtool, convA, "a").ThreadRoot; got != 100 {
+		t.Fatalf("the first root stays, got %d", got)
+	}
+}

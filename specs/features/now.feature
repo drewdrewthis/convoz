@@ -28,6 +28,16 @@ Feature: Now
       Given the owner asked a question in a conversation and an agent answered
       Then the question's item in Now shows the conversation thread of that question with a reply box
 
+
+  Rule: An item the server keeps opens directly into its thread (dev build)
+
+    @v1 @browser @unimplemented
+    Scenario: A server item shows its thread, or an empty reply box that starts one
+      Given an agent made an item with "convoz item block", and an older item has no thread root
+      Then an item with a thread shows it with a reply box, and an item with none shows an empty reply box
+      When the owner writes in the empty reply box
+      Then the text starts the thread, shows in it, and the owner stays in Now
+
   Rule: The one-list Now, the right drawer and the Work screen are in the dev build (/dev) only; the main app is unchanged
 
     @v1 @browser @unimplemented

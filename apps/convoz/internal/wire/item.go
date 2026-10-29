@@ -27,6 +27,8 @@ type FeedItem struct {
 	Title          string `json:"title"`
 	Context        string `json:"context,omitempty"`
 	Recommendation string `json:"recommendation,omitempty"`
+	// ThreadRootID is the message the item's thread hangs on; 0 until someone writes in the thread.
+	ThreadRootID int64 `json:"thread_root_id,omitempty"`
 	// CanAccept is false for a blocking item with no recommendation: Add info only.
 	CanAccept    bool   `json:"can_accept"`
 	DueAt        int64  `json:"due_at,omitempty"`
@@ -52,6 +54,11 @@ type FeedAcceptRequest struct {
 type FeedAnswerRequest struct {
 	Text     string `json:"text"`
 	Resolves bool   `json:"resolves,omitempty"`
+}
+
+// FeedReplyRequest is POST /api/feed/:id/reply: the owner writes in the item's thread.
+type FeedReplyRequest struct {
+	Text string `json:"text"`
 }
 
 // FeedSnoozeRequest is PUT /api/feed/:id/snooze.
