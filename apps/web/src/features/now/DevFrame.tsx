@@ -125,7 +125,7 @@ function Snooze({ presets, pick, busy }: { presets: SnoozePreset[]; pick: (key: 
 }
 
 /** ItemFrame is one feed item: Title, Context, From, the thread, then the actions and Snooze. */
-export function ItemFrame({ kind, title, context, tag, next, from, inChat, menu, foot, app, thread, snooze, actions, busy, dataId, at, link }: FrameProps) {
+export function ItemFrame({ kind, title, context, tag, next, from, inChat, menu, foot, quiet, app, thread, snooze, actions, busy, dataId, at, link }: FrameProps) {
   const href = `/chats/${from.id}`;
   return (
     <article className="flex min-w-0 flex-col gap-4 rounded-[14px] border border-solid border-border bg-raised px-14 pt-12 pb-4" data-item={kind} data-ask={dataId} tabIndex={-1} aria-label={title}>
