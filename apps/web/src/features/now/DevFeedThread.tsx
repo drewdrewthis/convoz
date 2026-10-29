@@ -19,6 +19,8 @@ interface FeedThreadProps {
   onReplied?: (ok: boolean) => void;
   /** A number that goes up each time the item asks for the thread to open with its reply box focused (the Reply button). It shows even with no replies yet. */
   request?: number;
+  /** Sends the text another way (a server item: POST /api/feed/:id/reply, which also closes the item). Without it the text is a reply in the thread. */
+  send?: (text: string) => void;
 }
 
 /**
@@ -27,7 +29,7 @@ interface FeedThreadProps {
  * draws them in place with the conversation's own message rendering; folding it hides them again. The owner stays in Now.
  * "Reply here", under the open thread, answers in it without leaving Now (owner, conv 179 msg 8239): the reply shows in the thread as sending, then sent.
  */
-export function FeedThread({ conversation, root, count: known, onReplied, request = 0 }: FeedThreadProps) {
+export function FeedThread({ conversation, root, count: known, onReplied, request = 0, send: sendText }: FeedThreadProps) {
   const [view, setView] = useState<Pick<ThreadState, "seen" | "open" | "writing">>({ seen: 0, open: false, writing: false });
   const [text, setText] = useState("");
   const [Replies, setReplies] = useState<Replies | null>(null);
@@ -65,6 +67,7 @@ export function FeedThread({ conversation, root, count: known, onReplied, reques
     setText("");
     setWriting(false);
     setOpen(() => true);
+    if (sendText) return sendText(body);
     const { load, reply } = useThreads.getState();
     void load(conversation, root).catch(() => {});
     void reply(root, body).then((ok) => onReplied?.(ok));

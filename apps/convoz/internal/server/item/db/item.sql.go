@@ -239,6 +239,53 @@ func (q *Queries) ItemByKey(ctx context.Context, arg ItemByKeyParams) (FeedItem,
 	return i, err
 }
 
+const itemsByRoot = `-- name: ItemsByRoot :many
+SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, thread_root_id, version, created_at, updated_at FROM feed_items WHERE thread_root_id = ?1
+`
+
+func (q *Queries) ItemsByRoot(ctx context.Context, threadRootID sql.NullInt64) ([]FeedItem, error) {
+	rows, err := q.db.QueryContext(ctx, itemsByRoot, threadRootID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []FeedItem
+	for rows.Next() {
+		var i FeedItem
+		if err := rows.Scan(
+			&i.ID,
+			&i.AgentID,
+			&i.ConversationID,
+			&i.WorkKey,
+			&i.Seq,
+			&i.State,
+			&i.OwnerStep,
+			&i.Title,
+			&i.Context,
+			&i.Recommendation,
+			&i.DueAt,
+			&i.AckedAt,
+			&i.AckedBy,
+			&i.AckKind,
+			&i.SnoozedUntil,
+			&i.ThreadRootID,
+			&i.Version,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const nextSeq = `-- name: NextSeq :one
 SELECT CAST(COALESCE(MAX(seq), 0) + 1 AS INTEGER) FROM feed_items WHERE agent_id = ?1 AND conversation_id = ?2
 `

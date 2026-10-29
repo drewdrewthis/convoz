@@ -4,6 +4,9 @@ SELECT * FROM feed_items WHERE id = sqlc.arg(id);
 -- name: ItemByKey :one
 SELECT * FROM feed_items WHERE agent_id = sqlc.arg(agent_id) AND conversation_id = sqlc.arg(conversation_id) AND work_key = sqlc.arg(work_key);
 
+-- name: ItemsByRoot :many
+SELECT * FROM feed_items WHERE thread_root_id = sqlc.arg(thread_root_id);
+
 -- name: NowOf :one
 SELECT * FROM feed_items WHERE agent_id = sqlc.arg(agent_id) AND conversation_id = sqlc.arg(conversation_id) AND state IN ('started','blocking');
 

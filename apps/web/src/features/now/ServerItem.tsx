@@ -13,7 +13,7 @@ type Feed = ReturnType<typeof useServerFeed>;
 /**
  * ServerItem is one item the server keeps (GET /api/feed) in the frame, with the three actions Okay, Reply and Snooze (owner, conv 179 msg 12251).
  * Okay is Accept on a blocking item that recommends something; on any other item it is the acknowledge (POST ack): the item leaves the feed until the agent moves it again.
- * Reply opens the item's thread with the box in focus; with no thread yet the box starts one (POST reply). It does not close the item.
+ * Reply opens the item's thread with the box in focus; with no thread yet the box starts one. Sending goes through POST reply, which also closes the item: it leaves the list until an agent writes in the thread (owner, conv 179 msg 12444).
  */
 export function ServerItem({ item, next, feed, from, skew }: { item: FeedItem; next: string[]; feed: Feed; from: string; skew: number }) {
   const [request, setRequest] = useState(0);
@@ -32,7 +32,7 @@ export function ServerItem({ item, next, feed, from, skew }: { item: FeedItem; n
       next={next}
       from={{ id: item.conversation_id, title: from }}
       busy={busy}
-      thread={item.thread_root_id ? <FeedThread conversation={item.conversation_id} root={item.thread_root_id} request={request} /> : <ReplyBox busy={busy} request={request} send={(t) => void feed.reply(item, t)} />}
+      thread={item.thread_root_id ? <FeedThread conversation={item.conversation_id} root={item.thread_root_id} request={request} send={(t) => void feed.reply(item, t)} /> : <ReplyBox busy={busy} request={request} send={(t) => void feed.reply(item, t)} />}
       snooze={{ presets: options.map((o) => ({ key: o.label, label: o.label })), pick: (k) => void feed.snooze(item, options.find((o) => o.label === k)?.until ?? 0) }}
       actions={
         <>

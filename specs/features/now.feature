@@ -41,6 +41,16 @@ Feature: Now
       When the owner presses "Reply" and sends "Use the new index"
       Then the box was in focus when it appeared, and the item shows its thread with the reply
 
+  Rule: Sending a reply closes the item, and an agent's reply reopens it (dev build)
+
+    @v1 @browser @unimplemented
+    Scenario: After Reply sends, the item leaves the list, and comes back when the agent replies
+      Given "devtool" has a blocking item "Merge the filters" in the list
+      When the owner presses "Reply" and sends "Go, but wait for CI"
+      Then the item leaves the list
+      When "devtool" replies in the item's thread
+      Then the item is in the list again, even if the owner had snoozed it
+
   Rule: Okay takes a server item out of the feed, whatever its state (dev build)
 
     @v1 @browser @unimplemented
