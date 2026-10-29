@@ -172,3 +172,20 @@ scenario("An empty context is refused and writes nothing", { tag: ["@api"] }, as
   expect((await messagesOf(p.w.owner, p.conv)).length).toBe(before);
   expect((await feed(p)).items).toEqual([]);
 });
+
+scenario("Plans belong to the agent: one now per plan, no plan is main, a key keeps its plan", { tag: ["@api"] }, async ({ server }) => {
+  const p = await planWorld(server);
+  const start = (key: string, plan?: string) => item(p, p.dev.lease, key, "start", { title: `Step ${key}`, context: "Because", ...(plan ? { plan } : {}) });
+  expect((await start("x", "a")).json().state).toBe("started");
+  expect((await start("z", "a")).json().state).toBe("pending");
+  expect((await start("y", "b")).json().state).toBe("started");
+  const m = (await start("m")).json();
+  expect([m.plan, m.state]).toEqual(["main", "started"]);
+  expect((await start("x", "b")).status).toBe(409);
+  expect((await item(p, p.dev.lease, "x", "done")).status).toBe(200);
+  const listed = (await feed(p)).items;
+  expect(listed.find((i: { key: string }) => i.key === "z")?.state).toBe("started");
+  expect(listed.find((i: { key: string }) => i.key === "y")?.state).toBe("started");
+  expect(listed.map((i: { plan: string }) => i.plan).sort()).toEqual(["a", "b", "main"]);
+  expect((await start("bad", "no good")).status).toBe(400);
+});
