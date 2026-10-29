@@ -7,6 +7,7 @@ import { toast } from "../pins-stars/index.ts";
 import { FeedThread } from "./DevFeedThread.tsx";
 import { entries, nextOf } from "./entries.ts";
 import { ItemFrame } from "./DevFrame.tsx";
+import { OkayGlyph, ReplyGlyph } from "./DevIcons.tsx";
 import { NowAsk } from "./NowAsk.tsx";
 import { useNow } from "./store.ts";
 import { ServerItem } from "./ServerItem.tsx";
@@ -31,7 +32,7 @@ interface NeedsYouProps {
 
 const clockOf = (at: number) => new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
-/** AskItem is an open ask in the frame: Accept answers with the first (recommended) option; Add info opens its thread with the reply box in focus. */
+/** AskItem is an open ask in the frame: Okay answers with the first (recommended) option; Reply opens its thread with the reply box in focus. */
 function AskItem({ ask, busy, presets, answer, snooze }: { ask: Ask; busy: boolean; presets: SnoozePreset[]; answer: NeedsYouProps["answer"]; snooze: NeedsYouProps["snooze"] }) {
   const [request, setRequest] = useState(0);
   const root = ask.thread_root_id ?? ask.id;
@@ -51,10 +52,12 @@ function AskItem({ ask, busy, presets, answer, snooze }: { ask: Ask; busy: boole
       actions={
         <>
           <Button variant="primary" size="inline" className="mr-8 ml-8" disabled={busy} onClick={() => answer(ask, { choice: "recommended" })}>
-            Accept
+            <OkayGlyph />
+            Okay
           </Button>
           <Button variant="text" size="inline" onClick={() => setRequest((n) => n + 1)}>
-            Add info
+            <ReplyGlyph />
+            Reply
           </Button>
         </>
       }
@@ -62,12 +65,30 @@ function AskItem({ ask, busy, presets, answer, snooze }: { ask: Ask; busy: boole
   );
 }
 
-/** FyiItem is a piece of work started or done, or an answered question: the owner only needs to know. It has no action yet: Got it comes with the server's feed record. */
+/** FyiItem is a piece of work started or done, or an answered question: the owner only needs to know. Reply opens its thread when it has one. Okay and Snooze come with the server's feed record. */
 function FyiItem({ item: f }: { item: Fyi }) {
-  return <ItemFrame kind={f.state} title={f.title} context={f.context} next={f.next} from={{ id: f.conversation_id, title: f.from }} thread={f.root ? <FeedThread conversation={f.conversation_id} root={f.root} direct /> : undefined} />;
+  const [request, setRequest] = useState(0);
+  return (
+    <ItemFrame
+      kind={f.state}
+      title={f.title}
+      context={f.context}
+      next={f.next}
+      from={{ id: f.conversation_id, title: f.from }}
+      thread={f.root ? <FeedThread conversation={f.conversation_id} root={f.root} request={request} direct /> : undefined}
+      actions={
+        f.root ? (
+          <Button variant="text" size="inline" className="ml-8" onClick={() => setRequest((n) => n + 1)}>
+            <ReplyGlyph />
+            Reply
+          </Button>
+        ) : undefined
+      }
+    />
+  );
 }
 
-/** PlanItem is a plan step that waits on the owner. The server has no snooze for it and no thread of its own, so both buttons open the conversation for now. */
+/** PlanItem is a plan step that waits on the owner. The server has no snooze for it and no thread of its own, so Okay and Reply open the conversation for now. */
 function PlanItem({ plan }: { plan: NowWaiting }) {
   const href = `/chats/${plan.conversation.id}`;
   return (
@@ -79,10 +100,12 @@ function PlanItem({ plan }: { plan: NowWaiting }) {
       actions={
         <>
           <Button variant="primary" size="inline" className="mr-8 ml-8" href={href} onClick={(e) => visit(e, href)}>
-            Accept
+            <OkayGlyph />
+            Okay
           </Button>
           <Button variant="text" size="inline" href={href} onClick={(e) => visit(e, href)}>
-            Add info
+            <ReplyGlyph />
+            Reply
           </Button>
         </>
       }

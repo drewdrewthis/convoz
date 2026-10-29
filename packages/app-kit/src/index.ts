@@ -1,6 +1,7 @@
 // The Tier 1 app kits (design E-1..E-4): React components an app message renders with, validated against app.v1.
 // The ask card sits here too: Now and the transcript draw the same card.
 export { AskCard, usePhone } from "./AskCard.tsx";
+export { Icon, REPLY_D, SNOOZE_D } from "./AskActions.tsx";
 export { AskMenu, MenuItem } from "./AskMenu.tsx";
 export { stateLine, whoLine } from "./askData.ts";
 export { ReplyCount } from "./ReplyCount.tsx";
