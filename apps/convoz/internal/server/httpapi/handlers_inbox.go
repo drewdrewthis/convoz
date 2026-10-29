@@ -303,7 +303,7 @@ func (s *Server) claimOnce(ctx context.Context, c *call, req inbox.Request) (ite
 			delivered[it.ID] = true
 		}
 		for _, it := range claimed {
-			if it.Held || !delivered[it.ID] || it.Reason == inbox.ReasonStatusDue { // a nudge is no work on the conversation
+			if it.Held || !delivered[it.ID] || it.Reason == inbox.ReasonStatusDue || it.Reason == inbox.ReasonItemStale { // a nudge is no work on the conversation
 				continue
 			}
 			fresh = append(fresh, inbox.Hold{Conversation: it.ConversationID, Message: it.MessageID, Until: it.ClaimUntil})
@@ -397,6 +397,16 @@ func (s *Server) deliver(ctx context.Context, d pdb.DBTX, now time.Time, p authz
 		}
 		if it.Reason == inbox.ReasonStatusDue {
 			wi, ok, err := s.statusDueItem(ctx, d, now, p, it, expire)
+			if err != nil {
+				return nil, err
+			}
+			if ok {
+				out = append(out, wi)
+			}
+			continue
+		}
+		if it.Reason == inbox.ReasonItemStale {
+			wi, ok, err := s.itemStaleItem(ctx, d, now, p, it, expire)
 			if err != nil {
 				return nil, err
 			}

@@ -511,3 +511,67 @@ func (q *Queries) SetThreadRoot(ctx context.Context, arg SetThreadRootParams) er
 	_, err := q.db.ExecContext(ctx, setThreadRoot, arg.ThreadRootID, arg.ID)
 	return err
 }
+
+const startedQuietSince = `-- name: StartedQuietSince :many
+SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, thread_root_id, version, created_at, updated_at, plan_key FROM feed_items WHERE state = 'started' AND updated_at <= ?1 ORDER BY id
+`
+
+// The started items nobody touched since the cutoff: the sweep reminds their agents.
+func (q *Queries) StartedQuietSince(ctx context.Context, cutoff int64) ([]FeedItem, error) {
+	rows, err := q.db.QueryContext(ctx, startedQuietSince, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []FeedItem
+	for rows.Next() {
+		var i FeedItem
+		if err := rows.Scan(
+			&i.ID,
+			&i.AgentID,
+			&i.ConversationID,
+			&i.WorkKey,
+			&i.Seq,
+			&i.State,
+			&i.OwnerStep,
+			&i.Title,
+			&i.Context,
+			&i.Recommendation,
+			&i.DueAt,
+			&i.AckedAt,
+			&i.AckedBy,
+			&i.AckKind,
+			&i.SnoozedUntil,
+			&i.ThreadRootID,
+			&i.Version,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.PlanKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const touchItem = `-- name: TouchItem :exec
+UPDATE feed_items SET updated_at = ?1 WHERE id = ?2
+`
+
+type TouchItemParams struct {
+	UpdatedAt int64
+	ID        int64
+}
+
+// A say moves the item (updated_at) without changing what the owner reads: state and version stay.
+func (q *Queries) TouchItem(ctx context.Context, arg TouchItemParams) error {
+	_, err := q.db.ExecContext(ctx, touchItem, arg.UpdatedAt, arg.ID)
+	return err
+}
