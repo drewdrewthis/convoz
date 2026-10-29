@@ -82,8 +82,8 @@ Feature: Feed items (contracts)
     Scenario: The owner's reply closes the item and an agent's reply in its thread reopens it, even when snoozed
       Given "devtool" blocked "a" with a recommendation
       When the owner sends POST /api/feed/{a}/reply with a text
-      Then the answer has acked_at set and the state still blocking
+      Then the answer has acked_at set and the state still blocking, and GET /api/feed does not list it
       When the owner snoozes it and "devtool" posts a message outside its thread
-      Then the item is still acked
+      Then GET /api/feed still does not list it
       When "devtool" posts a reply in the item's thread
-      Then GET /api/feed lists the item with no acked_at and no snoozed_until
+      Then GET /api/feed lists the item again, with no acked_at and no snoozed_until
