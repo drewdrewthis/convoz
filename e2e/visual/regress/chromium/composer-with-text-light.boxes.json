@@ -68,387 +68,387 @@
    10,
    60,
    112,
-   32
+   44
   ],
   "svg \"\"#4": [
-   19,
-   69,
+   18,
+   75,
    14,
    14
   ],
   "a \"New conversation\"#0": [
    126,
-   60,
+   66,
    32,
    32
   ],
   "svg \"\"#5": [
    135,
-   69,
+   75,
    14,
    14
   ],
   "a \"Invite agent\"#0": [
    162,
-   60,
+   66,
    32,
    32
   ],
   "svg \"\"#6": [
    171,
-   69,
+   75,
    14,
    14
   ],
   "button \"Fold all threads\"#0": [
    198,
-   60,
+   66,
    32,
    32
   ],
   "svg \"\"#7": [
    207,
-   69,
+   75,
    14,
    14
   ],
   "button \"Now\"#0": [
    10,
-   104,
+   116,
    220,
    32
   ],
   "svg \"\"#8": [
    18,
-   113,
+   125,
    14,
    14
   ],
   "a \"Conversations\"#0": [
    10,
-   148,
+   160,
    220,
    18.8
   ],
   "a \"assistant\"#0": [
    10,
-   167.8,
+   179.8,
    220,
    32
   ],
   "button \"Star conversation assistant\"#0": [
    202,
-   169.8,
+   181.8,
    28,
    28
   ],
   "svg \"\"#9": [
    209,
-   176.8,
+   188.8,
    14,
    14
   ],
   "button \"Reorder assistant. Alt plus arrow keys move it.\"#0": [
    180,
-   169.8,
+   181.8,
    22,
    28
   ],
   "svg \"\"#10": [
    184,
-   176.8,
+   188.8,
    14,
    14
   ],
   "a \"Ops reports, 1 unread\"#0": [
    10,
-   206.8,
+   218.8,
    197.47,
    32
   ],
   "button \"Fold threads of Ops reports\"#0": [
    207.47,
-   200.8,
+   212.8,
    22.53,
    44
   ],
   "button \"Star conversation Ops reports\"#0": [
    178,
-   208.8,
+   220.8,
    28,
    28
   ],
   "svg \"\"#11": [
    185,
-   215.8,
+   227.8,
    14,
    14
   ],
   "button \"Reorder Ops reports. Alt plus arrow keys move it.\"#0": [
    156,
-   208.8,
+   220.8,
    22,
    28
   ],
   "svg \"\"#12": [
    160,
-   215.8,
+   227.8,
    14,
    14
   ],
   "a \"Open thread: Deploy finished at 5:29. I'm watching the error rate., 1 unread\"#0": [
    30,
-   245.8,
+   257.8,
    200,
    32
   ],
   "span \"Unread: 1\"#0": [
    202,
-   252.8,
+   264.8,
    20,
    18
   ],
   "a \"Bug #8642 · null check fix, 2 unread\"#0": [
    10,
-   280.8,
+   292.8,
    220,
    32
   ],
   "button \"Star conversation Bug #8642 · null check fix\"#0": [
    202,
-   282.8,
+   294.8,
    28,
    28
   ],
   "svg \"\"#13": [
    209,
-   289.8,
+   301.8,
    14,
    14
   ],
   "button \"Reorder Bug #8642 · null check fix. Alt plus arrow keys move it.\"#0": [
    180,
-   282.8,
+   294.8,
    22,
    28
   ],
   "svg \"\"#14": [
    184,
-   289.8,
+   301.8,
    14,
    14
   ],
   "a \"Issue #100 · agent chat, 6 unread\"#0": [
    10,
-   313.8,
+   325.8,
    220,
    32
   ],
   "button \"Star conversation Issue #100 · agent chat\"#0": [
    202,
-   315.8,
+   327.8,
    28,
    28
   ],
   "svg \"\"#15": [
    209,
-   322.8,
+   334.8,
    14,
    14
   ],
   "button \"Reorder Issue #100 · agent chat. Alt plus arrow keys move it.\"#0": [
    180,
-   315.8,
+   327.8,
    22,
    28
   ],
   "svg \"\"#16": [
    184,
-   322.8,
+   334.8,
    14,
    14
   ],
   "a \"lane-search, 4 unread\"#0": [
    10,
-   346.8,
+   358.8,
    220,
    32
   ],
   "button \"Star conversation lane-search\"#0": [
    202,
-   348.8,
+   360.8,
    28,
    28
   ],
   "svg \"\"#17": [
    209,
-   355.8,
+   367.8,
    14,
    14
   ],
   "button \"Reorder lane-search. Alt plus arrow keys move it.\"#0": [
    180,
-   348.8,
+   360.8,
    22,
    28
   ],
   "svg \"\"#18": [
    184,
-   355.8,
+   367.8,
    14,
    14
   ],
   "a \"Team updates\"#0": [
    10,
-   379.8,
+   391.8,
    220,
    32
   ],
   "button \"Star conversation Team updates\"#0": [
    202,
-   381.8,
+   393.8,
    28,
    28
   ],
   "svg \"\"#19": [
    209,
-   388.8,
+   400.8,
    14,
    14
   ],
   "button \"Reorder Team updates. Alt plus arrow keys move it.\"#0": [
    180,
-   381.8,
+   393.8,
    22,
    28
   ],
   "svg \"\"#20": [
    184,
-   388.8,
+   400.8,
    14,
    14
   ],
   "a \"usage-bot, 2 unread\"#0": [
    10,
-   412.8,
+   424.8,
    220,
    32
   ],
   "button \"Star conversation usage-bot\"#0": [
    202,
-   414.8,
+   426.8,
    28,
    28
   ],
   "svg \"\"#21": [
    209,
-   421.8,
+   433.8,
    14,
    14
   ],
   "button \"Reorder usage-bot. Alt plus arrow keys move it.\"#0": [
    180,
-   414.8,
+   426.8,
    22,
    28
   ],
   "svg \"\"#22": [
    184,
-   421.8,
+   433.8,
    14,
    14
   ],
   "a \"scrum-master, 1 unread\"#0": [
    10,
-   445.8,
+   457.8,
    220,
    32
   ],
   "button \"Star conversation scrum-master\"#0": [
    202,
-   447.8,
+   459.8,
    28,
    28
   ],
   "svg \"\"#23": [
    209,
-   454.8,
+   466.8,
    14,
    14
   ],
   "button \"Reorder scrum-master. Alt plus arrow keys move it.\"#0": [
    180,
-   447.8,
+   459.8,
    22,
    28
   ],
   "svg \"\"#24": [
    184,
-   454.8,
+   466.8,
    14,
    14
   ],
   "a \"Why did the nightly export get slower?\"#0": [
    10,
-   478.8,
+   490.8,
    220,
    32
   ],
   "button \"Star conversation Why did the nightly export get slower?\"#0": [
    202,
-   480.8,
+   492.8,
    28,
    28
   ],
   "svg \"\"#25": [
    209,
-   487.8,
+   499.8,
    14,
    14
   ],
   "button \"Reorder Why did the nightly export get slower?. Alt plus arrow keys move it.\"#0": [
    180,
-   480.8,
+   492.8,
    22,
    28
   ],
   "svg \"\"#26": [
    184,
-   487.8,
+   499.8,
    14,
    14
   ],
   "a \"night-watch\"#0": [
    10,
-   511.8,
+   523.8,
    220,
    32
   ],
   "button \"Star conversation night-watch\"#0": [
    202,
-   513.8,
+   525.8,
    28,
    28
   ],
   "svg \"\"#27": [
    209,
-   520.8,
+   532.8,
    14,
    14
   ],
   "button \"Reorder night-watch. Alt plus arrow keys move it.\"#0": [
    180,
-   513.8,
+   525.8,
    22,
    28
   ],
   "svg \"\"#28": [
    184,
-   520.8,
+   532.8,
    14,
    14
   ],
-  "a \"Deliveries\"#0": [
+  "a \"Work\"#0": [
    10,
    642,
    220,
