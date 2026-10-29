@@ -47,3 +47,7 @@ SELECT * FROM feed_items WHERE state = 'done' ORDER BY updated_at DESC, id DESC 
 
 -- name: SetThreadRoot :exec
 UPDATE feed_items SET thread_root_id = sqlc.arg(thread_root_id) WHERE id = sqlc.arg(id) AND thread_root_id IS NULL;
+
+-- name: PauseItem :exec
+UPDATE feed_items SET state = 'pending', seq = (SELECT MIN(o.seq) - 1 FROM feed_items o WHERE o.agent_id = sqlc.arg(agent_id)), version = version + 1, updated_at = sqlc.arg(updated_at)
+WHERE feed_items.id = sqlc.arg(id);

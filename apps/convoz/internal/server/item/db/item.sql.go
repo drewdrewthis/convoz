@@ -392,6 +392,22 @@ func (q *Queries) OpenItems(ctx context.Context) ([]FeedItem, error) {
 	return items, nil
 }
 
+const pauseItem = `-- name: PauseItem :exec
+UPDATE feed_items SET state = 'pending', seq = (SELECT MIN(o.seq) - 1 FROM feed_items o WHERE o.agent_id = ?1), version = version + 1, updated_at = ?2
+WHERE feed_items.id = ?3
+`
+
+type PauseItemParams struct {
+	AgentID   int64
+	UpdatedAt int64
+	ID        int64
+}
+
+func (q *Queries) PauseItem(ctx context.Context, arg PauseItemParams) error {
+	_, err := q.db.ExecContext(ctx, pauseItem, arg.AgentID, arg.UpdatedAt, arg.ID)
+	return err
+}
+
 const recentDone = `-- name: RecentDone :many
 SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, thread_root_id, version, created_at, updated_at, plan_key FROM feed_items WHERE state = 'done' ORDER BY updated_at DESC, id DESC LIMIT ?1
 `
