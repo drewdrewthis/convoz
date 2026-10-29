@@ -34,7 +34,7 @@ func Item(args []string, io IO) int {
 	if sub == "start" || sub == "block" {
 		context = f.fs.String("context", "", "why, in a sentence or two (plain text, 2000 characters)")
 		appOpt = newAppOpts(f, "an app to show with the item (a JSON file); it rides on the item's message")
-		plan = f.fs.String("plan", "main", "the plan this item is in; plans belong to you and span conversations (letters, digits, . - _)")
+		plan = f.fs.String("plan", "", "the plan a new item is in, main when not given; an item that exists keeps its plan, so name it only to say which plan you mean (letters, digits, . - _)")
 		due = f.fs.String("due", "", "when it is due, for display: a duration (2d, 1d4h) or a time HH:MM")
 	}
 	if sub == "block" {
@@ -72,6 +72,7 @@ func Item(args []string, io IO) int {
 				return code
 			}
 		}
+		// Without --plan nothing is sent: a new item lands in main on the server, and an item that exists keeps its plan (a legacy one is in c<conv>).
 		req.Plan = *plan
 		req.Title, req.Context, req.Recommend = text, *context, ""
 		if recommend != nil {
