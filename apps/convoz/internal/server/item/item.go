@@ -76,6 +76,8 @@ type Fields struct {
 	Context   string
 	Recommend string
 	DueAt     int64
+	// Root is the message the item is, set when the item is made (the server posts it); 0 for none.
+	Root int64
 }
 
 // Event is one line of an item's audit.
@@ -100,6 +102,16 @@ func checkText(s string, min, max int) (string, error) {
 		return "", ErrText
 	}
 	return s, nil
+}
+
+// NeedContext checks the fields of a start or a block as the agent's CLI and the API send them: the context is never empty
+// (owner, conv 179 msg 12448: "I always want context").
+func NeedContext(f Fields) (Fields, error) {
+	f, err := f.check()
+	if err == nil && f.Context == "" {
+		err = ErrText
+	}
+	return f, err
 }
 
 func (f Fields) check() (Fields, error) {

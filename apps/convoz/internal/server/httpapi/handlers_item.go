@@ -26,7 +26,8 @@ func (s *Server) itemRefused(w http.ResponseWriter, r *http.Request, err error) 
 	case errors.Is(err, item.ErrNoRecommendation):
 		writeErr(w, http.StatusConflict, "no_recommendation", "This item has no recommendation to accept. Add info instead.")
 	case errors.Is(err, item.ErrText):
-		writeErr(w, http.StatusBadRequest, "invalid_request", "Text must be plain (no markdown, no links) and within its length: title 1-200, context 2000, recommendation 500, key 1-64.")
+		writeErr(w, http.StatusBadRequest, "invalid_request", "Text must be plain (no markdown, no links) and within its length: title 1-200, context 1-2000 on start and block, recommendation 500, key 1-64.")
+	case appRefused(w, err) || s.messageRefused(w, err):
 	default:
 		s.internalError(w, r, err)
 	}
@@ -60,13 +61,21 @@ func (s *Server) postItem(w http.ResponseWriter, r *http.Request, c *call) {
 		}
 		f.DueAt = due
 	}
+	var wake []int64
+	if !s.itemBudget(w, r, c, conv, key, event) {
+		return
+	}
+	app := []byte(in.App)
+	if string(app) == "null" {
+		app = nil
+	}
+	withMessage := func(ctx context.Context, d pdb.DBTX, now time.Time) (it item.Item, err error) {
+		it, wake, err = s.itemWithMessage(ctx, d, c, now, conv, key, event, f, app)
+		return it, err
+	}
 	moves := map[string]func(ctx context.Context, d pdb.DBTX, now time.Time) (item.Item, error){
-		"start": func(ctx context.Context, d pdb.DBTX, now time.Time) (item.Item, error) {
-			return item.Start(ctx, d, now, agent, conv, key, f)
-		},
-		"block": func(ctx context.Context, d pdb.DBTX, now time.Time) (item.Item, error) {
-			return item.Block(ctx, d, now, agent, conv, key, f)
-		},
+		"start": withMessage,
+		"block": withMessage,
 		"done": func(ctx context.Context, d pdb.DBTX, now time.Time) (item.Item, error) {
 			return item.MarkDone(ctx, d, now, agent, conv, key, in.Outcome)
 		},
@@ -86,6 +95,7 @@ func (s *Server) postItem(w http.ResponseWriter, r *http.Request, c *call) {
 		return
 	}
 	s.itemChange(w, r, c, move)
+	s.Bus.Notify(wake...)
 }
 
 // itemChange runs one move in one transaction and writes the item.

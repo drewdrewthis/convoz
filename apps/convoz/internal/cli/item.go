@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
@@ -13,7 +14,7 @@ import (
 // when the now step is done, fyi or dropped the next one starts by itself. block makes the step the owner's: give --recommend so the owner
 // can accept it in one tap; without it the owner can only add info. Text is plain: no markdown, no links.
 func Item(args []string, io IO) int {
-	usage := "usage: convoz item start|block|done|fyi|drop|say <conv> <key> [\"<text>\"] [--context C] [--recommend R] [--due D]"
+	usage := "usage: convoz item start|block|done|fyi|drop|say <conv> <key> [\"<text>\"] --context C [--recommend R] [--due D] [--app FILE]"
 	if len(args) == 0 {
 		return usageError(io, usage)
 	}
@@ -25,8 +26,10 @@ func Item(args []string, io IO) int {
 	}
 	f := newChatFlags("item "+sub, io)
 	var context, recommend, due *string
+	var appOpt appOpts
 	if sub == "start" || sub == "block" {
 		context = f.fs.String("context", "", "why, in a sentence or two (plain text, 2000 characters)")
+		appOpt = newAppOpts(f, "an app to show with the item (a JSON file); it rides on the item's message")
 		due = f.fs.String("due", "", "when it is due, for display: a duration (2d, 1d4h) or a time HH:MM")
 	}
 	if sub == "block" {
@@ -52,7 +55,18 @@ func Item(args []string, io IO) int {
 	if len(pos) == 3 {
 		text = pos[2]
 	}
+	var appRaw []byte
+	var appBundle string
 	if sub == "start" || sub == "block" {
+		if strings.TrimSpace(*context) == "" {
+			return usageError(io, "--context is required: say in a sentence or two why, for the owner. "+usage)
+		}
+		if appOpt.set() {
+			var code int
+			if appRaw, appBundle, code = appOpt.check(io); code != ExitOK {
+				return code
+			}
+		}
 		req.Title, req.Context, req.Recommend = text, *context, ""
 		if recommend != nil {
 			req.Recommend = *recommend
@@ -67,6 +81,13 @@ func Item(args []string, io IO) int {
 	k, code := f.open(io)
 	if k == nil {
 		return code
+	}
+	if appRaw != nil {
+		app, code := appOpt.send(k, conv, appRaw, appBundle)
+		if code != ExitOK {
+			return code
+		}
+		req.App = app
 	}
 	var out wire.FeedItem
 	if err := k.callRetry("POST", convPath(conv, "items/"+url.PathEscape(pos[1])+"/"+sub), req, &out); err != nil {

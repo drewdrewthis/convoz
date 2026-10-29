@@ -10,7 +10,7 @@ import { expect, scenario } from "../lib/scenario.ts";
 //   PUT /api/feed/:id/snooze {until}, DELETE /api/feed/:id/snooze.
 
 const item = (p: PlanWorld, lease: string, key: string, event: string, body: Record<string, unknown> = {}) =>
-  send(p.w.srv.target, "POST", `/api/conversations/${p.conv}/items/${key}/${event}`, { json: body, ...bearer(lease) });
+  send(p.w.srv.target, "POST", `/api/conversations/${p.conv}/items/${key}/${event}`, { json: event === "start" || event === "block" ? { context: "Because", ...body } : body, ...bearer(lease) });
 const ownerPost = (p: PlanWorld, path: string, json: Record<string, unknown> = {}) => p.w.owner.client.request("POST", path, { csrf: true, json });
 const feed = async (p: PlanWorld) => (await p.w.owner.client.request("GET", "/api/feed")).json();
 const states = (f: any) => f.items.map((i: any) => `${i.key}:${i.state}`);
@@ -18,7 +18,7 @@ const states = (f: any) => f.items.map((i: any) => `${i.key}:${i.state}`);
 scenario("The next step starts by itself when the one now is done", { tag: ["@cli"] }, async ({ server }) => {
   const p = await planWorld(server);
   // The sub-command comes right after "item", before the common flags, so this does not go through the convoz() helper.
-  const run = (sid: string, sub: string, ...rest: string[]) => p.w.box.run(["item", sub, "--sid", sid, "--timeout", "10s", ...rest], { timeoutMs: 20_000 });
+  const run = (sid: string, sub: string, ...rest: string[]) => p.w.box.run(["item", sub, "--sid", sid, "--timeout", "10s", ...(sub === "start" || sub === "block" ? ["--context", "Because"] : []), ...rest], { timeoutMs: 20_000 });
   expect((await run(p.dev.sid, "start", String(p.conv), "chips", "Reply chip")).code).toBe(0);
   expect((await run(p.dev.sid, "start", String(p.conv), "load", "Faster first load")).code).toBe(0);
   expect(states(await feed(p))).toEqual(["chips:started", "load:pending"]);
@@ -106,21 +106,17 @@ scenario("Markdown, links and over-long text are refused with 400", { tag: ["@ap
   expect((await item(p, p.dev.lease, "k", "block", { title: x(200), context: x(2000), recommend: x(500) })).status).toBe(200);
 });
 
-scenario("Making and moving an item posts no message; the owner's first reply starts the thread", { tag: ["@api"] }, async ({ server }) => {
+scenario("The owner's replies on an item go in the thread of the item's message", { tag: ["@api"] }, async ({ server }) => {
   const p = await planWorld(server);
-  const before = (await messagesOf(p.w.owner, p.conv)).length;
   const made = (await item(p, p.dev.lease, "a", "block", { title: "Merge the filters", recommend: "Go" })).json();
-  expect(made.thread_root_id ?? 0).toBe(0);
-  expect((await messagesOf(p.w.owner, p.conv)).length).toBe(before);
+  const root = made.thread_root_id;
+  expect(root).toBeGreaterThan(0);
   const first = await ownerPost(p, `/api/feed/${made.id}/reply`, { text: "Go, but wait for CI" });
   expect(first.status, first.text).toBe(200);
-  const root = first.json().thread_root_id;
-  expect(root).toBeGreaterThan(0);
-  const rows = await messagesOf(p.w.owner, p.conv);
-  expect(rows.find((m) => m.id === root)?.body).toBe("> Merge the filters\n\nGo, but wait for CI");
+  expect(first.json().thread_root_id).toBe(root);
   const second = (await ownerPost(p, `/api/feed/${made.id}/reply`, { text: "Any news?" })).json();
   expect(second.thread_root_id).toBe(root);
-  expect((await messagesOf(p.w.owner, p.conv, `thread=${root}`)).map((m) => m.body)).toContain("Any news?");
+  expect((await messagesOf(p.w.owner, p.conv, `thread=${root}`)).map((m) => m.body)).toEqual(["Go, but wait for CI", "Any news?"]);
   expect([401, 403]).toContain((await send(p.w.srv.target, "POST", `/api/feed/${made.id}/reply`, { json: { text: "x" }, ...bearer(p.dev.lease) })).status);
 });
 
@@ -146,4 +142,33 @@ scenario("The owner's reply closes the item and an agent's reply in its thread r
   expect(back).toBeDefined();
   expect(back?.acked_at ?? 0).toBe(0);
   expect(back?.snoozed_until ?? 0).toBe(0);
+});
+
+scenario("An item is the agent's message: start and block post it and root the item on it", { tag: ["@api"] }, async ({ server }) => {
+  const p = await planWorld(server);
+  const before = (await messagesOf(p.w.owner, p.conv)).length;
+  const made = await item(p, p.dev.lease, "m", "start", { title: "Index the filters", context: "The search is slow" });
+  expect(made.status, made.text).toBe(200);
+  const root = made.json().thread_root_id;
+  expect(root).toBeGreaterThan(0);
+  const rows = await messagesOf(p.w.owner, p.conv);
+  expect(rows.length).toBe(before + 1);
+  expect(rows.find((m) => m.id === root)?.body).toBe("Index the filters\n\nThe search is slow");
+  expect((await feed(p)).items.find((i: { id: number }) => i.id === made.json().id)?.thread_root_id).toBe(root);
+  // Saying it again edits the item and posts nothing
+  expect((await item(p, p.dev.lease, "m", "start", { title: "Index the filters", context: "Slow on a million rows" })).status).toBe(200);
+  expect((await messagesOf(p.w.owner, p.conv)).length).toBe(before + 1);
+  // The owner's reply goes in that message's thread
+  const reply = await ownerPost(p, `/api/feed/${made.json().id}/reply`, { text: "Thanks" });
+  expect(reply.json().thread_root_id).toBe(root);
+});
+
+scenario("An empty context is refused and writes nothing", { tag: ["@api"] }, async ({ server }) => {
+  const p = await planWorld(server);
+  const before = (await messagesOf(p.w.owner, p.conv)).length;
+  for (const event of ["start", "block"]) {
+    for (const context of ["", "   "]) expect((await item(p, p.dev.lease, "e", event, { title: "X", context })).status).toBe(400);
+  }
+  expect((await messagesOf(p.w.owner, p.conv)).length).toBe(before);
+  expect((await feed(p)).items).toEqual([]);
 });

@@ -1,5 +1,7 @@
 package wire
 
+import "encoding/json"
+
 // RouteFeed is GET /api/feed: the owner's feed items.
 const RouteFeed = "/api/feed"
 
@@ -10,6 +12,8 @@ type ItemRequest struct {
 	Context   string `json:"context,omitempty"`
 	Recommend string `json:"recommend,omitempty"`
 	Outcome   string `json:"outcome,omitempty"`
+	// App is an app.v1 document (appkit) shown with the item: it rides on the item's message. Start and block only, on a new item.
+	App json.RawMessage `json:"app,omitempty"`
 	// Due is a duration (2d), a time HH:MM or a date YYYY-MM-DD HH:MM in the agent's zone (UTCOffset seconds east); display only.
 	Due       string `json:"due,omitempty"`
 	UTCOffset int    `json:"utc_offset,omitempty"`
