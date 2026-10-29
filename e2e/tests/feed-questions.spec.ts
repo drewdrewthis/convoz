@@ -1,4 +1,4 @@
-import { agentPost, agentSays, inboxItems, messagesOf, ownerSays, peekFor } from "../lib/chat.ts";
+import { agentPost, agentSays, messagesOf, ownerSays, peekFor } from "../lib/chat.ts";
 import { send } from "../lib/http.ts";
 import { bearer } from "../lib/machines.ts";
 import { planWorld, type PlanWorld } from "../lib/plan.ts";
@@ -68,14 +68,13 @@ scenario("Another agent's reply wakes the owner of an open item, and an acked it
   const p = await planWorld(server);
   const msg = await ownerSays(p.w.owner, p.conv, "Q");
   const q = (await take(p, p.dev.lease, msg, { question: "Q" })).json().items[0];
-  await inboxItems(p.w.box, p.dev.sid, ["--claim", "20", "--wait", "0"]);
-  expect(await peekFor(p.w.box, p.dev.sid, p.conv)).toEqual([]);
+  const waiting = async () => (await peekFor(p.w.box, p.dev.sid, p.conv)).reduce((n, i) => n + i.count, 0);
+  const base = await waiting();
   expect((await agentPost(p.w.srv, p.docs.lease, p.conv, "I know this one", { thread_root_id: msg })).status).toBe(201);
-  expect((await peekFor(p.w.box, p.dev.sid, p.conv)).length).toBe(1);
+  expect(await waiting()).toBe(base + 1);
   expect((await send(p.w.srv.target, "POST", `/api/conversations/${p.conv}/items/${q.key}/done`, { json: {}, ...bearer(p.docs.lease) })).status).toBe(404);
-  await inboxItems(p.w.box, p.dev.sid, ["--claim", "20", "--wait", "0"]);
   expect((await ownerReplies(p, msg, "Okay")).status).toBe(201);
-  await inboxItems(p.w.box, p.dev.sid, ["--claim", "20", "--wait", "0"]);
+  const settled = await waiting();
   expect((await agentPost(p.w.srv, p.docs.lease, p.conv, "More detail", { thread_root_id: msg })).status).toBe(201);
-  expect(await peekFor(p.w.box, p.dev.sid, p.conv)).toEqual([]);
+  expect(await waiting()).toBe(settled);
 });
