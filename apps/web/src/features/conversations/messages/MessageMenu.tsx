@@ -259,7 +259,11 @@ export function EditedMark({ id }: { id: number }) {
 
 /** copyLink puts the full link of a message on the clipboard; when the browser refuses, it shows the link to copy by hand. */
 function copyLink(conversation: number, id: number) {
-  const url = `${location.origin}/chats/${conversation}#m${id}`;
+  copyUrl(`${location.origin}/chats/${conversation}#m${id}`);
+}
+
+/** copyUrl is the copy of a link: "Link copied", or the link in a prompt when the browser refuses the clipboard. */
+export function copyUrl(url: string) {
   const byHand = () => window.prompt("Copy this link", url);
   if (!navigator.clipboard) return void byHand();
   navigator.clipboard.writeText(url).then(() => toast("Link copied"), byHand);

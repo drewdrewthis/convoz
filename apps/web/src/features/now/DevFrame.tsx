@@ -1,8 +1,10 @@
 import { AskMenu, MenuItem, usePhone, type SnoozePreset } from "@convoz/app-kit";
 import { Button } from "@convoz/ui/Button";
+import { IconButton } from "@convoz/ui/IconButton";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { visit } from "../../shared/navigate.ts";
 import { ItemTime } from "./DevTime.tsx";
+import { copyUrl } from "../conversations/index.ts";
 import { SnoozeGlyph } from "./DevIcons.tsx";
 
 /** What one feed item shows. Every item of Now draws this frame; its state (started, blocking or done) sets the marker and the actions (owner, conv 179 msg 11603). */
@@ -29,6 +31,44 @@ export interface FrameProps {
   dataId?: number;
   /** When the item last changed (ms); drawn as a relative time after the marker. */
   at: number;
+  /** What "Copy link" opens: a message of the conversation (an ask, or the root of a thread), else the conversation itself. */
+  link?: { message?: number };
+}
+
+/** ItemMenu is the ⋮ button of an item and its menu, with the same "Copy link" row the message menu has. */
+function ItemMenu({ conversation, message }: { conversation: number; message?: number }) {
+  const phone = usePhone();
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement | null>(null);
+  const sheet = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: Event) => root.current && !root.current.contains(e.target as Node) && setOpen(false);
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("pointerdown", away);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("pointerdown", away);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+  const url = `${location.origin}/chats/${conversation}${message ? `#m${message}` : ""}`;
+  return (
+    <div ref={root} className="relative">
+      <IconButton variant="muted" size={44} glyph={20} stroke={2} label="Item actions" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" aria-hidden="true">
+          <path d="M12 5h.01M12 12h.01M12 19h.01" />
+        </svg>
+      </IconButton>
+      {open ? (
+        <AskMenu sheet={phone} holder={sheet} shut={() => setOpen(false)}>
+          <MenuItem sheet={phone} onClick={() => (setOpen(false), copyUrl(url))}>
+            Copy link
+          </MenuItem>
+        </AskMenu>
+      ) : null}
+    </div>
+  );
 }
 
 /** Snooze is the Snooze button with its menu of times; it closes on a press outside and on Escape, like the ask card's. */
@@ -68,13 +108,16 @@ function Snooze({ presets, pick, busy }: { presets: SnoozePreset[]; pick: (key: 
 }
 
 /** ItemFrame is one feed item: Title, Context, From, the thread, then the actions and Snooze. */
-export function ItemFrame({ kind, title, context, tag, next, from, thread, snooze, actions, busy, dataId, at }: FrameProps) {
+export function ItemFrame({ kind, title, context, tag, next, from, thread, snooze, actions, busy, dataId, at, link }: FrameProps) {
   const href = `/chats/${from.id}`;
   return (
     <article className="flex min-w-0 flex-col gap-4 rounded-[14px] border border-solid border-border bg-raised px-14 pt-12 pb-4" data-item={kind} data-ask={dataId} tabIndex={-1} aria-label={title}>
-      <div className="flex items-baseline justify-between gap-8">
+      <div className="-mt-8 -mr-12 flex items-center justify-between gap-8">
         <span className={`text-12 font-bold tracking-[.04em] uppercase ${kind === "blocking" ? "text-danger" : "text-muted"}`}>{kind === "blocking" ? "Blocking" : kind === "started" ? "Started" : "Done"}</span>
-        <ItemTime at={at} />
+        <span className="flex items-center">
+          <ItemTime at={at} />
+          <ItemMenu conversation={from.id} message={link?.message} />
+        </span>
       </div>
       <h3 className="m-0 text-17 leading-[22px] font-semibold [overflow-wrap:anywhere]">{title}</h3>
       {context || tag ? (

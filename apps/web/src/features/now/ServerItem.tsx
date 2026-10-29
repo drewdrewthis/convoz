@@ -26,6 +26,7 @@ export function ServerItem({ item, next, feed, from, skew }: { item: FeedItem; n
       kind={blocking ? "blocking" : item.state === "started" ? "started" : "done"}
       dataId={item.id}
       at={item.updated_at}
+      link={{ message: item.thread_root_id ?? undefined }}
       title={item.title}
       context={[item.recommendation && `Recommended: ${item.recommendation}`, item.context].filter(Boolean).join(". ")}
       next={next}
