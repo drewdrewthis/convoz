@@ -60,6 +60,16 @@ Feature: Now
       Then the card is titled "Merge PR 12 into main" and its context has the risk, the undo and the other way
       And it has Okay, Reply, Snooze and the item menu, and no "Needs your OK", "I will", Go, Not this, I have questions or Dismiss
 
+    @v1 @browser @unimplemented
+    Scenario: A draft ask is an item: the draft is the context, Okay sends it as written, Reply edits it first
+      Given "devtool" asked "Send this to Alex?" with the draft "Thanks, Friday works."
+      When the owner opens Now in the dev build
+      Then the card is titled "Send this to Alex?" and its context starts "Draft:" with the text
+      When the owner presses "Okay"
+      Then the draft is sent as written
+      When the owner presses "Reply" on another draft
+      Then the reply box opens with the draft text, and Send sends the edited text
+
   Rule: Okay takes a server item out of the feed, whatever its state (dev build)
 
     @v1 @browser @unimplemented

@@ -5,11 +5,10 @@ import { useState } from "react";
 import { visit } from "../../shared/navigate.ts";
 import { toast } from "../pins-stars/index.ts";
 import { FeedThread } from "./DevFeedThread.tsx";
-import { askFrame } from "./askView.ts";
+import { askFrame, okayAnswer } from "./askView.ts";
 import { entries, nextOf } from "./entries.ts";
 import { ItemFrame } from "./DevFrame.tsx";
 import { OkayGlyph, ReplyGlyph } from "./DevIcons.tsx";
-import { NowAsk } from "./NowAsk.tsx";
 import { useNow } from "./store.ts";
 import { ServerItem } from "./ServerItem.tsx";
 import type { useServerFeed } from "./serverFeed.ts";
@@ -67,7 +66,7 @@ function AskItem({ ask, busy, presets, answer, snooze }: { ask: Ask; busy: boole
       link={{ message: ask.id }}
       actions={
         <>
-          <Button variant="primary" size="inline" className="mr-8 ml-8" disabled={busy} onClick={() => answer(ask, { choice: "recommended" })}>
+          <Button variant="primary" size="inline" className="mr-8 ml-8" disabled={busy} onClick={() => answer(ask, okayAnswer(ask))}>
             <OkayGlyph />
             Okay
           </Button>
@@ -133,7 +132,7 @@ function PlanItem({ plan }: { plan: NowWaiting }) {
 }
 
 /** NeedsYou is the one list of Now: one frame for every item, blocking or fyi, newest first. An ask with a draft keeps the full ask card, whose Send carries the draft. */
-export function NeedsYou({ asks, waiting, fyi, server, busy, presets, answer, dismiss, snooze, current, compact }: NeedsYouProps) {
+export function NeedsYou({ asks, waiting, fyi, server, busy, presets, answer, snooze, current }: NeedsYouProps) {
   const list = entries(asks, waiting, fyi, server.shown);
   if (!list.length) return null;
   return (
@@ -141,11 +140,7 @@ export function NeedsYou({ asks, waiting, fyi, server, busy, presets, answer, di
       {list.map((e) =>
         "ask" in e ? (
           <div key={`a${e.ask.id}`} className="flex flex-col gap-8" data-conv={e.ask.conversation_id} aria-current={e.ask.conversation_id === current ? "page" : undefined}>
-            {e.ask.draft ? (
-              <NowAsk ask={e.ask} busy={busy.has(e.ask.id)} presets={presets} answer={answer} dismiss={dismiss} snooze={snooze} compact={compact} />
-            ) : (
-              <AskItem ask={e.ask} busy={busy.has(e.ask.id)} presets={presets} answer={answer} snooze={snooze} />
-            )}
+            <AskItem ask={e.ask} busy={busy.has(e.ask.id)} presets={presets} answer={answer} snooze={snooze} />
           </div>
         ) : "item" in e ? (
           <div key={`i${e.item.id}`} data-conv={e.item.conversation_id} aria-current={e.item.conversation_id === current ? "page" : undefined}>
