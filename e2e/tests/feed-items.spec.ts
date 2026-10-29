@@ -71,7 +71,7 @@ scenario("A stale Accept answers 409, and no recommendation means no Accept", { 
   expect(ans.json().state).toBe("done");
 });
 
-scenario("Okay hides a started item until the agent moves it again; snooze sets the wake time", { tag: ["@api"] }, async ({ server }) => {
+scenario("Got it sets acked_at and leaves the state; snooze sets the wake time", { tag: ["@api"] }, async ({ server }) => {
   const p = await planWorld(server);
   const a = (await item(p, p.dev.lease, "a", "block", { title: "Decide", recommend: "Go" })).json();
   expect((await item(p, p.dev.lease, "a", "fyi", { outcome: "Did it myself" })).status).toBe(200);

@@ -42,7 +42,7 @@ Feature: Feed items (contracts)
   Rule: Okay hides an item and keeps its state, until the agent moves it again; the owner may snooze
 
     @v1 @api
-    Scenario: Okay sets acked_at and leaves the state; snooze sets the wake time
+    Scenario: Got it sets acked_at and leaves the state; snooze sets the wake time
       Given "devtool" blocked "a" and then said fyi for it
       When the owner sends POST /api/feed/{a}/ack
       Then the server answers 200 with "a" still fyi and acked_at set, and GET /api/feed no longer lists it
