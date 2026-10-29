@@ -203,7 +203,7 @@ scenario("An empty Now and its open folds keep their look", { tag: ["@browser"] 
 
   // And in the conversation the answered and the dismissed ask are drawn with their state line
   await page.goto(`${u.w.srv.origin}/chats/${conv}`);
-  await expect(page.getByText(/^Merge it(, by .+)?$/)).toBeVisible();
+  await expect(page.getByText(/^Merge it, by .+$/)).toBeVisible();
   await expect(page.getByText("Dismissed", { exact: true })).toBeVisible();
   await matchesItself(page, info, "ask-states");
 });
