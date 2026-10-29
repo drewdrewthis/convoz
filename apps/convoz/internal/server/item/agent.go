@@ -61,6 +61,7 @@ func Start(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int64, ke
 		return it, nil
 	}
 	it.Title, it.Context, it.DueAt = f.Title, f.Context, f.DueAt
+	unack(&it)
 	return it, save(ctx, d, &it, now, true, "edit", agent, "")
 }
 
@@ -86,13 +87,18 @@ func Block(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int64, ke
 	if it.State == Started {
 		it.State = Blocking
 	}
+	unack(&it)
 	return it, save(ctx, d, &it, now, true, "block", agent, "")
 }
+
+// unack brings an item back to the owner's feed: whatever the agent does to an item the owner said Okay to, he sees it again.
+func unack(it *Item) { it.AckedAt, it.AckedBy, it.AckKind = 0, 0, "" }
 
 // leave moves an item that held a place in the plan to a final state and promotes the next one.
 func leave(ctx context.Context, d pdb.DBTX, now time.Time, it Item, to, event, note string) (Item, error) {
 	wasNow := it.State == Started || it.State == Blocking
 	it.State = to
+	unack(&it)
 	if err := save(ctx, d, &it, now, true, event, it.Agent, note); err != nil {
 		return Item{}, err
 	}

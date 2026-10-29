@@ -34,9 +34,9 @@ VALUES (sqlc.arg(item_id), sqlc.arg(version), sqlc.arg(event), sqlc.arg(to_state
 SELECT id, item_id, version, event, to_state, by_identity, note, at FROM feed_item_events WHERE item_id = sqlc.arg(item_id) ORDER BY id;
 
 -- name: OpenItems :many
--- What the feed lists: every step still to do, and a "no longer needs you" the owner has not acknowledged.
+-- What the feed lists: every step still to do, and a "no longer needs you", that the owner has not acknowledged (Okay).
 SELECT * FROM feed_items
-WHERE state IN ('pending','started','blocking') OR (state = 'fyi' AND acked_at IS NULL)
+WHERE (state IN ('pending','started','blocking','fyi')) AND acked_at IS NULL
 ORDER BY conversation_id, agent_id, seq;
 
 -- name: RecentDone :many
