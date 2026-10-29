@@ -14,19 +14,17 @@ interface FeedThreadProps {
   onReplied?: (ok: boolean) => void;
   /** A number that goes up each time the item asks for the thread to open with its reply box focused (the Reply button). It shows even with no replies yet. */
   request?: number;
-  /** The thread opens with the item, with its reply box ready, even with no replies yet (owner, conv 179 msg 12145). */
-  direct?: boolean;
 }
 
 /**
  * FeedThread is the thread of a feed card folded under it (owner, conv 179 msg 7988: "Show expandable thread in feed item directly").
- * It draws nothing for a thread with no replies. Opening it reads the replies through the threads store, as a conversation does, and
+ * It starts collapsed (owner, conv 179 msg 12313): a one-line summary when it has replies, nothing when it has none; the summary or the Reply button opens it. Opening it reads the replies through the threads store, as a conversation does, and
  * draws them in place with the conversation's own message rendering; folding it hides them again. The owner stays in Now.
  * "Reply here", under the open thread, answers in it without leaving Now (owner, conv 179 msg 8239): the reply shows in the thread as sending, then sent.
  */
-export function FeedThread({ conversation, root, count: known, onReplied, request = 0, direct = false }: FeedThreadProps) {
-  const [open, setOpen] = useState(direct);
-  const [writing, setWriting] = useState(direct);
+export function FeedThread({ conversation, root, count: known, onReplied, request = 0 }: FeedThreadProps) {
+  const [open, setOpen] = useState(false);
+  const [writing, setWriting] = useState(false);
   const [text, setText] = useState("");
   const [Replies, setReplies] = useState<Replies | null>(null);
   const id = useId();
@@ -34,10 +32,12 @@ export function FeedThread({ conversation, root, count: known, onReplied, reques
   const pending = useThreads((s) => s.threads[root]?.pending.length ?? 0);
   const count = Math.max(known ?? 0, replies?.length ?? 0) + pending;
   useEffect(() => {
-    if (!open) return;
     void useThreads.getState().load(conversation, root).catch(() => {});
+  }, [conversation, root]);
+  useEffect(() => {
+    if (!open) return;
     void loadFeedReplies().then((c) => setReplies(() => c));
-  }, [open, conversation, root]);
+  }, [open]);
   const input = useRef<HTMLInputElement | null>(null);
   useEffect(() => {
     if (!request) return;
@@ -45,14 +45,14 @@ export function FeedThread({ conversation, root, count: known, onReplied, reques
     setWriting(true);
     input.current?.focus();
   }, [request]);
-  if (!count && !request && !direct) return null;
+  if (!count && !request) return null;
 
   const send = (e: FormEvent) => {
     e.preventDefault();
     const body = text.trim();
     if (!body) return;
     setText("");
-    setWriting(direct);
+    setWriting(false);
     setOpen(true);
     const { load, reply } = useThreads.getState();
     void load(conversation, root).catch(() => {});
@@ -76,7 +76,7 @@ export function FeedThread({ conversation, root, count: known, onReplied, reques
             ref={input}
             aria-label="Reply to the thread"
             type="text"
-            autoFocus={!direct || !!request}
+            autoFocus
             value={text}
             maxLength={4000}
             onChange={(e) => setText(e.target.value)}

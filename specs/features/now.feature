@@ -14,6 +14,23 @@ Feature: Now
     And machine "box-2" is logged in with allow-list "devtool" and "docs"
     And "devtool" and "docs" are active participants of conversation 41 "Ship search filters"
 
+  Rule: Every item in the dev build shows when it last changed, and its thread starts collapsed
+
+    @v1 @browser @unimplemented
+    Scenario: An item shows a relative time with the exact time on hover
+      Given a server item changed 5 minutes ago, an ask was asked 2 hours ago and a done step finished yesterday
+      When the owner opens Now in the dev build
+      Then the items show "5m", "2h" and "Yesterday" in a time element, and the exact date and time on hover
+      And the times move on as the minutes pass
+
+    @v1 @browser @unimplemented
+    Scenario: A thread starts collapsed with a one-line summary, and Reply opens it
+      Given an item whose thread has 3 replies and an item whose thread has none
+      When the owner opens Now in the dev build
+      Then the first shows "Show thread · 3 replies" with the replies hidden, and the second shows no thread
+      When the owner presses "Reply" on the second
+      Then its thread opens with the reply box in focus and stays open
+
   Rule: Every item in the dev build has the actions Okay, Reply and Snooze, each with the icon of the main Now
 
     @v1 @browser @unimplemented
