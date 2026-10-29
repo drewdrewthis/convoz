@@ -263,6 +263,10 @@ scenario("Now with an add to decide and connect requests keeps its look", { tag:
   // And when the owner approves the agent, the joined card matches its frame
   await page.getByRole("article", { name: "box-2 wants to connect as @dev-ci", exact: true }).getByRole("button", { name: "Approve", exact: true }).click();
   await expect(page.getByRole("article", { name: "@dev-ci joined", exact: true })).toBeVisible();
+  // The card went and the page got shorter; where the scroll lands depends on timing (issue 226). The stored frame is the page at its end: go there and wait until it stays.
+  await expect
+    .poll(() => page.locator("main").evaluate((e) => ((e.scrollTop = e.scrollHeight), Math.round(e.scrollHeight - e.clientHeight - e.scrollTop))), { intervals: [100], timeout: 10_000 })
+    .toBe(0);
   await matchesItself(page, info, "now-joined");
 });
 
