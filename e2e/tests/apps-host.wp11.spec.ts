@@ -631,10 +631,10 @@ scenario("A chart on an ask helps the owner decide but never answers", { tag: ["
 
   // Then the ask is still open
   expect((await askOf(a.w.owner, askId)).state).toBe("open");
-  await expect(ask.getByRole("button", { name: "Merge it" })).toBeVisible();
+  await expect(ask.getByRole("button", { name: "Okay", exact: true })).toBeVisible();
 
   // And only the ask's own buttons answer it
-  await ask.getByRole("button", { name: "Merge it" }).click();
+  await ask.getByRole("button", { name: "Okay", exact: true }).click();
   await expect.poll(async () => (await askOf(a.w.owner, askId)).state).toBe("answered");
 });
 

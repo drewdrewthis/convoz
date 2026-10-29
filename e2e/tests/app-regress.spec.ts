@@ -144,7 +144,7 @@ scenario("Now with asks and the snooze sheet keep their look", { tag: ["@browser
   await matchesItself(page, info, "now-asks");
 
   // And when the owner opens the Snooze choices of that ask, the sheet matches its frame
-  await card.getByRole("group", { name: "Ask actions" }).getByRole("button", { name: "Snooze" }).click();
+  await card.getByRole("group", { name: "Actions" }).getByRole("button", { name: "Snooze" }).click();
   await expect(page.getByRole("menuitem", { name: "1 hour" })).toBeVisible();
   await matchesItself(page, info, "snooze-sheet");
 });
@@ -172,7 +172,7 @@ scenario("Now with a replied ask and an updated ask keeps its look", { tag: ["@b
 
   // When the owner opens Now, Then it matches its frame, with the section "You replied · waiting on the agent" and the updated ask with its answers
   await page.goto(`${u.w.srv.origin}/`);
-  await expect(page.getByRole("article", { name: "Close the incident?" })).toContainText("Your questions, answered");
+  await expect(page.getByRole("article", { name: "Close the incident?" })).toContainText("A bad deploy of the export job caused the peak.");
   await expect(page.locator("#replied")).toContainText("Push the 8642 fix to staging?");
   // And the row leads with the owner's own reply, the ask under it (owner, msg 2056)
   await expect(page.locator("#replied [data-replied] > span").first()).toHaveText("Is it behind a flag, and who reviewed it? Why one PR and not two?");
@@ -203,12 +203,12 @@ scenario("An empty Now and its open folds keep their look", { tag: ["@browser"] 
 
   // And in the conversation the answered and the dismissed ask are drawn with their state line
   await page.goto(`${u.w.srv.origin}/chats/${conv}`);
-  await expect(page.getByText("Answered · Merge it")).toBeVisible();
+  await expect(page.getByText(/^Merge it(, by .+)?$/)).toBeVisible();
   await expect(page.getByText("Dismissed", { exact: true })).toBeVisible();
   await matchesItself(page, info, "ask-states");
 });
 
-scenario("Ask cards with a draft, a quick reply and in a conversation keep their look", { tag: ["@browser"] }, async ({ server, page, context, testApi }, info) => {
+scenario("Ask items with a draft, an open reply box and in a conversation keep their look", { tag: ["@browser"] }, async ({ server, page, context, testApi }, info) => {
   info.setTimeout(240_000);
   // Background: "devtool" asked a question and asked the owner to review a draft reply; the owner read the conversation
   const u = await world({ server, page, context, testApi });
@@ -218,29 +218,26 @@ scenario("Ask cards with a draft, a quick reply and in a conversation keep their
   expect({ code: draft.code, stderr: draft.stderr }).toEqual({ code: 0, stderr: "" });
   must(await u.w.owner.client.post(`/api/conversations/${conv}/read`, { main_id: 0, all: true }), "read it all");
 
-  // When the owner opens Now, Then the question with its owner's call and the draft review match their frame
+  // When the owner opens Now, Then the question and the draft ask, the draft as its context, match their frame
   await page.goto(`${u.w.srv.origin}/`);
   const card = page.getByRole("article", { name: QUESTION });
   await expect(card).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "Draft" })).toBeVisible();
+  await expect(page.getByRole("article", { name: "Send this reply to Alex?" })).toContainText("Draft: Sounds good, Thursday works.");
   await matchesItself(page, info, "now-ask-draft");
 
-  // And when the owner opens the quick reply and types, the reply field and the Send button match theirs
-  await card.getByRole("group", { name: "Ask actions" }).getByRole("button", { name: "Quick reply" }).click();
-  await card.getByRole("textbox", { name: "Quick reply" }).fill("Yes, go ahead");
+  // And when the owner presses Reply and types, the reply box and its Send button match theirs
+  await card.getByRole("group", { name: "Actions" }).getByRole("button", { name: "Reply" }).click();
+  await card.getByRole("textbox", { name: "Reply to the thread" }).fill("Yes, go ahead");
   await matchesItself(page, info, "now-quick-reply");
 
-  // And in the conversation the same asks are drawn with their bar, and the options menu and the history match theirs
+  // And in the conversation the same asks are drawn as items, and the item menu matches its frame
   await page.goto(`${u.w.srv.origin}/chats/${conv}`);
-  const options = page.getByRole("button", { name: "Ask options" }).first();
+  const options = page.getByRole("button", { name: "Item actions" }).first();
   await expect(options).toBeVisible();
   await matchesItself(page, info, "ask-conversation");
   await options.click();
-  await expect(page.getByRole("menuitem", { name: "History" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Delete" })).toBeVisible();
   await matchesItself(page, info, "ask-options");
-  await page.getByRole("menuitem", { name: "History" }).click();
-  await expect(page.getByRole("list", { name: "History" })).toBeVisible();
-  await matchesItself(page, info, "ask-history");
 });
 
 scenario("Now with an add to decide and connect requests keeps its look", { tag: ["@browser"] }, async ({ server, page, context, testApi }, info) => {

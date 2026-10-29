@@ -1,13 +1,10 @@
-import type { Locator, Page } from "@playwright/test";
 import { McpClient } from "../lib/agent-wp7.ts";
 import { convoz, createConversation, inboxItems, messagesOf } from "../lib/chat.ts";
 import {
-  ACTION, CONSIDERED, GET_CONFIDENT_FIRST, RISK, UNDO,
-  agentAsks, agentAsksPermission, answerAsk, askBody, askCard, askOf, askWorld, expectInOrder, nowOf, notThisBox, openNow, patchAsk, permissionArgs,
+  ACTION, CONSIDERED, GET_CONFIDENT_FIRST, QUESTION, RISK, UNDO,
+  agentAsks, agentAsksPermission, answerAsk, askBody, askCard, askOf, askWorld, expectInOrder, nowOf, openNow, patchAsk, permissionArgs,
   permissionBody, postAsk, type AskView,
 } from "../lib/asks.ts";
-import { box } from "../lib/mobile.ts";
-import { openRail, rail } from "../lib/rail-wp9.ts";
 import { must } from "../lib/owner.ts";
 import { decrypt, pushWorld, received } from "../lib/push-wp14.ts";
 import { clientId } from "../lib/machines.ts";
@@ -17,9 +14,9 @@ import { browserWorld } from "../lib/wp3.ts";
 /*
  * PERMISSION ASKS: the bindings of the "An ask is a permission request" rules of specs/features/asks.feature and specs/contracts/asks.feature.
  * An agent asks with `convoz ask --action A --risk R (--undo U | --one-way) --considered C [--considered C2 ...] --confidence N <conv>`; over the API
- * `POST /api/asks` takes `permission: {action, risk, undo | one_way, considered[1-3], confidence}`. The card is an article named by the action.
- * Page contract (role and name only): buttons "Go" and "Not this"; "Not this" opens a textbox "Why not? @<agent> reads this." and a "Send" button;
- * terms "I will", "Risk", "Undo", "Considered, and why worse"; on a phone the button "Considered 2 other ways"; an answered card has a "Details" button.
+ * `POST /api/asks` takes `permission: {action, risk, undo | one_way, considered[1-3], confidence}`. The item is an article named by the action.
+ * Page contract (role and name only): the context reads "Risk: R. Undo: U Considered: C1; C2. Asked by ..."; the group "Actions" holds "Okay" (Go),
+ * "Reply" and "Snooze"; an answered ask in its conversation is one line, "Go, by <handle>".
  */
 
 type Fx = Parameters<typeof browserWorld>[0];
@@ -32,27 +29,10 @@ async function browserAsk({ server, page, context }: Fx, over: Record<string, un
   return { w, conv, id };
 }
 
-const ONE_WAY = { undo: undefined, one_way: true };
-
 /** What the asking agent reads in its inbox once the owner answered. */
 async function agentAnswer(w: Awaited<ReturnType<typeof browserAsk>>["w"], id: number): Promise<string | undefined> {
   const items = (await inboxItems(w.box, w.sessions.devtool!.sid, ["--peek"])) as unknown as { reason: string; message: { id: number; ask?: { answer?: string } } }[];
   return items.find((i) => i.reason === "ask_resolved" && i.message.id === id)?.message.ask?.answer;
-}
-
-/** The phone shows the considered ways folded; open the fold so a check that reads them works on both. */
-async function openConsidered(card: Locator): Promise<void> {
-  const fold = card.getByRole("button", { name: /^Considered \d other ways?$/ });
-  await expect(card.getByRole("button", { name: "Go", exact: true })).toBeVisible(); // the card is drawn, so count() sees a fold that is there
-  if (await fold.count()) await fold.click();
-}
-
-/** Open conversation `conv` on a wide screen and turn the rail to Now. */
-async function railNow(page: Page, w: Awaited<ReturnType<typeof browserAsk>>["w"], conv: number): Promise<void> {
-  await openRail(page, w.srv, `/chats/${conv}`);
-  const now = rail(page).getByRole("button", { name: /^Now\b/ });
-  await now.click();
-  await expect(now).toHaveAttribute("aria-pressed", "true");
 }
 
 // ---- features/asks.feature ------------------------------------------------------------------------------------
@@ -63,220 +43,54 @@ scenario("A permission ask reads as a short request on the Now card", { tag: ["@
   await openNow(page, w.srv);
   const card = askCard(page, ACTION);
   await expect(card).toBeVisible();
-  await openConsidered(card);
 
-  // Then the card shows, in order, the byline, "I will" and the action, "Risk", "Undo", "Considered, and why worse" with its lines, Go, Not this, I have questions and Snooze
-  await expectInOrder(card, ["@devtool · Ship search filters", "I will", ACTION, "Risk", RISK, "Undo", UNDO, "Considered, and why worse", CONSIDERED[0]!, CONSIDERED[1]!, "Go", "Not this", "I have questions", "Snooze"]);
-  for (const name of ["Go", "Not this", "I have questions", "Snooze", "Dismiss"]) await expect(card.getByRole("button", { name, exact: true }), name).toBeVisible();
-  await expect(card.getByRole("link", { name: "Open", exact: true })).toBeVisible();
+  // Then the item is titled by the action, and its context says the risk, the undo and the considered ways, and who asked
+  await expect(card.getByRole("heading", { name: ACTION })).toBeVisible();
+  await expectInOrder(card, [ACTION, `Risk: ${RISK}.`, `Undo: ${UNDO}`, `Considered: ${CONSIDERED.join("; ")}.`, "Asked by", "@devtool", "Okay", "Reply", "Snooze"]);
+  for (const name of ["Okay", "Reply", "Snooze"]) await expect(card.getByRole("group", { name: "Actions" }).getByRole("button", { name, exact: true }), name).toBeVisible();
 
-  // And it shows no "Quick reply" and no confidence
-  await expect(card.getByRole("button", { name: "Quick reply" })).toHaveCount(0);
+  // And it shows no Go, Not this or Dismiss, and no confidence
+  for (const name of ["Go", "Not this", "Dismiss"]) await expect(card.getByRole("button", { name, exact: true }), name).toHaveCount(0);
   expect(await card.innerText()).not.toMatch(/confiden|\d+\s?%/i);
 });
 
-scenario("Go on a permission card answers Go", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+scenario("Okay on a permission card answers Go", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
   info.setTimeout(90_000);
   const { w, conv, id } = await browserAsk({ server, page, context });
   await page.goto(`${w.srv.origin}/chats/${conv}`);
   const card = askCard(page, ACTION);
-  await card.getByRole("button", { name: "Go", exact: true }).click();
-  await expect(card.getByText("You said Go")).toBeVisible();
+  await card.getByRole("button", { name: "Okay", exact: true }).click();
+  await expect(card.getByText(/^Go(, by .+)?$/)).toBeVisible();
+  await expect(card.getByRole("button", { name: "Okay", exact: true })).toHaveCount(0);
   expect(await agentAnswer(w, id)).toBe("Go");
 });
 
-scenario("Not this on a permission card needs a reason and sends it to the agent", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
-  info.setTimeout(90_000);
-  const { w, conv, id } = await browserAsk({ server, page, context });
-  await page.goto(`${w.srv.origin}/chats/${conv}`);
-  const card = askCard(page, ACTION);
-
-  // When the owner taps "Not this"
-  await card.getByRole("button", { name: "Not this", exact: true }).click();
-
-  // Then a box "Why not? @devtool reads this." opens and Send is disabled while it is empty
-  await expect(notThisBox(card)).toBeVisible();
-  await expect(card.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
-
-  // When the owner writes a reason and sends it
-  await notThisBox(card).fill("Wait for PR 412");
-  await card.getByRole("button", { name: "Send", exact: true }).click();
-
-  // Then the card shows "Not this · Wait for PR 412" and the agent reads "Not this: Wait for PR 412"
-  await expect(card.getByText("Not this · Wait for PR 412")).toBeVisible();
-  expect(await agentAnswer(w, id)).toBe("Not this: Wait for PR 412");
-});
-
-scenario("G and Enter say Go and N opens Not this", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
-  info.setTimeout(90_000);
-  const { w, conv, id } = await browserAsk({ server, page, context });
-  const second = await agentAsksPermission(w.srv, w.sessions.devtool!.lease, conv, { action: "Deploy the docs site" });
-  await openNow(page, w.srv);
-
-  // When the owner presses N on the first card
-  const card = askCard(page, ACTION);
-  await card.focus();
-  await page.keyboard.press("n");
-  await expect(notThisBox(card)).toBeVisible();
-  await page.keyboard.press("Escape");
-
-  // When the owner presses G, and Enter on the other card, each says Go
-  await card.focus();
-  await page.keyboard.press("g");
-  await expect(card).toHaveCount(0);
-  const other = askCard(page, "Deploy the docs site");
-  await other.focus();
-  await page.keyboard.press("Enter");
-  await expect(other).toHaveCount(0);
-  expect([(await askOf(w.owner, id)).answer, (await askOf(w.owner, second)).answer]).toEqual(["Go", "Go"]);
-});
-
-scenario("Enter does nothing on a one-way permission ask", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
-  info.setTimeout(90_000);
-  const { w, id } = await browserAsk({ server, page, context }, ONE_WAY);
-  await openNow(page, w.srv);
-  const card = askCard(page, ACTION);
-  await expect(card.getByText("None. This is one-way.")).toBeVisible();
-
-  // When the owner presses Enter on the card
-  await card.focus();
-  await page.keyboard.press("Enter");
-  await page.waitForTimeout(500);
-
-  // Then the ask is still open, and G and a click on Go still say Go
-  expect((await askOf(w.owner, id)).state).toBe("open");
-  await page.keyboard.press("g");
-  await expect(card).toHaveCount(0);
-  expect((await askOf(w.owner, id)).answer).toBe("Go");
-});
-
-scenario("Typing in the Not this box is not a shortcut", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
-  info.setTimeout(90_000);
-  const { w, id } = await browserAsk({ server, page, context });
-  await openNow(page, w.srv);
-  const card = askCard(page, ACTION);
-  await card.getByRole("button", { name: "Not this", exact: true }).click();
-
-  // When the owner types "go now" in the box (Enter there sends the reason, as in any form)
-  await notThisBox(card).pressSequentially("go now");
-  await page.waitForTimeout(500);
-
-  // Then the box holds "go now" and the ask is still open
-  await expect(notThisBox(card)).toHaveValue(/go now/);
-  expect((await askOf(w.owner, id)).state).toBe("open");
-});
-
-scenario("A permission ask in the conversation says Needs your OK", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
-  info.setTimeout(90_000);
-  const { w, conv } = await browserAsk({ server, page, context });
-  await page.goto(`${w.srv.origin}/chats/${conv}`);
-  const card = askCard(page, ACTION);
-  await openConsidered(card);
-  await expect(card.getByText("Needs your OK", { exact: true })).toBeVisible();
-  for (const text of ["I will", ACTION, "Risk", RISK, "Undo", UNDO, "Considered, and why worse", CONSIDERED[0]!]) await expect(card.getByText(text, { exact: false }).first(), text).toBeVisible();
-  for (const name of ["Go", "Not this"]) await expect(card.getByRole("button", { name, exact: true }), name).toBeVisible();
-  // the author is above the card, so the card has no byline of its own
-  expect(await card.innerText()).not.toContain("@devtool · Ship search filters");
-});
-
-scenario("The sidebar shows a short permission card", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
-  info.setTimeout(90_000);
-  const { w, conv } = await browserAsk({ server, page, context });
-  const home = await createConversation(w.owner, { title: "Release train", participants: ["devtool"] });
-  await railNow(page, w, home);
-  const card = rail(page).getByRole("article", { name: ACTION });
-  await expectInOrder(card, ["@devtool", "I will", ACTION, "Risk", RISK, "Undo", UNDO, "Go", "Not this", "Open conversation", "Dismiss"]);
-  await expect(card.getByText(CONSIDERED[0]!)).toHaveCount(0);
-  await expect(card.getByRole("link", { name: "Open conversation", exact: true })).toHaveAttribute("href", `/chats/${conv}`);
-});
-
-scenario("The sidebar permission card keeps Dismiss and names Open in words", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
-  info.setTimeout(90_000);
-  const { w, conv } = await browserAsk({ server, page, context });
-  const home = await createConversation(w.owner, { title: "Release train", participants: ["devtool"] });
-  await railNow(page, w, home);
-  const card = rail(page).getByRole("article", { name: ACTION });
-  // Then the card offers Dismiss and "Open conversation", and no control or line reads a bare "Open"
-  await expect(card.getByRole("button", { name: "Dismiss", exact: true })).toBeVisible();
-  await expect(card.getByRole("link", { name: "Open conversation", exact: true })).toHaveAttribute("href", `/chats/${conv}`);
-  await expect(card.getByText("Open", { exact: true })).toHaveCount(0);
-  // And "Not this" sits next to Go and opens the reason box like the full card
-  await card.getByRole("button", { name: "Not this", exact: true }).click();
-  await expect(notThisBox(card)).toBeVisible();
-  await expect(card.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
-  // And Dismiss takes the ask out of the sidebar
-  await card.getByRole("button", { name: "Dismiss", exact: true }).click();
-  await expect(rail(page).getByRole("article", { name: ACTION })).toHaveCount(0, { timeout: 4_000 });
-});
-
-scenario("The sidebar shows Review for a one-way permission ask", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
-  info.setTimeout(90_000);
-  const { w, conv } = await browserAsk({ server, page, context }, ONE_WAY);
-  const home = await createConversation(w.owner, { title: "Release train", participants: ["devtool"] });
-  await railNow(page, w, home);
-  const card = rail(page).getByRole("article", { name: ACTION });
-  await expect(card.getByRole("link", { name: "Review", exact: true })).toHaveAttribute("href", `/chats/${conv}`);
-  await expect(card.getByRole("button", { name: "Go", exact: true })).toHaveCount(0);
-  // And the card has no "Open conversation" link: Review is the only way in
-  await expect(card.getByRole("link", { name: "Open conversation" })).toHaveCount(0);
-});
-
-scenario("On a phone the considered ways fold and Go and Not this stack", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {
-  info.setTimeout(90_000);
-  const { w } = await browserAsk({ server, page, context });
-  await openNow(page, w.srv);
-  const card = askCard(page, ACTION);
-
-  // Then the considered ways are folded behind "Considered 2 other ways" and open on a tap
-  await expect(card.getByText(CONSIDERED[0]!)).toBeHidden();
-  await card.getByRole("button", { name: "Considered 2 other ways", exact: true }).click();
-  await expect(card.getByText(CONSIDERED[0]!)).toBeVisible();
-
-  // And Go sits above Not this, both as wide as the card
-  const go = await box(card.getByRole("button", { name: "Go", exact: true }));
-  const not = await box(card.getByRole("button", { name: "Not this", exact: true }));
-  expect(not.y).toBeGreaterThan(go.y);
-  expect(not.x).toBeCloseTo(go.x, 0);
-});
-
-scenario("History says how sure the agent said it was", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
-  info.setTimeout(90_000);
-  const { w, conv } = await browserAsk({ server, page, context }, { confidence: 90 });
-  await page.goto(`${w.srv.origin}/chats/${conv}`);
-  const card = askCard(page, ACTION);
-  await card.getByRole("button", { name: "Ask options" }).click();
-  await page.getByRole("menuitem", { name: "History" }).click();
-  const rows = await card.getByRole("list", { name: "History" }).getByRole("listitem").allInnerTexts();
-  expect(rows.some((r) => /^Asked by .*@devtool · said 90% sure$/.test(r.trim()))).toBe(true);
-  expect(await card.innerText()).not.toMatch(/confiden/i);
-});
-
-scenario("An ask from an old agent still shows the decision card", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+scenario("An ask from an old agent still shows as a decision with its recommended answer", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
   info.setTimeout(90_000);
   const w = await browserWorld({ server, page, context }, { agents: ["devtool", "docs"], live: ["devtool"] });
   const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
   // Given an old CLI asked with the old body: question, recommended, alternatives and the owner's call, no permission object
   const id = await agentAsks(w.srv, w.sessions.devtool!.lease, conv, {});
-  // Then the API reads it as a decision ask, and Now shows the old card
+  // Then the API reads it as a decision ask, and Now shows the question with "Recommended: Merge it" and Okay
   expect((await askOf(w.owner, id)).kind).toBe("decision");
   await openNow(page, w.srv);
   const card = askCard(page);
-  await expect(card.getByRole("button", { name: "Merge it", exact: true })).toBeVisible();
-  await expect(card.getByText("Your call · taste: Both names read fine; it is your voice", { exact: true })).toBeVisible();
+  await expect(card.getByRole("heading", { name: QUESTION })).toBeVisible();
+  await expect(card).toContainText("Recommended: Merge it");
+  await expect(card.getByRole("button", { name: "Okay", exact: true })).toBeVisible();
   await expect(card.getByRole("button", { name: "Not this", exact: true })).toHaveCount(0);
-  await expect(card.getByText("I will", { exact: true })).toHaveCount(0);
+  await expect(card).not.toContainText("Risk:");
 });
 
-scenario("An answered permission card hides risk, undo and considered behind Details", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+scenario("An answered permission ask in the conversation is one line, with no risk, undo or considered", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
   info.setTimeout(90_000);
   const { w, conv, id } = await browserAsk({ server, page, context });
   must(await answerAsk(w.owner, id, { choice: "recommended" }), "go", 200);
   await page.goto(`${w.srv.origin}/chats/${conv}`);
   const card = askCard(page, ACTION);
-  await expect(card.getByText("You said Go")).toBeVisible();
-  for (const text of [RISK, UNDO, CONSIDERED[0]!]) await expect(card.getByText(text), text).toBeHidden();
-  await card.getByRole("button", { name: "Details", exact: true }).click();
-  for (const text of [RISK, UNDO, CONSIDERED[0]!]) await expect(card.getByText(text), text).toBeVisible();
+  await expect(card.getByText(/^Go(, by .+)?$/)).toBeVisible();
+  for (const text of [RISK, UNDO, CONSIDERED[0]!]) await expect(card.getByText(text), text).toHaveCount(0);
+  await expect(card.getByRole("button", { name: "Okay", exact: true })).toHaveCount(0);
 });
 
 // ---- contracts/asks.feature -----------------------------------------------------------------------------------

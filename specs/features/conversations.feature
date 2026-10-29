@@ -324,7 +324,7 @@ Feature: Conversations
     @v1 @browser @phone
     Scenario: On a phone the bottom bar leads to Now, Conversations and Crew
       Given the owner opens Convoz on a phone
-      Then a bottom bar shows "Now", "Conversations", "Deliveries" and "Crew"
+      Then a bottom bar shows "Now", "Conversations", "Work" and "Crew"
       When the owner taps "Conversations"
       Then the Conversations list shows with a "New conversation" button
       And "Conversations" is marked as the current tab
@@ -412,14 +412,6 @@ Feature: Conversations
       Then the conversation shows "@devtool and @docs are replying…" within 3 seconds
       When "devtool" runs "convoz post" in that conversation with "Yes"
       Then the conversation shows "@docs is replying…" and the reply shows
-
-    @v1 @browser
-    Scenario: A card in Now shows who has seen and who is replying
-      Given "devtool" asked a question in a conversation and runs "convoz watch --json"
-      When the owner sends "Take your time" in that conversation
-      Then the card in Now shows "Seen by @devtool" and "@devtool is replying…" within 3 seconds
-      When "devtool" runs "convoz ack" without a reply
-      Then the card in Now still shows "Seen by @devtool" and no replying note
 
     @v1 @browser @phone
     Scenario: On a phone the working note goes away when the agent finishes without a reply

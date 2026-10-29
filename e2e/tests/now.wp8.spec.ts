@@ -13,7 +13,7 @@ import {
   setServerTime,
   snoozeAsk,
 } from "../lib/asks.ts";
-import { openRail, rail, setPrefs } from "../lib/rail-wp9.ts";
+import { setPrefs } from "../lib/rail-wp9.ts";
 import { mintSession, nowCard, plainDb, requestMachine, seedUserCodes } from "../lib/machines.ts";
 import { must } from "../lib/owner.ts";
 import type { Locator, Page } from "@playwright/test";
@@ -23,10 +23,9 @@ import { asAgent, browserWorld, idsOf, rowsOnList } from "../lib/wp3.ts";
 /*
  * NOW (WP8): the bindings of specs/features/now.feature and specs/contracts/now.feature. The page contract (role and text locators only):
  *   Now (/)         heading "Now"; the top bar says "N open" (#open-count): the asks, pending adds and machine requests that wait.
- *   an ask          an article named by its question; it shows "Display Name @handle" and the conversation title; one button per option
- *                   named by its label; buttons "Quick reply" (a textbox "Quick reply" and "Send"), "Snooze" (a menu with "1 hour",
- *                   "Tonight", "Tomorrow"), "Dismiss". Keys with the card focused: Enter recommended, A alternative, R quick reply,
- *                   S snooze, X dismiss; J and K move between cards.
+ *   an ask          an item: an article named by its question; it shows "Display Name @handle" and the conversation title; a group
+ *                   "Actions" with "Okay" (the recommended answer), "Reply" (its thread, in place) and "Snooze" (a menu with "1 hour",
+ *                   "Tonight", "Tomorrow"). J and K move between items.
  *   folds           buttons "Snoozed" and "Answered today" (aria-expanded) with rows: "Snoozed until <time>" and an "Unsnooze" button;
  *                   "Answered · <label>" or "Replied · <text>". Answering from Now opens "Answered today".
  *   a pending add   an article "<Name @handle> wants to add <Name @handle>" with Approve and Decline.
@@ -135,11 +134,7 @@ scenario("The badge counts open asks that are not snoozed", { tag: ["@browser", 
 scenario("Answering from Now does not mark the conversation read", { tag: ["@browser"] }, async ({ server, page, context, dataDir, testApi }, info) => {
   info.setTimeout(150_000);
   const w = await browserWorld({ server, page, context }, WORLD);
-  const rows: [string, string, string][] = [
-    ["the recommended \"Merge it\"", "Answered · Merge it", "Merge it"],
-    ["the alternative \"Hold it\"", "Answered · Hold it", "Hold it"],
-    ["the quick reply \"Split in two\"", "Replied · Split in two", "Split in two"],
-  ];
+  const rows: [string, string, string][] = [["Okay", "Answered · Merge it", "Merge it"]];
   for (const [choice, result, label] of rows) {
     // Given conversation 41 has 4 unread messages and an open ask "Merge #415 on its own?"
     const conv = await createConversation(w.owner, { title: `Ship search filters ${label}`, participants: ["devtool", "docs"] });
@@ -147,16 +142,9 @@ scenario("Answering from Now does not mark the conversation read", { tag: ["@bro
     await agentAsks(w.srv, w.sessions.devtool!.lease, conv);
     expect(await unreadOf(w.owner, conv), `${choice}: unread before`).toBe(4);
 
-    // When the owner answers from Now with <choice>
+    // When the owner presses Okay on it in Now
     await openNow(page, w.srv);
-    const card = askCard(page);
-    if (label === "Split in two") {
-      await card.getByRole("button", { name: "Quick reply" }).click();
-      await card.getByRole("textbox", { name: "Quick reply" }).fill(label);
-      await card.getByRole("button", { name: "Send", exact: true }).click();
-    } else {
-      await card.getByRole("button", { name: label, exact: true }).click();
-    }
+    await askCard(page).getByRole("button", { name: choice, exact: true }).click();
 
     // Then the ask shows "<result>"
     await expect(page.getByText(result)).toBeVisible();
@@ -168,59 +156,14 @@ scenario("Answering from Now does not mark the conversation read", { tag: ["@bro
   }
 });
 
-scenario("Dismiss removes an ask from Now", { tag: ["@browser"] }, async ({ server, page, context, dataDir, testApi }, info) => {
-  info.setTimeout(90_000);
-  // Given an open ask of "devtool"
-  const w = await browserWorld({ server, page, context }, WORLD);
-  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
-  const id = await agentAsks(w.srv, w.sessions.devtool!.lease, conv);
-  await openNow(page, w.srv);
-
-  // When the owner dismisses it
-  await askCard(page).getByRole("button", { name: "Dismiss" }).click();
-
-  // Then Now no longer lists it
-  await expect(askCard(page)).toHaveCount(0);
-  expect((await nowOf(w.owner)).asks).toEqual([]);
-
-  // And the ask in conversation 41 shows "Dismissed"
-  await page.goto(`${w.srv.origin}/chats/${conv}`);
-  await expect(askCard(page)).toContainText("Dismissed");
-  expect((await askOf(w.owner, id)).state).toBe("dismissed");
-});
-
-scenario("Dismiss shows an Undo toast and Undo puts the ask back", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
-  info.setTimeout(90_000);
-  // Given an open ask of "devtool"
-  const w = await browserWorld({ server, page, context }, WORLD);
-  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
-  const id = await agentAsks(w.srv, w.sessions.devtool!.lease, conv);
-  await openNow(page, w.srv);
-
-  // When the owner dismisses it
-  await askCard(page).getByRole("button", { name: "Dismiss" }).click();
-
-  // Then a toast says "Dismissed" with an Undo button for 10 seconds
-  const toast = page.getByRole("status").filter({ hasText: "Dismissed" });
-  await expect(toast).toBeVisible();
-  await expect(toast.getByRole("button", { name: "Undo" })).toBeVisible();
-
-  // When the owner taps Undo
-  await toast.getByRole("button", { name: "Undo" }).click();
-
-  // Then Now lists the ask as open again
-  await expect(askCard(page)).toHaveCount(1);
-  expect((await askOf(w.owner, id)).state).toBe("open");
-});
-
 scenario("The Dismissed fold lists dismissed asks and Reopen puts one back", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
   info.setTimeout(90_000);
   // Given an open ask of "devtool" that the owner dismissed
   const w = await browserWorld({ server, page, context }, WORLD);
   const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
   const id = await agentAsks(w.srv, w.sessions.devtool!.lease, conv);
+  must(await markAsk(w.owner, id, "dismiss"), "dismiss");
   await openNow(page, w.srv);
-  await askCard(page).getByRole("button", { name: "Dismiss" }).click();
   await expect(askCard(page)).toHaveCount(0);
 
   // When the owner opens "Dismissed today" in Now
@@ -238,18 +181,16 @@ scenario("The Dismissed fold lists dismissed asks and Reopen puts one back", { t
   expect((await askOf(w.owner, id)).state).toBe("open");
 });
 
-/** The quick bar of an open ask: Snooze and Dismiss always, Quick reply where the card is not in a thread. Each button is on screen. */
-async function expectBar(page: Page, scope: Locator, withReply: boolean): Promise<void> {
-  const bar = scope.getByRole("group", { name: "Ask actions" });
+/** The actions of an open ask: Okay, Reply and Snooze, each on screen. */
+async function expectBar(page: Page, scope: Locator): Promise<void> {
+  const bar = scope.getByRole("group", { name: "Actions" });
   const width = page.viewportSize()?.width ?? 0;
-  const names = withReply ? ["Quick reply", "Snooze", "Dismiss"] : ["Snooze", "Dismiss"];
-  for (const name of names) {
+  for (const name of ["Okay", "Reply", "Snooze"]) {
     const b = bar.getByRole("button", { name, exact: true });
     await expect(b).toBeVisible();
     const box = (await b.boundingBox())!;
     expect(box.x >= 0 && box.x + box.width <= width, `${name} is on screen`).toBe(true);
   }
-  if (!withReply) await expect(bar.getByRole("button", { name: "Quick reply", exact: true })).toHaveCount(0);
 }
 
 scenario("With nothing waiting, the feed centres the wordmark, the all-clear line under it, and the folds", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
@@ -331,150 +272,6 @@ scenario("With no decisions but unread conversations, Now lists them instead of 
   await expect(rows.getByRole("link")).toContainText("devtool, 5 new");
 });
 
-scenario("Now puts an ask and an @mention of the owner under Needs you", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
-  info.setTimeout(90_000);
-  // Given an open ask of "devtool" in conversation 41 and "docs" posted "@drew can you check the deploy log?" in conversation 42, and "devtool" posted "Build 812 is green" in conversation 43
-  const w = await browserWorld({ server, page, context }, WORLD);
-  const c41 = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
-  const c42 = await createConversation(w.owner, { title: "Deploy log", participants: ["devtool", "docs"] });
-  const c43 = await createConversation(w.owner, { title: "Nightly builds", participants: ["devtool", "docs"] });
-  await agentAsks(w.srv, w.sessions.devtool!.lease, c41, {});
-  await agentSays(w.srv, w.sessions.docs!.lease, c42, "@drew can you check the deploy log?");
-  await agentSays(w.srv, w.sessions.devtool!.lease, c43, "Build 812 is green");
-
-  // When the owner opens Now
-  await openNow(page, w.srv);
-
-  // Then the heading "Needs you · 2" is shown above the ask
-  const heading = page.getByText("Needs you · 2", { exact: true });
-  await expect(heading).toBeVisible();
-  expect((await heading.boundingBox())!.y).toBeLessThan((await askCard(page).boundingBox())!.y);
-
-  // And the "Mentions of you" list has one card for conversation 42 with the line "docs @drew can you check the deploy log?"
-  const mentions = page.getByRole("list", { name: "Mentions of you" }).getByRole("listitem");
-  await expect(mentions).toHaveCount(1);
-  await expect(mentions.getByRole("heading")).toHaveText("Deploy log");
-  await expect(mentions.locator(".uline")).toHaveText("docs @drew can you check the deploy log?");
-
-  // And conversation 43 is only under "Other chats"
-  await expect(page.getByRole("list", { name: "Other chats" }).getByRole("link", { name: /Nightly builds/ })).toHaveAttribute("href", `/chats/${c43}`);
-  await expect(mentions.filter({ hasText: "Nightly builds" })).toHaveCount(0);
-  await expect(page.getByRole("list", { name: "Replies to you" }).filter({ hasText: "Nightly builds" })).toHaveCount(0);
-});
-
-// Owner, conv 179 msg 6018 (UX review): the Needs you count and the Now badge must be one number
-scenario("The Needs you count and the rail badge are the same number", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
-  info.setTimeout(90_000);
-  // Given an open ask of "devtool" in conversation 41 and "docs" posted "@drew can you check the deploy log?" in conversation 42
-  const w = await browserWorld({ server, page, context }, WORLD);
-  const c41 = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
-  const c42 = await createConversation(w.owner, { title: "Deploy log", participants: ["devtool", "docs"] });
-  await agentAsks(w.srv, w.sessions.devtool!.lease, c41, {});
-  await agentSays(w.srv, w.sessions.docs!.lease, c42, "@drew can you check the deploy log?");
-
-  // When the owner opens Now on a wide screen
-  await openRail(page, w.srv, "/");
-  await page.getByRole("heading", { name: "Now", exact: true }).waitFor();
-
-  // Then the heading "Needs you · 2" is shown
-  await expect(page.getByText("Needs you · 2", { exact: true })).toBeVisible();
-
-  // And the Now item in the rail shows 2
-  await expect(rail(page).locator(".rbadge")).toHaveText("2");
-});
-
-/** Open conversation `conv` on a wide screen and turn the rail to Now. */
-async function railNow(page: Page, w: Awaited<ReturnType<typeof browserWorld>>, conv: number): Promise<void> {
-  await openRail(page, w.srv, `/chats/${conv}`);
-  const now = rail(page).getByRole("button", { name: /^Now\b/ });
-  await now.click();
-  await expect(now).toHaveAttribute("aria-pressed", "true");
-}
-
-// Owner, conv 179 msg 6018 (UX review): in the sidebar, Other chats is one line until the owner opens it
-scenario("The sidebar folds Other chats to one line", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
-  info.setTimeout(120_000);
-  // Given "devtool" posted 1 message in each of 12 conversations the owner has not read, and conversation 41 has nothing new
-  const w = await browserWorld({ server, page, context }, WORLD);
-  const home = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
-  const chats: number[] = [];
-  for (let n = 1; n <= 12; n++) {
-    const conv = await createConversation(w.owner, { title: `Chatter ${n}`, participants: ["devtool", "docs"] });
-    await agentSays(w.srv, w.sessions.devtool!.lease, conv, `News ${n}`);
-    chats.push(conv);
-  }
-
-  // When the owner opens conversation 41 on a wide screen and turns the rail to Now
-  await railNow(page, w, home);
-
-  // Then the rail shows one row "12 other chats, 12 new" with "Mark all read", and no list of chats
-  const row = rail(page).getByRole("button", { name: "12 other chats, 12 new", exact: true });
-  await expect(row).toBeVisible();
-  await expect(row).toHaveAttribute("aria-expanded", "false");
-  const markAll = rail(page).getByRole("button", { name: "Mark all read", exact: true });
-  await expect(markAll).toBeVisible();
-  const list = rail(page).getByRole("list", { name: "Other chats" });
-  await expect(list).toHaveCount(0);
-
-  // When the owner taps "12 other chats, 12 new"
-  await row.click();
-
-  // Then the rail lists the 10 newest of the 12 chats and a "Show all" button
-  await expect(row).toHaveAttribute("aria-expanded", "true");
-  await expect(list.getByRole("listitem")).toHaveCount(10);
-  await expect(list.getByRole("listitem").first()).toContainText("Chatter 12");
-  await expect(list.getByRole("listitem").last()).toContainText("Chatter 3");
-  const showAll = rail(page).getByRole("button", { name: "Show all", exact: true });
-  await expect(showAll).toBeVisible();
-
-  // When the owner taps "Show all"
-  await showAll.click();
-
-  // Then the rail lists all 12 chats
-  await expect(list.getByRole("listitem")).toHaveCount(12);
-  await expect(showAll).toHaveCount(0);
-
-  // When the owner taps "Mark all read"
-  await markAll.click();
-
-  // Then the row is gone and the 12 conversations have 0 unread
-  await expect(rail(page).getByRole("button", { name: /other chats/ })).toHaveCount(0);
-  await expect(list).toHaveCount(0);
-  for (const conv of chats) expect(await unreadOf(w.owner, conv)).toBe(0);
-});
-
-// Owner, conv 179 msg 6018 (UX review): a sidebar ask card is short: the question, the recommended answer and Open
-scenario("A sidebar ask card shows the title, the first answer and Open", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
-  info.setTimeout(90_000);
-  // Given "devtool" asked "Merge #415 on its own?" with "Merge it" recommended and "Hold it" the alternative in conversation 52
-  const w = await browserWorld({ server, page, context }, WORLD);
-  const home = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
-  const c52 = await createConversation(w.owner, { title: "Release train", participants: ["devtool", "docs"] });
-  const id = await agentAsks(w.srv, w.sessions.devtool!.lease, c52, {});
-
-  // When the owner opens conversation 41 on a wide screen and turns the rail to Now
-  await railNow(page, w, home);
-
-  // Then the ask card in the rail shows the question, a "Merge it" button and an "Open conversation" link to conversation 52
-  const card = rail(page).getByRole("article", { name: QUESTION });
-  await expect(card).toBeVisible();
-  await expect(card.getByRole("heading", { name: QUESTION })).toBeVisible();
-  await expect(card.getByRole("button", { name: "Merge it", exact: true })).toBeVisible();
-  await expect(card.getByRole("link", { name: "Open conversation", exact: true })).toHaveAttribute("href", `/chats/${c52}`);
-
-  // And it offers Dismiss, and shows no "Hold it", "Quick reply", "Snooze" or "I have questions"
-  await expect(card.getByRole("button", { name: "Dismiss", exact: true })).toBeVisible();
-  for (const name of ["Hold it", "Quick reply", "Snooze", "I have questions"]) await expect(card.getByRole("button", { name, exact: true }), name).toHaveCount(0);
-
-  // When the owner taps "Merge it"
-  await card.getByRole("button", { name: "Merge it", exact: true }).click();
-
-  // Then the ask is answered with "Merge it" and leaves the rail
-  await expect(card).toHaveCount(0);
-  const ask = await askOf(w.owner, id);
-  expect({ state: ask.state, chosen: ask.chosen?.kind }).toEqual({ state: "answered", chosen: "recommended" });
-});
-
 // Owner, conv 179 msg 6018 (UX review): a card that needs the owner is cleared with Done; a reply card keeps Mark read
 scenario("A Needs you card has Done instead of Mark read", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
   info.setTimeout(90_000);
@@ -487,7 +284,7 @@ scenario("A Needs you card has Done instead of Mark read", { tag: ["@browser"] }
   await agentSays(w.srv, w.sessions.devtool!.lease, c41, "The lint step timed out");
 
   // When the owner opens Now
-  await openNow(page, w.srv);
+  await openNow(page, w.srv, { cards: true });
 
   // Then the card of conversation 42 under Needs you has "Done" and no "Mark read"
   const mention = page.getByRole("list", { name: "Mentions of you" }).getByRole("listitem").filter({ hasText: "Deploy log" });
@@ -527,7 +324,7 @@ scenario("Marking two cards read in a row works and the other cards stay clickab
   });
 
   // When the owner opens Now and taps "Done" on the first card
-  await openNow(page, w.srv);
+  await openNow(page, w.srv, { cards: true });
   const cards = page.getByRole("list", { name: "Mentions of you" }).getByRole("listitem");
   await expect(cards).toHaveCount(3);
   await page.getByRole("button", { name: `Done with ${a}` }).click();
@@ -562,7 +359,7 @@ scenario("Later hides a mention card until its time comes", { tag: ["@browser"] 
   await agentSays(w.srv, w.sessions.docs!.lease, c42, "@drew can you check the deploy log?");
 
   // When the owner opens Now and taps "Later" on the card of conversation 42 and picks "1 hour"
-  await openNow(page, w.srv);
+  await openNow(page, w.srv, { cards: true });
   const cards = page.getByRole("list", { name: "Mentions of you" }).getByRole("listitem");
   await cards.filter({ hasText: "Deploy log" }).getByRole("button", { name: "Later", exact: true }).click();
   await page.getByRole("menuitem", { name: "1 hour", exact: true }).click();
@@ -585,7 +382,7 @@ scenario("A new @mention after Later brings the card back at once", { tag: ["@br
   const w = await browserWorld({ server, page, context }, WORLD);
   const c42 = await createConversation(w.owner, { title: "Deploy log", participants: ["devtool", "docs"] });
   await agentSays(w.srv, w.sessions.docs!.lease, c42, "@drew can you check the deploy log?");
-  await openNow(page, w.srv);
+  await openNow(page, w.srv, { cards: true });
   const cards = page.getByRole("list", { name: "Mentions of you" }).getByRole("listitem");
   await cards.filter({ hasText: "Deploy log" }).getByRole("button", { name: "Later", exact: true }).click();
   await page.getByRole("menuitem", { name: "1 hour", exact: true }).click();
@@ -611,7 +408,7 @@ scenario("A reply to the owner's message shows the full latest message under Rep
   await agentSays(w.srv, w.sessions.devtool!.lease, conv, answer);
 
   // When the owner opens Now
-  await openNow(page, w.srv);
+  await openNow(page, w.srv, { cards: true });
 
   // Then "Replies to you" has one card for conversation 41 showing the whole answer
   const cards = page.getByRole("list", { name: "Replies to you" }).getByRole("listitem");
@@ -815,20 +612,10 @@ scenario("Reopen puts a dismissed ask back on a phone", { tag: ["@browser"] }, a
   await openFold(page, "Dismissed today");
   await page.locator(".foldrows li").getByRole("button", { name: "Reopen" }).click();
 
-  // Then Now lists the ask as open again with its quick bar
+  // Then Now lists the ask as open again with Okay, Reply and Snooze
   await expect(askCard(page)).toHaveCount(1);
   expect((await askOf(w.owner, id)).state).toBe("open");
-  await expectBar(page, askCard(page), true);
-
-  // When the owner dismisses it and reopens it from the ask options in conversation 41
-  must(await markAsk(w.owner, id, "dismiss"), "dismiss again");
-  await page.goto(`${w.srv.origin}/chats/${conv}`);
-  await askCard(page).getByRole("button", { name: "Ask options" }).click();
-  await page.getByRole("menuitem", { name: "Reopen" }).click();
-
-  // Then the ask in conversation 41 shows its quick bar
-  await expectBar(page, askCard(page), true);
-  expect((await askOf(w.owner, id)).state).toBe("open");
+  await expectBar(page, askCard(page));
 });
 
 scenario("An open ask always shows its quick bar", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
@@ -843,40 +630,40 @@ scenario("An open ask always shows its quick bar", { tag: ["@browser"] }, async 
   // | in Now | in Now |
   const a = await fresh("Row now");
   await openNow(page, w.srv);
-  await expectBar(page, askCard(page), true);
+  await expectBar(page, askCard(page));
 
   // | in conversation 41 | in conversation 41 |
   await page.goto(`${w.srv.origin}/chats/${a.conv}`);
-  await expectBar(page, askCard(page), true);
+  await expectBar(page, askCard(page));
 
   // | in conversation 41 | with its reply box open | (the thread is under the ask, which stays in the main list: issue 61)
-  await askCard(page).getByRole("button", { name: "I have questions", exact: true }).click();
+  await askCard(page).getByRole("button", { name: "Reply", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "Reply in thread" })).toBeVisible();
-  await expectBar(page, askCard(page), true);
+  await expectBar(page, askCard(page));
 
   // | in conversation 41 | in conversation 41 after a reload |
   await page.goto(`${w.srv.origin}/chats/${a.conv}`);
   await page.reload();
-  await expectBar(page, askCard(page), true);
+  await expectBar(page, askCard(page));
 
   // | that was dismissed | in Now after "Reopen" |
   must(await markAsk(w.owner, a.id, "dismiss"), "dismiss");
   await openNow(page, w.srv);
   await openFold(page, "Dismissed today");
   await page.locator(".foldrows li").getByRole("button", { name: "Reopen" }).click();
-  await expectBar(page, askCard(page), true);
+  await expectBar(page, askCard(page));
 
   // | that was snoozed | in Now after "Unsnooze" |
   must(await snoozeAsk(w.owner, a.id, { preset: "1h" }), "snooze");
   await page.reload();
   await openFold(page, "Snoozed");
   await page.locator(".foldrows li").getByRole("button", { name: "Unsnooze" }).click();
-  await expectBar(page, askCard(page), true);
+  await expectBar(page, askCard(page));
 
   // | in Now | in Now after a reload |
   await page.reload();
-  await expectBar(page, askCard(page), true);
-  await expect(askCard(page).getByRole("group", { name: "Ask actions" })).toBeVisible();
+  await expectBar(page, askCard(page));
+  await expect(askCard(page).getByRole("group", { name: "Actions" })).toBeVisible();
 });
 
 scenario("An answered ask in the feed lets the owner follow up in its thread or jump to its conversation", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
@@ -920,33 +707,6 @@ scenario("An answered ask in the feed lets the owner follow up in its thread or 
   expect((await askOf(w.owner, answeredId)).state).toBe("answered");
 });
 
-scenario("The ask bar works from the keyboard", { tag: ["@browser"] }, async ({ server, page, context, dataDir, testApi }, info) => {
-  info.setTimeout(90_000);
-  // Given an open ask of "devtool" has focus in Now
-  const w = await browserWorld({ server, page, context }, WORLD);
-  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
-  const older = await agentAsks(w.srv, w.sessions.devtool!.lease, conv, { question: "Older question?" });
-  const newer = await agentAsks(w.srv, w.sessions.devtool!.lease, conv, { question: "Newer question?" });
-  await openNow(page, w.srv);
-  await expect(page.getByRole("article")).toHaveCount(2);
-  await askCard(page, "Newer question?").focus();
-
-  // When the owner presses "S" and picks "1 hour"
-  await page.keyboard.press("s");
-  await page.getByRole("menuitem", { name: "1 hour" }).click();
-
-  // Then the ask moves to snoozed
-  await expect(askCard(page, "Newer question?")).toHaveCount(0);
-  await openFold(page, "Snoozed");
-  expect((await nowOf(w.owner)).snoozed.map((a) => a.id)).toEqual([newer]);
-
-  // And pressing "X" on the next ask dismisses it
-  await expect(askCard(page, "Older question?")).toBeFocused();
-  await page.keyboard.press("x");
-  await expect(askCard(page, "Older question?")).toHaveCount(0);
-  expect((await askOf(w.owner, older)).state).toBe("dismissed");
-});
-
 scenario("A losing answer shows what won", { tag: ["@browser"] }, async ({ server, page, context, dataDir, testApi }, info) => {
   info.setTimeout(90_000);
   // Given an open ask of "devtool" is open in two browsers
@@ -963,9 +723,9 @@ scenario("A losing answer shows what won", { tag: ["@browser"] }, async ({ serve
     await route.continue();
   });
 
-  // When one browser answers "Merge it" and the other then answers "Hold it"
-  await askCard(second).getByRole("button", { name: "Hold it", exact: true }).click();
-  await askCard(page).getByRole("button", { name: "Merge it", exact: true }).click();
+  // When the second browser presses Okay, and the first then presses Okay and its answer lands first
+  await askCard(second).getByRole("button", { name: "Okay", exact: true }).click();
+  await askCard(page).getByRole("button", { name: "Okay", exact: true }).click();
   await expect.poll(async () => (await askOf(w.owner, id)).answer).toBe("Merge it");
   release();
 
@@ -1096,8 +856,8 @@ scenario("The count updates in every open tab", { tag: ["@browser"] }, async ({ 
   await expect(page.locator("#open-count")).toHaveText("3 open");
   await expect(other.locator("#open-count")).toHaveText("3 open");
 
-  // When the owner dismisses an ask in one tab
-  await askCard(page, "Third?").getByRole("button", { name: "Dismiss" }).click();
+  // When the owner presses Okay on an ask in one tab
+  await askCard(page, "Third?").getByRole("button", { name: "Okay", exact: true }).click();
 
   // Then both tabs show 2 open asks with no reload
   await expect(page.locator("#open-count")).toHaveText("2 open");

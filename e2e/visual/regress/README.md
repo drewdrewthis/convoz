@@ -15,4 +15,8 @@ cd e2e && REGRESS_WRITE=1 pnpm exec playwright test tests/app-regress.spec.ts --
 git diff --stat visual/regress   # review every changed frame
 ```
 
+On a box that must not run Playwright, let CI write them: put the label `regress-write` on the PR (or start the `regress-write`
+workflow by hand). It runs the command above on a runner and uploads the frames as the artifact `regress-frames`. Download it, copy it
+over `e2e/visual/regress`, review every changed frame, and commit. A frame no scenario shoots any more is left as it was: delete it in the PR.
+
 Without `REGRESS_WRITE=1` the spec never writes here, and a missing file fails the scenario.

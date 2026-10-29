@@ -28,7 +28,6 @@ export const DECIDE_YOURSELF =
 export type OwnersCall = { kind: "one-way" | "taste" | "values" | "scope"; reason: string };
 
 /** The line the ask card shows under the question for an ask that carries an owner's call. */
-export const callLine = (c: OwnersCall): string => `Your call · ${c.kind}: ${c.reason}`;
 
 export interface Person {
   id?: number;
@@ -180,12 +179,15 @@ export async function askWorld(
 
 // ---- the owner's browser -----------------------------------------------------------------------------------
 
-/** The Now card of an ask: an article named by its question. */
+/** The item of an ask, in Now or in its conversation: an article named by its title (the question, or a permission ask's action). */
 export const askCard = (page: Page, question: string = QUESTION): Locator => page.getByRole("article", { name: question });
 
-/** Open Now and wait until it has loaded. */
-export async function openNow(page: Page, srv: ServerHandle): Promise<void> {
-  await page.goto(`${srv.origin}/`);
+/**
+ * Open Now and wait until it has loaded. `cards` turns on the mention and reply cards ("Mentions of you", "Replies to you"), which the
+ * one-list Now hides unless the address has ?old=1 (now.feature, "The dev build hides the mention and reply cards unless old=1").
+ */
+export async function openNow(page: Page, srv: ServerHandle, { cards = false }: { cards?: boolean } = {}): Promise<void> {
+  await page.goto(`${srv.origin}/${cards ? "?old=1" : ""}`);
   await page.getByRole("heading", { name: "Now", exact: true }).waitFor();
 }
 
@@ -255,10 +257,7 @@ export function permissionArgs(conv: number, over: Partial<Record<"action" | "ri
   return [...args, String(conv)];
 }
 
-/** Text of the "Not this" reply box on a permission card, for the agent @handle. */
-export const notThisBox = (card: Locator, handle = "devtool"): Locator => card.getByRole("textbox", { name: `Why not? @${handle} reads this.` });
-
-/** The parts of a permission card must read in this order (its visible text). */
+/** The parts of an item must read in this order (its visible text). */
 export async function expectInOrder(card: Locator, parts: string[]): Promise<void> {
   const text = await card.innerText();
   const at = parts.map((p) => text.indexOf(p));
