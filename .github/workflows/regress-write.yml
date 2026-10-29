@@ -3,8 +3,9 @@ name: regress-write
 # Writes the app's own reference frames (e2e/visual/regress, app-regress.feature) on a CI runner, so a person can review them and commit
 # them: Playwright never runs on the owner's box, and the frames must come from the same chromium the e2e shards use. Start it by putting
 # the label `regress-write` on a PR (the run uses that PR's head), or by hand (workflow_dispatch, once this file is on the default branch).
-# It only uploads the frames as an artifact; it never pushes. To take them: download "regress-frames", copy it over e2e/visual/regress,
-# look at every changed frame (`git diff --stat e2e/visual/regress`), and commit.
+# It also writes the app frame of the desktop rail (visual/app/rail-desktop-*.png, prototype-parity.spec.ts). It only uploads the frames as
+# an artifact; it never pushes. To take them: download "regress-frames", copy it over e2e/visual (it holds regress/ and app/), look at
+# every changed frame (`git diff --stat e2e/visual`), and commit.
 on:
   pull_request:
     types: [labeled]
@@ -53,11 +54,18 @@ jobs:
         env:
           REGRESS_WRITE: "1"
         run: pnpm --filter @convoz/e2e exec playwright test tests/app-regress.spec.ts --project=chromium --project=mobile --workers=2
+      # The prototype-parity screens compared with a reviewed frame of the app instead of the prototype (visual/app). Only the desktop
+      # rail is written here; one frame serves both projects, so it is shot in chromium.
+      - name: Write the app frame of the desktop rail
+        if: ${{ !cancelled() }}
+        run: pnpm --filter @convoz/e2e exec playwright test tests/prototype-parity.spec.ts -g "On a desktop the rail matches the prototype" --project=chromium --update-snapshots=all
       - name: Upload the frames
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: regress-frames
-          path: e2e/visual/regress
+          path: |
+            e2e/visual/regress
+            e2e/visual/app/rail-desktop-*.png
           if-no-files-found: error
           retention-days: 14
