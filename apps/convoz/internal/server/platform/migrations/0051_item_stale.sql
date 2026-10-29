@@ -36,10 +36,10 @@ CREATE TABLE inbox_items_new (
 ) STRICT;
 INSERT INTO inbox_items_new (id, identity_id, reason, conversation_id, first_message_id, message_id, ask_message_id, feed_item_id, count, mention_count,
   source_seq, prefer_session_id, not_before, state, claim_session_id, claim_token, claim_until, visibility_ms, deliveries, expired_reason,
-  acked_at, acked_by_session, claim_seq, created_at, updated_at)
+  acked_at, acked_by_session, claim_seq, acked_by_watch, created_at, updated_at)
 SELECT id, identity_id, reason, conversation_id, first_message_id, message_id, ask_message_id, NULL, count, mention_count,
   source_seq, prefer_session_id, not_before, state, claim_session_id, claim_token, claim_until, visibility_ms, deliveries, expired_reason,
-  acked_at, acked_by_session, claim_seq, created_at, updated_at FROM inbox_items;
+  acked_at, acked_by_session, claim_seq, acked_by_watch, created_at, updated_at FROM inbox_items;
 DROP TABLE inbox_items;
 ALTER TABLE inbox_items_new RENAME TO inbox_items;
 CREATE INDEX inbox_identity ON inbox_items(identity_id, state, id);
