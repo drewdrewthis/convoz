@@ -5,6 +5,7 @@ import { FeedThread } from "./DevFeedThread.tsx";
 import { ItemFrame } from "./DevFrame.tsx";
 import { OkayGlyph, ReplyGlyph } from "./DevIcons.tsx";
 import { ReplyBox } from "./DevReplyBox.tsx";
+import { staleLine } from "./stale.ts";
 import { laterOptionsAt } from "./presets.ts";
 import type { useServerFeed } from "./serverFeed.ts";
 
@@ -29,10 +30,17 @@ export function ServerItem({ item, next, feed, from, skew }: { item: FeedItem; n
       link={{ message: item.thread_root_id ?? undefined }}
       title={item.title}
       context={[item.recommendation && `Recommended: ${item.recommendation}`, item.context].filter(Boolean).join(". ")}
+      quiet={staleLine(item, Date.now() + skew)}
       next={next}
       from={{ id: item.conversation_id, title: from }}
       busy={busy}
-      thread={item.thread_root_id ? <FeedThread conversation={item.conversation_id} root={item.thread_root_id} request={request} send={(t) => void feed.reply(item, t)} /> : <ReplyBox busy={busy} request={request} send={(t) => void feed.reply(item, t)} />}
+      thread={
+        item.thread_root_id ? (
+          <FeedThread conversation={item.conversation_id} root={item.thread_root_id} request={request} send={(t) => void feed.reply(item, t)} />
+        ) : (
+          <ReplyBox busy={busy} request={request} send={(t) => void feed.reply(item, t)} />
+        )
+      }
       snooze={{ presets: options.map((o) => ({ key: o.label, label: o.label })), pick: (k) => void feed.snooze(item, options.find((o) => o.label === k)?.until ?? 0) }}
       actions={
         <>

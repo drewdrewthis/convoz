@@ -27,6 +27,8 @@ export interface FrameProps {
   menu?: { label: string; run: () => void }[];
   /** A small line under the item, such as the reply count. */
   foot?: ReactNode;
+  /** A quiet line under the context, such as "No update since 9:05 AM". */
+  quiet?: string;
   /** An app an agent attached, drawn under the context. */
   app?: ReactNode;
   /** The thread folded inside the item (FeedThread); the frame only gives it its place. */
@@ -143,6 +145,7 @@ export function ItemFrame({ kind, title, context, tag, next, from, inChat, menu,
           {context}
         </p>
       ) : null}
+      {quiet ? <p className="m-0 text-12 text-muted">{quiet}</p> : null}
       {app}
       {next?.length ? <p className="m-0 text-12 text-muted [overflow-wrap:anywhere]">{`Next: ${next.join(" · ")}`}</p> : null}
       {inChat ? null : (
