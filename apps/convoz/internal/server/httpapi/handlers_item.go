@@ -79,6 +79,10 @@ func (s *Server) postItem(w http.ResponseWriter, r *http.Request, c *call) {
 		"done": func(ctx context.Context, d pdb.DBTX, now time.Time) (item.Item, error) {
 			return item.MarkDone(ctx, d, now, agent, conv, key, in.Outcome)
 		},
+		"answer": func(ctx context.Context, d pdb.DBTX, now time.Time) (it item.Item, err error) {
+			it, wake, err = s.answerItem(ctx, d, c, now, conv, key, in.Outcome)
+			return it, err
+		},
 		"fyi": func(ctx context.Context, d pdb.DBTX, now time.Time) (item.Item, error) {
 			return item.MarkFyi(ctx, d, now, agent, conv, key, in.Outcome)
 		},

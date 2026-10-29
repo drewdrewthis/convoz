@@ -119,6 +119,7 @@ paths:
   /api/deliveries: { $ref: "paths/plan.yaml#/~1api~1deliveries" }
   # ---- item
   /api/conversations/{id}/items/{key}/{event}: { $ref: "paths/item.yaml#/~1api~1conversations~1{id}~1items~1{key}~1{event}" }
+  /api/messages/{id}/take: { $ref: "paths/item.yaml#/~1api~1messages~1{id}~1take" }
   /api/feed: { $ref: "paths/item.yaml#/~1api~1feed" }
   /api/feed/{id}/accept: { $ref: "paths/item.yaml#/~1api~1feed~1{id}~1accept" }
   /api/feed/{id}/answer: { $ref: "paths/item.yaml#/~1api~1feed~1{id}~1answer" }
@@ -400,6 +401,8 @@ components:
     PlanDeliver: { $ref: "components/plan.yaml#/PlanDeliver" }
     Delivery: { $ref: "components/plan.yaml#/Delivery" }
     ItemRequest: { $ref: "components/item.yaml#/ItemRequest" }
+    TakeRequest: { $ref: "components/item.yaml#/TakeRequest" }
+    TakeResponse: { $ref: "components/item.yaml#/TakeResponse" }
     FeedItem: { $ref: "components/item.yaml#/FeedItem" }
     FeedResponse: { $ref: "components/item.yaml#/FeedResponse" }
     FeedAcceptRequest: { $ref: "components/item.yaml#/FeedAcceptRequest" }

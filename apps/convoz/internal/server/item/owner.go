@@ -74,6 +74,14 @@ func GotIt(ctx context.Context, d pdb.DBTX, now time.Time, by, id int64) (Item, 
 		return it, nil
 	}
 	it.AckedAt, it.AckedBy, it.AckKind = now.UnixMilli(), by, "got_it"
+	if it.State == Blocking {
+		// The Okay on a question's blocker clears the block, and the answer is still owed: the item is the agent's again (started).
+		if q, err := IsQuestion(ctx, d, id); err != nil {
+			return Item{}, err
+		} else if q {
+			it.State, it.OwnerStep = Started, false
+		}
+	}
 	return it, save(ctx, d, &it, now, false, "got_it", by, "")
 }
 

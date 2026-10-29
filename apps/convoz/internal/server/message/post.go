@@ -3,6 +3,7 @@ package message
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
@@ -68,6 +69,7 @@ type Arrival struct {
 	SourceSeq  int64   // the seq of the message's event
 	HasUploads bool    // it carries files: a voice note may wait for its words
 	ByAgent    bool    // an agent wrote it: it wakes another agent only on a mention or a thread that agent is in
+	Owns       bool    // the agent owns an open feed item on this thread: the message wakes it, in the thread or not
 }
 
 // InboxFanOut queues the new message for one agent (inbox module); it reports whether an item was queued.
@@ -90,7 +92,10 @@ type AskReplies interface {
 // ItemReplies tells the feed items rooted at a thread that an agent wrote there (item module): such an item comes back to the owner's
 // feed, ack and snooze cleared.
 type ItemReplies interface {
-	AgentReplied(ctx context.Context, d pdb.DBTX, now time.Time, m Message) error
+	// AgentReplied reopens them and returns the agents whose open item (not done, not dropped, not acked) is on the thread, for a wake.
+	AgentReplied(ctx context.Context, d pdb.DBTX, now time.Time, m Message) ([]int64, error)
+	// OwnerReplied closes every item on the thread: one reply from the owner, all items of the message.
+	OwnerReplied(ctx context.Context, d pdb.DBTX, now time.Time, m Message) error
 }
 
 // Indexer writes the message into full-text search, inside the same transaction (search module). It is called again with
@@ -274,8 +279,14 @@ func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) 
 			return Posted{}, err
 		}
 	}
-	if p.Items != nil && draft.ThreadRoot != 0 && isAgent && !draft.Quiet {
-		if err := p.Items.AgentReplied(ctx, d, now, m); err != nil {
+	var owners []int64
+	if p.Items != nil && draft.ThreadRoot != 0 && !draft.Quiet && draft.Author != 0 {
+		if isAgent {
+			owners, err = p.Items.AgentReplied(ctx, d, now, m)
+		} else {
+			err = p.Items.OwnerReplied(ctx, d, now, m)
+		}
+		if err != nil {
 			return Posted{}, err
 		}
 	}
@@ -292,6 +303,7 @@ func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) 
 		if who == asker {
 			continue // the asker gets one ask_resolved item for its answer, not a second item for the same message (I-43)
 		}
+		arrival.Owns = slices.Contains(owners, who)
 		got, err := p.Inbox.FanOut(ctx, d, now, who, arrival)
 		if err != nil {
 			return Posted{}, err

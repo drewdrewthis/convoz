@@ -13,14 +13,17 @@ import (
 // A step is named by its key, so a retry finds the same step. The first step of a conversation is now; later ones wait as pending, and
 // when the now step is done, fyi or dropped the next one starts by itself. block makes the step the owner's: give --recommend so the owner
 // can accept it in one tap; without it the owner can only add info. Text is plain: no markdown, no links.
+// take makes an item of a question of the owner (see itemTake); answer replies in the question's thread, quoting it, and marks it done.
 func Item(args []string, io IO) int {
-	usage := "usage: convoz item start|block|done|fyi|drop|say <conv> <key> [\"<text>\"] --context C [--recommend R] [--plan P] [--due D] [--app FILE]"
+	usage := "usage: convoz item start|block|done|fyi|drop|say|answer <conv> <key> [\"<text>\"] --context C [--recommend R] [--plan P] [--due D] [--app FILE]"
 	if len(args) == 0 {
 		return usageError(io, usage)
 	}
 	sub, args := args[0], args[1:]
 	switch sub {
-	case "start", "block", "done", "fyi", "drop", "say":
+	case "take":
+		return itemTake(args, io)
+	case "start", "block", "done", "fyi", "drop", "say", "answer":
 	default:
 		return usageError(io, usage)
 	}

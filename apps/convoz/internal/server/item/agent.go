@@ -41,11 +41,14 @@ func create(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int64, k
 		}
 		it.ThreadRoot = f.Root
 	}
-	event := "start"
+	event, note := "start", ""
 	if owner {
 		event = "block"
 	}
-	return it, db.New(d).InsertEvent(ctx, db.InsertEventParams{ItemID: it.ID, Version: 1, Event: event, ToState: it.State, ByIdentity: nint(agent), At: now.UnixMilli()})
+	if f.Taken {
+		note = takeNote
+	}
+	return it, db.New(d).InsertEvent(ctx, db.InsertEventParams{ItemID: it.ID, Version: 1, Event: event, ToState: it.State, ByIdentity: nint(agent), Note: note, At: now.UnixMilli()})
 }
 
 func validKey(key string) bool { return len(key) >= 1 && len(key) <= 64 }

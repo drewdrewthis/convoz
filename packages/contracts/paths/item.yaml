@@ -6,7 +6,7 @@
     operationId: postItem
     summary: An agent moves one of its own steps; one call per transition.
     description: |
-      The agent comes from the lease, never the body, so it reaches only its own items. `event` is start, block, done, fyi, drop or say.
+      The agent comes from the lease, never the body, so it reaches only its own items. `event` is start, block, done, fyi, drop, say or answer. answer replies in the thread of the item's message, quoting the item's title, and marks it done, in one transaction; `outcome` is the text (1 to 4000 characters); only a started item with a message can be answered (409 otherwise).
       The first step of an agent in a conversation is now; later ones are pending, and when the now step leaves (done, fyi, drop) the next one
       is promoted in the same transaction. Saying start or block again for a key edits the step; block always raises the version. A move the
       state does not allow is 409 and changes nothing. Title, context and recommendation are plain text (no markdown, no links): title 1 to 200
@@ -14,7 +14,7 @@
     parameters:
       - $ref: "../openapi.yaml#/components/parameters/Id"
       - { name: key, in: path, required: true, schema: { type: string } }
-      - { name: event, in: path, required: true, schema: { type: string, enum: [start, block, done, fyi, drop, say] } }
+      - { name: event, in: path, required: true, schema: { type: string, enum: [start, block, done, fyi, drop, say, answer] } }
     requestBody:
       required: true
       content:
@@ -26,6 +26,30 @@
         content:
           application/json:
             schema: { $ref: "../openapi.yaml#/components/schemas/FeedItem" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/messages/{id}/take:
+  post:
+    x-authz: { auth: lease, scope: status }
+    security: [{ leaseBearer: [] }]
+    operationId: takeMessage
+    summary: An agent takes a question of the owner as an item on his message.
+    description: |
+      Only a person's message in the main chat can be taken (400 for an agent's message or a reply in a thread). The first item is the
+      question, started (pending when the plan already has a now), the steps follow as pending items; all are rooted at the message and
+      nothing is posted. Without `question` the title is the message text and a message that already has an item is 409. Context is required.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "../openapi.yaml#/components/schemas/TakeRequest" }
+    responses:
+      "200":
+        description: The items made, the question first.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/TakeResponse" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/feed:
   get:
