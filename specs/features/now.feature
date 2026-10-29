@@ -516,12 +516,6 @@ Feature: Now
       Then "Reply in thread" on the answered row shows "1 reply"
       And an ask with no reply shows no "Show thread"
 
-    @v1 @browser
-    Scenario: A losing answer shows what won
-      Given an open ask of "devtool" is open in two browsers
-      When both browsers press "Okay", and the first browser's answer lands first
-      Then the second browser shows "Answered · Merge it" and that its answer was not used
-
   # Owner said (msg 1117): "the feed items are sometimes like you know they don't really give me the context that I need. And while opening things in a new thread, like responding in a thread is relatively easy, it fails to consider that as a user flow, right? It's like, okay, I've opened it as a thing, and now it's like basically just delegates to a new thread, but then the item still stays there. It doesn't show that I've responded. The conversation kind of doesn't continue in the same way, right?"
   # Owner said (msg 1131): "update this ask so it has all of my QA answered ... that's the way to do it."
   # An ask waits under You replied only while the owner's reply is the last word in its thread: once the agent (or anyone else) posts

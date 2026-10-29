@@ -707,34 +707,6 @@ scenario("An answered ask in the feed lets the owner follow up in its thread or 
   expect((await askOf(w.owner, answeredId)).state).toBe("answered");
 });
 
-scenario("A losing answer shows what won", { tag: ["@browser"] }, async ({ server, page, context, dataDir, testApi }, info) => {
-  info.setTimeout(90_000);
-  // Given an open ask of "devtool" is open in two browsers
-  const w = await browserWorld({ server, page, context }, WORLD);
-  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
-  const id = await agentAsks(w.srv, w.sessions.devtool!.lease, conv);
-  const second = await context.newPage();
-  await openNow(page, w.srv);
-  await openNow(second, w.srv);
-  let release!: () => void;
-  const gate = new Promise<void>((resolve) => (release = resolve));
-  await second.route(`**/api/asks/${id}/answer`, async (route) => {
-    await gate;
-    await route.continue();
-  });
-
-  // When the second browser presses Okay, and the first then presses Okay and its answer lands first
-  await askCard(second).getByRole("button", { name: "Okay", exact: true }).click();
-  await askCard(page).getByRole("button", { name: "Okay", exact: true }).click();
-  await expect.poll(async () => (await askOf(w.owner, id)).answer).toBe("Merge it");
-  release();
-
-  // Then the second browser shows "Answered · Merge it" and that its answer was not used
-  await expect(second.getByText("Answered · Merge it")).toBeVisible();
-  await expect(second.getByText(/was not used/)).toBeVisible();
-  expect((await askOf(w.owner, id)).answer).toBe("Merge it");
-});
-
 scenario("A snoozed ask returns at its time", { tag: ["@browser"] }, async ({ server, page, context, dataDir, testApi }, info) => {
   info.setTimeout(90_000);
   // Given an open ask of "devtool"

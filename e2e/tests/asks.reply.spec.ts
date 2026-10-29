@@ -389,7 +389,8 @@ scenario("The thread of a feed card sits inside the card", { tag: ["@browser"] }
   const bottom = thread!.y + thread!.height;
   for (const control of await card.getByRole("button").all()) {
     if (await control.evaluate((el) => Boolean(el.closest('[aria-label="Thread"]')))) continue; // the thread's own buttons
-    const name = ((await control.textContent()) ?? "").trim();
+    // An icon button has no text: its name is its aria-label ("Item actions", the item's menu at its top).
+    const name = ((await control.textContent()) ?? "").trim() || ((await control.getAttribute("aria-label")) ?? "");
     if (/thread|Item actions/i.test(name)) continue; // the thread's toggle, and the item's menu at its top
     const box = await control.boundingBox();
     expect(box?.y ?? Infinity, `"${name}" at ${JSON.stringify(box)} sits below the thread ending at y=${bottom}`).toBeGreaterThanOrEqual(bottom - 1);
