@@ -31,6 +31,16 @@ Feature: Now
       When the owner presses "Reply" on the second
       Then its thread opens with the reply box in focus and stays open
 
+  Rule: Reply on any item in the dev build opens a reply box in focus
+
+    @v1 @browser @unimplemented
+    Scenario: Reply on a server item with no thread shows the empty reply box in focus, and a sent reply starts the thread
+      Given "devtool" has a started item "Index the filters" that nobody has replied to
+      When the owner opens Now in the dev build
+      Then the item shows no reply box
+      When the owner presses "Reply" and sends "Use the new index"
+      Then the box was in focus when it appeared, and the item shows its thread with the reply
+
   Rule: Okay takes a server item out of the feed, whatever its state (dev build)
 
     @v1 @browser @unimplemented
