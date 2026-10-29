@@ -12,6 +12,8 @@ type ItemRequest struct {
 	Context   string `json:"context,omitempty"`
 	Recommend string `json:"recommend,omitempty"`
 	Outcome   string `json:"outcome,omitempty"`
+	// Plan names the agent's plan on a new item (start and block); empty is main. A key that exists keeps its plan.
+	Plan string `json:"plan,omitempty"`
 	// App is an app.v1 document (appkit) shown with the item: it rides on the item's message. Start and block only, on a new item.
 	App json.RawMessage `json:"app,omitempty"`
 	// Due is a duration (2d), a time HH:MM or a date YYYY-MM-DD HH:MM in the agent's zone (UTCOffset seconds east); display only.
@@ -27,6 +29,7 @@ type FeedItem struct {
 	Handle         string `json:"handle,omitempty"`
 	Key            string `json:"key"`
 	Seq            int64  `json:"seq"`
+	Plan           string `json:"plan"`
 	State          string `json:"state"`
 	Title          string `json:"title"`
 	Context        string `json:"context,omitempty"`

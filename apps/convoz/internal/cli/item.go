@@ -14,7 +14,7 @@ import (
 // when the now step is done, fyi or dropped the next one starts by itself. block makes the step the owner's: give --recommend so the owner
 // can accept it in one tap; without it the owner can only add info. Text is plain: no markdown, no links.
 func Item(args []string, io IO) int {
-	usage := "usage: convoz item start|block|done|fyi|drop|say <conv> <key> [\"<text>\"] --context C [--recommend R] [--due D] [--app FILE]"
+	usage := "usage: convoz item start|block|done|fyi|drop|say <conv> <key> [\"<text>\"] --context C [--recommend R] [--plan P] [--due D] [--app FILE]"
 	if len(args) == 0 {
 		return usageError(io, usage)
 	}
@@ -27,9 +27,11 @@ func Item(args []string, io IO) int {
 	f := newChatFlags("item "+sub, io)
 	var context, recommend, due *string
 	var appOpt appOpts
+	var plan *string
 	if sub == "start" || sub == "block" {
 		context = f.fs.String("context", "", "why, in a sentence or two (plain text, 2000 characters)")
 		appOpt = newAppOpts(f, "an app to show with the item (a JSON file); it rides on the item's message")
+		plan = f.fs.String("plan", "main", "the plan this item is in; plans belong to you and span conversations (letters, digits, . - _)")
 		due = f.fs.String("due", "", "when it is due, for display: a duration (2d, 1d4h) or a time HH:MM")
 	}
 	if sub == "block" {
@@ -67,6 +69,7 @@ func Item(args []string, io IO) int {
 				return code
 			}
 		}
+		req.Plan = *plan
 		req.Title, req.Context, req.Recommend = text, *context, ""
 		if recommend != nil {
 			req.Recommend = *recommend

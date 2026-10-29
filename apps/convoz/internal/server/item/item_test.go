@@ -83,8 +83,8 @@ func TestTheFirstItemOfAPlanIsNowAndTheNextOnesWait(t *testing.T) {
 	if other := start(t, s, 3, docs, convA, "a"); other.State != item.Started {
 		t.Errorf("another agent in the same conversation has its own now, got %s", other.State)
 	}
-	if other := start(t, s, 3, devtool, convB, "a"); other.State != item.Started {
-		t.Errorf("the same agent in another conversation has its own now, got %s", other.State)
+	if other := startIn(t, s, 3, devtool, convB, "a", "other"); other.State != item.Started {
+		t.Errorf("the same agent in another plan has its own now, got %s", other.State)
 	}
 }
 

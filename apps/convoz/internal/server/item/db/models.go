@@ -28,6 +28,7 @@ type FeedItem struct {
 	Version        int64
 	CreatedAt      int64
 	UpdatedAt      int64
+	PlanKey        string
 }
 
 type FeedItemEvent struct {

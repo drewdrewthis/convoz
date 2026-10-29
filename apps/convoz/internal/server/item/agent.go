@@ -13,20 +13,23 @@ import (
 // create adds an item at the tail of the plan: now when the plan has no now, else pending.
 func create(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int64, key string, f Fields, owner bool) (Item, error) {
 	q := db.New(d)
+	if f.Plan == "" {
+		f.Plan = "main"
+	}
 	state, ownerStep := Started, int64(0)
 	if owner {
 		state, ownerStep = Blocking, 1
 	}
-	if _, err := q.NowOf(ctx, db.NowOfParams{AgentID: agent, ConversationID: conv}); err == nil {
+	if _, err := q.NowOf(ctx, db.NowOfParams{AgentID: agent, PlanKey: f.Plan}); err == nil {
 		state = Pending
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return Item{}, err
 	}
-	seq, err := q.NextSeq(ctx, db.NextSeqParams{AgentID: agent, ConversationID: conv})
+	seq, err := q.NextSeq(ctx, agent)
 	if err != nil {
 		return Item{}, err
 	}
-	row, err := q.InsertItem(ctx, db.InsertItemParams{AgentID: agent, ConversationID: conv, WorkKey: key, Seq: seq, State: state, OwnerStep: ownerStep,
+	row, err := q.InsertItem(ctx, db.InsertItemParams{AgentID: agent, ConversationID: conv, PlanKey: f.Plan, WorkKey: key, Seq: seq, State: state, OwnerStep: ownerStep,
 		Title: f.Title, Context: f.Context, Recommendation: nstr(f.Recommend), DueAt: nint(f.DueAt), Now: now.UnixMilli()})
 	if err != nil {
 		return Item{}, err
@@ -60,7 +63,7 @@ func Start(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int64, ke
 	if err != nil {
 		return Item{}, err
 	}
-	if it.State != Started && it.State != Pending {
+	if it.State != Started && it.State != Pending || f.Plan != "" && it.Plan != f.Plan {
 		return Item{}, ErrConflict
 	}
 	if it.Title == f.Title && it.Context == f.Context && it.DueAt == f.DueAt {
@@ -85,7 +88,7 @@ func Block(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int64, ke
 	if err != nil {
 		return Item{}, err
 	}
-	if it.State != Started && it.State != Blocking && it.State != Pending {
+	if it.State != Started && it.State != Blocking && it.State != Pending || f.Plan != "" && it.Plan != f.Plan {
 		return Item{}, ErrConflict
 	}
 	it.Title, it.Context, it.DueAt, it.OwnerStep = f.Title, f.Context, f.DueAt, true
@@ -109,7 +112,7 @@ func leave(ctx context.Context, d pdb.DBTX, now time.Time, it Item, to, event, n
 		return Item{}, err
 	}
 	if wasNow {
-		if err := promote(ctx, d, now, it.Agent, it.Conversation); err != nil {
+		if err := promote(ctx, d, now, it.Agent, it.Plan); err != nil {
 			return Item{}, err
 		}
 	}

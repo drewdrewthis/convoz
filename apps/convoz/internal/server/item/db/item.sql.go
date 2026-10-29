@@ -47,17 +47,17 @@ func (q *Queries) EventsOf(ctx context.Context, itemID int64) ([]FeedItemEvent, 
 }
 
 const firstPending = `-- name: FirstPending :one
-SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, thread_root_id, version, created_at, updated_at FROM feed_items WHERE agent_id = ?1 AND conversation_id = ?2 AND state = 'pending'
+SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, thread_root_id, version, created_at, updated_at, plan_key FROM feed_items WHERE agent_id = ?1 AND plan_key = ?2 AND state = 'pending'
 ORDER BY seq LIMIT 1
 `
 
 type FirstPendingParams struct {
-	AgentID        int64
-	ConversationID int64
+	AgentID int64
+	PlanKey string
 }
 
 func (q *Queries) FirstPending(ctx context.Context, arg FirstPendingParams) (FeedItem, error) {
-	row := q.db.QueryRowContext(ctx, firstPending, arg.AgentID, arg.ConversationID)
+	row := q.db.QueryRowContext(ctx, firstPending, arg.AgentID, arg.PlanKey)
 	var i FeedItem
 	err := row.Scan(
 		&i.ID,
@@ -79,6 +79,7 @@ func (q *Queries) FirstPending(ctx context.Context, arg FirstPendingParams) (Fee
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PlanKey,
 	)
 	return i, err
 }
@@ -112,15 +113,16 @@ func (q *Queries) InsertEvent(ctx context.Context, arg InsertEventParams) error 
 }
 
 const insertItem = `-- name: InsertItem :one
-INSERT INTO feed_items (agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, version, created_at, updated_at)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7,
-  ?8, ?9, ?10, 1, ?11, ?11)
-RETURNING id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, thread_root_id, version, created_at, updated_at
+INSERT INTO feed_items (agent_id, conversation_id, plan_key, work_key, seq, state, owner_step, title, context, recommendation, due_at, version, created_at, updated_at)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,
+  ?9, ?10, ?11, 1, ?12, ?12)
+RETURNING id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, thread_root_id, version, created_at, updated_at, plan_key
 `
 
 type InsertItemParams struct {
 	AgentID        int64
 	ConversationID int64
+	PlanKey        string
 	WorkKey        string
 	Seq            int64
 	State          string
@@ -136,6 +138,7 @@ func (q *Queries) InsertItem(ctx context.Context, arg InsertItemParams) (FeedIte
 	row := q.db.QueryRowContext(ctx, insertItem,
 		arg.AgentID,
 		arg.ConversationID,
+		arg.PlanKey,
 		arg.WorkKey,
 		arg.Seq,
 		arg.State,
@@ -167,12 +170,13 @@ func (q *Queries) InsertItem(ctx context.Context, arg InsertItemParams) (FeedIte
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PlanKey,
 	)
 	return i, err
 }
 
 const itemByID = `-- name: ItemByID :one
-SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, thread_root_id, version, created_at, updated_at FROM feed_items WHERE id = ?1
+SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, thread_root_id, version, created_at, updated_at, plan_key FROM feed_items WHERE id = ?1
 `
 
 func (q *Queries) ItemByID(ctx context.Context, id int64) (FeedItem, error) {
@@ -198,12 +202,13 @@ func (q *Queries) ItemByID(ctx context.Context, id int64) (FeedItem, error) {
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PlanKey,
 	)
 	return i, err
 }
 
 const itemByKey = `-- name: ItemByKey :one
-SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, thread_root_id, version, created_at, updated_at FROM feed_items WHERE agent_id = ?1 AND conversation_id = ?2 AND work_key = ?3
+SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, thread_root_id, version, created_at, updated_at, plan_key FROM feed_items WHERE agent_id = ?1 AND conversation_id = ?2 AND work_key = ?3
 `
 
 type ItemByKeyParams struct {
@@ -235,12 +240,13 @@ func (q *Queries) ItemByKey(ctx context.Context, arg ItemByKeyParams) (FeedItem,
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PlanKey,
 	)
 	return i, err
 }
 
 const itemsByRoot = `-- name: ItemsByRoot :many
-SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, thread_root_id, version, created_at, updated_at FROM feed_items WHERE thread_root_id = ?1
+SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, thread_root_id, version, created_at, updated_at, plan_key FROM feed_items WHERE thread_root_id = ?1
 `
 
 func (q *Queries) ItemsByRoot(ctx context.Context, threadRootID sql.NullInt64) ([]FeedItem, error) {
@@ -272,6 +278,7 @@ func (q *Queries) ItemsByRoot(ctx context.Context, threadRootID sql.NullInt64) (
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PlanKey,
 		); err != nil {
 			return nil, err
 		}
@@ -287,32 +294,27 @@ func (q *Queries) ItemsByRoot(ctx context.Context, threadRootID sql.NullInt64) (
 }
 
 const nextSeq = `-- name: NextSeq :one
-SELECT CAST(COALESCE(MAX(seq), 0) + 1 AS INTEGER) FROM feed_items WHERE agent_id = ?1 AND conversation_id = ?2
+SELECT CAST(COALESCE(MAX(seq), 0) + 1 AS INTEGER) FROM feed_items WHERE agent_id = ?1
 `
 
-type NextSeqParams struct {
-	AgentID        int64
-	ConversationID int64
-}
-
-func (q *Queries) NextSeq(ctx context.Context, arg NextSeqParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, nextSeq, arg.AgentID, arg.ConversationID)
+func (q *Queries) NextSeq(ctx context.Context, agentID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, nextSeq, agentID)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
 }
 
 const nowOf = `-- name: NowOf :one
-SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, thread_root_id, version, created_at, updated_at FROM feed_items WHERE agent_id = ?1 AND conversation_id = ?2 AND state IN ('started','blocking')
+SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, thread_root_id, version, created_at, updated_at, plan_key FROM feed_items WHERE agent_id = ?1 AND plan_key = ?2 AND state IN ('started','blocking')
 `
 
 type NowOfParams struct {
-	AgentID        int64
-	ConversationID int64
+	AgentID int64
+	PlanKey string
 }
 
 func (q *Queries) NowOf(ctx context.Context, arg NowOfParams) (FeedItem, error) {
-	row := q.db.QueryRowContext(ctx, nowOf, arg.AgentID, arg.ConversationID)
+	row := q.db.QueryRowContext(ctx, nowOf, arg.AgentID, arg.PlanKey)
 	var i FeedItem
 	err := row.Scan(
 		&i.ID,
@@ -334,14 +336,15 @@ func (q *Queries) NowOf(ctx context.Context, arg NowOfParams) (FeedItem, error) 
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PlanKey,
 	)
 	return i, err
 }
 
 const openItems = `-- name: OpenItems :many
-SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, thread_root_id, version, created_at, updated_at FROM feed_items
+SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, thread_root_id, version, created_at, updated_at, plan_key FROM feed_items
 WHERE (state IN ('pending','started','blocking','fyi')) AND acked_at IS NULL
-ORDER BY conversation_id, agent_id, seq
+ORDER BY agent_id, plan_key, seq
 `
 
 // What the feed lists: every step still to do, and a "no longer needs you", that the owner has not acknowledged (Okay).
@@ -374,6 +377,7 @@ func (q *Queries) OpenItems(ctx context.Context) ([]FeedItem, error) {
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PlanKey,
 		); err != nil {
 			return nil, err
 		}
@@ -389,7 +393,7 @@ func (q *Queries) OpenItems(ctx context.Context) ([]FeedItem, error) {
 }
 
 const recentDone = `-- name: RecentDone :many
-SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, thread_root_id, version, created_at, updated_at FROM feed_items WHERE state = 'done' ORDER BY updated_at DESC, id DESC LIMIT ?1
+SELECT id, agent_id, conversation_id, work_key, seq, state, owner_step, title, context, recommendation, due_at, acked_at, acked_by, ack_kind, snoozed_until, thread_root_id, version, created_at, updated_at, plan_key FROM feed_items WHERE state = 'done' ORDER BY updated_at DESC, id DESC LIMIT ?1
 `
 
 func (q *Queries) RecentDone(ctx context.Context, max int64) ([]FeedItem, error) {
@@ -421,6 +425,7 @@ func (q *Queries) RecentDone(ctx context.Context, max int64) ([]FeedItem, error)
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PlanKey,
 		); err != nil {
 			return nil, err
 		}

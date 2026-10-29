@@ -65,7 +65,10 @@ func TestMigration0050_LegacyRowsBecomeThePlanOfTheirConversation(t *testing.T) 
 	if err := s.Reader.SQL().QueryRow(`SELECT plan_key FROM feed_items WHERE id = 3`).Scan(&def); err != nil || def != "main" {
 		t.Fatalf("default %q %v", def, err)
 	}
-	if _, err := s.Writer.SQL().Exec(`UPDATE feed_items SET state = 'started', plan_key = 'c10' WHERE id = 3`); err == nil {
+	if err := dbtest.TxErr(t, s, func(ctx context.Context, d pdb.DBTX) error {
+		_, err := d.ExecContext(ctx, `UPDATE feed_items SET state = 'started', plan_key = 'c10' WHERE id = 3`)
+		return err
+	}); err == nil {
 		t.Fatal("two started items in one plan were allowed")
 	}
 }
