@@ -52,24 +52,30 @@ export function planItems(board: PlanBoard | undefined, fromOf: (conversation: n
 
 const lines = (body: string): string[] => body.replace(/\p{Cf}/gu, "").split("\n").map((l) => l.trim()).filter(Boolean);
 
+const REPLY_WORDS = new Set(["go", "okay", "ok", "yes", "no", "not this", "snooze"]);
+const bareReply = (body: string): boolean => REPLY_WORDS.has(body.trim().replace(/[.!?]+$/, "").trim().toLowerCase());
+
 /**
  * questionsOf is the owner's latest question of one conversation (a message the owner wrote in the main chat in the last 24 hours) as an item,
- * when an agent has answered it (in the chat after it, or in its thread). Done ("Answered") when the last word is an agent's; started
- * when the owner wrote again in the question's thread after the agent's reply. No agent reply: no item.
+ * when an agent has answered it (in the chat after it, or in its thread). Done when the last word is an agent's; no item when the owner
+ * wrote again after it (their reply closes it) or when no agent has replied.
  */
 export function questionsOf(conversation: number, from: string, list: readonly Message[], me: string, now: number): Fyi | null {
   const mine = (m: Message) => m.author.handle === me && m.kind !== "system" && m.kind !== "ask";
-  const q = [...list].reverse().find((m) => mine(m) && !m.thread_root_id && m.created_at >= now - 86_400_000 && lines(m.body).length);
+  // The answer text of an ask is the owner's answer, not a question; a bare reply word ("Go") is one too.
+  const answers = new Set(list.flatMap((m) => (m.ask?.answer ? [m.ask.answer.trim()] : [])));
+  const q = [...list].reverse().find((m) => mine(m) && !m.thread_root_id && m.created_at >= now - 86_400_000 && lines(m.body).length && !bareReply(m.body) && !answers.has(m.body.trim()));
   if (!q) return null;
   const after = list.filter((m) => m.id > q.id && (!m.thread_root_id || m.thread_root_id === q.id));
   const agent = after.filter((m) => m.author.kind === "agent" && m.kind !== "ask" && lines(m.body).length);
   const last = agent[agent.length - 1];
   if (!last) return null;
-  const spoke = after.some((m) => mine(m) && m.id > last.id);
+  // The owner's reply in the thread after the agent's last word closes the card; the agent's next post moves `at` past it and brings it back.
+  if (after.some((m) => mine(m) && m.id > last.id)) return null;
   return {
     key: `q:${conversation}:${q.id}`,
     root: q.id,
-    state: spoke ? "started" : "done",
+    state: "done",
     conversation_id: conversation,
     from,
     title: `Your question: ${lines(q.body)[0]}`,

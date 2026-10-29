@@ -88,6 +88,21 @@ Feature: Now
       When the owner presses "Okay"
       Then the card leaves Now, and returns when the conversation moves on
 
+  Rule: A question card is only for a real question, and the owner's reply closes it (dev build, owner conv 179 msg 12991 and 12992)
+
+    @v1 @browser @unimplemented
+    Scenario: A bare reply word is no question card
+      Given the owner answered an ask with "Go" and an agent then wrote in the chat
+      Then Now shows no card "Your question: Go"
+
+    @v1 @browser @unimplemented
+    Scenario: The owner's reply closes a question card until an agent writes again
+      Given the owner's question "Why is CI red?" shows as a card
+      When the owner replies from the card
+      Then the card leaves Now
+      When an agent writes in that thread
+      Then the card returns
+
   Rule: A started item quiet for 15 minutes says so (dev build, owner conv 179 msg 12699, 12763)
 
     @v1 @browser @unimplemented

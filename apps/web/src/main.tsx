@@ -1,6 +1,7 @@
 import "./app/effects.ts";
 import "./features/rail/width.ts";
 import { watchErrors } from "./shared/clientErrors.ts";
+import { reloadOnStaleChunk } from "./shared/staleChunk.ts";
 import { createRoot } from "react-dom/client";
 import { prepare } from "./app/App.tsx";
 import { Root } from "./app/Root.tsx";
@@ -17,6 +18,7 @@ import { installDev } from "./shared/dev.ts";
 
 if (DEV) installDev(); // the dev build: its badge, and every path under /dev/ (shared/dev.ts)
 watchErrors(); // before anything else runs, so a failure while the app starts is reported too
+reloadOnStaleChunk(); // a tab on an old build reloads once when a deploy has replaced its chunks
 const def = route(appPath(), document.documentElement.dataset.status);
 prepare(def);
 if (!def.useful) noFirstScreen();
