@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { expect, scenario, test } from "../lib/scenario.ts";
-import { ROOT_TEXT, mainList, openThread, threadLog, threadPane, threadWorld } from "../lib/threads-wp5.ts";
+import { ROOT_TEXT, mainList, openThread, threadLog, threadOf, threadPane, threadWorld } from "../lib/threads-wp5.ts";
 import { scratch, setEngine, wav } from "../lib/uploads-wp10.ts";
 
 /*
@@ -35,7 +35,12 @@ scenario("The owner can record a voice note in a thread", { tag: ["@browser"] },
   // Then the thread shows one voice reply with the transcript
   const notes = threadLog(page).getByRole("article").filter({ has: page.getByRole("button", { name: /^(Play|Pause) voice message$/ }) });
   await expect(notes).toHaveCount(1);
-  await notes.first().getByRole("button", { name: "Transcript" }).click();
+  await notes.first().getByRole("button", { name: "Transcript" }).click({ timeout: 30_000 }).catch(async (err: Error) => {
+    // Tell a server that did not finish (state pending here too) from a page that missed the update (state done here, "Transcribing…" on screen).
+    const replies = (await threadOf(t.w.owner, t.root)).messages as unknown as { id: number; uploads?: { id: string; kind: string; transcript?: unknown }[] }[];
+    const state = replies.flatMap((m) => (m.uploads ?? []).map((u) => ({ message: m.id, upload: u.id, kind: u.kind, transcript: u.transcript ?? null })));
+    throw new Error(`${err.message}\nthe thread as the API reads it now: ${JSON.stringify(state)}`);
+  });
   await expect(notes.first().getByText("ship the filters on Thursday")).toBeVisible();
 
   // And the main list of conversation 41 shows no new message: the one voice note in the log is the reply in the thread
