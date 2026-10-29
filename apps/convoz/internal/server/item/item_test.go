@@ -611,3 +611,16 @@ func TestAThreadRootIsKeptOnceAndAnOldItemHasNone(t *testing.T) {
 		t.Fatalf("the first root stays, got %d", got)
 	}
 }
+
+func TestSayBumpsUpdatedAtAndKeepsStateAndVersion(t *testing.T) {
+	s := rig(t)
+	before := start(t, s, 0, devtool, convA, "x")
+	var after item.Item
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) (err error) {
+		after, err = item.Say(ctx, d, at(7), devtool, convA, "x", "Half way")
+		return err
+	})
+	if got := get(t, s, devtool, convA, "x"); got.UpdatedAt != at(7).UnixMilli() || got.UpdatedAt != after.UpdatedAt || got.State != before.State || got.Version != before.Version {
+		t.Fatalf("before %+v after %+v", before, got)
+	}
+}
