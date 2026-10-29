@@ -70,6 +70,24 @@ Feature: Now
       When the owner presses "Reply" on another draft
       Then the reply box opens with the draft text, and Send sends the edited text
 
+  Rule: An ask message in a conversation is drawn as the item (dev build, owner conv 179 msg 12889, 12904)
+
+    @v1 @browser @unimplemented
+    Scenario: An open ask in a conversation is a blocking item, and a closed one is a done item with one line
+      Given a conversation holds an ask "Merge PR 12?" from "devtool"
+      When the owner opens the conversation in the dev build
+      Then the ask is a blocking item with Okay, Reply and Snooze and no From link
+      When the owner presses "Okay"
+      Then the ask is a done item with the line "Go, by drew" and no buttons, and Pin and Delete stay in its menu
+
+  Rule: Okay and Snooze work on the cards the browser builds (dev build, owner conv 179 msg 12910)
+
+    @v1 @browser @unimplemented
+    Scenario: Okay hides a question card until it moves
+      Given the owner's question "Can step 1 ship?" shows as a card
+      When the owner presses "Okay"
+      Then the card leaves Now, and returns when the conversation moves on
+
   Rule: Okay takes a server item out of the feed, whatever its state (dev build)
 
     @v1 @browser @unimplemented

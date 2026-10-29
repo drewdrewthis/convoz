@@ -7,9 +7,15 @@ const f = (key: string, at: number) => ({ key, at }) as Fyi;
 
 test("a card the owner okayed stays hidden until it moves", () => {
   const marks = okayMark({}, "q1", 100);
-  assert.deepEqual(unseen([f("q1", 100), f("q2", 50)], marks, 200).map((x) => x.key), ["q2"]);
+  assert.deepEqual(
+    unseen([f("q1", 100), f("q2", 50)], marks, 200).map((x) => x.key),
+    ["q2"],
+  );
   assert.deepEqual(unseen([f("q1", 100)], marks, 200).length, 0);
-  assert.deepEqual(unseen([f("q1", 150)], marks, 200).map((x) => x.key), ["q1"]);
+  assert.deepEqual(
+    unseen([f("q1", 150)], marks, 200).map((x) => x.key),
+    ["q1"],
+  );
 });
 
 test("a snoozed card is hidden until its time, then comes back", () => {
