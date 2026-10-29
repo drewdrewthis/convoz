@@ -51,9 +51,7 @@ scenario("The owner resizes the sidebar and the width is remembered", { tag: ["@
   await handle.dblclick();
   await expect.poll(width).toBe(first);
 
-  // Then the handle is gone when the sidebar is folded or shows Now
-  await rail(page).getByRole("button", { name: /^Now\b/ }).click();
-  await expect(page.getByRole("separator", { name: "Resize sidebar" })).toHaveCount(0);
+  // Then the handle is gone when the sidebar is folded
   await rail(page).getByRole("button", { name: "Hide sidebar" }).click();
   await expect(page.getByRole("separator", { name: "Resize sidebar" })).toHaveCount(0);
 

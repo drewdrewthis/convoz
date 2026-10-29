@@ -15,7 +15,7 @@ scenario("A withdrawn ask leaves Now and its card shows closed at once", { tag: 
   const conv = await createConversation(u.w.owner, { title: "Ship search filters", participants: ["devtool"] });
   const id = await agentAsks(u.w.srv, u.sessions.devtool!.lease, conv);
   await page.goto(`${u.w.srv.origin}/chats/${conv}`);
-  await expect(askCard(page).getByRole("button", { name: "Quick reply" })).toBeVisible();
+  await expect(askCard(page).getByRole("button", { name: "Okay", exact: true })).toBeVisible();
   const now = await context.newPage();
   await openNow(now, u.w.srv);
   await expect(askCard(now)).toBeVisible();
@@ -29,7 +29,7 @@ scenario("A withdrawn ask leaves Now and its card shows closed at once", { tag: 
   // Then Now no longer lists it and the card in the conversation shows closed, with no reload
   await expect(askCard(now)).toHaveCount(0, { timeout: 4_000 });
   await expect(askCard(page)).toContainText("Closed", { timeout: 4_000 });
-  await expect(askCard(page).getByRole("button", { name: "Quick reply" })).toHaveCount(0);
+  await expect(askCard(page).getByRole("button", { name: "Okay", exact: true })).toHaveCount(0);
 });
 
 scenario("After the stream was cut, an ask withdrawn meanwhile shows closed with no reload", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
@@ -39,7 +39,7 @@ scenario("After the stream was cut, an ask withdrawn meanwhile shows closed with
   const conv = await createConversation(u.w.owner, { title: "Ship search filters", participants: ["devtool"] });
   const id = await agentAsks(u.w.srv, u.sessions.devtool!.lease, conv);
   await page.goto(`${u.w.srv.origin}/chats/${conv}`);
-  await expect(askCard(page).getByRole("button", { name: "Quick reply" })).toBeVisible();
+  await expect(askCard(page).getByRole("button", { name: "Okay", exact: true })).toBeVisible();
   await streamOpen(page);
 
   // And the stream is cut
@@ -52,5 +52,5 @@ scenario("After the stream was cut, an ask withdrawn meanwhile shows closed with
 
   // Then the card shows closed with no reload
   await expect(askCard(page)).toContainText("Closed", { timeout: 5_000 });
-  await expect(askCard(page).getByRole("button", { name: "Quick reply" })).toHaveCount(0);
+  await expect(askCard(page).getByRole("button", { name: "Okay", exact: true })).toHaveCount(0);
 });

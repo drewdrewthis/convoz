@@ -34,13 +34,6 @@ Feature: Asks and their state machine
       And the owner sees no ask in Now
 
     @v1 @browser
-    Scenario: The ask card shows why it is the owner's call
-      Given "devtool" asked in conversation 41 as a "taste" call because "Both names read fine; it is your voice"
-      And "devtool" asked inside thread 900 as a "one-way" call because "A published name cannot be taken back"
-      When the owner opens Now, conversation 41 and thread 900
-      Then each card shows "Your call · taste: Both names read fine; it is your voice" or "Your call · one-way: A published name cannot be taken back" under its question
-
-    @v1 @browser
     Scenario: An ask from before this rule shows no owner's call line
       Given an open ask of "devtool" that has no reason it is the owner's call
       When the owner opens Now
@@ -51,8 +44,8 @@ Feature: Asks and their state machine
     @v1 @browser @I-15
     Scenario: The answer is posted where the ask was asked
       Given an ask of "devtool" posted as a reply in thread 900
-      When the owner answers "Hold it" from Now
-      Then thread 900 shows the answer message "Hold it"
+      When the owner presses "Okay" on it in Now
+      Then thread 900 shows the answer message "Merge it"
       And the main list of conversation 41 does not
 
     @v1 @cli @I-12
@@ -94,42 +87,35 @@ Feature: Asks and their state machine
   Rule: Answers are explicit and idempotent
 
     @v1 @browser
-    Scenario: A quick reply answers with custom text
-      Given an open ask of "devtool"
-      When the owner opens Quick reply on the ask and sends "Split it in two"
-      Then the ask shows "Replied · Split it in two"
-      And "devtool" gets an "ask_resolved" item with the custom text
-
-    @v1 @browser
-    Scenario: An ask has a I have questions button
+    Scenario: An ask has a Reply button
       Given an open ask of "devtool" and an answered ask of "devtool" in conversation 41
-      When the owner opens the ask menu in the conversation
-      Then the ask menu has no Reply item
-      When the owner taps "I have questions" on the open ask
+      When the owner opens the item menu of the ask in the conversation
+      Then the menu has no Reply item
+      When the owner taps "Reply" on the open ask
       Then the thread of the ask opens and its Reply box has focus
-      When the owner taps "I have questions" on the ask in Now
-      Then conversation 41 opens with the thread of the ask and its Reply box has focus
-      And the answered ask has no option buttons and keeps "I have questions"
+      When the owner taps "Reply" on the ask in Now
+      Then the thread opens inside the ask in Now and its reply box has focus
+      And the answered ask in the conversation has no "Okay" and no "Reply"
 
     # Owner said (msg 1202, relayed in msg 1204): "wherever a message shows 'Reply in thread', add a small count of the replies, and of the new ones. Then you can tell at a glance that a thread exists and has something new."
     @v1 @browser
-    Scenario: The I have questions button of an ask shows the replies
+    Scenario: An ask in a conversation shows how many replies it has
       Given an open ask of "devtool" in conversation 41 and "docs" replied in its thread
       When the owner opens conversation 41
-      Then "I have questions" on the ask shows "1 reply"
+      Then the ask, with its "Okay" and "Reply", shows "1 reply"
 
     @v1 @browser
     Scenario: The ask menu opens once
       Given an open ask of "devtool" in conversation 41
-      When the owner taps "Ask options" on the ask
-      Then one menu opens with "Snooze", "Dismiss", "Copy link", "Pin" and "Delete"
+      When the owner taps "Item actions" on the ask
+      Then one menu opens with "Pin", "Copy link" and "Delete"
       And the ask has no second "Message actions" button
       And the thread under the ask does not draw the ask again
 
     @v1 @browser @I-24 @C-4
-    Scenario: A double tap on an option answers once
+    Scenario: A double tap on Okay answers once
       Given an open ask of "devtool"
-      When the owner taps "Merge it" twice quickly
+      When the owner taps "Okay" twice quickly
       Then conversation 41 shows one answer message
       And the second request returns the first result
 
@@ -138,24 +124,6 @@ Feature: Asks and their state machine
       Given an open ask of "devtool"
       When the owner posts "thinking about it" in conversation 41
       Then the ask is still "open" in Now
-
-    # Owner, msg 1802: "I just tried to dismiss this ... in the thread, and nothing happened in the UI". A reply in the thread moves the
-    # ask's version, so the card may still hold the old one.
-    @v1 @browser
-    Scenario: Dismiss on a card with an old version still dismisses
-      Given an open ask of "devtool" in conversation 41, open on screen
-      And the owner replied in its thread, so the card holds an old version
-      When the owner taps "Dismiss" on the card
-      Then the ask is dismissed
-
-    # Owner (Drew, msg 716): "this history button seems kind of useless? A better ui would just be the quick buttons"
-    # In the conversation the card shows Quick reply, Snooze and Dismiss like Now's (no Open); History is an item in its ⋯ menu.
-    @v1 @browser @I-12 @C-6 @AC-29
-    Scenario: The ask history shows who dismissed it
-      Given an open ask of "devtool"
-      When the owner dismisses it, undismisses it and then answers "Merge it"
-      Then the ask's history lists "Dismissed by Drew", "Reopened by Drew" and "Answered by Drew · Merge it" with their times
-      And "devtool" sees the same history with "convoz read 41"
 
   Rule: Snooze is a personal overlay that never changes the ask
 
@@ -173,9 +141,9 @@ Feature: Asks and their state machine
 
     @v1 @browser @I-13 @C-5
     Scenario: Only an open ask can be snoozed
-      Given an ask of "devtool" that the owner dismissed
-      When the owner opens the ask's menu
-      Then the menu has no Snooze item
+      Given an ask of "devtool" that the owner dismissed, and an open ask of "devtool"
+      When the owner opens the conversation
+      Then the open ask offers "Snooze" and the dismissed ask does not
 
   Rule: An app on an ask shows on its card
 
@@ -229,13 +197,13 @@ Feature: Asks and their state machine
       Given an open ask of "devtool", and the owner has the conversation and Now open in two pages
       When the owner replies to the ask in its thread
       Then Now no longer lists it in the main list but under "You replied · waiting on the agent", with no reload
-      And the card in the conversation shows "You replied · waiting on @devtool" and still offers its options
+      And the card in the conversation still offers "Okay" and "Reply"
 
     # Owner said (conv 179 msg 7988): "Show expandable thread in feed item directly".
     @v1 @browser
     Scenario: An ask in Now with replies opens its thread in place and folds it again
       Given an open ask of "devtool" with the reply "Both fit; the smaller one is safer." from "docs" in its thread
-      When the owner opens Now
+      When the owner opens Now with the mention and reply cards turned on
       Then the ask card offers "Show thread" with 1 reply
       When the owner opens the thread of the card
       Then the card shows the reply "Both fit; the smaller one is safer." and the page is still Now
@@ -247,7 +215,7 @@ Feature: Asks and their state machine
     @v1 @browser
     Scenario: The thread of a feed card sits inside the card
       Given an open ask of "devtool" with the reply "Both fit; the smaller one is safer." from "docs" in its thread
-      When the owner opens Now
+      When the owner opens Now with the mention and reply cards turned on
       Then the "Show thread" button is inside the ask card
       When the owner opens the thread of the card
       Then the reply "Both fit; the smaller one is safer." is inside the ask card
@@ -268,30 +236,24 @@ Feature: Asks and their state machine
     @v1 @browser
     Scenario: A reply typed in the thread of a Replies to you card marks it read and takes it out
       Given "docs" answered the owner in a thread of conversation "Deploy log"
-      When the owner opens Now and the thread of the card, and sends "Thanks" with Reply here
+      When the owner opens Now with the mention and reply cards turned on, opens the thread of the card, and sends "Thanks" with Reply here
       Then the card leaves "Replies to you" and a toast says it was marked read
       And after a reload the card is still gone
 
     @v1 @browser
-    Scenario: Quick reply on an ask card says where the ask went
-      Given an open ask of "devtool" in Now
-      When the owner sends "Use the smaller one" with Quick reply
-      Then the ask leaves the main list, "Answered today" lists it with "Replied · Use the smaller one", and a toast says it moved to Answered today
-
-    @v1 @browser
-    Scenario: Go on a permission ask says where the ask went
+    Scenario: Okay on a permission ask says where the ask went
       Given an open permission ask of "devtool" in Now
-      When the owner taps "Go"
+      When the owner taps "Okay"
       Then the ask leaves the main list, "Answered today" lists it, and a toast says it moved to Answered today
 
     # Owner said (conv 379 msg 6722): "why couldn't I quick reply on that ask?" (an ask inside a thread).
     @v1 @browser
-    Scenario: An ask inside a thread has Quick reply too
+    Scenario: An ask inside a thread has Okay and Reply too
       Given "devtool" asks inside the thread of its message "Step 1 is the chips UI"
       When the owner opens the conversation
-      Then the ask card in the thread offers "Quick reply" and "I have questions"
-      When the owner sends the quick reply "Use the smaller one"
-      Then the ask shows "Replied · Use the smaller one"
+      Then the ask card in the thread offers "Okay" and "Reply"
+      When the owner presses "Okay"
+      Then the ask is answered with "Merge it" and the card shows it in one line
 
     @v1 @cli
     Scenario: An agent's reply does not close an ask
@@ -336,84 +298,22 @@ Feature: Asks and their state machine
     Scenario: The updated ask shows in Now with the answers, and leaves You replied
       Given an open ask of "devtool" that the owner replied to, and the owner has the conversation and Now open in two pages
       When "devtool" updates the ask with its answers
-      Then Now lists the ask in the main list with "Your questions, answered" and the answers in full: with no "More" to tap on a wide screen, behind "More" on a phone
+      Then Now lists the ask in the main list, titled by the new question, with the answers in full
       And the ask is no longer under "You replied"
-      And the card in the conversation shows the same, and its history has the update
-
-  # Drew, conv 179 msg 4342 (the Q&A on the feed item): the question read gray under a white answer, "v2 · changed: answers" was jargon,
-  # Q and A ran on in one paragraph, raw links wrapped mid-word and the long answer pushed the options off the screen.
-  # Spec /tmp/convoz-ux/qa-feeditem.md: the card gets a Q/A section (conv 1 msg 2362), read in full at a glance (conv 1 msg 2064).
-  Rule: An updated ask shows the owner's questions and the agent's answers as their own section under the question
-
-    @v1 @browser
-    Scenario: An updated ask shows each question and its answer in a section under a bright question
-      Given an open ask of "devtool" that the owner replied to with "It was deployed?"
-      When "devtool" updates the ask with the answers "Q: It was deployed? A: Yes. The block was lifted."
-      Then the card in Now and the card in the conversation show the question in the text color, not the muted one
-      And under it, 8 px or more below and with an accent edge on its left, a section "Your questions, answered"
-      And the section shows "It was deployed?" muted and "Yes. The block was lifted." in the text color, as two rows with no "Q:" and no "A:"
-
-    @v1 @browser
-    Scenario: Answers with no Q and A marks show in full, and an ask never updated shows no section
-      Given an open ask of "devtool" updated with answers that carry no "Q:" and no "A:"
-      And an open ask of "devtool" that was never updated
-      When the owner opens Now
-      Then the updated card shows the whole text as one answer, the same text as the agent sent
-      And the card never updated has no section "Your questions, answered" and its question keeps its muted color
-
-    @v1 @browser
-    Scenario: The version of an update is in History, not on the card
-      Given an open ask of "devtool" that the owner replied to and "devtool" updated with its answers
-      When the owner opens Now and the conversation
-      Then neither card shows "v2" or "changed:"
-      And the History of the card in the conversation shows "Updated by Devtool @devtool · v2, changed answers"
-
-    @v1 @browser
-    Scenario: A link in an answer is a short link to the full address
-      Given an open ask of "devtool" updated with an answer that names a run, a PR and a page by their full addresses
-      When the owner opens Now
-      Then the answer shows the links "run 39923502587", "PR 1382" and "example.com", each to its full address and on one line
-      And no full address shows as text
-
-    @v1 @browser @phone
-    Scenario: On a phone a long answer folds so the first option stays on the first screen of the card
-      Given an open ask of "devtool" updated with an answer of 900 characters
-      When the owner opens Now on a phone (390 x 844)
-      Then the answer is folded to 3 lines and the first option is inside the screen when the top of the card is at the top of the screen
-      When the owner taps "More"
-      Then the full answer shows
-      When the owner taps "Less"
-      Then the answer folds to 3 lines again
+      And the card in the conversation shows the same
 
   # Drew, conv 32 msg 650: "ship a standard 'review a draft' mini app with Convoz, so agents don't hand-build one for every message
   # they draft for him. It shows the original message being answered (who, where, text) and the agent's draft in an editable box, with
   # Send and Don't send buttons. It returns {send, text} with the edited text, so the agent posts exactly what Drew approved."
-  Rule: Anything sent in the owner's name is a draft ask that the owner reviews and may edit
+  Rule: Anything sent in the owner's name is a draft ask that the owner reviews; Okay sends it as written
 
     @v1 @browser
-    Scenario: An agent asks the owner to review a draft and gets back the edited text
+    Scenario: A draft ask is sent as written from inside the conversation
       Given "devtool" asked "Send this reply to Alex?" with the draft "Sounds good, Thursday works." in answer to "Can we meet Thursday?" from "Alex · Slack DM"
-      When the owner opens Now
-      Then the card shows the question, the original quoted with its from-line and the draft in an editable box
-      And the card shows no "Edited" marker
-      When the owner changes the draft to "Sounds good, Thursday at 10 works."
-      Then the card shows an "Edited" marker
-      When the owner taps "Send"
-      Then "devtool" gets the answer send true with the text "Sounds good, Thursday at 10 works." in its inbox and its watch
-      And conversation 41 shows "Send: Sounds good, Thursday at 10 works."
-
-    @v1 @browser
-    Scenario: Don't send returns send false and no text
-      Given "devtool" asked "Send this reply to Alex?" with the draft "Sounds good, Thursday works." in answer to "Can we meet Thursday?" from "Alex · Slack DM"
-      When the owner opens Now and taps "Don't send"
-      Then "devtool" gets the answer send false and no text in its inbox and its watch
-      And conversation 41 shows "Don't send"
-
-    @v1 @browser
-    Scenario: A draft ask is reviewed inside the conversation too
-      Given "devtool" asked "Send this reply to Alex?" with the draft "Sounds good, Thursday works." in answer to "Can we meet Thursday?" from "Alex · Slack DM"
-      When the owner opens conversation 41, changes the draft to "Sounds good, Thursday at 10 works." and taps "Send"
-      Then "devtool" gets the answer send true with the text "Sounds good, Thursday at 10 works." in its inbox and its watch
+      When the owner opens conversation 41
+      Then the ask is an item titled by the question, whose context starts with the draft
+      When the owner presses "Okay"
+      Then "devtool" gets the answer send true with the text "Sounds good, Thursday works." in its inbox and its watch
 
     @v1 @cli
     Scenario: A draft ask needs no owner's-call reason
@@ -439,112 +339,30 @@ Feature: Asks and their state machine
     Scenario: A permission ask reads as a short request on the Now card
       Given "devtool" asked permission to "Merge PR 415 into main" with a risk, an undo and 2 considered ways
       When the owner opens Now
-      Then the card shows, in order, who asked and where, "I will" and the action, "Risk", "Undo", "Considered, and why worse" with both ways, Go, Not this, "I have questions" and Snooze
-      And the card shows Dismiss and an Open link
-      And the card shows no "Quick reply" and no confidence
+      Then the card is titled by the action, and its context shows, in order, "Risk:", "Undo:", "Considered:" with both ways, and who asked
+      And the card shows "Okay", "Reply" and "Snooze"
+      And the card shows no Go, no Not this, no Dismiss and no confidence
 
     @v1 @browser
-    Scenario: Go on a permission card answers Go
+    Scenario: Okay on a permission card answers Go
       Given "devtool" asked permission to "Merge PR 415 into main"
-      When the owner opens conversation 41 and taps "Go"
-      Then the card shows "You said Go"
+      When the owner opens conversation 41 and taps "Okay"
+      Then the card is one line "Go" with no buttons
       And "devtool" reads the answer "Go" in its inbox
 
     @v1 @browser
-    Scenario: Not this on a permission card needs a reason and sends it to the agent
-      Given "devtool" asked permission to "Merge PR 415 into main"
-      When the owner opens conversation 41 and taps "Not this"
-      Then a box "Why not? @devtool reads this." opens and "Send" is disabled while it is empty
-      When the owner writes "Wait for PR 412" and taps "Send"
-      Then the card shows "Not this · Wait for PR 412"
-      And "devtool" reads the answer "Not this: Wait for PR 412" in its inbox
-
-    @v1 @browser
-    Scenario: G and Enter say Go and N opens Not this
-      Given "devtool" asked permission to "Merge PR 415 into main" and to "Deploy the docs site"
-      When the owner opens Now and presses N on the first card
-      Then the "Not this" box opens
-      When the owner presses G on the first card and Enter on the second
-      Then both asks are answered "Go"
-
-    @v1 @browser
-    Scenario: Enter does nothing on a one-way permission ask
-      Given "devtool" asked permission to "Merge PR 415 into main" as a one-way action
-      When the owner opens Now
-      Then the card says "None. This is one-way."
-      When the owner presses Enter on the card
-      Then the ask is still open
-      When the owner presses G
-      Then the ask is answered "Go"
-
-    @v1 @browser
-    Scenario: Typing in the Not this box is not a shortcut
-      Given "devtool" asked permission to "Merge PR 415 into main"
-      When the owner opens Now, taps "Not this", and types "go now"
-      Then the box holds "go now" and the ask is still open
-
-    @v1 @browser
-    Scenario: A permission ask in the conversation says Needs your OK
-      Given "devtool" asked permission to "Merge PR 415 into main"
-      When the owner opens conversation 41
-      Then the top of the card reads "Needs your OK"
-      And the card shows "I will", "Risk", "Undo", "Considered, and why worse", Go and Not this
-      And the card has no byline of its own
-
-    @v1 @browser
-    Scenario: The sidebar shows a short permission card
-      Given "devtool" asked permission to "Merge PR 415 into main" in conversation 41
-      When the owner opens another conversation on a wide screen and turns the rail to Now
-      Then the card shows, in order, who asked, "I will", "Risk", "Undo", Go, "Not this", "Open conversation" and Dismiss
-      And the card shows no considered ways
-      And "Open conversation" links to conversation 41
-
-    # Owner said (conv 179 msg 8524): "what happened to the dismiss? why does it just say open like this?"
-    @v1 @browser
-    Scenario: The sidebar permission card keeps Dismiss and names Open in words
-      Given "devtool" asked permission to "Merge PR 415 into main" in conversation 41
-      When the owner opens another conversation on a wide screen and turns the rail to Now
-      Then the card has a Dismiss button and an "Open conversation" link to conversation 41, and no control or line reading just "Open"
-      And "Not this" opens the "Why not?" box with Send disabled while it is empty
-      And tapping Dismiss takes the ask out of the sidebar
-
-    @v1 @browser
-    Scenario: The sidebar shows Review for a one-way permission ask
-      Given "devtool" asked permission to "Merge PR 415 into main" as a one-way action in conversation 41
-      When the owner opens another conversation on a wide screen and turns the rail to Now
-      Then the card shows a "Review" link to conversation 41 and no Go button and no "Open conversation" link
-
-    @v1 @browser @phone
-    Scenario: On a phone the considered ways fold and Go and Not this stack
-      Given "devtool" asked permission to "Merge PR 415 into main" with 2 considered ways
-      When the owner opens Now on a phone (390 x 844)
-      Then the considered ways are folded behind "Considered 2 other ways"
-      When the owner taps "Considered 2 other ways"
-      Then both ways show
-      And Not this sits under Go, both at the same left edge
-
-    @v1 @browser
-    Scenario: History says how sure the agent said it was
-      Given "devtool" asked permission to "Merge PR 415 into main" and said it was 90% sure
-      When the owner opens conversation 41 and the History of the card
-      Then a row reads "Asked by" the agent "· said 90% sure"
-      And the card shows no word "confidence"
-
-    @v1 @browser
-    Scenario: An ask from an old agent still shows the decision card
+    Scenario: An ask from an old agent still shows as a decision with its recommended answer
       Given "devtool" asked with an old CLI: a question, a recommended option, an alternative and an owner's call
       When the owner opens Now
       Then the API reads it as kind "decision"
-      And the card shows the options as buttons and the line "Your call · taste: Both names read fine; it is your voice"
-      And the card shows no "I will" and no "Not this"
+      And the card shows the question, "Recommended: Merge it" and "Okay"
+      And the card shows no "Risk:" and no "Not this"
 
     @v1 @browser
-    Scenario: An answered permission card hides risk, undo and considered behind Details
+    Scenario: An answered permission ask in the conversation is one line, with no risk, undo or considered
       Given the owner said Go to a permission ask of "devtool"
       When the owner opens conversation 41
-      Then the card shows "You said Go" and hides the risk, the undo and the considered ways
-      When the owner taps "Details"
-      Then the risk, the undo and the considered ways show
+      Then the card is one line "Go" and shows no risk, no undo, no considered ways and no buttons
 
   Rule: A burst of lines the conversation says about itself reads the conversation again once, not once per line
 

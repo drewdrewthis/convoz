@@ -33,7 +33,7 @@ export function WaitingSection({ row, decide }: { row: Conversation; decide(iid:
       </h3>
       {asks.map((a) => (
         <div key={`a${a.id}`} className="pcard wait">
-          <AskInline ask={a} labelId={`det-ask-${a.id}`} />
+          <AskInline ask={a} />
         </div>
       ))}
       {adds.map((add) => (

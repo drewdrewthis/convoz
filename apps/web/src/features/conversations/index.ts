@@ -6,8 +6,6 @@ import { useConversations } from "./store.ts";
 
 export { Conversations } from "./Conversations.tsx";
 export { markAllRead, rename as renameConversation } from "./actions.ts";
-/** The plan pieces the Deliveries page draws as the details panel does (owner msg 9982). */
-export { NowBlock, planRequest } from "./PlanBits.tsx";
 
 // The list is a first screen, so this chunk holds only it; one conversation, its 404 and the trash are a chunk of their own
 // (design §12.2). The route loads the page before the first render, as with any other page.

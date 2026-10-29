@@ -9,10 +9,8 @@ import {
   askCard,
   askOf,
   askWorld,
-  callLine,
   expectState,
   markAsk,
-  ownerRepliesIn,
   nowOf,
   openNow,
   postAsk,
@@ -31,7 +29,8 @@ import { browserWorld, idsOf, machineWith, ownerRemoves, seedDb } from "../lib/w
  * ASKS (WP8): the bindings of specs/features/asks.feature and specs/contracts/asks.feature. The routes, bodies and answers are the
  * contract block at the top of lib/asks.ts (packages/contracts/paths/ask.yaml). The first option of an ask is the recommended one.
  * An agent asks with `convoz ask <conv> --question Q --recommend L --why W --alt L --alt-why W --owners-call KIND --owners-call-why W [--urgent] [--thread ROOT]`.
- * The ask card of Now is an article named by the question; the card of a conversation is the same component.
+ * An ask is an item, in Now and in its conversation: an article named by the question, with "Okay" (the recommended answer), "Reply" and
+ * "Snooze" while it is open, and one line once it is closed.
  */
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -87,43 +86,6 @@ scenario("An ask without a reason it is the owner's call is refused and tells th
   expect((await nowOf(w.owner)).asks).toEqual([]);
 });
 
-scenario("The ask card shows why it is the owner's call", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
-  info.setTimeout(90_000);
-  // Given "devtool" asked in conversation 41 as a "taste" call because "Both names read fine; it is your voice"
-  const w = await browserWorld({ server, page, context }, { agents: ["devtool", "docs"], live: ["devtool"] });
-  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
-  const lease = w.sessions.devtool!.lease;
-  const taste = { kind: "taste", reason: "Both names read fine; it is your voice" } as const;
-  await agentAsks(w.srv, lease, conv, { ownersCall: taste });
-
-  // And "devtool" asked inside thread 900 as a "one-way" call because "A published name cannot be taken back"
-  const oneWay = { kind: "one-way", reason: "A published name cannot be taken back" } as const;
-  const root = await ownerSays(w.owner, conv, "Which name do we publish?");
-  await agentAsks(w.srv, lease, conv, { question: "Publish as convoz-cli?", thread: root, ownersCall: oneWay });
-
-  // When the owner opens Now
-  await openNow(page, w.srv);
-
-  // Then the card shows "Your call · taste: Both names read fine; it is your voice" under its question
-  const inNow = askCard(page);
-  await expect(inNow.getByText(callLine(taste), { exact: true })).toBeVisible();
-  const [q, line] = await Promise.all([inNow.getByRole("heading").boundingBox(), inNow.getByText(callLine(taste), { exact: true }).boundingBox()]);
-  expect(line!.y, "the line sits under the question").toBeGreaterThan(q!.y);
-  await expect(askCard(page, "Publish as convoz-cli?").getByText(callLine(oneWay), { exact: true })).toBeVisible();
-
-  // And conversation 41 shows the same line on its card
-  await page.goto(`${w.srv.origin}/chats/${conv}`);
-  await expect(askCard(page).getByText(callLine(taste), { exact: true })).toBeVisible();
-
-  // And thread 900 shows its line on the card
-  await page.goto(`${w.srv.origin}/chats/${conv}#reply=${root}`);
-  await expect(page.getByText(callLine(oneWay), { exact: true }).last()).toBeVisible();
-
-  // And the line fits the screen without a sideways scroll
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.screenshot({ path: `/tmp/askgate-card-${info.project.name}.png` });
-});
-
 scenario("An ask from before this rule shows no owner's call line", { tag: ["@browser"] }, async ({ server, page, context, dataDir }, info) => {
   info.setTimeout(90_000);
   // Given an open ask of "devtool" that has no reason it is the owner's call
@@ -149,18 +111,18 @@ scenario("The answer is posted where the ask was asked", { tag: ["@browser"] }, 
   const root = await ownerSays(w.owner, conv, "Which branch do we ship?");
   const id = await agentAsks(w.srv, w.sessions.devtool!.lease, conv, { thread: root });
 
-  // When the owner answers "Hold it" from Now
+  // When the owner presses Okay on it in Now
   await openNow(page, w.srv);
-  await askCard(page).getByRole("button", { name: "Hold it", exact: true }).click();
+  await askCard(page).getByRole("button", { name: "Okay", exact: true }).click();
   await expect.poll(async () => (await askOf(w.owner, id)).state, { message: "the ask was not answered" }).toBe("answered");
 
-  // Then thread 900 shows the answer message "Hold it"
+  // Then thread 900 shows the answer message "Merge it"
   const thread = await messagesOf(w.owner, conv, `thread=${root}`);
-  expect(thread.map((m) => m.body)).toContain("Hold it");
+  expect(thread.map((m) => m.body)).toContain("Merge it");
 
   // And the main list of conversation 41 does not
   const main = await messagesOf(w.owner, conv, "limit=100");
-  expect(main.map((m) => m.body)).not.toContain("Hold it");
+  expect(main.map((m) => m.body)).not.toContain("Merge it");
 });
 
 scenario("Undismiss clears the agent's ack", { tag: ["@cli"] }, async ({ server }) => {
@@ -260,30 +222,7 @@ scenario("Deleting an answered ask keeps the decision", { tag: ["@api"] }, async
   expect([ask.state, ask.close_reason, ask.answer]).toEqual(["answered", undefined, "Merge it"]);
 });
 
-scenario("A quick reply answers with custom text", { tag: ["@browser"] }, async ({ server, page, context, dataDir, testApi }, info) => {
-  info.setTimeout(90_000);
-  // Given an open ask of "devtool"
-  const w = await browserWorld({ server, page, context }, { agents: ["devtool", "docs"], live: ["devtool"] });
-  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
-  const id = await agentAsks(w.srv, w.sessions.devtool!.lease, conv);
-
-  // When the owner opens Quick reply on the ask and sends "Split it in two"
-  await openNow(page, w.srv);
-  const card = askCard(page);
-  await card.getByRole("button", { name: "Quick reply" }).click();
-  await card.getByRole("textbox", { name: "Quick reply" }).fill("Split it in two");
-  await card.getByRole("button", { name: "Send", exact: true }).click();
-
-  // Then the ask shows "Replied · Split it in two"
-  await expect(page.getByText("Replied · Split it in two")).toBeVisible();
-
-  // And "devtool" gets an "ask_resolved" item with the custom text
-  const items = await inboxItems(w.box, w.sessions.devtool!.sid, ["--peek"]);
-  const mine = items.filter((i) => i.reason === "ask_resolved").map((i) => (i.message as unknown as { id: number; ask: AskView }));
-  expect(mine.map((m) => [m.id, m.ask.chosen])).toEqual([[id, { kind: "custom", text: "Split it in two" }]]);
-});
-
-scenario("An ask has a I have questions button", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+scenario("An ask has a Reply button", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
   info.setTimeout(90_000);
   // Given an open ask of "devtool" and an answered ask of "devtool" in conversation 41
   const w = await browserWorld({ server, page, context }, { agents: ["devtool", "docs"], live: ["devtool"] });
@@ -291,38 +230,38 @@ scenario("An ask has a I have questions button", { tag: ["@browser"] }, async ({
   const lease = w.sessions.devtool!.lease;
   const done = await agentAsks(w.srv, lease, conv, { question: "Answered question?" });
   must(await answerAsk(w.owner, done), "answer");
-  const id = await agentAsks(w.srv, lease, conv);
+  await agentAsks(w.srv, lease, conv);
 
-  // When the owner opens the ask menu in the conversation
+  // When the owner opens the item menu of the ask in the conversation
   await page.goto(`${w.srv.origin}/chats/${conv}`);
   const open = askCard(page);
-  await open.getByRole("button", { name: "Ask options" }).click();
+  await open.getByRole("button", { name: "Item actions" }).click();
 
-  // Then the ask menu has no Reply item
+  // Then the menu has no Reply item
   await expect(page.getByRole("menu")).toBeVisible();
-  await expect(page.getByRole("menuitem", { name: "I have questions" })).toHaveCount(0);
+  await expect(page.getByRole("menuitem", { name: /Reply/ })).toHaveCount(0);
   await page.keyboard.press("Escape");
 
-  // When the owner taps "I have questions" on the open ask
-  await expect(open.getByRole("button", { name: "Merge it", exact: true }), "the options come first").toBeVisible();
-  await open.getByRole("button", { name: "I have questions", exact: true }).click();
+  // When the owner taps "Reply" on the open ask
+  await expect(open.getByRole("button", { name: "Okay", exact: true }), "Okay comes first").toBeVisible();
+  await open.getByRole("button", { name: "Reply", exact: true }).click();
 
   // Then the thread of the ask opens and its Reply box has focus
   await expect(page.getByRole("textbox", { name: "Reply in thread" })).toBeFocused();
 
-  // When the owner taps "I have questions" on the ask in Now
+  // When the owner taps "Reply" on the ask in Now
   await openNow(page, w.srv);
-  await askCard(page).getByRole("button", { name: "I have questions", exact: true }).click();
+  await askCard(page).getByRole("button", { name: "Reply", exact: true }).click();
 
-  // Then conversation 41 opens with the thread of the ask and its Reply box has focus
-  await expect(page).toHaveURL(new RegExp(`/chats/${conv}#reply=${id}$`));
-  await expect(page.getByRole("textbox", { name: "Reply in thread" })).toBeFocused();
+  // Then the thread opens inside the ask in Now and its reply box has focus
+  await expect(askCard(page).getByRole("textbox", { name: "Reply to the thread" })).toBeFocused();
+  expect(new URL(page.url()).pathname).toBe("/");
 
-  // And the answered ask has no option buttons and keeps "I have questions"
-  await page.getByRole("button", { name: "Cancel reply", exact: true }).click();
+  // And the answered ask in the conversation has no Okay and no Reply
+  await page.goto(`${w.srv.origin}/chats/${conv}`);
   const answered = askCard(page, "Answered question?");
-  await expect(answered.getByRole("button", { name: "Merge it", exact: true })).toHaveCount(0);
-  await expect(answered.getByRole("button", { name: "I have questions", exact: true })).toBeVisible();
+  await expect(answered).toBeVisible();
+  for (const name of ["Okay", "Reply"]) await expect(answered.getByRole("button", { name, exact: true }), name).toHaveCount(0);
 });
 
 scenario("The ask menu opens once", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
@@ -333,15 +272,15 @@ scenario("The ask menu opens once", { tag: ["@browser"] }, async ({ server, page
   await agentAsks(w.srv, w.sessions.devtool!.lease, conv);
   await page.goto(`${w.srv.origin}/chats/${conv}`);
 
-  // When the owner taps "Ask options" on the ask
+  // When the owner taps "Item actions" on the ask
   const card = askCard(page);
   const heading = card.getByRole("heading").first();
   const before = (await heading.boundingBox())!.y;
-  await card.getByRole("button", { name: "Ask options" }).click();
+  await card.getByRole("button", { name: "Item actions" }).click();
 
-  // Then one menu opens with "Snooze", "Dismiss" and "Copy link"
+  // Then one menu opens with "Pin", "Copy link" and "Delete"
   await expect(page.getByRole("menu")).toHaveCount(1);
-  for (const name of ["Snooze", "Dismiss", "Copy link", "Pin", "Delete"]) await expect(page.getByRole("menuitem", { name })).toBeVisible();
+  for (const name of ["Pin", "Copy link", "Delete"]) await expect(page.getByRole("menuitem", { name })).toBeVisible();
 
   // And on desktop the menu floats over the card: the question does not move down (owner, msg 2101)
   if (info.project.name === "chromium") expect((await heading.boundingBox())!.y).toBe(before);
@@ -351,13 +290,13 @@ scenario("The ask menu opens once", { tag: ["@browser"] }, async ({ server, page
 
   // And the thread under the ask does not draw the ask again
   await page.keyboard.press("Escape");
-  await card.getByRole("button", { name: "I have questions", exact: true }).click();
+  await card.getByRole("button", { name: "Reply", exact: true }).click();
   const thread = page.getByRole("region", { name: /^Thread: / });
   await expect(thread.getByRole("textbox", { name: "Reply in thread" })).toBeVisible();
-  await expect(thread.getByRole("button", { name: "I have questions", exact: true })).toHaveCount(0);
+  await expect(thread.getByRole("button", { name: "Okay", exact: true })).toHaveCount(0);
 });
 
-scenario("A double tap on an option answers once", { tag: ["@browser"] }, async ({ server, page, context, dataDir, testApi }, info) => {
+scenario("A double tap on Okay answers once", { tag: ["@browser"] }, async ({ server, page, context, dataDir, testApi }, info) => {
   info.setTimeout(90_000);
   // Given an open ask of "devtool"
   const w = await browserWorld({ server, page, context }, { agents: ["devtool", "docs"], live: ["devtool"], plaintext: true });
@@ -368,9 +307,9 @@ scenario("A double tap on an option answers once", { tag: ["@browser"] }, async 
     if (r.request().method() === "POST" && r.url().endsWith(`/api/asks/${id}/answer`)) seen.push(r.status());
   });
 
-  // When the owner taps "Merge it" twice quickly
+  // When the owner taps "Okay" twice quickly
   await openNow(page, w.srv);
-  await askCard(page).getByRole("button", { name: "Merge it", exact: true }).dblclick();
+  await askCard(page).getByRole("button", { name: "Okay", exact: true }).dblclick();
   await expect.poll(async () => (await askOf(w.owner, id)).state).toBe("answered");
   await sleep(500);
 
@@ -400,72 +339,6 @@ scenario("A plain message does not answer an ask", { tag: ["@api"] }, async ({ s
   expect(now.asks.map((a) => [a.id, a.state])).toEqual([[id, "open"]]);
 });
 
-scenario("Dismiss on a card with an old version still dismisses", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
-  info.setTimeout(90_000);
-  // Given an open ask of "devtool" in conversation 41, open on screen
-  const w = await browserWorld({ server, page, context }, { agents: ["devtool", "docs"], live: ["devtool"] });
-  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
-  const id = await agentAsks(w.srv, w.sessions.devtool!.lease, conv);
-  await page.goto(`${w.srv.origin}/chats/${conv}`);
-  const open = askCard(page);
-  await expect(open.getByRole("group", { name: "Ask actions" })).toBeVisible();
-
-  // And the owner replied in its thread, so the card holds an old version (the first dismiss is sent with the version before it)
-  await ownerRepliesIn(w.owner, conv, id, "Let me think");
-  let first = true;
-  await page.route(`**/api/asks/${id}/dismiss`, async (route) => {
-    const body = route.request().postDataJSON() as { if_version: number };
-    const stale = first ? { ...body, if_version: body.if_version - 1 } : body;
-    first = false;
-    await route.continue({ postData: JSON.stringify(stale) });
-  });
-
-  // When the owner taps "Dismiss" on the card
-  await open.getByRole("group", { name: "Ask actions" }).getByRole("button", { name: "Dismiss" }).click();
-
-  // Then the ask is dismissed
-  await expect.poll(async () => (await messagesOf(w.owner, conv)).find((m) => m.id === id)?.ask?.state).toBe("dismissed");
-});
-
-scenario("The ask history shows who dismissed it", { tag: ["@browser"] }, async ({ server, page, context, dataDir, testApi }, info) => {
-  info.setTimeout(90_000);
-  // Given an open ask of "devtool"
-  const w = await browserWorld({ server, page, context }, { agents: ["devtool", "docs"], live: ["devtool"] });
-  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
-  const id = await agentAsks(w.srv, w.sessions.devtool!.lease, conv);
-
-  // When the owner dismisses it, undismisses it and then answers "Merge it"
-  must(await markAsk(w.owner, id, "dismiss"), "dismiss");
-  must(await markAsk(w.owner, id, "undismiss"), "undismiss");
-
-  // Owner (Drew, msg 716): "this history button seems kind of useless? A better ui would just be the quick buttons"
-  await page.goto(`${w.srv.origin}/chats/${conv}`);
-  const open = askCard(page);
-  for (const name of ["Quick reply", "Snooze", "Dismiss"]) await expect(open.getByRole("group", { name: "Ask actions" }).getByRole("button", { name })).toBeVisible();
-  await expect(open.getByRole("link", { name: "Open" })).toHaveCount(0); // you are already in the conversation
-  await expect(open.getByRole("button", { name: "History" })).toHaveCount(0); // it is in the ⋯ menu
-  await page.screenshot({ path: "/tmp/askcard-conv.png" });
-  must(await answerAsk(w.owner, id, { choice: "recommended" }), "answer");
-
-  // Then the ask's history lists "Dismissed by Drew", "Reopened by Drew" and "Answered by Drew · Merge it" with their times
-  await page.reload();
-  const card = askCard(page);
-  // Owner (Drew, msg 716): "this history button seems kind of useless? A better ui would just be the quick buttons" - History is now in the card's ⋯ menu.
-  await card.getByRole("button", { name: "Ask options" }).click();
-  await card.getByRole("menuitem", { name: "History" }).click();
-  const rows = await card.getByRole("list", { name: "History" }).getByRole("listitem").allInnerTexts();
-  const wanted = ["Dismissed by Drew", "Reopened by Drew", "Answered by Drew · Merge it"];
-  const at = wanted.map((text) => rows.findIndex((r) => r.includes(text)));
-  expect(at.every((i) => i >= 0) && at[0]! < at[1]! && at[1]! < at[2]!, `history rows: ${JSON.stringify(rows)}`).toBe(true);
-  expect(at.every((i) => /\d{1,2}:\d{2}/.test(rows[i]!)), "every history row shows its time").toBe(true);
-
-  // And "devtool" sees the same history with "convoz read 41"
-  const read = await convoz(w.box, w.sessions.devtool!.sid, ["read", String(conv)]);
-  expect(read.code).toBe(0);
-  const order = wanted.map((text) => read.stdout.indexOf(text));
-  expect(order.every((i) => i >= 0) && order[0]! < order[1]! && order[1]! < order[2]!, `convoz read printed:\n${read.stdout}`).toBe(true);
-});
-
 scenario("Answering removes the snooze", { tag: ["@api"] }, async ({ server }) => {
   // Given an open ask of "devtool" snoozed by the owner until tomorrow
   const { w, conv, devtool } = await askWorld(server);
@@ -490,16 +363,13 @@ scenario("Only an open ask can be snoozed", { tag: ["@browser"] }, async ({ serv
   await agentAsks(w.srv, w.sessions.devtool!.lease, conv, { question: "Open question?" });
   must(await markAsk(w.owner, dismissed, "dismiss"), "dismiss");
 
-  // When the owner opens the ask's menu
+  // When the owner opens the conversation
   await page.goto(`${w.srv.origin}/chats/${conv}`);
-  await askCard(page, "Open question?").getByRole("button", { name: "Ask options" }).click();
-  await expect(page.getByRole("menuitem", { name: "Snooze" }), "an open ask can be snoozed").toBeVisible();
-  await page.keyboard.press("Escape");
-  await askCard(page, "Dismissed question?").getByRole("button", { name: "Ask options" }).click();
+  await expect(askCard(page, "Open question?").getByRole("button", { name: "Snooze", exact: true }), "an open ask can be snoozed").toBeVisible();
 
-  // Then the menu has no Snooze item
-  await expect(page.getByRole("menu")).toBeVisible();
-  await expect(page.getByRole("menuitem", { name: "Snooze" })).toHaveCount(0);
+  // Then the dismissed ask has no Snooze
+  await expect(askCard(page, "Dismissed question?")).toContainText("Dismissed");
+  await expect(askCard(page, "Dismissed question?").getByRole("button", { name: "Snooze" })).toHaveCount(0);
 });
 
 const withoutOwnersCall = ({ owners_call: _gone, ...rest }: Record<string, unknown>): Record<string, unknown> => rest;

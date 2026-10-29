@@ -67,11 +67,11 @@ Feature: The app keeps its look while its code is reorganised
       And in the conversation the answered ask and the dismissed ask match theirs
 
     @v1 @browser
-    Scenario: Ask cards with a draft, a quick reply and in a conversation keep their look
+    Scenario: Ask items with a draft, an open reply box and in a conversation keep their look
       Given "devtool" asked a question and asked the owner to review a draft reply
-      When the owner opens Now, and then the quick reply of the question
-      Then the cards, and the quick reply with its text, match their frames
-      And in the conversation the asks, the options menu and the history match theirs
+      When the owner opens Now, and then the reply box of the question
+      Then the items, and the reply box with its text, match their frames
+      And in the conversation the asks and the item menu match theirs
 
     @v1 @browser
     Scenario: Now with an add to decide and connect requests keeps its look

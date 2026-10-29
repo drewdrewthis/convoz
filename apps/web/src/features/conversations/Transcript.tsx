@@ -413,12 +413,11 @@ function RowBody({ row, threaded, me, conversation, onRetry, onDiscard, onDetail
   }
   if (m) {
     const text = stripCf(m.body);
-    const label = `ask-${m.id}`;
     const format = m.author.handle !== me && m.format !== "plain" ? m.format : null;
     // only markdown draws an image of an upload in the body; plain text and markdownv2 leave it to the file list
     const files = m.uploads?.length ? <Uploads uploads={m.uploads} body={format === "markdown" ? m.body : ""} /> : null;
     const said = !text && files ? null : format ? <Markdown text={text} format={format} /> : <div className="text">{text}</div>;
-    const askCard = m.kind === "ask" && m.ask ? <AskInline ask={m.ask} replies={m.thread_root_id ? undefined : { count: m.reply_count, unread: fresh }} labelId={label} deleteSheet={(close) => <DeleteSheet message={m} close={close} />} /> : null;
+    const askCard = m.kind === "ask" && m.ask ? <AskInline ask={m.ask} replies={m.thread_root_id ? undefined : { count: m.reply_count, unread: fresh }} deleteSheet={(close) => <DeleteSheet message={m} close={close} />} /> : null;
     const body = askCard ?? (
       <>
         {said}
@@ -431,7 +430,7 @@ function RowBody({ row, threaded, me, conversation, onRetry, onDiscard, onDetail
     const menu = askCard ? undefined : <MessageMenu message={m} mine={m.author.handle === me} conversation={conversation} />;
     const detail = onDetails && m.author.kind === "agent" ? () => onDetails(m) : undefined;
     const tag = !threaded && m.thread_root_id ? "replied to a thread" : undefined;
-    return <Article person={m.author} me={me} first={row.first} at={m.created_at} day={row.stampDay} tag={tag} onStamp={detail} body={body} extra={<>{m.kind !== "ask" && hasLink(text) ? <LinkPreview id={m.id} card={m.unfurl} /> : null}{pinned ? <PinMark /> : null}{edited}{m.author.handle === me ? <SeenLine conversation={conversation} message={m} threaded={threaded} /> : null}</>} menu={menu} mid={m.id} marked={hl === m.id} labelledBy={m.kind === "ask" && m.ask ? label : undefined} />;
+    return <Article person={m.author} me={me} first={row.first} at={m.created_at} day={row.stampDay} tag={tag} onStamp={detail} body={body} extra={<>{m.kind !== "ask" && hasLink(text) ? <LinkPreview id={m.id} card={m.unfurl} /> : null}{pinned ? <PinMark /> : null}{edited}{m.author.handle === me ? <SeenLine conversation={conversation} message={m} threaded={threaded} /> : null}</>} menu={menu} mid={m.id} marked={hl === m.id} />;
   }
   const state =
     p!.state === "failed" ? (
@@ -465,7 +464,7 @@ interface Who {
 /** Article is one message: a run of messages by one author shows its author line once. An agent's line is avatar, name, @handle and time;
  * the owner's is the time alone, above the bubble ("You" is left for a screen reader). Reads "devtool @devtool 5:25 AM Hello".
  * The time shows the clock only (with `day` before it in a thread reply from another day); a hover on it shows the full date. */
-function Article({ person, me, first, at, day, tag, onStamp, body, extra, menu, mid, marked, labelledBy }: { person: Who; me: string; first: boolean; at: number; day?: string; tag?: string; onStamp?: () => void; body: ReactNode; extra?: ReactNode; menu?: ReactNode; mid?: number; marked?: boolean; labelledBy?: string }) {
+function Article({ person, me, first, at, day, tag, onStamp, body, extra, menu, mid, marked }: { person: Who; me: string; first: boolean; at: number; day?: string; tag?: string; onStamp?: () => void; body: ReactNode; extra?: ReactNode; menu?: ReactNode; mid?: number; marked?: boolean }) {
   const mine = person.handle === me;
   const stamp = first ? (
     <time className={onStamp ? undefined : "stamp"} dateTime={new Date(at).toISOString()} title={fullDate(at)}>
@@ -480,7 +479,7 @@ function Article({ person, me, first, at, day, tag, onStamp, body, extra, menu, 
     stamp
   );
   return (
-    <article className={`msg ${mine ? "mine" : "theirs"}${first ? " first" : ""}`} data-mid={mid} data-hl={marked ? "true" : undefined} aria-labelledby={labelledBy}>
+    <article className={`msg ${mine ? "mine" : "theirs"}${first ? " first" : ""}`} data-mid={mid} data-hl={marked ? "true" : undefined}>
       <div className="main">
         {first ? (
           <div className="byline">

@@ -1,7 +1,6 @@
 import { Suspense, useEffect, useState, type ComponentType } from "react";
 import { page } from "../shared/api.ts";
 import { ToastHost } from "../features/pins-stars/index.ts";
-import { DEV } from "../shared/base.ts";
 import { DrawerHost } from "../features/drawer/index.ts";
 import { Sidebar, ShortcutsHost, useRailShortcuts } from "../features/rail/index.ts";
 import { SearchHost, useSearchShortcut } from "../features/search/index.ts";
@@ -77,7 +76,7 @@ function Desk() {
       ) : null}
       <SearchHost />
       <ShortcutsHost />
-      {DEV ? <DrawerHost /> : null}
+      <DrawerHost />
       <ToastHost />
     </>
   );

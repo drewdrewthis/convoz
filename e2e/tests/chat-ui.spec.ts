@@ -1,6 +1,5 @@
 import type { BrowserContext, Locator, Page } from "@playwright/test";
 import { agentPosts, appReturns, agentChoice, chooseAgent, openMentions, backButton, chatList, chatRow, chatsHeading, composer, nowHeading, dropStreams, fromBottom, hasBubble, isBold, mainNav, message, messageLog, newChat, newMessagePill, pushFrame, rowTitles, sendButton, smallChatTargets, streamOpen, uiWorld, unreadDot, workingNote } from "../lib/chat-ui.ts";
-import { agentAsks, askCard, openNow } from "../lib/asks.ts";
 import { convoz, createConversation, listConversations, messagesOf, ownerSays, peekFor, startWatch, unreadOf, watchLines, chatWorld } from "../lib/chat.ts";
 import { handlesOf, viewOf } from "../lib/wp3.ts";
 import { loadRenderMarkdown } from "../lib/chat-markdown.ts";
@@ -117,9 +116,9 @@ scenario("On a phone the bottom bar leads to Now, Conversations and Crew", { tag
   const u = await uiWorld({ server, page, context });
   await page.goto(`${u.w.srv.origin}/`);
 
-  // Then a bottom bar shows "Now", "Conversations", "Deliveries" and "Crew"
+  // Then a bottom bar shows "Now", "Conversations", "Work" and "Crew"
   const nav = mainNav(page);
-  await expect(nav.getByRole("link")).toHaveText(["Now", "Conversations", "Deliveries", "Crew"]);
+  await expect(nav.getByRole("link")).toHaveText(["Now", "Conversations", "Work", "Crew"]);
   await expect(nav.getByRole("link", { name: "Now" })).toHaveAttribute("aria-current", "page");
   const bar = await box(nav);
   expect(bar.y + bar.height).toBeGreaterThanOrEqual(VIEW.height - 12.5); // the bar floats 12 px above the edge
@@ -558,38 +557,6 @@ scenario("Replying clears when the agent posts", { tag: ["@browser"] }, async ({
   // Then the conversation shows "@docs is replying…" and the reply shows
   await expect(message(page, "Yes")).toBeVisible({ timeout: 3_000 });
   await expect(workingNote(page)).toHaveText("@docs is replying…");
-});
-
-scenario("A card in Now shows who has seen and who is replying", { tag: ["@browser"] }, async ({ server, page, context }) => {
-  // Given "devtool" asked a question in a conversation and runs "convoz watch --json"
-  const u = await uiWorld({ server, page, context });
-  const conv = await createConversation(u.w.owner, { participants: ["devtool"], title: "Ship search filters" });
-  await agentAsks(u.w.srv, u.sessions.devtool!.lease, conv);
-  const watch = startWatch(u.w.box, u.sessions.devtool!.sid);
-  try {
-    await openNow(page, u.w.srv);
-    await expect(askCard(page)).toBeVisible();
-    await streamOpen(page);
-
-    // When the owner sends "Take your time" in that conversation
-    await ownerSays(u.w.owner, conv, "Take your time");
-    const [line] = await watchLines(watch, 1, 3_000);
-
-    // Then the card in Now shows "Seen by @devtool" and "@devtool is replying…" within 3 seconds
-    const seen = page.getByText("Seen by @devtool");
-    await expect(seen).toBeVisible({ timeout: 3_000 });
-    await expect(workingNote(page)).toHaveText("@devtool is replying…");
-
-    // When "devtool" runs "convoz ack" without a reply
-    const ack = await convoz(u.w.box, u.sessions.devtool!.sid, ["ack", `${line!.item_id}:${line!.claim_token}`]);
-    expect(ack.code).toBe(0);
-
-    // Then the card in Now still shows "Seen by @devtool" and no replying note
-    await expect(workingNote(page)).toHaveCount(0, { timeout: 3_000 });
-    await expect(seen).toBeVisible();
-  } finally {
-    watch.stop();
-  }
 });
 
 scenario("On a phone the working note goes away when the agent finishes without a reply", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {

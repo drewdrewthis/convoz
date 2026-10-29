@@ -3,12 +3,8 @@ import { registerHandler, registerResync } from "@convoz/api-client";
 import { useNow } from "./store.ts";
 import "./badge.ts";
 
-import { DEV } from "../../shared/base.ts";
-import { DevNow } from "./DevNow.tsx";
-import { Now as MainNow } from "./Now.tsx";
-
-/** Now is the main app's list; the dev build (/dev) draws the one-list feed of DevNow instead. */
-export const Now = DEV ? DevNow : MainNow;
+/** Now is the one-list feed (it was the dev build's, conv 179 msg 13342). */
+export { DevNow as Now } from "./DevNow.tsx";
 export { AskInline } from "./AskInline.tsx";
 export { useNow, openCount, needsYouCount, answerAsk, snoozeAsk } from "./store.ts";
 export { agentRequests, RequestCard, type AgentRequest } from "./requests.tsx";

@@ -1,7 +1,7 @@
 import { agentSays, createConversation, ownerSays } from "../lib/chat.ts";
 import { QUESTION, agentAsks, askCard, nowOf, openNow, ownerRepliesIn } from "../lib/asks.ts";
 import { expect, scenario, test } from "../lib/scenario.ts";
-import { replyBox, replyInThread, threadPane } from "../lib/threads-wp5.ts";
+import { threadPane } from "../lib/threads-wp5.ts";
 import { browserWorld } from "../lib/wp3.ts";
 import type { Page } from "@playwright/test";
 
@@ -10,7 +10,7 @@ import type { Page } from "@playwright/test";
  * under You replied, and the thread opens inside the app" of specs/features/now.feature. The page contract (role, text and id locators):
  *   "You replied · waiting on the agent"   the heading of #replied; each row is a link holding the question, "Display Name @handle · <age>"
  *                                          and "You: <the first 100 characters of the reply>".
- *   Reply in thread (the ask in Now)       goes to /chats/<id> without loading a page (pushState), opens the thread and focuses its Reply box.
+ *   Reply (the ask in Now)                 opens the ask's thread inside its item, with the box "Reply to the thread" in focus; the page stays.
  *   Reply (an unread card of Now)          goes to /chats/<id> the same way, with the composer focused.
  */
 
@@ -71,7 +71,7 @@ scenario("Asks the owner replied to wait in their own section", { tag: ["@browse
   expect(await sameDocument(page, origin)).toBe(true);
 });
 
-scenario("I have questions opens the thread without a page load, and the ask moves on return", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+scenario("Reply on an ask in Now opens its thread in place, and the ask moves at once", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
   info.setTimeout(90_000);
   // Given an open ask of "devtool" in Now
   const w = await browserWorld({ server, page, context }, WORLD);
@@ -81,20 +81,18 @@ scenario("I have questions opens the thread without a page load, and the ask mov
   await expect(askCard(page)).toBeVisible();
   const origin = await mark(page);
 
-  // When the owner taps "I have questions" on the ask in Now
-  await askCard(page).getByRole("button", { name: "I have questions", exact: true }).click();
+  // When the owner taps "Reply" on the ask in Now
+  await askCard(page).getByRole("button", { name: "Reply", exact: true }).click();
 
-  // Then the thread opens and its Reply box has focus, and the page was not loaded again
-  await threadPane(page).waitFor();
-  await expect(replyBox(page)).toBeFocused();
-  expect(page.url()).toContain(`/chats/${conv}`);
+  // Then the thread opens inside the ask with its reply box in focus, and the page was not loaded again
+  const box = askCard(page).getByRole("textbox", { name: "Reply to the thread" });
+  await expect(box).toBeFocused();
+  expect(new URL(page.url()).pathname).toBe("/");
   expect(await sameDocument(page, origin)).toBe(true);
 
-  // When the owner sends "Which runner?" in the thread and goes back to Now
-  await replyInThread(page, "Which runner?");
-  await expect(threadPane(page)).toContainText("Which runner?");
-  await page.goBack();
-  await page.getByRole("heading", { name: "Now", exact: true }).waitFor();
+  // When the owner sends "Which runner?" from that box
+  await box.fill("Which runner?");
+  await askCard(page).getByRole("button", { name: "Send reply" }).click();
 
   // Then the ask is under "You replied · waiting on the agent" at once, without waiting for a poll
   const replied = page.locator("#replied");
@@ -111,8 +109,8 @@ scenario("An unread conversation in Now has a Reply action that focuses the comp
   await ownerSays(w.owner, conv, "Are the filters in?");
   await agentSays(w.srv, w.sessions.devtool!.lease, conv, "The filters are in");
 
-  // When the owner opens Now and taps "Reply" on its card under "Replies to you"
-  await openNow(page, w.srv);
+  // When the owner opens Now with the mention and reply cards turned on and taps "Reply" on its card under "Replies to you"
+  await openNow(page, w.srv, { cards: true });
   const origin = await mark(page);
   await page.getByRole("list", { name: "Replies to you" }).getByRole("listitem").filter({ hasText: "Ship search filters" }).getByRole("link", { name: "Reply", exact: true }).click();
 
