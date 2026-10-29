@@ -27,6 +27,8 @@ export interface FrameProps {
   menu?: { label: string; run: () => void }[];
   /** A small line under the item, such as the reply count. */
   foot?: ReactNode;
+  /** A quiet line under the context, such as "No update since 9:05 AM". */
+  quiet?: string;
   /** An app an agent attached, drawn under the context. */
   app?: ReactNode;
   /** The thread folded inside the item (FeedThread); the frame only gives it its place. */
@@ -123,7 +125,7 @@ function Snooze({ presets, pick, busy }: { presets: SnoozePreset[]; pick: (key: 
 }
 
 /** ItemFrame is one feed item: Title, Context, From, the thread, then the actions and Snooze. */
-export function ItemFrame({ kind, title, context, tag, next, from, inChat, menu, foot, app, thread, snooze, actions, busy, dataId, at, link }: FrameProps) {
+export function ItemFrame({ kind, title, context, tag, next, from, inChat, menu, foot, quiet, app, thread, snooze, actions, busy, dataId, at, link }: FrameProps) {
   const href = `/chats/${from.id}`;
   return (
     <article className="flex min-w-0 flex-col gap-4 rounded-[14px] border border-solid border-border bg-raised px-14 pt-12 pb-4" data-item={kind} data-ask={dataId} tabIndex={-1} aria-label={title}>
@@ -143,6 +145,7 @@ export function ItemFrame({ kind, title, context, tag, next, from, inChat, menu,
           {context}
         </p>
       ) : null}
+      {quiet ? <p className="m-0 text-12 text-muted">{quiet}</p> : null}
       {app}
       {next?.length ? <p className="m-0 text-12 text-muted [overflow-wrap:anywhere]">{`Next: ${next.join(" · ")}`}</p> : null}
       {inChat ? null : (

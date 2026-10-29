@@ -103,6 +103,15 @@ Feature: Now
       When an agent writes in that thread
       Then the card returns
 
+  Rule: A started item quiet for 15 minutes says so (dev build, owner conv 179 msg 12699, 12763)
+
+    @v1 @browser @unimplemented
+    Scenario: A started item with no update for 15 minutes shows the time of its last update
+      Given "devtool" has a started item whose last update was 20 minutes ago
+      When the owner opens Now in the dev build
+      Then the item shows "No update since" and that time under its context
+      And a blocking item, a done item and a started item updated a minute ago show no such line
+
   Rule: Okay takes a server item out of the feed, whatever its state (dev build)
 
     @v1 @browser @unimplemented
