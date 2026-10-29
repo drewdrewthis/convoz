@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Ask } from "@convoz/api-client";
-import { askFrame, okayAnswer } from "./askView.ts";
+import { askFrame, carriesApp, okayAnswer } from "./askView.ts";
 
 // Every ask is one item (owner, conv 179 msg 11603, 12807, 12813): the action is the title; risk, undo and the other ways are the context.
 const base = { question: "Merge PR 12?", options: [{ label: "Yes", why: "CI is green" }], asker: { handle: "devtool", display_name: "Devtool" }, answers: "" } as unknown as Ask;
@@ -41,4 +41,10 @@ test("Okay on a draft sends it as written", () => {
   const draft = { ...base, draft: { text: "Thanks, Friday works." } } as unknown as Ask;
   assert.deepEqual(okayAnswer(draft), { choice: "recommended", text: "Thanks, Friday works." });
   assert.deepEqual(okayAnswer(base), { choice: "recommended" });
+});
+
+test("an ask that carries an app shows it in the item, whatever its kind", () => {
+  const app = { kind: "form" };
+  for (const a of [base, perm, { ...base, draft: { text: "x" } }]) assert.equal(carriesApp({ ...a, app } as unknown as Ask), true);
+  assert.equal(carriesApp(base), false);
 });
