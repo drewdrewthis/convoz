@@ -18,3 +18,6 @@ export function askFrame(ask: Ask, by: string): { title: string; context: string
 export function okayAnswer(ask: Ask): { choice: "recommended"; text?: string } {
   return ask.draft ? { choice: "recommended", text: ask.draft.text } : { choice: "recommended" };
 }
+
+/** carriesApp is whether an agent attached an app to the ask; the item draws it under the context (owner, conv 179 msg 12448). */
+export const carriesApp = (ask: Ask): boolean => Boolean(ask.app);

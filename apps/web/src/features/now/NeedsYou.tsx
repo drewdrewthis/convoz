@@ -5,7 +5,8 @@ import { useState } from "react";
 import { visit } from "../../shared/navigate.ts";
 import { toast } from "../pins-stars/index.ts";
 import { FeedThread } from "./DevFeedThread.tsx";
-import { askFrame, okayAnswer } from "./askView.ts";
+import { AskApp } from "./AskApp.tsx";
+import { askFrame, carriesApp, okayAnswer } from "./askView.ts";
 import { entries, nextOf } from "./entries.ts";
 import { ItemFrame } from "./DevFrame.tsx";
 import { OkayGlyph, ReplyGlyph } from "./DevIcons.tsx";
@@ -42,6 +43,7 @@ function AskItem({ ask, busy, presets, answer, snooze }: { ask: Ask; busy: boole
       kind="blocking"
       title={title}
       context={context}
+      app={carriesApp(ask) ? <AskApp ask={ask} /> : undefined}
       tag={ask.urgent ? "Urgent" : undefined}
       from={{ id: ask.conversation_id, title: ask.conversation?.title ?? "" }}
       thread={

@@ -21,6 +21,8 @@ export interface FrameProps {
   from: { id: number; title: string };
   /** Later steps of the same plan, drawn quietly under the item. */
   next?: string[];
+  /** An app an agent attached, drawn under the context. */
+  app?: ReactNode;
   /** The thread folded inside the item (FeedThread); the frame only gives it its place. */
   thread?: ReactNode;
   /** The snooze choices; none hides the Snooze button (no server support for that item). */
@@ -108,12 +110,14 @@ function Snooze({ presets, pick, busy }: { presets: SnoozePreset[]; pick: (key: 
 }
 
 /** ItemFrame is one feed item: Title, Context, From, the thread, then the actions and Snooze. */
-export function ItemFrame({ kind, title, context, tag, next, from, thread, snooze, actions, busy, dataId, at, link }: FrameProps) {
+export function ItemFrame({ kind, title, context, tag, next, from, app, thread, snooze, actions, busy, dataId, at, link }: FrameProps) {
   const href = `/chats/${from.id}`;
   return (
     <article className="flex min-w-0 flex-col gap-4 rounded-[14px] border border-solid border-border bg-raised px-14 pt-12 pb-4" data-item={kind} data-ask={dataId} tabIndex={-1} aria-label={title}>
       <div className="-mt-8 -mr-12 flex items-center justify-between gap-8">
-        <span className={`text-12 font-bold tracking-[.04em] uppercase ${kind === "blocking" ? "text-danger" : "text-muted"}`}>{kind === "blocking" ? "Blocking" : kind === "started" ? "Started" : "Done"}</span>
+        <span className={`text-12 font-bold tracking-[.04em] uppercase ${kind === "blocking" ? "text-danger" : "text-muted"}`}>
+          {kind === "blocking" ? "Blocking" : kind === "started" ? "Started" : "Done"}
+        </span>
         <span className="flex items-center">
           <ItemTime at={at} />
           <ItemMenu conversation={from.id} message={link?.message} />
@@ -126,6 +130,7 @@ export function ItemFrame({ kind, title, context, tag, next, from, thread, snooz
           {context}
         </p>
       ) : null}
+      {app}
       {next?.length ? <p className="m-0 text-12 text-muted [overflow-wrap:anywhere]">{`Next: ${next.join(" · ")}`}</p> : null}
       <p className="m-0 text-13 text-muted">
         {"From "}
