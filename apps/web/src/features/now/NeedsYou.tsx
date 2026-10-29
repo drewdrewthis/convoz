@@ -45,10 +45,11 @@ function AskItem({ ask, busy, presets, answer, snooze }: { ask: Ask; busy: boole
       context={[recommended ? `Recommended: ${recommended}` : "", why, `Asked by ${whoLine(ask.asker)}`].filter(Boolean).join(". ")}
       tag={ask.urgent ? "Urgent" : undefined}
       from={{ id: ask.conversation_id, title: ask.conversation?.title ?? "" }}
-      thread={<FeedThread conversation={ask.conversation_id} root={root} count={ask.reply_count} request={request} direct onReplied={(ok) => (void useNow.getState().load().catch(() => {}), ok && toast("Replied. The ask moved to You replied."))} />}
+      thread={<FeedThread conversation={ask.conversation_id} root={root} count={ask.reply_count} request={request} onReplied={(ok) => (void useNow.getState().load().catch(() => {}), ok && toast("Replied. The ask moved to You replied."))} />}
       snooze={{ presets, pick: (k) => snooze(ask, k) }}
       busy={busy}
       dataId={ask.id}
+      at={ask.created_at}
       actions={
         <>
           <Button variant="primary" size="inline" className="mr-8 ml-8" disabled={busy} onClick={() => answer(ask, { choice: "recommended" })}>
@@ -71,11 +72,12 @@ function FyiItem({ item: f }: { item: Fyi }) {
   return (
     <ItemFrame
       kind={f.state}
+      at={f.at}
       title={f.title}
       context={f.context}
       next={f.next}
       from={{ id: f.conversation_id, title: f.from }}
-      thread={f.root ? <FeedThread conversation={f.conversation_id} root={f.root} request={request} direct /> : undefined}
+      thread={f.root ? <FeedThread conversation={f.conversation_id} root={f.root} request={request} /> : undefined}
       actions={
         f.root ? (
           <Button variant="text" size="inline" className="ml-8" onClick={() => setRequest((n) => n + 1)}>
@@ -94,6 +96,7 @@ function PlanItem({ plan }: { plan: NowWaiting }) {
   return (
     <ItemFrame
       kind="blocking"
+      at={plan.since}
       title={plan.text}
       context={`${whoLine(plan.agent)} is waiting on you since ${clockOf(plan.since)}`}
       from={{ id: plan.conversation.id, title: plan.conversation.title ?? "" }}

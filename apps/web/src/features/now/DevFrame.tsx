@@ -2,6 +2,7 @@ import { AskMenu, MenuItem, usePhone, type SnoozePreset } from "@convoz/app-kit"
 import { Button } from "@convoz/ui/Button";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { visit } from "../../shared/navigate.ts";
+import { ItemTime } from "./DevTime.tsx";
 import { SnoozeGlyph } from "./DevIcons.tsx";
 
 /** What one feed item shows. Every item of Now draws this frame; its state (started, blocking or done) sets the marker and the actions (owner, conv 179 msg 11603). */
@@ -26,6 +27,8 @@ export interface FrameProps {
   actions?: ReactNode;
   busy?: boolean;
   dataId?: number;
+  /** When the item last changed (ms); drawn as a relative time after the marker. */
+  at: number;
 }
 
 /** Snooze is the Snooze button with its menu of times; it closes on a press outside and on Escape, like the ask card's. */
@@ -65,11 +68,14 @@ function Snooze({ presets, pick, busy }: { presets: SnoozePreset[]; pick: (key: 
 }
 
 /** ItemFrame is one feed item: Title, Context, From, the thread, then the actions and Snooze. */
-export function ItemFrame({ kind, title, context, tag, next, from, thread, snooze, actions, busy, dataId }: FrameProps) {
+export function ItemFrame({ kind, title, context, tag, next, from, thread, snooze, actions, busy, dataId, at }: FrameProps) {
   const href = `/chats/${from.id}`;
   return (
     <article className="flex min-w-0 flex-col gap-4 rounded-[14px] border border-solid border-border bg-raised px-14 pt-12 pb-4" data-item={kind} data-ask={dataId} tabIndex={-1} aria-label={title}>
-      <span className={`text-12 font-bold tracking-[.04em] uppercase ${kind === "blocking" ? "text-danger" : "text-muted"}`}>{kind === "blocking" ? "Blocking" : kind === "started" ? "Started" : "Done"}</span>
+      <div className="flex items-baseline justify-between gap-8">
+        <span className={`text-12 font-bold tracking-[.04em] uppercase ${kind === "blocking" ? "text-danger" : "text-muted"}`}>{kind === "blocking" ? "Blocking" : kind === "started" ? "Started" : "Done"}</span>
+        <ItemTime at={at} />
+      </div>
       <h3 className="m-0 text-17 leading-[22px] font-semibold [overflow-wrap:anywhere]">{title}</h3>
       {context || tag ? (
         <p className="m-0 text-13 leading-[18px] text-muted [overflow-wrap:anywhere]">

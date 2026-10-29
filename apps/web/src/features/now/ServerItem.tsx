@@ -25,12 +25,13 @@ export function ServerItem({ item, next, feed, from, skew }: { item: FeedItem; n
     <ItemFrame
       kind={blocking ? "blocking" : item.state === "started" ? "started" : "done"}
       dataId={item.id}
+      at={item.updated_at}
       title={item.title}
       context={[item.recommendation && `Recommended: ${item.recommendation}`, item.context].filter(Boolean).join(". ")}
       next={next}
       from={{ id: item.conversation_id, title: from }}
       busy={busy}
-      thread={item.thread_root_id ? <FeedThread conversation={item.conversation_id} root={item.thread_root_id} request={request} direct /> : <ReplyBox busy={busy} request={request} send={(t) => void feed.reply(item, t)} />}
+      thread={item.thread_root_id ? <FeedThread conversation={item.conversation_id} root={item.thread_root_id} request={request} /> : <ReplyBox busy={busy} request={request} send={(t) => void feed.reply(item, t)} />}
       snooze={{ presets: options.map((o) => ({ key: o.label, label: o.label })), pick: (k) => void feed.snooze(item, options.find((o) => o.label === k)?.until ?? 0) }}
       actions={
         <>
