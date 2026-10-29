@@ -64,16 +64,14 @@ Feature: Feed items (contracts)
       And a title of 201 characters, a context of 2001 and a recommendation of 501 answer 400
       And a title of 200, a context of 2000 and a recommendation of 500 answer 200
 
-  Rule: An item has a thread only once someone writes in it
+  Rule: The owner's replies on an item go in the thread of the item's message
 
     @v1 @api
-    Scenario: Making and moving an item posts no message; the owner's first reply starts the thread
+    Scenario: The owner's replies on an item go in the thread of the item's message
       When "devtool" sends block for key "a" with a title and a recommendation
-      Then the conversation gets no new message and the item has no thread_root_id
-      When the owner sends POST /api/feed/{a}/reply with a text
-      Then the answer has a thread_root_id, and that message says the title quoted above the text
-      When the owner sends POST /api/feed/{a}/reply with a second text
-      Then the thread_root_id is the same and the second text is a reply in that thread
+      Then the item has a thread_root_id, the id of the agent's message
+      When the owner sends POST /api/feed/{a}/reply with a text, then a second text
+      Then both are replies in that thread and the thread_root_id does not change
       And an agent lease gets 401 or 403 on the reply route
 
   Rule: The owner's reply closes an item and an agent's reply in its thread reopens it, snoozed or not
