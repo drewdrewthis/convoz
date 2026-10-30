@@ -34,6 +34,8 @@ interface FeedThreadProps {
 export function FeedThread({ conversation, root, count: known, onReplied, request = 0, send: sendText, initial = "" }: FeedThreadProps) {
   const [view, setView] = useState<Pick<ThreadState, "seen" | "open" | "writing">>({ seen: 0, open: false, writing: false });
   const [text, setText] = useState(initial);
+  /** A send another way is on its way to the server: Send waits for it, so one tap is one reply. */
+  const [sending, setSending] = useState(false);
   const [Replies, setReplies] = useState<Replies | null>(null);
   const id = useId();
   const replies = useThreads((s) => s.threads[root]?.replies);
@@ -65,14 +67,17 @@ export function FeedThread({ conversation, root, count: known, onReplied, reques
   const send = (e: FormEvent) => {
     e.preventDefault();
     const body = text.trim();
-    if (!body) return;
+    if (!body || sending) return;
     const done = () => {
       setText("");
       setWriting(false);
       setOpen(() => true);
     };
     // Sent another way, the box keeps the text until the server took it (on this send or the toast's Retry); a thread reply keeps it in its failed bubble.
-    if (sendText) return void sendReply(body, (t) => sendText(t, done), done);
+    if (sendText) {
+      setSending(true);
+      return void sendReply(body, (t) => sendText(t, done), done).finally(() => setSending(false));
+    }
     done();
     const { load, reply } = useThreads.getState();
     void load(conversation, root).catch(() => {});
@@ -104,7 +109,7 @@ export function FeedThread({ conversation, root, count: known, onReplied, reques
             onChange={(e) => setText(e.target.value)}
             className="h-52 w-full min-w-0 flex-auto rounded-full border border-solid border-edge bg-raised px-16 text-16 text-text [font-family:inherit]"
           />
-          <Button variant="primary" size="inline" type="submit" aria-label="Send reply" disabled={!text.trim()}>
+          <Button variant="primary" size="inline" type="submit" aria-label="Send reply" disabled={sending || !text.trim()}>
             Send
           </Button>
         </form>
