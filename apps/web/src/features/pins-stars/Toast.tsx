@@ -4,6 +4,7 @@ import { runUndo, useToast } from "./toast.ts";
 export function ToastHost() {
   const text = useToast((s) => s.text);
   const undo = useToast((s) => s.undo);
+  const label = useToast((s) => s.label);
   return (
     <div className="toastbox" role="status" aria-live="polite">
       {text ? (
@@ -11,7 +12,7 @@ export function ToastHost() {
           <span>{text}</span>
           {undo ? (
             <button type="button" className="toastact" onClick={runUndo}>
-              Undo
+              {label}
             </button>
           ) : null}
         </div>
