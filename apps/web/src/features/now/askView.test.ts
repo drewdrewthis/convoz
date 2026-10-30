@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Ask } from "@convoz/api-client";
-import { askFrame, carriesApp, doneLine, okayAnswer } from "./askView.ts";
+import { askFrame, carriesApp, doneLine, okayAnswer, openReply } from "./askView.ts";
 
 // Every ask is one item (owner, conv 179 msg 11603, 12807, 12813): the action is the title; risk, undo and the other ways are the context.
 const base = { question: "Merge PR 12?", options: [{ label: "Yes", why: "CI is green" }], asker: { handle: "devtool", display_name: "Devtool" }, answers: "" } as unknown as Ask;
@@ -58,4 +58,30 @@ test("a closed ask is one line: who said what, Dismissed or Closed", () => {
   assert.equal(doneLine(shut({ state: "dismissed" })), "Dismissed");
   assert.equal(doneLine(shut({ state: "closed", close_reason: "withdrawn" })), "Closed");
   assert.equal(doneLine(shut({ state: "open" })), "");
+});
+
+// Reply on an ask (owner, conv 179 msg 13541): the card in the details panel's "Waiting on you" has no thread under it, and its root can be far
+// back in the chat, out of the loaded list. Reply follows the #reply=<root> link, which the conversation page follows by loading back to the
+// root, scrolling to it and opening its reply box (Conversation.tsx), as Now's "Reply in thread" does.
+const page = (hash = "") => {
+  const fired: string[] = [];
+  return { fired, location: { hash }, dispatchEvent: (e: Event) => (fired.push(e.type), true) };
+};
+
+test("Reply on an ask opens its thread through the #reply link", () => {
+  const w = page();
+  openReply({ ...perm, id: 10724, thread_root_id: null } as unknown as Ask, w);
+  assert.equal(w.location.hash, "#reply=10724");
+});
+
+test("Reply on an ask inside a thread opens that thread", () => {
+  const w = page();
+  openReply({ ...perm, id: 12, thread_root_id: 7 } as unknown as Ask, w);
+  assert.equal(w.location.hash, "#reply=7");
+});
+
+test("Reply pressed again with the link already open is followed again", () => {
+  const w = page("#reply=10724");
+  openReply({ ...perm, id: 10724, thread_root_id: null } as unknown as Ask, w);
+  assert.deepEqual(w.fired, ["hashchange"], "the same hash fires no hashchange by itself");
 });
