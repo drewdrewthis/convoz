@@ -5,7 +5,7 @@ import { create } from "zustand";
 import { ApiError, call, client, isRevoking } from "../../shared/api.ts";
 import { unreachable } from "../../shared/connection.ts";
 import { recall, remember } from "../../shared/offline.ts";
-import { toast } from "../pins-stars/index.ts";
+import { notify } from "../pins-stars/index.ts";
 import { arrivals, arrivalToast } from "./arrivals.ts";
 
 interface NowState {
@@ -50,7 +50,7 @@ export const useNow = create<NowState>()((set, get) => {
       try {
         const now = await call(client.GET("/api/now"));
         const news = arrivalToast(arrivals(fetched, now));
-        if (news) toast(news);
+        if (news) notify(news);
         fetched = now;
         set({ now, skew: now.now - Date.now(), machineRequests: now.machine_requests });
         void remember(REMEMBERED, now);

@@ -2,8 +2,10 @@ import type { Ask, FeedItem, NowWaiting } from "@convoz/api-client";
 import { whoLine, type Answer, type SnoozePreset } from "@convoz/app-kit";
 import { Button } from "@convoz/ui/Button";
 import { useState } from "react";
+import { newId } from "../../shared/chat.ts";
+import { source } from "../../shared/data.ts";
 import { visit } from "../../shared/navigate.ts";
-import { toast } from "../pins-stars/index.ts";
+import { toast, toastFailure } from "../pins-stars/index.ts";
 import { FeedThread } from "./DevFeedThread.tsx";
 import { AskApp } from "./AskApp.tsx";
 import { laterOptionsAt } from "./presets.ts";
@@ -12,6 +14,8 @@ import { askFrame, carriesApp, okayAnswer } from "./askView.ts";
 import { entries, nextOf } from "./entries.ts";
 import { ItemFrame } from "./DevFrame.tsx";
 import { OkayGlyph, ReplyGlyph } from "./DevIcons.tsx";
+import { ReplyBox } from "./DevReplyBox.tsx";
+import { planReply } from "./planReply.ts";
 import { useNow } from "./store.ts";
 import { ServerItem } from "./ServerItem.tsx";
 import type { useServerFeed } from "./serverFeed.ts";
@@ -117,9 +121,35 @@ function FyiItem({ item: f, presets }: { item: Fyi; presets: { key: string; labe
   );
 }
 
-/** PlanItem is a plan step that waits on the owner. The server has no snooze for it and no thread of its own, so Okay and Reply open the conversation for now. */
+/**
+ * PlanItem is a plan step that waits on the owner. The server has no snooze for it and no thread of its own, so Okay opens the
+ * conversation for now; Reply opens a box in place whose text goes to the conversation, naming the agent (planReply).
+ */
 function PlanItem({ plan }: { plan: NowWaiting }) {
   const href = `/chats/${plan.conversation.id}`;
+  const [request, setRequest] = useState(0);
+  const [busy, setBusy] = useState(false);
+  // The box keeps the text until the post went through; Retry posts with the same client id, so a post that did arrive is not made twice.
+  const send = (text: string, sent: () => void): Promise<boolean> => {
+    const out = planReply(plan, text);
+    if (!out) return Promise.resolve(false);
+    const cid = newId();
+    const post = async (): Promise<boolean> => {
+      setBusy(true);
+      try {
+        await source.post(out.conversation, cid, out.body);
+        sent();
+        toast(`Sent to @${plan.agent.handle}`);
+        return true;
+      } catch (err) {
+        toastFailure(err, () => void post());
+        return false;
+      } finally {
+        setBusy(false);
+      }
+    };
+    return post();
+  };
   return (
     <ItemFrame
       kind="blocking"
@@ -127,13 +157,14 @@ function PlanItem({ plan }: { plan: NowWaiting }) {
       title={plan.text}
       context={`${whoLine(plan.agent)} is waiting on you since ${clockOf(plan.since)}`}
       from={{ id: plan.conversation.id, title: plan.conversation.title ?? "" }}
+      thread={<ReplyBox busy={busy} request={request} send={send} />}
       actions={
         <>
           <Button variant="primary" size="inline" className="mr-8 ml-8" href={href} onClick={(e) => visit(e, href)}>
             <OkayGlyph />
             Okay
           </Button>
-          <Button variant="text" size="inline" href={href} onClick={(e) => visit(e, href)}>
+          <Button variant="text" size="inline" onClick={() => setRequest((n) => n + 1)}>
             <ReplyGlyph />
             Reply
           </Button>
