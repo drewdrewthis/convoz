@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Ask, MachineRequest, Now } from "@convoz/api-client";
-import { arrivals } from "./arrivals.ts";
+import { arrivals, arrivalToast } from "./arrivals.ts";
 
 const ask = (id: number, handle: string, question: string) => ({ id, asker: { handle }, question }) as Ask;
 const machine = (id: number, name: string, handle?: string) => ({ id, name, identity: handle ? { handle } : null }) as MachineRequest;
@@ -48,4 +48,17 @@ test("only the new ones toast when old and new are mixed, asks before requests",
 
 test("an ask that left Now toasts nothing", () => {
   assert.deepEqual(arrivals(now([ask(1, "devtool", "Merge #415?")]), now([])), []);
+});
+
+test("no new lines make no toast", () => {
+  assert.equal(arrivalToast([]), null);
+});
+
+test("one new line is the toast as it is", () => {
+  assert.equal(arrivalToast(["@devtool asks: Merge #415?"]), "@devtool asks: Merge #415?");
+});
+
+// A toast replaces the one before it, so several arrivals share one toast instead of all but the last being lost.
+test("several new lines make one toast with the count, the first line and how many more", () => {
+  assert.equal(arrivalToast(["@docs asks: Roll back box-3?", "box-2 wants to connect as @dev-ci", "box-9 wants to connect"]), "3 new: @docs asks: Roll back box-3? (+2 more)");
 });

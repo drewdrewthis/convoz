@@ -5,6 +5,8 @@ import { create } from "zustand";
 import { ApiError, call, client, isRevoking } from "../../shared/api.ts";
 import { unreachable } from "../../shared/connection.ts";
 import { recall, remember } from "../../shared/offline.ts";
+import { toast } from "../pins-stars/index.ts";
+import { arrivals, arrivalToast } from "./arrivals.ts";
 
 interface NowState {
   now: Now | null;
@@ -22,6 +24,8 @@ let watchers = 0;
 let timer: ReturnType<typeof setTimeout> | undefined;
 
 const REMEMBERED = "now";
+// The last Now the server sent this page, not the copy kept on the device: what arrived while the page was closed is no toast.
+let fetched: Now | undefined;
 
 export const useNow = create<NowState>()((set, get) => {
   // The last answer is kept on the device: a warm start shows Now before the network answers, and offline it still shows (design §9).
@@ -45,6 +49,9 @@ export const useNow = create<NowState>()((set, get) => {
     load: async () => {
       try {
         const now = await call(client.GET("/api/now"));
+        const news = arrivalToast(arrivals(fetched, now));
+        if (news) toast(news);
+        fetched = now;
         set({ now, skew: now.now - Date.now(), machineRequests: now.machine_requests });
         void remember(REMEMBERED, now);
         return now;
