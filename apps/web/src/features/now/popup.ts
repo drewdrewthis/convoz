@@ -19,5 +19,8 @@ export function toPop(now: Now | null, seen: ReadonlySet<string>): Pop[] {
   return all.filter((p) => !seen.has(p.key));
 }
 
-/** popsOn says whether the popup shows on an app path: not on Now (`/`, `/now/...`), where the requests are already on top. */
-export const popsOn = (path: string): boolean => path !== "/" && !path.startsWith("/now/");
+/**
+ * popsOn says whether the popup shows: not on Now (`/`, `/now/...`), where the requests are already on top, and not while another
+ * dialog is open (the Invite agent sheet shows the same request; a popup over it would block it). It pops once that dialog closes.
+ */
+export const popsOn = (path: string, otherDialog = false): boolean => !otherDialog && path !== "/" && !path.startsWith("/now/");

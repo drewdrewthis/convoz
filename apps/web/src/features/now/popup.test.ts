@@ -55,3 +55,9 @@ test("nothing pops on the Now page or a machine request's deep link into it", ()
 test("the popup shows on every other signed-in page", () => {
   for (const path of ["/chats", "/chats/41", "/crew", "/crew/devtool", "/delivery", "/settings"]) assert.equal(popsOn(path), true, path);
 });
+
+// e2e crew.wp9: the owner approves a request inside the Invite agent sheet; a popup of that same request on top blocked the sheet.
+test("nothing pops while another dialog is open, and it pops once that dialog closes", () => {
+  assert.equal(popsOn("/crew", true), false);
+  assert.equal(popsOn("/crew", false), true);
+});
