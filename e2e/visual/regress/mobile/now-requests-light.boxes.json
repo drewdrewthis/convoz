@@ -36,55 +36,55 @@
   ],
   "h3 \"Devtool @devtool wants to add Release-bo\"#0": [
    27,
-   76,
+   726.72,
    336,
    44.19
   ],
   "button \"Approve\"#0": [
    27,
-   154.38,
+   260.66,
    336,
    50
   ],
   "button \"Decline\"#0": [
    27,
-   212.38,
+   318.66,
    336,
    50
   ],
   "h2 \"Machine requests\"#0": [
    12,
-   327.47,
+   71.09,
    137,
    23.8
   ],
   "button \"Deny all\"#0": [
    291,
-   317.38,
+   61,
    87,
    44
   ],
   "h3 \"box-9 wants to connect\"#0": [
    27,
-   384.38,
+   128,
    336,
    22.09
   ],
   "button \"Approve\"#1": [
    27,
-   517.03,
+   548.72,
    336,
    50
   ],
   "button \"Decline\"#1": [
    27,
-   575.03,
+   606.72,
    336,
    50
   ],
   "h3 \"box-2 wants to connect as @dev-ci\"#0": [
    27,
-   663.03,
+   406.66,
    336,
    22.09
   ],
