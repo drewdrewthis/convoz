@@ -2,7 +2,11 @@ import type { Ask, FeedItem, NowWaiting } from "@convoz/api-client";
 import { whoLine, type Answer, type SnoozePreset } from "@convoz/app-kit";
 import { Button } from "@convoz/ui/Button";
 import { useState } from "react";
+import { humanError } from "../../shared/api.ts";
+import { newId } from "../../shared/chat.ts";
+import { source } from "../../shared/data.ts";
 import { visit } from "../../shared/navigate.ts";
+import { useNotice } from "../../shared/notice.tsx";
 import { toast } from "../pins-stars/index.ts";
 import { FeedThread } from "./DevFeedThread.tsx";
 import { AskApp } from "./AskApp.tsx";
@@ -12,6 +16,8 @@ import { askFrame, carriesApp, okayAnswer } from "./askView.ts";
 import { entries, nextOf } from "./entries.ts";
 import { ItemFrame } from "./DevFrame.tsx";
 import { OkayGlyph, ReplyGlyph } from "./DevIcons.tsx";
+import { ReplyBox } from "./DevReplyBox.tsx";
+import { planReply } from "./planReply.ts";
 import { useNow } from "./store.ts";
 import { ServerItem } from "./ServerItem.tsx";
 import type { useServerFeed } from "./serverFeed.ts";
@@ -117,9 +123,24 @@ function FyiItem({ item: f, presets }: { item: Fyi; presets: { key: string; labe
   );
 }
 
-/** PlanItem is a plan step that waits on the owner. The server has no snooze for it and no thread of its own, so Okay and Reply open the conversation for now. */
+/**
+ * PlanItem is a plan step that waits on the owner. The server has no snooze for it and no thread of its own, so Okay opens the
+ * conversation for now; Reply opens a box in place whose text goes to the conversation, naming the agent (planReply).
+ */
 function PlanItem({ plan }: { plan: NowWaiting }) {
   const href = `/chats/${plan.conversation.id}`;
+  const [request, setRequest] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const { fail } = useNotice();
+  const send = (text: string) => {
+    const out = planReply(plan, text);
+    if (!out) return;
+    setBusy(true);
+    source
+      .post(out.conversation, newId(), out.body)
+      .then(() => toast(`Sent to @${plan.agent.handle}`), (err: unknown) => fail(humanError(err)))
+      .finally(() => setBusy(false));
+  };
   return (
     <ItemFrame
       kind="blocking"
@@ -127,13 +148,14 @@ function PlanItem({ plan }: { plan: NowWaiting }) {
       title={plan.text}
       context={`${whoLine(plan.agent)} is waiting on you since ${clockOf(plan.since)}`}
       from={{ id: plan.conversation.id, title: plan.conversation.title ?? "" }}
+      thread={<ReplyBox busy={busy} request={request} send={send} />}
       actions={
         <>
           <Button variant="primary" size="inline" className="mr-8 ml-8" href={href} onClick={(e) => visit(e, href)}>
             <OkayGlyph />
             Okay
           </Button>
-          <Button variant="text" size="inline" href={href} onClick={(e) => visit(e, href)}>
+          <Button variant="text" size="inline" onClick={() => setRequest((n) => n + 1)}>
             <ReplyGlyph />
             Reply
           </Button>
