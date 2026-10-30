@@ -1,6 +1,6 @@
 import type { Me } from "@convoz/api-client";
 import { Button } from "@convoz/ui/Button";
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { call, client, humanError } from "../../shared/api.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { markUseful } from "../../shared/perf.ts";
@@ -18,6 +18,7 @@ import { PendingAdd } from "./PendingAdd.tsx";
 import { Mentions, OtherChats, Replies, unreadRows, useTriage } from "./Unread.tsx";
 import { useAskActions } from "./useAskActions.ts";
 import { useNow } from "./store.ts";
+import { NOW_ORDER, type NowSection } from "./order.ts";
 import { sendKeptLogs } from "../call/index.ts";
 import { appPath } from "../../shared/base.ts";
 
@@ -28,10 +29,11 @@ interface NowProps {
   current?: number;
 }
 
-/** Now is /: what needs the owner. In one list, newest first, with no section headings: the open asks and plan steps that block the owner, and the fyi items (plan steps done today). Then the (urgent, then the newest), the adds agents
- *  wait on, the machines and agents waiting to connect, and the messages that @mention the owner. Then "Replies to you", then the asks the owner replied to and
- *  the agent has not answered, then Other chats; Snoozed, Answered today and Dismissed today fold away above. With nothing waiting, the wordmark, "All clear"
- *  and the folds are centred, in that order. The desktop rail draws the same list `compact`, beside the open conversation (owner, conv 179 msg 6018). */
+/** Now is /: what needs the owner. Under the notes, the blocks go in NOW_ORDER: first the machines and agents waiting to connect (an agent cannot work
+ *  until the owner approves) and the agents just approved; then Snoozed, Answered today and Dismissed today folded away; then one list, newest first, with no
+ *  section headings, of the open asks (urgent first) and plan steps that block the owner and the fyi items (plan steps done today); then the adds agents
+ *  wait on, the overdue deliverables, "Replies to you", the asks the owner replied to and the agent has not answered, and Other chats. With nothing waiting,
+ *  the wordmark, "All clear" and the folds are centred, in that order. The desktop rail draws the same list `compact`, beside the open conversation (owner, conv 179 msg 6018). */
 export function DevNow({ compact = false, current = 0 }: NowProps = {}) {
   const { fail } = useNotice();
   const load = useNow((s) => s.load);
@@ -133,63 +135,8 @@ export function DevNow({ compact = false, current = 0 }: NowProps = {}) {
     }
   }, [pending]);
 
-  return (
-    <>
-      <div id="notes" hidden={compact}>
-        {me?.recovery?.hold_until ? <p className="banner" role="status">{`You signed in with a recovery code. Codes left: ${me.recovery.codes_left}. Some actions are paused for 24 hours.`}</p> : null}
-        {onePasskey ? (
-          <div className="card note">
-            <span>One passkey guards this account.</span>
-            <a href="/settings/passkeys">Add a second way in</a>
-          </div>
-        ) : null}
-      </div>
-      <AllClear hidden={!clear} compact={compact} />
-      {now && !some && !mentions.length && (unread.length || overdue.length) ? <NoDecisions /> : null}
-      <Folds
-        snoozed={now?.snoozed ?? []}
-        answered={now?.answered_today ?? []}
-        dismissed={now?.dismissed_today ?? []}
-        open={folds}
-        toggle={(k: FoldKey) => setFolds((f) => ({ ...f, [k]: !f[k] }))}
-        unsnooze={unsnooze}
-        reopen={reopen}
-        centered={clear}
-      />
-      <div onKeyDown={moveFocus}>
-        <NeedsYou
-          asks={asks}
-          waiting={waitingPlans}
-          fyi={fyi}
-          server={{ shown: cards_, all: feed.items, feed, titles, skew }}
-          busy={busy}
-          presets={presets}
-          answer={answer}
-          dismiss={dismiss}
-          snooze={snooze}
-          current={current}
-          compact={compact}
-        />
-      </div>
-      {adds.length ? (
-        <section id="adds" className="block" aria-label="Adds to decide">
-          {adds.map((add) => (
-            <PendingAdd key={`${add.conversation.id}-${add.person.id}`} add={add} reload={reload} />
-          ))}
-        </section>
-      ) : null}
-      {joined.length ? (
-        <section id="joined" className="block" aria-label="Agents that joined">
-          {joined.map((handle) => (
-            <article key={handle} className="card" aria-label={`@${handle} joined`}>
-              <h3>{`@${handle} joined`}</h3>
-              <div className="btns">
-                <Button variant="primary" href={`/chats/new?with=${encodeURIComponent(handle)}`}>{`Message @${handle}`}</Button>
-              </div>
-            </article>
-          ))}
-        </section>
-      ) : null}
+  const blocks: Record<NowSection, ReactNode> = {
+    requests: (
       <section id="requests-block" className="block" aria-labelledby="requests-heading" hidden={!waiting}>
         <div className="block-head">
           <h2 id="requests-heading">Machine requests</h2>
@@ -212,11 +159,78 @@ export function DevNow({ compact = false, current = 0 }: NowProps = {}) {
             ))}
         </div>
       </section>
-      <Overdue late={overdue} />
-      {cards && mentions.length ? <Mentions items={mentions} current={current} /> : null}
-      {cards && replies.length ? <Replies items={replies} current={current} /> : null}
-      {replied.length ? <NowReplied asks={replied} /> : null}
-      {rest.length ? <OtherChats rows={rest} current={current} compact={compact} /> : null}
+    ),
+    joined: joined.length ? (
+      <section id="joined" className="block" aria-label="Agents that joined">
+        {joined.map((handle) => (
+          <article key={handle} className="card" aria-label={`@${handle} joined`}>
+            <h3>{`@${handle} joined`}</h3>
+            <div className="btns">
+              <Button variant="primary" href={`/chats/new?with=${encodeURIComponent(handle)}`}>{`Message @${handle}`}</Button>
+            </div>
+          </article>
+        ))}
+      </section>
+    ) : null,
+    allClear: <AllClear hidden={!clear} compact={compact} />,
+    noDecisions: now && !some && !mentions.length && (unread.length || overdue.length) ? <NoDecisions /> : null,
+    folds: (
+      <Folds
+        snoozed={now?.snoozed ?? []}
+        answered={now?.answered_today ?? []}
+        dismissed={now?.dismissed_today ?? []}
+        open={folds}
+        toggle={(k: FoldKey) => setFolds((f) => ({ ...f, [k]: !f[k] }))}
+        unsnooze={unsnooze}
+        reopen={reopen}
+        centered={clear}
+      />
+    ),
+    needs: (
+      <div onKeyDown={moveFocus}>
+        <NeedsYou
+          asks={asks}
+          waiting={waitingPlans}
+          fyi={fyi}
+          server={{ shown: cards_, all: feed.items, feed, titles, skew }}
+          busy={busy}
+          presets={presets}
+          answer={answer}
+          dismiss={dismiss}
+          snooze={snooze}
+          current={current}
+          compact={compact}
+        />
+      </div>
+    ),
+    adds: adds.length ? (
+      <section id="adds" className="block" aria-label="Adds to decide">
+        {adds.map((add) => (
+          <PendingAdd key={`${add.conversation.id}-${add.person.id}`} add={add} reload={reload} />
+        ))}
+      </section>
+    ) : null,
+    overdue: <Overdue late={overdue} />,
+    mentions: cards && mentions.length ? <Mentions items={mentions} current={current} /> : null,
+    replies: cards && replies.length ? <Replies items={replies} current={current} /> : null,
+    replied: replied.length ? <NowReplied asks={replied} /> : null,
+    other: rest.length ? <OtherChats rows={rest} current={current} compact={compact} /> : null,
+  };
+
+  return (
+    <>
+      <div id="notes" hidden={compact}>
+        {me?.recovery?.hold_until ? <p className="banner" role="status">{`You signed in with a recovery code. Codes left: ${me.recovery.codes_left}. Some actions are paused for 24 hours.`}</p> : null}
+        {onePasskey ? (
+          <div className="card note">
+            <span>One passkey guards this account.</span>
+            <a href="/settings/passkeys">Add a second way in</a>
+          </div>
+        ) : null}
+      </div>
+      {NOW_ORDER.map((k) => (
+        <Fragment key={k}>{blocks[k]}</Fragment>
+      ))}
     </>
   );
 }
