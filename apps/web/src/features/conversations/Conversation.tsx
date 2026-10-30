@@ -127,7 +127,10 @@ export function Conversation() {
       }
       if (location.hash === "#compose") textRef.current?.focus();
       const root = replyLink();
-      if (root) useThreads.getState().startReply(convId, root);
+      if (root) {
+        setInfo(false); // on a phone the details are a sheet that would cover the reply box, as with Reply on a plan card
+        useThreads.getState().startReply(convId, root);
+      }
       const wanted = Number(/^#m(\d+)$/.exec(location.hash)?.[1] ?? 0) || root;
       if (!wanted) return;
       setFocus(0); // the same message chosen twice must scroll and mark again
