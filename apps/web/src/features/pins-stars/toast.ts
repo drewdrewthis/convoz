@@ -12,9 +12,11 @@ interface ToastState {
   label: string;
   /** Bumped by every toast, so the same words twice restart the clock. */
   n: number;
+  /** An error (toastFailure): announced at once (role=alert), not politely. Every other toast clears it. */
+  alert: boolean;
 }
 
-export const useToast = create<ToastState>()(() => ({ text: "", undo: null, label: "Undo", n: 0 }));
+export const useToast = create<ToastState>()(() => ({ text: "", undo: null, label: "Undo", n: 0, alert: false }));
 
 let timer: ReturnType<typeof setTimeout> | undefined;
 /** The newest news that came while an Undo showed; it shows when that toast ends. */
@@ -23,7 +25,7 @@ let held: Parameters<typeof toast> | null = null;
 /** toast shows `text` for ten seconds, in place of the one before it. With `undo` it carries a button, named `label`. */
 export function toast(text: string, undo?: Undo, label = "Undo"): void {
   clearTimeout(timer);
-  useToast.setState((s) => ({ text, undo: undo ?? null, label, n: s.n + 1 }));
+  useToast.setState((s) => ({ text, undo: undo ?? null, label, n: s.n + 1, alert: false }));
   timer = setTimeout(end, 10_000);
 }
 

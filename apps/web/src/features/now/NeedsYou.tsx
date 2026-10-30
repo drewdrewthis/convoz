@@ -2,12 +2,10 @@ import type { Ask, FeedItem, NowWaiting } from "@convoz/api-client";
 import { whoLine, type Answer, type SnoozePreset } from "@convoz/app-kit";
 import { Button } from "@convoz/ui/Button";
 import { useState } from "react";
-import { humanError } from "../../shared/api.ts";
 import { newId } from "../../shared/chat.ts";
 import { source } from "../../shared/data.ts";
 import { visit } from "../../shared/navigate.ts";
-import { useNotice } from "../../shared/notice.tsx";
-import { toast } from "../pins-stars/index.ts";
+import { toast, toastFailure } from "../pins-stars/index.ts";
 import { FeedThread } from "./DevFeedThread.tsx";
 import { AskApp } from "./AskApp.tsx";
 import { laterOptionsAt } from "./presets.ts";
@@ -131,15 +129,26 @@ function PlanItem({ plan }: { plan: NowWaiting }) {
   const href = `/chats/${plan.conversation.id}`;
   const [request, setRequest] = useState(0);
   const [busy, setBusy] = useState(false);
-  const { fail } = useNotice();
-  const send = (text: string) => {
+  // The box keeps the text until the post went through; Retry posts with the same client id, so a post that did arrive is not made twice.
+  const send = (text: string, sent: () => void): Promise<boolean> => {
     const out = planReply(plan, text);
-    if (!out) return;
-    setBusy(true);
-    source
-      .post(out.conversation, newId(), out.body)
-      .then(() => toast(`Sent to @${plan.agent.handle}`), (err: unknown) => fail(humanError(err)))
-      .finally(() => setBusy(false));
+    if (!out) return Promise.resolve(false);
+    const cid = newId();
+    const post = async (): Promise<boolean> => {
+      setBusy(true);
+      try {
+        await source.post(out.conversation, cid, out.body);
+        sent();
+        toast(`Sent to @${plan.agent.handle}`);
+        return true;
+      } catch (err) {
+        toastFailure(err, () => void post());
+        return false;
+      } finally {
+        setBusy(false);
+      }
+    };
+    return post();
   };
   return (
     <ItemFrame

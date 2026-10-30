@@ -1,9 +1,9 @@
 import { Button } from "@convoz/ui/Button";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { boxShows } from "./replyView.ts";
+import { boxShows, sendReply } from "./replyView.ts";
 
 /** ReplyBox is the empty reply box of a feed item that has no thread yet: the first text starts the thread (POST /api/feed/:id/reply). It is hidden until the Reply button is pressed (a request above 0), like a collapsed thread, and then it takes the focus. */
-export function ReplyBox({ send, busy, request = 0 }: { send: (text: string) => void; busy: boolean; request?: number }) {
+export function ReplyBox({ send, busy, request = 0 }: { send: (text: string, sent: () => void) => Promise<boolean>; busy: boolean; request?: number }) {
   const [text, setText] = useState("");
   const input = useRef<HTMLInputElement | null>(null);
   const shown = boxShows(request);
@@ -12,9 +12,9 @@ export function ReplyBox({ send, busy, request = 0 }: { send: (text: string) => 
   }, [request, shown]);
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (!text.trim()) return;
-    send(text.trim());
-    setText("");
+    // The box empties once the server took the text: on this send, or on the toast's Retry.
+    const clear = () => setText("");
+    void sendReply(text, (t) => send(t, clear), clear);
   };
   if (!shown) return null;
   return (
