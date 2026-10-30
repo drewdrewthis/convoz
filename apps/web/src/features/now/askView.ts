@@ -31,3 +31,15 @@ export function doneLine(ask: Ask): string {
   const by = ask.resolved_by?.handle;
   return by ? `${said}, by ${by}` : said;
 }
+
+/**
+ * openReply is Reply on an ask in its conversation: it follows #reply=<root>, which the conversation page follows by loading back to the
+ * root, scrolling to it and opening its reply box (Conversation.tsx). A bare startReply did nothing for the card in "Waiting on you",
+ * whose root may be far back and not drawn (owner, conv 179 msg 13541). The same hash again fires no hashchange, so it is sent by hand.
+ */
+export function openReply(ask: Pick<Ask, "id" | "thread_root_id">, page: { location: { hash: string }; dispatchEvent(e: Event): boolean } = window): void {
+  const hash = `#reply=${ask.thread_root_id ?? ask.id}`;
+  const same = page.location.hash === hash;
+  page.location.hash = hash;
+  if (same) page.dispatchEvent(new Event("hashchange"));
+}
