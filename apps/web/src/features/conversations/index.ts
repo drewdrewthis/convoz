@@ -3,7 +3,7 @@ import { debouncePer, registerHandler, registerResync, type MessageCreatedFrame 
 import { appPath, withBase } from "../../shared/base.ts";
 import { data, sync } from "../../shared/data.ts";
 import { arrivalToast } from "../now/index.ts";
-import { toast } from "../pins-stars/index.ts";
+import { notify } from "../pins-stars/index.ts";
 import { batch, messageHref, messageLine } from "./messageToast.ts";
 import "../../shared/presence.ts"; // takes the working and seen frames in
 import { useConversations } from "./store.ts";
@@ -33,7 +33,7 @@ registerHandler("message.", (frame) => {
 /** The messages of one second share one toast; its Open goes to the first, the one the toast names. */
 const toastBatch = batch<{ line: string; href: string }>(1000, (news) => {
   const text = arrivalToast(news.map((n) => n.line));
-  if (text) toast(text, () => location.assign(withBase(news[0]!.href)), "Open");
+  if (text) notify(text, () => location.assign(withBase(news[0]!.href)), "Open");
 });
 /** toastMessage queues the toast line of a new message from someone else, unless its conversation is open on screen or muted (messageLine). */
 function toastMessage(m: MessageCreatedFrame): void {
