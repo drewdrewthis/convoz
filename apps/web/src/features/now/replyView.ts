@@ -39,3 +39,10 @@ export function partsOf(s: ThreadState): ThreadParts {
 
 /** boxShows is the empty reply box of an item with no thread yet (it has no message to hang replies on): hidden until Reply is pressed. */
 export const boxShows = (request: number): boolean => request > 0;
+
+/** sendReply sends what the box holds and empties the box only once the server took it, so a failed send (the server restarting) keeps what the owner wrote. */
+export async function sendReply(text: string, send: (text: string) => Promise<boolean>, clear: () => void): Promise<void> {
+  const body = text.trim();
+  if (!body) return;
+  if (await send(body)) clear();
+}

@@ -36,9 +36,9 @@ export function ServerItem({ item, next, feed, from, skew }: { item: FeedItem; n
       busy={busy}
       thread={
         item.thread_root_id ? (
-          <FeedThread conversation={item.conversation_id} root={item.thread_root_id} request={request} send={(t) => void feed.reply(item, t)} />
+          <FeedThread conversation={item.conversation_id} root={item.thread_root_id} request={request} send={(t, sent) => feed.reply(item, t, sent)} />
         ) : (
-          <ReplyBox busy={busy} request={request} send={(t) => void feed.reply(item, t)} />
+          <ReplyBox busy={busy} request={request} send={(t, sent) => feed.reply(item, t, sent)} />
         )
       }
       snooze={{ presets: options.map((o) => ({ key: o.label, label: o.label })), pick: (k) => void feed.snooze(item, options.find((o) => o.label === k)?.until ?? 0) }}

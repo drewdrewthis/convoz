@@ -2,9 +2,10 @@ import type { HostInfo, IdentityRequest, MachineRequest, Now } from "@convoz/api
 
 type InviteMark = NonNullable<MachineRequest["invite"]>;
 import { useId, useState } from "react";
-import { call, client, humanError } from "../../shared/api.ts";
+import { call, client } from "../../shared/api.ts";
 import { initials, paletteOf } from "../../shared/chat.ts";
 import { useNotice } from "../../shared/notice.tsx";
+import { toastFailure } from "../pins-stars/index.ts";
 import { Button } from "@convoz/ui/Button";
 
 /** A connect request that carries an identity: the agent said who it is, and one tap makes the agent (and the machine, for a new one). */
@@ -61,7 +62,7 @@ interface CardProps {
  * A request that came over the internet spent an invite, and the card says whose.
  */
 export function RequestCard({ item, changed, approved }: CardProps) {
-  const { say, fail } = useNotice();
+  const { say } = useNotice();
   const id = useId();
   const [busy, setBusy] = useState(false);
   const machine = item.kind === "session" ? null : item.machine;
@@ -88,7 +89,7 @@ export function RequestCard({ item, changed, approved }: CardProps) {
       if (approve && intro) approved?.(intro.handle);
       await changed();
     } catch (err) {
-      fail(humanError(err));
+      toastFailure(err, () => void decide(approve));
     } finally {
       setBusy(false);
     }

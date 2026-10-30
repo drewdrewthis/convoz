@@ -5,6 +5,9 @@ import { reachable, unreachable } from "./connection.ts";
 import { dropEarly, takeEarly } from "./early.ts";
 import { forgetOffline } from "./offline.ts";
 import { appPath, withBase } from "./base.ts";
+import { ApiError, humanError } from "./failure.ts";
+
+export { ApiError, humanError };
 
 // A read the page started before the app loaded (src/early.ts) is answered from that head start.
 export const client = createConvozClient("", (request) => takeEarly(request) ?? globalThis.fetch(request));
@@ -20,19 +23,6 @@ client.use({
  * no longer knows (a revoked device); the other two are the named forms. Any other code (a bad token) leaves the cache alone.
  */
 export const isRevoking = (code: string | undefined): boolean => code === "device_revoked" || code === "session_expired" || code === "unauthorized";
-
-/** An answer that was not 2xx. `code` is the server's error code (error.code). */
-export class ApiError extends Error {
-  status: number;
-  code: string | undefined;
-  /** true when the page already acted on it (a 401 that sends the browser to sign in): show nothing. */
-  handled = false;
-  constructor(message: string, status: number, code: string | undefined) {
-    super(message);
-    this.status = status;
-    this.code = code;
-  }
-}
 
 /** The page is on its way out (a sign-in redirect or a finished flow): no more ticket fetches. `public`: no session needed. */
 export const page = { leaving: false, public: false };
@@ -82,40 +72,6 @@ export async function call<T>(request: Promise<Answer<T>>): Promise<T> {
 
 /** stepUp is the header a step-up route needs. */
 export const stepUp = (id: string) => ({ "X-Convoz-Step-Up": id });
-
-// These server messages are written for the owner and name what to fix (a machine name, a field); every other code gets the
-// generic line, so an internal or unexpected message never reaches the page.
-const SHOWN_AS_SENT = new Set(["machine_name_taken", "invalid_request", "handle_taken", "code_mismatch", "last_passkey", "invalid_code", "rate_limited"]);
-
-/** humanError turns anything that can go wrong into one plain sentence ("" for an error the page already handled). */
-export function humanError(err: unknown): string {
-  if (err instanceof ApiError && err.handled) return "";
-  const name = err && (err as Error).name;
-  if (name === "NotAllowedError") return "The passkey prompt was closed or timed out. Try again.";
-  if (name === "AbortError") return "The passkey prompt was cancelled. Try again.";
-  if (name === "InvalidStateError") return "This device already has a Convoz passkey. Use another device or a security key.";
-  if (name === "NotSupportedError" || name === "SecurityError") return "This browser cannot use that passkey here.";
-  if (err instanceof ApiError) {
-    switch (err.code) {
-      case "ceremony_invalid": return "The passkey check timed out. Tap again.";
-      case "step_up_invalid": return "That passkey check was used up or timed out. Tap again.";
-      case "step_up_required": return "This needs a fresh passkey check. Tap again.";
-      case "passkey_too_new":
-        return "This passkey was added less than 24 hours ago. Actions like this need an older passkey, so try again later or sign in with an older one.";
-      case "invalid_credential": return "That passkey did not work. Try again.";
-      case "machine_cap": return "Ten machines are active. Revoke one before approving another.";
-      case "bootstrap_used": return "This setup link was already used.";
-      case "bootstrap_expired": return "This setup link expired.";
-      case "bootstrap_invalid": return "This setup link is not valid.";
-      case "not_found": return "That is gone. Reload the page.";
-      case "limited_device": return "This device may only add a passkey.";
-    }
-    if (err.code && SHOWN_AS_SENT.has(err.code)) return err.message;
-    return "Something went wrong. Try again.";
-  }
-  if (name === "TypeError") return "Could not reach Convoz. Check your connection and try again.";
-  return "Something went wrong. Try again.";
-}
 
 /** signOut ends the session and opens the sign-in page. A failure is handed to `fail`. */
 export async function signOut(fail: (message: string) => void): Promise<void> {

@@ -3,12 +3,13 @@
 import type { Message, Upload } from "@convoz/api-client";
 import { coalesce, maxId } from "@convoz/api-client";
 import { create } from "zustand";
-import { ApiError, humanError } from "../../shared/api.ts";
+import { ApiError } from "../../shared/api.ts";
 import { newId } from "../../shared/chat.ts";
 import { reportSendFailed } from "../../shared/clientEvents.ts";
 import { data, holdOfflineUntil, offlineReady, outbox, source, sync } from "../../shared/data.ts";
 import { asUpload, uploadFile } from "../../shared/uploads.ts";
-import { toast } from "../pins-stars/index.ts";
+import { failure } from "../../shared/failure.ts";
+import { toast, toastFailure } from "../pins-stars/index.ts";
 
 /** Said when a send left the page before it reached the server: the owner must never lose a message without a word. */
 export const LOST_SEND = "A message was not sent. Write it again.";
@@ -138,11 +139,14 @@ export const useConversations = create<ConversationsState>()((set, get) => {
       } catch (err) {
         if (err instanceof ApiError && err.handled) return;
         if (!linkDown(err)) {
-          void outbox.remove(cid); // a refusal comes back on every open if kept, and a retry cannot change it
+          const f = failure(err);
+          // a refusal comes back on every open if kept, and a retry cannot change it; a send the server never answered (a restart) stays for the next open
+          if (!f?.retry) void outbox.remove(cid);
           reportSendFailed();
           // a failure marks its bubble; with no bubble left to mark, the owner still hears of it
           if (!thread(key)?.pending.some((x) => x.cid === cid)) return toast(LOST_SEND);
-          return setState("failed", humanError(err));
+          if (f?.retry) toastFailure(err, () => get().retry(key, cid));
+          return setState("failed", f?.text);
         }
         await backOnline(); // the same client id goes out again, so a send that did arrive is not made twice (I-24)
       }

@@ -8,6 +8,7 @@ import { newId } from "../../shared/chat.ts";
 import { reportSendFailed } from "../../shared/clientEvents.ts";
 import { data } from "../../shared/data.ts";
 import { usePresence } from "../../shared/presence.ts";
+import { toastFailure } from "../pins-stars/index.ts";
 
 /** A reply the server has not confirmed yet; the same shape as a pending send in the main list. */
 export interface PendingReply {
@@ -156,6 +157,8 @@ export const useThreads = create<ThreadsState>()((set, get) => {
       if (err instanceof ApiError && err.handled) return false;
       reportSendFailed();
       setState("failed");
+      // the bubble says only "failed": the toast says why, with Retry when sending it again could help
+      toastFailure(err, () => void deliver(rootId, cid));
       return false;
     }
   }

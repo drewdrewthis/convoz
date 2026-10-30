@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState, type ComponentType, type FormEvent 
 import type { Message } from "@convoz/api-client";
 import { loadFeedReplies } from "../conversations/index.ts";
 import { useThreads } from "../threads/index.ts";
-import { partsOf, takeRequest, type ThreadState } from "./replyView.ts";
+import { partsOf, sendReply, takeRequest, type ThreadState } from "./replyView.ts";
 
 type Replies = ComponentType<{
   conversation: number;
@@ -20,7 +20,7 @@ interface FeedThreadProps {
   /** A number that goes up each time the item asks for the thread to open with its reply box focused (the Reply button). It shows even with no replies yet. */
   request?: number;
   /** Sends the text another way (a server item: POST /api/feed/:id/reply, which also closes the item). Without it the text is a reply in the thread. */
-  send?: (text: string) => void;
+  send?: (text: string, sent: () => void) => Promise<boolean>;
   /** What the reply box starts with: a draft ask's text, to edit before it is sent. */
   initial?: string;
 }
@@ -66,10 +66,14 @@ export function FeedThread({ conversation, root, count: known, onReplied, reques
     e.preventDefault();
     const body = text.trim();
     if (!body) return;
-    setText("");
-    setWriting(false);
-    setOpen(() => true);
-    if (sendText) return sendText(body);
+    const done = () => {
+      setText("");
+      setWriting(false);
+      setOpen(() => true);
+    };
+    // Sent another way, the box keeps the text until the server took it (on this send or the toast's Retry); a thread reply keeps it in its failed bubble.
+    if (sendText) return void sendReply(body, (t) => sendText(t, done), done);
+    done();
     const { load, reply } = useThreads.getState();
     void load(conversation, root).catch(() => {});
     void reply(root, body).then((ok) => onReplied?.(ok));
