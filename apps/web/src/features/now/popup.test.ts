@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Ask, IdentityRequest, MachineRequest, Now } from "@convoz/api-client";
-import { toPop } from "./popup.ts";
+import { popsOn, toPop } from "./popup.ts";
 
 const ask = (id: number, urgent: boolean) => ({ id, urgent, asker: { handle: "devtool" }, question: `Q${id}?` }) as Ask;
 const machine = (id: number, handle?: string) => ({ id, name: `box-${id}`, identity: handle ? { handle } : null }) as MachineRequest;
@@ -44,4 +44,14 @@ test("each popped item carries what its action buttons need", () => {
     toPop(n, new Set()).map((x) => x.kind),
     ["login", "plain", "session", "ask"],
   );
+});
+
+// On Now the requests are already on top: a popup there would cover them and draw the same card twice.
+test("nothing pops on the Now page or a machine request's deep link into it", () => {
+  assert.equal(popsOn("/"), false);
+  assert.equal(popsOn("/now/machine/9"), false);
+});
+
+test("the popup shows on every other signed-in page", () => {
+  for (const path of ["/chats", "/chats/41", "/crew", "/crew/devtool", "/delivery", "/settings"]) assert.equal(popsOn(path), true, path);
 });
