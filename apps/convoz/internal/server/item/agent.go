@@ -87,7 +87,7 @@ func Start(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int64, ke
 // CheckBlockTitle refuses a block title that is not one plain sentence that tells the owner what to do (a *LineError).
 func CheckBlockTitle(title string) error {
 	if why := ownerline.Check(title); why != "" {
-		return &LineError{ownerline.Refusal("title", strings.TrimSpace(title), why)}
+		return &LineError{ownerline.Refusal("title", strings.TrimSpace(title), why), why}
 	}
 	return nil
 }

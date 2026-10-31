@@ -105,7 +105,7 @@ func (s *Server) postTake(w http.ResponseWriter, r *http.Request, c *call) {
 		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "message", "Only a person's message in the main chat can be taken, not an agent's message or a reply in a thread.")
 		return
 	}
-	if s.itemRefused(w, r, err) {
+	if s.itemRefused(w, r, c, err) {
 		return
 	}
 	s.Bus.Notify()

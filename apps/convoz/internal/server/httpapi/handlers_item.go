@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/item"
@@ -13,7 +14,7 @@ import (
 )
 
 // itemRefused answers an item error; false means it was none of those.
-func (s *Server) itemRefused(w http.ResponseWriter, r *http.Request, err error) bool {
+func (s *Server) itemRefused(w http.ResponseWriter, r *http.Request, c *call, err error) bool {
 	var line *item.LineError
 	switch {
 	case err == nil:
@@ -27,6 +28,8 @@ func (s *Server) itemRefused(w http.ResponseWriter, r *http.Request, err error) 
 	case errors.Is(err, item.ErrNoRecommendation):
 		writeErr(w, http.StatusConflict, "no_recommendation", "This item has no recommendation to accept. Add info instead.")
 	case errors.As(err, &line):
+		conv, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+		s.logOwnerLine(r, c, conv, "title", line.Why)
 		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "title", line.Message)
 	case errors.Is(err, item.ErrText):
 		writeErr(w, http.StatusBadRequest, "invalid_request", "Text must be plain (no markdown, no links) and within its length: title 1-200, context 1-2000 on start and block, recommendation 500, key 1-64.")
@@ -113,7 +116,7 @@ func (s *Server) itemChange(w http.ResponseWriter, r *http.Request, c *call, mov
 		it, err = move(ctx, tx.DBTX(), now)
 		return err
 	})
-	if s.itemRefused(w, r, err) {
+	if s.itemRefused(w, r, c, err) {
 		return
 	}
 	s.Bus.Notify()

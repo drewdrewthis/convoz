@@ -73,7 +73,7 @@ func (s *Server) feedReply(w http.ResponseWriter, r *http.Request, c *call) {
 		writeErr(w, http.StatusConflict, "conflict", "The thread was started by someone else a moment ago. Send it again.")
 		return
 	}
-	if s.itemRefused(w, r, err) || s.messageRefused(w, err) {
+	if s.itemRefused(w, r, c, err) || s.messageRefused(w, err) {
 		return
 	}
 	if err != nil {

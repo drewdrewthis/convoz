@@ -77,7 +77,7 @@ func (n New) checkQuestion() error {
 		return &FieldError{"question", "A question has at most 500 characters."}
 	}
 	if why := ownerline.Check(n.Question); why != "" && n.Permission == nil { // a permission ask shows its machine action, with its details
-		return &FieldError{"question", ownerline.Refusal("question", n.Question, why)}
+		return &LineError{FieldError{"question", ownerline.Refusal("question", n.Question, why)}, why}
 	}
 	return nil
 }
