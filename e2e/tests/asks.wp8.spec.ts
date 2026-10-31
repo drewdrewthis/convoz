@@ -156,8 +156,8 @@ scenario("Undismiss clears the agent's ack", { tag: ["@cli"] }, async ({ server 
 scenario("Removing the asker closes its open and dismissed asks", { tag: ["@api"] }, async ({ server }) => {
   // Given "devtool" has an open ask and a dismissed ask in conversation 41
   const { w, conv, devtool } = await askWorld(server);
-  const open = await agentAsks(w.srv, devtool.lease, conv, { question: "Open question?" });
-  const dismissed = await agentAsks(w.srv, devtool.lease, conv, { question: "Dismissed question?" });
+  const open = await agentAsks(w.srv, devtool.lease, conv, { question: "Answer the open question?" });
+  const dismissed = await agentAsks(w.srv, devtool.lease, conv, { question: "Answer the dismissed question?" });
   must(await markAsk(w.owner, dismissed, "dismiss"), "dismiss");
 
   // When the owner removes "devtool" from conversation 41
@@ -176,8 +176,8 @@ scenario("Disabling the asker closes its asks everywhere", { tag: ["@api"] }, as
   // Given "devtool" has open asks in conversations 41 and 52
   const { w, conv, devtool } = await askWorld(server);
   const conv52 = await createConversation(w.owner, { title: "Release prep", participants: ["devtool"] });
-  const a = await agentAsks(w.srv, devtool.lease, conv, { question: "Ask in 41?" });
-  const b = await agentAsks(w.srv, devtool.lease, conv52, { question: "Ask in 52?" });
+  const a = await agentAsks(w.srv, devtool.lease, conv, { question: "Ask in conversation 41?" });
+  const b = await agentAsks(w.srv, devtool.lease, conv52, { question: "Ask in conversation 52?" });
 
   // When the owner disables "devtool" with a passkey
   const ids = await idsOf(w.owner);
@@ -228,7 +228,7 @@ scenario("An ask has a Reply button", { tag: ["@browser"] }, async ({ server, pa
   const w = await browserWorld({ server, page, context }, { agents: ["devtool", "docs"], live: ["devtool"] });
   const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
   const lease = w.sessions.devtool!.lease;
-  const done = await agentAsks(w.srv, lease, conv, { question: "Answered question?" });
+  const done = await agentAsks(w.srv, lease, conv, { question: "Answer the answered question?" });
   must(await answerAsk(w.owner, done), "answer");
   await agentAsks(w.srv, lease, conv);
 
@@ -259,7 +259,7 @@ scenario("An ask has a Reply button", { tag: ["@browser"] }, async ({ server, pa
 
   // And the answered ask in the conversation has no Okay and no Reply
   await page.goto(`${w.srv.origin}/chats/${conv}`);
-  const answered = askCard(page, "Answered question?");
+  const answered = askCard(page, "Answer the answered question?");
   await expect(answered).toBeVisible();
   for (const name of ["Okay", "Reply"]) await expect(answered.getByRole("button", { name, exact: true }), name).toHaveCount(0);
 });
@@ -359,17 +359,17 @@ scenario("Only an open ask can be snoozed", { tag: ["@browser"] }, async ({ serv
   // Given an ask of "devtool" that the owner dismissed
   const w = await browserWorld({ server, page, context }, { agents: ["devtool", "docs"], live: ["devtool"] });
   const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
-  const dismissed = await agentAsks(w.srv, w.sessions.devtool!.lease, conv, { question: "Dismissed question?" });
-  await agentAsks(w.srv, w.sessions.devtool!.lease, conv, { question: "Open question?" });
+  const dismissed = await agentAsks(w.srv, w.sessions.devtool!.lease, conv, { question: "Answer the dismissed question?" });
+  await agentAsks(w.srv, w.sessions.devtool!.lease, conv, { question: "Answer the open question?" });
   must(await markAsk(w.owner, dismissed, "dismiss"), "dismiss");
 
   // When the owner opens the conversation
   await page.goto(`${w.srv.origin}/chats/${conv}`);
-  await expect(askCard(page, "Open question?").getByRole("button", { name: "Snooze", exact: true }), "an open ask can be snoozed").toBeVisible();
+  await expect(askCard(page, "Answer the open question?").getByRole("button", { name: "Snooze", exact: true }), "an open ask can be snoozed").toBeVisible();
 
   // Then the dismissed ask has no Snooze
-  await expect(askCard(page, "Dismissed question?")).toContainText("Dismissed");
-  await expect(askCard(page, "Dismissed question?").getByRole("button", { name: "Snooze" })).toHaveCount(0);
+  await expect(askCard(page, "Answer the dismissed question?")).toContainText("Dismissed");
+  await expect(askCard(page, "Answer the dismissed question?").getByRole("button", { name: "Snooze" })).toHaveCount(0);
 });
 
 const withoutOwnersCall = ({ owners_call: _gone, ...rest }: Record<string, unknown>): Record<string, unknown> => rest;
@@ -453,7 +453,7 @@ scenario("An identity holds at most 20 open asks", { tag: ["@api"] }, async ({ s
   const others = [];
   for (let i = 0; i < 3; i++) others.push(await createConversation(w.owner, { title: `Topic ${i}`, participants: ["devtool"] }));
   const homes = [conv, ...others];
-  for (let i = 0; i < 20; i++) await agentAsks(w.srv, devtool.lease, homes[i % homes.length]!, { question: `Question ${i + 1}?` });
+  for (let i = 0; i < 20; i++) await agentAsks(w.srv, devtool.lease, homes[i % homes.length]!, { question: `Answer the question ${i + 1}?` });
   expect((await nowOf(w.owner)).asks.length).toBe(20);
 
   // When "devtool" posts another valid ask
@@ -596,14 +596,14 @@ scenario("Undismiss after the asker left is refused", { tag: ["@api"] }, async (
 scenario("Undismiss respects the open-ask cap", { tag: ["@api"] }, async ({ server, testApi }) => {
   // Given a dismissed ask of "devtool" and 20 other open asks of "devtool"
   const { w, conv, devtool } = await askWorld(server);
-  const id = await agentAsks(w.srv, devtool.lease, conv, { question: "Dismissed question?" });
+  const id = await agentAsks(w.srv, devtool.lease, conv, { question: "Answer the dismissed question?" });
   must(await markAsk(w.owner, id, "dismiss"), "dismiss");
   const others = [];
   for (let i = 0; i < 3; i++) others.push(await createConversation(w.owner, { title: `Topic ${i}`, participants: ["devtool"] }));
   const homes = [conv, ...others];
   for (let i = 0; i < 20; i++) {
     if (i === 10) await testApi(w.srv).advanceClock(25_000); // the post budget of an agent (20 in a burst) refills
-    await agentAsks(w.srv, devtool.lease, homes[i % homes.length]!, { question: `Question ${i + 1}?` });
+    await agentAsks(w.srv, devtool.lease, homes[i % homes.length]!, { question: `Answer the question ${i + 1}?` });
   }
 
   // When the owner undismisses the ask

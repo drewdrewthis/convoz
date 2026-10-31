@@ -186,9 +186,9 @@ scenario("An empty Now and its open folds keep their look", { tag: ["@browser"] 
   const u = await world({ server, page, context, testApi });
   const conv = await createConversation(u.w.owner, { title: "Ship search filters", participants: ["devtool"] });
   const lease = u.sessions.devtool!.lease;
-  must(await answerAsk(u.w.owner, await agentAsks(u.w.srv, lease, conv, { question: "Answered question?" })), "answer");
-  must(await markAsk(u.w.owner, await agentAsks(u.w.srv, lease, conv, { question: "Dismissed question?" }), "dismiss"), "dismiss");
-  must(await snoozeAsk(u.w.owner, await agentAsks(u.w.srv, lease, conv, { question: "Snoozed question?" }), { preset: "tomorrow", tz: "UTC" }), "snooze");
+  must(await answerAsk(u.w.owner, await agentAsks(u.w.srv, lease, conv, { question: "Answer the answered question?" })), "answer");
+  must(await markAsk(u.w.owner, await agentAsks(u.w.srv, lease, conv, { question: "Answer the dismissed question?" }), "dismiss"), "dismiss");
+  must(await snoozeAsk(u.w.owner, await agentAsks(u.w.srv, lease, conv, { question: "Answer the snoozed question?" }), { preset: "tomorrow", tz: "UTC" }), "snooze");
   must(await u.w.owner.client.post(`/api/conversations/${conv}/read`, { main_id: 0, all: true }), "read it all");
 
   // When the owner opens Now, Then the all-clear line and the three fold chips match their frame

@@ -84,7 +84,7 @@ scenario("A blocker becomes the now and the started item resumes first when it l
   const msg = await ownerSays(p.w.owner, p.conv, "Why slow");
   const q = (await take(p, p.dev.lease, msg, { question: "Why slow" })).json().items[0];
   const state = async (key: string) => find(await feed(p), key)?.state;
-  const asked = await send(p.w.srv.target, "POST", `/api/conversations/${p.conv}/items/need/block`, { json: { title: "Which db?", context: "I need a choice" }, ...bearer(p.dev.lease) });
+  const asked = await send(p.w.srv.target, "POST", `/api/conversations/${p.conv}/items/need/block`, { json: { title: "Which database should we use?", context: "I need a choice" }, ...bearer(p.dev.lease) });
   expect(asked.status, asked.text).toBe(200);
   expect(asked.json().state).toBe("blocking");
   expect(await state(q.key)).toBe("pending");

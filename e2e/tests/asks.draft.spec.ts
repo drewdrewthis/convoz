@@ -117,7 +117,7 @@ scenario("A draft ask needs no owner's-call reason", { tag: ["@cli"] }, async ({
 
   // When "devtool" runs "convoz ask" with the call "in-your-name" and options but no draft
   const choice = await convoz(w.box, devtool.sid, [
-    "ask", "--question", "Ship it?", "--recommend", "Ship", "--why", "Green", "--alt", "Wait", "--alt-why", "One more check", "--owners-call", "in-your-name", "--owners-call-why", "Because", String(conv),
+    "ask", "--question", "Ship the release today?", "--recommend", "Ship", "--why", "Green", "--alt", "Wait", "--alt-why", "One more check", "--owners-call", "in-your-name", "--owners-call-why", "Because", String(conv),
   ]);
 
   // Then the command exits 2 and says the call is for a draft ask only

@@ -111,7 +111,7 @@ func apply(a Ask, in Updating) (next Ask, changed []string, err error) {
 	next = a
 	if in.Question != "" && in.Question != a.Question {
 		next.Question = in.Question
-		if err := (New{Question: in.Question}).checkQuestion(); err != nil {
+		if err := (New{Question: in.Question, Permission: a.Permission}).checkQuestion(); err != nil { // a permission ask shows its action
 			return Ask{}, nil, err
 		}
 		changed = append(changed, "question")

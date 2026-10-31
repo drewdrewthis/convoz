@@ -371,10 +371,10 @@ scenario("A Tier-2 app on an ask opens, in the conversation and in its thread", 
   // Background
   const a = await appsWorld({ server });
 
-  // Given "devtool" asked "Ship it?" with a Tier-2 app
+  // Given "devtool" asked "Ship the release today?" with a Tier-2 app
   const html = frameHtml("<p>proposal</p>");
   const app = frameApp(await stored(a.w.srv, a.devtool.lease, Buffer.from(html)), { title: "Proposal" });
-  const askId = Number(must(await postAsk(a.w.srv, a.devtool.lease, { ...askBody(a.conv, { question: "Ship it?" }), app }), "ask with a frame", 201).json().ask.id);
+  const askId = Number(must(await postAsk(a.w.srv, a.devtool.lease, { ...askBody(a.conv, { question: "Ship the release today?" }), app }), "ask with a frame", 201).json().ask.id);
 
   // When the owner's browser asks for the frame of the ask
   const frame = await a.w.owner.client.get(`/api/apps/${askId}/frame?h=${sha256(html)}`, { headers: { "Sec-Fetch-Dest": "iframe" } });

@@ -109,7 +109,7 @@ scenario("A permission ask opens with its parts and is told apart from a decisio
   // And an old-shape ask reads as kind "decision" with no permission object, and a draft ask as kind "draft"
   const legacy = await askOf(w.owner, await agentAsks(w.srv, devtool.lease, conv));
   expect([legacy.kind, legacy.permission]).toEqual(["decision", undefined]);
-  const draft = must(await postAsk(w.srv, devtool.lease, { conversation_id: conv, client_id: clientId(), question: "Send this?", draft: { text: "Yes." } }), "draft ask", 201).json().ask as AskView;
+  const draft = must(await postAsk(w.srv, devtool.lease, { conversation_id: conv, client_id: clientId(), question: "Send this reply to Alex?", draft: { text: "Yes." } }), "draft ask", 201).json().ask as AskView;
   expect((await askOf(w.owner, draft.id)).kind).toBe("draft");
 });
 
@@ -226,7 +226,7 @@ scenario("A permission update that changes the wrong thing is refused", { tag: [
   }
   // permission fields on a decision ask and on a draft ask are refused
   const legacy = await agentAsks(w.srv, devtool.lease, conv);
-  const draft = must(await postAsk(w.srv, devtool.lease, { conversation_id: conv, client_id: clientId(), question: "Send this?", draft: { text: "Yes." } }), "draft", 201).json().ask.id as number;
+  const draft = must(await postAsk(w.srv, devtool.lease, { conversation_id: conv, client_id: clientId(), question: "Send this reply to Alex?", draft: { text: "Yes." } }), "draft", 201).json().ask.id as number;
   for (const target of [legacy, draft]) expect((await patchAsk(w.srv, devtool.lease, target, { permission: parts })).status, `ask ${target}`).toBe(400);
 });
 
@@ -255,7 +255,7 @@ scenario("The CLI asks for permission and refuses a low confidence", { tag: ["@c
 
 scenario("Old ask flags still make a decision ask and mixing them with the new flags is refused", { tag: ["@cli"] }, async ({ server }) => {
   const { w, conv, devtool } = await askWorld(server);
-  const old = ["ask", "--question", "Ship it?", "--recommend", "Ship", "--why", "Green", "--alt", "Wait", "--alt-why", "One more check", "--owners-call", "taste", "--owners-call-why", "Your voice", String(conv)];
+  const old = ["ask", "--question", "Ship the release today?", "--recommend", "Ship", "--why", "Green", "--alt", "Wait", "--alt-why", "One more check", "--owners-call", "taste", "--owners-call-why", "Your voice", String(conv)];
 
   // When "devtool" asks with the old flags
   const ran = await convoz(w.box, devtool.sid, old);
