@@ -1,7 +1,7 @@
-import type { Ask, FeedItem, NowWaiting } from "@convoz/api-client";
+import type { Ask, FeedItem, NowWaiting, WaitingUnanswered } from "@convoz/api-client";
 import { whoLine, type Answer, type SnoozePreset } from "@convoz/app-kit";
 import { Button } from "@convoz/ui/Button";
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
 import { newId } from "../../shared/chat.ts";
 import { source } from "../../shared/data.ts";
 import { visit } from "../../shared/navigate.ts";
@@ -15,6 +15,7 @@ import { entries, nextOf } from "./entries.ts";
 import { ItemFrame } from "./DevFrame.tsx";
 import { OkayGlyph, ReplyGlyph } from "./DevIcons.tsx";
 import { ReplyBox } from "./DevReplyBox.tsx";
+import { unansweredFrame } from "./unanswered.ts";
 import { planReply } from "./planReply.ts";
 import { useNow } from "./store.ts";
 import { ServerItem } from "./ServerItem.tsx";
@@ -24,6 +25,8 @@ import type { Fyi } from "./feed.ts";
 interface NeedsYouProps {
   asks: Ask[];
   waiting: NowWaiting[];
+  /** The owner's messages nobody answered for 10 minutes. */
+  unanswered: WaitingUnanswered[];
   /** fyi items: plan steps started or done, and the owner's questions. */
   fyi: Fyi[];
   /** The items the server keeps, already filtered to cards. */
@@ -174,9 +177,35 @@ function PlanItem({ plan }: { plan: NowWaiting }) {
   );
 }
 
+/** UnansweredItem is an owner message nobody answered: the whole card opens the message in its conversation. */
+function UnansweredItem({ u, titles }: { u: WaitingUnanswered; titles: (id: number) => string }) {
+  const f = unansweredFrame(u, titles);
+  const open = (e: MouseEvent<HTMLElement>) => {
+    if (!(e.target as HTMLElement).closest("a,button,[role=menu]")) visit(e, f.href);
+  };
+  return (
+    <div className="cursor-pointer" onClick={open}>
+      <ItemFrame
+        kind="unanswered"
+        at={u.created_at}
+        title={f.title}
+        context={f.context}
+        from={f.from}
+        link={{ message: u.message_id }}
+        actions={
+          <Button variant="primary" size="inline" className="mr-8 ml-8" href={f.href} onClick={(e) => visit(e, f.href)}>
+            <OkayGlyph />
+            Open
+          </Button>
+        }
+      />
+    </div>
+  );
+}
+
 /** NeedsYou is the one list of Now: one frame for every item, blocking or fyi, newest first. An ask with a draft keeps the full ask card, whose Send carries the draft. */
-export function NeedsYou({ asks, waiting, fyi, server, busy, presets, answer, snooze, current }: NeedsYouProps) {
-  const list = entries(asks, waiting, fyi, server.shown);
+export function NeedsYou({ asks, waiting, unanswered, fyi, server, busy, presets, answer, snooze, current }: NeedsYouProps) {
+  const list = entries(asks, waiting, fyi, server.shown, unanswered);
   if (!list.length) return null;
   return (
     <section id="asks" className="mb-8 flex flex-col gap-8">
@@ -192,6 +221,10 @@ export function NeedsYou({ asks, waiting, fyi, server, busy, presets, answer, sn
         ) : "fyi" in e ? (
           <div key={`f${e.fyi.key}`} aria-current={e.fyi.conversation_id === current ? "page" : undefined}>
             <FyiItem item={e.fyi} presets={laterOptionsAt(Date.now() + server.skew).map((o) => ({ key: o.label, label: o.label, until: o.until }))} />
+          </div>
+        ) : "unanswered" in e ? (
+          <div key={`u${e.unanswered.conversation.id}`} data-conv={e.unanswered.conversation.id} aria-current={e.unanswered.conversation.id === current ? "page" : undefined}>
+            <UnansweredItem u={e.unanswered} titles={server.titles} />
           </div>
         ) : (
           <div key={`p${e.plan.conversation.id}-${e.plan.text}`} data-conv={e.plan.conversation.id} aria-current={e.plan.conversation.id === current ? "page" : undefined}>

@@ -221,7 +221,7 @@ NowWaiting:
     since: { type: integer, format: int64 }
 Now:
   type: object
-  required: [now, poll_ms, badge, mentions, asks, replied, snoozed, answered_today, dismissed_today, pending_adds, waiting_plans, machine_requests, identity_requests]
+  required: [now, poll_ms, badge, mentions, asks, replied, snoozed, answered_today, dismissed_today, pending_adds, waiting_plans, unanswered, machine_requests, identity_requests]
   properties:
     now: { type: integer, format: int64, description: The server's clock, epoch ms. Snooze times and "tonight" are read against it. }
     poll_ms: { type: integer, description: How often an open Now asks again, for what only time changes (a snooze waking, a request expiring). }
@@ -234,5 +234,6 @@ Now:
     dismissed_today: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Ask" }, description: Dismissed in the last 24 hours and still dismissed, newest first. }
     pending_adds: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/NowPendingAdd" } }
     waiting_plans: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/NowWaiting" }, description: Plan items agents wait on the owner for, in plans updated in the last 24 h, newest first. }
+    unanswered: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/WaitingUnanswered" }, description: "The owner's newest main-chat message per conversation that nobody answered for 10 minutes. The same list as GET /api/waiting." }
     machine_requests: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/MachineRequest" } }
     identity_requests: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/IdentityRequest" }, description: Agents on logged-in machines that ask to be made. }

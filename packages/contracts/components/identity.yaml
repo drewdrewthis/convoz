@@ -150,13 +150,14 @@ WaitingAsk:
     age_ms: { type: integer, format: int64 }
 WaitingUnanswered:
   type: object
-  required: [conversation, message_id, excerpt, created_at, age_ms]
+  required: [conversation, message_id, excerpt, created_at, age_ms, members]
   properties:
     conversation: { $ref: "../openapi.yaml#/components/schemas/AskConversation" }
     message_id: { type: integer, format: int64 }
     excerpt: { type: string }
     created_at: { type: integer, format: int64 }
     age_ms: { type: integer, format: int64 }
+    members: { type: array, items: { type: string }, description: Handles of the others in the conversation; the name of a chat with no title. }
 WaitingUnread:
   type: object
   required: [conversation, unread]

@@ -191,6 +191,7 @@ export function DevNow({ compact = false, current = 0 }: NowProps = {}) {
         <NeedsYou
           asks={asks}
           waiting={waitingPlans}
+          unanswered={now?.unanswered ?? []}
           fyi={fyi}
           server={{ shown: cards_, all: feed.items, feed, titles, skew }}
           busy={busy}

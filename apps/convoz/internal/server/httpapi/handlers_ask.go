@@ -429,6 +429,12 @@ func (s *Server) nowScreen(w http.ResponseWriter, r *http.Request, c *call) {
 	if err == nil {
 		out.WaitingPlans, err = s.waitingPlans(ctx, d, c, dir)
 	}
+	if err == nil {
+		var list []conversation.Conversation
+		if list, err = conversation.ListAll(ctx, d); err == nil {
+			out.Unanswered, err = s.unanswered(ctx, d, c.p.HumanID, list, dir, now)
+		}
+	}
 	var machines []auth.Request
 	if err == nil {
 		machines, err = auth.PendingRequests(ctx, d, now)
@@ -471,8 +477,10 @@ type nowView struct {
 	DismissedToday []wire.AskView       `json:"dismissed_today"`
 	PendingAdds    []wire.NowPendingAdd `json:"pending_adds"`
 	// WaitingPlans are the plan items agents wait on the owner for, newest first.
-	WaitingPlans    []wire.NowWaiting `json:"waiting_plans"`
-	MachineRequests []requestJSON     `json:"machine_requests"`
+	WaitingPlans []wire.NowWaiting `json:"waiting_plans"`
+	// Unanswered are the owner's messages nobody answered for 10 minutes, one per conversation: the same list as GET /api/waiting.
+	Unanswered      []wire.WaitingUnanswered `json:"unanswered"`
+	MachineRequests []requestJSON            `json:"machine_requests"`
 	// IdentityRequests are the identities that agents on logged-in machines ask to be made.
 	IdentityRequests []identityRequestJSON `json:"identity_requests"`
 }

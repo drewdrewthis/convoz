@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"slices"
+	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/ask"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
@@ -116,15 +117,9 @@ func (s *Server) waitingOn(ctx context.Context, d pdb.DBTX, c *call) (wire.Waiti
 		if unread > 0 {
 			out.Unread = append(out.Unread, wire.WaitingUnread{Conversation: title, Unread: unread})
 		}
-		last, found, err := message.NewestCountedInMain(ctx, d, cv.ID)
-		if err != nil {
-			return out, err
-		}
-		if age := now.UnixMilli() - last.CreatedAt; found && last.AuthorID == owner.ID && age >= inbox.UnansweredAfter.Milliseconds() {
-			out.Unanswered = append(out.Unanswered, wire.WaitingUnanswered{
-				Conversation: title, MessageID: last.ID, Excerpt: message.ReplyPreview(last.Body), CreatedAt: last.CreatedAt, AgeMS: age,
-			})
-		}
+	}
+	if out.Unanswered, err = s.unanswered(ctx, d, owner.ID, list, dir, now); err != nil {
+		return out, err
 	}
 	waiting, err := ask.ForNow(ctx, d, askThreads{}, owner.ID, now, now.UnixMilli()) // nothing is answered after now, so only the open asks come back
 	if err != nil {
@@ -143,4 +138,36 @@ func (s *Server) waitingOn(ctx context.Context, d pdb.DBTX, c *call) (wire.Waiti
 	}
 	out.Plans, err = s.waitingPlans(ctx, d, c, dir)
 	return out, err
+}
+
+// unanswered lists, one per conversation, the owner's newest main-chat message that is at least the reminder wait old and has no later answer.
+// GET /api/waiting and GET /api/now both call it, so the two cannot drift.
+func (s *Server) unanswered(ctx context.Context, d pdb.DBTX, ownerID int64, list []conversation.Conversation, dir directory, now time.Time) ([]wire.WaitingUnanswered, error) {
+	out := []wire.WaitingUnanswered{}
+	for _, cv := range list {
+		last, found, err := message.NewestCountedInMain(ctx, d, cv.ID)
+		if err != nil {
+			return nil, err
+		}
+		age := now.UnixMilli() - last.CreatedAt
+		if !found || last.AuthorID != ownerID || age < inbox.UnansweredAfter.Milliseconds() {
+			continue
+		}
+		title := wire.AskConversation{ID: cv.ID}
+		if cv.Title != "" {
+			title.Title = ptr(cv.Title)
+		}
+		members, err := conversation.Participants(ctx, d, cv.ID)
+		if err != nil {
+			return nil, err
+		}
+		entry := wire.WaitingUnanswered{Conversation: title, MessageID: last.ID, Excerpt: message.ReplyPreview(last.Body), CreatedAt: last.CreatedAt, AgeMS: age, Members: []string{}}
+		for _, m := range members {
+			if m.IdentityID != ownerID {
+				entry.Members = append(entry.Members, dir.person(m.IdentityID).Handle)
+			}
+		}
+		out = append(out, entry)
+	}
+	return out, nil
 }

@@ -56,6 +56,7 @@ export type AskAnswerRequest = S["AskAnswerRequest"];
 export type Now = S["Now"];
 export type NowPendingAdd = S["NowPendingAdd"];
 export type NowWaiting = S["NowWaiting"];
+export type WaitingUnanswered = S["WaitingUnanswered"];
 export type Upload = S["Upload"];
 export type UploadState = S["UploadState"];
 export type CreateUpload = S["CreateUpload"];
