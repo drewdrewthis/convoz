@@ -77,6 +77,14 @@ type Item struct {
 	ETA   int64  `json:"eta,omitempty"`
 }
 
+// WaitStaleAfter is how long a plan may wait on the owner without an update before the wait leaves his feed and its agent is asked.
+const WaitStaleAfter = 24 * time.Hour
+
+// WaitStale reports whether the plan waits on the owner and has had no update for more than WaitStaleAfter. Sending the plan again ends it.
+func (p Plan) WaitStale(now time.Time) bool {
+	return len(p.Waiting) > 0 && now.Sub(time.UnixMilli(p.UpdatedAt)) > WaitStaleAfter
+}
+
 // Waiting is one item that waits on the owner; Since is when it first showed (it keeps that across replacements).
 type Waiting struct {
 	Text  string `json:"text"`
