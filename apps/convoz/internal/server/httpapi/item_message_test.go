@@ -60,11 +60,11 @@ func TestStartingAnItemPostsTheAgentsMessageAndRootsTheItemOnIt(t *testing.T) {
 
 func TestABlockerCarriesItsRecommendationInTheMessage(t *testing.T) {
 	r := newWakeRig(t)
-	it, err := r.move(t, "block", "b", item.Fields{Title: "Merge?", Context: "CI is green", Recommend: "Merge"}, nil)
+	it, err := r.move(t, "block", "b", item.Fields{Title: "Merge the green pull request", Context: "CI is green", Recommend: "Merge"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, body, _, _ := r.messageRow(t, it.ThreadRoot); body != "Merge?\n\nCI is green\n\nRecommended: Merge" {
+	if _, body, _, _ := r.messageRow(t, it.ThreadRoot); body != "Merge the green pull request\n\nCI is green\n\nRecommended: Merge" {
 		t.Fatalf("body %q", body)
 	}
 }
@@ -96,7 +96,7 @@ func TestAnAppRidesOnTheItemsMessage(t *testing.T) {
 	if err := json.Unmarshal(raw, &ex); err != nil {
 		t.Fatal(err)
 	}
-	it, err := r.move(t, "block", "c", item.Fields{Title: "Pick", Context: "See the chart"}, ex[0].Data)
+	it, err := r.move(t, "block", "c", item.Fields{Title: "Pick one chart option", Context: "See the chart"}, ex[0].Data)
 	if err != nil {
 		t.Fatal(err)
 	}

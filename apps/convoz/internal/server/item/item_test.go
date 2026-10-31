@@ -59,7 +59,7 @@ func start(t *testing.T, s *pdb.Store, n int, agent, conv int64, key string) ite
 func block(t *testing.T, s *pdb.Store, n int, agent, conv int64, key, recommend string) item.Item {
 	var it item.Item
 	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) (err error) {
-		it, err = item.Block(ctx, d, at(n), agent, conv, key, item.Fields{Title: "Decide " + key, Recommend: recommend})
+		it, err = item.Block(ctx, d, at(n), agent, conv, key, item.Fields{Title: "Decide the question " + key, Recommend: recommend})
 		return err
 	})
 	return it
@@ -145,7 +145,7 @@ func TestDoneStartedItemPromotesTheLowestPendingAsStarted(t *testing.T) {
 func TestEveryLegalAndIllegalAgentMove(t *testing.T) {
 	// Each case builds a world, makes one move and names the state it ends in, or the error (state and version stay).
 	type move = func(ctx context.Context, d pdb.DBTX) (item.Item, error)
-	f := item.Fields{Title: "T", Recommend: "Do it"}
+	f := item.Fields{Title: "Pick the next step", Recommend: "Do it"}
 	moves := map[string]move{
 		"start": func(ctx context.Context, d pdb.DBTX) (item.Item, error) {
 			return item.Start(ctx, d, at(9), devtool, convA, "k", f)
@@ -284,7 +284,7 @@ func TestAnAgentEditBumpsTheVersionAndAStaleAcceptIs409(t *testing.T) {
 	edited := block(t, s, 1, devtool, convA, "x", "Merge it") // block again, nothing changed
 	retitled := must(t, edited, nil)
 	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) (err error) {
-		retitled, err = item.Block(ctx, d, at(2), devtool, convA, "x", item.Fields{Title: "New title", Recommend: "Squash it"})
+		retitled, err = item.Block(ctx, d, at(2), devtool, convA, "x", item.Fields{Title: "Review the new title", Recommend: "Squash it"})
 		return err
 	})
 	if !(edited.Version > first.Version && retitled.Version > edited.Version) {
@@ -435,7 +435,7 @@ func TestOkayOnAStartedItemHidesItAndALaterMoveBringsItBack(t *testing.T) {
 		t.Fatalf("an acked started item stays started and leaves the feed: %+v", got)
 	}
 	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error {
-		_, err := item.Block(ctx, d, at(2), devtool, convA, "x", item.Fields{Title: "Need you"})
+		_, err := item.Block(ctx, d, at(2), devtool, convA, "x", item.Fields{Title: "I need you now"})
 		return err
 	})
 	if !inFeed(t, s, x.ID) || get(t, s, devtool, convA, "x").AckedAt != 0 {
