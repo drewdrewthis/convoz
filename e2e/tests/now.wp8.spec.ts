@@ -106,7 +106,7 @@ scenario("The badge counts open asks that are not snoozed", { tag: ["@browser", 
   const w = await browserWorld({ server, page, context }, WORLD);
   const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
   const ids = [];
-  for (const q of ["Answer the first question?", "Answer the second question?", "Third?"]) ids.push(await agentAsks(w.srv, w.sessions.devtool!.lease, conv, { question: q }));
+  for (const q of ["Answer the first question?", "Answer the second question?", "Answer the third question?"]) ids.push(await agentAsks(w.srv, w.sessions.devtool!.lease, conv, { question: q }));
   must(await snoozeAsk(w.owner, ids[0]!, { preset: "1h" }), "snooze one");
   expect((await nowOf(w.owner)).badge).toBe(2);
 
@@ -821,7 +821,7 @@ scenario("The count updates in every open tab", { tag: ["@browser"] }, async ({ 
   // Given Now is open in two tabs with 3 open asks
   const w = await browserWorld({ server, page, context }, WORLD);
   const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
-  for (const q of ["Answer the first question?", "Answer the second question?", "Third?"]) await agentAsks(w.srv, w.sessions.devtool!.lease, conv, { question: q });
+  for (const q of ["Answer the first question?", "Answer the second question?", "Answer the third question?"]) await agentAsks(w.srv, w.sessions.devtool!.lease, conv, { question: q });
   const other = await context.newPage();
   await openNow(page, w.srv);
   await openNow(other, w.srv);
@@ -829,7 +829,7 @@ scenario("The count updates in every open tab", { tag: ["@browser"] }, async ({ 
   await expect(other.locator("#open-count")).toHaveText("3 open");
 
   // When the owner presses Okay on an ask in one tab
-  await askCard(page, "Third?").getByRole("button", { name: "Okay", exact: true }).click();
+  await askCard(page, "Answer the third question?").getByRole("button", { name: "Okay", exact: true }).click();
 
   // Then both tabs show 2 open asks with no reload
   await expect(page.locator("#open-count")).toHaveText("2 open");
