@@ -116,7 +116,7 @@ AskUpdateRequest:
   additionalProperties: false
   description: What the asking agent changes in its open ask. Recommended and alternatives are given together and replace the options.
   properties:
-    question: { type: string, maxLength: 500 }
+    question: { type: string, maxLength: 500, description: "A changed question is one plain sentence that tells the owner what to decide; one left as it was is not judged again." }
     recommended: { $ref: "../openapi.yaml#/components/schemas/AskOption" }
     alternatives: { type: array, minItems: 1, maxItems: 4, items: { $ref: "../openapi.yaml#/components/schemas/AskOption" } }
     owners_call_reason: { type: string, maxLength: 280 }
@@ -151,7 +151,7 @@ AskRequest:
     conversation_id: { type: integer, format: int64 }
     thread_root_id: { type: integer, format: int64 }
     client_id: { $ref: "../openapi.yaml#/components/schemas/ClientId" }
-    question: { type: string, minLength: 1, maxLength: 500 }
+    question: { type: string, minLength: 1, maxLength: 500, description: "One plain sentence that tells the owner what to decide, like \"Approve the prod deploy of PR 240?\" (3 or more words, no markdown, no status word first)." }
     recommended: { $ref: "../openapi.yaml#/components/schemas/AskOption" }
     alternatives: { type: array, minItems: 1, maxItems: 4, items: { $ref: "../openapi.yaml#/components/schemas/AskOption" } }
     owners_call: { $ref: "../openapi.yaml#/components/schemas/OwnersCall" }

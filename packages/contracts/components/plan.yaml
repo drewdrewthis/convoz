@@ -10,7 +10,7 @@ PlanRequest:
     eta: { type: string, description: "When the Doing item should be done: a duration (30m, 1h30m) or HH:MM in the zone of utc_offset." }
     utc_offset: { type: integer, description: The agent's zone in seconds east of UTC, for an eta given as HH:MM. }
     next: { type: array, maxItems: 5, items: { type: string, minLength: 1, maxLength: 200 } }
-    waiting: { type: array, maxItems: 5, items: { type: string, minLength: 1, maxLength: 200 }, description: What waits on the owner. }
+    waiting: { type: array, maxItems: 5, items: { type: string, minLength: 1, maxLength: 200 }, description: "What waits on the owner: each item is one plain sentence that tells the owner what to do, like \"Approve the prod deploy of PR 240.\" (3 or more words, no markdown, no status word first). A text already in the stored plan is not judged again." }
     done: { type: array, maxItems: 5, items: { type: string, minLength: 1, maxLength: 200 }, description: Items finished since the last plan. }
     client_id: { type: string, maxLength: 64, description: A retry with the same id after a lost answer changes nothing. }
     deliver: { type: array, maxItems: 5, items: { $ref: "../openapi.yaml#/components/schemas/PlanDeliverRequest" }, description: "Adds deliverables or moves their dates. The plan keeps the ones not named; a done item with a deliverable's text ships it." }

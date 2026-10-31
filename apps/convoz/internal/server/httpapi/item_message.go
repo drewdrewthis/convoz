@@ -43,6 +43,11 @@ func itemBody(f item.Fields) string {
 // is never empty (msg 12448). It returns the agents to wake after the commit.
 func (s *Server) itemWithMessage(ctx context.Context, d pdb.DBTX, c *call, now time.Time, conv int64, key, event string, f item.Fields, app []byte) (item.Item, []int64, error) {
 	agent := c.p.Identity()
+	if event == "block" {
+		if err := item.CheckBlockTitle(f.Title); err != nil {
+			return item.Item{}, nil, err
+		}
+	}
 	f, err := item.NeedContext(f)
 	if err != nil {
 		return item.Item{}, nil, err

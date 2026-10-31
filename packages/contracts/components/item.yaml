@@ -3,7 +3,7 @@ ItemRequest:
   type: object
   additionalProperties: false
   properties:
-    title: { type: string, description: Plain text, 1 to 200 characters (start and block). }
+    title: { type: string, description: "Plain text, 1 to 200 characters (start and block). On block it is one plain sentence that tells the owner what to do, like \"Approve the prod deploy of PR 240.\" (3 or more words, no markdown, no status word first)." }
     context: { type: string, description: "Plain text, 1 to 2000 characters on start and block (never empty)." }
     recommend: { type: string, description: "Plain text, up to 500 characters: the one action the owner can accept. Without it the owner can only add info." }
     outcome: { type: string, description: The note of done, fyi and say. Plain text, up to 2000 characters. }

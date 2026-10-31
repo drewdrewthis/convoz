@@ -12,7 +12,8 @@ import (
 // Item runs `convoz item <start|block|done|fyi|drop|say> <conv> <key> [text]`: one call per transition of one step of the agent's work.
 // A step is named by its key, so a retry finds the same step. The first step of a conversation is now; later ones wait as pending, and
 // when the now step is done, fyi or dropped the next one starts by itself. block makes the step the owner's: give --recommend so the owner
-// can accept it in one tap; without it the owner can only add info. Text is plain: no markdown, no links.
+// can accept it in one tap; without it the owner can only add info. Text is plain: no markdown, no links. A block title is one sentence
+// that tells the owner what to do ("Approve the prod deploy of PR 240."): 3 or more words, no status word first.
 // take makes an item of a question of the owner (see itemTake); answer replies in the question's thread, quoting it, and marks it done.
 func Item(args []string, io IO) int {
 	usage := "usage: convoz item start|block|done|fyi|drop|say|answer <conv> <key> [\"<text>\"] --context C [--recommend R] [--plan P] [--due D] [--app FILE]"

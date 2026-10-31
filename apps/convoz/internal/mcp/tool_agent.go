@@ -24,7 +24,7 @@ func init() {
 			"considered": list("With action: the other ways you considered, each with why it is worse.", props{"type": "string", "minLength": 1, "maxLength": wire.MaxConsideredLine}, 1, wire.MaxConsidered),
 			// No minimum of 80 in the schema: a lower one must reach the tool, which answers with the get-confident text.
 			"confidence": integer("With action: how sure you are that this is the right action, 0 to 100. Under 80 is refused.", 0, 100),
-			"question":   props{"type": "string", "minLength": 1, "maxLength": 500, "description": "What you ask; a permission ask shows its action when left out."},
+			"question":   props{"type": "string", "minLength": 1, "maxLength": 500, "description": "What you ask: one plain sentence that tells the owner what to decide (3 or more words, no markdown, no status word first); a permission ask shows its action when left out."},
 			// Not in "required": a draft ask has neither (draft is given instead), and a choice ask without them is refused by the tool.
 			"recommended":  option("The answer you recommend and why."),
 			"alternatives": list("The other answers worth choosing, each with its reason.", option("An alternative and why."), 1, 4),
@@ -137,7 +137,7 @@ func init() {
 			"eta":     props{"type": "string", "maxLength": 20, "description": "When a single doing text should be done: a duration (30m, 1h30m) or HH:MM on this machine's clock."},
 			"blocked": props{"type": "string", "maxLength": 200, "description": "What blocks you here (not the owner: use waiting)."},
 			"next":    list("What you do next, in order.", props{"type": "string", "minLength": 1, "maxLength": 200}, 0, 5),
-			"waiting": list("What only the owner must do (no name prefix); something new pushes the owner.", props{"type": "string", "minLength": 1, "maxLength": 200}, 0, 5),
+			"waiting": list("What only the owner must do, as one plain sentence that tells the owner what to do, like \"Approve the prod deploy of PR 240.\" (3 or more words, no markdown, no status word first, no name prefix); something new pushes the owner.", props{"type": "string", "minLength": 1, "maxLength": 200}, 0, 5),
 			"done":    list("Items you finished since your last plan. A done text equal to a deliver text ships that delivery.", props{"type": "string", "minLength": 1, "maxLength": 200}, 0, 5),
 			"deliver": list("What you promise to deliver and by when; kept across plans, a new due moves it.", props{"type": "object", "required": []string{"what", "due"}, "additionalProperties": false, "properties": props{
 				"what": props{"type": "string", "minLength": 1, "maxLength": 200},
