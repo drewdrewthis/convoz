@@ -82,10 +82,10 @@
    12,
    12
   ],
-  "a \"Snoozed question?\"#0": [
+  "a \"Answer the snoozed question?\"#0": [
    27,
    425.19,
-   122,
+   197,
    19.59
   ],
   "button \"Unsnooze\"#0": [
@@ -106,10 +106,10 @@
    143,
    44
   ],
-  "a \"Answered question?\"#0": [
+  "a \"Answer the answered question?\"#0": [
    27,
    592.97,
-   130,
+   205,
    19.59
   ],
   "a \"Reply in thread\"#1": [
@@ -124,10 +124,10 @@
    143,
    44
   ],
-  "a \"Dismissed question?\"#0": [
+  "a \"Answer the dismissed question?\"#0": [
    27,
    760.75,
-   134,
+   208,
    19.59
   ],
   "button \"Reopen\"#0": [

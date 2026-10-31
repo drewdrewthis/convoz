@@ -22,7 +22,7 @@
    138,
    21
   ],
-  "button \"Waiting on you: Snoozed question?\"#0": [
+  "button \"Waiting on you: Answer the snoozed quest\"#0": [
    68,
    19.5,
    202,
@@ -82,7 +82,7 @@
    20,
    20
   ],
-  "h3 \"Answered question?\"#0": [
+  "h3 \"Answer the answered question?\"#0": [
    27,
    201.8,
    336,
@@ -142,7 +142,7 @@
    20,
    20
   ],
-  "h3 \"Dismissed question?\"#0": [
+  "h3 \"Answer the dismissed question?\"#0": [
    27,
    442.61,
    336,
@@ -166,7 +166,7 @@
    20,
    20
   ],
-  "h3 \"Snoozed question?\"#0": [
+  "h3 \"Answer the snoozed question?\"#0": [
    27,
    562.61,
    336,
