@@ -134,7 +134,7 @@ WaitingResponse:
     now: { type: integer, format: int64 }
     asks: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/WaitingAsk" }, description: Open asks, snoozed ones included. }
     unanswered: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/WaitingUnanswered" }, description: "Conversations whose newest main-chat message is the owner's and got no answer for 10 minutes. Threads are not scanned." }
-    plans: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/NowWaiting" }, description: Plan items agents wait on the owner for, newest first. }
+    plans: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/NowWaiting" }, description: Plan items agents wait on the owner for, in plans updated in the last 24 h, newest first. }
     unread: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/WaitingUnread" }, description: The owner's unread count per conversation, for those with some. }
 WaitingAsk:
   type: object

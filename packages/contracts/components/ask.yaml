@@ -213,7 +213,7 @@ NowPendingAdd:
 NowWaiting:
   type: object
   required: [conversation, agent, text, since]
-  description: A plan item an agent waits on the owner for.
+  description: A plan item an agent waits on the owner for, in a plan updated in the last 24 h.
   properties:
     conversation: { $ref: "../openapi.yaml#/components/schemas/AskConversation" }
     agent: { $ref: "../openapi.yaml#/components/schemas/Person" }
@@ -233,6 +233,6 @@ Now:
     answered_today: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Ask" }, description: Answered in the last 24 hours, newest first. }
     dismissed_today: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Ask" }, description: Dismissed in the last 24 hours and still dismissed, newest first. }
     pending_adds: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/NowPendingAdd" } }
-    waiting_plans: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/NowWaiting" }, description: Plan items agents wait on the owner for, newest first. }
+    waiting_plans: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/NowWaiting" }, description: Plan items agents wait on the owner for, in plans updated in the last 24 h, newest first. }
     machine_requests: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/MachineRequest" } }
     identity_requests: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/IdentityRequest" }, description: Agents on logged-in machines that ask to be made. }

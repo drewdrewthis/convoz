@@ -4162,7 +4162,7 @@ export interface components {
             /** Format: int64 */
             at: number;
         };
-        /** @description A plan item an agent waits on the owner for. */
+        /** @description A plan item an agent waits on the owner for, in a plan updated in the last 24 h. */
         NowWaiting: {
             conversation: components["schemas"]["AskConversation"];
             agent: components["schemas"]["Person"];

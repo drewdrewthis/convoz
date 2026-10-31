@@ -136,3 +136,37 @@ func askPlan(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int64, 
 	}
 	return true, inbox.StatusDue(ctx, d, now, agent, conv, seq)
 }
+
+// nudgeQuietWaits asks the agent of each plan whose wait on the owner is stale (plan.Plan.WaitStale): the wait left his feed, so the
+// agent refreshes or ends it. At most once per plan.WaitStaleAfter.
+func (s *Server) nudgeQuietWaits(ctx context.Context) error {
+	plans, err := plan.All(ctx, s.reader())
+	if err != nil {
+		return err
+	}
+	for _, p := range plans {
+		if !p.WaitStale(s.Clock.Now()) {
+			continue
+		}
+		asked := false
+		err := s.Store.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) error {
+			d, now := tx.DBTX(), s.Clock.Now()
+			p, err := plan.Get(ctx, d, p.Agent, p.Conversation) // again, inside the one writer: two sweeps never ask twice
+			if err != nil || !p.WaitStale(now) {
+				return ignoreNotFound(err)
+			}
+			if member, err := isMember(ctx, d, p.Conversation, p.Agent); err != nil || !member {
+				return err
+			}
+			asked, err = askPlan(ctx, d, now, p.Agent, p.Conversation, plan.WaitStaleAfter)
+			return err
+		})
+		if err != nil {
+			return err
+		}
+		if asked {
+			s.Bus.Notify(p.Agent)
+		}
+	}
+	return nil
+}

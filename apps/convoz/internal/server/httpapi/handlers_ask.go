@@ -514,12 +514,12 @@ func pendingAdds(ctx context.Context, d pdb.DBTX, dir directory) ([]wire.NowPend
 	return out, err
 }
 
-// waitingPlans lists the plan items that wait on the owner, newest first, in the conversations the caller can see and that are not in the trash.
+// waitingPlans lists the plan items that wait on the owner and were updated in the last 24 h, newest first, in the conversations the caller can see and that are not in the trash.
 func (s *Server) waitingPlans(ctx context.Context, d pdb.DBTX, c *call, dir directory) ([]wire.NowWaiting, error) {
 	plans, err := plan.All(ctx, d)
 	out := []wire.NowWaiting{}
 	for _, p := range plans {
-		if len(p.Waiting) == 0 {
+		if len(p.Waiting) == 0 || p.WaitStale(s.Clock.Now()) { // a wait nobody refreshed for a day is not news to the owner
 			continue
 		}
 		cv, found, err2 := conversation.Get(ctx, d, p.Conversation)

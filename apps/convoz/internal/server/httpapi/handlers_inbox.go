@@ -721,6 +721,10 @@ func statusDueBody(conv int64, pl plan.Plan, planErr error, source string, nowMs
 		if dv, late := pl.LateDeliverable(nowMs); late && source == askedByDelivery {
 			return deliveryNudge(conv, dv)
 		}
+		if pl.WaitStale(time.UnixMilli(nowMs)) {
+			return "Your plan in conversation " + c + " has waited on the owner for " + askAge(nowMs-pl.UpdatedAt) + " with no update: \"" + pl.Waiting[0].Text +
+				"\". It left his feed. Still waiting: convoz plan " + c + " --waiting \"…\" to refresh it; finished: convoz plan " + c + " --done."
+		}
 		it, state := pl.MostOverdue(pl.UpdatedAt, nowMs)
 		if state == "" && len(pl.Now) > 0 { // nudged before the owner's line turns stale
 			it, state = pl.Now[0], "stale"
