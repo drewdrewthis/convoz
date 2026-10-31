@@ -47,3 +47,29 @@ test("news with no Undo showing shows at once, in place of a plain toast", () =>
   notify("@devtool in Ship: done");
   assert.equal(text(), "@devtool in Ship: done");
 });
+
+/** screen makes the page answer `query` with true and every other media query with false, for one test. */
+function screen(t: { after: (fn: () => void) => void }, query: string): void {
+  Object.assign(globalThis, { matchMedia: (q: string) => ({ matches: q === query }) });
+  t.after(() => Reflect.deleteProperty(globalThis, "matchMedia"));
+}
+
+// Owner, conv 179 msg 14826: "Turn off toasts on mobile, they should go out as notifications." On a touch phone news is a push, not a
+// toast; what answers the owner's own act (Undo, an error with Retry, "Sent to @x") still toasts.
+test("on a touch phone news shows no toast, now or after an Undo; the owner's own act still toasts", (t) => {
+  screen(t, "(hover: none) and (pointer: coarse)");
+  notify("@devtool in Ship: done");
+  assert.equal(text(), "");
+  toast("Unpinned", () => {});
+  notify("@devtool in Ship: done");
+  mock.timers.tick(10_000);
+  assert.equal(text(), "");
+  toast("Sent to @devtool");
+  assert.equal(text(), "Sent to @devtool");
+});
+
+test("a narrow desktop window is not a phone: news still toasts", (t) => {
+  screen(t, "(max-width: 600px)");
+  notify("@devtool in Ship: done");
+  assert.equal(text(), "@devtool in Ship: done");
+});

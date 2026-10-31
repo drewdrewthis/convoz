@@ -4244,6 +4244,8 @@ export interface components {
         PushSubscriptionRequest: {
             endpoint: string;
             keys: components["schemas"]["PushKeys"];
+            /** @description This device takes a push for every message from someone else, not only mentions and thread replies: a phone, where that news is a push and not a toast. Absent: false. */
+            messages?: boolean;
         };
         PushSubscribed: {
             subscription: components["schemas"]["PushSubscription"];

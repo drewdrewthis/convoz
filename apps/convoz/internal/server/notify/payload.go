@@ -63,6 +63,9 @@ func Compose(reason, topic string, f Facts, burst int) Payload {
 	case ReasonMachineRequest:
 		p.Title, p.Body = clip(f.Machine)+" wants to connect", "code "+f.Code
 		return p
+	case ReasonIdentityRequest:
+		p.Title, p.Body = clip(f.Machine)+" wants to connect", clip(f.Text)
+		return p
 	case ReasonSecurity:
 		p.Title, p.Body = clip(f.Headline), clip(f.Text)
 		if p.Title == "" {

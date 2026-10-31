@@ -1,5 +1,6 @@
 // The toast: one short line at the bottom of the screen that goes away by itself (prototype v41, 10 seconds).
 import { create } from "zustand";
+import { isTouchPhone } from "../../shared/touch.ts";
 
 /** An Undo that reverses only what the toast announced. */
 export type Undo = () => void | Promise<void>;
@@ -31,9 +32,11 @@ export function toast(text: string, undo?: Undo, label = "Undo"): void {
 
 /**
  * notify is toast for news the owner did not cause (a new message, an ask, a connect request). It does not replace a live Undo,
- * whose action would be lost: it waits until that toast ends or is used, and only the newest news waits.
+ * whose action would be lost: it waits until that toast ends or is used, and only the newest news waits. On a touch phone it shows
+ * nothing: that news goes out as a push (owner, conv 179 msg 14826).
  */
 export function notify(text: string, action?: Undo, label = "Undo"): void {
+  if (isTouchPhone()) return; // a phone gets news as a push (the server sends it), not a toast
   const { undo, label: now } = useToast.getState();
   if (undo && now === "Undo") held = [text, action, label];
   else toast(text, action, label);
