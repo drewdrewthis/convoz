@@ -30,7 +30,14 @@ const (
 	WhyActiveHere     = "active_here"
 	WhyNotVisible     = "not_visible"
 	WhyNoSubscription = "no_subscription"
+	// WhyBatched: a plain message push for the conversation rang less than batchWindow ago; the next one that rings counts this one
+	// ("3 new"). The value is the schema's existing 'deduped', so no migration is needed.
+	WhyBatched = "deduped"
 )
+
+// batchWindow is how long a conversation's plain message push keeps the next ones from ringing (advisor, before the PR 253 deploy:
+// about 105 message pushes in a busy hour).
+const batchWindow = 5 * time.Minute
 
 // Decisions.
 const (
@@ -72,6 +79,7 @@ type Env struct {
 	Quiet        bool // now is inside the person's quiet hours
 	UrgentBypass bool // the person lets an urgent ask through quiet hours
 	Focused      bool // a device of the person has the conversation open and focused
+	Batched      bool // a plain message push for the conversation rang less than batchWindow ago (read by Record, not the Source)
 }
 
 // bypassesQuiet says whether the trigger goes through quiet hours: the owner is waiting at a terminal for a machine request,
@@ -90,7 +98,8 @@ func (t Trigger) bypassesQuiet(e Env) bool {
 }
 
 // Decide is the pipeline's one decision (AC-7). It returns Send or Suppressed with the reason; the first rule that holds wins,
-// in the order a person would explain it: they cannot see it, they turned it off, they muted it, it is quiet, they are looking at it, there is nowhere to send it.
+// in the order a person would explain it: they cannot see it, they turned it off, they muted it, it is quiet, they are looking at it, it
+// just rang for this conversation, there is nowhere to send it.
 func Decide(t Trigger, e Env, devices int) (decision, why string) {
 	switch {
 	case !e.Visible:
@@ -103,6 +112,8 @@ func Decide(t Trigger, e Env, devices int) (decision, why string) {
 		return Suppressed, WhyQuietHours
 	case e.Focused:
 		return Suppressed, WhyActiveHere
+	case e.Batched && t.Reason == ReasonMessage:
+		return Suppressed, WhyBatched
 	case devices == 0:
 		return Suppressed, WhyNoSubscription
 	}

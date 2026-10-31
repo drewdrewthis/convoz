@@ -88,6 +88,15 @@ func (s *Service) SendDue(ctx context.Context) (int, error) {
 	return len(due), nil
 }
 
+// burstOf is the count a push shows as "N new": for a plain message, itself and the messages batched since the conversation's last
+// message push that rang; for the rest, the pushes of its topic in the last minute.
+func burstOf(ctx context.Context, d pdb.DBTX, n Notification) (int64, error) {
+	if n.Reason == ReasonMessage {
+		return db.New(d).MessageBatchSize(ctx, db.MessageBatchSizeParams{IdentityID: n.Person, ConversationID: sql.NullInt64{Int64: n.Conversation, Valid: true}, ID: n.ID})
+	}
+	return db.New(d).BurstSize(ctx, db.BurstSizeParams{IdentityID: n.Person, Topic: n.Topic, ID: n.ID, Since: n.CreatedAt - burstWindow.Milliseconds()})
+}
+
 func (s *Service) sendOne(ctx context.Context, rd pdb.DBTX, row db.DueDeliveriesRow) error {
 	now := s.Clock.Now()
 	n := Notification{
@@ -125,7 +134,7 @@ func (s *Service) sendOne(ctx context.Context, rd pdb.DBTX, row db.DueDeliveries
 			return q.DropPendingDeliveries(ctx, n.ID)
 		})
 	}
-	burst, err := db.New(rd).BurstSize(ctx, db.BurstSizeParams{IdentityID: n.Person, Topic: n.Topic, ID: n.ID, Since: n.CreatedAt - burstWindow.Milliseconds()})
+	burst, err := burstOf(ctx, rd, n)
 	if err != nil {
 		return err
 	}
