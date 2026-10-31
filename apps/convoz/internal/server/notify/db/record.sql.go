@@ -83,6 +83,29 @@ func (q *Queries) InsertNotification(ctx context.Context, arg InsertNotification
 	return result.RowsAffected()
 }
 
+const messageBatchSize = `-- name: MessageBatchSize :one
+SELECT count(*) FROM notifications n
+WHERE n.identity_id = ?1 AND n.conversation_id = ?2 AND n.reason = 'message' AND n.id <= ?3
+  AND (n.id = ?3 OR n.suppressed_reason = 'deduped')
+  AND n.id > coalesce((SELECT max(p.id) FROM notifications p WHERE p.identity_id = ?1 AND p.conversation_id = ?2
+                       AND p.reason = 'message' AND p.decision = 'send' AND p.id < ?3), 0)
+`
+
+type MessageBatchSizeParams struct {
+	IdentityID     int64
+	ConversationID sql.NullInt64
+	ID             int64
+}
+
+// How many plain messages a message push stands for: itself and the ones batched (suppressed 'deduped') since the last message push
+// of the conversation that rang.
+func (q *Queries) MessageBatchSize(ctx context.Context, arg MessageBatchSizeParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, messageBatchSize, arg.IdentityID, arg.ConversationID, arg.ID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const notificationByKey = `-- name: NotificationByKey :one
 SELECT id FROM notifications WHERE identity_id = ?1 AND reason = ?2 AND source_seq = ?3
 `
@@ -98,6 +121,25 @@ func (q *Queries) NotificationByKey(ctx context.Context, arg NotificationByKeyPa
 	var id int64
 	err := row.Scan(&id)
 	return id, err
+}
+
+const recentMessagePush = `-- name: RecentMessagePush :one
+SELECT EXISTS (SELECT 1 FROM notifications WHERE identity_id = ?1 AND conversation_id = ?2
+  AND reason = 'message' AND decision = 'send' AND created_at > ?3)
+`
+
+type RecentMessagePushParams struct {
+	IdentityID     int64
+	ConversationID sql.NullInt64
+	Since          int64
+}
+
+// Whether a plain message push for this conversation rang (decision send) after since: the next one in the window is batched.
+func (q *Queries) RecentMessagePush(ctx context.Context, arg RecentMessagePushParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, recentMessagePush, arg.IdentityID, arg.ConversationID, arg.Since)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const suppressNotification = `-- name: SuppressNotification :exec

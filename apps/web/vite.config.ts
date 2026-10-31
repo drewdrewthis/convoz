@@ -359,7 +359,7 @@ function coldHead(html: string, main: { fileName: string; code: string }, css: {
  * head-start script's. Every other module the page loads at start goes into the main bundle, so a module the worker shares with the
  * page would make the worker import the page's bundle; coldBuild fails such a build.
  */
-const OUTSIDE_MAIN = /[\\/]src[\\/](sw[\\/](worker|cache|push|errors|module)\.ts|shared[\\/](pagePath|devScope)\.ts|early\.ts|first-reads\.json)$|node_modules[\\/].*workbox-/;
+const OUTSIDE_MAIN = /[\\/]src[\\/](sw[\\/](worker|cache|push|errors|module)\.ts|shared[\\/](pagePath|devScope|pushOptions)\.ts|early\.ts|first-reads\.json)$|node_modules[\\/].*workbox-/;
 
 /**
  * coldBuild finishes the build once Vite has written its files, in one ordered pass over the chunks as the bundler rendered them
