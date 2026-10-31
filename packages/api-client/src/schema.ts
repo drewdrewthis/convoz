@@ -2506,6 +2506,8 @@ export interface components {
             created_at: number;
             /** Format: int64 */
             age_ms: number;
+            /** @description Handles of the others in the conversation; the name of a chat with no title. */
+            members: string[];
         };
         WaitingUnread: {
             conversation: components["schemas"]["AskConversation"];
@@ -4197,6 +4199,8 @@ export interface components {
             pending_adds: components["schemas"]["NowPendingAdd"][];
             /** @description Plan items agents wait on the owner for */
             waiting_plans: components["schemas"]["NowWaiting"][];
+            /** @description The owner's newest main-chat message per conversation that nobody answered for 10 minutes (no later main-chat message and no thread reply from anyone else), at most 24 hours old, in a conversation that is neither muted nor stale. GET /api/waiting has the same list without those three limits. */
+            unanswered: components["schemas"]["WaitingUnanswered"][];
             machine_requests: components["schemas"]["MachineRequest"][];
             /** @description Agents on logged-in machines that ask to be made. */
             identity_requests: components["schemas"]["IdentityRequest"][];

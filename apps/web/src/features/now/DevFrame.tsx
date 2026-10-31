@@ -3,6 +3,7 @@ import { Button } from "@convoz/ui/Button";
 import { IconButton } from "@convoz/ui/IconButton";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { visit } from "../../shared/navigate.ts";
+import { UNANSWERED_LABEL } from "./unanswered.ts";
 import { ItemTime } from "./DevTime.tsx";
 import { copyUrl } from "../conversations/index.ts";
 import { SnoozeGlyph } from "./DevIcons.tsx";
@@ -10,7 +11,7 @@ import { SnoozeGlyph } from "./DevIcons.tsx";
 /** What one feed item shows. Every item of Now draws this frame; its state (started, blocking or done) sets the marker and the actions (owner, conv 179 msg 11603). */
 export interface FrameProps {
   /** The state of the piece of work the item follows: started (fyi), blocking (needs the owner), done (fyi). */
-  kind: "blocking" | "started" | "done";
+  kind: "blocking" | "started" | "done" | "unanswered";
   /** One line: the action, or the outcome. */
   title: string;
   /** A short why, what or recommendation. */
@@ -131,7 +132,7 @@ export function ItemFrame({ kind, title, context, tag, next, from, inChat, menu,
     <article className="flex min-w-0 flex-col gap-4 rounded-[14px] border border-solid border-border bg-raised px-14 pt-12 pb-4" data-item={kind} data-ask={dataId} tabIndex={-1} aria-label={title}>
       <div className="-mt-8 -mr-12 flex items-center justify-between gap-8">
         <span className={`text-12 font-bold tracking-[.04em] uppercase ${kind === "blocking" ? "text-danger" : "text-muted"}`}>
-          {kind === "blocking" ? "Blocking" : kind === "started" ? "Started" : "Done"}
+          {kind === "blocking" ? "Blocking" : kind === "unanswered" ? UNANSWERED_LABEL : kind === "started" ? "Started" : "Done"}
         </span>
         <span className="flex items-center">
           <ItemTime at={at} />

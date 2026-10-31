@@ -152,6 +152,11 @@ func NewestCountedInMain(ctx context.Context, d pdb.DBTX, conv int64) (Message, 
 	return fromRow(r), err == nil, err
 }
 
+// HasReplyFromOther reports whether anyone but author answered root in its thread.
+func HasReplyFromOther(ctx context.Context, d pdb.DBTX, root, author int64) (bool, error) {
+	return db.New(d).HasReplyFromOther(ctx, db.HasReplyFromOtherParams{RootID: nullInt(root), AuthorID: nullInt(author)})
+}
+
 // LastReplyRunes is how much of the newest reply shows under a reply chip.
 const LastReplyRunes = 120
 
