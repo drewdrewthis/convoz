@@ -139,12 +139,9 @@ func (s *Service) Record(ctx context.Context, d pdb.DBTX, now time.Time, t Trigg
 	if err != nil {
 		return err
 	}
-	var targets []live
-	for _, sub := range subs {
-		if sub.Device == t.ExceptDevice && t.ExceptDevice != 0 {
-			continue
-		}
-		targets = append(targets, sub)
+	targets := targetsOf(t, subs)
+	if unrecorded(t, targets) {
+		return nil
 	}
 	decision, why := Decide(t, env, len(targets))
 	q := db.New(d)

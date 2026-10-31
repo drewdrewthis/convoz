@@ -25,10 +25,11 @@ import (
 
 // Event names the push pipeline reads that no other file of this package names.
 const (
-	eventMachineRequested = "machine.requested.v1"
-	eventKeyRevealed      = "machine.key_revealed.v1"
-	eventRecoveryUsed     = "recovery.used.v1"
-	eventMessageCreated   = "message.created.v1"
+	eventMachineRequested  = "machine.requested.v1"
+	eventKeyRevealed       = "machine.key_revealed.v1"
+	eventRecoveryUsed      = "recovery.used.v1"
+	eventMessageCreated    = "message.created.v1"
+	eventIdentityRequested = "identity.requested.v1"
 )
 
 // pushSource is the push pipeline's view of the other modules (notify.Source): which events notify the owner, what the owner's
@@ -103,6 +104,8 @@ func (p pushSource) Triggers(ctx context.Context, d pdb.DBTX, e notify.Event) ([
 	case eventMachineRequested:
 		t.Reason, t.TopicKind, t.TopicID, t.Conversation = notify.ReasonMachineRequest, notify.TopicMachine, body.RequestID, 0
 		t.Remote = body.ViaInternet
+	case eventIdentityRequested:
+		t.Reason, t.TopicKind, t.TopicID, t.Conversation, t.Message = notify.ReasonIdentityRequest, notify.TopicIdentityRequest, body.RequestID, 0, 0
 	case eventKeyRevealed:
 		t.Reason, t.TopicKind, t.TopicID, t.Conversation, t.ExceptDevice = notify.ReasonSecurity, notify.TopicSecurity, e.Seq, 0, body.DeviceID
 	case eventRecoveryUsed:
@@ -120,7 +123,8 @@ func (p pushSource) Triggers(ctx context.Context, d pdb.DBTX, e notify.Event) ([
 }
 
 // messageTriggers: a text message notifies the owner when it mentions them (reason mention), or when it replies in a thread they
-// are in (thread_reply). A message of the main list that does not mention the owner is activity, not a push.
+// are in (thread_reply). Any other message is a plain message (reason message), which only a device that takes messages gets.
+// A message's event carries the kind "text" for an app message too: it reads as its fallback (pushText).
 func (pushSource) messageTriggers(ctx context.Context, d pdb.DBTX, t notify.Trigger, e notify.Event) ([]notify.Trigger, error) {
 	id := e.Message
 	if id == 0 {
@@ -139,17 +143,17 @@ func (pushSource) messageTriggers(ctx context.Context, d pdb.DBTX, t notify.Trig
 		t.Reason, t.TopicKind, t.TopicID = notify.ReasonMention, notify.TopicConversation, m.ConversationID
 		return []notify.Trigger{t}, nil
 	}
+	t.Reason, t.TopicKind, t.TopicID = notify.ReasonMessage, notify.TopicConversation, m.ConversationID
 	if m.ThreadRootID == 0 {
-		return nil, nil
+		return []notify.Trigger{t}, nil
 	}
 	threads, err := readstate.Threads(ctx, d, t.Person, m.ConversationID)
 	if err != nil {
 		return nil, err
 	}
-	if !slices.ContainsFunc(threads, func(p readstate.ThreadPos) bool { return p.Root == m.ThreadRootID }) {
-		return nil, nil
+	if slices.ContainsFunc(threads, func(p readstate.ThreadPos) bool { return p.Root == m.ThreadRootID }) {
+		t.Reason, t.TopicKind, t.TopicID = notify.ReasonThreadReply, notify.TopicThread, m.ThreadRootID
 	}
-	t.Reason, t.TopicKind, t.TopicID = notify.ReasonThreadReply, notify.TopicThread, m.ThreadRootID
 	return []notify.Trigger{t}, nil
 }
 
@@ -179,7 +183,7 @@ func enabled(t notify.Trigger, st map[string]any) bool {
 		return flag(st, "notify.threads")
 	case notify.ReasonAgentAdd:
 		return flag(st, "notify.pending_adds")
-	case notify.ReasonMachineRequest:
+	case notify.ReasonMachineRequest, notify.ReasonIdentityRequest:
 		return flag(st, "notify.machine_requests")
 	}
 	return true // paused and security cannot be turned off
@@ -303,7 +307,7 @@ func (p pushSource) Facts(ctx context.Context, d pdb.DBTX, n notify.Notification
 		}
 		f.Sender, err = refOf(ctx, d, a.AskerID, p.s.Clock.Now())
 		return f, err
-	case notify.ReasonMention, notify.ReasonThreadReply:
+	case notify.ReasonMention, notify.ReasonThreadReply, notify.ReasonMessage:
 		m, found, err := message.Get(ctx, d, n.Message)
 		if err != nil || !found {
 			f.Visible = false
@@ -314,10 +318,26 @@ func (p pushSource) Facts(ctx context.Context, d pdb.DBTX, n notify.Notification
 			return f, err
 		}
 		ups, _ := projection(by[m.ID]) // a voice note has no body: the push reads "Voice note · 0:20"
-		text := message.Project(message.Projectable{Format: m.Format, Body: m.Body, Uploads: ups, Reply: m.ThreadRootID != 0}, message.Short)
-		f.Text = leadingMention(owner.Handle).ReplaceAllString(text, "") // the push is addressed to the owner already
+		f.Text = pushText(owner.Handle, m, ups)
 		f.Sender, err = refOf(ctx, d, m.AuthorID, p.s.Clock.Now())
 		return f, err
+	case notify.ReasonIdentityRequest:
+		ev, found, err := eventAt(ctx, d, n.SourceSeq)
+		if err != nil || !found {
+			f.Visible = false
+			return f, err
+		}
+		list, err := auth.PendingIdentityRequests(ctx, d, p.s.Clock.Now())
+		if err != nil {
+			return f, err
+		}
+		at := slices.IndexFunc(list, func(r auth.IdentityRequest) bool { return r.ID == bodyOf(ev).RequestID })
+		if at < 0 {
+			f.Visible = false // approved, denied or expired before the push was sent
+			return f, nil
+		}
+		f.Machine, f.Text = list[at].MachineName, "as @"+list[at].Handle
+		return f, nil
 	case notify.ReasonAgentAdd:
 		ev, found, err := eventAt(ctx, d, n.SourceSeq)
 		if err != nil || !found {
@@ -368,6 +388,20 @@ func (p pushSource) Facts(ctx context.Context, d pdb.DBTX, n notify.Notification
 		}
 	}
 	return f, nil
+}
+
+// pushText is the short text of a message in a push: an app message reads as its fallback, and the "@owner" it starts with goes, as
+// the push is addressed to the owner already.
+func pushText(ownerHandle string, m message.Message, ups []message.Upload) string {
+	var app *message.ProjectApp
+	if m.HasApp {
+		app = &message.ProjectApp{}
+		if json.Unmarshal(m.App, app) != nil {
+			app = nil
+		}
+	}
+	text := message.Project(message.Projectable{Format: m.Format, Body: m.Body, Uploads: ups, App: app, Reply: m.ThreadRootID != 0}, message.Short)
+	return leadingMention(ownerHandle).ReplaceAllString(text, "")
 }
 
 func titleOr(t string) string {

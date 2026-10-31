@@ -1,9 +1,12 @@
 // The browser side of push: the permission flow, the subscription, and the reports of where the device looks.
 import { ApiError, call, client, humanError } from "../../shared/api.ts";
+import { isTouchPhone } from "../../shared/touch.ts";
 import { ensureServiceWorker } from "../../sw/index.ts";
 import { isChromeOnIOS, needsHomeScreen, pushSupported } from "./support.ts";
 
 const FLAG = "convoz.push";
+/** What this device last told the server about taking a push for every message ("1" or "0"); absent is "0", the server's default. */
+const MESSAGES = "convoz.push.messages";
 
 export { CHROME_IOS_HINT, isChromeOnIOS, needsHomeScreen, onIosThirdPartyBrowser, pushSupported } from "./support.ts";
 
@@ -94,14 +97,39 @@ export async function turnOn(progress: (text: string) => void = () => undefined)
     const { public_key } = await call(client.GET("/api/push/vapid-key"));
     return (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(public_key) }));
   });
-  const json = sub.toJSON();
-  await step("Telling Convoz about this device failed:", () =>
-    call(client.POST("/api/push/subscriptions", { body: { endpoint: sub.endpoint, keys: { p256dh: json.keys?.p256dh ?? "", auth: json.keys?.auth ?? "" } } })),
-  );
+  await step("Telling Convoz about this device failed:", () => register(sub));
   remember(true);
   progress("Sending a confirmation…");
   // The confirmation is a courtesy: the device is signed up, so a failure here is not an error of turning on.
   await call(client.POST("/api/push/test")).catch(() => undefined);
+}
+
+/**
+ * register tells the server about the subscription. A touch phone takes a push for every message from someone else, as news there is
+ * a push and not a toast; a desktop keeps mentions and thread replies only.
+ */
+async function register(sub: PushSubscription): Promise<void> {
+  const json = sub.toJSON();
+  const messages = isTouchPhone();
+  await call(client.POST("/api/push/subscriptions", { body: { endpoint: sub.endpoint, keys: { p256dh: json.keys?.p256dh ?? "", auth: json.keys?.auth ?? "" }, messages } }));
+  try {
+    localStorage.setItem(MESSAGES, messages ? "1" : "0");
+  } catch {
+    /* private mode: the device says it again on its next start */
+  }
+}
+
+/** syncMessages: a phone that turned push on before it took every message says so once, on a start after the update. */
+export async function syncMessages(): Promise<void> {
+  let told: string | null = null;
+  try {
+    told = localStorage.getItem(MESSAGES);
+  } catch {
+    return;
+  }
+  if (!pushRemembered() || (told ?? "0") === (isTouchPhone() ? "1" : "0")) return;
+  const sub = await currentSubscription();
+  if (sub) await register(sub);
 }
 
 /** Turn push off on this device: the server forgets it, then the browser drops it. */

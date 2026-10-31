@@ -17,6 +17,7 @@ PushSubscriptionRequest:
   properties:
     endpoint: { type: string, maxLength: 1024 }
     keys: { $ref: "#/PushKeys" }
+    messages: { type: boolean, description: "This device takes a push for every message from someone else, not only mentions and thread replies: a phone, where that news is a push and not a toast. Absent: false." }
 PushSubscription:
   type: object
   required: [id, host, current, state, created_at]
