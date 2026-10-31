@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/ownerline"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/ask"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
@@ -49,7 +50,12 @@ func (s *Server) putPlan(w http.ResponseWriter, r *http.Request, c *call) {
 		s.internalError(w, r, err)
 		return
 	}
-	pi, field, why := parsePlan(in, now, owner.Handle, owner.DisplayName)
+	old, err := plan.Get(ctx, s.reader(), who, conv)
+	if err != nil && !errors.Is(err, plan.ErrNotFound) {
+		s.internalError(w, r, err)
+		return
+	}
+	pi, field, why := parsePlan(in, now, owner.Handle, owner.DisplayName, old)
 	if field != "" {
 		writeFieldErr(w, http.StatusBadRequest, "invalid_request", field, why)
 		return
@@ -120,8 +126,9 @@ func (s *Server) putPlan(w http.ResponseWriter, r *http.Request, c *call) {
 }
 
 // parsePlan checks a plan request and reads the step and estimate of each Now item; field names what is wrong ("" when it is fine).
-// handle and displayName are the owner's: a Waiting item may carry their label, never someone else's (plan.OwnWaiting).
-func parsePlan(in wire.PlanRequest, now time.Time, handle, displayName string) (pi plan.Input, field, why string) {
+// handle and displayName are the owner's: a Waiting item may carry their label, never someone else's (plan.OwnWaiting). A Waiting
+// text already in old, the stored plan, is not judged again, so a plan sent twice does not fail the second time.
+func parsePlan(in wire.PlanRequest, now time.Time, handle, displayName string, old plan.Plan) (pi plan.Input, field, why string) {
 	items := in.Now
 	if len(items) > 0 && (in.Doing != "" || in.Step != "" || in.ETA != "") {
 		return pi, "now", "give now, or doing with step and eta, not both"
@@ -132,6 +139,18 @@ func parsePlan(in wire.PlanRequest, now time.Time, handle, displayName string) (
 	texts := make([]string, len(items))
 	for i, it := range items {
 		texts[i] = it.Text
+	}
+	waiting, why := plan.OwnWaiting(in.Waiting, handle, displayName)
+	if why != "" {
+		return pi, "waiting", why
+	}
+	for _, t := range waiting {
+		if slices.ContainsFunc(old.Waiting, func(w plan.Waiting) bool { return w.Text == t }) {
+			continue
+		}
+		if why := ownerline.Check(t); why != "" {
+			return pi, "waiting", ownerline.Refusal("waiting", t, why)
+		}
 	}
 	if f, msg, ok := plan.Check(texts, in.Blocked, in.Next, in.Waiting, in.Done); !ok {
 		return pi, f, msg
@@ -155,10 +174,6 @@ func parsePlan(in wire.PlanRequest, now time.Time, handle, displayName string) (
 	}
 	if pi.Deliver, field, why = parseDeliver(in, now); field != "" {
 		return pi, field, why
-	}
-	waiting, why := plan.OwnWaiting(in.Waiting, handle, displayName)
-	if why != "" {
-		return pi, "waiting", why
 	}
 	pi.Blocked, pi.Next, pi.Waiting, pi.Done, pi.ClientID = in.Blocked, in.Next, waiting, in.Done, in.ClientID
 	return pi, "", ""

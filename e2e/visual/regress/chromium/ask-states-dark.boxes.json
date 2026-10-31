@@ -190,10 +190,10 @@
    138,
    21
   ],
-  "button \"Waiting on you: Snoozed question?\"#0": [
-   618.5,
+  "button \"Waiting on you: Answer the snoozed quest\"#0": [
+   585.5,
    29.5,
-   223,
+   289,
    44
   ],
   "button \"Star conversation\"#0": [
@@ -250,7 +250,7 @@
    20,
    20
   ],
-  "h3 \"Answered question?\"#0": [
+  "h3 \"Answer the answered question?\"#0": [
    403,
    181.8,
    706,
@@ -310,7 +310,7 @@
    20,
    20
   ],
-  "h3 \"Dismissed question?\"#0": [
+  "h3 \"Answer the dismissed question?\"#0": [
    403,
    422.61,
    706,
@@ -334,7 +334,7 @@
    20,
    20
   ],
-  "h3 \"Snoozed question?\"#0": [
+  "h3 \"Answer the snoozed question?\"#0": [
    403,
    542.61,
    706,

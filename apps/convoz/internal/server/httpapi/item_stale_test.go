@@ -88,7 +88,7 @@ func TestAfterASayAnotherQuietFifteenMinutesRemindsAgain(t *testing.T) {
 func TestPendingAndBlockingItemsAreNeverReminded(t *testing.T) {
 	r := newFreshRig(t)
 	r.itemDo(t, func(ctx context.Context, d pdb.DBTX, now time.Time) error {
-		if _, err := item.Block(ctx, d, now, 901, r.conv, "ask", item.Fields{Title: "Decide", Recommend: "yes"}); err != nil {
+		if _, err := item.Block(ctx, d, now, 901, r.conv, "ask", item.Fields{Title: "Decide the open question", Recommend: "yes"}); err != nil {
 			return err
 		}
 		_, err := item.Start(ctx, d, now, 901, r.conv, "later", item.Fields{Title: "Later"}) // waits behind the blocking now

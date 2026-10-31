@@ -515,12 +515,12 @@ const NO_BUTTONS = ["I did it", "Not needed"];
 // check in box/card is stupid." What waits on the owner shows in those three places only, and clears when the agent updates its plan.
 scenario("What waits on the owner shows only as the plan, the line under the title and the row icon, with no card or button", { tag: ["@browser"] }, async ({ server, page, context }) => {
   const p = await planUi({ server, page, context });
-  // Given "devtool" runs "convoz plan 41 --doing 'Building invites' --waiting 'Approve PR 1'"
-  await mustPlan(p, p.dev, ["--doing", "Building invites", "--waiting", "Approve PR 1"]);
+  // Given "devtool" runs "convoz plan 41 --doing 'Building invites' --waiting 'Approve the prod deploy of PR 1'"
+  await mustPlan(p, p.dev, ["--doing", "Building invites", "--waiting", "Approve the prod deploy of PR 1"]);
 
-  // When the owner opens conversation 41, then the line under the title says "Waiting on you: Approve PR 1"
+  // When the owner opens conversation 41, then the line under the title says "Waiting on you: Approve the prod deploy of PR 1"
   await page.goto(`${p.w.srv.origin}/chats/${p.conv}`);
-  await expect(planLine(page)).toContainText("Waiting on you: Approve PR 1");
+  await expect(planLine(page)).toContainText("Waiting on you: Approve the prod deploy of PR 1");
   // And the chat has no "Waiting on you" card and no "I did it" or "Not needed" button
   await expect(page.getByRole("region", { name: "Waiting on you", exact: true })).toHaveCount(0);
   for (const name of NO_BUTTONS) await expect(page.getByRole("button", { name })).toHaveCount(0);
@@ -571,8 +571,8 @@ scenario("A waiting item that names someone else is refused", { tag: ["@cli"] },
   expect(two.json().error).toMatchObject({ field: "waiting", message: why.replaceAll("Rogerio", "Rogerio Silva") });
 
   // When the item carries the owner's own label, then it is kept without it; a link or an instruction such as "Step 2:" is no label
-  await mustPlan(p, p.dev, ["--doing", "Day 10", "--waiting", "drew: Approve PR 9", "--waiting", "see https://x.y/z", "--waiting", "Step 2: paste the key"]);
-  expect((await planOf(p, "devtool"))!.waiting.map((w) => w.text)).toEqual(["Approve PR 9", "see https://x.y/z", "Step 2: paste the key"]);
+  await mustPlan(p, p.dev, ["--doing", "Day 10", "--waiting", "drew: Approve the prod deploy of PR 9", "--waiting", "Read the notes at https://x.y/z", "--waiting", "Step 2: paste the key"]);
+  expect((await planOf(p, "devtool"))!.waiting.map((w) => w.text)).toEqual(["Approve the prod deploy of PR 9", "Read the notes at https://x.y/z", "Step 2: paste the key"]);
 });
 
 scenario("Only something new that waits on the owner pushes", { tag: ["@api"] }, async ({ server, dataDir }, info) => {

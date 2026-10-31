@@ -11,7 +11,7 @@ import { expect, scenario } from "../lib/scenario.ts";
  * The routes are the ones at the top of lib/event.ts: GET /api/sync?cursor= (thin events), GET /api/stream (hydrated frames).
  */
 
-const SEEDS = { body: "body-ZQX1", title: "title-ZQX2", question: "question-ZQX3", option: "option-ZQX4", file: "file-ZQX5.png" };
+const SEEDS = { body: "body-ZQX1", title: "title-ZQX2", question: "Answer the question-ZQX3 now?", option: "option-ZQX4", file: "file-ZQX5.png" };
 
 scenario("Events never carry content", { tag: ["@api"] }, async ({ server }) => {
   // Given seeded strings "body-ZQX1", "title-ZQX2", "question-ZQX3", "option-ZQX4" and "file-ZQX5.png"

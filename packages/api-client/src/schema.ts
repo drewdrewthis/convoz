@@ -3533,7 +3533,7 @@ export interface components {
             /** @description The agent's zone in seconds east of UTC */
             utc_offset?: number;
             next?: string[];
-            /** @description What waits on the owner. */
+            /** @description What waits on the owner: each item is one plain sentence that tells the owner what to do, like "Approve the prod deploy of PR 240." (3 or more words, no markdown, no status word first). A text already in the stored plan is not judged again. */
             waiting?: string[];
             /** @description Items finished since the last plan. */
             done?: string[];
@@ -3600,7 +3600,7 @@ export interface components {
             plan_updated_at: number;
         };
         ItemRequest: {
-            /** @description Plain text */
+            /** @description Plain text, 1 to 200 characters (start and block). On block it is one plain sentence that tells the owner what to do, like "Approve the prod deploy of PR 240." (3 or more words, no markdown, no status word first). */
             title?: string;
             /** @description Plain text, 1 to 2000 characters on start and block (never empty). */
             context?: string;
@@ -3939,6 +3939,7 @@ export interface components {
         };
         /** @description What the asking agent changes in its open ask. Recommended and alternatives are given together and replace the options. */
         AskUpdateRequest: {
+            /** @description A changed question is one plain sentence that tells the owner what to decide; one left as it was is not judged again. */
             question?: string;
             recommended?: components["schemas"]["AskOption"];
             alternatives?: components["schemas"]["AskOption"][];
@@ -4105,6 +4106,7 @@ export interface components {
             /** Format: int64 */
             thread_root_id?: number;
             client_id: components["schemas"]["ClientId"];
+            /** @description One plain sentence that tells the owner what to decide, like "Approve the prod deploy of PR 240?" (3 or more words, no markdown, no status word first). */
             question?: string;
             recommended?: components["schemas"]["AskOption"];
             alternatives?: components["schemas"]["AskOption"][];

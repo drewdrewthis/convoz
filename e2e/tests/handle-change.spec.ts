@@ -495,7 +495,7 @@ scenario("A push says who an agent was for 7 days", { tag: ["@api"] }, async ({ 
   await changed(w.owner, "devtool", "builder");
 
   // When "builder" asks a question
-  const first = await onePush(w, () => ask(w, { question: "Ship it?" }));
+  const first = await onePush(w, () => ask(w, { question: "Ship the release today?" }));
 
   // Then the push title names "Dev Tool @builder (was @devtool)"
   expect(first.title).toContain("Dev Tool @builder (was @devtool)");

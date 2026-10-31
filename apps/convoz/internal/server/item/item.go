@@ -47,6 +47,11 @@ var (
 	ErrText = errors.New("item: invalid text")
 )
 
+// LineError: a block title is not one plain sentence that tells the owner what to do; Message says why.
+type LineError struct{ Message string }
+
+func (e *LineError) Error() string { return "item: " + e.Message }
+
 // Item is one step of work.
 type Item struct {
 	ID             int64

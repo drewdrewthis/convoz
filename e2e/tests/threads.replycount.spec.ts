@@ -157,10 +157,10 @@ scenario("The thread of an ask in Now and a fold row show the replies", { tag: [
   const docs = w.sessions.docs!.lease;
   const open = await agentAsks(w.srv, lease, conv);
   for (const text of ["Any thoughts?", "Still thinking"]) must(await agentPost(w.srv, docs, conv, text, { thread_root_id: open }), "docs replies", 201);
-  const answered = await agentAsks(w.srv, lease, conv, { question: "Answered question?" });
+  const answered = await agentAsks(w.srv, lease, conv, { question: "Answer the answered question?" });
   must(await answerAsk(w.owner, answered), "answer");
   must(await agentPost(w.srv, docs, conv, "Noted", { thread_root_id: answered }), "docs replies in the thread of the answered ask", 201);
-  await agentAsks(w.srv, lease, conv, { question: "Plain question?" });
+  await agentAsks(w.srv, lease, conv, { question: "Answer the plain question?" });
 
   // When the owner opens Now
   await openNow(page, w.srv);
@@ -173,11 +173,11 @@ scenario("The thread of an ask in Now and a fold row show the replies", { tag: [
   await openFold(page, "Answered today");
 
   // Then "Reply in thread" on the answered row shows "1 reply"
-  await expect(page.locator(".foldrows li").filter({ hasText: "Answered question?" }).getByRole("link", { name: /^Reply in thread/ })).toHaveText("Reply in thread1 reply");
+  await expect(page.locator(".foldrows li").filter({ hasText: "Answer the answered question?" }).getByRole("link", { name: /^Reply in thread/ })).toHaveText("Reply in thread1 reply");
 
   // And an ask with no reply shows no "Show thread"
-  await expect(askCard(page, "Plain question?")).toBeVisible();
-  await expect(askCard(page, "Plain question?").getByRole("button", { name: /Show thread/ })).toHaveCount(0);
+  await expect(askCard(page, "Answer the plain question?")).toBeVisible();
+  await expect(askCard(page, "Answer the plain question?").getByRole("button", { name: /Show thread/ })).toHaveCount(0);
 });
 
 scenario("A You replied row shows the replies and the new ones, and the new clear when the thread is opened", { tag: ["@browser"] }, async ({ server, page, context }) => {

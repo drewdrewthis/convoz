@@ -32,7 +32,7 @@ scenario("The next step starts by itself when the one now is done", { tag: ["@cl
 
 scenario("Two blocking requests by one agent: the second is pending and is promoted when the first is accepted", { tag: ["@api"] }, async ({ server }) => {
   const p = await planWorld(server);
-  const body = { title: "Decide", recommend: "Go" };
+  const body = { title: "Decide the next step", recommend: "Go" };
   const a = (await item(p, p.dev.lease, "a", "block", body)).json();
   expect((await item(p, p.dev.lease, "b", "block", body)).status).toBe(200);
   expect(states(await feed(p))).toEqual(["a:blocking", "b:pending"]);
@@ -56,12 +56,12 @@ scenario("Every move that the state does not allow answers 409 and changes nothi
 
 scenario("A stale Accept answers 409, and no recommendation means no Accept", { tag: ["@api"] }, async ({ server }) => {
   const p = await planWorld(server);
-  const first = (await item(p, p.dev.lease, "a", "block", { title: "Decide", recommend: "Go" })).json();
-  expect((await item(p, p.dev.lease, "a", "block", { title: "Decide again", recommend: "Wait" })).status).toBe(200);
+  const first = (await item(p, p.dev.lease, "a", "block", { title: "Decide the next step", recommend: "Go" })).json();
+  expect((await item(p, p.dev.lease, "a", "block", { title: "Decide the next step again", recommend: "Wait" })).status).toBe(200);
   const stale = await ownerPost(p, `/api/feed/${first.id}/accept`, { if_version: first.version });
   expect(stale.status).toBe(409);
   expect(states(await feed(p))).toEqual(["a:blocking"]);
-  const c = (await item(p, p.docs.lease, "c", "block", { title: "Which key?" })).json();
+  const c = (await item(p, p.docs.lease, "c", "block", { title: "Which key do we use?" })).json();
   expect(c.can_accept).toBe(false);
   const no = await ownerPost(p, `/api/feed/${c.id}/accept`, { if_version: c.version });
   expect(no.status).toBe(409);
@@ -73,7 +73,7 @@ scenario("A stale Accept answers 409, and no recommendation means no Accept", { 
 
 scenario("Got it sets acked_at and leaves the state; snooze sets the wake time", { tag: ["@api"] }, async ({ server }) => {
   const p = await planWorld(server);
-  const a = (await item(p, p.dev.lease, "a", "block", { title: "Decide", recommend: "Go" })).json();
+  const a = (await item(p, p.dev.lease, "a", "block", { title: "Decide the next step", recommend: "Go" })).json();
   expect((await item(p, p.dev.lease, "a", "fyi", { outcome: "Did it myself" })).status).toBe(200);
   const got = await ownerPost(p, `/api/feed/${a.id}/ack`);
   expect(got.status, got.text).toBe(200);
@@ -85,7 +85,7 @@ scenario("Got it sets acked_at and leaves the state; snooze sets the wake time",
   expect(okB.status, okB.text).toBe(200);
   expect(okB.json().state).toBe("started");
   expect((await feed(p)).items).toEqual([]);
-  expect((await item(p, p.dev.lease, "b", "block", { title: "Work", recommend: "" })).status).toBe(200);
+  expect((await item(p, p.dev.lease, "b", "block", { title: "Work on the filters", recommend: "" })).status).toBe(200);
   expect((await feed(p)).items.map((i: { id: number }) => i.id)).toEqual([b.id]);
   const until = Date.now() + 3_600_000;
   const sn = await p.w.owner.client.request("PUT", `/api/feed/${b.id}/snooze`, { csrf: true, json: { until } });
@@ -99,11 +99,12 @@ scenario("Got it sets acked_at and leaves the state; snooze sets the wake time",
 scenario("Markdown, links and over-long text are refused with 400", { tag: ["@api"] }, async ({ server }) => {
   const p = await planWorld(server);
   const x = (n: number) => "x".repeat(n);
+  const line = (n: number) => "word ".repeat(n).slice(0, n - 1) + "x"; // n characters, one plain sentence
   expect((await item(p, p.dev.lease, "k", "start", { title: "See https://example.com" })).status).toBe(400);
-  for (const body of [{ title: x(201) }, { title: "T", context: x(2001) }, { title: "T", recommend: x(501) }]) {
+  for (const body of [{ title: line(201) }, { title: "Decide the next step", context: x(2001) }, { title: "Decide the next step", recommend: x(501) }]) {
     expect((await item(p, p.dev.lease, "k", "block", body)).status).toBe(400);
   }
-  expect((await item(p, p.dev.lease, "k", "block", { title: x(200), context: x(2000), recommend: x(500) })).status).toBe(200);
+  expect((await item(p, p.dev.lease, "k", "block", { title: line(200), context: x(2000), recommend: x(500) })).status).toBe(200);
 });
 
 scenario("The owner's replies on an item go in the thread of the item's message", { tag: ["@api"] }, async ({ server }) => {

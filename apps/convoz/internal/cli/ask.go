@@ -31,7 +31,7 @@ func (r *repeated) Set(v string) error { *r = append(*r, v); return nil }
 func Ask(args []string, io IO) int {
 	usage := "usage: convoz ask --action A --risk R (--undo U | --one-way) --considered C [--considered C]... --confidence N [--question Q] [--urgent] [--thread ROOT] [--app FILE] [--client-id C] <conv>"
 	f := newChatFlags("ask", io)
-	question := f.fs.String("question", "", "the question (at most 500 characters); a permission ask shows its action when not given")
+	question := f.fs.String("question", "", "the question (at most 500 characters): one plain sentence that tells the owner what to decide, with 3 or more words, no markdown and no status word first; a permission ask shows its action when not given")
 	action := f.fs.String("action", "", "what you will do, naming the object (at most 100 characters): a permission request")
 	risk := f.fs.String("risk", "", "with --action: what can go wrong (at most 140 characters)")
 	undo := f.fs.String("undo", "", "with --action: how to undo it (at most 80 characters); or --one-way")

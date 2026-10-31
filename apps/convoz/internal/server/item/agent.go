@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/ownerline"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/item/db"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
@@ -82,9 +84,20 @@ func Start(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int64, ke
 	return it, save(ctx, d, &it, now, true, "edit", agent, "")
 }
 
+// CheckBlockTitle refuses a block title that is not one plain sentence that tells the owner what to do (a *LineError).
+func CheckBlockTitle(title string) error {
+	if why := ownerline.Check(title); why != "" {
+		return &LineError{ownerline.Refusal("title", strings.TrimSpace(title), why)}
+	}
+	return nil
+}
+
 // Block says the next step is the owner's. Saying it again edits the item and bumps the version, so an Accept made on the old
 // text fails. A recommendation is optional: without one the owner can only add info.
 func Block(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int64, key string, f Fields) (Item, error) {
+	if err := CheckBlockTitle(f.Title); err != nil { // first, so the owner-facing reason wins over the general text check
+		return Item{}, err
+	}
 	f, err := f.check()
 	if err != nil || !validKey(key) {
 		return Item{}, ErrText

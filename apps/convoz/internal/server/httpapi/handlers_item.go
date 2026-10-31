@@ -14,6 +14,7 @@ import (
 
 // itemRefused answers an item error; false means it was none of those.
 func (s *Server) itemRefused(w http.ResponseWriter, r *http.Request, err error) bool {
+	var line *item.LineError
 	switch {
 	case err == nil:
 		return false
@@ -25,6 +26,8 @@ func (s *Server) itemRefused(w http.ResponseWriter, r *http.Request, err error) 
 		writeErr(w, http.StatusConflict, "conflict", "The item is in a state that does not allow this.")
 	case errors.Is(err, item.ErrNoRecommendation):
 		writeErr(w, http.StatusConflict, "no_recommendation", "This item has no recommendation to accept. Add info instead.")
+	case errors.As(err, &line):
+		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "title", line.Message)
 	case errors.Is(err, item.ErrText):
 		writeErr(w, http.StatusBadRequest, "invalid_request", "Text must be plain (no markdown, no links) and within its length: title 1-200, context 1-2000 on start and block, recommendation 500, key 1-64.")
 	case appRefused(w, err) || s.messageRefused(w, err):

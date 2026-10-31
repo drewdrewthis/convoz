@@ -189,9 +189,9 @@ func containsID(ids []int64, id int64) bool {
 func TestOkayOnABlockedQuestionReturnsItToStarted(t *testing.T) {
 	r := newWakeRig(t)
 	m, _ := r.post(t, r.ownerID(), wakeOwnerSession, 0, "Q")
-	q, _ := r.take(t, wakeA, 9001, m, wire.TakeRequest{Question: "Which db", Context: "C"})
+	q, _ := r.take(t, wakeA, 9001, m, wire.TakeRequest{Question: "Which database should we use", Context: "C"})
 	if err := r.s.Store.Writer.Tx(context.Background(), func(ctx context.Context, tx *pdb.Tx) error {
-		_, err := item.Block(ctx, tx.DBTX(), time.Now(), wakeA, r.conv, q[0].Key, item.Fields{Title: "Which db", Context: "I need you"})
+		_, err := item.Block(ctx, tx.DBTX(), time.Now(), wakeA, r.conv, q[0].Key, item.Fields{Title: "Which database should we use", Context: "I need you"})
 		return err
 	}); err != nil {
 		t.Fatal(err)

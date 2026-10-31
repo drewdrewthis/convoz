@@ -106,7 +106,7 @@ scenario("The badge counts open asks that are not snoozed", { tag: ["@browser", 
   const w = await browserWorld({ server, page, context }, WORLD);
   const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
   const ids = [];
-  for (const q of ["First?", "Second?", "Third?"]) ids.push(await agentAsks(w.srv, w.sessions.devtool!.lease, conv, { question: q }));
+  for (const q of ["Answer the first question?", "Answer the second question?", "Answer the third question?"]) ids.push(await agentAsks(w.srv, w.sessions.devtool!.lease, conv, { question: q }));
   must(await snoozeAsk(w.owner, ids[0]!, { preset: "1h" }), "snooze one");
   expect((await nowOf(w.owner)).badge).toBe(2);
 
@@ -199,8 +199,8 @@ scenario("With nothing waiting, the feed centres the wordmark, the all-clear lin
   const w = await browserWorld({ server, page, context }, WORLD);
   const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
   const lease = w.sessions.devtool!.lease;
-  must(await answerAsk(w.owner, await agentAsks(w.srv, lease, conv, { question: "Answered question?" })), "answer");
-  must(await markAsk(w.owner, await agentAsks(w.srv, lease, conv, { question: "Dismissed question?" }), "dismiss"), "dismiss");
+  must(await answerAsk(w.owner, await agentAsks(w.srv, lease, conv, { question: "Answer the answered question?" })), "answer");
+  must(await markAsk(w.owner, await agentAsks(w.srv, lease, conv, { question: "Answer the dismissed question?" }), "dismiss"), "dismiss");
   // Owner, conv 1, msg 535: unread messages now show on Now instead of "All clear", so for all clear the asks' messages are read
   must(await w.owner.client.post(`/api/conversations/${conv}/read`, { main_id: 0, all: true }), "read it all");
 
@@ -525,9 +525,9 @@ scenario("The Now item shows how many items wait in the feed and updates live", 
   const w = await browserWorld({ server, page, context }, WORLD);
   const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
   const lease = w.sessions.devtool!.lease;
-  const open = [await agentAsks(w.srv, lease, conv, { question: "First?" }), await agentAsks(w.srv, lease, conv, { question: "Second?" })];
-  must(await snoozeAsk(w.owner, await agentAsks(w.srv, lease, conv, { question: "Snoozed?" }), { preset: "1h" }), "snooze");
-  must(await answerAsk(w.owner, await agentAsks(w.srv, lease, conv, { question: "Answered?" })), "answer");
+  const open = [await agentAsks(w.srv, lease, conv, { question: "Answer the first question?" }), await agentAsks(w.srv, lease, conv, { question: "Answer the second question?" })];
+  must(await snoozeAsk(w.owner, await agentAsks(w.srv, lease, conv, { question: "Answer the snoozed one?" }), { preset: "1h" }), "snooze");
+  must(await answerAsk(w.owner, await agentAsks(w.srv, lease, conv, { question: "Answer the answered one?" })), "answer");
 
   // When the owner opens Now
   await openNow(page, w.srv);
@@ -580,15 +580,15 @@ scenario("Every item in the feed opens its conversation when tapped", { tag: ["@
   const w = await browserWorld({ server, page, context }, WORLD);
   const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
   const lease = w.sessions.devtool!.lease;
-  const snoozedId = await agentAsks(w.srv, lease, conv, { question: "Snoozed question?" });
+  const snoozedId = await agentAsks(w.srv, lease, conv, { question: "Answer the snoozed question?" });
   must(await snoozeAsk(w.owner, snoozedId, { preset: "1h" }), "snooze");
-  const answeredId = await agentAsks(w.srv, lease, conv, { question: "Answered question?" });
+  const answeredId = await agentAsks(w.srv, lease, conv, { question: "Answer the answered question?" });
   must(await answerAsk(w.owner, answeredId), "answer");
-  const dismissedId = await agentAsks(w.srv, lease, conv, { question: "Dismissed question?" });
+  const dismissedId = await agentAsks(w.srv, lease, conv, { question: "Answer the dismissed question?" });
   must(await markAsk(w.owner, dismissedId, "dismiss"), "dismiss");
 
   // When the owner opens each fold in Now and taps the ask in it
-  for (const [fold, question, id] of [["Snoozed", "Snoozed question?", snoozedId], ["Answered today", "Answered question?", answeredId], ["Dismissed today", "Dismissed question?", dismissedId]] as const) {
+  for (const [fold, question, id] of [["Snoozed", "Answer the snoozed question?", snoozedId], ["Answered today", "Answer the answered question?", answeredId], ["Dismissed today", "Answer the dismissed question?", dismissedId]] as const) {
     await openNow(page, w.srv);
     await openFold(page, fold);
     await page.locator(".foldrows li").filter({ hasText: question }).getByRole("link", { name: question }).click();
@@ -672,10 +672,10 @@ scenario("An answered ask in the feed lets the owner follow up in its thread or 
   const w = await browserWorld({ server, page, context }, WORLD);
   const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
   const lease = w.sessions.devtool!.lease;
-  const answeredId = await agentAsks(w.srv, lease, conv, { question: "Answered question?" });
+  const answeredId = await agentAsks(w.srv, lease, conv, { question: "Answer the answered question?" });
   must(await answerAsk(w.owner, answeredId), "answer");
-  must(await markAsk(w.owner, await agentAsks(w.srv, lease, conv, { question: "Dismissed question?" }), "dismiss"), "dismiss");
-  must(await snoozeAsk(w.owner, await agentAsks(w.srv, lease, conv, { question: "Snoozed question?" }), { preset: "1h" }), "snooze");
+  must(await markAsk(w.owner, await agentAsks(w.srv, lease, conv, { question: "Answer the dismissed question?" }), "dismiss"), "dismiss");
+  must(await snoozeAsk(w.owner, await agentAsks(w.srv, lease, conv, { question: "Answer the snoozed question?" }), { preset: "1h" }), "snooze");
 
   // When the owner opens the folds in Now
   await openNow(page, w.srv);
@@ -690,7 +690,7 @@ scenario("An answered ask in the feed lets the owner follow up in its thread or 
   }
 
   // When the owner taps "Reply in thread" on the answered row
-  const answered = rows.filter({ hasText: "Answered question?" });
+  const answered = rows.filter({ hasText: "Answer the answered question?" });
   await answered.getByRole("link", { name: "Reply in thread", exact: true }).click();
 
   // Then the thread of the ask opens and its Reply box has focus
@@ -703,7 +703,7 @@ scenario("An answered ask in the feed lets the owner follow up in its thread or 
 
   // Then conversation 41 opens with the ask in view and the ask is still answered
   await expect(page).toHaveURL(new RegExp(`/chats/${conv}#m${answeredId}$`));
-  await expect(askCard(page, "Answered question?")).toBeInViewport();
+  await expect(askCard(page, "Answer the answered question?")).toBeInViewport();
   expect((await askOf(w.owner, answeredId)).state).toBe("answered");
 });
 
@@ -821,7 +821,7 @@ scenario("The count updates in every open tab", { tag: ["@browser"] }, async ({ 
   // Given Now is open in two tabs with 3 open asks
   const w = await browserWorld({ server, page, context }, WORLD);
   const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
-  for (const q of ["First?", "Second?", "Third?"]) await agentAsks(w.srv, w.sessions.devtool!.lease, conv, { question: q });
+  for (const q of ["Answer the first question?", "Answer the second question?", "Answer the third question?"]) await agentAsks(w.srv, w.sessions.devtool!.lease, conv, { question: q });
   const other = await context.newPage();
   await openNow(page, w.srv);
   await openNow(other, w.srv);
@@ -829,7 +829,7 @@ scenario("The count updates in every open tab", { tag: ["@browser"] }, async ({ 
   await expect(other.locator("#open-count")).toHaveText("3 open");
 
   // When the owner presses Okay on an ask in one tab
-  await askCard(page, "Third?").getByRole("button", { name: "Okay", exact: true }).click();
+  await askCard(page, "Answer the third question?").getByRole("button", { name: "Okay", exact: true }).click();
 
   // Then both tabs show 2 open asks with no reload
   await expect(page.locator("#open-count")).toHaveText("2 open");

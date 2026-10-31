@@ -8,6 +8,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/ownerline"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/ask/db"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 )
@@ -67,13 +68,16 @@ func (n New) Check() error {
 	return nil
 }
 
-// checkQuestion judges the question alone: there, and at most 500 characters.
+// checkQuestion judges the question alone: there, at most 500 characters, and one plain sentence that tells the owner what to do.
 func (n New) checkQuestion() error {
 	switch {
 	case strings.TrimSpace(n.Question) == "":
 		return &FieldError{"question", "Ask a question."}
 	case utf8.RuneCountInString(n.Question) > MaxQuestion:
 		return &FieldError{"question", "A question has at most 500 characters."}
+	}
+	if why := ownerline.Check(n.Question); why != "" && n.Permission == nil { // a permission ask shows its machine action, with its details
+		return &FieldError{"question", ownerline.Refusal("question", n.Question, why)}
 	}
 	return nil
 }
