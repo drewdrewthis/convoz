@@ -16,6 +16,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/plan"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/prefs"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
 
@@ -430,10 +431,7 @@ func (s *Server) nowScreen(w http.ResponseWriter, r *http.Request, c *call) {
 		out.WaitingPlans, err = s.waitingPlans(ctx, d, c, dir)
 	}
 	if err == nil {
-		var list []conversation.Conversation
-		if list, err = conversation.ListAll(ctx, d); err == nil {
-			out.Unanswered, err = s.unanswered(ctx, d, c.p.HumanID, list, dir, now)
-		}
+		out.Unanswered, err = s.nowUnanswered(ctx, d, c.p, dir, now)
 	}
 	var machines []auth.Request
 	if err == nil {
@@ -483,6 +481,27 @@ type nowView struct {
 	MachineRequests []requestJSON            `json:"machine_requests"`
 	// IdentityRequests are the identities that agents on logged-in machines ask to be made.
 	IdentityRequests []identityRequestJSON `json:"identity_requests"`
+}
+
+// nowUnanswered is the unanswered list of Now: GET /api/waiting's list without a conversation the owner muted or that is stale, and
+// without a message older than plan.WaitStaleAfter (else any chat where the owner spoke last stays a card for ever). The cheap filters run
+// before the per-chat reads.
+func (s *Server) nowUnanswered(ctx context.Context, d pdb.DBTX, p authz.Principal, dir directory, now time.Time) ([]wire.WaitingUnanswered, error) {
+	all, err := conversation.ListAll(ctx, d)
+	if err != nil {
+		return nil, err
+	}
+	pf, err := prefs.All(ctx, d, p.Identity())
+	if err != nil {
+		return nil, err
+	}
+	list := all[:0:0]
+	for _, cv := range all {
+		if !cv.Stale() && pf[cv.ID].MutedUntil <= now.UnixMilli() {
+			list = append(list, cv)
+		}
+	}
+	return s.unanswered(ctx, d, p.HumanID, list, dir, now, plan.WaitStaleAfter)
 }
 
 // liveAskViews is askViews without the asks of a conversation that is in the trash or gone.
