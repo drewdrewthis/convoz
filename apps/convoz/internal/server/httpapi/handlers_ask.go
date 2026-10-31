@@ -69,7 +69,9 @@ func (s *Server) postAsk(w http.ResponseWriter, r *http.Request, c *call) {
 	if pm := in.Permission; pm != nil {
 		n.Permission = ptr(ask.Permission(*pm))
 	}
-	if s.askRefused(w, r, c, n.Check()) {
+	err := n.Check()
+	s.logAskLine(r, c, n.Conversation, err)
+	if s.askRefused(w, r, c, err) {
 		return
 	}
 	if len(in.App) > 0 && string(in.App) != "null" {
@@ -290,7 +292,9 @@ func (s *Server) askUpdate(w http.ResponseWriter, r *http.Request, c *call) {
 	}
 	status := http.StatusOK
 	s.askChange(w, r, c, &status, func(ctx context.Context, d pdb.DBTX, p ask.Ports, now time.Time) (ask.Ask, error) {
-		return ask.Update(ctx, d, p, now, up)
+		got, err := ask.Update(ctx, d, p, now, up)
+		s.logAskLine(r, c, a.ConversationID, err)
+		return got, err
 	})
 }
 
@@ -617,5 +621,13 @@ func (s *Server) RunTimers(ctx context.Context) {
 			}
 			s.sweepNow(ctx) // late plans and agents that stopped responding
 		}
+	}
+}
+
+// logAskLine logs err when it is an ask question that ownerline refused.
+func (s *Server) logAskLine(r *http.Request, c *call, conv int64, err error) {
+	var line *ask.LineError
+	if errors.As(err, &line) {
+		s.logOwnerLine(r, c, conv, line.Field, line.Why)
 	}
 }

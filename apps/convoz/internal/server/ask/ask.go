@@ -279,6 +279,15 @@ type FieldError struct{ Field, Message string }
 
 func (e *FieldError) Error() string { return fmt.Sprintf("%s: %s", e.Field, e.Message) }
 
+// LineError is a FieldError for a line ownerline refused; Why is ownerline.Check's reason, kept apart from Message for the log.
+type LineError struct {
+	FieldError
+	Why string
+}
+
+// Unwrap lets errors.As find the FieldError, so a handler answers it as any other field error.
+func (e *LineError) Unwrap() error { return &e.FieldError }
+
 // Conflict codes.
 const (
 	CodeConflict  = "conflict"   // another change won; the ask as it stands comes with it

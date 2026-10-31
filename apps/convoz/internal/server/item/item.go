@@ -47,8 +47,8 @@ var (
 	ErrText = errors.New("item: invalid text")
 )
 
-// LineError: a block title is not one plain sentence that tells the owner what to do; Message says why.
-type LineError struct{ Message string }
+// LineError: a block title is not one plain sentence that tells the owner what to do; Message says why, Why is the short reason.
+type LineError struct{ Message, Why string }
 
 func (e *LineError) Error() string { return "item: " + e.Message }
 
