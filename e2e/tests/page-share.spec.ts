@@ -33,7 +33,7 @@ import {
   STOPPED_LINE,
   type PageWorld,
 } from "../lib/page-share.ts";
-import { badgeOf, clickConvozButton, EXTENSION_ORIGIN, grantHostAccess, launchWithExtension, openPanel, openWebPage, setServer, signInOwner } from "../lib/extension.ts";
+import { badgeOf, badgeOfTab, clickConvozButton, EXTENSION_ORIGIN, grantHostAccess, launchWithExtension, openPanel, openWebPage, setServer, signInOwner, tabIdOf } from "../lib/extension.ts";
 import { expect, scenario } from "../lib/scenario.ts";
 import { handlesOf, linesOf, viewOf } from "../lib/wp3.ts";
 
@@ -340,6 +340,8 @@ scenario("The shared tab going to another site ends the share", { tag: ["@browse
   const { context, panel, tab } = await shareShop(w);
   try {
     await expect.poll(() => badge(context)).toBe("ON");
+    // by id: on other.test, where the extension has no host access, Chrome does not tell it the tab's address
+    const shared = await tabIdOf(context, `${SHOP_ORIGIN}/`);
 
     // When the shared tab goes to another site
     await context.route(OTHER_URL, (route) => route.fulfill({ contentType: "text/html; charset=utf-8", body: OTHER_HTML }));
@@ -359,7 +361,7 @@ scenario("The shared tab going to another site ends the share", { tag: ["@browse
     await expect.poll(() => systemLines(w)).toContain(LEFT_LINE);
 
     // And the Convoz button on the shared tab shows nothing
-    await expect.poll(() => badgeOf(context, OTHER_URL)).toBe("");
+    await expect.poll(() => badgeOfTab(context, shared)).toBe("");
 
     // And after the tab goes back to the shop, "convoz page read" still says "no shared tab"
     await tab.goto(SHOP_URL);

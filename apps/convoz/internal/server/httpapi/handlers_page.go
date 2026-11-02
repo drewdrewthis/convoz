@@ -18,6 +18,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/event"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
@@ -129,7 +130,7 @@ func (s *Server) startPageShare(w http.ResponseWriter, r *http.Request, c *call)
 		return
 	}
 	share := s.pages.start(in.ConversationID, c.p.HumanID, c.p.Identity(), origin, s.Clock.Now())
-	// after the start: the message makes the web app read the conversation again, and its shared_tab must be there by then
+	// after the start: the row's conversation.changed makes the web app read the conversation again, and its shared_tab must be there by then
 	if !s.postShareAsk(w, r, c, share, shareAsk(in.Ask, in.TabTitle, address, in.ConversationID)) {
 		s.pages.stop(share.ID, c.p.HumanID) // no ask, no share: the owner sees the error and shares again
 		return
@@ -138,12 +139,19 @@ func (s *Server) startPageShare(w http.ResponseWriter, r *http.Request, c *call)
 }
 
 // postShareAsk posts the owner's message that starts a share, as a normal message: it reaches the inbox of every agent of the
-// conversation, which a system line never does. It writes the error itself and reports whether the message was posted.
+// conversation, which a system line never does. The web app reads a row again only on a system line or conversation.changed, so
+// the share also records conversation.changed: without it the header never says "Tab shared". It writes the error itself and
+// reports whether the message was posted.
 func (s *Server) postShareAsk(w http.ResponseWriter, r *http.Request, c *call, share wire.PageShare, body string) bool {
 	draft := message.Draft{Conversation: share.ConversationID, Author: c.p.Identity(), Device: c.dev.ID, ClientID: "page-share-" + share.ID, Body: body}
 	var posted message.Posted
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) (err error) {
-		posted, err = message.Post(ctx, tx.DBTX(), triagePorts(c.p), s.Clock.Now(), draft)
+		now := s.Clock.Now()
+		if posted, err = message.Post(ctx, tx.DBTX(), triagePorts(c.p), now, draft); err != nil {
+			return err
+		}
+		conv := share.ConversationID
+		_, err = event.Write(ctx, tx.DBTX(), now, event.Entry{Type: eventConversationChanged, Actor: c.p.Identity(), Conversation: conv, Payload: map[string]any{"conversation_id": conv}})
 		return err
 	})
 	if s.messageRefused(w, err) {

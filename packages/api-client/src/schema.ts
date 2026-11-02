@@ -4050,7 +4050,7 @@ export interface components {
             /** Format: int64 */
             prev_seq_for_you?: number;
         };
-        /** @description SSE conversation.changed (people who can see the conversation); its row changed, for one an agent marked it stale. Read the list again. */
+        /** @description SSE conversation.changed (people who can see the conversation); its row changed without a line, as when an agent marked it stale or the owner started sharing a tab with it. Read the list and the row again. */
         ConversationChangedFrame: {
             /** Format: int64 */
             conversation_id: number;

@@ -79,20 +79,33 @@ async function extensionWorker(context: BrowserContext): Promise<Worker> {
   return context.serviceWorkers().find((w) => w.url().startsWith(EXTENSION_ORIGIN)) ?? (await context.waitForEvent("serviceworker"));
 }
 
+/** The chrome API the service worker reads tabs and badges with. */
+interface TabsApi {
+  chrome: { tabs: { query(q: object): Promise<{ id?: number; url?: string }[]> }; action: { getBadgeText(d: { tabId: number }): Promise<string> } };
+}
+
 /**
- * The text of the Convoz button's badge on the tab whose address starts with `url`, as Chrome draws it ("" for none). Read in the
- * service worker (chrome.action.getBadgeText); the tab's address is visible to it because the extension has host access to it.
+ * Chrome's id of the tab whose address starts with `url`. Read in the service worker: without the "tabs" permission a tab's address
+ * is visible to it only on a site the extension has host access to, so a tab on any other site has no address here.
  */
-export async function badgeOf(context: BrowserContext, url: string): Promise<string> {
+export async function tabIdOf(context: BrowserContext, url: string): Promise<number> {
   const worker = await extensionWorker(context);
   return worker.evaluate(async (prefix) => {
-    const api = (globalThis as unknown as {
-      chrome: { tabs: { query(q: object): Promise<{ id?: number; url?: string }[]> }; action: { getBadgeText(d: { tabId: number }): Promise<string> } };
-    }).chrome;
-    const tab = (await api.tabs.query({})).find((t) => t.url?.startsWith(prefix));
+    const tab = (await (globalThis as unknown as TabsApi).chrome.tabs.query({})).find((t) => t.url?.startsWith(prefix));
     if (tab?.id === undefined) throw new Error(`no tab at ${prefix}`);
-    return api.action.getBadgeText({ tabId: tab.id });
+    return tab.id;
   }, url);
+}
+
+/** The text of the Convoz button's badge on tab `tabId`, as Chrome draws it ("" for none; chrome.action.getBadgeText). */
+export async function badgeOfTab(context: BrowserContext, tabId: number): Promise<string> {
+  const worker = await extensionWorker(context);
+  return worker.evaluate((id) => (globalThis as unknown as TabsApi).chrome.action.getBadgeText({ tabId: id }), tabId);
+}
+
+/** The badge on the tab whose address starts with `url`, a site the extension has host access to (tabIdOf). */
+export async function badgeOf(context: BrowserContext, url: string): Promise<string> {
+  return badgeOfTab(context, await tabIdOf(context, url));
 }
 
 /** Open the panel page in its own popup window and wait for it to load. */
