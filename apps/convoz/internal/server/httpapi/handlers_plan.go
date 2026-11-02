@@ -255,6 +255,37 @@ func (s *Server) getPlans(w http.ResponseWriter, r *http.Request, c *call) {
 	writeJSON(w, http.StatusOK, b)
 }
 
+// getConversationPlans is GET /api/conversations/:id/plan: every plan of the conversation, for an agent that may read it. It only reads.
+func (s *Server) getConversationPlans(w http.ResponseWriter, r *http.Request, c *call) {
+	conv, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	ctx, d := r.Context(), s.reader()
+	if _, visible, err := canSee(ctx, d, c.p, conv); err != nil {
+		s.internalError(w, r, err)
+		return
+	} else if !visible {
+		notVisible(w, c)
+		return
+	}
+	plans, err := plan.OfConversation(ctx, d, conv)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	dir, err := loadDirectory(ctx, d)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	out := wire.PlanList{Plans: []wire.Plan{}}
+	for _, p := range plans {
+		out.Plans = append(out.Plans, planView(dir, p))
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
 // board reads everything the lines need and lets the plan module rank it.
 func (s *Server) board(ctx context.Context, c *call, conv int64) (wire.PlanBoard, error) {
 	d, now := s.reader(), s.Clock.Now()

@@ -29,6 +29,22 @@
           application/json:
             schema: { $ref: "../openapi.yaml#/components/schemas/Plan" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
+  get:
+    x-authz: { auth: lease }
+    security: [{ leaseBearer: [] }]
+    operationId: getConversationPlans
+    summary: An agent reads the plans of one conversation (`convoz plan --show`); it never writes.
+    description: |
+      Every agent's plan in the conversation, each as `putPlan` stores it. A conversation the caller may not read is 403 for an agent.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+    responses:
+      "200":
+        description: The plans of the conversation.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/PlanList" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }
 /api/plans:
   get:
     x-authz: { auth: human }

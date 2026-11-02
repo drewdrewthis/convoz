@@ -12,6 +12,15 @@ Feature: Plans (contracts)
     And machine "box-2" is logged in with allow-list "devtool" and "docs"
     And "devtool" is a participant of conversation 41 "Ship search filters" and "docs" is not
 
+  Rule: GET /api/conversations/:id/plan reads the plans of a conversation and writes nothing
+
+    @v1 @api
+    Scenario: A member agent reads the plans and a non-member does not
+      When "devtool" sends GET /api/conversations/41/plan
+      Then the server answers 200 with the plan of each agent that has one in conversation 41
+      When "docs" sends GET /api/conversations/41/plan
+      Then the server answers 403
+
   Rule: PUT /api/conversations/:id/plan replaces the caller's plan whole
 
     @v1 @api
