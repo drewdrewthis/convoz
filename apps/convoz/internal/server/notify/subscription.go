@@ -46,6 +46,8 @@ type NewSubscription struct {
 	Device, Person int64
 	Endpoint       string
 	P256dh, Auth   string // base64url (the browser's own encoding)
+	// Messages: the device takes a push for every message from someone else (a phone, where news is a push and not a toast).
+	Messages bool
 }
 
 // decodeKey reads base64url with or without padding, or standard base64: the forms browsers and tests produce.
@@ -72,6 +74,10 @@ func Subscribe(ctx context.Context, d pdb.DBTX, now time.Time, in NewSubscriptio
 		return Subscription{}, ErrBadKeys
 	}
 	q := db.New(d)
+	messages := int64(0)
+	if in.Messages {
+		messages = 1
+	}
 	at := sql.NullInt64{Int64: now.UnixMilli(), Valid: true}
 	why := sql.NullString{String: DisabledUser, Valid: true}
 	existing, err := q.SubscriptionByEndpoint(ctx, in.Endpoint)
@@ -82,12 +88,12 @@ func Subscribe(ctx context.Context, d pdb.DBTX, now time.Time, in NewSubscriptio
 		if err := q.DisableDeviceSubscriptions(ctx, db.DisableDeviceSubscriptionsParams{Now: at, Reason: why, DeviceID: in.Device, Keep: id}); err != nil {
 			return Subscription{}, err
 		}
-		err = q.ReviveSubscription(ctx, db.ReviveSubscriptionParams{DeviceID: in.Device, IdentityID: in.Person, P256dh: p256dh, Auth: auth, Now: now.UnixMilli(), ID: id})
+		err = q.ReviveSubscription(ctx, db.ReviveSubscriptionParams{DeviceID: in.Device, IdentityID: in.Person, P256dh: p256dh, Auth: auth, Messages: messages, Now: now.UnixMilli(), ID: id})
 	case errors.Is(err, sql.ErrNoRows):
 		if err := q.DisableDeviceSubscriptions(ctx, db.DisableDeviceSubscriptionsParams{Now: at, Reason: why, DeviceID: in.Device}); err != nil {
 			return Subscription{}, err
 		}
-		id, err = q.InsertSubscription(ctx, db.InsertSubscriptionParams{DeviceID: in.Device, IdentityID: in.Person, Endpoint: in.Endpoint, P256dh: p256dh, Auth: auth, Now: now.UnixMilli()})
+		id, err = q.InsertSubscription(ctx, db.InsertSubscriptionParams{DeviceID: in.Device, IdentityID: in.Person, Endpoint: in.Endpoint, P256dh: p256dh, Auth: auth, Messages: messages, Now: now.UnixMilli()})
 	}
 	if err != nil {
 		return Subscription{}, err
@@ -130,6 +136,7 @@ type live struct {
 	ID, Device   int64
 	Endpoint     string
 	P256dh, Auth []byte
+	Messages     bool // the device takes a push for every message (ReasonMessage)
 }
 
 func liveOf(ctx context.Context, d pdb.DBTX, person int64) ([]live, error) {
@@ -139,7 +146,7 @@ func liveOf(ctx context.Context, d pdb.DBTX, person int64) ([]live, error) {
 	}
 	out := make([]live, len(rows))
 	for i, r := range rows {
-		out[i] = live{ID: r.ID, Device: r.DeviceID, Endpoint: r.Endpoint, P256dh: r.P256dh, Auth: r.Auth}
+		out[i] = live{ID: r.ID, Device: r.DeviceID, Endpoint: r.Endpoint, P256dh: r.P256dh, Auth: r.Auth, Messages: r.Messages == 1}
 	}
 	return out, nil
 }

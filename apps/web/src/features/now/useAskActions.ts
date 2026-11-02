@@ -75,8 +75,12 @@ export function useAskActions({ now, asks, reload, onAnswered }: { now: Now | nu
     toast(`Snoozed until ${label}, ${clockText(r.ask.snoozed_until ?? 0)}`, undo(() => unsnoozeAsk(ask.id)));
   };
 
-  const answer = (ask: Ask, a: Answer) =>
-    act(ask, true, () => answerAsk(ask.id, { ...a, if_version: ask.version, via: "now" }), a.choice === "custom" || (ask.draft && a.choice === "recommended") ? (a.text ?? "") : (ask.options[a.choice === "alternative" ? (a.index ?? 1) : 0]?.label ?? ""));
+  /** After an answer the toast says where the ask went: Answered today, or You replied when the reply keeps it open. */
+  const answer = async (ask: Ask, a: Answer) => {
+    const label = a.choice === "custom" || (ask.draft && a.choice === "recommended") ? (a.text ?? "") : (ask.options[a.choice === "alternative" ? (a.index ?? 1) : 0]?.label ?? "");
+    const r = await act(ask, true, () => answerAsk(ask.id, { ...a, if_version: ask.version, via: "now" }), label);
+    if (r && !r.lost) toast(r.ask.state === "answered" ? "Answered. The ask moved to Answered today." : "Replied. The ask moved to You replied.");
+  };
 
   const unsnooze = (ask: Ask) => void act(ask, false, () => unsnoozeAsk(ask.id));
   const reopen = (ask: Ask) => void act(ask, false, () => undismissAsk(ask.id, ask.version));

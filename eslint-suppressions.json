@@ -57,7 +57,7 @@
   },
   "apps/web/src/features/conversations/Conversations.tsx": {
     "convoz/no-raw-button": {
-      "count": 8
+      "count": 2
     },
     "convoz/no-style-prop": {
       "count": 1
@@ -146,20 +146,7 @@
       "count": 1
     }
   },
-  "apps/web/src/features/pins-stars/Toast.tsx": {
-    "convoz/no-raw-button": {
-      "count": 1
-    }
-  },
   "apps/web/src/features/rail/Logo.tsx": {
-    "convoz/no-style-prop": {
-      "count": 1
-    }
-  },
-  "apps/web/src/features/rail/Sidebar.tsx": {
-    "convoz/no-raw-button": {
-      "count": 2
-    },
     "convoz/no-style-prop": {
       "count": 1
     }

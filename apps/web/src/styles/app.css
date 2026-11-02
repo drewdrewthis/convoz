@@ -15,6 +15,7 @@
 @import "../features/voice/voice.css";
 @import "../features/crew/crew.css";
 @import "./status.css";
+@import "./drawer.css";
 
 /* The atoms of packages/ui, and the app-kit that uses them, are written with Tailwind classes; the scan finds them there (it stops at apps/web). */
 @source "../../../../packages/ui/src";
@@ -216,6 +217,11 @@
   @keyframes rise { from { transform: translateY(48px); opacity: 0; } to { transform: none; opacity: 1; } }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+    /* A spinner says "working" and nothing else does: it keeps turning, slowly, for the owner who asked for less motion (a desktop that
+       sets reduce motion showed a dead ring where the phone showed a turning one). */
+    .working::before { animation: workspin 1.8s linear infinite !important; }
+    .pdot[data-tone="green"], .planicon .spin { animation: pdotspin 1.8s linear infinite !important; }
+    .ring[data-st="working"]::before { animation: ringspin 4.8s linear infinite !important; }
   }
 
   /* ---- Conversations ---- */
@@ -264,6 +270,7 @@
   .chatbar .titles h1 { font-size: 16px; font-weight: 700; }
   .chatbar .subtitle { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; line-height: 1.3; color: var(--color-muted); }
   .chatbar .subtitle .presence::before { content: "\00B7"; margin: 0 4px; }
+  .chatbar .subtitle a.who { display: inline-block; padding: 14px 0; margin: -14px 0; color: inherit; text-decoration: none; } .chatbar .subtitle a.who:hover { text-decoration: underline; }
   .titles { flex: 1 1 auto; min-width: 0; min-height: 44px; display: flex; flex-direction: column; justify-content: center; padding: 0 8px; }
   .titles h1 { margin: 0; max-width: 100%; font-size: 16px; line-height: normal; font-weight: 600; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .subtitle { margin: 0; }
@@ -280,8 +287,6 @@
   .log { scroll-padding-top: var(--headh); flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; overflow-anchor: none; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; padding: var(--headh) 0 16px;
     /* the one column every row of the transcript shares (messages, threads, notices, the New line, the day labels): one left edge */
     --col: 760px; }
-  .pausebar ~ .chatmain .log { padding-top: 8px; }
-  .chatframe > .pausebar { position: relative; z-index: 2; margin-top: var(--headh); }
   /* flex: none — a virtual list's rows are absolute, so its height is all it has; as a shrinking flex item it collapsed to the log's height
      and the log's scroll height stopped following the rows, so a long chat stopped short of its newest message. */
   .items { display: flex; flex-direction: column; flex: none; }
@@ -477,4 +482,20 @@
 @media (max-width: 600px) {
   .fab { width: 56px; height: 56px; padding: 0; justify-content: center; }
   .fab .fablabel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+
+/* The owner's dev build (shared/dev.ts): a small fixed badge on every screen, so the dev app is never taken for the real one. */
+.dev-badge {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483647;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #d92d20;
+  color: #fff;
+  font: 700 11px/16px system-ui, sans-serif;
+  letter-spacing: 0.08em;
+  pointer-events: none;
 }

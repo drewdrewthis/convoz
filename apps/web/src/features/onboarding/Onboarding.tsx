@@ -5,6 +5,7 @@ import { useNotice } from "../../shared/notice.tsx";
 import { useSheets } from "../../shared/sheets.tsx";
 import { AddPasskeySheet } from "../settings/index.ts";
 import { Button } from "@convoz/ui/Button";
+import { withBase } from "../../shared/base.ts";
 
 /** Onboarding is /onboarding, step 3 of 3: a second passkey on another device or a hardware key, or skip it for now. */
 export function Onboarding() {
@@ -35,7 +36,7 @@ export function Onboarding() {
             Add a passkey
           </Button>
         )}
-        <Button variant="quiet" onClick={() => location.assign("/")}>
+        <Button variant="quiet" onClick={() => location.assign(withBase("/"))}>
           {added ? "Continue to Now" : "Skip for now"}
         </Button>
       </div>

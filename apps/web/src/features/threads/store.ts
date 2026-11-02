@@ -5,8 +5,10 @@ import type { Message } from "@convoz/api-client";
 import { create } from "zustand";
 import { ApiError, call, client } from "../../shared/api.ts";
 import { newId } from "../../shared/chat.ts";
+import { reportSendFailed } from "../../shared/clientEvents.ts";
 import { data } from "../../shared/data.ts";
 import { usePresence } from "../../shared/presence.ts";
+import { toastFailure } from "../pins-stars/index.ts";
 
 /** A reply the server has not confirmed yet; the same shape as a pending send in the main list. */
 export interface PendingReply {
@@ -45,8 +47,8 @@ export interface ThreadsState {
   /** Open the reply box under a root, unfolding its thread (Reply in thread, a #reply= link). */
   startReply(conversation: number, rootId: number): void;
   stopReply(): void;
-  /** Send a reply (the body may be empty when it carries files); it shows at once as "sending". */
-  reply(rootId: number, body: string, uploadIds?: string[]): void;
+  /** Send a reply (the body may be empty when it carries files); it shows at once as "sending". Resolves true once the server took it, false when it failed. */
+  reply(rootId: number, body: string, uploadIds?: string[]): Promise<boolean>;
   retry(rootId: number, cid: string): void;
   /** Drop a failed reply the owner does not want to retry. */
   discard(rootId: number, cid: string): void;
@@ -59,6 +61,9 @@ export interface ThreadsState {
   /** The conversation closed: its threads go. */
   reset(): void;
 }
+
+/** The most threads one read asks for: the server refuses more. */
+const MAX_ROOTS = 100;
 
 const byId = (a: Message, b: Message) => a.id - b.id;
 
@@ -82,24 +87,51 @@ export const useThreads = create<ThreadsState>()((set, get) => {
   };
   const newest = (t: ThreadView) => t.replies.at(-1)?.id ?? 0;
 
+  /** One read of up to MAX_ROOTS threads of a conversation; each thread found is taken in, one not found stays as it was. */
+  async function readThreads(conversation: number, roots: number[]) {
+    const { threads } = await call(
+      client.GET("/api/conversations/{id}/threads", { params: { path: { id: conversation }, query: { roots: roots.join(","), limit: 100 } } }),
+    );
+    for (const { root, messages, seen } of threads) {
+      if (!get().threads[root.id]) continue;
+      usePresence.getState().hydrate(conversation, root.id, seen);
+      patch(root.id, (now) => ({ replies: merge(now.replies, messages), loaded: true }));
+    }
+  }
+
+  // The threads asked for in one tick go out together: a chat that opens with N threads asks once, not N times (issue 92).
+  let batch: { roots: Map<number, number[]>; done: Promise<void> } | null = null;
+  function enqueue(conversation: number, rootId: number): Promise<void> {
+    if (!batch) {
+      const roots = new Map<number, number[]>();
+      const done = new Promise<void>((resolve, reject) => {
+        setTimeout(() => {
+          batch = null;
+          const reads = [...roots].flatMap(([conv, ids]) => Array.from({ length: Math.ceil(ids.length / MAX_ROOTS) }, (_, i) => readThreads(conv, ids.slice(i * MAX_ROOTS, (i + 1) * MAX_ROOTS))));
+          Promise.all(reads).then(() => resolve(), reject);
+        }, 0);
+      });
+      batch = { roots, done };
+    }
+    batch.roots.set(conversation, [...(batch.roots.get(conversation) ?? []), rootId]);
+    return batch.done;
+  }
+
   async function fetchThread(rootId: number) {
     const t = get().threads[rootId];
     if (!t || loading.has(rootId)) return;
     loading.add(rootId);
     try {
-      const { messages, seen } = await call(client.GET("/api/messages/{id}/replies", { params: { path: { id: rootId }, query: { limit: 100 } } }));
-      if (!get().threads[rootId]) return;
-      usePresence.getState().hydrate(t.conversation, rootId, seen);
-      patch(rootId, (now) => ({ replies: merge(now.replies, messages), loaded: true }));
+      await enqueue(t.conversation, rootId);
     } finally {
       loading.delete(rootId);
     }
   }
 
-  async function deliver(rootId: number, cid: string) {
+  async function deliver(rootId: number, cid: string): Promise<boolean> {
     const t = get().threads[rootId];
     const p = t?.pending.find((x) => x.cid === cid);
-    if (!t || !p) return;
+    if (!t || !p) return false;
     const setState = (state: PendingReply["state"]) => patch(rootId, (now) => ({ pending: now.pending.map((x) => (x.cid === cid ? { ...x, state } : x)) }));
     setState("sending");
     try {
@@ -120,9 +152,14 @@ export const useThreads = create<ThreadsState>()((set, get) => {
       };
       // The stream may have brought the server's copy first, with its files: keep that one.
       patch(rootId, (now) => ({ replies: now.replies.some((r) => r.id === made.id) ? now.replies : merge(now.replies, [made]), pending: now.pending.filter((x) => x.cid !== cid) }));
+      return true;
     } catch (err) {
-      if (err instanceof ApiError && err.handled) return;
+      if (err instanceof ApiError && err.handled) return false;
+      reportSendFailed();
       setState("failed");
+      // the bubble says only "failed": the toast says why, with Retry when sending it again could help
+      toastFailure(err, () => void deliver(rootId, cid));
+      return false;
     }
   }
 
@@ -143,10 +180,10 @@ export const useThreads = create<ThreadsState>()((set, get) => {
     stopReply: () => set({ replying: null }),
     reply: (rootId, body, uploadIds) => {
       const t = get().threads[rootId];
-      if (!t) return;
+      if (!t) return Promise.resolve(false);
       const cid = newId();
       patch(rootId, (now) => ({ pending: [...now.pending, { cid, body, uploadIds, state: "sending", base: newest(now) }] }));
-      void deliver(rootId, cid);
+      return deliver(rootId, cid);
     },
     retry: (rootId, cid) => void deliver(rootId, cid),
     discard: (rootId, cid) => patch(rootId, (now) => ({ pending: now.pending.filter((x) => x.cid !== cid) })),

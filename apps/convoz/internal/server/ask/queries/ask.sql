@@ -1,6 +1,8 @@
 -- name: InsertAsk :exec
-INSERT INTO asks (message_id, conversation_id, asker_id, asked_by_session, question, urgent, owners_call_kind, owners_call_reason, draft_text, original_text, original_from, state, version, created_at, updated_at)
-VALUES (sqlc.arg(message_id), sqlc.arg(conversation_id), sqlc.arg(asker_id), sqlc.narg(asked_by_session), sqlc.arg(question), sqlc.arg(urgent), sqlc.narg(owners_call_kind), sqlc.narg(owners_call_reason), sqlc.narg(draft_text), sqlc.narg(original_text), sqlc.narg(original_from), 'open', 1, sqlc.arg(now), sqlc.arg(now));
+INSERT INTO asks (message_id, conversation_id, asker_id, asked_by_session, question, urgent, owners_call_kind, owners_call_reason, draft_text, original_text, original_from,
+    action, risk, undo, one_way, considered, confidence, state, version, created_at, updated_at)
+VALUES (sqlc.arg(message_id), sqlc.arg(conversation_id), sqlc.arg(asker_id), sqlc.narg(asked_by_session), sqlc.arg(question), sqlc.arg(urgent), sqlc.narg(owners_call_kind), sqlc.narg(owners_call_reason), sqlc.narg(draft_text), sqlc.narg(original_text), sqlc.narg(original_from),
+    sqlc.narg(action), sqlc.narg(risk), sqlc.narg(undo), sqlc.narg(one_way), sqlc.narg(considered), sqlc.narg(confidence), 'open', 1, sqlc.arg(now), sqlc.arg(now));
 
 -- name: InsertOption :exec
 INSERT INTO ask_options (message_id, idx, label, why) VALUES (sqlc.arg(message_id), sqlc.arg(idx), sqlc.arg(label), sqlc.arg(why));
@@ -10,12 +12,14 @@ INSERT INTO ask_options (message_id, idx, label, why) VALUES (sqlc.arg(message_i
 UPDATE asks SET sealed = 1 WHERE message_id = sqlc.arg(message_id);
 
 -- name: AskByID :one
-SELECT message_id, conversation_id, asker_id, question, urgent, owners_call_kind, owners_call_reason, draft_text, original_text, original_from, scrubbed_at, state, close_reason, chosen_kind, chosen_index, chosen_text,
+SELECT message_id, conversation_id, asker_id, question, urgent, owners_call_kind, owners_call_reason, draft_text, original_text, original_from, action, risk, undo, one_way, considered, confidence,
+       scrubbed_at, state, close_reason, chosen_kind, chosen_index, chosen_text,
        answer_via, resolved_by, resolved_at, acked_at, owner_replied_at, owner_reply_id, answers, changed, version, created_at, updated_at
 FROM asks WHERE message_id = sqlc.arg(message_id);
 
 -- name: AsksByIDs :many
-SELECT message_id, conversation_id, asker_id, question, urgent, owners_call_kind, owners_call_reason, draft_text, original_text, original_from, scrubbed_at, state, close_reason, chosen_kind, chosen_index, chosen_text,
+SELECT message_id, conversation_id, asker_id, question, urgent, owners_call_kind, owners_call_reason, draft_text, original_text, original_from, action, risk, undo, one_way, considered, confidence,
+       scrubbed_at, state, close_reason, chosen_kind, chosen_index, chosen_text,
        answer_via, resolved_by, resolved_at, acked_at, owner_replied_at, owner_reply_id, answers, changed, version, created_at, updated_at
 FROM asks WHERE message_id IN (sqlc.slice(ids));
 
@@ -98,7 +102,8 @@ SELECT message_id FROM asks WHERE asker_id = sqlc.arg(asker_id) AND state IN ('o
 
 -- name: ScrubAsk :exec
 UPDATE asks SET scrubbed_at = CAST(sqlc.arg(now) AS INTEGER), question = '', owners_call_reason = CASE WHEN owners_call_reason IS NULL THEN NULL ELSE '' END,
-    draft_text = CASE WHEN draft_text IS NULL THEN NULL ELSE '' END, original_text = CASE WHEN original_text IS NULL THEN NULL ELSE '' END, original_from = CASE WHEN original_from IS NULL THEN NULL ELSE '' END, chosen_text = CASE WHEN chosen_text IS NULL THEN NULL ELSE '' END
+    draft_text = CASE WHEN draft_text IS NULL THEN NULL ELSE '' END, original_text = CASE WHEN original_text IS NULL THEN NULL ELSE '' END, original_from = CASE WHEN original_from IS NULL THEN NULL ELSE '' END, chosen_text = CASE WHEN chosen_text IS NULL THEN NULL ELSE '' END,
+    action = CASE WHEN action IS NULL THEN NULL ELSE '' END, risk = CASE WHEN risk IS NULL THEN NULL ELSE '' END, undo = CASE WHEN undo IS NULL THEN NULL ELSE '' END, considered = CASE WHEN considered IS NULL THEN NULL ELSE '[]' END
 WHERE message_id = sqlc.arg(message_id) AND scrubbed_at IS NULL;
 
 -- name: DeleteOptionsOf :exec
@@ -111,7 +116,9 @@ WHERE message_id = sqlc.arg(message_id) AND version = sqlc.arg(version) AND stat
 
 -- name: UpdateAsk :execrows
 -- The asking agent updated its open ask in place: the content it may change, the summary of the answers and what changed; the owner's reply mark clears.
+-- The parts of a permission ask are NULL on any other ask; the confidence is fixed when the ask is made.
 UPDATE asks
 SET question = sqlc.arg(question), owners_call_reason = sqlc.narg(owners_call_reason), answers = sqlc.narg(answers), changed = CAST(sqlc.arg(changed) AS TEXT),
+    action = sqlc.narg(action), risk = sqlc.narg(risk), undo = sqlc.narg(undo), one_way = sqlc.narg(one_way), considered = sqlc.narg(considered),
     owner_replied_at = NULL, owner_reply_id = NULL, version = version + 1, updated_at = sqlc.arg(now)
 WHERE message_id = sqlc.arg(message_id) AND version = sqlc.arg(version) AND state = 'open';

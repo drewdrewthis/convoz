@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { agentSays, convoz, createConversation, ownerSays, startWatch, watchLines } from "../lib/chat.ts";
-import { backButton, message, messageLog, unreadDot } from "../lib/chat-ui.ts";
+import { backButton, message, messageLog, recordStreams, streamOpen, unreadDot } from "../lib/chat-ui.ts";
 import { send } from "../lib/http.ts";
 import { agentDeletes, agentPostWith, ownerPostWith } from "../lib/messages-wp4.ts";
 import { must } from "../lib/owner.ts";
@@ -30,6 +30,7 @@ import {
   type ThreadWorld,
 } from "../lib/threads-wp5.ts";
 import { seedDb } from "../lib/wp3.ts";
+import { installed } from "../lib/wp17.ts";
 
 /*
  * THREADS (WP5): specs/features/threads.feature and specs/contracts/threads.feature. The page and routes these bindings assert:
@@ -71,8 +72,12 @@ async function docsJoined(t: ThreadWorld): Promise<number> {
   return must(res, "write a system line").json().id as number;
 }
 
-/** Open the Conversations list with a full load, so what it shows is what the server says now. */
+/**
+ * Open the Conversations list with a full load, so what it shows is what the server says now. The service worker must control the
+ * page first: a page it does not control is a cold page, which carries the list inline and never asks the network for it.
+ */
 async function freshRail(page: Page, t: ThreadWorld): Promise<void> {
+  await installed(page);
   await Promise.all([page.waitForResponse((r) => r.request().method() === "GET" && new URL(r.url()).pathname === "/api/conversations"), page.goto(`${t.w.srv.origin}/chats`)]);
   await rail(page).waitFor();
 }
@@ -241,7 +246,10 @@ scenario("Messages that never count as unread", { tag: ["@browser", "@I-14"] }, 
   // Background
   const t = await threadWorld({ server, page, context }, { browser: true });
   await ownerHasRead(t);
+  await recordStreams(context);
   await freshRail(page, t);
+  // The rail learns of a new message by the live stream: a post made before the stream opens is never pushed to the page.
+  await streamOpen(page);
 
   // Control: a message from another person does count, and the rail shows it without a reload
   await agentSays(t.w.srv, t.dev, t.conv, "this one counts");
@@ -402,7 +410,7 @@ scenario("The unread count caps at 99+", { tag: ["@browser", "@I-14"] }, async (
   // Given the owner has read conversation 41
   await ownerHasRead(t);
 
-  // When "devtool" posts 150 messages and the owner posts through the API after every 15 to keep the loop breaker off
+  // When "devtool" posts 150 messages and the owner posts through the API after every 15
   for (let i = 1; i <= 150; i++) {
     await agentSays(t.w.srv, t.dev, t.conv, `message ${i}`);
     if (i % 15 === 0) {

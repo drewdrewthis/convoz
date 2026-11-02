@@ -1,12 +1,15 @@
 import { Suspense, useEffect, useState, type ComponentType } from "react";
 import { page } from "../shared/api.ts";
 import { ToastHost } from "../features/pins-stars/index.ts";
+import { DrawerHost } from "../features/drawer/index.ts";
+import { UrgentHost } from "../features/now/index.ts";
 import { Sidebar, ShortcutsHost, useRailShortcuts } from "../features/rail/index.ts";
 import { SearchHost, useSearchShortcut } from "../features/search/index.ts";
 import { useCallLinks } from "./callLinks.ts";
 import { FocusFrame, ShellFrame } from "./frames.tsx";
 import type { PageDef } from "./routes.tsx";
 import { Status } from "./Status.tsx";
+import { appPath, withBase } from "../shared/base.ts";
 
 /** From this width the signed-in app is a sidebar rail and the page (prototype v41 desktop); under it, the phone UI. */
 const DESK = "(min-width: 900px)";
@@ -39,7 +42,7 @@ export function prepare(def: PageDef): void {
   document.addEventListener("keydown", (event) => {
     if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "j") {
       event.preventDefault();
-      if (location.pathname !== "/chats/new") location.assign("/chats/new");
+      if (appPath() !== "/chats/new") location.assign(withBase("/chats/new"));
     }
   });
 }
@@ -59,7 +62,7 @@ function useDesk(): boolean {
   return wide;
 }
 
-/** Desk is what every signed-in page shares: the sidebar when wide, the keys no page owns, search, the toast, and the links that keep a Now call on. */
+/** Desk is what every signed-in page shares: the sidebar when wide, the keys no page owns, search, the toast, the urgent popup, and the links that keep a Now call on. */
 function Desk() {
   const wide = useDesk();
   useSearchShortcut();
@@ -74,7 +77,9 @@ function Desk() {
       ) : null}
       <SearchHost />
       <ShortcutsHost />
+      <DrawerHost />
       <ToastHost />
+      <UrgentHost />
     </>
   );
 }

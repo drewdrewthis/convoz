@@ -105,6 +105,7 @@ func (s *Server) pushSubscribe(w http.ResponseWriter, r *http.Request, c *call) 
 			P256dh string `json:"p256dh"`
 			Auth   string `json:"auth"`
 		} `json:"keys"`
+		Messages bool `json:"messages"`
 	}
 	if !decode(w, r, &in) {
 		return
@@ -112,7 +113,7 @@ func (s *Server) pushSubscribe(w http.ResponseWriter, r *http.Request, c *call) 
 	var sub notify.Subscription
 	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) (err error) {
 		sub, err = notify.Subscribe(ctx, tx.DBTX(), s.Clock.Now(), notify.NewSubscription{
-			Device: c.dev.ID, Person: c.human.ID, Endpoint: in.Endpoint, P256dh: in.Keys.P256dh, Auth: in.Keys.Auth,
+			Device: c.dev.ID, Person: c.human.ID, Endpoint: in.Endpoint, P256dh: in.Keys.P256dh, Auth: in.Keys.Auth, Messages: in.Messages,
 		})
 		return err
 	})

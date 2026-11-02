@@ -1,27 +1,20 @@
 // The plan parts of the details panel (the UX pass approved for phase 1): "Waiting on you" (asks and joins) with the action in place, then one card per
 // agent (its state, Now with the estimate, Next numbered, Done folded). The "Conversation" settings follow in Details.tsx.
-import type { Conversation, Person, Plan, PlanAgent, PlanBoard } from "@convoz/api-client";
+import type { Conversation, FeedItem, Person, Plan, PlanAgent, PlanBoard } from "@convoz/api-client";
 import { ChevronIcon } from "@convoz/ui/icons";
 import { useEffect, useRef, useState } from "react";
 import { initials, paletteOf, stripCf } from "../../shared/chat.ts";
 import { TriageBadge } from "../../shared/TriageBadge.tsx";
-import { AskInline, useNow } from "../now/index.ts";
-import { ago, clock, dayLabel, span, usePlans, when, type Tone } from "../plan/index.ts";
+import { AskInline, useNow, useServerFeed } from "../now/index.ts";
+import { ago, clock, dayLabel, usePlans, when } from "../plan/index.ts";
+import { agentWork, type CardSub } from "./agentWork.ts";
 import { planHash } from "./messages/PlanNote.tsx";
+import { NowBlock, planRequest } from "./PlanBits.tsx";
 
 /** What the panel's plan parts can do in the conversation: post a message as the owner, or start one in the composer. */
 export interface PlanActions {
   say(text: string): void;
   reply(text: string): void;
-}
-
-/**
- * planRequest is the message "Ask for a plan" and "Ask for an update" post: it says how to set the plan, not only to share one,
- * so the agent runs `convoz plan` and the panel fills, instead of writing the plan as a chat message (owner msg 594).
- */
-export function planRequest(handle: string, conv: number, kind: "share" | "update"): string {
-  const ask = kind === "share" ? "please set your plan for this conversation" : "please update your plan for this conversation";
-  return `@${handle}, ${ask}. Use \`convoz plan ${conv}\`, not a chat message, so it shows in the panel:\n\n\`\`\`\nconvoz plan ${conv} --doing "what you do now" --eta 30m --next "then this" --next "then that" --done "what you finished"\n\`\`\`\n\nAdd \`--waiting "what you need from me"\` or \`--blocked "what stops you"\` if any. Up to 3 things at once? Repeat \`--doing\`, each with its own \`--eta\` and \`--step\`. Keep it current as you work. With MCP, use the \`plan\` tool. See \`convoz plan --help\`.`;
 }
 
 const serverNow = () => Date.now() + usePlans.getState().skew;
@@ -41,7 +34,7 @@ export function WaitingSection({ row, decide }: { row: Conversation; decide(iid:
       </h3>
       {asks.map((a) => (
         <div key={`a${a.id}`} className="pcard wait">
-          <AskInline ask={a} labelId={`det-ask-${a.id}`} />
+          <AskInline ask={a} />
         </div>
       ))}
       {adds.map((add) => (
@@ -68,6 +61,7 @@ export function WaitingSection({ row, decide }: { row: Conversation; decide(iid:
 /** AgentsSection is the agents here, each a card with its plan. The owner is not an agent: it shows under "Conversation" as "You". */
 export function AgentsSection({ row, board, act, onAdd, onRemove }: { row: Conversation; board: PlanBoard | undefined; act: PlanActions; onAdd(): void; onRemove(iid: number, handle: string): void }) {
   const agents = row.participants.filter((p) => p.kind === "agent");
+  const { items } = useServerFeed();
   return (
     <section aria-labelledby="det-agents" className="plansec">
       <div className="sechead">
@@ -78,7 +72,7 @@ export function AgentsSection({ row, board, act, onAdd, onRemove }: { row: Conve
       </div>
       <ul aria-label="Agents" className="pcards">
         {agents.map((p) => (
-          <AgentCard key={p.handle} person={p} plan={board?.plans.find((x) => x.handle === p.handle)} agent={board?.agents.find((x) => x.handle === p.handle)} conv={row.id} act={act} onRemove={onRemove} />
+          <AgentCard key={p.handle} person={p} plan={board?.plans.find((x) => x.handle === p.handle)} agent={board?.agents.find((x) => x.handle === p.handle)} items={items} conv={row.id} act={act} onRemove={onRemove} />
         ))}
       </ul>
       {agents.length === 0 ? (
@@ -94,40 +88,29 @@ export function AgentsSection({ row, board, act, onAdd, onRemove }: { row: Conve
   );
 }
 
-interface CardState {
-  word: string;
-  tone: Tone;
-  sub: string;
+/** subText is the line under the name in words. */
+function subText(sub: CardSub, now: number): string {
+  if ("text" in sub) return sub.text;
+  if ("seen" in sub) return sub.seen ? `last seen ${when(sub.seen, now)}` : "never seen";
+  return `updated ${ago(sub.updated, now)}`;
 }
 
-/** stateOf is an agent's chip and the line under its name: liveness first, then the plan. */
-function stateOf(plan: Plan | undefined, agent: PlanAgent | undefined, now: number): CardState | null {
-  const seen = agent?.last_seen_at;
-  if (agent?.liveness === "logged_out") return { word: "Logged out", tone: "amber", sub: seen ? `last seen ${when(seen, now)}` : "never seen" };
-  if (agent?.liveness === "not_responding") return { word: "Not responding", tone: "amber", sub: seen ? `last seen ${when(seen, now)}` : "never seen" };
-  if (!plan) return null;
-  const sub = `updated ${ago(plan.updated_at, now)}`;
-  if (plan.blocked) return { word: "Blocked", tone: "red", sub };
-  if (plan.doing && plan.eta && now >= plan.eta) return { word: "Late", tone: "amber", sub };
-  if (plan.doing && !plan.eta && plan.due_at && now >= plan.due_at) return { word: "No update", tone: "amber", sub: "no update for 2 h" };
-  if (plan.doing) return { word: "Working", tone: "green", sub };
-  if (plan.waiting.length) return { word: "Waiting on you", tone: "amber", sub };
-  return { word: "Done", tone: "grey", sub };
-}
-
-function AgentCard({ person, plan, agent, conv, act, onRemove }: { person: Person; plan: Plan | undefined; agent: PlanAgent | undefined; conv: number; act: PlanActions; onRemove(iid: number, handle: string): void }) {
+function AgentCard({ person, plan, agent, items, conv, act, onRemove }: { person: Person; plan: Plan | undefined; agent: PlanAgent | undefined; items: readonly FeedItem[]; conv: number; act: PlanActions; onRemove(iid: number, handle: string): void }) {
   const now = serverNow();
-  const st = stateOf(plan, agent, now);
+  const work = agentWork({ plan, agent, items, id: person.id, conv, now });
+  const st = work.state;
   const h = person.handle;
   const seen = agent?.last_seen_at;
-  const late = st?.word === "Late" || st?.word === "No update";
+  const late = st?.word === "Behind" || st?.word === "No update";
   return (
     <li id={planHash(h).slice(1)} className="pcard ag">
       <div className="aghead">
         <Ava handle={h} />
         <span className="pname">
           <span className="flex items-center gap-6">
-            <b>{`@${h}`}</b>
+            <a href={`/crew/${encodeURIComponent(h)}`}>
+              <b>{`@${h}`}</b>
+            </a>
             <TriageBadge handle={h} />
           </span>
           <span className="psub">
@@ -137,7 +120,7 @@ function AgentCard({ person, plan, agent, conv, act, onRemove }: { person: Perso
                 {st.word}
               </span>
             ) : null}
-            <span>{st ? st.sub : `No plan yet${seen ? ` · active ${ago(seen, now)}` : ""}`}</span>
+            <span>{st ? subText(st.sub, now) : `No plan yet${seen ? ` · active ${ago(seen, now)}` : ""}`}</span>
           </span>
         </span>
         {person.id ? <AgentMenu handle={h} onRemove={() => onRemove(person.id!, h)} /> : null}
@@ -155,6 +138,7 @@ function AgentCard({ person, plan, agent, conv, act, onRemove }: { person: Perso
           </div>
         </>
       ) : null}
+      {work.items.map((i) => <ItemRow key={i.id} item={i} />)}
       {!plan ? (
         <div className="pacts">
           <button type="button" className="chipbtn" onClick={() => act.say(planRequest(h, conv, "share"))}>
@@ -162,7 +146,7 @@ function AgentCard({ person, plan, agent, conv, act, onRemove }: { person: Perso
           </button>
         </div>
       ) : (
-        <PlanBody plan={plan} now={now} />
+        <PlanBody plan={plan} items={work.items.length} now={now} />
       )}
       {/* A late plan asks for an update; any other plan can be asked to catch up too, with the same message (owner msgs 4343/4350). */}
       {late || plan ? (
@@ -202,41 +186,11 @@ function AgentMenu({ handle, onRemove }: { handle: string; onRemove(): void }) {
   );
 }
 
-/** StepBar is "step N of M" as a row of segments, up to 12 (a longer plan is shown to scale). */
-function StepBar({ at, of }: { at: number; of: number }) {
-  const n = Math.min(of, 12);
-  const on = Math.round((at / of) * n);
-  return (
-    <span className="pstep">
-      <span className="pbar" role="img" aria-label={`Step ${at} of ${of}`}>
-        {Array.from({ length: n }, (_, i) => (
-          <i key={i} data-on={i < on || undefined} />
-        ))}
-      </span>
-      <span aria-hidden="true">{`${at} of ${of}`}</span>
-    </span>
-  );
-}
-
-/** NowBlock is one Now item: its title, its step bar and one muted line of times. Each parallel item has its own (owner msg 659). */
-function NowBlock({ item, now }: { item: NonNullable<Plan["now"]>[number]; now: number }) {
-  const late = Boolean(item.eta && now >= item.eta);
-  const meta = [item.since ? `Started ${when(item.since, now)}` : "", item.eta && !late ? `ready ~${when(item.eta, now)}` : ""].filter(Boolean).join(" · ");
-  return (
-    <div className="pnow">
-      <p className="plbl">Now</p>
-      <p className="pwhat">{item.text}</p>
-      {item.step ? <StepBar at={item.step.at} of={item.step.of} /> : null}
-      {late ? <p className="pwhen amber">{`Was due ${when(item.eta!, now)} · ${span(now - item.eta!)} late`}</p> : meta ? <p className="pwhen">{meta}</p> : null}
-    </div>
-  );
-}
-
-function PlanBody({ plan, now }: { plan: Plan; now: number }) {
+function PlanBody({ plan, items, now }: { plan: Plan; items: number; now: number }) {
   const late = plan.now.some((n) => n.eta && now >= n.eta);
   return (
     <>
-      {plan.now.length ? plan.now.map((n, i) => <NowBlock key={i} item={n} now={now} />) : (
+      {plan.now.length || items ? plan.now.map((n, i) => <NowBlock key={i} item={n} now={now} />) : (
         <div className="pnow">
           <p className="plbl">Now</p>
           <p className="pwhat quiet">Nothing planned</p>
@@ -256,6 +210,18 @@ function PlanBody({ plan, now }: { plan: Plan; now: number }) {
       ) : null}
       {plan.done.length ? <DoneFold plan={plan} now={now} /> : null}
     </>
+  );
+}
+
+const ITEM_LABEL: Record<string, string> = { started: "Now", blocking: "Waiting on you", pending: "Queued" };
+
+/** ItemRow is one open item (`convoz item`): Now, Waiting on you or Queued, and its plan when that is not "main". */
+function ItemRow({ item }: { item: FeedItem }) {
+  return (
+    <div className="pnow">
+      <p className="plbl">{`${ITEM_LABEL[item.state]}${item.plan && item.plan !== "main" ? ` · ${item.plan}` : ""}`}</p>
+      <p className="pwhat">{item.title}</p>
+    </div>
   );
 }
 

@@ -31,7 +31,9 @@ export interface Running {
 }
 
 function spawnCli(argv: string[], env: Record<string, string>, cwd: string, stdin: string | undefined, timeoutMs: number): Running {
-  const child = spawn(convozBin, argv, { env, cwd, stdio: [stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"], shell: false });
+  // CONVOZ_CLI_BIN: run the CLI side with another build (the previous CLI of the compat check); the server stays convozBin.
+  const bin = process.env.CONVOZ_CLI_BIN ?? convozBin;
+  const child = spawn(bin, argv, { env: process.env.CONVOZ_CLI_BIN ? { ...env, CONVOZ_TEST_VERSION: "cli-compat" } : env, cwd, stdio: [stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"], shell: false });
   let stdout = "";
   let stderr = "";
   let timedOut = false;

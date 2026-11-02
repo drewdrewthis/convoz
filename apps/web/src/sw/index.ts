@@ -1,5 +1,7 @@
 // The service worker registry, window side. The worker itself is worker.ts (built to /sw.js); each module of the worker is
 // one file next to it (cache.ts, push.ts, ...) that worker.ts picks up on its own, so adding a module edits no shared file.
+import { DEV } from "../shared/base.ts";
+
 /** The worker's modules, found at build time. With none, no worker is registered and the app behaves as a plain page. */
 const MODULES = Object.keys(import.meta.glob(["./*.ts", "!./index.ts", "!./worker.ts", "!./module.ts"]));
 
@@ -27,6 +29,24 @@ function reloadOnUpdate(): void {
     reloading = true;
     sessionStorage.setItem(RELOADED_AT, String(Date.now()));
     location.reload();
+  });
+}
+
+/**
+ * nudgeWaiting asks a waiting worker to take over. The worker skips waiting on install by itself, but that can fail to land (the
+ * install and the page's update race), leaving a tab on the old build; a waiting worker is always safe to nudge again.
+ */
+function nudgeWaiting(reg: ServiceWorkerRegistration): void {
+  reg.waiting?.postMessage({ type: "skip" });
+}
+
+/** watchForWaiting nudges a worker that finishes installing after the page started looking. */
+function watchForWaiting(reg: ServiceWorkerRegistration): void {
+  reg.addEventListener("updatefound", () => {
+    const next = reg.installing;
+    next?.addEventListener("statechange", () => {
+      if (next.state === "installed") nudgeWaiting(reg);
+    });
   });
 }
 
@@ -61,7 +81,8 @@ export function ensureServiceWorker(): Promise<ServiceWorkerRegistration> {
  * build at each start and whenever the app comes back to the screen; a new build takes over and reloads the page by itself.
  */
 export function registerServiceWorker(): void {
-  if (!MODULES.length || !("serviceWorker" in navigator)) return;
+  // The owner's dev build (/dev/) registers no worker: the real app's worker, scope /, leaves its requests alone (shared/devScope.ts).
+  if (DEV || !MODULES.length || !("serviceWorker" in navigator)) return;
   // Signing out cleared the device (Clear-Site-Data): a worker installed now would fill Cache Storage again at once.
   if (new URLSearchParams(location.search).has("signed_out")) return;
   reloadOnUpdate();
@@ -72,7 +93,12 @@ export function registerServiceWorker(): void {
       .then((reg) => {
         registration = reg;
         claimLoosePage();
-        void reg.update().catch(() => {});
+        watchForWaiting(reg);
+        nudgeWaiting(reg);
+        void reg
+          .update()
+          .catch(() => {})
+          .then(() => nudgeWaiting(reg));
       })
       .catch((err) => console.warn("service worker:", err));
   };
@@ -80,6 +106,12 @@ export function registerServiceWorker(): void {
   else addEventListener("load", start);
   // A Home Screen app resumed from the background never loads again: coming back to the screen is when it looks for a new build.
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") void registration?.update().catch(() => {});
+    if (document.visibilityState !== "visible" || !registration) return;
+    const reg = registration;
+    nudgeWaiting(reg);
+    void reg
+      .update()
+      .catch(() => {})
+      .then(() => nudgeWaiting(reg));
   });
 }

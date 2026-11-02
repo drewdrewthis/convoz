@@ -2,6 +2,7 @@ package wire
 
 import (
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -85,6 +86,87 @@ func TruncateOriginal(s string) string {
 	return string([]rune(s)[:MaxOriginal-1]) + "…"
 }
 
+// A permission ask: the agent is confident in one action and asks the owner to accept its risk (Drew, conv 349 msg 6199). The owner
+// answers Go or Not this, with a reason. MinConfidence is the bar of the confidence the agent reports; below it the ask is refused
+// with GetConfidentFirst, one text for the CLI, the MCP tool and the API.
+const (
+	MinConfidence     = 80
+	GetConfidentFirst = "Get confident first: research it or run it by @advisor, then ask with --confidence 80 or more. Never hand the owner the thinking."
+)
+
+// Limits of a permission ask, in characters (code points): the parts must read in about 10 seconds.
+const (
+	MaxAction         = 100
+	MaxRisk           = 140
+	MaxUndo           = 80
+	MaxConsidered     = 3
+	MaxConsideredLine = 120
+)
+
+// AskPermission is what a permission ask asks the owner to accept: the action, its risk, how to undo it (or OneWay when it cannot
+// be undone), 1 to 3 other ways the agent considered and why each is worse, and the agent's own confidence (0 to 100).
+type AskPermission struct {
+	Action     string   `json:"action"`
+	Risk       string   `json:"risk"`
+	Undo       string   `json:"undo,omitempty"`
+	OneWay     bool     `json:"one_way,omitempty"`
+	Considered []string `json:"considered"`
+	Confidence int      `json:"confidence"`
+}
+
+// Problem says in words what is wrong with the permission, or "" when it is good.
+func (p AskPermission) Problem() string {
+	_, problem := p.Check()
+	return problem
+}
+
+// Check is Problem with the field it names (action, risk, undo, considered or confidence). An agent under the confidence bar is told
+// to get confident before anything else: the other parts do not matter until it is.
+func (p AskPermission) Check() (field, problem string) {
+	switch {
+	case p.Confidence < 0 || p.Confidence > 100:
+		return "confidence", "The confidence is a whole number from 0 to 100."
+	case p.Confidence < MinConfidence:
+		return "confidence", GetConfidentFirst
+	}
+	if field, problem := checkPart("action", p.Action, MaxAction); problem != "" {
+		return field, problem
+	}
+	if field, problem := checkPart("risk", p.Risk, MaxRisk); problem != "" {
+		return field, problem
+	}
+	switch hasUndo := strings.TrimSpace(p.Undo) != ""; {
+	case hasUndo && p.OneWay:
+		return "undo", "Give undo or one_way, not both."
+	case !hasUndo && !p.OneWay:
+		return "undo", "Say how to undo it, or mark it one_way."
+	case hasUndo:
+		if field, problem := checkPart("undo", p.Undo, MaxUndo); problem != "" {
+			return field, problem
+		}
+	}
+	if len(p.Considered) < 1 || len(p.Considered) > MaxConsidered {
+		return "considered", "Give 1 to 3 other ways you considered, each with why it is worse."
+	}
+	for _, line := range p.Considered {
+		if field, problem := checkPart("considered", line, MaxConsideredLine); problem != "" {
+			return field, problem
+		}
+	}
+	return "", ""
+}
+
+// checkPart judges one text part of a permission: there, and at most max characters.
+func checkPart(field, v string, max int) (string, string) {
+	switch {
+	case strings.TrimSpace(v) == "":
+		return field, "A permission ask needs " + field + "."
+	case utf8.RuneCountInString(v) > max:
+		return field, fmt.Sprintf("Shorten: %s has at most %d characters", field, max)
+	}
+	return "", ""
+}
+
 // AskReply is the answer of a draft ask as the agent reads it: Text is the final text, present only when Send is true.
 type AskReply struct {
 	Send bool   `json:"send"`
@@ -128,21 +210,23 @@ type AskView struct {
 	ThreadRootID   int64            `json:"thread_root_id,omitempty"`
 	// ReplyCount and UnreadReplies are of the thread "Reply in thread" opens on this ask: its own, or the one it was asked in.
 	// UnreadReplies is per reader and 0 for a reader who is not in that thread.
-	ReplyCount    int64       `json:"reply_count,omitempty"`
-	UnreadReplies int64       `json:"unread_replies,omitempty"`
-	Asker         Person      `json:"asker"`
-	Question      string      `json:"question"`
-	Urgent        bool        `json:"urgent"`
-	OwnersCall    *OwnersCall `json:"owners_call,omitempty"` // absent on an ask from before the field
-	State         string      `json:"state"`
-	CloseReason   string      `json:"close_reason,omitempty"`
-	Options       []AskOption `json:"options"`
-	Chosen        *AskChoice  `json:"chosen,omitempty"`
-	Answer        string      `json:"answer,omitempty"`
-	AnswerVia     string      `json:"answer_via,omitempty"`
-	ResolvedBy    *Person     `json:"resolved_by,omitempty"`
-	ResolvedAt    int64       `json:"resolved_at,omitempty"`
-	AckedAt       int64       `json:"acked_at,omitempty"`
+	ReplyCount    int64  `json:"reply_count,omitempty"`
+	UnreadReplies int64  `json:"unread_replies,omitempty"`
+	Asker         Person `json:"asker"`
+	// Kind is "permission", "decision" (an ask with options, the legacy shape) or "draft".
+	Kind        string      `json:"kind"`
+	Question    string      `json:"question"`
+	Urgent      bool        `json:"urgent"`
+	OwnersCall  *OwnersCall `json:"owners_call,omitempty"` // absent on an ask from before the field
+	State       string      `json:"state"`
+	CloseReason string      `json:"close_reason,omitempty"`
+	Options     []AskOption `json:"options"`
+	Chosen      *AskChoice  `json:"chosen,omitempty"`
+	Answer      string      `json:"answer,omitempty"`
+	AnswerVia   string      `json:"answer_via,omitempty"`
+	ResolvedBy  *Person     `json:"resolved_by,omitempty"`
+	ResolvedAt  int64       `json:"resolved_at,omitempty"`
+	AckedAt     int64       `json:"acked_at,omitempty"`
 	// OwnerReply is the latest reply of the owner in the thread of this open ask; present while the ask waits on the agent's answer.
 	OwnerReply *AskOwnerReply `json:"owner_reply,omitempty"`
 	// Answers is the short summary of the answers to the owner's questions that the latest update of the ask carries.
@@ -154,9 +238,10 @@ type AskView struct {
 	CreatedAt    int64           `json:"created_at"`
 	SnoozedUntil int64           `json:"snoozed_until,omitempty"`
 	History      []AskHistoryRow `json:"history,omitempty"`
-	App          json.RawMessage `json:"app,omitempty"`   // the app shown with the question, or its stub
-	Draft        *AskDraft       `json:"draft,omitempty"` // a draft ask: the message to send in the owner's name
-	Reply        *AskReply       `json:"reply,omitempty"` // a draft ask once answered
+	App          json.RawMessage `json:"app,omitempty"`        // the app shown with the question, or its stub
+	Draft        *AskDraft       `json:"draft,omitempty"`      // a draft ask: the message to send in the owner's name
+	Reply        *AskReply       `json:"reply,omitempty"`      // a draft ask once answered
+	Permission   *AskPermission  `json:"permission,omitempty"` // a permission ask: its parts and the confidence it was asked with
 }
 
 // AskOwnerReply is the owner's latest reply in the thread of an open ask: the message, a short excerpt of its words and when it was sent.
@@ -204,11 +289,13 @@ type AskRequest struct {
 	Urgent         bool               `json:"urgent,omitempty"`
 	App            json.RawMessage    `json:"app,omitempty"`   // the app.v1 an agent shows with the question
 	Draft          *AskDraft          `json:"draft,omitempty"` // a draft ask: no options and no owner's call are given, the server sets them
+	// Permission is a permission ask: no options and no owner's call are given (the server sets Go and Not this); the question defaults to the action.
+	Permission *AskPermission `json:"permission,omitempty"`
 }
 
-// OwnersCallProblem judges the owner's call of the request: a draft ask needs none (the server sets it), any other ask needs a good one.
+// OwnersCallProblem judges the owner's call of the request: a draft or permission ask needs none, any other ask needs a good one.
 func (r AskRequest) OwnersCallProblem() string {
-	if r.Draft != nil {
+	if r.Draft != nil || r.Permission != nil {
 		return ""
 	}
 	return r.OwnersCall.Problem()
@@ -243,6 +330,8 @@ type AskUpdateRequest struct {
 	Alternatives     []AskOptionRequest `json:"alternatives,omitempty"`
 	OwnersCallReason string             `json:"owners_call_reason,omitempty"`
 	Answers          string             `json:"answers,omitempty"`
+	// Permission rewrites the parts of a permission ask, all of them; its confidence is fixed when the ask is made and must be left out.
+	Permission *AskPermission `json:"permission,omitempty"`
 }
 
 // AskSnoozeRequest is PUT /api/asks/:id/snooze: a preset (1h, tonight, tomorrow; the last two read in TZ) or an exact time.

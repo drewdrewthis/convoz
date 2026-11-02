@@ -1,9 +1,8 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { Page } from "@playwright/test";
 import { McpClient } from "../lib/agent-wp7.ts";
-import { convoz, createConversation, inboxItems, messagesOf, startWatch, watchLines } from "../lib/chat.ts";
+import { convoz, createConversation, inboxItems, startWatch, watchLines } from "../lib/chat.ts";
 import { answerAsk, askBody, askCard, askOf, askWorld, nowOf, openNow, postAsk, type AskView } from "../lib/asks.ts";
 import { appCard, validApp } from "../lib/apps-wp11.ts";
 import { expect, scenario } from "../lib/scenario.ts";
@@ -28,7 +27,7 @@ scenario("An app on an ask shows on its card in Now and in the conversation", { 
     "ask", String(conv), "--question", "Is this spend fine?", "--recommend", "Yes", "--why", "It is flat", "--alt", "No", "--alt-why", "It is high",
     "--owners-call", "taste", "--owners-call-why", "It is your budget", "--app", file,
   ]);
-  expect({ code: ran.code, stderr: ran.stderr }).toEqual({ code: 0, stderr: "" });
+  expect({ code: ran.code, stderr: ran.stderr.trim() }).toEqual({ code: 0, stderr: "hint: use --action ... for a permission ask" });
 
   // When the owner opens Now
   await openNow(page, w.srv);
@@ -48,7 +47,6 @@ const DRAFT = "Sounds good, Thursday works.";
 const EDITED = "Sounds good, Thursday at 10 works.";
 const ORIGINAL = "Can we meet Thursday?";
 const FROM = "Alex · Slack DM";
-const CALL = "Your call · in-your-name: It goes out in your name.";
 
 type Draftable = AskView & { draft?: { text: string; original?: string; original_from?: string }; reply?: { send: boolean; text?: string } };
 
@@ -62,7 +60,12 @@ async function agentDrafts(box: CliMachine, sid: string, conv: number, extra: st
 /** What the agent reads once the owner answered: the inbox item and the line of its watch, each with the reply of the ask. */
 async function agentReads(w: World, sid: string, ask: number): Promise<{ inbox: unknown; watch: unknown }> {
   // Peek first: a watch finishes what it prints (owner msg 821, "Probably don't need an ack"), so the inbox is empty after it.
-  const item = (await inboxItems(w.box, sid, ["--peek"])).find((i) => i.message.id === ask) as unknown as { reason: string; message: { ask?: Draftable } };
+  // The owner's tap is a request still on its way when the test gets here: wait for the item to land (poll, no sleep).
+  let item: { reason: string; message: { ask?: Draftable } } | undefined;
+  await expect
+    .poll(async () => (item = (await inboxItems(w.box, sid, ["--peek"])).find((i) => i.message.id === ask) as unknown as typeof item) !== undefined, { message: "the answer to the ask reaches the agent's inbox", timeout: 10_000 })
+    .toBe(true);
+  if (!item) throw new Error("no inbox item");
   const watch = startWatch(w.box, sid);
   try {
     const lines = await watchLines(watch, 1, 10_000);
@@ -73,25 +76,7 @@ async function agentReads(w: World, sid: string, ask: number): Promise<{ inbox: 
   }
 }
 
-/** The owner changes the draft of a card. */
-async function editDraft(page: Page, card: ReturnType<typeof askCard>, text: string): Promise<void> {
-  const box = card.getByRole("textbox", { name: "Draft" });
-  await expect(box).toHaveValue(DRAFT);
-  await box.fill(text);
-}
-
-/** The card shows the question, the original quoted with its from-line and the draft in a box that fits the screen. */
-async function expectDraftCard(page: Page, card: ReturnType<typeof askCard>): Promise<void> {
-  await expect(card.getByText(CALL, { exact: true })).toBeVisible();
-  await expect(card.locator("blockquote").getByText(FROM, { exact: true })).toBeVisible();
-  await expect(card.locator("blockquote").getByText(ORIGINAL, { exact: true })).toBeVisible();
-  await expect(card.getByRole("textbox", { name: "Draft" })).toHaveValue(DRAFT);
-  // 16px text keeps a phone from zooming in when the box takes focus
-  expect(await card.getByRole("textbox", { name: "Draft" }).evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-}
-
-scenario("An agent asks the owner to review a draft and gets back the edited text", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+scenario("A draft ask is sent as written from inside the conversation", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
   info.setTimeout(90_000);
   // Given "devtool" asked "Send this reply to Alex?" with the draft "Sounds good, Thursday works." in answer to "Can we meet Thursday?" from "Alex · Slack DM"
   const w = await browserWorld({ server, page, context }, { agents: ["devtool", "docs"], live: ["devtool"] });
@@ -99,81 +84,19 @@ scenario("An agent asks the owner to review a draft and gets back the edited tex
   const sid = w.sessions.devtool!.sid;
   const id = await agentDrafts(w.box, sid, conv);
 
-  // When the owner opens Now
-  await openNow(page, w.srv);
-
-  // Then the card shows the question, the original quoted with its from-line and the draft in an editable box
-  const card = askCard(page, QUESTION);
-  await expectDraftCard(page, card);
-
-  // And the card shows no "Edited" marker
-  await expect(card.getByText("Edited", { exact: true })).toHaveCount(0);
-
-  // When the owner changes the draft to "Sounds good, Thursday at 10 works."
-  await editDraft(page, card, EDITED);
-
-  // Then the card shows an "Edited" marker
-  await expect(card.getByText("Edited", { exact: true })).toBeVisible();
-  if (info.project.name === "mobile") await card.screenshot({ path: "/tmp/draftask-phone.png" });
-
-  // When the owner taps "Send"
-  await card.getByRole("button", { name: "Send", exact: true }).click();
-  await expect(card).toHaveCount(0);
-
-  // Then "devtool" gets the answer send true with the text "Sounds good, Thursday at 10 works." in its inbox and its watch
-  const read = await agentReads(w, sid, id);
-  expect(read).toStrictEqual({ inbox: { send: true, text: EDITED }, watch: { send: true, text: EDITED } });
-
-  // And conversation 41 shows "Send: Sounds good, Thursday at 10 works."
-  expect((await messagesOf(w.owner, conv)).map((m) => m.body)).toContain(`Send: ${EDITED}`);
-  expect((await askOf(w.owner, id)).answer).toBe(`Send: ${EDITED}`);
+  // When the owner opens conversation 41
   await page.goto(`${w.srv.origin}/chats/${conv}`);
-  await expect(page.getByText(`Answered · Send: ${EDITED}`, { exact: true })).toBeVisible();
-});
 
-scenario("Don't send returns send false and no text", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
-  info.setTimeout(90_000);
-  // Given "devtool" asked "Send this reply to Alex?" with the draft "Sounds good, Thursday works." in answer to "Can we meet Thursday?" from "Alex · Slack DM"
-  const w = await browserWorld({ server, page, context }, { agents: ["devtool", "docs"], live: ["devtool"] });
-  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
-  const sid = w.sessions.devtool!.sid;
-  const id = await agentDrafts(w.box, sid, conv);
-
-  // When the owner opens Now and taps "Don't send"
-  await openNow(page, w.srv);
+  // Then the ask is an item titled by the question, whose context starts with the draft
   const card = askCard(page, QUESTION);
-  await card.getByRole("button", { name: "Don't send", exact: true }).click();
-  await expect(card).toHaveCount(0);
+  await expect(card).toContainText(`Draft: ${DRAFT}`);
 
-  // Then "devtool" gets the answer send false and no text in its inbox and its watch
+  // When the owner presses "Okay"
+  await card.getByRole("button", { name: "Okay", exact: true }).click();
+
+  // Then "devtool" gets the answer send true with the text "Sounds good, Thursday works." in its inbox and its watch
   const read = await agentReads(w, sid, id);
-  expect(read).toStrictEqual({ inbox: { send: false }, watch: { send: false } });
-
-  // And conversation 41 shows "Don't send"
-  expect((await messagesOf(w.owner, conv)).map((m) => m.body)).toContain("Don't send");
-  expect(((await askOf(w.owner, id)) as Draftable).reply).toStrictEqual({ send: false });
-});
-
-scenario("A draft ask is reviewed inside the conversation too", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
-  info.setTimeout(90_000);
-  // Given "devtool" asked "Send this reply to Alex?" with the draft "Sounds good, Thursday works." in answer to "Can we meet Thursday?" from "Alex · Slack DM"
-  const w = await browserWorld({ server, page, context }, { agents: ["devtool", "docs"], live: ["devtool"] });
-  const conv = await createConversation(w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
-  const sid = w.sessions.devtool!.sid;
-  const id = await agentDrafts(w.box, sid, conv);
-
-  // When the owner opens conversation 41, changes the draft to "Sounds good, Thursday at 10 works." and taps "Send"
-  await page.goto(`${w.srv.origin}/chats/${conv}`);
-  const card = askCard(page, QUESTION);
-  await expectDraftCard(page, card);
-  await editDraft(page, card, EDITED);
-  await expect(card.getByText("Edited", { exact: true })).toBeVisible();
-  if (info.project.name === "chromium") await page.screenshot({ path: "/tmp/draftask-desktop.png" });
-  await card.getByRole("button", { name: "Send", exact: true }).click();
-
-  // Then "devtool" gets the answer send true with the text "Sounds good, Thursday at 10 works." in its inbox and its watch
-  const read = await agentReads(w, sid, id);
-  expect(read).toStrictEqual({ inbox: { send: true, text: EDITED }, watch: { send: true, text: EDITED } });
+  expect(read).toStrictEqual({ inbox: { send: true, text: DRAFT }, watch: { send: true, text: DRAFT } });
 });
 
 scenario("A draft ask needs no owner's-call reason", { tag: ["@cli"] }, async ({ server }) => {
@@ -194,7 +117,7 @@ scenario("A draft ask needs no owner's-call reason", { tag: ["@cli"] }, async ({
 
   // When "devtool" runs "convoz ask" with the call "in-your-name" and options but no draft
   const choice = await convoz(w.box, devtool.sid, [
-    "ask", "--question", "Ship it?", "--recommend", "Ship", "--why", "Green", "--alt", "Wait", "--alt-why", "One more check", "--owners-call", "in-your-name", "--owners-call-why", "Because", String(conv),
+    "ask", "--question", "Ship the release today?", "--recommend", "Ship", "--why", "Green", "--alt", "Wait", "--alt-why", "One more check", "--owners-call", "in-your-name", "--owners-call-why", "Because", String(conv),
   ]);
 
   // Then the command exits 2 and says the call is for a draft ask only

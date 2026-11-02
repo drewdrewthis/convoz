@@ -5,6 +5,10 @@ VALUES (sqlc.arg(agent_id), sqlc.arg(conversation_id), sqlc.arg(body_json), sqlc
 ON CONFLICT (agent_id, conversation_id) DO UPDATE SET
   body_json = excluded.body_json, eta = excluded.eta, updated_at = excluded.updated_at, nudges = 0, nudged_at = NULL, nudge_anchor = 0;
 
+-- name: SetPlanBody :exec
+-- Rewrites the items alone (a deliverable's asked-about date): the update time and the nudge count stay.
+UPDATE plans SET body_json = sqlc.arg(body_json) WHERE agent_id = sqlc.arg(agent_id) AND conversation_id = sqlc.arg(conversation_id);
+
 -- name: GetPlan :one
 SELECT agent_id, conversation_id, body_json, eta, updated_at, nudges, nudged_at, nudge_anchor
 FROM plans WHERE agent_id = sqlc.arg(agent_id) AND conversation_id = sqlc.arg(conversation_id);

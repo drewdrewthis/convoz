@@ -38,7 +38,7 @@ scenario("Status updates are rate limited", { tag: ["@api"] }, async ({ server, 
 
 // ---- AC-M14: the draft-8 rules, on the S2 and S6 scenarios unchanged -----------------------------------------
 
-/** The scenarios of the S2 and S6 suites for the five draft-8 rules, by the title the feature files give them. */
+/** The scenarios of the S2 and S6 suites for the four draft-8 rules, by the title the feature files give them. */
 const DRAFT8: Record<string, string[]> = {
   "thread rules (I-8)": ["Thread structure rules", "A message never moves to another conversation, thread or author"],
   "unread math (I-14)": [
@@ -47,13 +47,6 @@ const DRAFT8: Record<string, string[]> = {
     "Replies in a thread the owner is not in never make the conversation bold",
     "Replies in a thread the owner replied in count as unread",
     "A broadcast reply read in its thread is read in the main list",
-  ],
-  "the loop breaker (I-16)": [
-    "The twentieth agent message in a row pauses the conversation",
-    "A human message lets agents post again",
-    "Thread replies count toward the loop",
-    "While paused, agent posts and asks are refused",
-    "A message sent through an app does not reset the loop counter",
   ],
   "file serving (I-44)": ["Only safe images and audio are shown inline", "A pixel bomb is refused before decode", "The size cap applies to the bytes streamed", "Audio is served inline with safe headers"],
   "markdown links (I-45)": ["Dangerous link schemes render as text", "An external link shows its real host", "An image from an own upload renders inline"],
@@ -87,11 +80,11 @@ scenario("The draft-8 message rules still hold", { tag: ["@browser"] }, async ({
   const titles = Object.values(DRAFT8).flat();
   const specs = scenariosOfSpecs();
 
-  // Given the scenarios for the five rules are in the specs, in force and bound (a deleted or parked one is not "unchanged")
+  // Given the scenarios for the four rules are in the specs, in force and bound (a deleted or parked one is not "unchanged")
   const parked = titles.filter((t) => !specs.has(t) || !specs.get(t)!.includes("@v1") || specs.get(t)!.includes("@unimplemented"));
   expect(parked, "scenarios missing, not @v1, or still @unimplemented").toEqual([]);
 
-  // When the S2 and S6 scenarios for thread rules, unread math, the loop breaker, file serving and markdown links run
+  // When the S2 and S6 scenarios for thread rules, unread math, file serving and markdown links run
   // (in a run of their own: its own output folder and report, so it cannot touch this run's)
   const out = fs.mkdtempSync(path.join(os.tmpdir(), "convoz-draft8-"));
   const escaped = titles.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));

@@ -52,7 +52,9 @@ Feature: Rail
     # Drew, 2026-10-22 (msg 2678, #42): Older = not starred, the owner did not write the last message, and either no message for 48 hours
     # (it was "no message since yesterday", prototype v41 P:6089-6091) or an agent in it marked it stale. "If it's my message it can't go
     # stale, but if it's an agent's maybe it's no longer relevant." Only the conversations list goes Older; Now and the feed never do. It is
-    # a view; the order stays the owner's. The rail has no action to mark one stale or to bring one back (his voice call can mark one: voice-call.feature).
+    # a view; the order stays the owner's. Drew, 2026-10-28 (conv 179 msg 10071, "why can't I mark things as stale yet?"): the row menu marks
+    # one stale and brings one back, also one that is Older from 48 hours quiet (rule "Each rail row has a menu of actions"). His voice call
+    # can mark one too (voice-call.feature).
     @v1 @browser @I-21 @C-9
     Scenario: Conversations with no message for 48 hours fold into Older
       Given conversation 41 is not starred and its last message was 2 days ago
@@ -133,48 +135,100 @@ Feature: Rail
       When the owner presses Cmd+\
       Then the rail shows the conversations again
 
+    # Owner, conv 179 msg 9346: "I also want to be able to resize the sidebar. I want the width remembered also on refresh".
+    @v1 @browser
+    Scenario: The owner resizes the sidebar and the width is remembered
+      Given the owner has conversation 41 open on a wide screen
+      Then the handle does not cover the end of a row: its star works at the default width
+      When the owner drags the "Resize sidebar" handle 80 px to the right
+      Then the sidebar is 80 px wider and the conversation moves with it
+      When the owner reloads the page
+      Then the sidebar has the same width
+      When the owner presses the Left arrow on the handle
+      Then the sidebar is narrower
+      When the owner double-clicks the handle
+      Then the sidebar has its first width again
+      Then the handle is gone when the sidebar is folded
+      And on a narrow screen there is no sidebar to resize
+
     @v1 @browser
     Scenario: The question mark opens the shortcut list
       When the owner presses "?"
       Then the "Keyboard shortcuts" dialog lists every key
       And Escape closes it and returns focus where it was
 
-  # Owner, conv 179 (msgs 4291 to 4334), UX plan §1: Now is a view of the left rail, not a page that replaces the conversation.
-  Rule: On a wide screen Now is a view of the rail
+  # Drew, 2026-10-27 (conv 179 msg 8722): the owner can close, rename and star a conversation from the sidebar, in a menu on each row.
+  Rule: Each rail row has a menu of actions
 
     @v1 @browser
-    Scenario: Now opens in the rail beside the open conversation
-      Given "devtool" asks "Merge #415 on its own?" in conversation 52
-      And the owner has conversation 41 open on a 1280 px wide screen
-      When the owner clicks "Now" in the rail
-      Then the rail lists the ask "Merge #415 on its own?" and no Conversations group
-      And the rail is about 360 px wide and the conversation moves with it
-      And conversation 41 is still open in the page
+    Scenario: The row menu renames a conversation
+      When the owner opens the menu of conversation 52 in the rail and picks "Rename"
+      And types "Runbook v2" and presses Enter
+      Then the rail row of conversation 52 reads "Runbook v2"
+      When the owner opens the menu again, picks "Rename", changes the text and presses Escape
+      Then the row still reads "Runbook v2"
+
+    # Drew, 2026-10-28 (conv 179 msg 10071): the items are named for what they do, "Mark stale" and "Bring back". The owner's mark is not
+    # refused when he wrote last: that refusal guards him from agents. "Bring back" holds until the next quiet 48 hours or the next mark.
+    @v1 @browser
+    Scenario: The owner marks a conversation stale from its row menu
+      When the owner opens the menu of conversation 52 in the rail and picks "Mark stale"
+      Then conversation 52 sits under "Older · 1"
+      When the owner opens the menu of conversation 52 and picks "Bring back"
+      Then conversation 52 is back in the Conversations group
 
     @v1 @browser
-    Scenario: Picking a Now item opens its conversation beside the Now list
-      Given "devtool" asks "Merge #415 on its own?" in conversation 52 and "Roll back box-3?" in conversation 60
-      And the owner has conversation 41 open with Now in the rail
-      When the owner picks "Open" on the ask "Roll back box-3?" in the rail
-      Then conversation 60 is open in the page
-      And the rail still lists both asks
-      And the item of conversation 60 is marked as current and the item of conversation 52 is not
+    Scenario: The owner marks a conversation stale where he wrote last
+      Given the owner wrote the last message in conversation 41
+      When the owner opens the menu of conversation 41 in the rail and picks "Mark stale"
+      Then conversation 41 sits under "Older · 1"
 
     @v1 @browser
-    Scenario: Conversations, Escape and Now again each take the rail back to the conversations
-      Given "devtool" asks "Merge #415 on its own?" in conversation 52
-      And the owner has conversation 41 open with Now in the rail
-      When the owner clicks "Conversations" at the top of the rail
-      Then the rail lists the Conversations group and is 240 px wide
-      When the owner presses Cmd+. and then Escape with the focus in the rail
-      Then the rail lists the Conversations group and is 240 px wide
-      When the owner clicks "Now" twice
-      Then the rail lists the Conversations group and is 240 px wide
-      And conversation 41 stayed open the whole time
+    Scenario: The owner brings a conversation back from Older
+      Given conversation 41 is not starred and its last message was 2 days ago
+      When the owner opens the rail
+      Then conversation 41 sits under "Older · 1"
+      When the owner opens the menu of conversation 41 and picks "Bring back"
+      Then conversation 41 is back in the Conversations group
+      And it stays there after a reload
+
+    @v1 @browser @phone
+    Scenario: On a phone the long press menu marks a conversation stale and brings it back
+      When the owner long presses conversation 52 in the Conversations list and picks "Mark stale"
+      Then conversation 52 sits under "Older · 1"
+      When the owner opens "Older · 1", long presses conversation 52 and picks "Bring back"
+      Then conversation 52 is back in the Conversations list
+
+    # A starred conversation is never Older, so its menu offers Unstar but neither Mark stale nor Bring back (rail and phone).
+    @v1 @browser
+    Scenario: A starred conversation has no Mark stale in its row menu
+      When the owner stars conversation 52 from its row menu and opens the menu again
+      Then the menu offers "Unstar" and neither "Mark stale" nor "Bring back"
+
+    @v1 @browser @phone
+    Scenario: On a phone a starred conversation has no Mark stale in its long press menu
+      When the owner stars conversation 52 by long press and long presses it again
+      Then the menu offers "Unstar conversation" and no "Mark stale"
+
+    # Follow-up of the advisor review of PR 170 (issue 167): the open menu lies over the resize handle on a narrow rail and takes the clicks.
+    @v1 @browser
+    Scenario: On a 200 px rail Rename takes clicks over the resize handle and its field stays within the menu cap
+      Given the sidebar is 200 px wide
+      When the owner opens the menu of conversation 52
+      Then "Rename" is the element under the pointer where the menu lies over the resize handle
+      When the owner picks "Rename"
+      Then the field is no wider than 18 rem and inside the window
+      When the owner presses Escape
+      Then the menu is closed and the title stays
 
     @v1 @browser
-    Scenario: The rail stays in Now after a reload
-      Given "devtool" asks "Merge #415 on its own?" in conversation 52
-      And the owner has conversation 41 open with Now in the rail
-      When the owner reloads the page
-      Then the rail still lists the ask "Merge #415 on its own?" and is about 360 px wide
+    Scenario: The row menu stars, unstars and marks read
+      Given "devtool" posts in conversation 60
+      When the owner opens the menu of conversation 60 in the rail and picks "Mark read"
+      Then conversation 60 shows no unread count
+      When the owner opens the menu of conversation 60 and picks "Star"
+      Then conversation 60 is in the Starred group
+      When the owner opens the menu of conversation 60 and picks "Unstar"
+      Then conversation 60 is in the Conversations group
+      When the owner sets the sidebar to 240 px, then to 200 px
+      Then at each width the menu button of conversation 60 can be clicked, and "Star" and "Unstar" work

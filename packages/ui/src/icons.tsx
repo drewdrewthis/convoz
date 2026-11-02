@@ -61,4 +61,6 @@ export const HandIcon = icon(<path d="M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0
 export const AlertIcon = icon(<path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01" />);
 /** Late or not responding: a clock. */
 export const ClockIcon = icon(<path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2" />);
+/** Deliveries: a calendar (a clock means Late on the rows). */
+export const DeliveryIcon = icon(<path d="M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM16 2v4M8 2v4M3 10h18" />);
 export const DownloadIcon = icon(<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />);

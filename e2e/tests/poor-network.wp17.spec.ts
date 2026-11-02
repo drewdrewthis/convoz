@@ -45,7 +45,7 @@ scenario("Twenty messages sent across three outages arrive once and in order", {
     Array.from({ length: 20 }, (_, i) => new RegExp(`numbered ${i + 1}$`)),
     { timeout: 120_000 },
   );
-  expect((await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(Array.from({ length: 20 }, (_, i) => `numbered ${i + 1}`));
+  await expect.poll(async () => (await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(Array.from({ length: 20 }, (_, i) => `numbered ${i + 1}`));
 
   // And the first browser shows no message as "failed · retry"
   await expect(messageLog(page).getByText("sending", { exact: true })).toHaveCount(0, { timeout: 60_000 });
@@ -78,7 +78,7 @@ scenario("A message sent offline waits in the outbox", { tag: ["@browser", "@los
   // And it is delivered once when the browser is back online
   await link(false);
   await expect(bubble).not.toContainText("sending", { timeout: 60_000 });
-  expect((await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["be back soon"]);
+  await expect.poll(async () => (await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["be back soon"]);
   await expect(message(page, "be back soon")).toHaveCount(1);
   await expect.poll(async () => (await stored(page))?.outbox).toBe(0);
 });
@@ -214,7 +214,8 @@ scenario("A conversation opens from the offline copy before the server answers",
 
   // Then the last message shows within 3 seconds
   await expect(message(page, "the newest before the hold")).toBeVisible({ timeout: 3_000 });
-  expect(held.map((r) => new URL(r.request().url()).pathname)).toContain(`/api/conversations/${conv}`);
+  // The copy can show before the page asks the server for the conversation.
+  await expect.poll(() => held.map((r) => new URL(r.request().url()).pathname)).toContain(`/api/conversations/${conv}`);
 
   // And the page stays the same once the server answers
   const answered = page.waitForResponse((r) => new URL(r.url()).pathname.startsWith(`/api/conversations/${conv}/messages`));

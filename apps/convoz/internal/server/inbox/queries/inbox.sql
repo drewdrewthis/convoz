@@ -114,6 +114,21 @@ FROM inbox_items
 WHERE identity_id = sqlc.arg(identity_id) AND state IN ('ready','claimed')
 ORDER BY id;
 
+-- name: DropStatusDue :exec
+-- The agent set a new plan: the ask to update the old one is answered, so it leaves the queue.
+UPDATE inbox_items
+SET state = 'expired', expired_reason = 'removed', claim_session_id = NULL, claim_token = NULL,
+    claim_until = NULL, visibility_ms = NULL, updated_at = sqlc.arg(now)
+WHERE identity_id = sqlc.arg(identity_id) AND conversation_id = sqlc.arg(conversation_id) AND reason = 'status_due' AND state = 'ready';
+
+-- name: FinishClaimedStatusDue :exec
+-- The same for an ask the agent holds claimed: it is finished for its claimer (as the watch finishes an item), so the ack its wrapper
+-- sends next is a no-op that succeeds.
+UPDATE inbox_items
+SET state = 'acked', acked_at = sqlc.arg(now), acked_by_session = claim_session_id, acked_by_watch = 1, claim_session_id = NULL, claim_token = NULL,
+    claim_until = NULL, visibility_ms = NULL, updated_at = sqlc.arg(now)
+WHERE identity_id = sqlc.arg(identity_id) AND conversation_id = sqlc.arg(conversation_id) AND reason = 'status_due' AND state = 'claimed';
+
 -- name: ExpireNotVisible :exec
 UPDATE inbox_items
 SET state = 'expired', expired_reason = 'not_visible', claim_session_id = NULL, claim_token = NULL,
@@ -192,6 +207,10 @@ VALUES (sqlc.arg(identity_id), 'app_result', sqlc.arg(conversation_id), sqlc.arg
 INSERT INTO inbox_items (identity_id, reason, conversation_id, count, mention_count, source_seq, state, created_at, updated_at)
 VALUES (sqlc.arg(identity_id), 'status_due', sqlc.arg(conversation_id), 1, 0, sqlc.arg(source_seq), 'ready', sqlc.arg(now), sqlc.arg(now));
 
+-- name: StatusDueSource :one
+-- The seq of the event that made a status_due item: what asked, a late plan step or a late delivery.
+SELECT source_seq FROM inbox_items WHERE id = sqlc.arg(id) AND identity_id = sqlc.arg(identity_id) AND reason = 'status_due';
+
 -- name: HasOpenStatusDue :one
 SELECT EXISTS (SELECT 1 FROM inbox_items WHERE identity_id = sqlc.arg(identity_id) AND conversation_id = sqlc.arg(conversation_id)
                AND reason = 'status_due' AND state IN ('ready','claimed'));
@@ -225,3 +244,8 @@ WHERE due_at <= sqlc.arg(now) ORDER BY due_at, conversation_id, thread_root_id L
 -- No event stands behind it, so source_seq is 0 (nothing reads it).
 INSERT INTO inbox_items (identity_id, reason, conversation_id, first_message_id, message_id, count, mention_count, source_seq, state, created_at, updated_at)
 VALUES (sqlc.arg(identity_id), 'unanswered', sqlc.arg(conversation_id), sqlc.arg(message_id), sqlc.arg(message_id), 1, 0, 0, 'ready', sqlc.arg(now), sqlc.arg(now));
+
+-- name: LastStatusDueAt :one
+-- When the agent was last asked to update its plan in the conversation (0 for never): the rest between two freshness asks.
+SELECT CAST(COALESCE(MAX(created_at), 0) AS INTEGER) AS at FROM inbox_items
+WHERE identity_id = sqlc.arg(identity_id) AND conversation_id = sqlc.arg(conversation_id) AND reason = 'status_due';

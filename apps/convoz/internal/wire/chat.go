@@ -40,30 +40,31 @@ type PendingAdd struct {
 }
 
 // Conversation is one row of the list, and the body of the single-conversation routes. The fields after Unread are
-// the details: the list sends the cheap ones (paused, deleted_at) and the single-conversation route all of them.
+// the details: the list sends the cheap ones (deleted_at) and the single-conversation route all of them.
 type Conversation struct {
-	ID             int64        `json:"id"`
-	Title          *string      `json:"title"`
-	CreatedAt      int64        `json:"created_at"`
-	LastActivityAt int64        `json:"last_activity_at"`
-	Participants   []Person     `json:"participants"`
-	Last           *LastMessage `json:"last"`
-	Unread         int64        `json:"unread"`
-	MainUnread     int64        `json:"main_unread"`              // the part of Unread that sits in the main list; the rest is thread replies
-	UnreadMentions int64        `json:"unread_mentions"`          // the unread messages that @mention the caller, under the same cursors as Unread
-	RepliesToYou   bool         `json:"replies_to_you,omitempty"` // an agent answered the caller: unread after its own message, or in its own thread
-	Threads        []ThreadRow  `json:"threads,omitempty"`        // the threads with a reply, newest reply first
-	Starred        bool         `json:"starred"`
-	Rank           float64      `json:"rank"`
-	OwnerLast      bool         `json:"owner_last,omitempty"` // the owner wrote the newest message of the main list: it never goes Older (#42)
+	ID                  int64        `json:"id"`
+	Title               *string      `json:"title"`
+	CreatedAt           int64        `json:"created_at"`
+	LastActivityAt      int64        `json:"last_activity_at"`
+	Participants        []Person     `json:"participants"`
+	Last                *LastMessage `json:"last"`
+	Unread              int64        `json:"unread"`
+	MainUnread          int64        `json:"main_unread"`                     // the part of Unread that sits in the main list; the rest is thread replies
+	UnreadMentions      int64        `json:"unread_mentions"`                 // the unread messages that @mention the caller, under the same cursors as Unread
+	MentionSnoozedUntil int64        `json:"mention_snoozed_until,omitempty"` // epoch ms the caller's Later on this conversation's mention card runs to; 0 when none runs
+	RepliesToYou        bool         `json:"replies_to_you,omitempty"`        // an agent answered the caller: unread after its own message, or in its own thread
+	Threads             []ThreadRow  `json:"threads,omitempty"`               // the threads with a reply, newest reply first
+	Starred             bool         `json:"starred"`
+	Rank                float64      `json:"rank"`
+	OwnerLast           bool         `json:"owner_last,omitempty"` // the owner wrote the newest message of the main list: it never goes Older (#42)
 
 	StartedBy   *Person      `json:"started_by,omitempty"`
 	LinkURL     *string      `json:"link_url,omitempty"`
 	MutedUntil  *int64       `json:"muted_until,omitempty"`
 	Pinned      *[]Message   `json:"pinned,omitempty"`
-	Paused      bool         `json:"paused,omitempty"`
 	Stale       bool         `json:"stale,omitempty"`        // an agent marked it stale and no message came since: the rail folds it into Older
 	StaleReason string       `json:"stale_reason,omitempty"` // why, when the agent said so (only while Stale)
+	BackAt      int64        `json:"back_at,omitempty"`      // when the owner brought it back from Older: the 48 hour quiet clock starts at the later of this and last_activity_at
 	Pending     []PendingAdd `json:"pending,omitempty"`
 	Seen        []Seen       `json:"seen,omitempty"`      // agents that saw the newest message a person wrote in the main list
 	LastRead    *int64       `json:"last_read,omitempty"` // the caller's read cursor in the main list, as it stands now
@@ -111,6 +112,9 @@ type Message struct {
 	Uploads []Upload `json:"uploads,omitempty"`
 	// Mentions are the identities the body @mentions, by id: a handle an agent had before still names it (I-51).
 	Mentions []MentionSpan `json:"mentions,omitempty"`
+	// Unfurl is the card of the body's first link, as the preview worker has got (status pending until it is fetched). It is set only
+	// on a page read by a person, never an agent (invariant 24), and only where the body has a link.
+	Unfurl *UnfurlCard `json:"unfurl,omitempty"`
 }
 
 // LastReply is the newest reply of a thread as the reply chip shows it. Unread is set when it is newer than the reader's read point

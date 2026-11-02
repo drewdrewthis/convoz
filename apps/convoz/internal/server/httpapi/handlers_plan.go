@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/ownerline"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/ask"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
@@ -27,6 +28,8 @@ import (
 const (
 	eventPlanChanged = "plan.changed.v1"
 	eventPlanNudged  = "plan.nudged.v1"
+	// eventDeliveryNudged is the event of an ask about a late deliverable; eventPlanNudged is the ask about a late step.
+	eventDeliveryNudged = "plan.delivery_nudged.v1"
 )
 
 // putPlan is PUT /api/conversations/:id/plan: the agent replaces its whole plan for the conversation at once, so the owner never sees
@@ -47,8 +50,16 @@ func (s *Server) putPlan(w http.ResponseWriter, r *http.Request, c *call) {
 		s.internalError(w, r, err)
 		return
 	}
-	pi, field, why := parsePlan(in, now, owner.Handle, owner.DisplayName)
+	old, err := plan.Get(ctx, s.reader(), who, conv)
+	if err != nil && !errors.Is(err, plan.ErrNotFound) {
+		s.internalError(w, r, err)
+		return
+	}
+	pi, field, why, lineWhy := parsePlan(in, now, owner.Handle, owner.DisplayName, old)
 	if field != "" {
+		if lineWhy != "" {
+			s.logOwnerLine(r, c, conv, field, lineWhy)
+		}
 		writeFieldErr(w, http.StatusBadRequest, "invalid_request", field, why)
 		return
 	}
@@ -74,6 +85,9 @@ func (s *Server) putPlan(w http.ResponseWriter, r *http.Request, c *call) {
 		if ch.Repeat {
 			return nil
 		}
+		if err := inbox.DropStatusDue(ctx, d, now, who, conv); err != nil { // a new plan answers the ask about the old one
+			return err
+		}
 		if len(p.Now) > 0 {
 			next := ""
 			if len(p.Next) > 0 {
@@ -97,6 +111,10 @@ func (s *Server) putPlan(w http.ResponseWriter, r *http.Request, c *call) {
 		_, _, err = sayLine(ctx, d, now, who, conv, line)
 		return err
 	})
+	if errors.Is(err, plan.ErrTooManyDeliver) {
+		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "deliver", "a plan holds at most 5 deliverables: ship one first with --done")
+		return
+	}
 	if err != nil {
 		s.internalError(w, r, err)
 		return
@@ -111,11 +129,12 @@ func (s *Server) putPlan(w http.ResponseWriter, r *http.Request, c *call) {
 }
 
 // parsePlan checks a plan request and reads the step and estimate of each Now item; field names what is wrong ("" when it is fine).
-// handle and displayName are the owner's: a Waiting item may carry their label, never someone else's (plan.OwnWaiting).
-func parsePlan(in wire.PlanRequest, now time.Time, handle, displayName string) (pi plan.Input, field, why string) {
+// handle and displayName are the owner's: a Waiting item may carry their label, never someone else's (plan.OwnWaiting). A Waiting
+// text already in old, the stored plan, is not judged again, so a plan sent twice does not fail the second time.
+func parsePlan(in wire.PlanRequest, now time.Time, handle, displayName string, old plan.Plan) (pi plan.Input, field, why, lineWhy string) {
 	items := in.Now
 	if len(items) > 0 && (in.Doing != "" || in.Step != "" || in.ETA != "") {
-		return pi, "now", "give now, or doing with step and eta, not both"
+		return pi, "now", "give now, or doing with step and eta, not both", ""
 	}
 	if len(items) == 0 && in.Doing != "" {
 		items = []wire.PlanNowRequest{{Text: in.Doing, Step: in.Step, ETA: in.ETA}}
@@ -124,32 +143,43 @@ func parsePlan(in wire.PlanRequest, now time.Time, handle, displayName string) (
 	for i, it := range items {
 		texts[i] = it.Text
 	}
+	waiting, why := plan.OwnWaiting(in.Waiting, handle, displayName)
+	if why != "" {
+		return pi, "waiting", why, ""
+	}
+	for _, t := range waiting {
+		if slices.ContainsFunc(old.Waiting, func(w plan.Waiting) bool { return w.Text == t }) {
+			continue
+		}
+		if why := ownerline.Check(t); why != "" {
+			return pi, "waiting", ownerline.Refusal("waiting", t, why), why
+		}
+	}
 	if f, msg, ok := plan.Check(texts, in.Blocked, in.Next, in.Waiting, in.Done); !ok {
-		return pi, f, msg
+		return pi, f, msg, ""
 	}
 	if len(items) == 0 && (in.Step != "" || in.ETA != "") {
-		return pi, "doing", "step and eta belong to doing"
+		return pi, "doing", "step and eta belong to doing", ""
 	}
 	for _, it := range items {
 		step, ok := plan.ParseStep(it.Step)
 		if !ok {
-			return pi, "step", "step is N/M, with 1 <= N <= M <= 99"
+			return pi, "step", "step is N/M, with 1 <= N <= M <= 99", ""
 		}
 		eta, ok := plan.ParseETA(it.ETA, in.UTCOffset, now)
 		if !ok {
-			return pi, "eta", "eta is a duration up to 7 days (30m, 1h30m) or a time HH:MM"
+			return pi, "eta", "eta is a duration up to 7 days (30m, 1h30m) or a time HH:MM", ""
 		}
 		pi.Now = append(pi.Now, plan.Item{Text: it.Text, Step: step, ETA: eta})
 	}
 	if len(in.ClientID) > 64 {
-		return pi, "client_id", "client_id is at most 64 characters"
+		return pi, "client_id", "client_id is at most 64 characters", ""
 	}
-	waiting, why := plan.OwnWaiting(in.Waiting, handle, displayName)
-	if why != "" {
-		return pi, "waiting", why
+	if pi.Deliver, field, why = parseDeliver(in, now); field != "" {
+		return pi, field, why, ""
 	}
 	pi.Blocked, pi.Next, pi.Waiting, pi.Done, pi.ClientID = in.Blocked, in.Next, waiting, in.Done, in.ClientID
-	return pi, "", ""
+	return pi, "", "", ""
 }
 
 // nowTexts is the text of each Now item.
@@ -172,7 +202,7 @@ func quote(items []string) string {
 
 func planView(dir directory, p plan.Plan) wire.Plan {
 	v := wire.Plan{ConversationID: p.Conversation, IdentityID: p.Agent, Handle: dir[p.Agent].Handle, Blocked: p.Blocked, Now: []wire.PlanNow{},
-		Next: append([]string{}, p.Next...), Waiting: []wire.PlanWaiting{}, Done: []wire.PlanDone{}, UpdatedAt: p.UpdatedAt, DueAt: p.DueAt()}
+		Next: append([]string{}, p.Next...), Waiting: []wire.PlanWaiting{}, Done: []wire.PlanDone{}, Deliver: []wire.PlanDeliver{}, UpdatedAt: p.UpdatedAt, DueAt: p.DueAt()}
 	if p.Nudges > 0 {
 		v.NudgedAt = p.NudgedAt
 	}
@@ -191,7 +221,10 @@ func planView(dir directory, p plan.Plan) wire.Plan {
 		v.Waiting = append(v.Waiting, wire.PlanWaiting{Text: x.Text, Since: x.Since})
 	}
 	for _, x := range p.Done {
-		v.Done = append(v.Done, wire.PlanDone{Text: x.Text, At: x.At})
+		v.Done = append(v.Done, wire.PlanDone{Text: x.Text, At: x.At, Shipped: x.Shipped})
+	}
+	for _, x := range p.Deliver {
+		v.Deliver = append(v.Deliver, wire.PlanDeliver{Text: x.Text, Due: x.Due, Since: x.Since})
 	}
 	return v
 }

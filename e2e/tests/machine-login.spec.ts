@@ -1038,7 +1038,7 @@ scenario("Approving a login with an identity makes the machine, the agent, its a
   const ids = must(await owner.client.get("/api/identities"), "identities").json().identities as { handle: string; description?: string; avatar_url?: string; created_by?: { kind: string; name: string } }[];
   const made = ids.find((i) => i.handle === "code-review");
   expect(made).toMatchObject({ description: "Reviews pull requests", created_by: { kind: "machine", name: "box-2" } });
-  expect(made?.avatar_url).toMatch(/^\/api\/identities\/\d+\/avatar\.svg$/);
+  expect(made?.avatar_url).toMatch(/^\/api\/identities\/\d+\/avatar\.svg(\?v=[0-9a-f]+)?$/); // the URL carries a version so a new picture shows (9956ea9)
 
   // And the machine can fetch its key and start a session as "code-review"
   const tok = must(await pollToken(srv, res.json().device_code), "key").json();

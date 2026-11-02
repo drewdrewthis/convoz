@@ -5,6 +5,7 @@ import { useNotice } from "../../shared/notice.tsx";
 import { registerTicket } from "../../shared/tickets.ts";
 import { Button } from "@convoz/ui/Button";
 import { Field } from "@convoz/ui/Field";
+import { withBase } from "../../shared/base.ts";
 
 /** Recover is /recover: a recovery code gives a limited session, which may only add a passkey on this device. */
 export function Recover() {
@@ -53,7 +54,7 @@ function AddThisDevice() {
       const started = await t.use(); // one create prompt, at once
       await call(client.POST("/api/auth/passkey/register/verify", { body: started }));
       page.leaving = true;
-      location.assign("/");
+      location.assign(withBase("/"));
     },
     { fail },
   );

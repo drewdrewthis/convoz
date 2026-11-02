@@ -58,7 +58,7 @@ func (s *Server) listConversations(w http.ResponseWriter, r *http.Request, c *ca
 		floor, ok, err := canRead(ctx, d, c.p, cv.ID)
 		if err == nil && ok {
 			var v wire.Conversation
-			if v, err = conversationView(ctx, d, c.p, dir, cv, floor); err == nil {
+			if v, err = conversationView(ctx, d, c.p, dir, cv, floor, s.Clock.Now()); err == nil {
 				out = append(out, v)
 			}
 		}
@@ -122,7 +122,7 @@ func (s *Server) visibleView(ctx context.Context, d pdb.DBTX, p authz.Principal,
 	if err != nil {
 		return wire.Conversation{}, false, err
 	}
-	if v, err = conversationView(ctx, d, p, dir, cv, floor); err == nil {
+	if v, err = conversationView(ctx, d, p, dir, cv, floor, s.Clock.Now()); err == nil {
 		err = s.withRail(ctx, d, p, &v)
 	}
 	s.withSharedTab(&v)
@@ -143,7 +143,7 @@ func (s *Server) visibleDetail(ctx context.Context, d pdb.DBTX, p authz.Principa
 	if err != nil {
 		return wire.Conversation{}, false, err
 	}
-	v, err = detailView(ctx, d, p, dir, cv, floor)
+	v, err = detailView(ctx, d, p, dir, cv, floor, s.Clock.Now())
 	if err == nil {
 		err = s.withRail(ctx, d, p, &v)
 	}
@@ -224,7 +224,7 @@ func (s *Server) createConversation(w http.ResponseWriter, r *http.Request, c *c
 			if err != nil {
 				return err
 			}
-			if view, err = conversationView(ctx, d, c.p, dir, cv, 0); err != nil {
+			if view, err = conversationView(ctx, d, c.p, dir, cv, 0, s.Clock.Now()); err != nil {
 				return err
 			}
 			return s.withRail(ctx, d, c.p, &view)
@@ -294,7 +294,7 @@ func (s *Server) createConversation(w http.ResponseWriter, r *http.Request, c *c
 			return err
 		}
 		created = true
-		if view, err = conversationView(ctx, d, c.p, dir, cv, 0); err != nil {
+		if view, err = conversationView(ctx, d, c.p, dir, cv, 0, s.Clock.Now()); err != nil {
 			return err
 		}
 		return s.withRail(ctx, d, c.p, &view)

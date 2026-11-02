@@ -24,7 +24,7 @@ import { messageLog, recordStreams } from "./chat-ui.ts";
  * no button, no row in Now, and Now does not count it; it clears when the agent sends a plan without it (conv 151). The
  * details panel has the regions "Waiting on you · N" (the asks and join requests, while there are some) and "Agents · N" (a list
  * "Agents" of one card per agent; the owner is the row "You" under "Conversation") before "Conversation". A Conversations row carries an icon (role img, named by the state:
- * "Working", "Waiting on you", "Blocked", "Late", "Not responding") next to its unread count.
+ * "Working", "Waiting on you", "Blocked", "Behind", "Not responding") next to its unread count.
  */
 
 export interface PlanWorld {

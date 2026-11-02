@@ -40,7 +40,7 @@ func (inboxPort) FanOut(ctx context.Context, d pdb.DBTX, now time.Time, identity
 // @mentions the agent or is a reply in a thread the agent wrote the root of or already replied in: agents must not wake each
 // other by chatter (owner's rule, conv 252 msg 5447).
 func wakes(ctx context.Context, d pdb.DBTX, identity int64, a message.Arrival) (bool, error) {
-	if !a.ByAgent || slices.Contains(a.Mentioned, identity) {
+	if !a.ByAgent || a.Owns || slices.Contains(a.Mentioned, identity) {
 		return true, nil
 	}
 	if a.Message.ThreadRootID == 0 {

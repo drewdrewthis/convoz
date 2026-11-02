@@ -287,6 +287,25 @@ func (q *Queries) DeleteItem(ctx context.Context, id int64) error {
 	return err
 }
 
+const dropStatusDue = `-- name: DropStatusDue :exec
+UPDATE inbox_items
+SET state = 'expired', expired_reason = 'removed', claim_session_id = NULL, claim_token = NULL,
+    claim_until = NULL, visibility_ms = NULL, updated_at = ?1
+WHERE identity_id = ?2 AND conversation_id = ?3 AND reason = 'status_due' AND state = 'ready'
+`
+
+type DropStatusDueParams struct {
+	Now            int64
+	IdentityID     int64
+	ConversationID sql.NullInt64
+}
+
+// The agent set a new plan: the ask to update the old one is answered, so it leaves the queue.
+func (q *Queries) DropStatusDue(ctx context.Context, arg DropStatusDueParams) error {
+	_, err := q.db.ExecContext(ctx, dropStatusDue, arg.Now, arg.IdentityID, arg.ConversationID)
+	return err
+}
+
 const duePlaces = `-- name: DuePlaces :many
 SELECT conversation_id, thread_root_id, message_id FROM inbox_unanswered
 WHERE due_at <= ?1 ORDER BY due_at, conversation_id, thread_root_id LIMIT ?2
@@ -483,6 +502,26 @@ func (q *Queries) ExtendClaims(ctx context.Context, arg ExtendClaimsParams) ([]E
 		return nil, err
 	}
 	return items, nil
+}
+
+const finishClaimedStatusDue = `-- name: FinishClaimedStatusDue :exec
+UPDATE inbox_items
+SET state = 'acked', acked_at = ?1, acked_by_session = claim_session_id, acked_by_watch = 1, claim_session_id = NULL, claim_token = NULL,
+    claim_until = NULL, visibility_ms = NULL, updated_at = ?1
+WHERE identity_id = ?2 AND conversation_id = ?3 AND reason = 'status_due' AND state = 'claimed'
+`
+
+type FinishClaimedStatusDueParams struct {
+	Now            sql.NullInt64
+	IdentityID     int64
+	ConversationID sql.NullInt64
+}
+
+// The same for an ask the agent holds claimed: it is finished for its claimer (as the watch finishes an item), so the ack its wrapper
+// sends next is a no-op that succeeds.
+func (q *Queries) FinishClaimedStatusDue(ctx context.Context, arg FinishClaimedStatusDueParams) error {
+	_, err := q.db.ExecContext(ctx, finishClaimedStatusDue, arg.Now, arg.IdentityID, arg.ConversationID)
+	return err
 }
 
 const hasOpenStatusDue = `-- name: HasOpenStatusDue :one
@@ -731,6 +770,24 @@ func (q *Queries) ItemConversation(ctx context.Context, arg ItemConversationPara
 	return conversation_id, err
 }
 
+const lastStatusDueAt = `-- name: LastStatusDueAt :one
+SELECT CAST(COALESCE(MAX(created_at), 0) AS INTEGER) AS at FROM inbox_items
+WHERE identity_id = ?1 AND conversation_id = ?2 AND reason = 'status_due'
+`
+
+type LastStatusDueAtParams struct {
+	IdentityID     int64
+	ConversationID sql.NullInt64
+}
+
+// When the agent was last asked to update its plan in the conversation (0 for never): the rest between two freshness asks.
+func (q *Queries) LastStatusDueAt(ctx context.Context, arg LastStatusDueAtParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, lastStatusDueAt, arg.IdentityID, arg.ConversationID)
+	var at int64
+	err := row.Scan(&at)
+	return at, err
+}
+
 const makeItemReady = `-- name: MakeItemReady :exec
 UPDATE inbox_items
 SET state = 'ready', claim_session_id = NULL, claim_token = NULL, claim_until = NULL, visibility_ms = NULL, updated_at = ?1
@@ -915,6 +972,23 @@ type SetClaimSeqParams struct {
 func (q *Queries) SetClaimSeq(ctx context.Context, arg SetClaimSeqParams) error {
 	_, err := q.db.ExecContext(ctx, setClaimSeq, arg.IdentityID, arg.Seq)
 	return err
+}
+
+const statusDueSource = `-- name: StatusDueSource :one
+SELECT source_seq FROM inbox_items WHERE id = ?1 AND identity_id = ?2 AND reason = 'status_due'
+`
+
+type StatusDueSourceParams struct {
+	ID         int64
+	IdentityID int64
+}
+
+// The seq of the event that made a status_due item: what asked, a late plan step or a late delivery.
+func (q *Queries) StatusDueSource(ctx context.Context, arg StatusDueSourceParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, statusDueSource, arg.ID, arg.IdentityID)
+	var source_seq int64
+	err := row.Scan(&source_seq)
+	return source_seq, err
 }
 
 const trackPlace = `-- name: TrackPlace :exec

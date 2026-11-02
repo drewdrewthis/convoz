@@ -135,16 +135,22 @@ func (s *Service) Record(ctx context.Context, d pdb.DBTX, now time.Time, t Trigg
 	if err != nil {
 		return err
 	}
+	if t.Reason == ReasonMessage {
+		rang, err := db.New(d).RecentMessagePush(ctx, db.RecentMessagePushParams{
+			IdentityID: t.Person, ConversationID: sql.NullInt64{Int64: t.Conversation, Valid: true}, Since: now.Add(-batchWindow).UnixMilli(),
+		})
+		if err != nil {
+			return err
+		}
+		env.Batched = rang
+	}
 	subs, err := liveOf(ctx, d, t.Person)
 	if err != nil {
 		return err
 	}
-	var targets []live
-	for _, sub := range subs {
-		if sub.Device == t.ExceptDevice && t.ExceptDevice != 0 {
-			continue
-		}
-		targets = append(targets, sub)
+	targets := targetsOf(t, subs)
+	if unrecorded(t, targets) {
+		return nil
 	}
 	decision, why := Decide(t, env, len(targets))
 	q := db.New(d)

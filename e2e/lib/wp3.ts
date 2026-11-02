@@ -9,9 +9,9 @@ import { bootstrapOwner, must, type Owner } from "./owner.ts";
 
 /**
  * Helpers for the WP3 scenarios: conversations, participants and trash. The routes they call are
- * POST|GET|PATCH|DELETE /api/conversations..., POST .../participants (+ /:iid/approve|decline, DELETE /:iid), POST .../leave,
- * .../resume (design §13). A conversation view carries `participants` (active), `pending`
- * (waiting adds), `paused` and, in the trash, `deleted_at` and `purges_at`.
+ * POST|GET|PATCH|DELETE /api/conversations..., POST .../participants (+ /:iid/approve|decline, DELETE /:iid), POST .../leave
+ * (design §13). A conversation view carries `participants` (active), `pending`
+ * (waiting adds) and, in the trash, `deleted_at` and `purges_at`.
  */
 
 /** `GET /api/identities`: handle -> identity id. */
@@ -31,7 +31,6 @@ export interface ConversationView {
   title: string | null;
   participants: PersonRow[];
   pending?: { person: PersonRow; requested_by?: PersonRow }[];
-  paused?: boolean;
   started_by?: PersonRow;
   link_url?: string;
   deleted_at?: number;

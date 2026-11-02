@@ -3,10 +3,14 @@ import { registerHandler, registerResync } from "@convoz/api-client";
 import { useNow } from "./store.ts";
 import "./badge.ts";
 
-export { Now } from "./Now.tsx";
+/** Now is the one-list feed (it was the dev build's, conv 179 msg 13342). */
+export { DevNow as Now } from "./DevNow.tsx";
 export { AskInline } from "./AskInline.tsx";
 export { useNow, openCount, needsYouCount, answerAsk, snoozeAsk } from "./store.ts";
 export { agentRequests, RequestCard, type AgentRequest } from "./requests.tsx";
+export { useServerFeed } from "./serverFeed.ts";
+export { arrivalToast } from "./arrivals.ts";
+export { UrgentHost } from "./UrgentHost.tsx";
 
 // An ask changed (here or in another tab): the numbers follow at once, not at the next poll.
 registerHandler("ask.", () => void useNow.getState().load().catch(() => {}));

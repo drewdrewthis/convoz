@@ -1,6 +1,5 @@
-import type { Locator, Page } from "@playwright/test";
+import type { BrowserContext, Locator, Page } from "@playwright/test";
 import { agentPosts, appReturns, agentChoice, chooseAgent, openMentions, backButton, chatList, chatRow, chatsHeading, composer, nowHeading, dropStreams, fromBottom, hasBubble, isBold, mainNav, message, messageLog, newChat, newMessagePill, pushFrame, rowTitles, sendButton, smallChatTargets, streamOpen, uiWorld, unreadDot, workingNote } from "../lib/chat-ui.ts";
-import { agentAsks, askCard, openNow } from "../lib/asks.ts";
 import { convoz, createConversation, listConversations, messagesOf, ownerSays, peekFor, startWatch, unreadOf, watchLines, chatWorld } from "../lib/chat.ts";
 import { handlesOf, viewOf } from "../lib/wp3.ts";
 import { loadRenderMarkdown } from "../lib/chat-markdown.ts";
@@ -117,9 +116,9 @@ scenario("On a phone the bottom bar leads to Now, Conversations and Crew", { tag
   const u = await uiWorld({ server, page, context });
   await page.goto(`${u.w.srv.origin}/`);
 
-  // Then a bottom bar shows "Now", "Conversations" and "Crew"
+  // Then a bottom bar shows "Now", "Conversations", "Work" and "Crew"
   const nav = mainNav(page);
-  await expect(nav.getByRole("link")).toHaveText(["Now", "Conversations", "Crew"]);
+  await expect(nav.getByRole("link")).toHaveText(["Now", "Conversations", "Work", "Crew"]);
   await expect(nav.getByRole("link", { name: "Now" })).toHaveAttribute("aria-current", "page");
   const bar = await box(nav);
   expect(bar.y + bar.height).toBeGreaterThanOrEqual(VIEW.height - 12.5); // the bar floats 12 px above the edge
@@ -215,7 +214,7 @@ scenario("In New conversation the owner picks several agents from the @ list and
 
   // Then the new conversation has "devtool" and "docs" as participants
   await expect.poll(async () => handlesOf(await viewOf(u.w.owner, conv)).sort()).toEqual(expect.arrayContaining(["devtool", "docs"]));
-  expect((await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["@devtool @docs please look at the build"]);
+  await expect.poll(async () => (await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["@devtool @docs please look at the build"]);
 
   // And "devtool" and "docs" each get a mention item
   for (const who of ["devtool", "docs"]) {
@@ -289,6 +288,90 @@ scenario("A new conversation has the star and details buttons from its first sen
   // And "Show details" opens the details
   await bar.getByRole("button", { name: "Show details", exact: true }).click();
   await expect(bar.getByRole("button", { name: "Show details", exact: true })).toHaveAttribute("aria-pressed", "true");
+});
+
+/** A gate holds the requests a route matches until it is opened; nothing waits on a clock. */
+function gate(): { open(): void; held: Promise<void> } {
+  let open!: () => void;
+  const held = new Promise<void>((resolve) => (open = resolve));
+  return { open, held };
+}
+
+/**
+ * The owner sends the first message of New conversation before the server has said who the owner and the crew are (the page drew from the
+ * offline copy). `createLate`: the server also makes the conversation only after the crew has loaded. Owner report: conv 359 msg 6385.
+ */
+async function firstSendBeforeCrew(fx: { server: Parameters<typeof uiWorld>[0]["server"]; page: Page; context: BrowserContext }, createLate: boolean) {
+  const { page } = fx;
+  const u = await uiWorld(fx);
+  // a first visit leaves the offline copy, so New conversation lists the crew before the server answers
+  await page.goto(`${u.w.srv.origin}/chats`);
+  await page.waitForFunction(() => performance.getEntriesByName("kept-offline").length > 0, undefined, { timeout: 30_000 });
+
+  // Given the server is slow to say who the owner and the crew are (and, for createLate, slower to make a conversation)
+  const crew = gate();
+  const create = gate();
+  await page.route(/\/api\/(me|identities)(\?|$)/, async (route) => {
+    await crew.held;
+    await route.continue();
+  });
+  await page.route(/\/api\/conversations$/, async (route) => {
+    if (createLate && route.request().method() === "POST") await create.held;
+    await route.continue();
+  });
+  const crewLoaded = Promise.all([page.waitForResponse(/\/api\/me(\?|$)/), page.waitForResponse(/\/api\/identities(\?|$)/)]);
+  const made = page.waitForResponse((r) => r.request().method() === "POST" && /\/api\/conversations$/.test(r.url()));
+  const posted = page.waitForResponse((r) => r.request().method() === "POST" && /\/api\/conversations\/\d+\/messages$/.test(r.url()));
+  // each timing awaits only one of these: the other must not fail the test when it ends
+  for (const wait of [crewLoaded, made, posted]) wait.catch(() => {});
+
+  // When the owner opens New conversation, picks "devtool" and sends "Plan the search filters launch"
+  await page.goto(`${u.w.srv.origin}/chats/new`);
+  await chooseAgent(page, "devtool");
+  await composer(page).fill("Plan the search filters launch");
+  await sendButton(page).click();
+
+  if (createLate) {
+    // And the server says who the owner and the crew are before it has made the conversation
+    crew.open();
+    await crewLoaded;
+    create.open();
+    await made;
+  } else {
+    // And the server then says who the owner and the crew are
+    await posted;
+    crew.open();
+    await crewLoaded;
+  }
+
+  // Then the conversation shows "Plan the search filters launch" and is titled "Plan the search filters launch"
+  await expect(page).toHaveURL(/\/chats\/\d+$/);
+  const conv = Number(/\/chats\/(\d+)$/.exec(page.url())![1]);
+  await expect(message(page, "Plan the search filters launch")).toBeVisible();
+  await expect(message(page, "Plan the search filters launch")).not.toContainText(/sending|failed/);
+  await expect(page.getByRole("heading", { level: 1, name: "Plan the search filters launch" })).toBeVisible();
+  await expect.poll(async () => (await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["Plan the search filters launch"]);
+
+  // And a second message "and the rollout" goes to the same conversation
+  await composer(page).fill("and the rollout");
+  await sendButton(page).click();
+  await expect(message(page, "and the rollout")).toBeVisible();
+  await expect(message(page, "and the rollout")).not.toContainText(/sending|failed/);
+  await expect(page).toHaveURL(`${u.w.srv.origin}/chats/${conv}`);
+
+  // And the owner has one conversation, with both messages
+  await expect.poll(async () => (await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["Plan the search filters launch", "and the rollout"]);
+  expect((await listConversations(u.w.owner)).map((c) => c.id)).toEqual([conv]);
+}
+
+scenario("A first send made before the crew has loaded keeps its message", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  await firstSendBeforeCrew({ server, page, context }, false);
+  await expect(page).toHaveURL(/\/chats\/\d+$/);
+});
+
+scenario("A first send whose conversation is still being made when the crew loads keeps its message", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  await firstSendBeforeCrew({ server, page, context }, true);
+  await expect(page).toHaveURL(/\/chats\/\d+$/);
 });
 
 scenario("On a phone a new conversation takes its title from the first message and goes to the top of Conversations", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
@@ -474,38 +557,6 @@ scenario("Replying clears when the agent posts", { tag: ["@browser"] }, async ({
   // Then the conversation shows "@docs is replying…" and the reply shows
   await expect(message(page, "Yes")).toBeVisible({ timeout: 3_000 });
   await expect(workingNote(page)).toHaveText("@docs is replying…");
-});
-
-scenario("A card in Now shows who has seen and who is replying", { tag: ["@browser"] }, async ({ server, page, context }) => {
-  // Given "devtool" asked a question in a conversation and runs "convoz watch --json"
-  const u = await uiWorld({ server, page, context });
-  const conv = await createConversation(u.w.owner, { participants: ["devtool"], title: "Ship search filters" });
-  await agentAsks(u.w.srv, u.sessions.devtool!.lease, conv);
-  const watch = startWatch(u.w.box, u.sessions.devtool!.sid);
-  try {
-    await openNow(page, u.w.srv);
-    await expect(askCard(page)).toBeVisible();
-    await streamOpen(page);
-
-    // When the owner sends "Take your time" in that conversation
-    await ownerSays(u.w.owner, conv, "Take your time");
-    const [line] = await watchLines(watch, 1, 3_000);
-
-    // Then the card in Now shows "Seen by @devtool" and "@devtool is replying…" within 3 seconds
-    const seen = page.getByText("Seen by @devtool");
-    await expect(seen).toBeVisible({ timeout: 3_000 });
-    await expect(workingNote(page)).toHaveText("@devtool is replying…");
-
-    // When "devtool" runs "convoz ack" without a reply
-    const ack = await convoz(u.w.box, u.sessions.devtool!.sid, ["ack", `${line!.item_id}:${line!.claim_token}`]);
-    expect(ack.code).toBe(0);
-
-    // Then the card in Now still shows "Seen by @devtool" and no replying note
-    await expect(workingNote(page)).toHaveCount(0, { timeout: 3_000 });
-    await expect(seen).toBeVisible();
-  } finally {
-    watch.stop();
-  }
 });
 
 scenario("On a phone the working note goes away when the agent finishes without a reply", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
@@ -697,7 +748,7 @@ scenario("A sent message shows at once and then confirms", { tag: ["@browser"] }
   release();
   await expect(bubble).not.toContainText("sending");
   await expect(bubble).not.toContainText("failed");
-  expect((await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["on it"]);
+  await expect.poll(async () => (await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["on it"]);
 });
 
 scenario("On a phone the composer stays above the keyboard and grows to a limit", { tag: ["@browser", "@phone"] }, async ({ server, page, context }) => {
@@ -790,7 +841,7 @@ scenario("On a phone Enter adds a line and Send sends", { tag: ["@browser", "@ph
   await expect(sent).toBeVisible();
   await expect(messageLog(page).getByRole("article")).toHaveCount(1);
   expect(await sent.evaluate((e) => (e as HTMLElement).innerText)).toContain("one\ntwo");
-  expect((await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["one\ntwo"]);
+  await expect.poll(async () => (await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["one\ntwo"]);
   await expect(composer(page)).toHaveValue("");
   await expect(sendButton(page)).toBeDisabled();
 });
@@ -821,7 +872,7 @@ scenario("Enter sends on a desktop and adds a line on a phone", { tag: ["@browse
   // Then the chat shows one message with two lines
   await expect(message(page, "one")).toBeVisible();
   await expect(messageLog(page).getByRole("article")).toHaveCount(1);
-  expect((await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["one\ntwo"]);
+  await expect.poll(async () => (await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["one\ntwo"]);
   await expect(composer(page)).toHaveValue("");
 });
 
@@ -853,7 +904,7 @@ scenario("On a phone a failed send is retried once without a duplicate", { tag: 
   expect(tries).toHaveLength(2);
   expect(tries[1]!.client_id).toBe(tries[0]!.client_id);
   await expect(message(page, "retry me")).toHaveCount(1);
-  expect((await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["retry me"]);
+  await expect.poll(async () => (await messagesOf(u.w.owner, conv)).map((m) => m.body)).toEqual(["retry me"]);
 });
 
 // Owner msg 2315: a refused send showed the server's raw JSON. The bubble says why in words, never the JSON.

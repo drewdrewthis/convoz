@@ -4,6 +4,7 @@ import { createConversation, startSession } from "./chat.ts";
 import { send, type Res } from "./http.ts";
 import { bearer, clientId, plainDb } from "./machines.ts";
 import { must, type Owner } from "./owner.ts";
+import { expect } from "./scenario.ts";
 import { world, type World } from "./wp3.ts";
 
 /**
@@ -27,7 +28,6 @@ export const DECIDE_YOURSELF =
 export type OwnersCall = { kind: "one-way" | "taste" | "values" | "scope"; reason: string };
 
 /** The line the ask card shows under the question for an ask that carries an owner's call. */
-export const callLine = (c: OwnersCall): string => `Your call · ${c.kind}: ${c.reason}`;
 
 export interface Person {
   id?: number;
@@ -57,6 +57,9 @@ export interface AskView {
   answers?: string;
   revision?: number;
   changed?: string;
+  /** "permission" | "decision" | "draft"; present on every ask once the permission ask ships. */
+  kind?: "permission" | "decision" | "draft";
+  permission?: { action: string; risk: string; undo?: string; one_way?: boolean; considered: string[]; confidence: number };
   history?: { version: number; event: string; to_state: string; by?: Person; at: number }[];
 }
 
@@ -176,12 +179,15 @@ export async function askWorld(
 
 // ---- the owner's browser -----------------------------------------------------------------------------------
 
-/** The Now card of an ask: an article named by its question. */
+/** The item of an ask, in Now or in its conversation: an article named by its title (the question, or a permission ask's action). */
 export const askCard = (page: Page, question: string = QUESTION): Locator => page.getByRole("article", { name: question });
 
-/** Open Now and wait until it has loaded. */
-export async function openNow(page: Page, srv: ServerHandle): Promise<void> {
-  await page.goto(`${srv.origin}/`);
+/**
+ * Open Now and wait until it has loaded. `cards` turns on the mention and reply cards ("Mentions of you", "Replies to you"), which the
+ * one-list Now hides unless the address has ?old=1 (now.feature, "The dev build hides the mention and reply cards unless old=1").
+ */
+export async function openNow(page: Page, srv: ServerHandle, { cards = false }: { cards?: boolean } = {}): Promise<void> {
+  await page.goto(`${srv.origin}/${cards ? "?old=1" : ""}`);
   await page.getByRole("heading", { name: "Now", exact: true }).waitFor();
 }
 
@@ -206,4 +212,55 @@ export async function setServerTime(
 export async function ownerRepliesIn(owner: Owner, conv: number, root: number, body: string): Promise<number> {
   const res = await owner.client.post(`/api/conversations/${conv}/messages`, { client_id: clientId(), body, thread_root_id: root });
   return Number(must(res, `owner replies in the thread of ${root}`, 201).json().id);
+}
+
+// ---- permission asks (an ask is a permission request: one confident action, its risk and undo, the alternatives rejected) -------------
+
+/** What the API, the CLI and the MCP tool tell an agent that asks with a confidence under 80 (wire.GetConfidentFirst). */
+export const GET_CONFIDENT_FIRST =
+  "Get confident first: research it or run it by @advisor, then ask with --confidence 80 or more. Never hand the owner the thinking.";
+
+export const ACTION = "Merge PR 415 into main";
+export const RISK = "Checkout breaks until the fix lands";
+export const UNDO = "Revert the merge commit";
+export const CONSIDERED = ["Hold for PR 412: costs a day, gains nothing", "Squash first: loses the review history"];
+
+/** The `permission` object of POST /api/asks. Pass `over` to change a field; a key set to undefined leaves the field out. */
+export function permissionOf(over: Record<string, unknown> = {}): Record<string, unknown> {
+  return { action: ACTION, risk: RISK, undo: UNDO, considered: CONSIDERED, confidence: 90, ...over };
+}
+
+/** The body of a permission ask: no options, no owners_call. `top` adds or overrides top-level keys (question, draft, ...). */
+export function permissionBody(conv: number, over: Record<string, unknown> = {}, top: Record<string, unknown> = {}): Record<string, unknown> {
+  return { conversation_id: conv, client_id: clientId(), permission: permissionOf(over), ...top };
+}
+
+/** An agent asks for permission over the API and it must open (201). Returns the ask id. */
+export async function agentAsksPermission(srv: ServerHandle, lease: string, conv: number, over: Record<string, unknown> = {}): Promise<number> {
+  return (must(await postAsk(srv, lease, permissionBody(conv, over)), "permission ask", 201).json().ask as AskView).id;
+}
+
+/** `PATCH /api/asks/:id` with the asker's lease. The raw answer. */
+export function patchAsk(srv: ServerHandle, lease: string, id: number, body: Record<string, unknown>): Promise<Res> {
+  return send(srv.target, "PATCH", `/api/asks/${id}`, { json: body, ...bearer(lease) });
+}
+
+/** The CLI flags of a permission ask. `over` replaces a flag's value; null drops the flag. */
+export function permissionArgs(conv: number, over: Partial<Record<"action" | "risk" | "undo" | "confidence", string | null>> & { oneWay?: boolean; considered?: string[] } = {}): string[] {
+  const v = { action: ACTION, risk: RISK, undo: UNDO, confidence: "90", ...over };
+  const flags: [string, string | null | undefined][] = [["--action", v.action], ["--risk", v.risk], ["--confidence", v.confidence]];
+  if (over.oneWay) flags.push(["--one-way", ""]);
+  else flags.push(["--undo", v.undo]);
+  const args = ["ask"];
+  for (const [f, val] of flags) if (val !== null && val !== undefined) args.push(f, ...(val === "" ? [] : [val]));
+  for (const c of over.considered ?? CONSIDERED) args.push("--considered", c);
+  return [...args, String(conv)];
+}
+
+/** The parts of an item must read in this order (its visible text). */
+export async function expectInOrder(card: Locator, parts: string[]): Promise<void> {
+  const text = await card.innerText();
+  const at = parts.map((p) => text.indexOf(p));
+  expect(at.every((i) => i >= 0), `${JSON.stringify(parts)} in ${JSON.stringify(text)}`).toBe(true);
+  expect(at).toEqual([...at].sort((a, b) => a - b));
 }

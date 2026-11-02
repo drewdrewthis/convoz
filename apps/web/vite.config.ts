@@ -359,7 +359,7 @@ function coldHead(html: string, main: { fileName: string; code: string }, css: {
  * head-start script's. Every other module the page loads at start goes into the main bundle, so a module the worker shares with the
  * page would make the worker import the page's bundle; coldBuild fails such a build.
  */
-const OUTSIDE_MAIN = /[\\/]src[\\/](sw[\\/](worker|cache|push|errors|module)\.ts|shared[\\/]pagePath\.ts|early\.ts|first-reads\.json)$|node_modules[\\/].*workbox-/;
+const OUTSIDE_MAIN = /[\\/]src[\\/](sw[\\/](worker|cache|push|errors|module)\.ts|shared[\\/](pagePath|devScope|pushOptions)\.ts|early\.ts|first-reads\.json)$|node_modules[\\/].*workbox-/;
 
 /**
  * coldBuild finishes the build once Vite has written its files, in one ordered pass over the chunks as the bundler rendered them
@@ -372,6 +372,24 @@ const OUTSIDE_MAIN = /[\\/]src[\\/](sw[\\/](worker|cache|push|errors|module)\.ts
  *     client that takes brotli (design §12.3): on a slow link the first load is bound by these bytes, and compressing per request
  *     runs at a low quality. The service worker never lists them.
  */
+/** writeBrotliCopies writes <file>.br (highest quality) next to every script and stylesheet of assets/ among the build's files. */
+function writeBrotliCopies(dir: string, fileNames: string[]): void {
+  for (const fileName of fileNames) {
+    if (!fileName.startsWith("assets/") || !/\.(js|css)$/.test(fileName)) continue;
+    const written = path.join(dir, fileName);
+    writeFileSync(`${written}.br`, brotliCompressSync(readFileSync(written), { params: { [constants.BROTLI_PARAM_QUALITY]: constants.BROTLI_MAX_QUALITY } }));
+  }
+}
+
+/** devBrotli gives the dev build the same brotli copies as prod (the /dev route sends them to a client that takes brotli). */
+function devBrotli(): Plugin {
+  return {
+    name: "dev-brotli",
+    apply: "build",
+    writeBundle: { order: "post", sequential: true, handler: (options, bundle) => writeBrotliCopies(options.dir!, Object.keys(bundle)) },
+  };
+}
+
 function coldBuild(): Plugin {
   return {
     name: "cold-build",
@@ -413,11 +431,7 @@ function coldBuild(): Plugin {
         // The server reads the same list for the reads a cold page carries (src/early.ts asks for them on the lean shell).
         writeFileSync(path.join(dir, "first-reads.json"), readFileSync(path.resolve(import.meta.dirname, "src/first-reads.json")));
 
-        for (const file of Object.values(bundle)) {
-          if (!file.fileName.startsWith("assets/") || !/\.(js|css)$/.test(file.fileName)) continue;
-          const written = path.join(dir, file.fileName);
-          writeFileSync(`${written}.br`, brotliCompressSync(readFileSync(written), { params: { [constants.BROTLI_PARAM_QUALITY]: constants.BROTLI_MAX_QUALITY } }));
-        }
+        writeBrotliCopies(dir, Object.keys(bundle));
       },
     },
   };
@@ -448,7 +462,32 @@ function buildId(): string {
 
 // The build lands inside the Go console package, which embeds it (go:embed cannot reach outside its module).
 // public/placeholder.txt is copied back after the folder is emptied, so the committed placeholder never shows as deleted.
-export default defineConfig({
+/**
+ * devBuild is the owner's dev build (`vite build --mode dev`, made by .github/workflows/dev-web.yml): the same app served at /dev/
+ * by the server's /dev route, from a folder the deploy swaps. It has no cold page (the route serves the lean shell), no service
+ * worker (the app registers none in DEV) and no head-start script, so it is a plain Vite build with base /dev/; DEV in the app
+ * (shared/base.ts) keeps its paths under /dev/ and shows the DEV badge. It never writes into the Go package: CONVOZ_DEV_WEB_OUT
+ * names the folder.
+ */
+function devBuild() {
+  const outDir = process.env.CONVOZ_DEV_WEB_OUT;
+  if (!outDir) throw new Error("vite build --mode dev: set CONVOZ_DEV_WEB_OUT to the folder the dev build goes to");
+  return {
+    base: "/dev/",
+    plugins: [react(), tailwindcss(), devBrotli()],
+    define: { __BUILD__: JSON.stringify(buildId()) },
+    resolve: { alias: preact, dedupe: REACT ? [] : ["preact"] },
+    build: {
+      outDir: path.resolve(outDir),
+      emptyOutDir: true,
+      assetsDir: "assets",
+      modulePreload: { polyfill: false },
+      rolldownOptions: { input: { main: path.resolve(import.meta.dirname, "index.html") } },
+    },
+  };
+}
+
+export default defineConfig(({ mode }) => (mode === "dev" ? devBuild() : {
   plugins: [react(), tailwindcss(), earlyScript(), precacheManifest(), coldBuild()],
   define: { __BUILD__: JSON.stringify(buildId()) },
   // dedupe: the packages (ui, app-kit) resolve preact from this app, so the page holds one copy of it.
@@ -474,4 +513,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

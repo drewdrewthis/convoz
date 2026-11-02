@@ -58,7 +58,7 @@ function oneLine(a: PlanAttention, now: number): Look {
     case "logged_out":
       return { text: `Logged out · @${a.handle}`, tone: "amber" };
     case "late":
-      return { text: `Late · was due ${when(a.eta ?? now, now)}`, tone: "amber" };
+      return { text: `Behind · was due ${when(a.eta ?? now, now)}`, tone: "amber" };
     case "stale":
       return { text: `${a.text} · no update for 2 h`, tone: "grey" };
     case "working":
@@ -77,7 +77,7 @@ export function dotOf(a: PlanAttention | undefined): { label: string; tone: Tone
     case "waiting":
       return { label: "Waiting on you", tone: "amber" };
     case "late":
-      return { label: "Late", tone: "amber" };
+      return { label: "Behind", tone: "amber" };
     case "stale":
       return { label: "No update", tone: "amber" };
     case "not_responding":

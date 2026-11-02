@@ -2,6 +2,7 @@
 // or slow; API answers are never touched here (the page keeps its own copy in IndexedDB, which is the offline fallback), so nothing a
 // route returns, a machine key above all, can land in Cache Storage (I-39). Only an app frame, immutable by its hash, is cached.
 import { getCacheKeyForURL, matchPrecache, precache } from "workbox-precaching";
+import { inDevScope } from "../shared/devScope.ts";
 import type { SwModule } from "./module.ts";
 
 declare const self: ServiceWorkerGlobalScope & { __WB_MANIFEST?: { url: string; revision: string | null }[] };
@@ -91,6 +92,8 @@ const cache: SwModule = {
       const { request } = event;
       const url = new URL(request.url);
       if (url.origin !== scope.location.origin || request.method !== "GET") return;
+      // The owner's dev build at /dev/ is never answered from the real app's cache: its pages and files go to the network.
+      if (inDevScope(url.pathname)) return;
       if (request.mode === "navigate" && !url.pathname.startsWith("/api/")) return event.respondWith(openApp(request));
       if (isFrame(url)) return event.respondWith(cachedFrame(request));
       if (getCacheKeyForURL(request.url)) event.respondWith(matchPrecache(request).then((hit) => hit ?? fetch(request)));

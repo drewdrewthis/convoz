@@ -31,6 +31,8 @@ type WaitingUnanswered struct {
 	Excerpt      string          `json:"excerpt"`
 	CreatedAt    int64           `json:"created_at"`
 	AgeMS        int64           `json:"age_ms"`
+	// Members are the handles of the others in the conversation: the name of a chat with no title.
+	Members []string `json:"members"`
 }
 
 // WaitingUnread is how many messages the owner has not read in one conversation.

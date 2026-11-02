@@ -87,7 +87,7 @@ Feature: Poor connections (contracts)
 
   Rule: The app is fast on a mid-range phone (AC-10)
 
-    @v1 @browser @phone @lossy @AC-10 @unimplemented
+    @v1 @browser @phone @lossy @AC-10
     Scenario Outline: The first useful screen appears in budget
       Given a mid-range phone profile with CPU slowed 4 times on the <network> profile
       When the app starts <start>

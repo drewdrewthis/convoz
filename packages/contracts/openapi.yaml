@@ -91,13 +91,13 @@ paths:
   /api/conversations/{id}/participants/{iid}/approve: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}~1participants~1{iid}~1approve" }
   /api/conversations/{id}/participants/{iid}/decline: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}~1participants~1{iid}~1decline" }
   /api/conversations/{id}/leave: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}~1leave" }
-  /api/conversations/{id}/resume: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}~1resume" }
   /api/conversations/{id}/stale: { $ref: "paths/conversation.yaml#/~1api~1conversations~1{id}~1stale" }
   # ---- readstate
   /api/conversations/{id}/read: { $ref: "paths/readstate.yaml#/~1api~1conversations~1{id}~1read" }
   # ---- message
   /api/conversations/{id}/messages: { $ref: "paths/message.yaml#/~1api~1conversations~1{id}~1messages" }
   /api/conversations/{id}/typing: { $ref: "paths/message.yaml#/~1api~1conversations~1{id}~1typing" }
+  /api/conversations/{id}/threads: { $ref: "paths/message.yaml#/~1api~1conversations~1{id}~1threads" }
   /api/messages/{id}: { $ref: "paths/message.yaml#/~1api~1messages~1{id}" }
   /api/messages/{id}/edits: { $ref: "paths/message.yaml#/~1api~1messages~1{id}~1edits" }
   /api/messages/{id}/purge: { $ref: "paths/message.yaml#/~1api~1messages~1{id}~1purge" }
@@ -110,11 +110,22 @@ paths:
   /api/messages/{id}/unfurl: { $ref: "paths/unfurl.yaml#/~1api~1messages~1{id}~1unfurl" }
   # ---- prefs
   /api/conversations/{id}/prefs: { $ref: "paths/prefs.yaml#/~1api~1conversations~1{id}~1prefs" }
+  /api/conversations/{id}/mention-snooze: { $ref: "paths/prefs.yaml#/~1api~1conversations~1{id}~1mention-snooze" }
   /api/messages/{id}/pin: { $ref: "paths/prefs.yaml#/~1api~1messages~1{id}~1pin" }
   /api/status: { $ref: "paths/prefs.yaml#/~1api~1status" }
   # ---- plan
   /api/conversations/{id}/plan: { $ref: "paths/plan.yaml#/~1api~1conversations~1{id}~1plan" }
   /api/plans: { $ref: "paths/plan.yaml#/~1api~1plans" }
+  /api/deliveries: { $ref: "paths/plan.yaml#/~1api~1deliveries" }
+  # ---- item
+  /api/conversations/{id}/items/{key}/{event}: { $ref: "paths/item.yaml#/~1api~1conversations~1{id}~1items~1{key}~1{event}" }
+  /api/messages/{id}/take: { $ref: "paths/item.yaml#/~1api~1messages~1{id}~1take" }
+  /api/feed: { $ref: "paths/item.yaml#/~1api~1feed" }
+  /api/feed/{id}/accept: { $ref: "paths/item.yaml#/~1api~1feed~1{id}~1accept" }
+  /api/feed/{id}/answer: { $ref: "paths/item.yaml#/~1api~1feed~1{id}~1answer" }
+  /api/feed/{id}/reply: { $ref: "paths/item.yaml#/~1api~1feed~1{id}~1reply" }
+  /api/feed/{id}/ack: { $ref: "paths/item.yaml#/~1api~1feed~1{id}~1ack" }
+  /api/feed/{id}/snooze: { $ref: "paths/item.yaml#/~1api~1feed~1{id}~1snooze" }
   # ---- ask
   /api/asks: { $ref: "paths/ask.yaml#/~1api~1asks" }
   /api/asks/{id}: { $ref: "paths/ask.yaml#/~1api~1asks~1{id}" }
@@ -150,6 +161,7 @@ paths:
   /api/me/export/{id}: { $ref: "paths/ops.yaml#/~1api~1me~1export~1{id}" }
   /api/me/delete: { $ref: "paths/ops.yaml#/~1api~1me~1delete" }
   /api/client-errors: { $ref: "paths/ops.yaml#/~1api~1client-errors" }
+  /api/client-events: { $ref: "paths/ops.yaml#/~1api~1client-events" }
   /api/admin/health: { $ref: "paths/ops.yaml#/~1api~1admin~1health" }
   # ---- page
   /api/page/shares: { $ref: "paths/page.yaml#/~1api~1page~1shares" }
@@ -336,6 +348,7 @@ components:
     Transcript: { $ref: "components/upload.yaml#/Transcript" }
     Posted: { $ref: "components/message.yaml#/Posted" }
     Replies: { $ref: "components/readstate.yaml#/RepliesResponse" }
+    Threads: { $ref: "components/readstate.yaml#/ThreadsResponse" }
     EditRequest: { $ref: "components/message.yaml#/EditRequest" }
     EditHistory: { $ref: "components/message.yaml#/EditHistory" }
     App: { $ref: "components/appkit.yaml#/App" }
@@ -374,6 +387,8 @@ components:
     SyncReset: { $ref: "components/event.yaml#/SyncReset" }
     SyncSnapshot: { $ref: "components/event.yaml#/SyncSnapshot" }
     PrefsRequest: { $ref: "components/prefs.yaml#/PrefsRequest" }
+    MentionSnoozeRequest: { $ref: "components/prefs.yaml#/MentionSnoozeRequest" }
+    MentionSnoozeResult: { $ref: "components/prefs.yaml#/MentionSnoozeResult" }
     RailRank: { $ref: "components/prefs.yaml#/RailRank" }
     PrefsResponse: { $ref: "components/prefs.yaml#/PrefsResponse" }
     PrefsChangedFrame: { $ref: "components/prefs.yaml#/PrefsChangedFrame" }
@@ -401,6 +416,20 @@ components:
     PlanRequest: { $ref: "components/plan.yaml#/PlanRequest" }
     PlanStep: { $ref: "components/plan.yaml#/PlanStep" }
     PlanNowRequest: { $ref: "components/plan.yaml#/PlanNowRequest" }
+    PlanDeliverRequest: { $ref: "components/plan.yaml#/PlanDeliverRequest" }
+    PlanDeliver: { $ref: "components/plan.yaml#/PlanDeliver" }
+    Delivery: { $ref: "components/plan.yaml#/Delivery" }
+    ItemRequest: { $ref: "components/item.yaml#/ItemRequest" }
+    TakeRequest: { $ref: "components/item.yaml#/TakeRequest" }
+    TakeResponse: { $ref: "components/item.yaml#/TakeResponse" }
+    FeedItem: { $ref: "components/item.yaml#/FeedItem" }
+    FeedResponse: { $ref: "components/item.yaml#/FeedResponse" }
+    FeedAcceptRequest: { $ref: "components/item.yaml#/FeedAcceptRequest" }
+    FeedAnswerRequest: { $ref: "components/item.yaml#/FeedAnswerRequest" }
+    FeedReplyRequest: { $ref: "components/item.yaml#/FeedReplyRequest" }
+    FeedSnoozeRequest: { $ref: "components/item.yaml#/FeedSnoozeRequest" }
+    ShippedDelivery: { $ref: "components/plan.yaml#/ShippedDelivery" }
+    Deliveries: { $ref: "components/plan.yaml#/Deliveries" }
     PlanNow: { $ref: "components/plan.yaml#/PlanNow" }
     PlanWaiting: { $ref: "components/plan.yaml#/PlanWaiting" }
     PlanDone: { $ref: "components/plan.yaml#/PlanDone" }
@@ -421,6 +450,7 @@ components:
     AskUpdateRequest: { $ref: "components/ask.yaml#/AskUpdateRequest" }
     AskOwnerReply: { $ref: "components/ask.yaml#/AskOwnerReply" }
     OwnersCall: { $ref: "components/ask.yaml#/OwnersCall" }
+    AskPermission: { $ref: "components/ask.yaml#/AskPermission" }
     AskDraft: { $ref: "components/ask.yaml#/AskDraft" }
     AskReply: { $ref: "components/ask.yaml#/AskReply" }
     AskHistoryRow: { $ref: "components/ask.yaml#/AskHistoryRow" }

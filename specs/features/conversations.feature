@@ -1,4 +1,4 @@
-# Source: design draft 9 §2.3, §8 (I-7, I-9, I-15, I-16, I-17, I-19, I-20, I-47), §8.2 (unread), §14 (soft delete), AC-6, AC-26.
+# Source: design draft 9 §2.3, §8 (I-7, I-9, I-15, I-17, I-19, I-20, I-47), §8.2 (unread), §14 (soft delete), AC-6, AC-26.
 # Prototype: blank new conversation (⌘J, "Type @ to bring in an agent"), rename, details sidebar (I), participants.
 # Pickup was removed. Owner said: "Nothing claims conversations. I need to tag." Agents join only when the owner tags them.
 # Words follow prototype v41: the tab and list are "Conversations", the button is "New conversation".
@@ -27,6 +27,26 @@ Feature: Conversations
       When the owner starts a new conversation and sends "Plan the search filters launch"
       Then without a reload the title bar shows "Star conversation" and "Show details"
       And "Show details" opens the details
+
+    # Owner report (conv 359 msg 6385): "this conversation was bricked -- I couldn't send? no errors, no toasts, nothing". The app had drawn
+    # New conversation from its offline copy, the owner sent before the server said who the crew is, and the late answer started the page over.
+    @v1 @browser
+    Scenario: A first send made before the crew has loaded keeps its message
+      Given the server is slow to say who the owner and the crew are
+      When the owner opens New conversation, picks "devtool" and sends "Plan the search filters launch"
+      And the server then says who the owner and the crew are
+      Then the conversation shows "Plan the search filters launch" and is titled "Plan the search filters launch"
+      And a second message "and the rollout" goes to the same conversation
+      And the owner has one conversation, with both messages
+
+    @v1 @browser
+    Scenario: A first send whose conversation is still being made when the crew loads keeps its message
+      Given the server is slow to say who the owner and the crew are, and slower to make a conversation
+      When the owner opens New conversation, picks "devtool" and sends "Plan the search filters launch"
+      And the server says who the owner and the crew are before it has made the conversation
+      Then the conversation shows "Plan the search filters launch" and is titled "Plan the search filters launch"
+      And a second message "and the rollout" goes to the same conversation
+      And the owner has one conversation, with both messages
 
     @v1 @browser @phone
     Scenario: On a phone the first page after sign-in is Now
@@ -296,15 +316,6 @@ Feature: Conversations
       When the owner marks the conversation read
       Then conversation 41 and its thread rows show no unread count and it is not bold
 
-  Rule: A loop pause is visible and the owner resumes it
-
-    @v1 @browser @I-16
-    Scenario: A paused conversation shows a banner with Resume
-      Given "devtool" and "docs" posted 20 messages in a row in conversation 41
-      When the owner opens conversation 41
-      Then a banner says the agents are paused after 20 messages in a row
-      And the banner has a Resume button
-
   # Removed: "A conversation can be offered to any agent for pickup" (SEC-6, I-47).
   # Owner said: "Nothing claims conversations. I need to tag." Agents join only through the owner's @mention or + Add.
 
@@ -313,7 +324,7 @@ Feature: Conversations
     @v1 @browser @phone
     Scenario: On a phone the bottom bar leads to Now, Conversations and Crew
       Given the owner opens Convoz on a phone
-      Then a bottom bar shows "Now", "Conversations" and "Crew"
+      Then a bottom bar shows "Now", "Conversations", "Work" and "Crew"
       When the owner taps "Conversations"
       Then the Conversations list shows with a "New conversation" button
       And "Conversations" is marked as the current tab
@@ -401,14 +412,6 @@ Feature: Conversations
       Then the conversation shows "@devtool and @docs are replying…" within 3 seconds
       When "devtool" runs "convoz post" in that conversation with "Yes"
       Then the conversation shows "@docs is replying…" and the reply shows
-
-    @v1 @browser
-    Scenario: A card in Now shows who has seen and who is replying
-      Given "devtool" asked a question in a conversation and runs "convoz watch --json"
-      When the owner sends "Take your time" in that conversation
-      Then the card in Now shows "Seen by @devtool" and "@devtool is replying…" within 3 seconds
-      When "devtool" runs "convoz ack" without a reply
-      Then the card in Now still shows "Seen by @devtool" and no replying note
 
     @v1 @browser @phone
     Scenario: On a phone the working note goes away when the agent finishes without a reply
@@ -599,3 +602,48 @@ Feature: Conversations
       Given the owner has a conversation with messages from both sides
       When the owner opens Conversations, New conversation and the conversation in dark and in light
       Then the dark pages are dark and the light pages are light
+
+    # Owner (conv 179 msg 4100): agent handles should be clickable. Issue 34.
+    @v1 @browser
+    Scenario: The agent handle under the title of a conversation opens that agent
+      Given a conversation with "devtool" is open
+      When the owner clicks the handle @devtool under the title
+      Then the agent page of "devtool" opens
+
+    @v1 @browser
+    Scenario: The agent handle on its card in the details panel opens that agent
+      Given a conversation with "devtool" is open with its details showing
+      When the owner clicks the handle @devtool on its card
+      Then the agent page of "devtool" opens
+
+    @v1 @browser
+    Scenario: A conversation link in the sidebar switches the conversation in place
+      Given conversation A is open
+      When the owner clicks conversation B in the sidebar
+      Then B shows, the URL is /chats/B, and the page did not reload
+      When the owner clicks conversation A again
+      Then A shows again without a reload
+      When the owner presses Back
+      Then B shows, still without a reload
+      When the owner reloads the page
+      Then B shows again
+
+    @v1 @browser
+    Scenario: A deep link opens its conversation
+      Given two conversations
+      When the owner opens /chats/B in a new tab
+      Then B shows
+
+    @v1 @browser @phone
+    Scenario: On a phone the Conversations list keeps each row on one line and the last row clear of New conversation
+      Given starred "Ship search filters" has a read thread (Older) and a newer thread with 2 unread replies
+      And its last message is longer than the row, as most are
+      And 8 more conversations with unread messages from "devtool"
+      And 15 asks wait on the owner
+      When the owner opens Conversations on a phone
+      Then the fold chevron sits on the conversation's row, not on a line of its own
+      And the Now badge reads "15" on one line
+      And the unread counts of the conversation rows share one right edge
+      And a row without a fold keeps its link across the empty fold column and its count on the same right edge
+      When the owner scrolls to the end of the list
+      Then the last row ends above the New conversation button, a round "+" that keeps its name for a screen reader

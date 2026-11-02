@@ -1,6 +1,6 @@
 // The plans the owner sees: one board for the Conversations list (every conversation) and one per open conversation. Both follow the
 // stream ("plan.changed", a system line, a status or an ask) and read again when time alone changes a line (next_change_at).
-import { registerHandler, registerResync, type PlanBoard } from "@convoz/api-client";
+import { debouncePer, registerHandler, registerResync, type PlanBoard } from "@convoz/api-client";
 import { create } from "zustand";
 import { call, client } from "../../shared/api.ts";
 
@@ -32,11 +32,13 @@ export const usePlans = create<PlanState>()((set, get) => ({
   },
 }));
 
+/** One read of a board per burst: a catch-up brings many frames at once, and a slow one spreads them. */
+const loadOnce = debouncePer((conv: number) => usePlans.getState().load(conv), 200);
+
 /** reload reads again the boards held for the conversation (0: every held board). */
 function reload(conv: number): void {
-  const { boards, load } = usePlans.getState();
-  for (const key of Object.keys(boards).map(Number)) {
-    if (conv === 0 || key === ALL || key === conv) void load(key).catch(() => {});
+  for (const key of Object.keys(usePlans.getState().boards).map(Number)) {
+    if (conv === 0 || key === ALL || key === conv) loadOnce(key);
   }
 }
 
@@ -45,7 +47,8 @@ registerHandler("plan.", (frame) => {
 });
 registerHandler("message.", (frame) => {
   // A line the conversation says about itself may be an agent that stopped responding.
-  if (frame.name === "message.created" && frame.data.author.kind === "system") reload(frame.data.conversation_id);
+  // A plan line is followed by its own plan.changed frame.
+  if (frame.name === "message.created" && frame.data.author.kind === "system" && frame.data.system?.t !== "plan.changed") reload(frame.data.conversation_id);
 });
 registerHandler("agent.", (frame) => {
   if (frame.name === "agent.status_changed") reload(0);

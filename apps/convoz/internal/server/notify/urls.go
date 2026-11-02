@@ -26,7 +26,7 @@ func URLFor(reason string, conversation, request int64) string {
 		return URLPrivacy
 	case ReasonTest:
 		return URLSettings
-	case ReasonAsk, ReasonAskUrgent, ReasonSnoozeWake, ReasonAgentAdd:
+	case ReasonAsk, ReasonAskUrgent, ReasonSnoozeWake, ReasonAgentAdd, ReasonIdentityRequest:
 		return URLNow
 	}
 	if conversation != 0 {

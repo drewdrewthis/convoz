@@ -16,7 +16,8 @@ const MaxAnswers = 1000
 
 // Updating is what the asking agent changes in its open ask. An empty Question, a nil Recommended and an empty OwnersCallReason keep what
 // the ask has; Recommended and Alternatives are given together and replace the options as a whole. Answers is the short summary of
-// the answers to the owner's questions; it is required once the owner replied in the ask's thread.
+// the answers to the owner's questions; it is required once the owner replied in the ask's thread. Permission rewrites all the parts of a
+// permission ask; its Confidence is ignored, as the confidence is fixed when the ask is made.
 type Updating struct {
 	ID, By           int64
 	Question         string
@@ -24,6 +25,7 @@ type Updating struct {
 	Alternatives     []Option
 	OwnersCallReason string
 	Answers          string
+	Permission       *Permission
 }
 
 // Update changes an open ask in place (the owner's Q&A in its thread ends in an update, not in a new ask): the content the agent
@@ -40,15 +42,20 @@ func Update(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, in Updating
 	if a.State != Open {
 		return Ask{}, conflict(a)
 	}
+	if replayed(a, in) {
+		return a, nil // the update that was just made, sent again after a lost answer: nothing changes and the version stays
+	}
 	next, changed, err := apply(a, in)
 	if err != nil {
 		return Ask{}, err
 	}
 	q := db.New(d)
-	won, err := q.UpdateAsk(ctx, db.UpdateAskParams{
+	row := db.UpdateAskParams{
 		Question: next.Question, OwnersCallReason: sql.NullString{String: reasonOf(next), Valid: a.OwnersCall != nil}, Answers: nullText(in.Answers),
 		Changed: strings.Join(changed, ", "), Now: now.UnixMilli(), MessageID: a.ID, Version: a.Version,
-	})
+	}
+	row.Action, row.Risk, row.Undo, row.OneWay, row.Considered = permissionColumns(next.Permission)
+	won, err := q.UpdateAsk(ctx, row)
 	if err != nil {
 		return Ask{}, err
 	}
@@ -65,7 +72,7 @@ func Update(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, in Updating
 			}
 		}
 	}
-	if contains(changed, "question") {
+	if next.Question != a.Question {
 		if err := p.Messages.SetQuestion(ctx, d, now, a.ID, next.Question); err != nil {
 			return Ask{}, err
 		}
@@ -85,13 +92,26 @@ func Update(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, in Updating
 	return Get(ctx, d, a.ID)
 }
 
+// replayed is true when in is the update the ask just had: its last step is an update by the same agent, the owner has not written since
+// (an update clears the owner's reply), nothing it gives differs from the ask, and its answers are the ones the ask holds. Sent
+// again it would bump the version a second time for no change.
+func replayed(a Ask, in Updating) bool {
+	if n := len(a.History); n == 0 || a.History[n-1].Event != "updated" || a.History[n-1].By != in.By || a.OwnerRepliedAt > 0 {
+		return false
+	}
+	probe := in
+	probe.Answers = "-" // so apply never refuses it for having nothing to change; what it reports is the content that differs
+	_, changed, err := apply(a, probe)
+	return err == nil && len(changed) == 1 && changed[0] == "answers" && strings.TrimSpace(in.Answers) == strings.TrimSpace(a.Answers)
+}
+
 // apply checks an update against the ask and returns the ask as it will stand, and what changed ("question", "options", "owner's call",
-// else "answers"). Nothing to change and no answers is a refusal.
+// the permission parts "action", "risk", "undo", "one_way", "considered", else "answers"). Nothing to change and no answers is a refusal.
 func apply(a Ask, in Updating) (next Ask, changed []string, err error) {
 	next = a
 	if in.Question != "" && in.Question != a.Question {
 		next.Question = in.Question
-		if err := (New{Question: in.Question}).checkQuestion(); err != nil {
+		if err := (New{Question: in.Question, Permission: a.Permission}).checkQuestion(); err != nil { // a permission ask shows its action
 			return Ask{}, nil, err
 		}
 		changed = append(changed, "question")
@@ -121,6 +141,23 @@ func apply(a Ask, in Updating) (next Ask, changed []string, err error) {
 		next.OwnersCall = &OwnersCall{Kind: a.OwnersCall.Kind, Reason: r}
 		changed = append(changed, "owner's call")
 	}
+	if in.Permission != nil {
+		if a.Permission == nil {
+			return Ask{}, nil, &FieldError{"permission", "Only a permission ask has permission parts to change."}
+		}
+		pm := *in.Permission
+		pm.Confidence = a.Permission.Confidence
+		if err := pm.check(); err != nil {
+			return Ask{}, nil, err
+		}
+		if parts := a.Permission.diff(pm); len(parts) > 0 {
+			next.Permission = &pm
+			changed = append(changed, parts...)
+			if next.Question == a.Permission.Action { // the question followed the action, so it follows the new one
+				next.Question = pm.Action
+			}
+		}
+	}
 	answers := strings.TrimSpace(in.Answers)
 	switch {
 	case utf8.RuneCountInString(in.Answers) > MaxAnswers:
@@ -128,7 +165,7 @@ func apply(a Ask, in Updating) (next Ask, changed []string, err error) {
 	case answers == "" && a.OwnerRepliedAt > 0:
 		return Ask{}, nil, &FieldError{"answers", "The owner replied in the thread: answer the questions in the thread, then give a short summary with --answers."}
 	case answers == "" && len(changed) == 0:
-		return Ask{}, nil, &FieldError{"update", "Nothing to update: change the question, the options or the reason, or give --answers."}
+		return Ask{}, nil, &FieldError{"update", "Nothing to update: change the question, the options, the reason or the permission parts, or give --answers."}
 	case len(changed) == 0:
 		changed = []string{"answers"}
 	}

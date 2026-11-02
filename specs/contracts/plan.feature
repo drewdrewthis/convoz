@@ -39,7 +39,6 @@ Feature: Plans (contracts)
       Given "devtool" planned Doing "Building invites" with no eta
       When the server clock moves on and "devtool" claims and acks its status_due item each time
       Then "devtool" gets no status_due item at 14 minutes, one at 16 minutes, none at 46 minutes, one at 1 hour, one at 2 hours and none at 3 hours after the first
-      And agent_streak of the conversation is unchanged
       And a new plan starts the count again: none after 14 minutes, one after 16 minutes
 
     @v1 @api
@@ -49,6 +48,51 @@ Feature: Plans (contracts)
       Then "devtool" gets no status_due item
       When "devtool" plans Doing "Building invites" and Blocked "CI is down" and 3 hours pass
       Then "devtool" gets no status_due item
+
+  Rule: An agent that keeps working is asked to keep its plan fresh, so the owner never has to ask
+    # Owner (Drew, conv 179, msg 10021): "I feel like I shouldn't have to ask for updates all the time..."
+    # Active is 3 posts in the conversation within the last hour, all after the plan's last update; with no plan, the 30 minutes run
+    # from the first of those posts, so a few quick answers right after joining ask nothing. One plan ask at a time, and
+    # these asks rest an hour after any plan ask in that conversation (a day for a quiet delivery).
+
+    @v1 @api
+    Scenario: An agent that keeps posting with a plan 30 minutes old is asked once an hour
+      Given "devtool" planned Doing "Building invites" with an estimate of 3 hours
+      When 10 minutes pass and "devtool" posts 3 messages in conversation 41
+      Then "devtool" gets no status_due item
+      When 21 more minutes pass and "devtool" posts once more
+      Then "devtool" gets one status_due item for conversation 41 that says its plan has had no update for 31 min
+      When "devtool" acks it and posts 3 more messages
+      Then "devtool" gets no status_due item
+      When an hour passes and "devtool" posts 3 more messages
+      Then "devtool" gets one status_due item
+
+    # Conv 346 and 405: a plan marked --done and a --waiting plan got "no update for 71 min". A plan with nothing in Now, one that waits
+    # on the owner and one that is blocked have nothing behind: they wait on someone else, or are finished.
+    @v1 @api
+    Scenario: A plan that is done, waits on the owner or is blocked is not asked for an update while the agent keeps posting
+      Given "devtool" planned Done "Board feed", then in turn Doing "Building invites" with Waiting on you "Approve the deploy", and Doing "Building invites" with Blocked "CI is down"
+      When 31 minutes pass after each plan and "devtool" posts 3 messages
+      Then "devtool" gets no status_due item
+
+    @v1 @api
+    Scenario: An agent with no plan is asked once it has worked in the conversation for 30 minutes
+      When "devtool" posts 3 messages in conversation 41, where it has no plan
+      Then "devtool" gets no status_due item
+      When 31 minutes pass and "devtool" posts once more
+      Then "devtool" gets one status_due item that says "You have no plan in conversation 41."
+
+    @v1 @api
+    Scenario: A plan with a delivery and no update for a day is asked about once a day
+      Given "devtool" planned to deliver "Search filters live" in 5 days, with nothing in Now
+      When 23 hours pass
+      Then "devtool" gets no status_due item
+      When 2 more hours pass
+      Then "devtool" gets one status_due item that says "has had no update for 25 h"
+      When 2 more hours pass
+      Then "devtool" gets no status_due item
+      When 23 more hours pass
+      Then "devtool" gets one status_due item
 
   Rule: An agent with a message waiting 10 minutes and no live watch is not responding
 

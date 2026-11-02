@@ -92,6 +92,16 @@ Feature: Composer
       And "docs" gets a mention item
 
     @v1 @browser @I-18
+    Scenario: Letters typed after the at sign find a handle by order, not only by its start
+      When the owner types "@lwd" in conversation 41
+      Then the mention list offers "lw-dashboards" and nothing else
+
+    @v1 @browser @I-18
+    Scenario: The mention list puts the closest handle first
+      When the owner types "@dash" in conversation 41
+      Then the mention list shows "dash", then "dashboard", then "lw-dashboards", then "dataset-host"
+
+    @v1 @browser @I-18
     Scenario: A disabled agent is not offered and not added
       Given the owner disabled "release-bot"
       When the owner sends "@release-bot ship it" in conversation 41
@@ -234,3 +244,23 @@ Feature: Composer
       Given the owner's browser refuses the microphone with NotAllowedError
       When the owner taps the microphone
       Then the note says "Microphone access is off. Allow it in Settings for this app, then try again."
+
+    @v1 @browser
+    Scenario: A send the server refuses says why in words
+      Given the owner has conversation 41 open and the server refuses the next send
+      When the owner sends "refused"
+      Then the bubble says the reason and "failed · retry", and no JSON
+      And the refused send is not kept to be sent again, so a reload does not pin it at the bottom
+
+    @v1 @browser
+    Scenario: A failed send can be discarded
+      Given the owner has conversation 41 open and the server refuses the next send
+      When the owner discards it
+      Then the bubble is gone without a reload, nothing is kept in the outbox, and it stays gone after a reload
+
+    @v1 @browser
+    Scenario: Dropping files on a thread attaches them to the reply
+      Given conversation 41 is open with a thread on its first message, and the thread is open
+      When the owner drops "chart.png" and "deploy.log" on the thread
+      Then the thread's reply box shows both under "Files to send", and the conversation's composer shows none
+      And sending posts one reply with both files

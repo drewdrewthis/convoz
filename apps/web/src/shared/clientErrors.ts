@@ -1,6 +1,7 @@
 // Uncaught errors of the page go to the server's own log (POST /api/client-errors), so the owner can read them in journalctl.
-// No third party. The report holds the error's message and stack, the page's path (never its query), the build and the browser;
-// nothing else of the page, no conversation content, no token. The service worker has its own copy (sw/errors.ts): it cannot import this.
+// No third party. The report holds the error's class, message and stack, the page's path (never its query), the build and the
+// browser; nothing else of the page, no conversation content, no token. The class is the only part the server counts.
+// The service worker has its own copy (sw/errors.ts): it cannot import this.
 
 declare const __BUILD__: string;
 
@@ -8,6 +9,11 @@ const MAX_REPORTS = 10; // per page load
 const MAX_MESSAGE = 500;
 const MAX_STACK = 4096;
 const sent = new Set<string>();
+const KINDS = new Set(["TypeError", "ReferenceError", "SyntaxError", "RangeError", "ChunkLoadError"]);
+
+/** kindOf is the error's class when the server counts it, else "other". It reads the name, never the message: a built-in error's
+ *  name is its constructor's, and a bundler's failed chunk load names itself "ChunkLoadError". */
+export const kindOf = (e: Error): string => (KINDS.has(e.name) ? e.name : "other");
 
 /** scrub drops what must not leave the page: the query of a URL, and any long token-like run (a key, a ticket, a session id). */
 export function scrub(text: string): string {
@@ -22,7 +28,7 @@ export function reportError(error: unknown): void {
   const key = message + stack;
   if (sent.has(key) || sent.size >= MAX_REPORTS) return;
   sent.add(key);
-  const body = { message, stack, page: location.pathname, build: __BUILD__, ua: navigator.userAgent, at: Date.now() };
+  const body = { kind: kindOf(e), message, stack, page: location.pathname, build: __BUILD__, ua: navigator.userAgent, at: Date.now() };
   // fetch with keepalive, not sendBeacon: the server's CSRF check needs the X-Convoz header, which a beacon cannot carry.
   fetch("/api/client-errors", { method: "POST", keepalive: true, headers: { "Content-Type": "application/json", "X-Convoz": "1" }, body: JSON.stringify(body) }).catch(() => {});
 }

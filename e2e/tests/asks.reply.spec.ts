@@ -1,7 +1,7 @@
 import type { Locator, Page } from "@playwright/test";
 import { streamOpen, uiWorld } from "../lib/chat-ui.ts";
-import { agentPost, convoz, createConversation, inboxItems, startWatch } from "../lib/chat.ts";
-import { QUESTION, agentAsks, askCard, askOf, askWorld, expectState, markAsk, nowOf, openNow, ownerRepliesIn, snoozeAsk } from "../lib/asks.ts";
+import { agentPost, convoz, createConversation, inboxItems, ownerSays, startSession, startWatch } from "../lib/chat.ts";
+import { ACTION, QUESTION, agentAsks, agentAsksPermission, askCard, openFold, askOf, askWorld, expectState, markAsk, nowOf, openNow, ownerRepliesIn, snoozeAsk } from "../lib/asks.ts";
 import { box } from "../lib/mobile.ts";
 import { must } from "../lib/owner.ts";
 import { expect, scenario } from "../lib/scenario.ts";
@@ -46,8 +46,8 @@ scenario("Snoozing on a phone opens a sheet that covers no button", { tag: ["@br
   // And the owner opens Now on a phone
   await openNow(page, w.srv);
   const card = askCard(page, DRAFT_QUESTION);
-  await expect(card.getByRole("textbox", { name: "Draft" })).toBeVisible();
-  const snooze = card.getByRole("group", { name: "Ask actions" }).getByRole("button", { name: "Snooze" });
+  await expect(card).toContainText("Draft: Sounds good, Thursday works.");
+  const snooze = card.getByRole("group", { name: "Actions" }).getByRole("button", { name: "Snooze" });
   const menu = page.getByRole("menu");
   const view = page.viewportSize()!;
 
@@ -101,7 +101,7 @@ scenario("Replying to an ask keeps it open and moves it to You replied", { tag: 
   const conv = await createConversation(u.w.owner, { title: "Ship search filters", participants: ["devtool"] });
   const id = await agentAsks(u.w.srv, lease, conv);
   await page.goto(`${u.w.srv.origin}/chats/${conv}`);
-  await expect(askCard(page).getByRole("button", { name: "Quick reply" })).toBeVisible();
+  await expect(askCard(page).getByRole("button", { name: "Okay", exact: true })).toBeVisible();
   const now: Page = await context.newPage();
   await openNow(now, u.w.srv);
   await expect(askCard(now)).toBeVisible();
@@ -109,7 +109,7 @@ scenario("Replying to an ask keeps it open and moves it to You replied", { tag: 
   await streamOpen(now);
 
   // When the owner replies to the ask in its thread
-  await askCard(page).getByRole("button", { name: "I have questions" }).click();
+  await askCard(page).getByRole("button", { name: "Reply", exact: true }).click();
   await threadPane(page).waitFor();
   await replyInThread(page, "Use the smaller one");
 
@@ -121,11 +121,35 @@ scenario("Replying to an ask keeps it open and moves it to You replied", { tag: 
   expect((await nowOf(u.w.owner)).badge).toBe(0);
   expect(await expectState(u.w.owner, id)).toBe("open");
 
-  // And the card in the conversation shows "You replied · waiting on @devtool" and still offers its options
+  // And the card in the conversation still offers Okay and Reply
   const card = askCard(page).first();
-  await expect(card).toContainText("You replied · waiting on @devtool", { timeout: 4_000 });
-  await expect(card.getByRole("button", { name: "Quick reply" })).toBeVisible();
-  await expect(card.getByRole("button", { name: "Merge it" })).toBeVisible();
+  await expect(card.getByRole("button", { name: "Okay", exact: true })).toBeVisible();
+  await expect(card.getByRole("button", { name: "Reply", exact: true })).toBeVisible();
+});
+
+scenario("An ask inside a thread has Okay and Reply too", { tag: ["@browser"] }, async ({ server, page, context }, info) => {
+  info.setTimeout(90_000);
+  // Given "devtool" asks inside the thread of its message "Step 1 is the chips UI"
+  const u = await uiWorld({ server, page, context }, { agents: ["devtool"], live: ["devtool"] });
+  const lease = u.sessions.devtool!.lease;
+  const conv = await createConversation(u.w.owner, { title: "Ship search filters", participants: ["devtool"] });
+  const root = must(await agentPost(u.w.srv, lease, conv, "Step 1 is the chips UI"), "the root", 201).json().id as number;
+  const id = await agentAsks(u.w.srv, lease, conv, { thread: root });
+
+  // When the owner opens the conversation
+  await page.goto(`${u.w.srv.origin}/chats/${conv}`);
+
+  // Then the ask card in the thread offers "Okay" and "Reply"
+  const card = askCard(page).first();
+  await expect(card.getByRole("button", { name: "Okay", exact: true })).toBeVisible();
+  await expect(card.getByRole("button", { name: "Reply", exact: true })).toBeVisible();
+
+  // When the owner presses "Okay"
+  await card.getByRole("button", { name: "Okay", exact: true }).click();
+
+  // Then the ask is answered with "Merge it" and the card shows it in one line
+  await expect.poll(async () => (await askOf(u.w.owner, id)).answer).toBe("Merge it");
+  await expect(askCard(page).first().getByText(/^Merge it(, by .+)?$/)).toBeVisible();
 });
 
 scenario("An agent's reply does not close an ask", { tag: ["@cli"] }, async ({ server }) => {
@@ -261,7 +285,7 @@ scenario("The updated ask shows in Now with the answers, and leaves You replied"
   const id = await agentAsks(u.w.srv, lease, conv);
   await ownerRepliesIn(u.w.owner, conv, id, "Which checks pass?");
   await page.goto(`${u.w.srv.origin}/chats/${conv}`);
-  await expect(askCard(page, QUESTION).first()).toContainText("You replied · waiting on @devtool");
+  await expect(askCard(page, QUESTION).first()).toBeVisible();
   const now: Page = await context.newPage();
   await openNow(now, u.w.srv);
   await expect(now.locator("#replied")).toBeVisible();
@@ -272,24 +296,193 @@ scenario("The updated ask shows in Now with the answers, and leaves You replied"
   const ran = await convoz(u.w.box, u.sessions.devtool!.sid, ["ask", "--json", "--update", String(id), "--question", UPDATED, "--answers", ANSWERS]);
   expect({ code: ran.code, stderr: ran.stderr }).toEqual({ code: 0, stderr: "" });
 
-  // Then Now lists the ask in the main list with "Your questions, answered" and the answers in full, with no "More" to tap on a wide screen
-  // (owner, msg 2064: quick to read); a phone folds an answer at 3 lines so the options stay on screen (conv 179 msg 4342), and "More" shows the rest
+  // Then Now lists the ask in the main list, titled by the new question, with the answers in full
   const card = askCard(now, UPDATED);
-  await expect(card).toContainText("Your questions, answered", { timeout: 4_000 });
-  const more = card.getByRole("button", { name: "More" });
-  if (now.viewportSize()!.width > 600) await expect(more).toHaveCount(0);
-  else if (await more.count()) await more.click();
-  await expect(card.locator("[data-a]")).toHaveText(ANSWERS);
-  await expect(card.getByRole("button", { name: "More" })).toHaveCount(0);
+  await expect(card).toContainText(ANSWERS, { timeout: 4_000 });
 
   // And the ask is no longer under "You replied"
   await expect(now.locator("#replied")).toHaveCount(0);
   await expect(askCard(now, QUESTION)).toHaveCount(0);
 
-  // And the card in the conversation shows the same, and its history has the update
-  const inline = askCard(page, UPDATED).first();
-  await expect(inline).toContainText("Your questions, answered", { timeout: 4_000 });
-  await inline.getByRole("button", { name: "Ask options" }).click();
-  await page.getByRole("menuitem", { name: "History" }).click();
-  await expect(inline.getByRole("list", { name: "History" })).toContainText("Updated by Devtool @devtool");
+  // And the card in the conversation shows the same
+  await expect(askCard(page, UPDATED).first()).toContainText(ANSWERS, { timeout: 4_000 });
+});
+
+scenario("An ask in Now with replies opens its thread in place and folds it again", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given an open ask of "devtool" with the reply "Both fit; the smaller one is safer." from "docs" in its thread
+  const u = await uiWorld({ server, page, context }, { agents: ["devtool", "docs"], live: ["devtool"] });
+  const conv = await createConversation(u.w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  const id = await agentAsks(u.w.srv, u.sessions.devtool!.lease, conv);
+  const docs = await startSession(u.w.box, "docs", "docs");
+  const reply = "Both fit; the smaller one is safer.";
+  // And "docs" answered the owner's message in a thread of conversation "Deploy log", in markdown
+  const deploy = await createConversation(u.w.owner, { title: "Deploy log", participants: ["devtool", "docs"] });
+  const rootOfDeploy = await ownerSays(u.w.owner, deploy, "Did the deploy finish?");
+  must(await agentPost(u.w.srv, docs.lease, deploy, "**Yes**, it finished at noon.", { thread_root_id: rootOfDeploy }), "docs answers in the thread", 201);
+  must(await agentPost(u.w.srv, docs.lease, conv, reply, { thread_root_id: id }), "docs replies in the thread of the ask", 201);
+
+  // When the owner opens Now
+  await openNow(page, u.w.srv, { cards: true });
+  // the feed item: the card and what hangs under it
+  const card = page.locator("[data-conv]").filter({ has: askCard(page) });
+
+  // Then the ask card offers "Show thread" with 1 reply
+  const toggle = card.getByRole("button", { name: /Show thread/ });
+  await expect(toggle).toContainText("1");
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+  // When the owner opens the thread of the card
+  await toggle.click();
+
+  // Then the card shows the reply and the page is still Now
+  await expect(card.getByText(reply)).toBeVisible();
+  await expect(card.getByRole("button", { name: /Hide thread/ })).toHaveAttribute("aria-expanded", "true");
+  expect(new URL(page.url()).pathname).toMatch(/^\/now|^\/$/);
+
+  // When the owner folds the thread of the card
+  await card.getByRole("button", { name: /Hide thread/ }).click();
+
+  // Then the reply is no longer shown
+  await expect(card.getByText(reply)).toHaveCount(0);
+
+  // And the "Replies to you" card of "Deploy log" offers "Show thread" too, and opens the reply with its markdown drawn
+  const replies = page.getByRole("list", { name: "Replies to you" }).getByRole("listitem").filter({ hasText: "Deploy log" });
+  await replies.getByRole("button", { name: /Show thread/ }).click();
+  await expect(replies.locator("strong", { hasText: "Yes" })).toBeVisible();
+  await replies.getByRole("button", { name: /Hide thread/ }).click();
+  await expect(replies.locator("strong", { hasText: "Yes" })).toHaveCount(0);
+});
+
+scenario("The thread of a feed card sits inside the card", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given an open ask of "devtool" with the reply "Both fit; the smaller one is safer." from "docs" in its thread
+  const u = await uiWorld({ server, page, context }, { agents: ["devtool", "docs"], live: ["devtool"] });
+  const conv = await createConversation(u.w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  const id = await agentAsks(u.w.srv, u.sessions.devtool!.lease, conv);
+  const docs = await startSession(u.w.box, "docs", "docs");
+  const reply = "Both fit; the smaller one is safer.";
+  // And "docs" answered the owner's message in a thread of conversation "Deploy log", in markdown
+  const deploy = await createConversation(u.w.owner, { title: "Deploy log", participants: ["devtool", "docs"] });
+  const rootOfDeploy = await ownerSays(u.w.owner, deploy, "Did the deploy finish?");
+  must(await agentPost(u.w.srv, docs.lease, deploy, "**Yes**, it finished at noon.", { thread_root_id: rootOfDeploy }), "docs answers in the thread", 201);
+  must(await agentPost(u.w.srv, docs.lease, conv, reply, { thread_root_id: id }), "docs replies in the thread of the ask", 201);
+
+  // When the owner opens Now
+  await openNow(page, u.w.srv, { cards: true });
+  // the card itself: its box holds the button and the thread
+  const card = askCard(page);
+
+  // Then the ask card offers "Show thread" with 1 reply
+  const toggle = card.getByRole("button", { name: /Show thread/ });
+  await expect(toggle).toContainText("1");
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+  // When the owner opens the thread of the card
+  await toggle.click();
+
+  // Then the card shows the reply inside the card, and the page is still Now
+  await expect(card.getByText(reply)).toBeVisible();
+  await expect(card.getByRole("button", { name: /Hide thread/ })).toHaveAttribute("aria-expanded", "true");
+  expect(new URL(page.url()).pathname).toMatch(/^\/now|^\/$/);
+
+  // And every reply button and input of the card comes after the thread (the buttons inside the thread are the thread's own)
+  const thread = await card.getByRole("group", { name: "Thread" }).boundingBox();
+  const bottom = thread!.y + thread!.height;
+  for (const control of await card.getByRole("button").all()) {
+    if (await control.evaluate((el) => Boolean(el.closest('[aria-label="Thread"]')))) continue; // the thread's own buttons
+    // An icon button has no text: its name is its aria-label ("Item actions", the item's menu at its top).
+    const name = ((await control.textContent()) ?? "").trim() || ((await control.getAttribute("aria-label")) ?? "");
+    if (/thread|Item actions/i.test(name)) continue; // the thread's toggle, and the item's menu at its top
+    const box = await control.boundingBox();
+    expect(box?.y ?? Infinity, `"${name}" at ${JSON.stringify(box)} sits below the thread ending at y=${bottom}`).toBeGreaterThanOrEqual(bottom - 1);
+  }
+
+  // When the owner folds the thread of the card
+  await card.getByRole("button", { name: /Hide thread/ }).click();
+
+  // Then the reply is no longer shown
+  await expect(card.getByText(reply)).toHaveCount(0);
+
+  // And the "Replies to you" card of "Deploy log" offers "Show thread" too, and opens the reply with its markdown drawn
+  const replies = page.getByRole("list", { name: "Replies to you" }).getByRole("listitem").filter({ hasText: "Deploy log" });
+  await replies.getByRole("button", { name: /Show thread/ }).click();
+  await expect(replies.locator("strong", { hasText: "Yes" })).toBeVisible();
+  // and its Reply and Mark read buttons come after the thread
+  const rthread = await replies.getByRole("group", { name: "Thread" }).boundingBox();
+  const rbottom = rthread!.y + rthread!.height;
+  for (const control of [replies.getByRole("link", { name: "Reply", exact: true }), replies.getByRole("button", { name: /^(Mark .* read|Done with .*)$/ })]) {
+    const box = await control.boundingBox();
+    expect(box?.y ?? -1, `${control} at ${JSON.stringify(box)} sits below the thread ending at y=${rbottom}`).toBeGreaterThanOrEqual(rbottom - 1);
+  }
+  await replies.getByRole("button", { name: /Hide thread/ }).click();
+  await expect(replies.locator("strong", { hasText: "Yes" })).toHaveCount(0);
+});
+
+/** The toast of the app: a polite status region that holds the words for a few seconds. */
+const toastWith = (page: Page, text: RegExp): Locator => page.getByRole("status").filter({ hasText: text });
+
+scenario("A reply typed in the thread of an ask card moves the ask to You replied", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given an open ask of "devtool" with a reply from "docs" in its thread
+  const u = await uiWorld({ server, page, context }, { agents: ["devtool", "docs"], live: ["devtool"] });
+  const conv = await createConversation(u.w.owner, { title: "Ship search filters", participants: ["devtool", "docs"] });
+  const id = await agentAsks(u.w.srv, u.sessions.devtool!.lease, conv);
+  const docs = await startSession(u.w.box, "docs", "docs");
+  must(await agentPost(u.w.srv, docs.lease, conv, "Both fit; the smaller one is safer.", { thread_root_id: id }), "docs replies in the thread of the ask", 201);
+
+  // When the owner opens Now and the thread of the card, and sends "Use the smaller one" with Reply here
+  await openNow(page, u.w.srv);
+  const card = askCard(page);
+  await card.getByRole("button", { name: /Show thread/ }).click();
+  await card.getByRole("button", { name: "Reply here" }).click();
+  await card.getByRole("textbox", { name: "Reply to the thread" }).fill("Use the smaller one");
+  await card.getByRole("button", { name: "Send reply" }).click();
+
+  // Then the ask leaves the main list and "You replied · waiting on the agent" lists it with the reply, without a reload
+  await expect(askCard(page)).toHaveCount(0, { timeout: 4_000 });
+  await expect(page.locator("#replied").getByRole("link", { name: new RegExp(QUESTION) })).toContainText("Use the smaller one", { timeout: 4_000 });
+  // And a toast says the ask moved to You replied
+  await expect(toastWith(page, /You replied/)).toBeVisible();
+  // And the badge no longer counts the ask
+  expect((await nowOf(u.w.owner)).badge).toBe(0);
+});
+
+scenario("A reply typed in the thread of a Replies to you card marks it read and takes it out", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given "docs" answered the owner in a thread of conversation "Deploy log"
+  const u = await uiWorld({ server, page, context }, { agents: ["devtool", "docs"], live: ["devtool"] });
+  const docs = await startSession(u.w.box, "docs", "docs");
+  const deploy = await createConversation(u.w.owner, { title: "Deploy log", participants: ["devtool", "docs"] });
+  const root = await ownerSays(u.w.owner, deploy, "Did the deploy finish?");
+  must(await agentPost(u.w.srv, docs.lease, deploy, "It finished at noon.", { thread_root_id: root }), "docs answers in the thread", 201);
+
+  // When the owner opens Now and the thread of the card, and sends "Thanks" with Reply here
+  await openNow(page, u.w.srv, { cards: true });
+  const card = page.getByRole("list", { name: "Replies to you" }).getByRole("listitem").filter({ hasText: "Deploy log" });
+  await card.getByRole("button", { name: /Show thread/ }).click();
+  await card.getByRole("button", { name: "Reply here" }).click();
+  await card.getByRole("textbox", { name: "Reply to the thread" }).fill("Thanks");
+  await card.getByRole("button", { name: "Send reply" }).click();
+
+  // Then the card leaves "Replies to you" and a toast says it was marked read
+  await expect(card).toHaveCount(0, { timeout: 4_000 });
+  await expect(toastWith(page, /marked read/i)).toBeVisible();
+  // And after a reload the card is still gone
+  await page.reload();
+  await page.getByRole("heading", { name: "Now", exact: true }).waitFor();
+  await expect(page.getByRole("list", { name: "Replies to you" }).getByRole("listitem").filter({ hasText: "Deploy log" })).toHaveCount(0);
+});
+
+scenario("Okay on a permission ask says where the ask went", { tag: ["@browser"] }, async ({ server, page, context }) => {
+  // Given an open permission ask of "devtool" in Now
+  const u = await uiWorld({ server, page, context }, { agents: ["devtool"], live: ["devtool"] });
+  const conv = await createConversation(u.w.owner, { title: "Ship search filters", participants: ["devtool"] });
+  await agentAsksPermission(u.w.srv, u.sessions.devtool!.lease, conv);
+  await openNow(page, u.w.srv);
+
+  // When the owner taps "Okay"
+  await askCard(page, ACTION).getByRole("button", { name: "Okay", exact: true }).click();
+
+  // Then the ask leaves the main list, "Answered today" lists it, and a toast says it moved there
+  await expect(askCard(page, ACTION)).toHaveCount(0, { timeout: 4_000 });
+  await expect(toastWith(page, /Answered today/)).toBeVisible();
+  await openFold(page, "Answered today");
+  await expect(page.getByText(/Merge PR 415 into main|Answered · Go/).first()).toBeVisible();
 });

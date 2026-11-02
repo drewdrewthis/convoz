@@ -28,11 +28,6 @@ export async function rename(id: number, title: string): Promise<void> {
   await reload(id);
 }
 
-export async function resume(id: number): Promise<void> {
-  await call(client.POST("/api/conversations/{id}/resume", { params: { path: { id } }, body: {} }));
-  await reload(id);
-}
-
 /** markAllRead clears the unread count and the bold title of one conversation. */
 export async function markAllRead(id: number): Promise<void> {
   await call(client.POST("/api/conversations/{id}/read", { params: { path: { id } }, body: { main_id: 0, all: true } }));

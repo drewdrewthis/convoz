@@ -1,5 +1,5 @@
 // Package message owns the messages table: writing a text message once per client id, editing, deleting and purging it,
-// system lines, mentions, the loop breaker's rule and the plain-text projection, and reading pages of them.
+// system lines, mentions and the plain-text projection, and reading pages of them.
 // It knows nothing of who may see a conversation; the caller passes the first visible id (the floor) to every read.
 package message
 
@@ -290,6 +290,23 @@ func CountUnread(ctx context.Context, d pdb.DBTX, conv, after, reader int64) (in
 // Mentioned lists the identity ids a message mentions.
 func Mentioned(ctx context.Context, d pdb.DBTX, id int64) ([]int64, error) {
 	return db.New(d).ListMentions(ctx, id)
+}
+
+// RecentPosts counts the texts and asks the author wrote in the conversation after the time (epoch ms), among its newest 100 messages,
+// and tells when the first of them was written (0 for none). With topLevelOnly, thread replies do not count.
+func RecentPosts(ctx context.Context, d pdb.DBTX, author, conv, after int64, topLevelOnly bool) (n int, first int64, err error) {
+	top := int64(0)
+	if topLevelOnly {
+		top = 1
+	}
+	r, err := db.New(d).RecentPosts(ctx, db.RecentPostsParams{AuthorID: nullInt(author), ConversationID: conv, After: after, TopLevelOnly: top})
+	return int(r.Posts), r.FirstAt, err
+}
+
+// PostedSince reports whether the author wrote a text or ask in the conversation after the time (epoch ms).
+func PostedSince(ctx context.Context, d pdb.DBTX, author, conv, after int64) (bool, error) {
+	n, err := db.New(d).PostedSince(ctx, db.PostedSinceParams{AuthorID: nullInt(author), ConversationID: conv, After: after})
+	return n, err
 }
 
 // ThreadAuthors lists the identity ids that wrote a text or ask message in the thread of root (the root too).

@@ -2,6 +2,7 @@
 // stay in the app (Now's "Reply in thread", a row of "You replied", "Reply" on the digest) go through navigate: the history entry is
 // pushed, the app draws the page of the new path (app/Root.tsx), and no document loads, so the stores and the stream stay as they are.
 import { useSyncExternalStore, type MouseEvent } from "react";
+import { appPath } from "./base.ts";
 
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((f) => f());
@@ -15,7 +16,7 @@ export const navigatedInApp = () => pushed;
 /** navigate goes to a path of the app. A link to another place on the open page only moves the hash, which the page follows by itself. */
 export function navigate(to: string): void {
   const url = new URL(to, location.href);
-  if (url.pathname === location.pathname) {
+  if (url.pathname === appPath()) {
     location.hash = url.hash;
     return;
   }
@@ -38,6 +39,6 @@ export function usePath(): string {
       listeners.add(notify);
       return () => void listeners.delete(notify);
     },
-    () => location.pathname,
+    () => appPath(),
   );
 }

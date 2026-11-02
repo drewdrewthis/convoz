@@ -3,6 +3,7 @@ package message
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
@@ -22,8 +23,6 @@ const (
 var (
 	ErrDenied  = errors.New("not a participant of that conversation")
 	ErrMissing = errors.New("no such conversation")
-	// ErrPaused means the loop breaker stopped the conversation: agents may not post until a person writes or resumes (I-16).
-	ErrPaused = errors.New("the conversation is paused after 20 agent messages in a row")
 )
 
 // Conversations is what Post needs from the conversation side.
@@ -70,6 +69,7 @@ type Arrival struct {
 	SourceSeq  int64   // the seq of the message's event
 	HasUploads bool    // it carries files: a voice note may wait for its words
 	ByAgent    bool    // an agent wrote it: it wakes another agent only on a mention or a thread that agent is in
+	Owns       bool    // the agent owns an open feed item on this thread: the message wakes it, in the thread or not
 }
 
 // InboxFanOut queues the new message for one agent (inbox module); it reports whether an item was queued.
@@ -87,6 +87,15 @@ type Places interface {
 // item, for the caller to wake after the commit.
 type AskReplies interface {
 	OwnerReplied(ctx context.Context, d pdb.DBTX, now time.Time, m Message) (wake []int64, err error)
+}
+
+// ItemReplies tells the feed items rooted at a thread that an agent wrote there (item module): such an item comes back to the owner's
+// feed, ack and snooze cleared.
+type ItemReplies interface {
+	// AgentReplied reopens them and returns the agents whose open item (not done, not dropped, not acked) is on the thread, for a wake.
+	AgentReplied(ctx context.Context, d pdb.DBTX, now time.Time, m Message) ([]int64, error)
+	// OwnerReplied closes every item on the thread: one reply from the owner, all items of the message.
+	OwnerReplied(ctx context.Context, d pdb.DBTX, now time.Time, m Message) error
 }
 
 // Indexer writes the message into full-text search, inside the same transaction (search module). It is called again with
@@ -143,13 +152,12 @@ type Journal interface {
 	ReadMoved(ctx context.Context, d pdb.DBTX, now time.Time, reader, conv, mainID int64) error
 }
 
-// Events writes the thin events of everything after the post: a reply, an edit, a delete, a purge, the loop breaker.
+// Events writes the thin events of everything after the post: a reply, an edit, a delete, a purge.
 type Events interface {
 	ThreadUpdated(ctx context.Context, d pdb.DBTX, now time.Time, conv, root, lastReply, replies int64) error
 	Edited(ctx context.Context, d pdb.DBTX, now time.Time, actor, conv, id, at int64, idem string) error
 	Deleted(ctx context.Context, d pdb.DBTX, now time.Time, actor, conv, id, at int64) error
 	Purged(ctx context.Context, d pdb.DBTX, now time.Time, actor, conv, id int64) error
-	LoopChanged(ctx context.Context, d pdb.DBTX, now time.Time, actor, conv int64, paused bool) error
 	// SystemWritten announces a system line, like a message created (the stream shows it live).
 	SystemWritten(ctx context.Context, d pdb.DBTX, now time.Time, conv, id int64) error
 }
@@ -163,6 +171,7 @@ type Ports struct {
 	Inbox         InboxFanOut
 	Places        Places
 	Asks          AskReplies
+	Items         ItemReplies
 	Journal       Journal
 	Search        Indexer
 	Uploads       UploadBinder
@@ -170,7 +179,6 @@ type Ports struct {
 	Mentions      Mentions
 	Unfurls       UnfurlQueue
 	Audit         Audit
-	Loop          Loop
 	Events        Events
 	Cascades      []Cascade
 }
@@ -180,16 +188,11 @@ type Posted struct {
 	Message  Message
 	Replayed bool
 	Wake     []int64
-	// Paused is true when this post was the one that stopped the conversation (the 20th agent message in a row).
-	Paused bool
 }
 
 // Post is the whole write of one message, in the caller's transaction (I-4, I-43): the message, the conversation's
 // counters, the author's read cursor, one inbox item per other agent participant and the thin events. A repeat of
 // the same client id changes nothing and returns Replayed. The author is always the caller (I-40).
-//
-// An agent's post is refused with ErrPaused while the conversation is paused; its own post counts toward the pause
-// and a person's resets the count (I-16). A reply counts like any other message.
 func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) (Posted, error) {
 	switch access, err := p.Conversations.Access(ctx, d, draft.Conversation); {
 	case err != nil:
@@ -200,15 +203,6 @@ func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) 
 		return Posted{}, ErrMissing
 	}
 	isAgent := draft.Session != 0
-	if isAgent && p.Loop != nil {
-		paused, err := p.Loop.Paused(ctx, d, draft.Conversation)
-		if err != nil {
-			return Posted{}, err
-		}
-		if paused {
-			return Posted{}, ErrPaused
-		}
-	}
 	if err := checkRoot(ctx, d, draft); err != nil {
 		return Posted{}, err
 	}
@@ -285,6 +279,17 @@ func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) 
 			return Posted{}, err
 		}
 	}
+	var owners []int64
+	if p.Items != nil && draft.ThreadRoot != 0 && !draft.Quiet && draft.Author != 0 {
+		if isAgent {
+			owners, err = p.Items.AgentReplied(ctx, d, now, m)
+		} else {
+			err = p.Items.OwnerReplied(ctx, d, now, m)
+		}
+		if err != nil {
+			return Posted{}, err
+		}
+	}
 	asker, err := askerAnswered(ctx, d, draft)
 	if err != nil {
 		return Posted{}, err
@@ -298,6 +303,7 @@ func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) 
 		if who == asker {
 			continue // the asker gets one ask_resolved item for its answer, not a second item for the same message (I-43)
 		}
+		arrival.Owns = slices.Contains(owners, who)
 		got, err := p.Inbox.FanOut(ctx, d, now, who, arrival)
 		if err != nil {
 			return Posted{}, err
@@ -306,11 +312,7 @@ func Post(ctx context.Context, d pdb.DBTX, p Ports, now time.Time, draft Draft) 
 			queued = append(queued, who)
 		}
 	}
-	paused, err := countLoop(ctx, d, p, now, draft, isAgent)
-	if err != nil {
-		return Posted{}, err
-	}
-	return Posted{Message: m, Wake: append(queued, woken...), Paused: paused}, nil
+	return Posted{Message: m, Wake: append(queued, woken...)}, nil
 }
 
 // askerAnswered is the author of the ask that a message answers; 0 when the message answers none.

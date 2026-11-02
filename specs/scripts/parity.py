@@ -18,6 +18,7 @@ Rules (docs/testing.md §3, the S0 plan "Parity"):
   6. A @needs-owner scenario that is not @unimplemented is run by hand: it needs its runbook
      `docs/owner-checks/<slug>.md` (next to the specs dir; slug = the title in lowercase, runs of
      other characters as "-") and must have no binding. It is counted as "needs owner", never as passed.
+  6b. A @lossy scenario is run by the perf job, not by the shards: it needs its binding in the sources and no entry in the shard report.
   7. The counts of @unimplemented and needs-owner scenarios are always printed.
 Bindings are read from the report (title and tags) and from the test sources
 (`scenario("<title>", ...)`, double-quoted, so a test that never ran is still seen).
@@ -188,6 +189,8 @@ def check(specs_dir, tests_dir, report_path):
         bound += 1
         for f in no_expect.get(sc.name, []):
             problems.append(f"{f}: binding {sc.name!r} has no expect( call, so it asserts nothing")
+        if "@lossy" in tags:
+            continue  # the perf job runs it alone (its own project and job); this report holds the shards only
         if not runs:
             problems.append(f"{where}: {sc.name!r} is bound but did not run (not in the report)")
             continue

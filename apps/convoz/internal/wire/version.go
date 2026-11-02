@@ -12,3 +12,7 @@ func ShortVersion(v string) string {
 	}
 	return v
 }
+
+// APIVersion is the number of the CLI/server contract. Raise it only for a change an older CLI cannot survive; a CLI whose number differs
+// from the server's refuses to run (see GET /api/version), while a plain newer build only draws a warning.
+const APIVersion = 1

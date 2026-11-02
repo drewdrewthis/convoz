@@ -303,7 +303,7 @@ func (s *Server) claimOnce(ctx context.Context, c *call, req inbox.Request) (ite
 			delivered[it.ID] = true
 		}
 		for _, it := range claimed {
-			if it.Held || !delivered[it.ID] || it.Reason == inbox.ReasonStatusDue { // a nudge is no work on the conversation
+			if it.Held || !delivered[it.ID] || it.Reason == inbox.ReasonStatusDue || it.Reason == inbox.ReasonItemStale { // a nudge is no work on the conversation
 				continue
 			}
 			fresh = append(fresh, inbox.Hold{Conversation: it.ConversationID, Message: it.MessageID, Until: it.ClaimUntil})
@@ -397,6 +397,16 @@ func (s *Server) deliver(ctx context.Context, d pdb.DBTX, now time.Time, p authz
 		}
 		if it.Reason == inbox.ReasonStatusDue {
 			wi, ok, err := s.statusDueItem(ctx, d, now, p, it, expire)
+			if err != nil {
+				return nil, err
+			}
+			if ok {
+				out = append(out, wi)
+			}
+			continue
+		}
+		if it.Reason == inbox.ReasonItemStale {
+			wi, ok, err := s.itemStaleItem(ctx, d, now, p, it, expire)
 			if err != nil {
 				return nil, err
 			}
@@ -654,21 +664,12 @@ func (s *Server) statusDueItem(ctx context.Context, d pdb.DBTX, now time.Time, p
 		}
 		return wire.InboxItem{}, false, err
 	}
-	conv := strconv.FormatInt(it.ConversationID, 10)
-	body := "Your plan in conversation " + conv + " needs an update."
-	if pl, err := plan.Get(ctx, d, p.Identity(), it.ConversationID); err == nil {
-		it, state := pl.MostOverdue(pl.UpdatedAt, now.UnixMilli())
-		if state == "" && len(pl.Now) > 0 { // nudged before the owner's line turns stale
-			it, state = pl.Now[0], "stale"
-		}
-		switch state {
-		case "late":
-			body = "Your plan in conversation " + conv + " is late: \"" + it.Text + "\" was due " + time.UnixMilli(it.ETA).UTC().Format(time.RFC3339) + "."
-		case "stale":
-			body = "Your plan in conversation " + conv + " has had no update for " + strconv.FormatInt((now.UnixMilli()-pl.UpdatedAt)/60000, 10) + " min: \"" + it.Text + "\"."
-		}
+	pl, perr := plan.Get(ctx, d, p.Identity(), it.ConversationID)
+	source, err := statusDueSource(ctx, d, p.Identity(), it.ID)
+	if err != nil {
+		return wire.InboxItem{}, false, err
 	}
-	body += " Say where you are: convoz plan " + conv + " --doing \"…\" --eta 30m (or --done, --blocked, --waiting)."
+	body := statusDueBody(it.ConversationID, pl, perr, source, now.UnixMilli())
 	wi := wire.InboxItem{ID: it.ID, State: it.State, Reason: it.Reason, Count: it.Count, Deliveries: it.Deliveries, Conversation: wire.InboxConversation{ID: it.ConversationID},
 		Message: wire.Message{Author: systemAuthor, Body: body, Format: "plain", Kind: "system", CreatedAt: now.UnixMilli()}}
 	if cv.Title != "" {
@@ -679,4 +680,64 @@ func (s *Server) statusDueItem(ctx context.Context, d pdb.DBTX, now time.Time, p
 		wi.ClaimToken = hex.EncodeToString(it.ClaimToken)
 	}
 	return wi, true, nil
+}
+
+// What made a status_due ask: its text comes from there, so one due date is asked about once and a late step is never read as a
+// late delivery.
+const (
+	askedByStep     = "step"
+	askedByDelivery = "delivery"
+)
+
+// statusDueSource tells whether a late delivery or a late plan step made the ask.
+func statusDueSource(ctx context.Context, d pdb.DBTX, agent, item int64) (string, error) {
+	seq, err := inbox.StatusDueSource(ctx, d, agent, item)
+	if err != nil {
+		return "", err
+	}
+	ev, found, err := eventAt(ctx, d, seq)
+	if err != nil || !found || ev.Type != eventDeliveryNudged {
+		return askedByStep, err
+	}
+	return askedByDelivery, nil
+}
+
+// askAge is a span for an ask: minutes up to 2 hours, then hours.
+func askAge(ms int64) string {
+	if m := ms / 60000; m < 120 {
+		return strconv.FormatInt(m, 10) + " min"
+	}
+	return strconv.FormatInt(ms/3600000, 10) + " h"
+}
+
+// statusDueBody is the text of the ask. A delivery ask whose deliverable is gone (shipped, say) reads as a plan ask.
+func statusDueBody(conv int64, pl plan.Plan, planErr error, source string, nowMs int64) string {
+	c := strconv.FormatInt(conv, 10)
+	body := "Your plan in conversation " + c + " needs an update."
+	switch {
+	case errors.Is(planErr, plan.ErrNotFound): // an agent at work with no plan there
+		body = "You have no plan in conversation " + c + "."
+	case planErr == nil:
+		if dv, late := pl.LateDeliverable(nowMs); late && source == askedByDelivery {
+			return deliveryNudge(conv, dv)
+		}
+		if pl.WaitStale(time.UnixMilli(nowMs)) {
+			return "Your plan in conversation " + c + " has waited on the owner for " + askAge(nowMs-pl.UpdatedAt) + " with no update: \"" + pl.Waiting[0].Text +
+				"\". It left his feed. Still waiting: convoz plan " + c + " --waiting \"…\" to refresh it; finished: convoz plan " + c + " --done."
+		}
+		it, state := pl.MostOverdue(pl.UpdatedAt, nowMs)
+		if state == "" && len(pl.Now) > 0 { // nudged before the owner's line turns stale
+			it, state = pl.Now[0], "stale"
+		}
+		quiet := "Your plan in conversation " + c + " has had no update for " + askAge(nowMs-pl.UpdatedAt)
+		switch {
+		case state == "late":
+			body = "Your plan in conversation " + c + " is late: \"" + it.Text + "\" was due " + time.UnixMilli(it.ETA).UTC().Format(time.RFC3339) + "."
+		case state == "stale":
+			body = quiet + ": \"" + it.Text + "\"."
+		case len(pl.Now) == 0: // an agent at work, or a quiet delivery, with nothing in Now
+			body = quiet + "."
+		}
+	}
+	return body + " Say where you are: convoz plan " + c + " --doing \"…\" --eta 30m (or --done, --blocked, --waiting)."
 }

@@ -81,7 +81,7 @@ process.exit(1);`,
     const msg = await ownerSays(w.owner, conv, "@devtool deploy it");
 
     // Then conversation 41 shows "I couldn't answer this" from "devtool" once
-    await expect.poll(() => threadOf(w.owner, conv, msg), { timeout: 20_000 }).toEqual([expect.stringMatching(/^devtool: I couldn't answer this .*boom/)]);
+    await expect.poll(() => threadOf(w.owner, conv, msg), { timeout: 20_000 }).toEqual([expect.stringMatching(/^devtool: I couldn.t answer this .*boom/)]);
     expect(fs.readFileSync(seen, "utf8").trim().split("\n"), "the command ran twice").toHaveLength(2);
 
     // And the inbox of "devtool" is empty
@@ -121,23 +121,31 @@ scenario("A second watcher is refused while convoz run serves the agent", { tag:
   expect((await w.box.run(["inbox", "--peek", "--sid", other.sid])).code).toBe(0);
   expect((await w.box.run(["post", "--fyi", String(conv), "hello", "--sid", other.sid])).code).toBe(0);
 
-  // And a watch that is already open when "convoz run" starts makes the run exit 3 with "@devtool already has a convoz watch open"
+  // And a watch that is already open when "convoz run" starts makes the run wait and say "another convoz watch or run holds @devtool", not exit 3
   first.stop();
   expect((await first.done).code, "a stopped runner lets go at once").toBe(0);
   const open = w.box.start(["watch", "--sid", other.sid], { timeoutMs: 40_000 });
   try {
     expect(await exitsWithin(open, 1_500), "the watch is open").toBeNull();
-    const late = await w.box.run(argv, { timeoutMs: 15_000 });
-    expect({ code: late.code, stderr: late.stderr.includes("@devtool already has a convoz watch open") }).toEqual({ code: 3, stderr: true });
+    const late = w.box.start(argv, { timeoutMs: 15_000 });
+    expect(await exitsWithin(late, 7_000), "the run waits for the slot").toBeNull();
+    late.stop();
+    expect((await late.done).stderr).toContain("another convoz watch or run holds @devtool");
   } finally {
     open.stop();
   }
   await open.done;
-  await testApi(w.srv).advanceClock(31_000);
 
   // And 30 seconds after the runner stopped, "convoz watch --as devtool" works again
-  const killed = w.box.start(argv, { timeoutMs: 8_000 }); // the harness kills it: no clean end, so only the clock lets go
-  await killed.waitForStdout(/serving @devtool/);
+  // The server starts the watch's 30 s from when it sees the poll end, which can come after the process exited and after the clock
+  // moved. A runner refused then holds nothing, so the clock moves on once more (once: a slot that never frees still fails).
+  const serving = async (last: boolean) => {
+    await testApi(w.srv).advanceClock(31_000);
+    const run = w.box.start(argv, { timeoutMs: 8_000 }); // the harness kills it: no clean end, so only the clock lets go
+    const served = await run.waitForStdout(/serving @devtool/).then(() => true, (err: Error) => (last || !/already has a convoz watch open/.test(err.message) ? Promise.reject(err) : false));
+    return served ? run : null;
+  };
+  const killed = (await serving(false)) ?? (await serving(true))!;
   await killed.done;
   const within = await w.box.run(["watch", "--once", "--timeout", "2s", "--sid", other.sid], { timeoutMs: 15_000 });
   expect(within.stderr, "still held in the grace time").toContain("served by convoz run");

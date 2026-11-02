@@ -8,6 +8,8 @@ type CreateUploadRequest struct {
 	Filename       string `json:"filename"`
 	Size           int64  `json:"size,omitempty"`
 	SHA256         string `json:"sha256,omitempty"`
+	// ClientID names the request: a retry after a lost answer gets the first upload back and no orphan row is made.
+	ClientID string `json:"client_id,omitempty"`
 }
 
 // UploadState is where an upload stands: the answer to POST and PATCH /api/uploads.

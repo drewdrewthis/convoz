@@ -1,4 +1,4 @@
-# Source: design draft 9 §4.1 (app-kit, Tier-2 sandbox runtime), SEC-5, I-16, I-46, §12.3 (app previews not auto-loaded),
+# Source: design draft 9 §4.1 (app-kit, Tier-2 sandbox runtime), SEC-5, I-46, §12.3 (app previews not auto-loaded),
 # §11 apps_collapsed. Prototype: app cards (charts, tables, diff "Changed files", compare before/after, zoom), "expand app",
 # "Open in conversation".
 # Kept from the draft-6 spec (D-6), reworded: a rich message cannot reach the network → a Tier-2 app frame cannot.
@@ -49,12 +49,6 @@ Feature: Apps inside messages
       When the owner taps "Book it" inside the app
       Then a host sheet outside the frame shows the message it will send
       And only the owner's tap on that sheet posts it, marked "via app by @devtool"
-
-    @v1 @browser @I-16 @I-46
-    Scenario: An app result does not count as the owner speaking
-      Given conversation 41 is paused after 20 agent messages
-      When the owner confirms an app result
-      Then the conversation stays paused
 
     @v1 @browser @cli @I-46 @AC-M6
     Scenario: One tap on a picker answers the agent

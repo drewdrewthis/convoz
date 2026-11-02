@@ -5,6 +5,7 @@ import { useNotice } from "../../shared/notice.tsx";
 import { data } from "../../shared/data.ts";
 import { loginTicket, supported } from "../../shared/tickets.ts";
 import { Button } from "@convoz/ui/Button";
+import { withBase } from "../../shared/base.ts";
 
 /** SignIn is /signin: one passkey prompt, then back to ?next= (Now by default). A browser already signed in goes on at once. */
 export function SignIn() {
@@ -19,7 +20,7 @@ export function SignIn() {
     data
       .loadMe()
       .then((me) => {
-        if (!me.device?.limited) location.replace(next);
+        if (!me.device?.limited) location.replace(withBase(next));
       })
       .catch(() => {});
     if (!canUse) {
@@ -36,7 +37,7 @@ export function SignIn() {
       const started = await t.use(); // the prompt opens at once
       await call(client.POST("/api/auth/passkey/login/verify", { body: started }));
       page.leaving = true;
-      location.assign(next);
+      location.assign(withBase(next));
     },
     { fail },
   );

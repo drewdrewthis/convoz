@@ -114,7 +114,7 @@ function ReplyingThread({ rootId, conversation, label, parts, toggle }: { rootId
   const picker = useRef<HTMLInputElement>(null);
   const attachments = useAttachments(conversation);
   const fileDrop = useFileDrop(attachments);
-  const voice = useVoiceNote(conversation, (sent) => reply(rootId, "", [sent.id]));
+  const voice = useVoiceNote(conversation, (sent) => void reply(rootId, "", [sent.id]));
   const people = useData((s) => s.identities);
   const crew = useMemo(() => (people ?? []).filter((p) => p.kind === "agent" && !p.disabled), [people]);
   // Sending the reply brings a picked agent that is not in the conversation in (I-18, issue 35), as the main composer does.
@@ -134,7 +134,7 @@ function ReplyingThread({ rootId, conversation, label, parts, toggle }: { rootId
     const sent = files.map((f) => f.upload!.id);
     setText("");
     attachments.clear();
-    reply(rootId, text.trim(), sent);
+    void reply(rootId, text.trim(), sent);
   };
   const key = (event: KeyboardEvent) => {
     if (event.key !== "Escape") return;

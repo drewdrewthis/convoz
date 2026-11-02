@@ -109,7 +109,7 @@ Feature: Crew: identities, machines and sessions
       And Now shows no request card
       And Crew still lists the disabled "release-bot" with its old messages
 
-    @v1 @browser @I-3
+    @v1 @browser @cli @I-3
     Scenario: A look-alike of an existing name is refused
       Given the agent "devtool" exists
       When an agent runs "convoz login --name box-5 --as devtoo1"
@@ -238,9 +238,19 @@ Feature: Crew: identities, machines and sessions
       Examples:
         | state    | label          | ring                    |
         | working  | working        | moving gradient ring    |
-        | waiting  | waiting on you | amber ring              |
+        | waiting  | waiting        | amber ring              |
         | idle     | idle           | grey ring               |
         | offline  | offline        | hollow grey dot         |
+
+    # Owner (Drew, conv 167 msg 3771): "this says no waiting, but waiting? confusing." Approved mockup (msg 3944): the words "Waiting on you"
+    # need a real item to link to; the agent's own claim alone reads "Waiting".
+    @v1 @browser
+    Scenario: An agent that claims to wait but has no open ask reads Waiting, not Waiting on you
+      Given "devtool" has the status "waiting" and no open ask
+      When the owner opens Crew
+      Then "devtool" shows the label "Waiting" and no group or count says "Waiting on you"
+      When the owner opens the profile of "devtool"
+      Then the state reads "Waiting" and the profile has no "Waiting on you" section
 
     @v1 @browser
     Scenario: Revoke key asks to confirm and can be cancelled
@@ -257,7 +267,11 @@ Feature: Crew: identities, machines and sessions
 
     @v1 @browser
     Scenario: An agent profile shows what waits on the owner and shared conversations
-      Given "devtool" has 2 open asks and shares 4 conversations with the owner
+      Given "devtool" is working, has 2 open asks and shares 4 conversations with the owner
+      When the owner opens Crew
+      And "devtool" turns to "waiting" while the owner's view of its asks is still being read
+      Then "devtool" is never placed under "Waiting" on a guess of 0 asks
+      Then "devtool" sits in the group "Waiting on you" with the label "Waiting on you"
       When the owner opens the profile of "devtool"
       Then "Waiting on you · 2" and "Conversations together" list them
       And "New conversation with @devtool" starts a conversation with "devtool" in it

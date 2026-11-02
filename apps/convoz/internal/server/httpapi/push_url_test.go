@@ -21,6 +21,7 @@ func TestEveryPushOpensAPageTheServerServes(t *testing.T) {
 	reasons := []string{
 		notify.ReasonAsk, notify.ReasonAskUrgent, notify.ReasonSnoozeWake, notify.ReasonAgentAdd, notify.ReasonMention,
 		notify.ReasonThreadReply, notify.ReasonPaused, notify.ReasonMachineRequest, notify.ReasonSecurity, notify.ReasonTest,
+		notify.ReasonMessage, notify.ReasonIdentityRequest,
 	}
 	for _, reason := range reasons {
 		for _, conversation := range []int64{0, 41} {

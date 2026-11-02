@@ -147,3 +147,115 @@ func TestAVoiceNoteIsTheOnlyUploadOfItsMessage(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+// A start whose answer was lost is sent again with the same client id: it gets the first upload back and no orphan row is made (issue 193).
+func TestAnUploadStartedAgainUnderTheSameClientIDIsTheSameUpload(t *testing.T) {
+	s, svc := seeded(t)
+	start := func(who, conv int64, name, clientID string) (row upload.Row, err error) {
+		err = dbtest.TxErr(t, s, func(ctx context.Context, d pdb.DBTX) (e error) {
+			row, e = svc.Create(ctx, d, t0, upload.NewRequest{Uploader: who, Conversation: conv, Kind: upload.KindFile, Filename: name, Size: 100, SHA256: bytes.Repeat([]byte{1}, 32), ClientID: clientID}, 0)
+			return e
+		})
+		return row, err
+	}
+	count := func() (n int) {
+		dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) error {
+			return d.QueryRowContext(ctx, `SELECT count(*) FROM uploads`).Scan(&n)
+		})
+		return n
+	}
+	first, err := start(1, 41, "a.bin", "convoz-0123abcd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := start(1, 41, "a.bin", "convoz-0123abcd")
+	if err != nil || again.PublicID != first.PublicID || count() != 1 {
+		t.Fatalf("the start sent again: %+v, err %v, %d rows; want the first upload and 1 row", again.PublicID, err, count())
+	}
+	if _, err := start(1, 52, "a.bin", "convoz-0123abcd"); !errors.Is(err, upload.ErrBadRequest) {
+		t.Errorf("the same client id for another conversation: %v, want ErrBadRequest", err)
+	}
+	other, err := start(2, 41, "a.bin", "convoz-0123abcd")
+	if err != nil || other.PublicID == first.PublicID {
+		t.Errorf("another identity under the same client id: %+v, err %v; want its own upload", other.PublicID, err)
+	}
+	a, _ := start(1, 41, "a.bin", "")
+	b, _ := start(1, 41, "a.bin", "")
+	if a.PublicID == b.PublicID {
+		t.Error("two starts with no client id must stay two uploads")
+	}
+}
+
+// Files dropped together keep the order they were sent in, whichever finished its upload first (and so has the lower id).
+func TestFilesOfOneMessageKeepTheOrderTheyWereBoundIn(t *testing.T) {
+	s, svc := seeded(t)
+	seedMessages(t, s)
+	first, _ := create(t, s, svc, 1, 41, 100)
+	second, _ := create(t, s, svc, 1, 41, 100)
+	finish(t, s, first)
+	finish(t, s, second)
+	if err := bind(t, s, 1, 41, 1, second.PublicID, first.PublicID); err != nil {
+		t.Fatal(err)
+	}
+	var got []upload.Attached
+	dbtest.Tx(t, s, func(ctx context.Context, d pdb.DBTX) (err error) {
+		got, err = upload.OfMessages(ctx, d, []int64{1})
+		return err
+	})
+	if len(got) != 2 || got[0].PublicID != second.PublicID || got[1].PublicID != first.PublicID {
+		t.Fatalf("the files of the message: %+v, want the second upload then the first", got)
+	}
+}
+
+// The replay of a start must ask the same thing: another size or checksum under the same client id is refused (advisor, issue 193).
+func TestAnUploadStartedAgainWithAnotherSizeOrChecksumIsRefused(t *testing.T) {
+	s, svc := seeded(t)
+	start := func(size int64, sum byte) (row upload.Row, err error) {
+		err = dbtest.TxErr(t, s, func(ctx context.Context, d pdb.DBTX) (e error) {
+			row, e = svc.Create(ctx, d, t0, upload.NewRequest{Uploader: 1, Conversation: 41, Kind: upload.KindFile, Filename: "a.bin", Size: size, SHA256: bytes.Repeat([]byte{sum}, 32), ClientID: "convoz-size0001"}, 0)
+			return e
+		})
+		return row, err
+	}
+	first, err := start(100, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again, err := start(100, 1); err != nil || again.PublicID != first.PublicID {
+		t.Fatalf("the same start again: %v, %v", again.PublicID, err)
+	}
+	if _, err := start(200, 1); !errors.Is(err, upload.ErrBadRequest) {
+		t.Errorf("another size: %v, want ErrBadRequest", err)
+	}
+	if _, err := start(100, 2); !errors.Is(err, upload.ErrBadRequest) {
+		t.Errorf("another checksum: %v, want ErrBadRequest", err)
+	}
+}
+
+// Two starts with one client id that meet at the insert: the loser reads the winner's row, it does not fail (advisor, issue 193).
+func TestTwoStartsOfOneClientIDMeetingAtTheInsertAreOneUpload(t *testing.T) {
+	s, svc := seeded(t)
+	req := upload.NewRequest{Uploader: 1, Conversation: 41, Kind: upload.KindFile, Filename: "a.bin", Size: 100, SHA256: bytes.Repeat([]byte{1}, 32), ClientID: "convoz-race0001"}
+	var winner upload.Row
+	err := dbtest.TxErr(t, s, func(ctx context.Context, d pdb.DBTX) (e error) {
+		first := true
+		defer upload.SetBeforeInsert(func() { // the other start gets its row in after this one looked and found none
+			if !first {
+				return
+			}
+			first = false
+			winner, e = svc.Create(ctx, d, t0, req, 0)
+		})()
+		var got upload.Row
+		if got, e = svc.Create(ctx, d, t0, req, 0); e != nil {
+			return e
+		}
+		if winner.PublicID == "" || got.PublicID != winner.PublicID {
+			t.Errorf("the loser got %q; want the winner's upload %q", got.PublicID, winner.PublicID)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}

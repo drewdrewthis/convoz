@@ -49,6 +49,18 @@ const (
 	MaxNudges = 3
 	// NotRespondingAfter is how long a message may wait for an agent with no live watch before it shows as not responding.
 	NotRespondingAfter = 10 * time.Minute
+	// BehindAfter is how old a plan may be while its agent keeps posting in the conversation before the agent is asked to update it;
+	// with no plan, how long the agent may work there (from its first recent post) before it is asked to set one (owner, conv 179
+	// msg 10021: he should not have to ask).
+	BehindAfter = 30 * time.Minute
+	// ActivePosts is how many top-level posts (thread replies do not count) in the conversation within AskRest, all after the plan's update, make an agent at work there;
+	// one answer is not work.
+	ActivePosts = 3
+	// HumanWithin is how recently the owner must have written in a conversation for an agent with no plan there to be asked for one:
+	// in a feed no one wrote in (PR events, a board) the agent's one-line posts are not work for anyone.
+	HumanWithin = 2 * time.Hour
+	// AskRest is the shortest gap after any plan ask in a conversation before an agent at work there is asked again.
+	AskRest = time.Hour
 )
 
 // Step is "step At of Of" of a Now item.
@@ -65,6 +77,14 @@ type Item struct {
 	ETA   int64  `json:"eta,omitempty"`
 }
 
+// WaitStaleAfter is how long a plan may wait on the owner without an update before the wait leaves his feed and its agent is asked.
+const WaitStaleAfter = 24 * time.Hour
+
+// WaitStale reports whether the plan waits on the owner and has had no update for more than WaitStaleAfter. Sending the plan again ends it.
+func (p Plan) WaitStale(now time.Time) bool {
+	return len(p.Waiting) > 0 && now.Sub(time.UnixMilli(p.UpdatedAt)) > WaitStaleAfter
+}
+
 // Waiting is one item that waits on the owner; Since is when it first showed (it keeps that across replacements).
 type Waiting struct {
 	Text  string `json:"text"`
@@ -75,6 +95,8 @@ type Waiting struct {
 type Done struct {
 	Text string `json:"text"`
 	At   int64  `json:"at"`
+	// Shipped says the item was a deliverable (deliver.go): it counts as shipped on the owner's Deliveries.
+	Shipped bool `json:"shipped,omitempty"`
 }
 
 // Body is the plan's items, stored as one JSON document.
@@ -84,6 +106,8 @@ type Body struct {
 	Next    []string  `json:"next,omitempty"`
 	Waiting []Waiting `json:"waiting,omitempty"`
 	Done    []Done    `json:"done,omitempty"` // newest first
+	// Deliver lists what the agent will deliver and by when; unlike the rest it is kept across replacements (deliver.go).
+	Deliver []Deliverable `json:"deliver,omitempty"`
 	// ClientID is the id of the request that wrote the plan: the retry of a request whose answer was lost changes nothing (I-24).
 	ClientID string `json:"client_id,omitempty"`
 }
@@ -106,6 +130,8 @@ type Input struct {
 	Next    []string
 	Waiting []string
 	Done    []string
+	// Deliver adds deliverables or moves their dates; the ones it does not name are kept.
+	Deliver []DeliverInput
 	// ClientID names the request, so a retry of it is recognised; "" for none.
 	ClientID string
 }
@@ -292,8 +318,13 @@ func Replace(ctx context.Context, d pdb.DBTX, now time.Time, agent, conv int64, 
 		}
 		b.Waiting = append(b.Waiting, Waiting{Text: t, Since: since})
 	}
+	deliver, shipped, err := mergeDeliver(old.Deliver, in.Deliver, in.Done, at)
+	if err != nil {
+		return Plan{}, Change{}, err
+	}
+	b.Deliver = deliver
 	for i := len(in.Done) - 1; i >= 0; i-- { // the last one given is the newest
-		b.Done = append(b.Done, Done{Text: in.Done[i], At: at})
+		b.Done = append(b.Done, Done{Text: in.Done[i], At: at, Shipped: slices.Contains(shipped, in.Done[i])})
 	}
 	ch.Done = slices.Clone(in.Done)
 	b.Done = append(b.Done, old.Done...)

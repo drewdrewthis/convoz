@@ -97,7 +97,8 @@ func (q *Queries) AnsweredSince(ctx context.Context, since sql.NullInt64) ([]int
 }
 
 const askByID = `-- name: AskByID :one
-SELECT message_id, conversation_id, asker_id, question, urgent, owners_call_kind, owners_call_reason, draft_text, original_text, original_from, scrubbed_at, state, close_reason, chosen_kind, chosen_index, chosen_text,
+SELECT message_id, conversation_id, asker_id, question, urgent, owners_call_kind, owners_call_reason, draft_text, original_text, original_from, action, risk, undo, one_way, considered, confidence,
+       scrubbed_at, state, close_reason, chosen_kind, chosen_index, chosen_text,
        answer_via, resolved_by, resolved_at, acked_at, owner_replied_at, owner_reply_id, answers, changed, version, created_at, updated_at
 FROM asks WHERE message_id = ?1
 `
@@ -113,6 +114,12 @@ type AskByIDRow struct {
 	DraftText        sql.NullString
 	OriginalText     sql.NullString
 	OriginalFrom     sql.NullString
+	Action           sql.NullString
+	Risk             sql.NullString
+	Undo             sql.NullString
+	OneWay           sql.NullInt64
+	Considered       sql.NullString
+	Confidence       sql.NullInt64
 	ScrubbedAt       sql.NullInt64
 	State            string
 	CloseReason      sql.NullString
@@ -146,6 +153,12 @@ func (q *Queries) AskByID(ctx context.Context, messageID int64) (AskByIDRow, err
 		&i.DraftText,
 		&i.OriginalText,
 		&i.OriginalFrom,
+		&i.Action,
+		&i.Risk,
+		&i.Undo,
+		&i.OneWay,
+		&i.Considered,
+		&i.Confidence,
 		&i.ScrubbedAt,
 		&i.State,
 		&i.CloseReason,
@@ -168,7 +181,8 @@ func (q *Queries) AskByID(ctx context.Context, messageID int64) (AskByIDRow, err
 }
 
 const asksByIDs = `-- name: AsksByIDs :many
-SELECT message_id, conversation_id, asker_id, question, urgent, owners_call_kind, owners_call_reason, draft_text, original_text, original_from, scrubbed_at, state, close_reason, chosen_kind, chosen_index, chosen_text,
+SELECT message_id, conversation_id, asker_id, question, urgent, owners_call_kind, owners_call_reason, draft_text, original_text, original_from, action, risk, undo, one_way, considered, confidence,
+       scrubbed_at, state, close_reason, chosen_kind, chosen_index, chosen_text,
        answer_via, resolved_by, resolved_at, acked_at, owner_replied_at, owner_reply_id, answers, changed, version, created_at, updated_at
 FROM asks WHERE message_id IN (/*SLICE:ids*/?)
 `
@@ -184,6 +198,12 @@ type AsksByIDsRow struct {
 	DraftText        sql.NullString
 	OriginalText     sql.NullString
 	OriginalFrom     sql.NullString
+	Action           sql.NullString
+	Risk             sql.NullString
+	Undo             sql.NullString
+	OneWay           sql.NullInt64
+	Considered       sql.NullString
+	Confidence       sql.NullInt64
 	ScrubbedAt       sql.NullInt64
 	State            string
 	CloseReason      sql.NullString
@@ -233,6 +253,12 @@ func (q *Queries) AsksByIDs(ctx context.Context, ids []int64) ([]AsksByIDsRow, e
 			&i.DraftText,
 			&i.OriginalText,
 			&i.OriginalFrom,
+			&i.Action,
+			&i.Risk,
+			&i.Undo,
+			&i.OneWay,
+			&i.Considered,
+			&i.Confidence,
 			&i.ScrubbedAt,
 			&i.State,
 			&i.CloseReason,
@@ -443,8 +469,10 @@ func (q *Queries) HistoryOf(ctx context.Context, ids []int64) ([]AskTransition, 
 }
 
 const insertAsk = `-- name: InsertAsk :exec
-INSERT INTO asks (message_id, conversation_id, asker_id, asked_by_session, question, urgent, owners_call_kind, owners_call_reason, draft_text, original_text, original_from, state, version, created_at, updated_at)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'open', 1, ?12, ?12)
+INSERT INTO asks (message_id, conversation_id, asker_id, asked_by_session, question, urgent, owners_call_kind, owners_call_reason, draft_text, original_text, original_from,
+    action, risk, undo, one_way, considered, confidence, state, version, created_at, updated_at)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11,
+    ?12, ?13, ?14, ?15, ?16, ?17, 'open', 1, ?18, ?18)
 `
 
 type InsertAskParams struct {
@@ -459,6 +487,12 @@ type InsertAskParams struct {
 	DraftText        sql.NullString
 	OriginalText     sql.NullString
 	OriginalFrom     sql.NullString
+	Action           sql.NullString
+	Risk             sql.NullString
+	Undo             sql.NullString
+	OneWay           sql.NullInt64
+	Considered       sql.NullString
+	Confidence       sql.NullInt64
 	Now              int64
 }
 
@@ -475,6 +509,12 @@ func (q *Queries) InsertAsk(ctx context.Context, arg InsertAskParams) error {
 		arg.DraftText,
 		arg.OriginalText,
 		arg.OriginalFrom,
+		arg.Action,
+		arg.Risk,
+		arg.Undo,
+		arg.OneWay,
+		arg.Considered,
+		arg.Confidence,
 		arg.Now,
 	)
 	return err
@@ -753,7 +793,8 @@ func (q *Queries) OptionsOf(ctx context.Context, ids []int64) ([]AskOption, erro
 
 const scrubAsk = `-- name: ScrubAsk :exec
 UPDATE asks SET scrubbed_at = CAST(?1 AS INTEGER), question = '', owners_call_reason = CASE WHEN owners_call_reason IS NULL THEN NULL ELSE '' END,
-    draft_text = CASE WHEN draft_text IS NULL THEN NULL ELSE '' END, original_text = CASE WHEN original_text IS NULL THEN NULL ELSE '' END, original_from = CASE WHEN original_from IS NULL THEN NULL ELSE '' END, chosen_text = CASE WHEN chosen_text IS NULL THEN NULL ELSE '' END
+    draft_text = CASE WHEN draft_text IS NULL THEN NULL ELSE '' END, original_text = CASE WHEN original_text IS NULL THEN NULL ELSE '' END, original_from = CASE WHEN original_from IS NULL THEN NULL ELSE '' END, chosen_text = CASE WHEN chosen_text IS NULL THEN NULL ELSE '' END,
+    action = CASE WHEN action IS NULL THEN NULL ELSE '' END, risk = CASE WHEN risk IS NULL THEN NULL ELSE '' END, undo = CASE WHEN undo IS NULL THEN NULL ELSE '' END, considered = CASE WHEN considered IS NULL THEN NULL ELSE '[]' END
 WHERE message_id = ?2 AND scrubbed_at IS NULL
 `
 
@@ -780,8 +821,9 @@ func (q *Queries) SealAsk(ctx context.Context, messageID int64) error {
 const updateAsk = `-- name: UpdateAsk :execrows
 UPDATE asks
 SET question = ?1, owners_call_reason = ?2, answers = ?3, changed = CAST(?4 AS TEXT),
-    owner_replied_at = NULL, owner_reply_id = NULL, version = version + 1, updated_at = ?5
-WHERE message_id = ?6 AND version = ?7 AND state = 'open'
+    action = ?5, risk = ?6, undo = ?7, one_way = ?8, considered = ?9,
+    owner_replied_at = NULL, owner_reply_id = NULL, version = version + 1, updated_at = ?10
+WHERE message_id = ?11 AND version = ?12 AND state = 'open'
 `
 
 type UpdateAskParams struct {
@@ -789,18 +831,29 @@ type UpdateAskParams struct {
 	OwnersCallReason sql.NullString
 	Answers          sql.NullString
 	Changed          string
+	Action           sql.NullString
+	Risk             sql.NullString
+	Undo             sql.NullString
+	OneWay           sql.NullInt64
+	Considered       sql.NullString
 	Now              int64
 	MessageID        int64
 	Version          int64
 }
 
 // The asking agent updated its open ask in place: the content it may change, the summary of the answers and what changed; the owner's reply mark clears.
+// The parts of a permission ask are NULL on any other ask; the confidence is fixed when the ask is made.
 func (q *Queries) UpdateAsk(ctx context.Context, arg UpdateAskParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateAsk,
 		arg.Question,
 		arg.OwnersCallReason,
 		arg.Answers,
 		arg.Changed,
+		arg.Action,
+		arg.Risk,
+		arg.Undo,
+		arg.OneWay,
+		arg.Considered,
 		arg.Now,
 		arg.MessageID,
 		arg.Version,

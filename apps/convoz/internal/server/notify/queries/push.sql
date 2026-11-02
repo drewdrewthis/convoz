@@ -2,13 +2,13 @@
 SELECT id, device_id, identity_id FROM push_subscriptions WHERE endpoint = sqlc.arg(endpoint);
 
 -- name: InsertSubscription :one
-INSERT INTO push_subscriptions (device_id, identity_id, endpoint, p256dh, auth, created_at)
-VALUES (sqlc.arg(device_id), sqlc.arg(identity_id), sqlc.arg(endpoint), sqlc.arg(p256dh), sqlc.arg(auth), sqlc.arg(now))
+INSERT INTO push_subscriptions (device_id, identity_id, endpoint, p256dh, auth, messages, created_at)
+VALUES (sqlc.arg(device_id), sqlc.arg(identity_id), sqlc.arg(endpoint), sqlc.arg(p256dh), sqlc.arg(auth), sqlc.arg(messages), sqlc.arg(now))
 RETURNING id;
 
 -- name: ReviveSubscription :exec
 -- The same endpoint subscribes again (the browser kept it): it belongs to the caller's device, with fresh keys and a clean record.
-UPDATE push_subscriptions SET device_id = sqlc.arg(device_id), identity_id = sqlc.arg(identity_id), p256dh = sqlc.arg(p256dh), auth = sqlc.arg(auth),
+UPDATE push_subscriptions SET device_id = sqlc.arg(device_id), identity_id = sqlc.arg(identity_id), p256dh = sqlc.arg(p256dh), auth = sqlc.arg(auth), messages = sqlc.arg(messages),
   created_at = sqlc.arg(now), last_success_at = NULL, consecutive_failures = 0, disabled_at = NULL, disabled_reason = NULL
 WHERE id = sqlc.arg(id);
 
@@ -25,7 +25,7 @@ SELECT id, device_id, endpoint, created_at, last_success_at, disabled_at, disabl
 WHERE identity_id = sqlc.arg(identity_id) ORDER BY id DESC;
 
 -- name: LiveSubscriptions :many
-SELECT id, device_id, endpoint, p256dh, auth FROM push_subscriptions WHERE identity_id = sqlc.arg(identity_id) AND disabled_at IS NULL ORDER BY id;
+SELECT id, device_id, endpoint, p256dh, auth, messages FROM push_subscriptions WHERE identity_id = sqlc.arg(identity_id) AND disabled_at IS NULL ORDER BY id;
 
 -- name: LiveSubscriptionOfDevice :one
 SELECT id, device_id, endpoint, p256dh, auth FROM push_subscriptions WHERE device_id = sqlc.arg(device_id) AND disabled_at IS NULL;

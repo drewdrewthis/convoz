@@ -155,3 +155,20 @@
           application/json:
             schema: { $ref: "../openapi.yaml#/components/schemas/Replies" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }
+/api/conversations/{id}/threads:
+  get:
+    x-authz: { auth: human, lease: accept }
+    security: [{ deviceCookie: [] }, { leaseBearer: [] }]
+    operationId: listThreads
+    summary: The threads of many top-level messages in one read, each as listReplies answers it, so a chat does not ask once per root. A root that is not a thread of this conversation is left out.
+    parameters:
+      - $ref: "../openapi.yaml#/components/parameters/Id"
+      - { name: roots, in: query, required: true, description: "Message ids separated by commas, 1 to 100.", schema: { type: string } }
+      - { name: limit, in: query, schema: { type: integer } }
+    responses:
+      "200":
+        description: The threads, in the order asked.
+        content:
+          application/json:
+            schema: { $ref: "../openapi.yaml#/components/schemas/Threads" }
+      default: { $ref: "../openapi.yaml#/components/responses/Error" }

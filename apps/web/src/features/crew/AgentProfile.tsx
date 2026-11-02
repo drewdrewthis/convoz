@@ -8,19 +8,20 @@ import { useNotice } from "../../shared/notice.tsx";
 import { StepUpSheet, useSheets } from "../../shared/sheets.tsx";
 import { Ring } from "./Avatar.tsx";
 import { nameOf } from "./Crew.tsx";
-import { ago, LOOK, shownState } from "./status.ts";
+import { ago, labelOf, shownState } from "./status.ts";
 import { useCrew } from "./store.ts";
 import { Button } from "@convoz/ui/Button";
 import { EmptyState } from "@convoz/ui/EmptyState";
 import { Field } from "@convoz/ui/Field";
 import { List, ListRow } from "@convoz/ui/ListRow";
+import { appPath } from "../../shared/base.ts";
 
 const TABS = ["Sessions", "Handoffs"] as const;
 
 /** AgentProfile is /crew/<handle>: who the agent is, what waits on the owner, the shared conversations, its sessions and notes. */
 export function AgentProfile() {
   const { say, fail } = useNotice();
-  const asked = decodeURIComponent(location.pathname.split("/")[2] ?? "");
+  const asked = decodeURIComponent(appPath().split("/")[2] ?? "");
   const everyone = useData((s) => s.identities);
   const conversations = useData((s) => s.conversations);
   const statuses = useCrew((s) => s.statuses);
@@ -77,7 +78,7 @@ export function AgentProfile() {
               <TriageBadge handle={handle} />
             </p>
           ) : null}
-          <p className="pstate">{who.disabled ? "Disabled" : LOOK[shown].label}</p>
+          <p className="pstate">{who.disabled ? "Disabled" : labelOf(shown, status?.open_asks.length ?? 0)}</p>
           {who.previous_handles?.length ? <p className="text-muted">{`Was @${who.previous_handles.join(", @")}`}</p> : null}
           {who.description ? <p className="text-muted">{who.description}</p> : null}
           {!who.disabled && status?.doing ? <p>{`Doing: ${status.doing}`}</p> : null}
@@ -90,20 +91,22 @@ export function AgentProfile() {
         </Button>
       )}
 
-      <section className="cgrp" aria-label="Waiting on you">
-        <h3>{`Waiting on you · ${asks.length}`}</h3>
-        <ul role="list">
-          {asks.map((a) => (
-            <li key={a.id}>
-              <a className="crow plain" href={`/chats/${a.conversation_id}#m${a.id}`}>
-                <span className="txt">
-                  <span className="nm">{a.question}</span>
-                </span>
-              </a>
-            </li>
-          ))}
-        </ul>
-      </section>
+      {asks.length ? (
+        <section className="cgrp" aria-label="Waiting on you">
+          <h3>{`Waiting on you · ${asks.length}`}</h3>
+          <ul role="list">
+            {asks.map((a) => (
+              <li key={a.id}>
+                <a className="crow plain" href={`/chats/${a.conversation_id}#m${a.id}`}>
+                  <span className="txt">
+                    <span className="nm">{a.question}</span>
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <section className="cgrp" aria-label="Conversations together">
         <h3>{`Conversations together · ${together.length}`}</h3>

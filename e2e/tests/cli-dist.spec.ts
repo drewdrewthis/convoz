@@ -172,8 +172,8 @@ function copyOfConvoz(): string {
   return file;
 }
 
-scenario("An out-of-date CLI is told to upgrade", { tag: ["@cli"] }, async ({ server }) => {
-  // Given a machine logged in to a server, with a convoz older than that server
+scenario("A CLI older than its server runs and warns at most once an hour", { tag: ["@cli"] }, async ({ server }) => {
+  // Given a machine logged in to a server, with a convoz older than that server and the same API number
   const w = await chatWorld(server, { agents: ["devtool"] });
   const current = (await send(w.srv.target, "GET", "/api/version")).json().version as string;
   const old = { env: { CONVOZ_TEST_VERSION: OLD } };
@@ -181,16 +181,13 @@ scenario("An out-of-date CLI is told to upgrade", { tag: ["@cli"] }, async ({ se
   // When the agent runs "convoz inbox --peek"
   const first = await w.box.run(["inbox", "--peek", "--as", "devtool"], old);
 
-  // Then the CLI exits 7 and prints the message
-  const message = `convoz is out of date (you have ${OLD}, the server runs ${current}). Run: convoz upgrade\n`;
-  expect({ code: first.code, stderr: first.stderr, stdout: first.stdout }).toEqual({ code: 7, stderr: message, stdout: "" });
+  // Then the command runs and exits 0, and stderr has one line telling it to upgrade
+  const message = `convoz: the server runs ${current}, you have ${OLD}. Still works; run: convoz upgrade\n`;
+  expect({ code: first.code, stderr: first.stderr }).toEqual({ code: 0, stderr: message });
 
-  // And running it again within 10 minutes prints the same without asking the server again: the answer is kept, and not rewritten
-  const kept = path.join(w.box.configDir, "version-check");
-  const stamp = fs.statSync(kept).mtimeMs;
+  // And running it again within an hour prints no such line
   const second = await w.box.run(["inbox", "--peek", "--as", "devtool"], old);
-  expect({ code: second.code, stderr: second.stderr }).toEqual({ code: 7, stderr: message });
-  expect(fs.statSync(kept).mtimeMs).toBe(stamp);
+  expect({ code: second.code, stderr: second.stderr }).toEqual({ code: 0, stderr: "" });
 
   // And "convoz help", "convoz version" and "convoz whoami" still run
   for (const argv of [["help"], ["version"], ["whoami"]]) {
@@ -201,6 +198,64 @@ scenario("An out-of-date CLI is told to upgrade", { tag: ["@cli"] }, async ({ se
   // And a convoz of the same version as the server runs the command
   const same = await w.box.run(["inbox", "--peek", "--as", "devtool"]);
   expect({ code: same.code, stderr: same.stderr }).toEqual({ code: 0, stderr: "" });
+});
+
+scenario("A CLI refuses a server with another API number", { tag: ["@cli"] }, async ({ convoz }) => {
+  // Given a machine logged in to a server that says it speaks another API number than the convoz does
+  const answer = (api: number | undefined) => (url: string) => (url === "/api/version" ? { body: JSON.stringify({ version: "other-0", api }) } : { status: 404, body: JSON.stringify({ error: { code: "not_found", message: "no" } }) });
+  const loggedIn = (origin: string) => {
+    const home = scratch("convoz-home-");
+    fs.mkdirSync(path.join(home, ".config", "convoz"), { recursive: true });
+    fs.writeFileSync(path.join(home, ".config", "convoz", "credentials"), JSON.stringify({ server: origin }), { mode: 0o600 });
+    return { HOME: home, CONVOZ_TEST_VERSION: OLD };
+  };
+  const other = await fakeServer(answer(99));
+  const unnamed = await fakeServer(answer(undefined));
+  try {
+    // When the agent runs "convoz inbox --peek"
+    const refused = await convoz(["inbox", "--peek"], { env: loggedIn(other.origin) });
+
+    // Then the CLI exits 7 and prints "convoz cannot talk to this server (API <here> here, <there> there). Run: convoz upgrade"
+    expect({ code: refused.code, stderr: refused.stderr }).toEqual({ code: 7, stderr: expect.stringMatching(/^convoz cannot talk to this server \(API \d+ here, 99 there\)\. Run: convoz upgrade\n$/) });
+
+    // And a server that names no API number is taken as compatible
+    const taken = await convoz(["inbox", "--peek"], { env: loggedIn(unnamed.origin) });
+    expect(taken.code).not.toBe(7);
+    expect(taken.stderr).not.toContain("cannot talk to this server");
+  } finally {
+    await other.close();
+    await unnamed.close();
+  }
+});
+
+scenario("A slow network does not break the version check or the upgrade", { tag: ["@cli"] }, async ({ convoz }) => {
+  // Given a server reached over a slow link: it takes the connection to /api/version and never answers; every other path answers at once
+  const held: http.ServerResponse[] = [];
+  const srv = http.createServer((req, res) => {
+    if (req.url === "/api/version") return void held.push(res);
+    res.writeHead(404, { "content-type": "application/json" }).end(JSON.stringify({ error: { code: "not_found", message: "no" } }));
+  });
+  await new Promise<void>((resolve) => srv.listen(0, "127.0.0.1", resolve));
+  const home = scratch("convoz-home-");
+  fs.mkdirSync(path.join(home, ".config", "convoz"), { recursive: true });
+  fs.writeFileSync(path.join(home, ".config", "convoz", "credentials"), JSON.stringify({ server: `http://127.0.0.1:${(srv.address() as AddressInfo).port}` }), { mode: 0o600 });
+  try {
+    // When a command asks the server its version
+    const started = Date.now();
+    const out = await convoz(["inbox", "--peek"], { env: { HOME: home, CONVOZ_TEST_VERSION: OLD }, timeoutMs: 40_000 });
+    const took = Date.now() - started;
+
+    // Then the version question waits at most 10 seconds, retry included
+    expect(took, "the command took longer than the version question may wait").toBeLessThan(30_000);
+    // And the command prints "convoz: could not check the server version (slow network); running anyway" and runs
+    expect(out.stderr).toContain("convoz: could not check the server version (slow network); running anyway");
+    expect(out.code).not.toBe(7);
+    // (the download of the upgrade, its wait of 10 minutes, its retry and its checksum are tested in Go: internal/cli/upgrade_test.go)
+  } finally {
+    for (const r of held) r.destroy();
+    srv.closeAllConnections();
+    await new Promise<void>((resolve) => srv.close(() => resolve()));
+  }
 });
 
 scenario("convoz upgrade replaces the binary and the skill", { tag: ["@cli"] }, async ({ server }) => {

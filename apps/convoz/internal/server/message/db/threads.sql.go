@@ -201,6 +201,22 @@ func (q *Queries) CountUnreadMentions(ctx context.Context, arg CountUnreadMentio
 	return count, err
 }
 
+const hasReplyFromOther = `-- name: HasReplyFromOther :one
+SELECT EXISTS(SELECT 1 FROM messages WHERE thread_root_id = ?1 AND author_id <> ?2 AND kind <> 'system' AND deleted_at IS NULL)
+`
+
+type HasReplyFromOtherParams struct {
+	RootID   sql.NullInt64
+	AuthorID sql.NullInt64
+}
+
+func (q *Queries) HasReplyFromOther(ctx context.Context, arg HasReplyFromOtherParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasReplyFromOther, arg.RootID, arg.AuthorID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const inThread = `-- name: InThread :many
 SELECT id FROM messages WHERE thread_root_id = ?1 AND id IN (/*SLICE:ids*/?) ORDER BY id
 `

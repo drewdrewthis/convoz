@@ -95,13 +95,12 @@ scenario("The call pill stays on every screen while the owner moves around", { t
 
   await page.getByRole("link", { name: /^Back/ }).click();
   await expect(page.getByRole("heading", { name: "Crew", exact: true })).toBeVisible();
-  // Back to Now: on a wide screen the Now button turns the rail into the Now list (rail.feature, "On a wide screen Now is a view
-  // of the rail"); on a phone the tab bar link opens the Now page.
+  // Back to Now: on a wide screen the Now button of the rail opens Now in the right drawer; on a phone the tab bar link opens the Now page.
   if ((page.viewportSize()?.width ?? 0) >= 900) {
     const rail = page.getByRole("navigation", { name: "Conversations" });
     await rail.getByRole("button", { name: /^Now\b/ }).click();
     await expect(rail.getByRole("button", { name: /^Now\b/ })).toHaveAttribute("aria-pressed", "true");
-    await expect(rail.getByText("All clear. Nothing needs you.")).toBeVisible();
+    await expect(page.getByTestId("drawer").getByText("All clear. Nothing needs you.")).toBeVisible();
   } else {
     await visibleLink(page, /^Now\b/).click();
     await expect(page.getByRole("heading", { name: "Now", exact: true })).toBeVisible();
@@ -247,13 +246,34 @@ scenario("A Now call that ends with a reload still leaves its log", { tag: ["@br
   const u = await callWorld({ server, page, context });
   await voiceKey(u.w, KEY);
 
+  // The log's conversation is made, but its answer never reaches the page: the id is unknown when the page unloads
+  await page.route("**/api/conversations", async (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    await route.fetch();
+  });
+
   // Given the owner is on a Now call and the model read Now
   const model = await onANowCall(page, u.w.srv);
   model.hear("what waits on me?");
   model.call("read_now", {});
   await expect.poll(() => model.responses()).toHaveLength(1);
 
-  // When the owner reloads the page
+  // And the call has found or made its log's conversation (a reload before then has nowhere to post the log)
+  await expect.poll(async () => (await nowCallLogs(u.w)).conversations.length).toBe(1);
+
+  // And the server fails the first post of the log (503)
+  let failed = 0;
+  await page.route("**/api/conversations/*/messages", async (route) => {
+    if (route.request().method() !== "POST" || failed) return route.fallback();
+    failed++;
+    await route.fulfill({ status: 503, body: "down" });
+  });
+
+  // When the owner reloads the page, and the failed post is kept for the next load
+  await page.reload();
+  await page.getByRole("heading", { name: "Now", exact: true }).waitFor();
+  await expect.poll(() => failed).toBe(1);
+  expect((await nowCallLogs(u.w)).logs).toHaveLength(0);
   await page.reload();
   await page.getByRole("heading", { name: "Now", exact: true }).waitFor();
 

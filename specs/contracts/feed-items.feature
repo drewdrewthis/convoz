@@ -1,0 +1,158 @@
+# Contracts for `features/feed-items.feature`: the item routes, the transitions, the owner's actions and the text rules.
+# Owner (Drew, conv 179, msg 11684): "I don't need caps, don't be defensive prematurely." There is no cap on open blocking items.
+
+Feature: Feed items (contracts)
+  The agent writes only its own items; the owner alone reads the feed and acts on it.
+
+  Background:
+    Given a fresh Convoz server with owner "drew" signed in with a virtual passkey
+    And machine "box-2" is logged in with allow-list "devtool" and "docs"
+    And "devtool" and "docs" are participants of conversation 41 "Ship search filters"
+
+  Rule: One now per agent and conversation; the next pending item is promoted when it leaves
+
+    @v1 @api
+    Scenario: Two blocking requests by one agent: the second is pending and is promoted when the first is accepted
+      When "devtool" sends POST /api/conversations/41/items/a/block with a title and a recommendation, and then the same for key "b"
+      Then the owner's GET /api/feed lists "a" as blocking and "b" as pending, in that order
+      When the owner sends POST /api/feed/{a}/accept with the version of "a"
+      Then the server answers 200 with "a" done, and GET /api/feed lists "b" as blocking
+      And more than ten blocking items stay allowed: 12 blocking requests all answer 200
+
+    @v1 @api
+    Scenario: Every move that the state does not allow answers 409 and changes nothing
+      Given "devtool" started "a"
+      When "devtool" sends fyi for "a"
+      Then the server answers 409 and "a" stays started at the same version
+      And "docs" sending done for "a" answers 404, and the owner sending the agent route gets 401 or 403
+
+  Rule: Accept names the version it saw; an item with no recommendation takes info only
+
+    @v1 @api
+    Scenario: A stale Accept answers 409, and no recommendation means no Accept
+      Given "devtool" blocked "a" with a recommendation, and blocked it again with a new title
+      When the owner sends POST /api/feed/{a}/accept with the first version
+      Then the server answers 409 and "a" stays blocking
+      Given "devtool" blocked "c" with no recommendation
+      When the owner sends POST /api/feed/{c}/accept with its version
+      Then the server answers 409 with the code "no_recommendation"
+      When the owner sends POST /api/feed/{c}/answer with text and resolves true
+      Then the server answers 200 with "c" done
+
+  Rule: Okay hides an item and keeps its state, until the agent moves it again; the owner may snooze
+
+    @v1 @api
+    Scenario: Got it sets acked_at and leaves the state; snooze sets the wake time
+      Given "devtool" blocked "a" and then said fyi for it
+      When the owner sends POST /api/feed/{a}/ack
+      Then the server answers 200 with "a" still fyi and acked_at set, and GET /api/feed no longer lists it
+      Given "devtool" started "b"
+      When the owner sends POST /api/feed/{b}/ack
+      Then the server answers 200 with "b" still started, and GET /api/feed no longer lists it
+      When "devtool" sends block for "b"
+      Then GET /api/feed lists "b" again
+      When the owner sends PUT /api/feed/{b}/snooze with a time in the future
+      Then the server answers 200 with snoozed_until set, and a time in the past answers 400
+      And an agent lease gets 401 or 403 on every owner route
+
+  Rule: Text is plain and within its length
+
+    @v1 @api
+    Scenario: Markdown, links and over-long text are refused with 400
+      When "devtool" sends start with the title "See https://example.com"
+      Then the server answers 400
+      And a title of 201 characters, a context of 2001 and a recommendation of 501 answer 400
+      And a title of 200, a context of 2000 and a recommendation of 500 answer 200
+
+  Rule: The owner's replies on an item go in the thread of the item's message
+
+    @v1 @api
+    Scenario: The owner's replies on an item go in the thread of the item's message
+      When "devtool" sends block for key "a" with a title and a recommendation
+      Then the item has a thread_root_id, the id of the agent's message
+      When the owner sends POST /api/feed/{a}/reply with a text, then a second text
+      Then both are replies in that thread and the thread_root_id does not change
+      And an agent lease gets 401 or 403 on the reply route
+
+  Rule: The owner's reply closes an item and an agent's reply in its thread reopens it, snoozed or not
+
+    @v1 @api
+    Scenario: The owner's reply closes the item and an agent's reply in its thread reopens it, even when snoozed
+      Given "devtool" blocked "a" with a recommendation
+      When the owner sends POST /api/feed/{a}/reply with a text
+      Then the answer has acked_at set and the state still blocking, and GET /api/feed does not list it
+      When the owner snoozes it and "devtool" posts a message outside its thread
+      Then GET /api/feed still does not list it
+      When "devtool" posts a reply in the item's thread
+      Then GET /api/feed lists the item again, with no acked_at and no snoozed_until
+
+  Rule: An item is a message with state, and its context is never empty
+
+    @v1 @api
+    Scenario: An item is the agent's message: start and block post it and root the item on it
+      When "devtool" sends start for key "m" with a title and a context
+      Then the conversation gets one new message by "devtool" saying the title and the context
+      And the item's thread_root_id is that message and GET /api/feed shows it
+      When "devtool" sends start for key "m" again with another context
+      Then the conversation gets no new message
+      And the owner's reply on the item goes in the thread of that message
+
+    @v1 @api
+    Scenario: An empty context is refused and writes nothing
+      When "devtool" sends start or block with a context that is empty or only spaces
+      Then the answer is 400, the conversation gets no message and the feed has no item
+
+  Rule: A plan belongs to an agent: one now per plan, across conversations
+
+    @v1 @api
+    Scenario: Plans belong to the agent: one now per plan, no plan is main, a key keeps its plan
+      When "devtool" starts "x" and then "z" in plan "a", and "y" in plan "b", and "m" with no plan
+      Then "x" is started, "z" is pending behind it, "y" is started and "m" is started in plan "main"
+      And starting "x" again in plan "b" answers 409 and a plan name with a space answers 400
+      When "devtool" is done with "x"
+      Then "z" is started, "y" is untouched and GET /api/feed lists the plans a, b and main together
+
+  Rule: An agent takes a question of the owner as an item on his message
+
+    @v1 @api
+    Scenario: Taking a question makes started items on his message and posts nothing
+      When "devtool" takes the owner's main-chat message with a question and a research step
+      Then the question is a started item whose thread_root_id is his message, in plan "main", and the step is pending after it
+      And no message is posted and GET /api/feed shows the question
+      And taking an agent's message or a reply in a thread answers 400, and an empty context answers 400
+
+    @v1 @api
+    Scenario: A second take of a message needs its own question
+      When "devtool" takes a message with no question
+      Then the item is titled with the message text
+      When "devtool" takes it again with no question
+      Then the answer is 409
+      When "devtool" takes it with a new question
+      Then a second item is made with that title
+
+    @v1 @api
+    Scenario: His reply closes every item on the message, an answer reopens only its own, a plain reply the rest
+      Given "devtool" took two questions Q1 and Q2 of one message
+      When the owner replies in the message's thread
+      Then both items leave the feed
+      When "devtool" answers Q1
+      Then the thread gets one reply "> Q1" and the text, Q1 is done and back in the feed, and Q2 is still closed
+      When "devtool" posts a plain reply in the thread
+      Then Q2 is back in the feed
+
+    @v1 @api @cli
+    Scenario: Another agent's reply wakes the owner of an open item, and an acked item wakes nobody
+      Given "devtool" took a question and has read its inbox
+      When "docs" replies in the message's thread
+      Then "devtool" has one ready inbox item, and "docs" cannot move the item (404)
+      When the owner replies in the thread and "docs" replies again
+      Then "devtool" gets no new inbox item
+
+    @v1 @api
+    Scenario: A blocker becomes the now and the started item resumes first when it leaves
+      Given "devtool" has a started question
+      When "devtool" blocks a new item
+      Then the blocker is blocking and the question is pending at the front
+      When "devtool" says fyi for the blocker
+      Then the question is started again
+

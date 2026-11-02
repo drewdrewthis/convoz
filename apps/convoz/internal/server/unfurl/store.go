@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
@@ -38,14 +39,60 @@ func Find(ctx context.Context, d pdb.DBTX, body string) (card Card, found bool, 
 	if err != nil {
 		return Card{}, false, err
 	}
-	card = Card{Status: row.Status, URL: row.Url}
-	if row.Status == "ok" {
-		card.Kind, card.Site, card.Title, card.Description = row.Kind, row.Site.String, row.Title.String, row.Description.String
-		if row.MetaJson.Valid {
-			_ = json.Unmarshal([]byte(row.MetaJson.String), &card.Meta)
+	return cardOf(row.Status, row.Url, row.Kind, row.Site, row.Title, row.Description, row.MetaJson), true, nil
+}
+
+func cardOf(status, url, kind string, site, title, desc, meta sql.NullString) Card {
+	card := Card{Status: status, URL: url}
+	if status == "ok" {
+		card.Kind, card.Site, card.Title, card.Description = kind, site.String, title.String, desc.String
+		if meta.Valid {
+			_ = json.Unmarshal([]byte(meta.String), &card.Meta)
 		}
 	}
-	return card, true, nil
+	return card
+}
+
+// FindMany is Find for a page of bodies in one query: the card of the first link of each body, by body. A body with no link, or
+// whose address was never queued, is absent.
+func FindMany(ctx context.Context, d pdb.DBTX, bodies []string) (map[string]Card, error) {
+	hashes := map[string][]byte{} // body -> url_hash
+	args := []any{}
+	for _, b := range bodies {
+		if u, ok := FirstURL(b); ok {
+			h := key(u)
+			hashes[b] = h
+			args = append(args, h)
+		}
+	}
+	if len(args) == 0 {
+		return nil, nil
+	}
+	rows, err := d.QueryContext(ctx, `SELECT url_hash, url, status, site, title, description, kind, meta_json FROM unfurls WHERE url_hash IN (?`+strings.Repeat(",?", len(args)-1)+`)`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	byHash := map[string]Card{}
+	for rows.Next() {
+		var hash []byte
+		var status, url, kind string
+		var site, title, desc, meta sql.NullString
+		if err := rows.Scan(&hash, &url, &status, &site, &title, &desc, &kind, &meta); err != nil {
+			return nil, err
+		}
+		byHash[string(hash)] = cardOf(status, url, kind, site, title, desc, meta)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	out := make(map[string]Card, len(hashes))
+	for b, h := range hashes {
+		if c, ok := byHash[string(h)]; ok {
+			out[b] = c
+		}
+	}
+	return out, nil
 }
 
 // Job is one address waiting for the worker.

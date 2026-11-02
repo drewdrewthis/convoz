@@ -13,4 +13,6 @@ self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim(
 // The claim at activation misses a page whose navigation was still committing then (index.ts asks again for such a page).
 self.addEventListener("message", (event) => {
   if (event.data?.type === "claim") event.waitUntil(self.clients.claim());
+  // A page nudges a worker that is still waiting (index.ts): skipping is idempotent.
+  if (event.data?.type === "skip") void self.skipWaiting();
 });

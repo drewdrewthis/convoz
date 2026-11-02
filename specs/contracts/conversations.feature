@@ -1,7 +1,7 @@
 # Contracts for `features/conversations.feature`: protocol, security and invariant checks that pin
 # implementation details. They run end to end like every scenario; the user-facing
 # behaviour lives in specs/features/conversations.feature.
-# Source: design draft 9 §2.3, §8 (I-7, I-9, I-15, I-16, I-17, I-19, I-20, I-47), §8.2 (unread), §14 (soft delete), AC-6, AC-26.
+# Source: design draft 9 §2.3, §8 (I-7, I-9, I-15, I-17, I-19, I-20, I-47), §8.2 (unread), §14 (soft delete), AC-6, AC-26.
 
 Feature: Conversations (contracts)
   Protocol, security and invariant rules behind conversations.

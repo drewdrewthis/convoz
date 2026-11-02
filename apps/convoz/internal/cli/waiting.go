@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
@@ -40,7 +41,7 @@ func Waiting(args []string, io IO) int {
 		fmt.Fprintf(w, "ask #%d in %s: @%s asks (%s) %s\n", a.ID, convName(a.Conversation), a.Asker.Handle, age(a.AgeMS), plain(a.Question))
 	}
 	for _, u := range out.Unanswered {
-		fmt.Fprintf(w, "unanswered in %s: owner wrote #%d (%s) %s\n", convName(u.Conversation), u.MessageID, age(u.AgeMS), plain(u.Excerpt))
+		fmt.Fprintf(w, "unanswered in %s: owner wrote #%d (%s) %s %s/chats/%d#m%d\n", convName(u.Conversation, u.Members...), u.MessageID, age(u.AgeMS), plain(u.Excerpt), k.c.base, u.Conversation.ID, u.MessageID)
 	}
 	for _, p := range out.Plans {
 		fmt.Fprintf(w, "plan in %s: @%s waits (%s) %s\n", convName(p.Conversation), p.Agent.Handle, age(out.Now-p.Since), plain(p.Text))
@@ -51,10 +52,14 @@ func Waiting(args []string, io IO) int {
 	return ExitOK
 }
 
-func convName(c wire.AskConversation) string {
+// convName is the title of a conversation, or the handles of its members when it has none.
+func convName(c wire.AskConversation, members ...string) string {
 	title := ""
 	if c.Title != nil {
 		title = plain(*c.Title)
+	}
+	if title == "" && len(members) > 0 {
+		title = "@" + strings.Join(members, " @")
 	}
 	if title == "" {
 		title = "conversation"

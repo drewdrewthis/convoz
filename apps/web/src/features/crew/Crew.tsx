@@ -12,7 +12,7 @@ import { data, useData, useLive } from "../../shared/data.ts";
 import { useNotice } from "../../shared/notice.tsx";
 import { useSheets } from "../../shared/sheets.tsx";
 import { Ring } from "./Avatar.tsx";
-import { GROUPS, LOOK, sameName, shownState, type Shown } from "./status.ts";
+import { GROUPS, groupOf, labelOf, sameName, shownState, type Shown } from "./status.ts";
 import { useCrew } from "./store.ts";
 
 // The sheet is a chunk of its own: the list pays for it only when the owner adds an agent.
@@ -29,7 +29,7 @@ interface Row {
 
 /** statusLine is "Working · Fixing #412"; an idle agent that is there reads "Idle · Online and ready". */
 function statusLine(r: Row): string {
-  const look = LOOK[r.shown].label;
+  const look = labelOf(r.shown, r.status?.open_asks.length ?? 0);
   const doing = r.status?.doing;
   if (r.shown === "offline") return look;
   if (doing && r.shown !== "idle") return `${look} · ${doing}`;
@@ -82,7 +82,8 @@ export function Crew() {
   const disabled = (rows ?? []).filter((r) => r.who.disabled && matches(r));
   const shown = enabled.filter(matches);
   const working = enabled.filter((r) => r.shown === "working").length;
-  const waiting = enabled.filter((r) => r.shown === "waiting" || r.shown === "blocked").length;
+  const waiting = enabled.filter((r) => groupOf(r.shown, r.status?.open_asks.length ?? 0) === "needs").length;
+  const claimed = enabled.filter((r) => groupOf(r.shown, r.status?.open_asks.length ?? 0) === "waiting").length;
   const online = enabled.filter((r) => r.shown !== "offline").length;
   const live = enabled.filter((r) => r.shown === "working" || r.shown === "waiting" || r.shown === "blocked");
   const faces = live.length ? live : enabled;
@@ -94,7 +95,7 @@ export function Crew() {
       add();
     }
   }, [add]);
-  const summary = working || waiting ? [working && `${working} working`, waiting && `${waiting} waiting on you`].filter(Boolean).join(" · ") : enabled.length ? `${online} online` : "";
+  const summary = working || waiting || claimed ? [working && `${working} working`, waiting && `${waiting} waiting on you`, claimed && `${claimed} waiting`].filter(Boolean).join(" · ") : enabled.length ? `${online} online` : "";
 
   return (
     <div id="crew" className="crew" aria-busy={rows ? undefined : true}>
@@ -127,7 +128,9 @@ export function Crew() {
       </div>
       <div className="docklist">
       {GROUPS.map((g) => {
-        const inGroup = shown.filter((r) => (g.shown as readonly Shown[]).includes(r.shown));
+        const inGroup = shown.filter((r) => groupOf(r.shown, r.status?.open_asks.length ?? 0) === g.key);
+        // The idle group stays in the page when empty: its list and count are anchors; the waiting groups exist only with an agent in them.
+        if (inGroup.length === 0 && g.key !== "idle" && g.key !== "working") return null;
         return (
           <section key={g.key} id={g.key === "idle" ? "crew-idle" : undefined} className="cgrp" data-group={g.key} aria-label={g.label} hidden={inGroup.length === 0}>
             <h3>

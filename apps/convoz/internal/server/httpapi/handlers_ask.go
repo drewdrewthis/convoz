@@ -16,6 +16,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/plan"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/prefs"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/wire"
 )
 
@@ -30,7 +31,8 @@ func personOf(c *call) int64 {
 	return c.p.HumanID
 }
 
-// postAsk is POST /api/asks: an agent asks a question with a recommendation and alternatives. The asker is the lease (I-40).
+// postAsk is POST /api/asks: an agent asks for permission for one action, or asks a question with a recommendation and alternatives
+// (the decision ask from before), or shows a draft. The asker is the lease (I-40). A permission or draft ask needs no owner's call.
 func (s *Server) postAsk(w http.ResponseWriter, r *http.Request, c *call) {
 	if c.p.SessionID == 0 {
 		writeErr(w, http.StatusForbidden, "forbidden", "Only an agent asks.")
@@ -64,7 +66,12 @@ func (s *Server) postAsk(w http.ResponseWriter, r *http.Request, c *call) {
 	if d := in.Draft; d != nil {
 		n.Draft = &ask.Draft{Text: d.Text, Original: d.Original, OriginalFrom: d.OriginalFrom}
 	}
-	if s.askRefused(w, r, c, n.Check()) {
+	if pm := in.Permission; pm != nil {
+		n.Permission = ptr(ask.Permission(*pm))
+	}
+	err := n.Check()
+	s.logAskLine(r, c, n.Conversation, err)
+	if s.askRefused(w, r, c, err) {
 		return
 	}
 	if len(in.App) > 0 && string(in.App) != "null" {
@@ -270,6 +277,13 @@ func (s *Server) askUpdate(w http.ResponseWriter, r *http.Request, c *call) {
 		return
 	}
 	up := ask.Updating{ID: a.ID, By: c.p.IdentityID, Question: in.Question, OwnersCallReason: in.OwnersCallReason, Answers: in.Answers}
+	if pm := in.Permission; pm != nil {
+		if pm.Confidence != 0 {
+			writeFieldErr(w, http.StatusBadRequest, "invalid_request", "confidence", "The confidence is fixed when the ask is made: leave it out of an update.")
+			return
+		}
+		up.Permission = ptr(ask.Permission(*pm))
+	}
 	if in.Recommended != nil {
 		up.Recommended = &ask.Option{Label: in.Recommended.Label, Why: in.Recommended.Why}
 	}
@@ -278,7 +292,9 @@ func (s *Server) askUpdate(w http.ResponseWriter, r *http.Request, c *call) {
 	}
 	status := http.StatusOK
 	s.askChange(w, r, c, &status, func(ctx context.Context, d pdb.DBTX, p ask.Ports, now time.Time) (ask.Ask, error) {
-		return ask.Update(ctx, d, p, now, up)
+		got, err := ask.Update(ctx, d, p, now, up)
+		s.logAskLine(r, c, a.ConversationID, err)
+		return got, err
 	})
 }
 
@@ -418,6 +434,9 @@ func (s *Server) nowScreen(w http.ResponseWriter, r *http.Request, c *call) {
 	if err == nil {
 		out.WaitingPlans, err = s.waitingPlans(ctx, d, c, dir)
 	}
+	if err == nil {
+		out.Unanswered, err = s.nowUnanswered(ctx, d, c.p, dir, now)
+	}
 	var machines []auth.Request
 	if err == nil {
 		machines, err = auth.PendingRequests(ctx, d, now)
@@ -460,10 +479,33 @@ type nowView struct {
 	DismissedToday []wire.AskView       `json:"dismissed_today"`
 	PendingAdds    []wire.NowPendingAdd `json:"pending_adds"`
 	// WaitingPlans are the plan items agents wait on the owner for, newest first.
-	WaitingPlans    []wire.NowWaiting `json:"waiting_plans"`
-	MachineRequests []requestJSON     `json:"machine_requests"`
+	WaitingPlans []wire.NowWaiting `json:"waiting_plans"`
+	// Unanswered are the owner's messages nobody answered for 10 minutes, one per conversation: the same list as GET /api/waiting.
+	Unanswered      []wire.WaitingUnanswered `json:"unanswered"`
+	MachineRequests []requestJSON            `json:"machine_requests"`
 	// IdentityRequests are the identities that agents on logged-in machines ask to be made.
 	IdentityRequests []identityRequestJSON `json:"identity_requests"`
+}
+
+// nowUnanswered is the unanswered list of Now: GET /api/waiting's list without a conversation the owner muted or that is stale, and
+// without a message older than plan.WaitStaleAfter (else any chat where the owner spoke last stays a card for ever). The cheap filters run
+// before the per-chat reads.
+func (s *Server) nowUnanswered(ctx context.Context, d pdb.DBTX, p authz.Principal, dir directory, now time.Time) ([]wire.WaitingUnanswered, error) {
+	all, err := conversation.ListAll(ctx, d)
+	if err != nil {
+		return nil, err
+	}
+	pf, err := prefs.All(ctx, d, p.Identity())
+	if err != nil {
+		return nil, err
+	}
+	list := all[:0:0]
+	for _, cv := range all {
+		if !cv.Stale() && pf[cv.ID].MutedUntil <= now.UnixMilli() {
+			list = append(list, cv)
+		}
+	}
+	return s.unanswered(ctx, d, p.HumanID, list, dir, now, plan.WaitStaleAfter)
 }
 
 // liveAskViews is askViews without the asks of a conversation that is in the trash or gone.
@@ -503,12 +545,12 @@ func pendingAdds(ctx context.Context, d pdb.DBTX, dir directory) ([]wire.NowPend
 	return out, err
 }
 
-// waitingPlans lists the plan items that wait on the owner, newest first, in the conversations the caller can see and that are not in the trash.
+// waitingPlans lists the plan items that wait on the owner and were updated in the last 24 h, newest first, in the conversations the caller can see and that are not in the trash.
 func (s *Server) waitingPlans(ctx context.Context, d pdb.DBTX, c *call, dir directory) ([]wire.NowWaiting, error) {
 	plans, err := plan.All(ctx, d)
 	out := []wire.NowWaiting{}
 	for _, p := range plans {
-		if len(p.Waiting) == 0 {
+		if len(p.Waiting) == 0 || p.WaitStale(s.Clock.Now()) { // a wait nobody refreshed for a day is not news to the owner
 			continue
 		}
 		cv, found, err2 := conversation.Get(ctx, d, p.Conversation)
@@ -579,5 +621,13 @@ func (s *Server) RunTimers(ctx context.Context) {
 			}
 			s.sweepNow(ctx) // late plans and agents that stopped responding
 		}
+	}
+}
+
+// logAskLine logs err when it is an ask question that ownerline refused.
+func (s *Server) logAskLine(r *http.Request, c *call, conv int64, err error) {
+	var line *ask.LineError
+	if errors.As(err, &line) {
+		s.logOwnerLine(r, c, conv, line.Field, line.Why)
 	}
 }

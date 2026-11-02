@@ -9,3 +9,9 @@ type RepliesResponse struct {
 	AsOfSeq        int64     `json:"as_of_seq"`
 	Seen           []Seen    `json:"seen,omitempty"` // agents that saw the newest message a person wrote in this thread
 }
+
+// ThreadsResponse is GET /api/conversations/:id/threads: the thread of each root asked for, each as RepliesResponse, in the order
+// asked. A root the reader may not read is left out.
+type ThreadsResponse struct {
+	Threads []RepliesResponse `json:"threads"`
+}

@@ -17,7 +17,7 @@ const (
 )
 
 // clientError is POST /api/client-errors: the web app reports an uncaught error, and the server writes one line to its own log
-// (journalctl). Nothing is stored. The owner's device session only: an agent or an anonymous caller never reaches it.
+// (journalctl), and counts it by its class (kind) when telemetry is on. Nothing is stored. The owner's device session only: an agent or an anonymous caller never reaches it.
 // Values are quoted, so a newline or a quote in a report cannot forge another log line. Past the limit it answers 429; a body over
 // 16 KB is a 400.
 func (s *Server) clientError(w http.ResponseWriter, r *http.Request, c *call) {
@@ -32,6 +32,7 @@ func (s *Server) clientError(w http.ResponseWriter, r *http.Request, c *call) {
 	if !decode(w, r, &in) {
 		return
 	}
+	s.Telemetry.CountWebError(in.Kind)
 	s.Log.Printf("client_error build=%q page=%q ua=%q message=%q stack=%q",
 		clipTo(in.Build, clientErrorField), pathOnly(in.Page), clipTo(in.UA, clientErrorField), clipTo(in.Message, clientErrorMessage), clipTo(in.Stack, clientErrorStack))
 	w.WriteHeader(http.StatusNoContent)

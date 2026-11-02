@@ -77,7 +77,7 @@ scenario("Counters match the messages after any sequence of actions", { tag: ["@
       if (!target) continue;
       must5xx((await deleteMessage(w.owner, target.id)).status, `delete ${step}`);
     } else if (roll < 0.85) {
-      const res = await patient(() => postAsk(w.srv, agent.lease, askBody(conv, { question: `Question ${step}?` })));
+      const res = await patient(() => postAsk(w.srv, agent.lease, askBody(conv, { question: `Answer the question ${step}?` })));
       must5xx(res.status, `ask ${step}`);
 
       if (res.status === 201) asks.push({ id: res.json().ask.id, conv });

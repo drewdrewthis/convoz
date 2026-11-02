@@ -105,7 +105,7 @@ func (s *Server) createUpload(w http.ResponseWriter, r *http.Request, c *call) {
 	var row upload.Row
 	err := s.Store.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) (err error) {
 		row, err = svc.Create(ctx, tx.DBTX(), now, upload.NewRequest{
-			Uploader: who, Session: c.p.SessionID, Conversation: in.ConversationID, Kind: in.Kind, Filename: in.Filename, Size: in.Size, SHA256: sum,
+			Uploader: who, Session: c.p.SessionID, Conversation: in.ConversationID, Kind: in.Kind, Filename: in.Filename, Size: in.Size, SHA256: sum, ClientID: in.ClientID,
 		}, c.lease.MachineID)
 		return err
 	})

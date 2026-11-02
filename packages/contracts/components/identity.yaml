@@ -134,7 +134,7 @@ WaitingResponse:
     now: { type: integer, format: int64 }
     asks: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/WaitingAsk" }, description: Open asks, snoozed ones included. }
     unanswered: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/WaitingUnanswered" }, description: "Conversations whose newest main-chat message is the owner's and got no answer for 10 minutes. Threads are not scanned." }
-    plans: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/NowWaiting" }, description: Plan items agents wait on the owner for, newest first. }
+    plans: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/NowWaiting" }, description: Plan items agents wait on the owner for, in plans updated in the last 24 h, newest first. }
     unread: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/WaitingUnread" }, description: The owner's unread count per conversation, for those with some. }
 WaitingAsk:
   type: object
@@ -150,13 +150,14 @@ WaitingAsk:
     age_ms: { type: integer, format: int64 }
 WaitingUnanswered:
   type: object
-  required: [conversation, message_id, excerpt, created_at, age_ms]
+  required: [conversation, message_id, excerpt, created_at, age_ms, members]
   properties:
     conversation: { $ref: "../openapi.yaml#/components/schemas/AskConversation" }
     message_id: { type: integer, format: int64 }
     excerpt: { type: string }
     created_at: { type: integer, format: int64 }
     age_ms: { type: integer, format: int64 }
+    members: { type: array, items: { type: string }, description: Handles of the others in the conversation; the name of a chat with no title. }
 WaitingUnread:
   type: object
   required: [conversation, unread]

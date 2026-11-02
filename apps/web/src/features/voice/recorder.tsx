@@ -6,8 +6,12 @@ import { asUpload, streamUpload } from "../../shared/uploads.ts";
 import { mmss } from "./mmss.ts";
 import { NoRecorderApiError } from "./micNote.ts";
 
-/** A voice note stops by itself at five minutes. */
-const MOST_MS = 300_000;
+/** A voice note stops by itself at 30 minutes and is sent (the server's cap, upload.MaxDurationMS). */
+export const MOST_MS = 1_800_000;
+/** The last stretch of a note shows how long is left. */
+const COUNTDOWN_MS = 60_000;
+/** Opus at 32 kbit/s is clear speech and keeps 30 minutes near 7 MB, under the 25 MiB upload cap (the browser default, 128 kbit/s, does not). */
+const BITS_PER_SECOND = 32_000;
 /** Peaks the server keeps for the waveform. */
 const PEAKS = 64;
 const SAMPLE_MS = 100;
@@ -18,6 +22,8 @@ const FLAT = 64;
 export interface VoiceRecording {
   /** Milliseconds since the start, frozen once it stopped. */
   elapsed(): number;
+  /** Milliseconds until it stops by itself; 0 once it has. */
+  left(): number;
   /** Stop and drop everything: nothing is sent and no server route is called. */
   cancel(): void;
   /** Stop, send the rest, and resolve with the finished upload. Can be called again after a failure. */
@@ -35,7 +41,7 @@ export async function startRecording(conversationId: number): Promise<VoiceRecor
   let recorder: MediaRecorder;
   try {
     const opus = "audio/webm;codecs=opus";
-    recorder = new MediaRecorder(stream, MediaRecorder.isTypeSupported(opus) ? { mimeType: opus } : undefined);
+    recorder = new MediaRecorder(stream, { audioBitsPerSecond: BITS_PER_SECOND, ...(MediaRecorder.isTypeSupported(opus) ? { mimeType: opus } : {}) });
   } catch (err) {
     release();
     throw err;
@@ -71,6 +77,7 @@ export async function startRecording(conversationId: number): Promise<VoiceRecor
 
   return {
     elapsed: () => Math.min(MOST_MS, (stoppedAt || performance.now()) - started),
+    left: () => (stoppedAt ? 0 : Math.max(0, MOST_MS - (performance.now() - started))),
     cancel: () => {
       stop();
       upload.abort();
@@ -133,13 +140,18 @@ function sampler(stream: MediaStream) {
  */
 export function RecordingBar({ recording, onDone }: { recording: VoiceRecording; onDone(sent?: Upload): void }) {
   const [secs, setSecs] = useState(0);
+  const [left, setLeft] = useState(MOST_MS);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const send = useRef<HTMLButtonElement>(null);
+  const sending = useRef(false);
 
   useEffect(() => {
     send.current?.focus();
-    const timer = setInterval(() => setSecs(Math.floor(recording.elapsed() / 1000)), 250);
+    const timer = setInterval(() => {
+      setSecs(Math.floor(recording.elapsed() / 1000));
+      setLeft(recording.left());
+    }, 250);
     return () => {
       clearInterval(timer);
       recording.cancel(); // the page went away: nothing is sent (after a send this changes nothing)
@@ -151,15 +163,28 @@ export function RecordingBar({ recording, onDone }: { recording: VoiceRecording;
     onDone();
   };
   const finish = async () => {
+    if (sending.current) return;
+    sending.current = true;
     setBusy(true);
     setFailed(false);
     try {
       onDone(await recording.finish());
     } catch {
+      sending.current = false;
       setFailed(true);
       setBusy(false);
     }
   };
+  // At the cap the recorder has stopped: send the note, never drop it (owner: a note stopped by itself at 5 minutes, without a word).
+  // (preact/compat has no useEffectEvent: the newest finish waits in a ref)
+  const capped = left === 0 && !failed;
+  const finishNow = useRef(finish);
+  useEffect(() => {
+    finishNow.current = finish;
+  });
+  useEffect(() => {
+    if (capped) void finishNow.current();
+  }, [capped]);
 
   return (
     <>
@@ -181,6 +206,11 @@ export function RecordingBar({ recording, onDone }: { recording: VoiceRecording;
           <span className="sr">Recording </span>
           {mmss(secs)}
         </span>
+        {left <= COUNTDOWN_MS ? (
+          <span className="rleft" role="timer" aria-label="Time left">
+            {mmss(Math.ceil(left / 1000))} left
+          </span>
+        ) : null}
         <span aria-hidden="true" className="vlvl">
           <i />
           <i />

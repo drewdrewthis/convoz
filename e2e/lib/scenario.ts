@@ -11,6 +11,8 @@ export { convozBin } from "./fixtures.ts";
  * `tag` carries the driver tag (`@cli`, `@api`, `@browser`, `@mcp`) and any special tag
  * such as `@bench`. One binding per scenario; a Scenario Outline runs all its rows inside one binding.
  */
-export function scenario(title: string, opts: { tag: string[] }, fn: (fx: Fixtures & PlaywrightTestArgs, info: TestInfo) => Promise<void> | void): void {
-  test(title, { tag: opts.tag }, fn);
+// opts.fixme: the issue URL for a known product bug; the scenario is skipped (test.fixme) until that issue is fixed.
+export function scenario(title: string, opts: { tag: string[]; fixme?: string }, fn: (fx: Fixtures & PlaywrightTestArgs, info: TestInfo) => Promise<void> | void): void {
+  if (opts.fixme) test.fixme(title, { tag: opts.tag }, fn);
+  else test(title, { tag: opts.tag }, fn);
 }

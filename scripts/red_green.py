@@ -151,6 +151,22 @@ class RunnerError(Exception):
     """The run itself broke (build, install, crash, no report, missing title). That is never "red"."""
 
 
+ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def failure_text(spec, limit=40):
+    """The Playwright error messages of a failed spec (with file:line), trimmed to `limit` lines, so a red or green break is readable in the log."""
+    lines = []
+    for test in spec.get("tests", []):
+        for result in test.get("results", []):
+            for err in result.get("errors", []) or ([result["error"]] if result.get("error") else []):
+                where = err.get("location") or {}
+                if where:
+                    lines.append(f"at {where.get('file')}:{where.get('line')}")
+                lines.extend(ANSI.sub("", err.get("message", "")).splitlines())
+    return "\n".join(lines[:limit])
+
+
 def results_from_report(path, titles):
     """title -> passed|failed from a Playwright JSON report. "failed" only if the test ran and was unexpected."""
     try:
@@ -167,6 +183,8 @@ def results_from_report(path, titles):
                 state = "unrun"
             else:
                 state = "passed" if all(s == "expected" for s in statuses) else "failed"
+                if state == "failed" and sp["title"] in titles and (text := failure_text(sp)):
+                    print(f"--- {sp['title']}: Playwright errors ---\n{text}", file=sys.stderr)
             prev = seen.get(sp["title"])
             seen[sp["title"]] = state if prev in (None, state) else ("unrun" if "unrun" in (prev, state) else "failed")
         for s in suite.get("suites", []):
@@ -302,6 +320,8 @@ def self_test():
                 {"title": "c", "tests": [{"status": "skipped"}]}]}]}, fh)
         if results_from_report(report, ["a", "b"]) != {"a": "failed", "b": "passed"}:
             failures.append("report: unexpected is red, expected is green")
+        if "boom at 3" not in failure_text({"tests": [{"results": [{"errors": [{"message": "\x1b[31mboom at 3\x1b[0m", "location": {"file": "x.ts", "line": 3}}]}]}]}) or len(failure_text({"tests": [{"results": [{"errors": [{"message": "l\n" * 90}]}]}]}).splitlines()) != 40:
+            failures.append("failure text: message kept, colours stripped, trimmed to 40 lines")
         expect_error("skipped title", lambda: results_from_report(report, ["c"]))
         expect_error("absent title", lambda: results_from_report(report, ["zzz"]))
     def fp(*tags):

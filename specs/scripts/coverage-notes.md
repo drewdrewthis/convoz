@@ -10,6 +10,10 @@ regression aid (design draft 9 §8) may cover them; it is optional and never a g
 - **I-25**: "a machine-key copy moved to another row fails to decrypt" needs the test to edit the data file (`@invariant`, test build only).
 - **I-43**: the exact claim, merge, extend and ack SQL was also probed directly on SQLite 3.50.4 (design draft 9 end of §7; 44 of 44 probes).
 
+### Removed
+
+- **I-16** (the loop breaker) was removed on 2026-10-26 (issue 117): agents are never paused for a long run of messages. Its id is not reused, so it shows as a gap. AC-5 now checks that the 21st agent message in a row posts.
+
 ### Later by design
 
 - **I-35** (push action buttons, S-10b) and **AC-23** (delete my data, members in S-15; C-7) are covered only by `@later` scenarios. In v1 the owner's purge carries the same byte scan (`contracts/ops` · Purging a message scrubs every copy of its content).

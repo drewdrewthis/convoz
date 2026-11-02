@@ -84,12 +84,26 @@ func unreadParts(ctx context.Context, d pdb.DBTX, reader int64, cv conversation.
 }
 
 // unreadMentions counts the unread messages of cv that @mention the reader, under the read points of u (owner, conv 179 msg 6018:
-// the server counts mentions, so a client need not read every unread message to find them).
-func unreadMentions(ctx context.Context, d pdb.DBTX, reader int64, cv conversation.Conversation, u unreadState) (int64, error) {
+// the server counts mentions, so a client need not read every unread message to find them). A running Later (later.Until != 0)
+// counts only the mentions newer than it.
+func unreadMentions(ctx context.Context, d pdb.DBTX, reader int64, cv conversation.Conversation, u unreadState, later prefs.MentionSnooze) (int64, error) {
 	if u.total() == 0 {
 		return 0, nil
 	}
-	return message.CountUnreadMentions(ctx, d, cv.ID, reader, u.mainAfter, u.points)
+	mainAfter, points := afterLater(later, u.mainAfter, u.points)
+	return message.CountUnreadMentions(ctx, d, cv.ID, reader, mainAfter, points)
+}
+
+// afterLater moves the read points of a mention count past the message a running Later was set at, so only a newer mention counts.
+func afterLater(later prefs.MentionSnooze, mainAfter int64, points []message.ReadPoint) (int64, []message.ReadPoint) {
+	if later.Until == 0 {
+		return mainAfter, points
+	}
+	moved := make([]message.ReadPoint, len(points))
+	for i, p := range points {
+		moved[i] = message.ReadPoint{Root: p.Root, After: max(p.After, later.AfterID)}
+	}
+	return max(mainAfter, later.AfterID), moved
 }
 
 // repliesToYou says whether an agent answered the reader: the main list has unread after a message the reader wrote (the newest one
@@ -123,6 +137,10 @@ func mentionedConversations(ctx context.Context, d pdb.DBTX, p authz.Principal, 
 	if err != nil {
 		return 0, err
 	}
+	snoozes, err := prefs.MentionSnoozes(ctx, d, p.Identity(), now)
+	if err != nil {
+		return 0, err
+	}
 	places := make([]message.MentionPlace, 0, len(seats))
 	for _, s := range seats {
 		pos, found := positions[s.Conversation]
@@ -133,6 +151,7 @@ func mentionedConversations(ctx context.Context, d pdb.DBTX, p authz.Principal, 
 		for _, t := range pos.Threads {
 			place.Points = append(place.Points, message.ReadPoint{Root: t.Root, After: max(t.LastRead, pos.ThreadFloor, s.Floor)})
 		}
+		place.MainAfter, place.Points = afterLater(snoozes[s.Conversation], place.MainAfter, place.Points)
 		places = append(places, place)
 	}
 	ids, err := message.ConversationsWithUnreadMentions(ctx, d, p.Identity(), places)

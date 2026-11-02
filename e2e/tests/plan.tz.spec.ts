@@ -19,5 +19,8 @@ scenario("Times show in the owner's time zone with \"~\" for an estimate", { tag
   const local = new Date(eta).toLocaleTimeString("en-GB", { timeZone: ZONE, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
   const utc = new Date(eta).toLocaleTimeString("en-GB", { timeZone: "UTC", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
   expect(local).not.toBe(utc);
-  await expect(planLine(page)).toHaveText(`Working · Building invites · ready ~${local}`);
+  // An estimate past midnight in "Pacific/Auckland" names its day too ("~Wed 00:01"), as the app does (features/plan/format.ts when).
+  const day = (ms: number) => new Date(ms).toLocaleDateString("en-CA", { timeZone: ZONE });
+  const weekday = day(eta) === day(Date.now()) ? "" : `${new Date(eta).toLocaleDateString("en-US", { timeZone: ZONE, weekday: "short" })} `;
+  await expect(planLine(page)).toHaveText(`Working · Building invites · ready ~${weekday}${local}`);
 });

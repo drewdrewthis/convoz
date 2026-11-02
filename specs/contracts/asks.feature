@@ -169,3 +169,86 @@ Feature: Asks and their state machine (contracts)
       Then the server answers 400 naming "choice"
       When the owner answers "recommended" with the text "Final words"
       Then GET shows the reply send true with the text "Final words" and the answer "Send: Final words"
+
+  # Drew, conv 349 msg 6199: see the rule "An ask is a permission request" of specs/features/asks.feature.
+  Rule: A permission ask is checked, told apart from a decision and a draft, and answered with Go or Not this
+
+    @v1 @api
+    Scenario: A permission ask opens with its parts and is told apart from a decision and a draft
+      When "devtool" posts a permission ask with no question and no owners_call
+      Then the server answers 201 and the ask is open, of kind "permission", with its parts, the action as its question and the options Go and Not this
+      And an ask in the old shape reads as kind "decision" with no permission object
+      And a draft ask reads as kind "draft"
+
+    @v1 @api
+    Scenario: A permission ask that is incomplete or over a limit is refused naming the field
+      When "devtool" posts a permission ask that is over a limit, empty, whitespace-only, with undo and one_way together or neither, with 0 or 4 considered lines, with a confidence of -1, 101 or 80.5, or together with a draft
+      Then the server answers 400 naming the field, each time, and Now shows no new ask
+      And an action of 100 characters is accepted and one of 101 is refused with "Shorten: action has at most 100 characters"
+
+    @v1 @api
+    Scenario: A confidence under 80 is refused and 80 is accepted
+      When "devtool" posts a permission ask with a confidence of 79, 0 or none
+      Then the server answers 400 with the text "Get confident first: research it or run it by @advisor, then ask with --confidence 80 or more. Never hand the owner the thinking."
+      When "devtool" posts it with a confidence of 80
+      Then the server answers 201
+
+    @v1 @api
+    Scenario: Go and Not this answer a permission ask
+      Given two open permission asks of "devtool"
+      When the owner answers the first with Go and the second with Not this and the reason "Wait for PR 412"
+      Then the answers read "Go" and "Not this: Wait for PR 412" for the owner, in conversation 41 and in the inbox of "devtool"
+      And a second, different answer to the first ask is refused with 409
+
+    @v1 @api
+    Scenario: A Not this answer without a good reason is refused
+      Given an open permission ask of "devtool"
+      When the owner answers Not this with no text, with whitespace only or with 4001 characters, or answers Go with a text
+      Then the server answers 400 naming "text" and the ask stays open
+
+    @v1 @api
+    Scenario: The agent rewrites the parts of its permission ask
+      Given an open permission ask of "devtool"
+      When "devtool" updates the action and the considered lines
+      Then the ask shows the new parts, its question is the new action and "changed" reads exactly "action, considered"
+      When "devtool" updates the ask to one_way true
+      Then the ask is one-way and has no undo
+
+    @v1 @api
+    Scenario: A permission update that changes the wrong thing is refused
+      Given an open permission ask of "devtool", an open decision ask and an open draft ask
+      When "devtool" updates the permission ask with undo and one_way together, with a new confidence or with an action of 101 characters
+      Then the server answers 400 naming "undo", "confidence" and "action"
+      When "devtool" updates the decision ask or the draft ask with permission fields
+      Then the server answers 400
+
+    @v1 @cli
+    Scenario: The CLI asks for permission and refuses a low confidence
+      When "devtool" runs "convoz ask" with --action, --risk, --undo, two --considered and --confidence 79
+      Then the command exits 2, stdout and stderr carry the get-confident text and the owner sees no new ask
+      When "devtool" runs it with --confidence 80
+      Then the command succeeds, prints the id and the owner sees a permission ask with both considered ways
+      When "devtool" runs it with --one-way instead of --undo
+      Then the command succeeds
+
+    @v1 @cli
+    Scenario: Old ask flags still make a decision ask and mixing them with the new flags is refused
+      When "devtool" runs "convoz ask" with the old flags --question, --recommend, --alt and --owners-call
+      Then the command succeeds, stderr is the one line "hint: use --action ... for a permission ask" and the owner sees a decision ask
+      When "devtool" runs "convoz ask" with --action and --recommend
+      Then the command exits 2 and the owner sees no new ask
+
+    @v1 @mcp
+    Scenario: The ask tool takes a permission request and refuses a low confidence
+      When the "ask" tool is called with an action, a risk, an undo, considered lines and confidence 79
+      Then the tool is refused with the get-confident text and the owner sees no new ask
+      When the "ask" tool is called with confidence 80
+      Then the owner sees a permission ask with those parts
+
+    @v1 @api
+    Scenario: A permission ask pushes what the agent will do
+      Given the owner is subscribed to push
+      When "devtool" asks permission to "Merge PR 415 into main"
+      Then the push body reads "@devtool will: Merge PR 415 into main"
+      When "devtool" asks an old-shape question "Merge #415 on its own?"
+      Then the push body reads "Merge #415 on its own?"

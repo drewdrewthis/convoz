@@ -33,6 +33,9 @@ type Route struct {
 	RefuseLease bool   // a lease is told 403, not 401: an agent credential can never do this
 	NoCSRF      bool   // a write that carries no cookie and no Authorization (a CLI), so the browser Origin check does not apply
 	NoLimit     bool   // exempt from the per-source public limit (its own protocol limits it)
+	// Hidden: a caller who does not meet Auth is told 404, as for a path the server does not know, so the route is not revealed; a
+	// request with an Authorization header (an agent's or a machine's credential, never the owner's) is told 404 before it is read.
+	Hidden bool
 	// Agent is the reason the agent listener serves a route that needs no credential ("" refuses it there). A route that a
 	// lease (Lease) or a machine key (Auth) meets is served without saying so; see AgentReason.
 	Agent  string
@@ -51,7 +54,7 @@ func (r Route) check(p authz.Principal) error {
 // Each module keeps its rows in its own routes_<module>.go, so parallel work never edits this list.
 var Routes = slices.Concat(
 	coreRoutes, cliRoutes, authRoutes, identityRoutes, auditRoutes, conversationRoutes, messageRoutes, readstateRoutes, eventRoutes, inboxRoutes,
-	askRoutes, prefsRoutes, uploadRoutes, transcriptRoutes, searchRoutes, notifyRoutes, settingsRoutes, unfurlRoutes, appkitRoutes, opsRoutes, planRoutes, voiceRoutes, pageRoutes,
+	askRoutes, prefsRoutes, uploadRoutes, transcriptRoutes, searchRoutes, notifyRoutes, settingsRoutes, unfurlRoutes, appkitRoutes, opsRoutes, planRoutes, itemRoutes, voiceRoutes, pageRoutes,
 )
 
 // appPage serves the app for a page URL: the cold page with the first screen's reads inline when this page has a first screen
@@ -96,9 +99,9 @@ func firstReadRoutes() map[string]Route {
 var firstReadsByPage = console.FirstReads()
 
 // firstReads runs each read of this page's first screen as the request's own GET of that route, through the route's own
-// authentication and Auth class (s.route), and returns them as the data block. A read that does not answer 200 is left out (the
-// app asks for it itself); with none left, or a page with no first screen, it returns nil and the page is the lean shell, never
-// a page with empty data.
+// authentication and Auth class (s.serveRoute: a read inline is part of the page's request, so telemetry does not count it again),
+// and returns them as the data block. A read that does not answer 200 is left out (the app asks for it itself); with none left, or
+// a page with no first screen, it returns nil and the page is the lean shell, never a page with empty data.
 func (s *Server) firstReads(r *http.Request) []byte {
 	reads := firstReadsByPage[r.URL.Path]
 	if len(reads) == 0 {
@@ -111,7 +114,7 @@ func (s *Server) firstReads(r *http.Request) []byte {
 		q.Header.Del("Accept-Encoding")
 		q.Header.Del(console.LeanHeader)
 		rec := &recorder{header: http.Header{}, status: http.StatusOK}
-		s.route(s.readRoutes[path])(rec, q)
+		s.serveRoute(s.readRoutes[path])(rec, q)
 		if rec.status == http.StatusOK && json.Valid(rec.body.Bytes()) {
 			answers[path] = rec.body.Bytes()
 		}
@@ -168,4 +171,14 @@ func lookalikesAsset(_ *Server, w http.ResponseWriter, r *http.Request, _ *call)
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request, _ *call) {
 	_, _ = w.Write([]byte("ok"))
+}
+
+// devRoot sends the owner from /dev to /dev/, where the dev build's relative URLs resolve.
+func devRoot(_ *Server, w http.ResponseWriter, r *http.Request, _ *call) {
+	http.Redirect(w, r, "/dev/", http.StatusFound)
+}
+
+// devPage serves a file of the owner's dev build (console.ServeDev), read from the folder at each request.
+func (s *Server) devPage(w http.ResponseWriter, r *http.Request, _ *call) {
+	console.ServeDev(w, r, s.Cfg.DevWebDir, r.PathValue("path"), chooseEncoding(r.Header.Get("Accept-Encoding")) == "br")
 }

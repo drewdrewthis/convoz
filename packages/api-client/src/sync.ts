@@ -6,7 +6,7 @@
 // the server no longer knows gets a reset: the engine loads a snapshot and reads its state over the plain routes again.
 import type { DataCache } from "./cache.ts";
 import { LIMIT, maxId } from "./cache.ts";
-import { coalesce } from "./coalesce.ts";
+import { coalesce, coalescePer } from "./coalesce.ts";
 import { dispatch, dispatchResync } from "./handlers.ts";
 import type { DataSource } from "./source.ts";
 import { formatCursor, parseCursor, type Cursor } from "./sync/cursor.ts";
@@ -31,6 +31,8 @@ export interface Sync {
   ensure(): void;
   /** Fetch the messages after the newest one held for a conversation, and hand each to the cache and the handlers. */
   catchUp(conversationId: number): Promise<void>;
+  /** Read the asks a held conversation shows again (an ask changes in its message, so no new-message frame brings it). A burst is one read, plus one more if it kept coming. */
+  refreshAsks(conversationId: number): Promise<void>;
 }
 
 /** The longest a poll is held by the server (design §12.3). */
@@ -76,16 +78,18 @@ export function createSync(cache: DataCache, source: DataSource, options: SyncOp
     return job();
   };
   /** An ask changes in its message, not as a new message, so a gap in the stream leaves a held card stale: read its conversation's asks again. */
-  const refreshAsks = async (id: number) => {
+  const refreshAsks = coalescePer(async (id: number) => {
     if (!cache.store.getState().messages[id]?.list.some((m) => m.kind === "ask")) return;
     const { messages } = await source.messages(id, { limit: LIMIT });
-    for (const m of messages) if (m.kind === "ask" && m.ask) ingest({ name: "ask.changed", data: m.ask });
-  };
+    const shown = new Map(cache.store.getState().messages[id]?.list.map((m) => [m.id, JSON.stringify(m.ask)]));
+    // an ask that reads as the card shows it is no change: the features that follow ask frames (Now, plans) would read again for nothing
+    for (const m of messages) if (m.kind === "ask" && m.ask && shown.get(m.id) !== JSON.stringify({ ...m.ask, snoozed_until: undefined })) ingest({ name: "ask.changed", data: m.ask });
+  });
   const resync = () => {
     cache.resync();
     for (const id of Object.keys(cache.store.getState().messages)) {
       void catchUp(Number(id));
-      void refreshAsks(Number(id)).catch(() => {});
+      void refreshAsks(Number(id));
     }
     dispatchResync();
   };
@@ -118,7 +122,7 @@ export function createSync(cache: DataCache, source: DataSource, options: SyncOp
       listChanged = true; // a new message (a reply is not in the main list, but it moves the unread count), a new conversation or a read changes the rail
     }
     await Promise.all([...talked].map(catchUp));
-    await Promise.all([...asked].map((id) => refreshAsks(id).catch(() => {})));
+    await Promise.all([...asked].map(refreshAsks));
     // A plan has no message to read again: its readers (the panel, Now) listen for the frame the stream would have sent.
     for (const id of planned) dispatch({ name: "plan.changed", data: { conversation_id: id } });
     if (listChanged) cache.resync();
@@ -177,5 +181,6 @@ export function createSync(cache: DataCache, source: DataSource, options: SyncOp
     },
     ensure: () => link?.ensure(),
     catchUp,
+    refreshAsks,
   };
 }

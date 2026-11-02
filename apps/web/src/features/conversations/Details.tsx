@@ -15,6 +15,7 @@ import { AddAgentSheet } from "./AddAgentSheet.tsx";
 import { addAgent, decideAdd, deleteConversation, markAllRead, removeAgent, rename } from "./actions.ts";
 import { AgentsSection, WaitingSection, type PlanActions } from "./PlanSections.tsx";
 import { Button } from "@convoz/ui/Button";
+import { withBase } from "../../shared/base.ts";
 
 export interface DetailsProps {
   row: Conversation;
@@ -134,7 +135,7 @@ function DeleteSheet({ id, done }: { id: number; done(): void }) {
             variant="danger"
             onClick={() =>
               deleteConversation(id).then(
-                () => location.assign("/chats"),
+                () => location.assign(withBase("/chats")),
                 (err) => setAlert(humanError(err)),
               )
             }

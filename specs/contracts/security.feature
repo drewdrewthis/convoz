@@ -286,3 +286,30 @@ Feature: Security walls (contracts)
     Scenario: The audit trail names machine and session
       When "devtool" on "box-2" posts, asks, uploads and acks
       Then each matching audit and message detail names machine "box-2" and the session label
+
+  Rule: The access log tells one browser tab from many, and names no person
+  # Source: a burst of 32 identical GETs on one conversation (2026-10-28) could not be told apart: one tab in a loop, or about 30 tabs.
+  # An owner line adds dev=<device row id>, tab=<8 hex> (X-Convoz-Tab, random per tab, kept in sessionStorage) and load=<8 hex>
+  # (X-Convoz-Load, random per page load, kept in memory). Each id is logged only when it matches ^[0-9a-f]{8}$. No other header value
+  # is ever logged. Known gaps: a reload is a new load=, same tab=; a duplicated tab copies tab=; SW fetches carry neither.
+
+  Background:
+    Given a fresh Convoz server with owner "drew" signed in with a virtual passkey
+
+    @v1 @browser
+    Scenario: Each tab of the owner's app names its device, tab and load in the access log
+      When the owner opens the app in two tabs
+      Then every call of one tab carries one X-Convoz-Tab and one X-Convoz-Load, each 8 hex digits
+      And the two tabs carry different tab ids and different load ids
+      And the server log lines of each tab's calls carry dev= with the owner's device id, its tab= and its load=
+
+    @v1 @browser
+    Scenario: A reload keeps the tab id and gets a new load id
+      When the owner reloads a tab of the app
+      Then its calls after the reload carry the same X-Convoz-Tab and a new X-Convoz-Load
+
+    @v1 @api
+    Scenario: A malformed tab or load id and every other header value stay out of the access log
+      When the owner's requests carry malformed X-Convoz-Tab and X-Convoz-Load values and distinctive Cookie, Authorization and X-Foo values
+      Then each malformed id is dropped from its line and never echoed
+      And the server log holds none of the Cookie, Authorization or X-Foo values

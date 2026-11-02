@@ -111,10 +111,10 @@ Unchanged from v1 section 5: `docs/owner-checks/<id>.md`, evidence in `evidence/
 ## 10. The agentic-dev loop
 
 1. **Spec first.** Scenarios are written or edited before code. Anyone may add, change or remove a scenario in any PR. CI lists every added, changed and removed scenario (file and title, user-facing or contract) in the PR summary so the owner sees it. There is no hard lock and no spec review gate (owner: "a spec review? not sure it super matters").
-2. **Red.** Scenarios land with a failing bound test in a test-only commit. CI runs the slice's scenarios on it (must fail) and on head (must pass). This is v1 AC-1.
+2. **No test-first gate.** Describe behaviour in specs/*.feature; new e2e tests are not required before shipping. CI no longer runs a red-green check (owner, Convoz 179 #10700: "We can still track things in the .feature files, but I don't think I want to waste time with the tests.").
 3. **Implement** until the bound scenario passes. Inner loop: `just e2e "<title>"` runs one scenario.
 4. **Parity gate** on the PR: bindings, no unknowns, zero `@unimplemented` in the slice, JUnit green.
-5. **Use-proof is automatic.** Each run saves a final screenshot per `@browser` scenario and a transcript (commands, HTTP calls, output and exit status) per `@cli` and `@mcp` scenario. The proof is `pnpm proof <base>` (the branch the PR targets, as for red-green), which writes `e2e/report/proof.html` after a leak scan; CI builds it on every PR, and the PR author attaches screenshots to the PR.
+5. **Use-proof is automatic.** Each run saves a final screenshot per `@browser` scenario and a transcript (commands, HTTP calls, output and exit status) per `@cli` and `@mcp` scenario. The proof is `pnpm proof <base>` (the branch the PR targets), which writes `e2e/report/proof.html` after a leak scan; CI builds it on every PR, and the PR author attaches screenshots to the PR.
 6. **Bug fixes** land with a `@regression` scenario that fails without the fix.
 
 ## 11. Slice to scenarios-that-must-pass

@@ -3,6 +3,7 @@
   .recin { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 6px 6px 6px 8px; border-radius: 999px; animation: recIn 200ms cubic-bezier(.2, .8, .2, 1); }
   .rdot { width: 10px; height: 10px; flex: none; border-radius: 999px; background: var(--color-danger); animation: pulse 1.2s ease-in-out infinite; }
   .rtime { font-size: 14px; font-variant-numeric: tabular-nums; color: var(--color-text); }
+  .rleft { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--color-danger); white-space: nowrap; }
   .vlvl { flex: 1 1 auto; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 3px; height: 24px; }
   .vlvl i { display: block; width: 3px; height: 100%; border-radius: 2px; background: var(--color-text); opacity: .6; animation: vlvl 900ms ease-in-out infinite; }
   .vlvl i:nth-child(2) { animation-delay: -700ms; } .vlvl i:nth-child(3) { animation-delay: -300ms; } .vlvl i:nth-child(4) { animation-delay: -550ms; }

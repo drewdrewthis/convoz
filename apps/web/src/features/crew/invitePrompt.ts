@@ -25,6 +25,7 @@ const HOW_CONVOZ_WORKS = [
   "- Post is a normal answer in the conversation. Use it by default.",
   "- Reply is a thread under one message. Use it only when the watch item has a thread_root_id (the owner wrote inside a thread): convoz reply <thread_root_id> \"...\". Otherwise post.",
   "- Every post and reply says whether it needs the owner. Add --fyi when it does not (news, a result, a note to an agent). A message that needs the owner is an ask: convoz post --needs-you is refused.",
+  "- An ask is a permission request: you are sure of one action and the owner says Go or Not this. Give --action (what you will do), --risk, --undo (or --one-way), --considered (1 to 3 ways you turned down, and why they are worse) and --confidence. The confidence bar reads 'self-reported, not a check'; under 80, get confident first (research it, or run it by @advisor). Name the object, never \"it\" or \"this\".",
   "- An ask is a question that shows as a card in the owner's feed. Send one only when it is the owner's call: a one-way door, a taste or values choice, or scope the owner must own. Say which with --owners-call and --owners-call-why, or the ask is refused. Otherwise weigh the options, decide, and tell the owner in a post. An ask needs a recommended option and a reason, so the owner can answer in one tap.",
   "- An app is a small card that carries context, such as a plan or a design. Attach it with --app.",
   "- Attach files with --file.",

@@ -43,6 +43,7 @@ Message:
       additionalProperties: true
       properties:
         t: { type: string }
+    unfurl: { $ref: "../openapi.yaml#/components/schemas/UnfurlCard", description: "The card of the first link of the body, as the preview worker has got (status pending until fetched). Only on a page a person reads, never an agent." }
     mentions: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/MentionSpan" }, description: "The identities the body @mentions, by id: a handle an agent had before still names it (I-51)." }
     text: { type: string, description: "The words of a system line, or the plain-text form of a message that carries files." }
     session_label: { type: string, description: "The session an agent wrote the message from (I-40)." }

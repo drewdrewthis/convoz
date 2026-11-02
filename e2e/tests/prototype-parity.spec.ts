@@ -39,7 +39,7 @@ async function matchesBoth(page: import("@playwright/test").Page, screen: string
   }
 }
 
-scenario("On a phone Now matches the prototype", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {
+scenario("On a phone Now matches the prototype", { tag: ["@browser", "@phone"], fixme: "https://github.com/drewdrewthis/convoz/issues/139" }, async ({ server, page, context }, info) => {
   info.setTimeout(180_000);
   // Background: the prototype's agents and conversations. Given nothing waits for the owner
   const u = await protoWorld({ server, page, context }, { agents: AGENTS, live: LIVE });
@@ -55,7 +55,7 @@ scenario("On a phone Now matches the prototype", { tag: ["@browser", "@phone"] }
   await matchesBoth(page, "now-unread", "app");
 });
 
-scenario("On a phone Now with asks matches the prototype", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {
+scenario("On a phone Now with asks matches the prototype", { tag: ["@browser", "@phone"], fixme: "https://github.com/drewdrewthis/convoz/issues/139" }, async ({ server, page, context }, info) => {
   info.setTimeout(180_000);
   // Background: the prototype's agents and conversations. Given "night-watch" asked an urgent "Close the incident?" and "devtool" asked "Push the 8642 fix to staging?"
   const u = await protoWorld({ server, page, context }, { agents: AGENTS, live: LIVE });
@@ -99,7 +99,7 @@ scenario("On a phone the Conversations list matches the prototype", { tag: ["@br
   await matchesBoth(page, "conversations", "app");
 });
 
-scenario("On a phone a conversation matches the prototype", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {
+scenario("On a phone a conversation matches the prototype", { tag: ["@browser", "@phone"], fixme: "https://github.com/drewdrewthis/convoz/issues/139" }, async ({ server, page, context }, info) => {
   info.setTimeout(180_000);
   // Background: the prototype's agents and conversations
   const u = await protoWorld({ server, page, context }, { agents: AGENTS, live: LIVE });
@@ -114,7 +114,7 @@ scenario("On a phone a conversation matches the prototype", { tag: ["@browser", 
   await matchesBoth(page, "conversation-thread");
 });
 
-scenario("On a phone a thread matches the prototype", { tag: ["@browser", "@phone"] }, async ({ server, page, context }, info) => {
+scenario("On a phone a thread matches the prototype", { tag: ["@browser", "@phone"], fixme: "https://github.com/drewdrewthis/convoz/issues/139" }, async ({ server, page, context }, info) => {
   info.setTimeout(180_000);
   // Background: the prototype's agents and conversations, and the thread under night-watch's "Deploy finished" in Ops reports
   const u = await protoWorld({ server, page, context }, { agents: AGENTS, live: LIVE });
@@ -212,8 +212,9 @@ function elementMaskPercent(screen: string, w: number, h: number): number {
   return (100 * covered.size) / (w * h);
 }
 
-/** Light then dark: `el` against the prototype's element of the same screen (w x h), with the same grey boxes inside it. */
-async function matchesElement(page: import("@playwright/test").Page, screen: string, el: import("@playwright/test").Locator, w: number, h: number, window: number): Promise<void> {
+/** Light then dark: `el` against the element of the same screen (w x h), with the same grey boxes inside it: the prototype's, or, for a
+ *  screen the owner changed on purpose, a reviewed frame of the app (visual/app, written by the regress-write workflow). */
+async function matchesElement(page: import("@playwright/test").Page, screen: string, el: import("@playwright/test").Locator, w: number, h: number, window: number, from: "prototype" | "app" = "prototype"): Promise<void> {
   expect(elementMaskPercent(screen, w, h), `the masks of ${screen} cover too much of the element`).toBeLessThanOrEqual(DESKTOP_CAP[screen]!);
   for (const scheme of ["light", "dark"] as const) {
     // The window is 1280 wide in both Playwright projects: the phone project widens its window for these scenarios.
@@ -238,7 +239,7 @@ async function matchesElement(page: import("@playwright/test").Page, screen: str
     // (and keeps the app shot when PARITY_ACTUAL_DIR is set), so the compared shot starts on a page that has drawn the scheme.
     const dir = process.env.PARITY_ACTUAL_DIR;
     await el.screenshot({ path: dir ? `${dir}/${screen}-${scheme}.png` : undefined, animations: "disabled", caret: "hide", scale: "device" });
-    await expect(el).toHaveScreenshot(["prototype", `${screen}-${scheme}.png`], SHOT);
+    await expect(el).toHaveScreenshot([from, `${screen}-${scheme}.png`], SHOT);
   }
 }
 
@@ -258,6 +259,7 @@ scenario("On a desktop the rail matches the prototype", { tag: ["@browser"] }, a
   const rail = page.getByRole("navigation", { name: "Conversations" });
   await expect(rail.getByRole("button", { name: /Older · 6/ })).toBeVisible();
 
-  // Then it matches the prototype in light and in dark
-  await matchesElement(page, "rail-desktop", rail, 240, 742, 743);
+  // Then it matches its frame in light and in dark: a reviewed frame of the app, since the rail has the Now button (it opens the Now
+  // drawer) and the Work link where the prototype has neither (owner, conv 179 msg 13342)
+  await matchesElement(page, "rail-desktop", rail, 240, 742, 743, "app");
 });

@@ -1,7 +1,7 @@
 # Contracts for `features/apps-host.feature`: protocol, security and invariant checks that pin
 # implementation details. They run end to end like every scenario; the user-facing
 # behaviour lives in specs/features/apps-host.feature.
-# Source: design draft 9 §4.1 (app-kit, Tier-2 sandbox runtime), SEC-5, I-16, I-46, §12.3 (app previews not auto-loaded),
+# Source: design draft 9 §4.1 (app-kit, Tier-2 sandbox runtime), SEC-5, I-46, §12.3 (app previews not auto-loaded),
 
 Feature: Apps inside messages (contracts)
   Protocol, security and invariant rules behind apps inside messages.

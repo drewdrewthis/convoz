@@ -1,12 +1,12 @@
 import type { Message } from "@convoz/api-client";
 import type { FunctionResponseScheduling, LiveServerMessage, Session } from "@google/genai";
 import { ApiError, call, client } from "../../shared/api.ts";
-import { newId } from "../../shared/chat.ts";
 import { data } from "../../shared/data.ts";
 import { Player, toBase64 } from "./audio.ts";
 import { release, type Gesture } from "./gesture.ts";
 import { OwnerIntent } from "./guard.ts";
 import { CallLog } from "./log.ts";
+import { forgetLog, keepLog, postLog } from "./pendingLog.ts";
 import { callsConversation, readNow } from "./now.ts";
 import { listConversations, readConversation, searchMessages } from "./reads.ts";
 import { runTool, type ToolDeps } from "./tools.ts";
@@ -78,7 +78,7 @@ class Call implements CallControl {
   private stop: (() => void)[] = [];
   /**
    * Where the log goes, known before the hang-up: then the log's post leaves at once with keepalive and survives a reload or a closed
-   * tab. A conversation call's own conversation; a Now call's is looked up (or made) as soon as the token comes.
+   * tab. A conversation call's own conversation; a Now call's is looked up (or made) as soon as the microphone is granted.
    */
   private logHome: number | Promise<number> | null;
   private readonly hangUpOnLeave = () => this.close();
@@ -100,11 +100,12 @@ class Call implements CallControl {
     try {
       const stream = await gesture.mic.catch(() => Promise.reject(new Error("Microphone is off. Allow it in Settings, then call again.")));
       if (this.closed) return;
+      // Beside the token, not after it: the id must be in hand long before a reload, whose pagehide cannot wait for two requests.
+      if (this.logHome === null) void this.findLogHome();
       const body = conversation === null ? { scope: "now" as const } : { conversation_id: conversation };
       const token = await call(client.POST("/api/voice/token", { body })).catch((err) => {
         throw new Error(REFUSALS[err instanceof ApiError ? (err.code ?? "") : ""] ?? "The call could not start.");
       });
-      if (this.logHome === null) void this.findLogHome();
       if (this.closed) return;
       const { GoogleGenAI, FunctionResponseScheduling } = await import("@google/genai");
       if (this.closed) return;
@@ -350,10 +351,11 @@ async function postAsk(conversation: number, body: string): Promise<number> {
  */
 async function saveCallLog(home: number | Promise<number>, log: CallLog): Promise<void> {
   if (log.empty) return;
+  // Written down first: a page that unloads before the conversation is known leaves the log for the next load (pendingLog.ts).
+  const kept = keepLog(log.render());
   try {
-    const conversation = typeof home === "number" ? home : await home;
-    await client.POST("/api/conversations/{id}/messages", { params: { path: { id: conversation } }, body: { client_id: newId(), body: log.render(), format: "plain", via_voice: true, quiet: true }, keepalive: true });
+    if (await postLog(typeof home === "number" ? home : await home, kept)) forgetLog(kept);
   } catch {
-    /* the call is over; a log that cannot be saved is lost, not shown as an error */
+    /* the call is over; a log that cannot be saved is sent on the next load, not shown as an error */
   }
 }

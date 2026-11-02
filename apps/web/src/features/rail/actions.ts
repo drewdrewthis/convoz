@@ -47,6 +47,19 @@ export async function setStar(id: number, starred: boolean): Promise<void> {
   await patch(id, { starred });
 }
 
+/**
+ * setStale marks a conversation stale (the rail folds it into Older until the next message) or brings it back from Older: the mark goes
+ * and the 48 hour quiet clock restarts, so a quiet row comes back too (Drew, conv 179 msg 10071).
+ */
+export async function setStale(id: number, stale: boolean): Promise<void> {
+  data.patchConversation(id, stale ? { stale: true } : { stale: undefined, back_at: Date.now() });
+  try {
+    await call(client.POST("/api/conversations/{id}/stale", { params: { path: { id } }, body: stale ? { force: true } : { reopen: true } }));
+  } finally {
+    void data.loadConversations().catch(() => {});
+  }
+}
+
 /** setMute mutes for good, or unmutes. A muted conversation pushes nothing but stays in Now. */
 export async function setMute(id: number, muted: boolean): Promise<void> {
   if (muted) data.patchConversation(id, { muted_until: FOREVER });

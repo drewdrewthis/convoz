@@ -1,0 +1,237 @@
+import type { Ask, FeedItem, NowWaiting, WaitingUnanswered } from "@convoz/api-client";
+import { whoLine, type Answer, type SnoozePreset } from "@convoz/app-kit";
+import { Button } from "@convoz/ui/Button";
+import { useState, type MouseEvent } from "react";
+import { newId } from "../../shared/chat.ts";
+import { source } from "../../shared/data.ts";
+import { visit } from "../../shared/navigate.ts";
+import { toast, toastFailure } from "../pins-stars/index.ts";
+import { FeedThread } from "./DevFeedThread.tsx";
+import { AskApp } from "./AskApp.tsx";
+import { laterOptionsAt } from "./presets.ts";
+import { useSeen } from "./seen.ts";
+import { askFrame, carriesApp, okayAnswer } from "./askView.ts";
+import { entries, nextOf } from "./entries.ts";
+import { ItemFrame } from "./DevFrame.tsx";
+import { OkayGlyph, ReplyGlyph } from "./DevIcons.tsx";
+import { ReplyBox } from "./DevReplyBox.tsx";
+import { unansweredFrame } from "./unanswered.ts";
+import { planReply } from "./planReply.ts";
+import { useNow } from "./store.ts";
+import { ServerItem } from "./ServerItem.tsx";
+import type { useServerFeed } from "./serverFeed.ts";
+import type { Fyi } from "./feed.ts";
+
+interface NeedsYouProps {
+  asks: Ask[];
+  waiting: NowWaiting[];
+  /** The owner's messages nobody answered for 10 minutes. */
+  unanswered: WaitingUnanswered[];
+  /** fyi items: plan steps started or done, and the owner's questions. */
+  fyi: Fyi[];
+  /** The items the server keeps, already filtered to cards. */
+  server: { shown: FeedItem[]; all: readonly FeedItem[]; feed: ReturnType<typeof useServerFeed>; titles: (id: number) => string; skew: number };
+  busy: ReadonlySet<number>;
+  presets: SnoozePreset[];
+  answer: (ask: Ask, a: Answer) => void;
+  dismiss: (ask: Ask) => void;
+  snooze: (ask: Ask, preset: string) => void;
+  current: number;
+  compact: boolean;
+}
+
+const clockOf = (at: number) => new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+/** AskItem is an open ask in the frame: Okay answers with the first (recommended) option; Reply opens its thread with the reply box in focus. */
+function AskItem({ ask, busy, presets, answer, snooze }: { ask: Ask; busy: boolean; presets: SnoozePreset[]; answer: NeedsYouProps["answer"]; snooze: NeedsYouProps["snooze"] }) {
+  const [request, setRequest] = useState(0);
+  const root = ask.thread_root_id ?? ask.id;
+  const { title, context } = askFrame(ask, whoLine(ask.asker));
+  return (
+    <ItemFrame
+      kind="blocking"
+      title={title}
+      context={context}
+      app={carriesApp(ask) ? <AskApp ask={ask} /> : undefined}
+      tag={ask.urgent ? "Urgent" : undefined}
+      from={{ id: ask.conversation_id, title: ask.conversation?.title ?? "" }}
+      thread={
+        <FeedThread
+          conversation={ask.conversation_id}
+          root={root}
+          count={ask.reply_count}
+          request={request}
+          onReplied={(ok) => (
+            void useNow
+              .getState()
+              .load()
+              .catch(() => {}),
+            ok && toast("Replied. The ask moved to You replied.")
+          )}
+        />
+      }
+      snooze={{ presets, pick: (k) => snooze(ask, k) }}
+      busy={busy}
+      dataId={ask.id}
+      at={ask.created_at}
+      link={{ message: ask.id }}
+      actions={
+        <>
+          <Button variant="primary" size="inline" className="mr-8 ml-8" disabled={busy} onClick={() => answer(ask, okayAnswer(ask))}>
+            <OkayGlyph />
+            Okay
+          </Button>
+          <Button variant="text" size="inline" onClick={() => setRequest((n) => n + 1)}>
+            <ReplyGlyph />
+            Reply
+          </Button>
+        </>
+      }
+    />
+  );
+}
+
+/** FyiItem is a piece of work started or done, or an answered question: the owner only needs to know. Okay and Snooze are seen marks kept on the device (seen.ts), since no server row stands behind the card; Reply opens its thread when it has one. */
+function FyiItem({ item: f, presets }: { item: Fyi; presets: { key: string; label: string; until: number }[] }) {
+  const [request, setRequest] = useState(0);
+  const { okay, snooze } = useSeen.getState();
+  return (
+    <ItemFrame
+      kind={f.state}
+      at={f.at}
+      title={f.title}
+      context={f.context}
+      next={f.next}
+      link={{ message: f.root ?? undefined }}
+      from={{ id: f.conversation_id, title: f.from }}
+      thread={f.root ? <FeedThread conversation={f.conversation_id} root={f.root} request={request} /> : undefined}
+      snooze={{ presets, pick: (k) => snooze(f, presets.find((p) => p.key === k)?.until ?? 0) }}
+      actions={
+        <>
+          <Button variant="primary" size="inline" className="mr-8 ml-8" onClick={() => okay(f)}>
+            <OkayGlyph />
+            Okay
+          </Button>
+          {f.root ? (
+            <Button variant="text" size="inline" onClick={() => setRequest((n) => n + 1)}>
+              <ReplyGlyph />
+              Reply
+            </Button>
+          ) : null}
+        </>
+      }
+    />
+  );
+}
+
+/**
+ * PlanItem is a plan step that waits on the owner. The server has no snooze for it and no thread of its own, so Okay opens the
+ * conversation for now; Reply opens a box in place whose text goes to the conversation, naming the agent (planReply).
+ */
+function PlanItem({ plan }: { plan: NowWaiting }) {
+  const href = `/chats/${plan.conversation.id}`;
+  const [request, setRequest] = useState(0);
+  const [busy, setBusy] = useState(false);
+  // The box keeps the text until the post went through; Retry posts with the same client id, so a post that did arrive is not made twice.
+  const send = (text: string, sent: () => void): Promise<boolean> => {
+    const out = planReply(plan, text);
+    if (!out) return Promise.resolve(false);
+    const cid = newId();
+    const post = async (): Promise<boolean> => {
+      setBusy(true);
+      try {
+        await source.post(out.conversation, cid, out.body);
+        sent();
+        toast(`Sent to @${plan.agent.handle}`);
+        return true;
+      } catch (err) {
+        toastFailure(err, () => void post());
+        return false;
+      } finally {
+        setBusy(false);
+      }
+    };
+    return post();
+  };
+  return (
+    <ItemFrame
+      kind="blocking"
+      at={plan.since}
+      title={plan.text}
+      context={`${whoLine(plan.agent)} is waiting on you since ${clockOf(plan.since)}`}
+      from={{ id: plan.conversation.id, title: plan.conversation.title ?? "" }}
+      thread={<ReplyBox busy={busy} request={request} send={send} />}
+      actions={
+        <>
+          <Button variant="primary" size="inline" className="mr-8 ml-8" href={href} onClick={(e) => visit(e, href)}>
+            <OkayGlyph />
+            Okay
+          </Button>
+          <Button variant="text" size="inline" onClick={() => setRequest((n) => n + 1)}>
+            <ReplyGlyph />
+            Reply
+          </Button>
+        </>
+      }
+    />
+  );
+}
+
+/** UnansweredItem is an owner message nobody answered: the whole card opens the message in its conversation. */
+function UnansweredItem({ u, titles }: { u: WaitingUnanswered; titles: (id: number) => string }) {
+  const f = unansweredFrame(u, titles);
+  const open = (e: MouseEvent<HTMLElement>) => {
+    if (!(e.target as HTMLElement).closest("a,button,[role=menu]")) visit(e, f.href);
+  };
+  return (
+    <div className="cursor-pointer" onClick={open}>
+      <ItemFrame
+        kind="unanswered"
+        at={u.created_at}
+        title={f.title}
+        context={f.context}
+        from={f.from}
+        link={{ message: u.message_id }}
+        actions={
+          <Button variant="primary" size="inline" className="mr-8 ml-8" href={f.href} onClick={(e) => visit(e, f.href)}>
+            <OkayGlyph />
+            Open
+          </Button>
+        }
+      />
+    </div>
+  );
+}
+
+/** NeedsYou is the one list of Now: one frame for every item, blocking or fyi, newest first. An ask with a draft keeps the full ask card, whose Send carries the draft. */
+export function NeedsYou({ asks, waiting, unanswered, fyi, server, busy, presets, answer, snooze, current }: NeedsYouProps) {
+  const list = entries(asks, waiting, fyi, server.shown, unanswered);
+  if (!list.length) return null;
+  return (
+    <section id="asks" className="mb-8 flex flex-col gap-8">
+      {list.map((e) =>
+        "ask" in e ? (
+          <div key={`a${e.ask.id}`} className="flex flex-col gap-8" data-conv={e.ask.conversation_id} aria-current={e.ask.conversation_id === current ? "page" : undefined}>
+            <AskItem ask={e.ask} busy={busy.has(e.ask.id)} presets={presets} answer={answer} snooze={snooze} />
+          </div>
+        ) : "item" in e ? (
+          <div key={`i${e.item.id}`} data-conv={e.item.conversation_id} aria-current={e.item.conversation_id === current ? "page" : undefined}>
+            <ServerItem item={e.item} next={nextOf(server.all, e.item)} feed={server.feed} from={server.titles(e.item.conversation_id)} skew={server.skew} />
+          </div>
+        ) : "fyi" in e ? (
+          <div key={`f${e.fyi.key}`} aria-current={e.fyi.conversation_id === current ? "page" : undefined}>
+            <FyiItem item={e.fyi} presets={laterOptionsAt(Date.now() + server.skew).map((o) => ({ key: o.label, label: o.label, until: o.until }))} />
+          </div>
+        ) : "unanswered" in e ? (
+          <div key={`u${e.unanswered.conversation.id}`} data-conv={e.unanswered.conversation.id} aria-current={e.unanswered.conversation.id === current ? "page" : undefined}>
+            <UnansweredItem u={e.unanswered} titles={server.titles} />
+          </div>
+        ) : (
+          <div key={`p${e.plan.conversation.id}-${e.plan.text}`} data-conv={e.plan.conversation.id} aria-current={e.plan.conversation.id === current ? "page" : undefined}>
+            <PlanItem plan={e.plan} />
+          </div>
+        ),
+      )}
+    </section>
+  );
+}

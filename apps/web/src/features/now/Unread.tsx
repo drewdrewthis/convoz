@@ -9,16 +9,21 @@ import { markAllRead } from "../conversations/index.ts";
 import { toast } from "../pins-stars/index.ts";
 import { titleOf } from "../rail/index.ts";
 import { Button } from "@convoz/ui/Button";
+import { FeedThread } from "./FeedThread.tsx";
+import { Later } from "./Later.tsx";
 
 /** How many of the newest messages are read to find the line of a Needs you or Replies to you card. */
 const WINDOW = 20;
 /** How many Other chats rows the sidebar lists when its one-line fold opens, before "Show all". */
 const FOLD_TOP = 10;
 
-/** unreadRows are the conversations with unread main messages or unread thread replies, newest activity first. A muted conversation stays out. */
+/**
+ * unreadRows are the conversations with unread main messages or unread thread replies, newest activity first. A muted conversation stays out,
+ * and so does one under a running Later (its mention card is hidden) until a new @mention arrives: the server then counts it in unread_mentions.
+ */
 export function unreadRows(list: readonly Conversation[] | null): Conversation[] {
   return (list ?? [])
-    .filter((c) => !c.muted_until && ((c.main_unread ?? c.unread) > 0 || (c.threads ?? []).some((t) => t.unread > 0)))
+    .filter((c) => !c.muted_until && !(c.mention_snoozed_until && c.unread_mentions === 0) && ((c.main_unread ?? c.unread) > 0 || (c.threads ?? []).some((t) => t.unread > 0)))
     .sort((a, b) => b.last_activity_at - a.last_activity_at);
 }
 
@@ -133,6 +138,16 @@ function useMarkRead() {
  */
 function Cards({ items, label, current, done = false }: { items: Item[]; label: string; current: number; done?: boolean }) {
   const { pending, run } = useMarkRead();
+  const buttons = (c: Conversation) => (
+    <>
+      <Button variant="text" size="inline" className="-ml-8" href={`/chats/${c.id}#compose`} onClick={(e) => visit(e, `/chats/${c.id}#compose`)}>
+        Reply
+      </Button>
+      <Button variant="text" size="inline" disabled={pending.has(c.id)} aria-label={done ? `Done with ${titleOf(c)}` : `Mark ${titleOf(c)} read`} onClick={() => void run([c.id], "Marked read")}>
+        {done ? "Done" : "Mark read"}
+      </Button>
+    </>
+  );
   return (
     <ul className="m-0 mb-8 flex list-none flex-col gap-8 p-0" role="list" aria-label={label}>
       {items.map(({ c, line }) => (
@@ -147,18 +162,24 @@ function Cards({ items, label, current, done = false }: { items: Item[]; label: 
               <b className="font-semibold text-text">{line.author}</b> {line.text}
             </span>
           </a>
-          <div className="flex items-center">
-            <Button variant="text" size="inline" className="-ml-8" href={`/chats/${c.id}#compose`} onClick={(e) => visit(e, `/chats/${c.id}#compose`)}>
-              Reply
-            </Button>
-            <Button variant="text" size="inline" disabled={pending.has(c.id)} aria-label={done ? `Done with ${titleOf(c)}` : `Mark ${titleOf(c)} read`} onClick={() => void run([c.id], "Marked read")}>
-              {done ? "Done" : "Mark read"}
-            </Button>
-          </div>
+          <CardThread c={c} />
+          {done ? <Later id={c.id} title={titleOf(c)}>{buttons(c)}</Later> : <div className="flex items-center">{buttons(c)}</div>}
         </li>
       ))}
     </ul>
   );
+}
+
+/** CardThread is the thread that put a card in the feed: the conversation's thread with the newest unread reply, else its newest thread with replies. */
+function CardThread({ c }: { c: Conversation }) {
+  const threads = (c.threads ?? []).filter((t) => t.reply_count > 0);
+  const t = threads.find((x) => x.unread > 0) ?? threads[0];
+  // A reply from the card is the owner's answer: the conversation is read, so the card leaves (it comes back with a new message to the owner).
+  const replied = (ok: boolean) => {
+    if (!ok) return;
+    void markAllRead(c.id).then(() => toast("Replied. Marked read."), () => {});
+  };
+  return t ? <FeedThread conversation={c.id} root={t.root_id} count={t.reply_count} onReplied={replied} /> : null;
 }
 
 /** Mentions are the messages that @mention the owner, under the Needs you heading and its asks. */

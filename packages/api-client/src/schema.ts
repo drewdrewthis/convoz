@@ -1129,23 +1129,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/conversations/{id}/resume": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Let paused agents post again. */
-        post: operations["resumeConversation"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/conversations/{id}/stale": {
         parameters: {
             query?: never;
@@ -1157,8 +1140,10 @@ export interface paths {
         put?: never;
         /**
          * An agent in the conversation marks it stale (`convoz stale`). The rail folds it into Older at once; the next message brings it back.
-         * @description An agent that is a participant may mark it (403 otherwise), and so may the owner (his voice call does). While the owner wrote the last
-         *     message the conversation waits on the agents and cannot go stale: 409 owner_spoke_last. The reason, when given, is kept with
+         * @description An agent that is a participant may mark it (403 otherwise), and so may the owner (his voice call, the row menu of the rail). While the owner wrote the last
+         *     message the conversation waits on the agents and cannot be marked by an agent: 409 owner_spoke_last; the owner is not bound by it when he sends
+         *     `force: true` (the rail's Mark stale). He may send `reopen: true` (the rail's Bring back) to take the mark off and restart the 48 hour
+         *     quiet clock (back_at), so a conversation that is Older from quiet comes back too. The reason, when given, is kept with
          *     the mark (stale_reason). Marking it again moves the time of the mark and replaces the reason. No system line is written.
          */
         post: operations["markStale"];
@@ -1214,6 +1199,23 @@ export interface paths {
         put?: never;
         /** An agent says it is replying, for 30 seconds, in the main list or in a thread (live frame agent.working; nothing is stored). A person gets 403. */
         post: operations["typing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/conversations/{id}/threads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The threads of many top-level messages in one read, each as listReplies answers it, so a chat does not ask once per root. A root that is not a thread of this conversation is left out. */
+        get: operations["listThreads"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1389,6 +1391,27 @@ export interface paths {
         patch: operations["patchConversationPrefs"];
         trace?: never;
     };
+    "/api/conversations/{id}/mention-snooze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Later on a mention card of Now, for the caller only. The card hides until the time; a mention that arrives after this call shows it again at once.
+         * @description The time is an absolute epoch ms, after now and within 31 days (the client reads "tomorrow 9:00" in its own zone). Setting it again moves it.
+         *     A conversation the caller cannot see is 404. A person only; an agent is 403.
+         */
+        put: operations["snoozeMentions"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/messages/{id}/pin": {
         parameters: {
             query?: never;
@@ -1443,7 +1466,9 @@ export interface paths {
          *     to working). Everything is replaced at once except Done, whose items go in front of the kept history (20 at most). A Waiting item
          *     that was not there before pushes the owner (plan_waiting); a finished item, or something new waiting, writes one quiet system line
          *     (plan.changed). Up to 3 Now items (`now`) tell of parallel work: each has its own step and eta, and each is late by its own eta. More than 3 is 400 with the field. A conversation the caller is not in is 404. More than 5 next, waiting or done items, a text over 200 characters,
-         *     an eta that is no duration up to 7 days nor HH:MM, or a step that is not N/M is 400 `invalid_request` with the field. A retry
+         *     an eta that is no duration up to 7 days nor HH:MM, or a step that is not N/M is 400 `invalid_request` with the field. Deliverables
+         *     (`deliver`) are kept across replacements: one with a known text gets its new due date, a done item with its text ships it; more than
+         *     5 in the plan is 400 with the field `deliver`, and a due that is no duration up to 60 days, HH:MM nor YYYY-MM-DD HH:MM is 400 with `due`. A retry
          *     with the client_id of the request that wrote the plan changes nothing.
          */
         put: operations["putPlan"];
@@ -1475,6 +1500,192 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every deliverable of every plan, for the owner's Deliveries page.
+         * @description The owner only. Each deliverable carries its conversation's title, its agent, its due date and its state (late, waiting, at_risk,
+         *     on_track), and its plan's Now items, waiting count, blocker and update time. The late ones come first, then by due date.
+         *     `shipped` lists the deliverables reported done in the last 48 hours. A conversation in the trash is left out.
+         */
+        get: operations["getDeliveries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/conversations/{id}/items/{key}/{event}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * An agent moves one of its own steps; one call per transition.
+         * @description The agent comes from the lease, never the body, so it reaches only its own items. `event` is start, block, done, fyi, drop, say or answer. answer replies in the thread of the item's message, quoting the item's title, and marks it done, in one transaction; `outcome` is the text (1 to 4000 characters); only a started item with a message can be answered (409 otherwise).
+         *     The first step of an agent in a conversation is now; later ones are pending, and when the now step leaves (done, fyi, drop) the next one
+         *     is promoted in the same transaction. Saying start or block again for a key edits the step; block always raises the version. A move the
+         *     state does not allow is 409 and changes nothing. Title, context and recommendation are plain text (no markdown, no links): title 1 to 200
+         *     characters, context 2000, recommendation 500, key 1 to 64; anything else is 400. There is no cap on open items.
+         */
+        post: operations["postItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/messages/{id}/take": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * An agent takes a question of the owner as an item on his message.
+         * @description Only a person's message in the main chat can be taken (400 for an agent's message or a reply in a thread). The first item is the
+         *     question, started (pending when the plan already has a now), the steps follow as pending items; all are rooted at the message and
+         *     nothing is posted. Without `question` the title is the message text and a message that already has an item is 409. Context is required.
+         */
+        post: operations["takeMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The owner's feed items.
+         * @description Owner only. Open items in plan order, then the last 20 finished ones.
+         */
+        get: operations["getFeed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/feed/{id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept what the item recommends; it is done at once.
+         * @description Owner only; an agent lease is refused. 404 for an unknown item, 409 for a state or version that does not allow it.
+         */
+        post: operations["feedAccept"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/feed/{id}/answer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add info to a blocking item; with resolves it is done.
+         * @description Owner only; an agent lease is refused. 404 for an unknown item, 409 for a state or version that does not allow it.
+         */
+        post: operations["feedAnswer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/feed/{id}/reply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Write in the item's thread. The first write starts it.
+         * @description Owner only; an agent lease is refused. With no thread yet the text becomes a new message with the item title quoted above it, and its id is kept as thread_root_id; otherwise it is a reply in that thread. 404 for an unknown item, 409 if another writer started the thread at the same moment (send again).
+         */
+        post: operations["feedReply"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/feed/{id}/ack": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Okay: acknowledge a pending, started, blocking or fyi item. The state stays; the feed hides it until the agent moves the item again.
+         * @description Owner only; an agent lease is refused. 404 for an unknown item, 409 for a state or version that does not allow it.
+         */
+        post: operations["feedAck"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/feed/{id}/snooze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Hide an item until a time ahead. */
+        put: operations["feedSnooze"];
+        post?: never;
+        /** Bring a snoozed item back. */
+        delete: operations["feedUnsnooze"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/asks": {
         parameters: {
             query?: never;
@@ -1488,7 +1699,7 @@ export interface paths {
          * An agent asks a question with a recommendation and alternatives. The same client_id again answers 200 with the same ask.
          * @description Needs a lease with the `ask` scope; a person gets 403. 400 names the field (`question`, `recommended`, `alternatives`,
          *     `why`, `label`, `owners_call`). An ask without `owners_call` is 400 with the words "Decide this yourself": an ask is for a one-way door, a
-         *     taste or values choice, or scope the owner must own. 429 `ask_cap` at 20 open asks of one identity, 429 `conversation_paused` while the loop breaker holds.
+         *     taste or values choice, or scope the owner must own. 429 `ask_cap` at 20 open asks of one identity.
          */
         post: operations["postAsk"];
         delete?: never;
@@ -2014,6 +2225,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/client-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The web app reports an event with no content (a failed send); the server adds one to a counter and stores nothing.
+         * @description The owner's device session only. At most 60 events an hour per device session (429 after that); a body over 1 KB or an
+         *     event the server does not know is 400. The count leaves the box only when telemetry is on (OTEL_EXPORTER_OTLP_ENDPOINT).
+         */
+        post: operations["reportClientEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/health": {
         parameters: {
             query?: never;
@@ -2389,6 +2621,8 @@ export interface components {
             created_at: number;
             /** Format: int64 */
             age_ms: number;
+            /** @description Handles of the others in the conversation; the name of a chat with no title. */
+            members: string[];
         };
         WaitingUnread: {
             conversation: components["schemas"]["AskConversation"];
@@ -2650,6 +2884,11 @@ export interface components {
             main_unread?: number;
             /** @description The unread messages that @mention the caller, counted under the same read cursors as unread (the main list after its cursor, each thread after its own). Its own messages never count; stops at 100 like unread. A client reads this instead of scanning the messages. */
             unread_mentions: number;
+            /**
+             * Format: int64
+             * @description Epoch ms the caller's Later on this conversation's mention card runs to. Absent when none runs. While it runs, unread_mentions counts only the mentions that came after the Later.
+             */
+            mention_snoozed_until?: number;
             /** @description An agent answered the caller. True when the main list has unread after a message the caller wrote (the newest one it read), or a thread whose root the caller wrote has unread replies; only the conversation's 30 newest threads are checked. Absent when false. */
             replies_to_you?: boolean;
             /** @description The threads of the conversation that have a reply, newest reply first. */
@@ -2673,8 +2912,6 @@ export interface components {
             muted_until?: number;
             /** @description The messages the caller pinned in it, newest pin first. The single-conversation route only. */
             pinned?: components["schemas"]["Message"][];
-            /** @description The loop breaker stopped the agents after 20 messages in a row. */
-            paused?: boolean;
             /** @description Agents that wait for a person to add them, and the agent that asked. */
             pending?: {
                 person: components["schemas"]["Person"];
@@ -2689,10 +2926,15 @@ export interface components {
              * @description The caller's read cursor in the main list when the row was built; absent when it has none. The single-conversation route only. The page keeps the value from when it opened
              */
             last_read?: number;
-            /** @description An agent in it marked it stale (`convoz stale`) and no message came since. The rail folds it into Older. Absent when not. */
+            /** @description An agent in it (`convoz stale`) or the owner (the rail's Mark stale) marked it stale and no message came since. The rail folds it into Older. Absent when not. */
             stale?: boolean;
             /** @description Why */
             stale_reason?: string;
+            /**
+             * Format: int64
+             * @description When the owner last brought it back from Older (`reopen`). The rail's 48 hour quiet clock starts at the later of this and last_activity_at. Absent when never, or when it was marked stale since.
+             */
+            back_at?: number;
             /**
              * Format: int64
              * @description In the trash since.
@@ -2767,6 +3009,8 @@ export interface components {
             } & {
                 [key: string]: unknown;
             };
+            /** @description The card of the first link of the body, as the preview worker has got (status pending until fetched). Only on a page a person reads, never an agent. */
+            unfurl?: components["schemas"]["UnfurlCard"];
             /** @description The identities the body @mentions, by id: a handle an agent had before still names it (I-51). */
             mentions?: components["schemas"]["MentionSpan"][];
             /** @description The words of a system line, or the plain-text form of a message that carries files. */
@@ -2868,6 +3112,7 @@ export interface components {
             created_at: number;
         };
         Replies: components["schemas"]["RepliesResponse"];
+        Threads: components["schemas"]["ThreadsResponse"];
         EditRequest: {
             client_id: components["schemas"]["ClientId"];
             body: string;
@@ -2989,10 +3234,10 @@ export interface components {
             /** @enum {string} */
             state: "ready" | "claimed";
             /**
-             * @description status_due: Convoz asks the agent to update its late plan; the message is a line from the server. unanswered: the owner's message got no answer in 10 minutes; the message is that one.
+             * @description status_due: Convoz asks the agent to update its late plan; the message is a line from the server. item_stale: a feed item the agent started has had no update for 15 minutes; the message is a line from the server naming it. unanswered: the owner's message got no answer in 10 minutes; the message is that one.
              * @enum {string}
              */
-            reason: "mention" | "thread" | "activity" | "ask_resolved" | "membership" | "app_result" | "status_due" | "unanswered";
+            reason: "mention" | "thread" | "activity" | "ask_resolved" | "membership" | "app_result" | "status_due" | "unanswered" | "item_stale";
             /**
              * Format: int64
              * @description How many messages the item covers.
@@ -3277,6 +3522,19 @@ export interface components {
                 after: number | null;
             };
         };
+        MentionSnoozeRequest: {
+            /**
+             * Format: int64
+             * @description Epoch ms the mention card stays hidden until; after now and within 31 days.
+             */
+            until: number;
+        };
+        MentionSnoozeResult: {
+            /** Format: int64 */
+            conversation_id: number;
+            /** Format: int64 */
+            until: number;
+        };
         RailRank: {
             /** Format: int64 */
             id: number;
@@ -3470,12 +3728,14 @@ export interface components {
             /** @description The agent's zone in seconds east of UTC */
             utc_offset?: number;
             next?: string[];
-            /** @description What waits on the owner. */
+            /** @description What waits on the owner: each item is one plain sentence that tells the owner what to do, like "Approve the prod deploy of PR 240." (3 or more words, no markdown, no status word first). A text already in the stored plan is not judged again. */
             waiting?: string[];
             /** @description Items finished since the last plan. */
             done?: string[];
             /** @description A retry with the same id after a lost answer changes nothing. */
             client_id?: string;
+            /** @description Adds deliverables or moves their dates. The plan keeps the ones not named; a done item with a deliverable's text ships it. */
+            deliver?: components["schemas"]["PlanDeliverRequest"][];
         };
         PlanStep: {
             at: number;
@@ -3486,6 +3746,180 @@ export interface components {
             step?: string;
             /** @description A duration (30m, 1h30m) or HH:MM in the zone of utc_offset. */
             eta?: string;
+        };
+        PlanDeliverRequest: {
+            text: string;
+            /** @description A duration up to 60 days (2d, 1d4h, 30m), HH:MM, or YYYY-MM-DD HH:MM; the last two in the zone of utc_offset. */
+            due: string;
+        };
+        PlanDeliver: {
+            text: string;
+            /**
+             * Format: int64
+             * @description Epoch ms on the server clock.
+             */
+            due: number;
+            /**
+             * Format: int64
+             * @description When the deliverable was first set.
+             */
+            since: number;
+        };
+        Delivery: {
+            /** Format: int64 */
+            conversation_id: number;
+            title: string;
+            /** Format: int64 */
+            identity_id: number;
+            handle: string;
+            text: string;
+            /**
+             * Format: int64
+             * @description Epoch ms on the server clock.
+             */
+            due: number;
+            /** Format: int64 */
+            since: number;
+            /**
+             * @description late: past due; waiting: the plan waits on the owner; at_risk: the plan is blocked or has had no update for a day.
+             * @enum {string}
+             */
+            state: "late" | "waiting" | "at_risk" | "on_track";
+            /** @description The plan has had no update for a day. */
+            stale: boolean;
+            doing: components["schemas"]["PlanNow"][];
+            /** @description How many items of the plan wait on the owner. */
+            waiting: number;
+            blocked?: string;
+            /** Format: int64 */
+            plan_updated_at: number;
+        };
+        ItemRequest: {
+            /** @description Plain text, 1 to 200 characters (start and block). On block it is one plain sentence that tells the owner what to do, like "Approve the prod deploy of PR 240." (3 or more words, no markdown, no status word first). */
+            title?: string;
+            /** @description Plain text, 1 to 2000 characters on start and block (never empty). */
+            context?: string;
+            /** @description Plain text, up to 500 characters: the one action the owner can accept. Without it the owner can only add info. */
+            recommend?: string;
+            /** @description The note of done */
+            outcome?: string;
+            /** @description An app.v1 document shown with the item; it rides on the item's message. Start and block of a new item only. */
+            app?: {
+                [key: string]: unknown;
+            };
+            /** @description The agent's plan for a new item, 1 to 64 letters, digits, dot, dash or underscore; empty is main. A key that exists keeps its plan (409 for another). */
+            plan?: string;
+            /** @description A duration (2d, 1d4h, 30m), a time HH:MM or a date YYYY-MM-DD HH:MM; display only. */
+            due?: string;
+            /** @description Seconds east of UTC */
+            utc_offset?: number;
+        };
+        TakeRequest: {
+            /** @description The question as the title, plain text, 1 to 200 characters. Empty: the message text is the title. */
+            question?: string;
+            /** @description Plain text */
+            context: string;
+            /** @description Research steps */
+            steps?: string[];
+            /** @description The agent's plan; empty is main. */
+            plan?: string;
+        };
+        TakeResponse: {
+            items: components["schemas"]["FeedItem"][];
+        };
+        FeedItem: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            conversation_id: number;
+            /** Format: int64 */
+            agent_id: number;
+            handle?: string;
+            key: string;
+            /**
+             * Format: int64
+             * @description Order inside the plans of one agent (one counter per agent).
+             */
+            seq: number;
+            /** @description The agent's plan this item is in: main, a name, or c<conversation id> for an item made before plans. */
+            plan: string;
+            /** @enum {string} */
+            state: "pending" | "started" | "blocking" | "done" | "fyi" | "dropped";
+            title: string;
+            context?: string;
+            recommendation?: string;
+            /**
+             * Format: int64
+             * @description The message the item's thread hangs on. Absent until the first write in the thread.
+             */
+            thread_root_id?: number;
+            /** @description False for a blocking item with no recommendation; it takes info only. */
+            can_accept: boolean;
+            /** Format: int64 */
+            due_at?: number;
+            /** Format: int64 */
+            acked_at?: number;
+            /** @enum {string} */
+            ack_kind?: "accept" | "answer" | "got_it";
+            /** Format: int64 */
+            snoozed_until?: number;
+            /**
+             * Format: int64
+             * @description Every edit by the agent raises it; Accept names the one it saw.
+             */
+            version: number;
+            /** Format: int64 */
+            updated_at: number;
+        };
+        FeedResponse: {
+            /** @description Open items in plan order per conversation and agent; an fyi the owner has not acknowledged. */
+            items: components["schemas"]["FeedItem"][];
+            /** @description The last 20 finished items. */
+            done: components["schemas"]["FeedItem"][];
+        };
+        FeedAcceptRequest: {
+            /** Format: int64 */
+            if_version: number;
+        };
+        FeedAnswerRequest: {
+            text: string;
+            /** @description This answers it; the item is done. */
+            resolves?: boolean;
+        };
+        FeedReplyRequest: {
+            text: string;
+        };
+        FeedSnoozeRequest: {
+            /**
+             * Format: int64
+             * @description Epoch ms
+             */
+            until: number;
+        };
+        ShippedDelivery: {
+            /** Format: int64 */
+            conversation_id: number;
+            title: string;
+            handle: string;
+            text: string;
+            /** Format: int64 */
+            at: number;
+        };
+        Deliveries: {
+            /**
+             * Format: int64
+             * @description The server's clock.
+             */
+            now: number;
+            /** @description The late ones first */
+            deliveries: components["schemas"]["Delivery"][];
+            /** @description Shipped in the last 48 hours */
+            shipped: components["schemas"]["ShippedDelivery"][];
+            /**
+             * Format: int64
+             * @description When time alone changes a state next; read again then.
+             */
+            next_change_at?: number;
         };
         PlanNow: {
             text: string;
@@ -3510,6 +3944,8 @@ export interface components {
             text: string;
             /** Format: int64 */
             at: number;
+            /** @description The item was a deliverable. */
+            shipped?: boolean;
         };
         Plan: {
             /** Format: int64 */
@@ -3534,6 +3970,8 @@ export interface components {
             waiting: components["schemas"]["PlanWaiting"][];
             /** @description Newest first */
             done: components["schemas"]["PlanDone"][];
+            /** @description What the agent will deliver and by when. */
+            deliver?: components["schemas"]["PlanDeliver"][];
             /** Format: int64 */
             updated_at: number;
             /**
@@ -3696,11 +4134,20 @@ export interface components {
         };
         /** @description What the asking agent changes in its open ask. Recommended and alternatives are given together and replace the options. */
         AskUpdateRequest: {
+            /** @description A changed question is one plain sentence that tells the owner what to decide; one left as it was is not judged again. */
             question?: string;
             recommended?: components["schemas"]["AskOption"];
             alternatives?: components["schemas"]["AskOption"][];
             owners_call_reason?: string;
             answers?: string;
+            /** @description A permission ask only. All its parts, which replace the old ones; one of undo and one_way. There is no confidence (it is fixed at create; 400 when given). */
+            permission?: {
+                action: string;
+                risk: string;
+                undo?: string;
+                one_way?: boolean;
+                considered: string[];
+            };
         };
         /** @description The owner's latest reply in the thread of an open ask. */
         AskOwnerReply: {
@@ -3722,6 +4169,16 @@ export interface components {
              */
             kind: "one-way" | "taste" | "values" | "scope" | "in-your-name";
             reason: string;
+        };
+        /** @description The parts of a permission ask. One of undo and one_way is set. */
+        AskPermission: {
+            action: string;
+            risk: string;
+            undo?: string;
+            one_way?: boolean;
+            considered: string[];
+            /** @description What the agent said it was; self-reported, not a check. */
+            confidence: number;
         };
         /** @description A message the agent wants to send in the owner's name, and the message it answers when there is one. */
         AskDraft: {
@@ -3785,6 +4242,13 @@ export interface components {
             close_reason?: "removed" | "withdrawn" | "deleted" | "agent_revoked" | "replied";
             /** @description On a draft ask: Send (the recommended one) and Don't send. */
             options: components["schemas"]["AskOption"][];
+            /**
+             * @description permission: the agent asks the owner's OK for one action. decision: options. draft: a message to send.
+             * @enum {string}
+             */
+            kind?: "permission" | "decision" | "draft";
+            /** @description Present on a permission ask. */
+            permission?: components["schemas"]["AskPermission"];
             /** @description Present on a draft ask. Absent after a purge. */
             draft?: components["schemas"]["AskDraft"];
             /** @description Present on an answered draft ask. */
@@ -3826,8 +4290,10 @@ export interface components {
             title: string | null;
         };
         /**
-         * @description An ask with options (recommended, alternatives and owners_call; without owners_call it is refused) or a draft ask (draft alone: it has
-         *     no options and no owner's call, the server sets both).
+         * @description A permission ask (permission alone: the server sets the options Go and Not this, no owner's call is needed, and the question defaults
+         *     to the action; a confidence under 80 is refused with the get-confident text), a draft ask (draft alone: it has no options and no
+         *     owner's call, the server sets both), or the legacy ask with options (question, recommended, alternatives and owners_call; without
+         *     owners_call it is refused). Permission with draft is refused.
          */
         AskRequest: {
             /** Format: int64 */
@@ -3835,12 +4301,14 @@ export interface components {
             /** Format: int64 */
             thread_root_id?: number;
             client_id: components["schemas"]["ClientId"];
-            question: string;
+            /** @description One plain sentence that tells the owner what to decide, like "Approve the prod deploy of PR 240?" (3 or more words, no markdown, no status word first). */
+            question?: string;
             recommended?: components["schemas"]["AskOption"];
             alternatives?: components["schemas"]["AskOption"][];
             owners_call?: components["schemas"]["OwnersCall"];
             urgent?: boolean;
             draft?: components["schemas"]["AskDraft"];
+            permission?: components["schemas"]["AskPermission"];
             /** @description An app shown with the question (a chart, a table, a diff). It helps the owner decide and never answers: no picker, form or select checklist (400 app_type_not_allowed_on_ask). */
             app?: components["schemas"]["App"];
         };
@@ -3891,7 +4359,7 @@ export interface components {
             /** Format: int64 */
             at: number;
         };
-        /** @description A plan item an agent waits on the owner for. */
+        /** @description A plan item an agent waits on the owner for, in a plan updated in the last 24 h. */
         NowWaiting: {
             conversation: components["schemas"]["AskConversation"];
             agent: components["schemas"]["Person"];
@@ -3924,6 +4392,8 @@ export interface components {
             pending_adds: components["schemas"]["NowPendingAdd"][];
             /** @description Plan items agents wait on the owner for */
             waiting_plans: components["schemas"]["NowWaiting"][];
+            /** @description The owner's newest main-chat message per conversation that nobody answered for 10 minutes (no later main-chat message and no thread reply from anyone else), at most 24 hours old, in a conversation that is neither muted nor stale. GET /api/waiting has the same list without those three limits. */
+            unanswered: components["schemas"]["WaitingUnanswered"][];
             machine_requests: components["schemas"]["MachineRequest"][];
             /** @description Agents on logged-in machines that ask to be made. */
             identity_requests: components["schemas"]["IdentityRequest"][];
@@ -3937,6 +4407,9 @@ export interface components {
             as_of_seq: number;
             /** @description The agents that have seen the newest message a person wrote in this thread, first seen first. */
             seen?: components["schemas"]["Seen"][];
+        };
+        ThreadsResponse: {
+            threads: components["schemas"]["RepliesResponse"][];
         };
         VapidKey: {
             /** @description The server's VAPID public key: the 65-byte uncompressed P-256 point, base64url without padding. It is the browser's applicationServerKey. */
@@ -3970,6 +4443,8 @@ export interface components {
         PushSubscriptionRequest: {
             endpoint: string;
             keys: components["schemas"]["PushKeys"];
+            /** @description This device takes a push for every message from someone else, not only mentions and thread replies: a phone, where that news is a push and not a toast. Absent: false. */
+            messages?: boolean;
         };
         PushSubscribed: {
             subscription: components["schemas"]["PushSubscription"];
@@ -4005,6 +4480,11 @@ export interface components {
             size?: number;
         };
         ClientErrorRequest: {
+            /**
+             * @description The error's class: TypeError, ReferenceError, SyntaxError, RangeError or ChunkLoadError, else "other". It is the only part
+             *     that is counted; the server matches it exactly and counts any other value as "other". Never read from the message.
+             */
+            kind?: string;
             message: string;
             stack: string;
             /** @description The path of the page; never a query. */
@@ -4018,6 +4498,14 @@ export interface components {
              * @description The browser's time of the error
              */
             at: number;
+        };
+        /** @description One event of the web app, with no content. Fields other than event are ignored. */
+        ClientEventRequest: {
+            /**
+             * @description send_failed: a message send the app gave up on.
+             * @enum {string}
+             */
+            event: "send_failed";
         };
     };
     responses: {
@@ -5761,25 +6249,6 @@ export interface operations {
             default: components["responses"]["Error"];
         };
     };
-    resumeConversation: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["Id"];
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": Record<string, never>;
-            };
-        };
-        responses: {
-            200: components["responses"]["Empty"];
-            default: components["responses"]["Error"];
-        };
-    };
     markStale: {
         parameters: {
             query?: never;
@@ -5794,6 +6263,10 @@ export interface operations {
                 "application/json": {
                     /** @description Why it is stale */
                     reason?: string;
+                    /** @description The owner marks it although he wrote the last message (the rail's Mark stale). Ignored from an agent. */
+                    force?: boolean;
+                    /** @description The owner brings it back from Older (the rail's Bring back): no stale mark, and the quiet clock restarts. An agent that sends it gets 403. */
+                    reopen?: boolean;
                 };
             };
         };
@@ -5949,6 +6422,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listThreads: {
+        parameters: {
+            query: {
+                /** @description Message ids separated by commas, 1 to 100. */
+                roots: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The threads, in the order asked. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThreadsResponse"];
+                };
             };
             default: components["responses"]["Error"];
         };
@@ -6207,6 +6707,33 @@ export interface operations {
             default: components["responses"]["Error"];
         };
     };
+    snoozeMentions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MentionSnoozeRequest"];
+            };
+        };
+        responses: {
+            /** @description The Later as stored. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MentionSnoozeResult"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
     pinMessage: {
         parameters: {
             query?: never;
@@ -6328,6 +6855,258 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlanBoard"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getDeliveries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The deliveries. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Deliveries"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    postItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                key: string;
+                event: "start" | "block" | "done" | "fyi" | "drop" | "say" | "answer";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ItemRequest"];
+            };
+        };
+        responses: {
+            /** @description The item as it now is. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedItem"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    takeMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TakeRequest"];
+            };
+        };
+        responses: {
+            /** @description The items made, the question first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TakeResponse"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getFeed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The feed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedResponse"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    feedAccept: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedAcceptRequest"];
+            };
+        };
+        responses: {
+            /** @description The item as it now is. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedItem"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    feedAnswer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedAnswerRequest"];
+            };
+        };
+        responses: {
+            /** @description The item as it now is. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedItem"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    feedReply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedReplyRequest"];
+            };
+        };
+        responses: {
+            /** @description The item as it now is. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedItem"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    feedAck: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The item as it now is. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedItem"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    feedSnooze: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedSnoozeRequest"];
+            };
+        };
+        responses: {
+            /** @description The item as it now is. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedItem"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    feedUnsnooze: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The item as it now is. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedItem"];
                 };
             };
             default: components["responses"]["Error"];
@@ -7193,6 +7972,29 @@ export interface operations {
         };
         responses: {
             /** @description The line is written. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    reportClientEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientEventRequest"];
+            };
+        };
+        responses: {
+            /** @description The event is counted. */
             204: {
                 headers: {
                     [name: string]: unknown;

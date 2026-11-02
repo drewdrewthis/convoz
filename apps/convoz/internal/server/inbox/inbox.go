@@ -328,6 +328,15 @@ func Release(ctx context.Context, d pdb.DBTX, now time.Time, sessionID int64) ([
 	return out, err
 }
 
+// DropStatusDue takes the agent's open asks to update its plan in the conversation out of the queue: it set a new plan, which answers them. One it holds claimed is finished for its claimer, so the ack that follows succeeds.
+func DropStatusDue(ctx context.Context, d pdb.DBTX, now time.Time, identityID, conversationID int64) error {
+	q := db.New(d)
+	if err := q.FinishClaimedStatusDue(ctx, db.FinishClaimedStatusDueParams{Now: sql.NullInt64{Int64: now.UnixMilli(), Valid: true}, IdentityID: identityID, ConversationID: nullInt(conversationID)}); err != nil {
+		return err
+	}
+	return q.DropStatusDue(ctx, db.DropStatusDueParams{Now: now.UnixMilli(), IdentityID: identityID, ConversationID: nullInt(conversationID)})
+}
+
 // ExpireNotVisible takes an item out of the queue because its message can no longer be shown to the agent.
 func ExpireNotVisible(ctx context.Context, d pdb.DBTX, now time.Time, id int64) error {
 	return db.New(d).ExpireNotVisible(ctx, db.ExpireNotVisibleParams{Now: now.UnixMilli(), ID: id})
@@ -376,6 +385,16 @@ func HasStatusDue(ctx context.Context, d pdb.DBTX, identityID, conversationID in
 // StatusDue asks the agent to update its plan in the conversation. sourceSeq is the seq of the nudge's event.
 func StatusDue(ctx context.Context, d pdb.DBTX, now time.Time, identityID, conversationID, sourceSeq int64) error {
 	return db.New(d).InsertStatusDueItem(ctx, db.InsertStatusDueItemParams{IdentityID: identityID, ConversationID: nullInt(conversationID), SourceSeq: sourceSeq, Now: now.UnixMilli()})
+}
+
+// LastStatusDueAt is when the agent was last asked to update its plan in the conversation (epoch ms; 0 for never).
+func LastStatusDueAt(ctx context.Context, d pdb.DBTX, identityID, conversationID int64) (int64, error) {
+	return db.New(d).LastStatusDueAt(ctx, db.LastStatusDueAtParams{IdentityID: identityID, ConversationID: nullInt(conversationID)})
+}
+
+// StatusDueSource is the seq of the event that made a status_due item.
+func StatusDueSource(ctx context.Context, d pdb.DBTX, identityID, itemID int64) (int64, error) {
+	return db.New(d).StatusDueSource(ctx, db.StatusDueSourceParams{ID: itemID, IdentityID: identityID})
 }
 
 // Waiting is the oldest message that waits for an agent in one conversation: a conversation item nobody acked yet.

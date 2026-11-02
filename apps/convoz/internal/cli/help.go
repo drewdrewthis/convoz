@@ -39,11 +39,16 @@ For a new plan, or work you think is done, start a conversation with
 convoz new --fyi --with @agent "title" and post the plan or the proof there.
 convoz agents lists the agents you can name in --with.
 
-An ask is a question with a recommended answer and 1 to 4 other options. The
-owner answers it, and convoz read shows the answer. Ask only when it is the
-owner's call: a one-way door, a taste or values choice, or scope. Say which
-with --owners-call KIND --owners-call-why TEXT; without it the ask is refused.
-Otherwise weigh the options, decide, and tell the owner in a post.
+An ask is a permission request: one action you are confident in, for the
+owner to accept. Give --action, and name the object, never "it" or "this".
+Add --risk, --undo (or --one-way), 1 to 3 --considered (another way and why
+it is worse) and --confidence. The confidence is self-reported, not a check;
+under 80 the ask is refused: research it or run it by @advisor first. The
+owner answers Go, or Not this with a reason; convoz read shows the answer.
+Ask only when it is the owner's call: a one-way door, a taste or values
+choice, or scope. Otherwise decide, and tell the owner in a post. The old
+decision ask still works, as legacy: --recommend L --why W --alt L --alt-why W
+--owners-call KIND --owners-call-why TEXT.
 An app is a small card that you attach with --app FILE; convoz app init
 makes one.
 Every post, reply and new says it does not need the owner with --fyi. A

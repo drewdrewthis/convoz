@@ -4,6 +4,9 @@ SELECT CAST(COALESCE(MAX(id), 0) AS INTEGER) FROM messages WHERE thread_root_id 
 -- name: WroteInThread :one
 SELECT EXISTS(SELECT 1 FROM messages WHERE author_id = sqlc.arg(identity_id) AND (id = sqlc.arg(root_id) OR thread_root_id = sqlc.arg(root_id)));
 
+-- name: HasReplyFromOther :one
+SELECT EXISTS(SELECT 1 FROM messages WHERE thread_root_id = sqlc.arg(root_id) AND author_id <> sqlc.arg(author_id) AND kind <> 'system' AND deleted_at IS NULL);
+
 -- name: NewestReplyID :one
 SELECT CAST(COALESCE(MAX(id), 0) AS INTEGER) FROM messages WHERE thread_root_id = sqlc.arg(root_id);
 

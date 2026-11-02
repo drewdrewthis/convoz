@@ -259,7 +259,11 @@ export function EditedMark({ id }: { id: number }) {
 
 /** copyLink puts the full link of a message on the clipboard; when the browser refuses, it shows the link to copy by hand. */
 function copyLink(conversation: number, id: number) {
-  const url = `${location.origin}/chats/${conversation}#m${id}`;
+  copyUrl(`${location.origin}/chats/${conversation}#m${id}`);
+}
+
+/** copyUrl is the copy of a link: "Link copied", or the link in a prompt when the browser refuses the clipboard. */
+export function copyUrl(url: string) {
   const byHand = () => window.prompt("Copy this link", url);
   if (!navigator.clipboard) return void byHand();
   navigator.clipboard.writeText(url).then(() => toast("Link copied"), byHand);
@@ -269,7 +273,7 @@ function copyLink(conversation: number, id: number) {
 function askForMiniApp(conversation: number, rootId: number, handle: string) {
   const threads = useThreads.getState();
   threads.startReply(conversation, rootId);
-  threads.reply(rootId, miniAppRequest(handle, conversation));
+  void threads.reply(rootId, miniAppRequest(handle, conversation));
 }
 
 /** miniAppRequest is the reply "Request mini app" posts: what a mini app is, when it helps, and how to make a good one. */

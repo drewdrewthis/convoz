@@ -121,10 +121,11 @@ func registerTestHooks(mux *http.ServeMux, s *Server) {
 			Scope       string `json:"scope"`
 			StepUp      string `json:"step_up"`
 			Page        bool   `json:"page"`
+			Hidden      bool   `json:"hidden"`
 		}
 		rows := make([]row, 0, len(Routes))
 		for _, r := range Routes {
-			rows = append(rows, row{r.Method, r.Pattern, r.Auth.String(), r.Lease, r.RefuseLease, r.Scope, r.StepUp, r.Page})
+			rows = append(rows, row{r.Method, r.Pattern, r.Auth.String(), r.Lease, r.RefuseLease, r.Scope, r.StepUp, r.Page, r.Hidden})
 		}
 		reply(w, nil, map[string]any{"routes": rows})
 	})

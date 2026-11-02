@@ -2,7 +2,7 @@ import { IconButton } from "@convoz/ui/IconButton";
 import { CloseIcon } from "@convoz/ui/icons";
 import { useEffect, useState } from "react";
 import { humanError } from "../../shared/api.ts";
-import { CHROME_IOS_HINT, currentSubscription, isChromeOnIOS, pushSupported, PushStepError, turnOn } from "./push.ts";
+import { CHROME_IOS_HINT, currentSubscription, isChromeOnIOS, pushSupported, PushStepError, syncMessages, turnOn } from "./push.ts";
 import { Button } from "@convoz/ui/Button";
 
 const DISMISSED = "convoz.push-banner-dismissed";
@@ -34,6 +34,9 @@ export function PushBanner() {
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState("");
   const [error, setError] = useState("");
+
+  // A phone that had push on before it took every message says so now, so its news still arrives once toasts stop.
+  useEffect(() => void syncMessages().catch(() => undefined), []);
 
   useEffect(() => {
     if (chrome) {

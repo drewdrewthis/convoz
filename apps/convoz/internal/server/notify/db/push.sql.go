@@ -183,8 +183,8 @@ func (q *Queries) InsertDelivery(ctx context.Context, arg InsertDeliveryParams) 
 }
 
 const insertSubscription = `-- name: InsertSubscription :one
-INSERT INTO push_subscriptions (device_id, identity_id, endpoint, p256dh, auth, created_at)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+INSERT INTO push_subscriptions (device_id, identity_id, endpoint, p256dh, auth, messages, created_at)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
 RETURNING id
 `
 
@@ -194,6 +194,7 @@ type InsertSubscriptionParams struct {
 	Endpoint   string
 	P256dh     []byte
 	Auth       []byte
+	Messages   int64
 	Now        int64
 }
 
@@ -204,6 +205,7 @@ func (q *Queries) InsertSubscription(ctx context.Context, arg InsertSubscription
 		arg.Endpoint,
 		arg.P256dh,
 		arg.Auth,
+		arg.Messages,
 		arg.Now,
 	)
 	var id int64
@@ -283,7 +285,7 @@ func (q *Queries) LiveSubscriptionOfDevice(ctx context.Context, deviceID int64) 
 }
 
 const liveSubscriptions = `-- name: LiveSubscriptions :many
-SELECT id, device_id, endpoint, p256dh, auth FROM push_subscriptions WHERE identity_id = ?1 AND disabled_at IS NULL ORDER BY id
+SELECT id, device_id, endpoint, p256dh, auth, messages FROM push_subscriptions WHERE identity_id = ?1 AND disabled_at IS NULL ORDER BY id
 `
 
 type LiveSubscriptionsRow struct {
@@ -292,6 +294,7 @@ type LiveSubscriptionsRow struct {
 	Endpoint string
 	P256dh   []byte
 	Auth     []byte
+	Messages int64
 }
 
 func (q *Queries) LiveSubscriptions(ctx context.Context, identityID int64) ([]LiveSubscriptionsRow, error) {
@@ -309,6 +312,7 @@ func (q *Queries) LiveSubscriptions(ctx context.Context, identityID int64) ([]Li
 			&i.Endpoint,
 			&i.P256dh,
 			&i.Auth,
+			&i.Messages,
 		); err != nil {
 			return nil, err
 		}
@@ -324,9 +328,9 @@ func (q *Queries) LiveSubscriptions(ctx context.Context, identityID int64) ([]Li
 }
 
 const reviveSubscription = `-- name: ReviveSubscription :exec
-UPDATE push_subscriptions SET device_id = ?1, identity_id = ?2, p256dh = ?3, auth = ?4,
-  created_at = ?5, last_success_at = NULL, consecutive_failures = 0, disabled_at = NULL, disabled_reason = NULL
-WHERE id = ?6
+UPDATE push_subscriptions SET device_id = ?1, identity_id = ?2, p256dh = ?3, auth = ?4, messages = ?5,
+  created_at = ?6, last_success_at = NULL, consecutive_failures = 0, disabled_at = NULL, disabled_reason = NULL
+WHERE id = ?7
 `
 
 type ReviveSubscriptionParams struct {
@@ -334,6 +338,7 @@ type ReviveSubscriptionParams struct {
 	IdentityID int64
 	P256dh     []byte
 	Auth       []byte
+	Messages   int64
 	Now        int64
 	ID         int64
 }
@@ -345,6 +350,7 @@ func (q *Queries) ReviveSubscription(ctx context.Context, arg ReviveSubscription
 		arg.IdentityID,
 		arg.P256dh,
 		arg.Auth,
+		arg.Messages,
 		arg.Now,
 		arg.ID,
 	)

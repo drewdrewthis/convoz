@@ -46,8 +46,23 @@ func (s *Server) source(r *http.Request) string {
 	return host
 }
 
-// route wraps one table row: public rate limit, authentication, the Auth class, and the step-up header check.
+// route wraps one table row: public rate limit, authentication, the Auth class, and the step-up header check. With telemetry on,
+// it also records the request under the row's pattern, never its path.
 func (s *Server) route(rt Route) http.HandlerFunc {
+	h := s.serveRoute(rt)
+	if !s.Telemetry.Enabled() {
+		return h
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		start := s.Telemetry.Now()
+		sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
+		h(sw, r)
+		s.Telemetry.ObserveRequest(start, rt.Pattern, rt.Method, sw.status)
+	}
+}
+
+// serveRoute is route without the telemetry.
+func (s *Server) serveRoute(rt Route) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		now := s.Clock.Now()
 		if rt.Auth == authz.Pub && rt.Method == http.MethodPost && !rt.NoLimit && !s.publicLimit.Allow(s.source(r)+"|"+rt.Pattern, now) {
@@ -56,6 +71,10 @@ func (s *Server) route(rt Route) http.HandlerFunc {
 			return
 		}
 		c := &call{}
+		if rt.Hidden && r.Header.Get("Authorization") != "" {
+			http.NotFound(w, r)
+			return
+		}
 		if rt.Auth != authz.Pub {
 			var err error
 			if c, err = s.authenticate(w, r); errors.Is(err, errAnswered) {
@@ -89,8 +108,12 @@ func (s *Server) route(rt Route) http.HandlerFunc {
 	}
 }
 
-// deny answers a failed Auth check: a page redirects, the API says 401 or 403.
+// deny answers a failed Auth check: a hidden route says 404, a page redirects, the API says 401 or 403.
 func (s *Server) deny(w http.ResponseWriter, r *http.Request, rt Route, err error) {
+	if rt.Hidden {
+		http.NotFound(w, r)
+		return
+	}
 	if rt.Page {
 		to := "/signin"
 		if r.URL.Path != "/" {
@@ -147,15 +170,39 @@ func (s *Server) authenticate(w http.ResponseWriter, r *http.Request) (*call, er
 		setDeviceCookie(w, cookie.Value, left)
 	}
 	c.p = authz.Principal{Authenticated: true, HumanID: h.ID, DeviceID: dev.ID, Limited: dev.Limited, Role: h.Role}
+	noteDevice(ctx, dev.ID) // the access log names the device, never the person
 	c.dev = dev
 	c.human = auth.Human{ID: h.ID, Handle: h.Handle, DisplayName: h.DisplayName, Role: h.Role}
 	c.token = cookie.Value
 	return c, nil
 }
 
+// statusClientClosed is nginx's 499: the client went away before the answer. Nobody reads it; it keeps the log and the
+// metrics from counting a closed tab as a server error (issue 125).
+const statusClientClosed = 499
+
 func (s *Server) internalError(w http.ResponseWriter, r *http.Request, err error) {
+	if clientClosed(r, err) {
+		s.Log.Printf("client closed %s %s: %v", r.Method, loggablePath(r), err)
+		writeErr(w, statusClientClosed, "client_closed", "The request was cancelled.")
+		return
+	}
 	s.Log.Printf("internal error on %s %s: %v", r.Method, loggablePath(r), err)
 	writeErr(w, http.StatusInternalServerError, "internal", "Something went wrong on the server.")
+}
+
+// clientClosed reports whether err is the cancel of a request whose client went away: its context is cancelled and the error is
+// that cancel, or SQLite interrupting the statement for it. The same error on a live request is still a 500, and so is one while
+// the server shuts down: its base context (the signal context, serve.go) then cancels every request, which is not a client's doing.
+func clientClosed(r *http.Request, err error) bool {
+	return errors.Is(r.Context().Err(), context.Canceled) && !shuttingDown(r) && (errors.Is(err, context.Canceled) || pdb.IsInterrupted(err))
+}
+
+// shuttingDown reports whether the base context of the http.Server serving r is done. Both listeners return the one signal
+// context from BaseContext and ignore its argument.
+func shuttingDown(r *http.Request) bool {
+	hs, ok := r.Context().Value(http.ServerContextKey).(*http.Server)
+	return ok && hs.BaseContext != nil && hs.BaseContext(nil).Err() != nil
 }
 
 // setDeviceCookie sets the strict device cookie. Max-Age only: an Expires date would trust the client clock.

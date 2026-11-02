@@ -99,16 +99,28 @@ func planChanged(ctx context.Context, d pdb.DBTX, now time.Time, conv int64) err
 }
 
 // sweepPlans runs the plan jobs that follow the clock: it nudges the agents whose plan is overdue (one status_due item per nudge, at
-// most plan.MaxNudges per miss, plan.NudgeEvery apart; never a push), and writes the quiet note of an agent that stopped responding
-// (msg 281). It writes only when something is due. The timers call it, and every inbox call, so an agent that polls hears at once.
+// most plan.MaxNudges per miss, plan.NudgeEvery apart; never a push), asks about late and quiet deliveries, and writes the quiet note
+// of an agent that stopped responding (msg 281). It writes only when something is due. The timers call it, and every inbox call, so an agent that polls hears at once.
 func (s *Server) sweepPlans(ctx context.Context) error {
 	if err := s.nudgeLate(ctx); err != nil {
+		return err
+	}
+	if err := s.nudgeDeliveries(ctx); err != nil {
+		return err
+	}
+	if err := s.nudgeAtRisk(ctx); err != nil {
+		return err
+	}
+	if err := s.nudgeQuietWaits(ctx); err != nil {
 		return err
 	}
 	if err := s.noteUnresponsive(ctx); err != nil {
 		return err
 	}
-	return s.remindUnanswered(ctx)
+	if err := s.remindUnanswered(ctx); err != nil {
+		return err
+	}
+	return s.remindStale(ctx)
 }
 
 // remindUnanswered makes the unanswered items of the places whose owner message waited UnansweredAfter. Each place is one writer

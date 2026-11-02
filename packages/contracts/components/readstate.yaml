@@ -11,3 +11,8 @@ RepliesResponse:
       type: array
       description: The agents that have seen the newest message a person wrote in this thread, first seen first.
       items: { $ref: "../openapi.yaml#/components/schemas/Seen" }
+ThreadsResponse:
+  type: object
+  required: [threads]
+  properties:
+    threads: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Replies" } }

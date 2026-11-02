@@ -23,17 +23,20 @@ const STATE = { open: "Open", merged: "Merged", closed: "Closed" } as const;
 /**
  * LinkPreview is the card under a message that has a link (prototype: "Preview" / "Hide preview" and the card). It shows only what the
  * server sent for a person who can see the message; where there is no card (previews off for the host, a site that did not answer)
- * it draws nothing at all.
+ * it draws nothing at all. `card` is the one the message list carried: with it the card needs no request of its own.
  */
-export function LinkPreview({ id }: { id: number }) {
+export function LinkPreview({ id, card: sent }: { id: number; card?: UnfurlCard }) {
   const auto = useMediaAutoLoads();
   const [tapped, setTapped] = useState(false);
   const armed = auto || tapped;
-  const [card, setCard] = useState<UnfurlCard | null>(answered.get(id) ?? null);
+  const [fetched, setCard] = useState<UnfurlCard | null>(answered.get(id) ?? null);
+  // The list carries the card; the per-message request is only the fallback while it is pending or absent (an unavailable card is final, too).
+  const done = sent !== undefined && sent.status !== "pending";
+  const card = done ? sent : fetched;
   const [open, setOpen] = useState(true);
 
   useEffect(() => {
-    if (!armed || answered.has(id)) return;
+    if (!armed || done || answered.has(id)) return;
     let off = false;
     let timer = 0;
     const load = async (n: number) => {
@@ -54,7 +57,7 @@ export function LinkPreview({ id }: { id: number }) {
       off = true;
       clearTimeout(timer);
     };
-  }, [id, armed]);
+  }, [id, armed, done]);
 
   if (!armed) {
     // The card's size is not known before the server fetches it, so the placeholder can only say it waits.

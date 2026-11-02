@@ -1,15 +1,7 @@
 // Push in the worker: show what the server sent, and open the right page when it is tapped (design §10.3).
 import type { SwModule } from "./module.ts";
 import { pagePath } from "../shared/pagePath.ts";
-
-/** The payload the server sends: {v:1, reason, title, body?, url, badge, topic}. Anything else shows a plain notice. */
-interface PushPayload {
-  title?: string;
-  body?: string;
-  url?: string;
-  badge?: number;
-  topic?: string;
-}
+import { pushOptions, type PushPayload } from "../shared/pushOptions.ts";
 
 function read(event: PushEvent): PushPayload {
   try {
@@ -26,13 +18,7 @@ const push: SwModule = {
       const p = read(event);
       const nav = scope.navigator as WorkerNavigator & { setAppBadge?: (n: number) => Promise<void> };
       const work = [
-        // The topic is the tag: a newer push on the same topic replaces the one still showing.
-        scope.registration.showNotification(p.title || "Convoz", {
-          body: p.body ?? "",
-          tag: p.topic,
-          icon: "/assets/icon-192.png",
-          data: { url: pagePath(p.url) },
-        }),
+        scope.registration.showNotification(p.title || "Convoz", pushOptions(p)),
       ];
       if (typeof p.badge === "number" && nav.setAppBadge) work.push(nav.setAppBadge(p.badge).catch(() => undefined) as Promise<void>);
       event.waitUntil(Promise.all(work));

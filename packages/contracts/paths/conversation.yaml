@@ -212,8 +212,10 @@
     operationId: markStale
     summary: An agent in the conversation marks it stale (`convoz stale`). The rail folds it into Older at once; the next message brings it back.
     description: |
-      An agent that is a participant may mark it (403 otherwise), and so may the owner (his voice call does). While the owner wrote the last
-      message the conversation waits on the agents and cannot go stale: 409 owner_spoke_last. The reason, when given, is kept with
+      An agent that is a participant may mark it (403 otherwise), and so may the owner (his voice call, the row menu of the rail). While the owner wrote the last
+      message the conversation waits on the agents and cannot be marked by an agent: 409 owner_spoke_last; the owner is not bound by it when he sends
+      `force: true` (the rail's Mark stale). He may send `reopen: true` (the rail's Bring back) to take the mark off and restart the 48 hour
+      quiet clock (back_at), so a conversation that is Older from quiet comes back too. The reason, when given, is kept with
       the mark (stale_reason). Marking it again moves the time of the mark and replaces the reason. No system line is written.
     parameters:
       - $ref: "../openapi.yaml#/components/parameters/Id"
@@ -224,6 +226,8 @@
             type: object
             properties:
               reason: { type: string, maxLength: 200, description: Why it is stale, in a few words. Control and bidi characters are dropped. }
+              force: { type: boolean, description: "The owner marks it although he wrote the last message (the rail's Mark stale). Ignored from an agent." }
+              reopen: { type: boolean, description: "The owner brings it back from Older (the rail's Bring back): no stale mark, and the quiet clock restarts. An agent that sends it gets 403." }
     responses:
       "200":
         description: The conversation as the agent now sees it.
@@ -235,18 +239,4 @@
               properties:
                 conversation: { $ref: "../openapi.yaml#/components/schemas/Conversation" }
       "409": { $ref: "../openapi.yaml#/components/responses/Error" }
-      default: { $ref: "../openapi.yaml#/components/responses/Error" }
-/api/conversations/{id}/resume:
-  post:
-    x-authz: { auth: human, lease: refuse }
-    operationId: resumeConversation
-    summary: Let paused agents post again.
-    parameters:
-      - $ref: "../openapi.yaml#/components/parameters/Id"
-    requestBody:
-      content:
-        application/json:
-          schema: { type: object }
-    responses:
-      "200": { $ref: "../openapi.yaml#/components/responses/Empty" }
       default: { $ref: "../openapi.yaml#/components/responses/Error" }

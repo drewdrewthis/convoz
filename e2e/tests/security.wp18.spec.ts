@@ -100,10 +100,10 @@ scenario("Every route enforces the auth, scope and role its contract declares", 
   for (const k of liveApi.keys()) if (!declared.has(k)) problems.push(`${k}: in the live route table, not in the contract`);
   const listed = new Set(contract.listedPaths);
   for (const op of contract.ops) if (!listed.has(op.path)) problems.push(`${key(op.method, op.path)}: its path is not listed in openapi.yaml`);
-  // Outside the API a route is a page for a signed-in person or a public file of the web app
+  // Outside the API a route is a page for a signed-in person, a public file of the web app, or the owner's hidden /dev copy
   for (const r of live) {
     if (isApi(r.pattern) || r.pattern.startsWith("/__test/")) continue;
-    if (r.auth !== "pub" && !(r.auth === "H" && r.page)) problems.push(`${r.method} ${r.pattern}: a web route that is neither public nor a page`);
+    if (r.auth !== "pub" && !(r.auth === "H" && r.page) && !(r.auth === "O" && r.hidden)) problems.push(`${r.method} ${r.pattern}: a web route that is neither public, a page, nor hidden for the owner`);
   }
 
   // The contract says what the server says, and says it consistently with its own security and header lists
@@ -121,6 +121,14 @@ scenario("Every route enforces the auth, scope and role its contract declares", 
     const want = a.auth === "pub" ? [] : a.auth === "machine" ? ["machineKey"] : a.auth === "lease" ? ["leaseBearer"] : accepts ? ["deviceCookie", "leaseBearer"] : ["deviceCookie"];
     if (JSON.stringify([...have].sort()) !== JSON.stringify([...want].sort())) problems.push(`${k}: security ${JSON.stringify(have)}, x-authz wants ${JSON.stringify(want)}`);
     if (!!a.step_up !== op.stepUpHeader) problems.push(`${k}: x-authz ${a.step_up ? "has" : "has no"} step_up but the X-Convoz-Step-Up header ${op.stepUpHeader ? "is" : "is not"} listed`);
+  }
+
+  // A hidden route tells a caller with no credential, and an agent's lease, 404, as for an unknown path
+  for (const r of live.filter((x) => x.hidden)) {
+    for (const [who, cred] of [["no credential", {}], ["a lease", { bearer: full }]] as const) {
+      const res = await call(w.srv, "GET", concrete(r.pattern), cred);
+      if (res.status !== 404) problems.push(`GET ${r.pattern} (hidden) with ${who}: wanted 404, got ${res.status}`);
+    }
   }
 
   // A page sends a caller who is not signed in to the sign-in page

@@ -7,12 +7,16 @@ package console
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"io/fs"
 	"net/http"
 	"path"
+	"regexp"
 	"strings"
 	"sync/atomic"
+	"time"
 )
 
 //go:embed all:web
@@ -106,7 +110,7 @@ func Page(w http.ResponseWriter, _ *http.Request) { writePage(w, http.StatusOK, 
 func NotFound(w http.ResponseWriter, _ *http.Request) { writePage(w, http.StatusNotFound, notFound) }
 
 // File serves one public file of the build at a fixed URL (icons, the manifest, the font licence). They keep their names
-// across builds, so the browser revalidates them.
+// across builds, so the browser revalidates them: each answer carries a strong ETag and a repeat that holds it gets a 304.
 func File(name, contentType string) http.HandlerFunc {
 	body, err := dist.ReadFile("web/" + name)
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -116,8 +120,11 @@ func File(name, contentType string) http.HandlerFunc {
 		}
 		h := w.Header()
 		h.Set("Content-Type", contentType)
-		h.Set("Cache-Control", "no-cache")
-		_, _ = w.Write(body)
+		h.Set("Cache-Control", assetCacheControl(name))
+		if !hashedName(name) {
+			h.Set("ETag", contentETag(body))
+		}
+		http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(body)) // a matching If-None-Match is a 304; HEAD and ranges work
 	}
 }
 
@@ -130,7 +137,21 @@ var hashedTypes = map[string]string{
 	".png":   "image/png",
 }
 
-// Asset serves web/assets/<file>, a content-hashed build file: it never changes under its name, so it is cached for a year.
+// viteHash is the content hash Vite puts before the extension of a built file: "-" and 8 characters (main-DwQgiNMS.js).
+var viteHash = regexp.MustCompile(`-[A-Za-z0-9_-]{8}\.[A-Za-z0-9]+$`)
+
+// assetCacheControl is the Cache-Control of one file of assets/ (name may hold folders): a year for a name with a Vite hash, which a
+// new build changes; revalidation for a name without one (the manifest names the icons, the stylesheet names the grain).
+// A brotli answer is judged by the plain name (name, not name+".br"), as in ServeDev.
+func assetCacheControl(name string) string {
+	if hashedName(name) {
+		return "public, max-age=31536000, immutable"
+	}
+	return "no-cache"
+}
+
+// Asset serves web/assets/<file>. A content-hashed build file never changes under its name, so it is cached for a year; a file of
+// public/ (grain, icons) keeps its name from build to build, so it is revalidated (assetCacheControl).
 // When the client takes brotli (`br`, decided by the caller) and the build compressed the file ahead (<file>.br, at the
 // highest quality, design §12.3), that copy goes out as it is: on a slow link the first load is bound by these bytes.
 func Asset(w http.ResponseWriter, r *http.Request, br bool) {
@@ -141,22 +162,37 @@ func Asset(w http.ResponseWriter, r *http.Request, br bool) {
 		return
 	}
 	h := w.Header()
+	var body []byte
 	if packed, err := fs.ReadFile(dist, "web/assets/"+name+".br"); err == nil {
 		h.Add("Vary", "Accept-Encoding")
 		if br {
-			h.Set("Content-Type", contentType)
 			h.Set("Content-Encoding", "br")
-			h.Set("Cache-Control", "public, max-age=31536000, immutable")
-			_, _ = w.Write(packed)
-			return
+			body = packed
 		}
 	}
-	body, err := fs.ReadFile(dist, "web/assets/"+name)
-	if err != nil {
-		http.NotFound(w, r)
-		return
+	if body == nil {
+		plain, err := fs.ReadFile(dist, "web/assets/"+name)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		body = plain
 	}
 	h.Set("Content-Type", contentType)
-	h.Set("Cache-Control", "public, max-age=31536000, immutable")
-	_, _ = w.Write(body)
+	h.Set("Cache-Control", assetCacheControl(name))
+	if !hashedName(name) {
+		h.Set("ETag", contentETag(body))
+	}
+	// ServeContent answers 304 to a matching If-None-Match (and honours ranges); the zero time sends no Last-Modified.
+	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(body))
+}
+
+// hashedName is whether the file (name may hold folders) carries a Vite content hash in its name.
+func hashedName(name string) bool { return viteHash.MatchString(path.Base(name)) }
+
+// contentETag is the strong validator of a body: a file that keeps its name is revalidated with it, and a 304 spares the bytes. The
+// answer in brotli and the plain one are two representations, each with its own tag.
+func contentETag(body []byte) string {
+	sum := sha256.Sum256(body)
+	return `"` + hex.EncodeToString(sum[:16]) + `"`
 }

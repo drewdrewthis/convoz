@@ -24,6 +24,10 @@ Conversation:
     unread_mentions:
       type: integer
       description: The unread messages that @mention the caller, counted under the same read cursors as unread (the main list after its cursor, each thread after its own). Its own messages never count; stops at 100 like unread. A client reads this instead of scanning the messages.
+    mention_snoozed_until:
+      type: integer
+      format: int64
+      description: Epoch ms the caller's Later on this conversation's mention card runs to. Absent when none runs. While it runs, unread_mentions counts only the mentions that came after the Later.
     replies_to_you:
       type: boolean
       description: An agent answered the caller. True when the main list has unread after a message the caller wrote (the newest one it read), or a thread whose root the caller wrote has unread replies; only the conversation's 30 newest threads are checked. Absent when false.
@@ -45,7 +49,6 @@ Conversation:
       type: array
       description: The messages the caller pinned in it, newest pin first. The single-conversation route only.
       items: { $ref: "../openapi.yaml#/components/schemas/Message" }
-    paused: { type: boolean, description: The loop breaker stopped the agents after 20 messages in a row. }
     pending:
       type: array
       description: Agents that wait for a person to add them, and the agent that asked.
@@ -63,8 +66,9 @@ Conversation:
     last_read: { type: integer, format: int64, description: The caller's read cursor in the main list when the row was built; absent when it has none. The single-conversation route only. The page keeps the value from when it opened, to mark where unread began. }
     stale:
       type: boolean
-      description: An agent in it marked it stale (`convoz stale`) and no message came since. The rail folds it into Older. Absent when not.
+      description: An agent in it (`convoz stale`) or the owner (the rail's Mark stale) marked it stale and no message came since. The rail folds it into Older. Absent when not.
     stale_reason: { type: string, description: Why, when the agent that marked it stale said so. Only with stale. }
+    back_at: { type: integer, format: int64, description: "When the owner last brought it back from Older (`reopen`). The rail's 48 hour quiet clock starts at the later of this and last_activity_at. Absent when never, or when it was marked stale since." }
     deleted_at: { type: integer, format: int64, description: In the trash since. }
     purges_at: { type: integer, format: int64, description: When the trash removes it for good. }
     shared_tab: { $ref: "../openapi.yaml#/components/schemas/SharedTab", description: "The owner shares a browser tab with it now (page-share.feature). Absent when not." }

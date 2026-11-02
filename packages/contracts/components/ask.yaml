@@ -69,6 +69,8 @@ Ask:
     state: { type: string, enum: [open, answered, dismissed, closed] }
     close_reason: { type: string, enum: [removed, withdrawn, deleted, agent_revoked, replied] }
     options: { type: array, minItems: 2, maxItems: 5, items: { $ref: "../openapi.yaml#/components/schemas/AskOption" }, description: "On a draft ask: Send (the recommended one) and Don't send." }
+    kind: { type: string, enum: [permission, decision, draft], description: "permission: the agent asks the owner's OK for one action. decision: options. draft: a message to send." }
+    permission: { $ref: "../openapi.yaml#/components/schemas/AskPermission", description: Present on a permission ask. }
     draft: { $ref: "../openapi.yaml#/components/schemas/AskDraft", description: Present on a draft ask. Absent after a purge. }
     reply: { $ref: "../openapi.yaml#/components/schemas/AskReply", description: Present on an answered draft ask. }
     chosen: { $ref: "../openapi.yaml#/components/schemas/AskChoice" }
@@ -90,6 +92,17 @@ Ask:
       oneOf:
         - { $ref: "../openapi.yaml#/components/schemas/App" }
         - { $ref: "../openapi.yaml#/components/schemas/AppStub" }
+AskPermission:
+  type: object
+  required: [action, risk, considered, confidence]
+  description: The parts of a permission ask. One of undo and one_way is set.
+  properties:
+    action: { type: string, maxLength: 100 }
+    risk: { type: string, maxLength: 140 }
+    undo: { type: string, maxLength: 80 }
+    one_way: { type: boolean }
+    considered: { type: array, minItems: 1, maxItems: 3, items: { type: string, maxLength: 120 } }
+    confidence: { type: integer, minimum: 0, maximum: 100, description: "What the agent said it was; self-reported, not a check." }
 AskOwnerReply:
   type: object
   required: [id, text, at]
@@ -103,11 +116,22 @@ AskUpdateRequest:
   additionalProperties: false
   description: What the asking agent changes in its open ask. Recommended and alternatives are given together and replace the options.
   properties:
-    question: { type: string, maxLength: 500 }
+    question: { type: string, maxLength: 500, description: "A changed question is one plain sentence that tells the owner what to decide; one left as it was is not judged again." }
     recommended: { $ref: "../openapi.yaml#/components/schemas/AskOption" }
     alternatives: { type: array, minItems: 1, maxItems: 4, items: { $ref: "../openapi.yaml#/components/schemas/AskOption" } }
     owners_call_reason: { type: string, maxLength: 280 }
     answers: { type: string, maxLength: 1000 }
+    permission:
+      type: object
+      additionalProperties: false
+      required: [action, risk, considered]
+      description: A permission ask only. All its parts, which replace the old ones; one of undo and one_way. There is no confidence (it is fixed at create; 400 when given).
+      properties:
+        action: { type: string, minLength: 1, maxLength: 100 }
+        risk: { type: string, minLength: 1, maxLength: 140 }
+        undo: { type: string, minLength: 1, maxLength: 80 }
+        one_way: { type: boolean }
+        considered: { type: array, minItems: 1, maxItems: 3, items: { type: string, minLength: 1, maxLength: 120 } }
 AskConversation:
   type: object
   required: [id, title]
@@ -116,21 +140,24 @@ AskConversation:
     title: { type: ["string", "null"] }
 AskRequest:
   type: object
-  required: [conversation_id, client_id, question]
+  required: [conversation_id, client_id]
   additionalProperties: false
   description: |
-    An ask with options (recommended, alternatives and owners_call; without owners_call it is refused) or a draft ask (draft alone: it has
-    no options and no owner's call, the server sets both).
+    A permission ask (permission alone: the server sets the options Go and Not this, no owner's call is needed, and the question defaults
+    to the action; a confidence under 80 is refused with the get-confident text), a draft ask (draft alone: it has no options and no
+    owner's call, the server sets both), or the legacy ask with options (question, recommended, alternatives and owners_call; without
+    owners_call it is refused). Permission with draft is refused.
   properties:
     conversation_id: { type: integer, format: int64 }
     thread_root_id: { type: integer, format: int64 }
     client_id: { $ref: "../openapi.yaml#/components/schemas/ClientId" }
-    question: { type: string, minLength: 1, maxLength: 500 }
+    question: { type: string, minLength: 1, maxLength: 500, description: "One plain sentence that tells the owner what to decide, like \"Approve the prod deploy of PR 240?\" (3 or more words, no markdown, no status word first)." }
     recommended: { $ref: "../openapi.yaml#/components/schemas/AskOption" }
     alternatives: { type: array, minItems: 1, maxItems: 4, items: { $ref: "../openapi.yaml#/components/schemas/AskOption" } }
     owners_call: { $ref: "../openapi.yaml#/components/schemas/OwnersCall" }
     urgent: { type: boolean }
     draft: { $ref: "../openapi.yaml#/components/schemas/AskDraft" }
+    permission: { $ref: "../openapi.yaml#/components/schemas/AskPermission" }
     app: { $ref: "../openapi.yaml#/components/schemas/App", description: "An app shown with the question (a chart, a table, a diff). It helps the owner decide and never answers: no picker, form or select checklist (400 app_type_not_allowed_on_ask)." }
 AskAnswerRequest:
   type: object
@@ -186,7 +213,7 @@ NowPendingAdd:
 NowWaiting:
   type: object
   required: [conversation, agent, text, since]
-  description: A plan item an agent waits on the owner for.
+  description: A plan item an agent waits on the owner for, in a plan updated in the last 24 h.
   properties:
     conversation: { $ref: "../openapi.yaml#/components/schemas/AskConversation" }
     agent: { $ref: "../openapi.yaml#/components/schemas/Person" }
@@ -194,7 +221,7 @@ NowWaiting:
     since: { type: integer, format: int64 }
 Now:
   type: object
-  required: [now, poll_ms, badge, mentions, asks, replied, snoozed, answered_today, dismissed_today, pending_adds, waiting_plans, machine_requests, identity_requests]
+  required: [now, poll_ms, badge, mentions, asks, replied, snoozed, answered_today, dismissed_today, pending_adds, waiting_plans, unanswered, machine_requests, identity_requests]
   properties:
     now: { type: integer, format: int64, description: The server's clock, epoch ms. Snooze times and "tonight" are read against it. }
     poll_ms: { type: integer, description: How often an open Now asks again, for what only time changes (a snooze waking, a request expiring). }
@@ -206,6 +233,7 @@ Now:
     answered_today: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Ask" }, description: Answered in the last 24 hours, newest first. }
     dismissed_today: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Ask" }, description: Dismissed in the last 24 hours and still dismissed, newest first. }
     pending_adds: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/NowPendingAdd" } }
-    waiting_plans: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/NowWaiting" }, description: Plan items agents wait on the owner for, newest first. }
+    waiting_plans: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/NowWaiting" }, description: Plan items agents wait on the owner for, in plans updated in the last 24 h, newest first. }
+    unanswered: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/WaitingUnanswered" }, description: "The owner's newest main-chat message per conversation that nobody answered for 10 minutes (no later main-chat message and no thread reply from anyone else), at most 24 hours old, in a conversation that is neither muted nor stale. GET /api/waiting has the same list without those three limits." }
     machine_requests: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/MachineRequest" } }
     identity_requests: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/IdentityRequest" }, description: Agents on logged-in machines that ask to be made. }
