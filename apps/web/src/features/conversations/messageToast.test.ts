@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mock, test } from "node:test";
 import type { MessageCreatedFrame } from "@convoz/api-client";
-import { batch, messageHref, messageLine } from "./messageToast.ts";
+import { batch, messageHref, messageLine, newMessagesLine, shortenUrls } from "./messageToast.ts";
 
 // Owner, 2026-10-30 (conv 179 msg 14167): "can I get a toast for every message?"
 const msg = (o: Partial<MessageCreatedFrame> & { handle?: string; who?: "human" | "agent" | "system" } = {}) =>
@@ -91,4 +91,26 @@ test("a steady stream is handed over every second, not held back", () => {
   } finally {
     mock.timers.reset();
   }
+});
+
+// Owner, 2026-11-02: the toast was "really poor UI": a raw URL, the chat title said twice, three lines.
+test("a github pull URL shows as PR n, any other URL as its host", () => {
+  assert.equal(shortenUrls("see https://github.com/langwatch/langwatch/pull/9190 now"), "see PR 9190 now");
+  assert.equal(shortenUrls("docs at https://example.com/a/b?c=1."), "docs at example.com.");
+});
+
+test("a first line that starts with the chat title does not say it twice", () => {
+  const line = messageLine(msg({ body: "Board: https://github.com/langwatch/langwatch/pull/9190 now ready" }), { ...at, title: "Board: work state changes" });
+  assert.equal(line, "@devtool in Board: work state changes: PR 9190 now ready");
+  const dup = messageLine(msg({ body: "Board: work state changes: done" }), { ...at, title: "Board: work state changes" });
+  assert.equal(dup, "@devtool in Board: work state changes: done");
+});
+
+test("several messages make one short line naming the latest author and chat", () => {
+  const news = [
+    { line: "@a in X: one", who: "@a in X" },
+    { line: "@b in Y: two", who: "@b in Y" },
+  ];
+  assert.equal(newMessagesLine(news), "2 new messages · latest: @b in Y");
+  assert.equal(newMessagesLine(news.slice(0, 1)), "@a in X: one");
 });

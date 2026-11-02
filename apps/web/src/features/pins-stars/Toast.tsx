@@ -1,4 +1,7 @@
-import { runUndo, useToast } from "./toast.ts";
+import { Button } from "@convoz/ui/Button";
+import { CloseIcon } from "@convoz/ui/icons";
+import { IconButton } from "@convoz/ui/IconButton";
+import { dismiss, runUndo, useToast } from "./toast.ts";
 
 /** ToastHost draws the toast, if there is one. It is a polite live region, so a screen reader says it too; an error is an alert, said at once. */
 export function ToastHost() {
@@ -11,12 +14,15 @@ export function ToastHost() {
     <div className="toastbox" role={alert ? "alert" : "status"} aria-live={alert ? "assertive" : "polite"}>
       {text ? (
         <div className="toast">
-          <span>{text}</span>
+          <span className="toasttext">{text}</span>
           {undo ? (
-            <button type="button" className="toastact" onClick={runUndo}>
+            <Button variant="quiet" size="inline" className="toastact min-h-32!" onClick={runUndo}>
               {label}
-            </button>
+            </Button>
           ) : null}
+          <IconButton variant="muted" size={32} glyph={12} stroke={2} label="Dismiss" className="toastx" onClick={dismiss}>
+            <CloseIcon />
+          </IconButton>
         </div>
       ) : null}
     </div>

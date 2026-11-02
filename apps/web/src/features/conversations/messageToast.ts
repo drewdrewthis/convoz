@@ -10,9 +10,40 @@ const CUT = 60;
  */
 export function messageLine(m: MessageCreatedFrame, at: { me: string; open: number | null; title?: string | null; muted?: boolean }): string | null {
   if (m.author.handle === at.me || m.conversation_id === at.open || at.muted || m.kind === "system" || m.kind === "ask" || m.author.kind === "system") return null;
-  const first = m.body.split("\n").find((l) => l.trim())?.trim() ?? "";
+  const first = withoutTitle(shortenUrls(m.body.split("\n").find((l) => l.trim())?.trim() ?? ""), at.title);
   const text = first.length > CUT ? `${first.slice(0, CUT - 1)}…` : first;
-  return `@${m.author.handle}${at.title ? ` in ${at.title}` : ""}: ${text}`;
+  return `${whoWhere(m, at.title)}: ${text}`;
+}
+
+/** whoWhere is "@author in chat", the part of a toast that says who spoke and where. */
+export const whoWhere = (m: Pick<MessageCreatedFrame, "author">, title?: string | null): string => `@${m.author.handle}${title ? ` in ${title}` : ""}`;
+
+/** shortenUrls trades a link for what the owner reads at a glance: "PR 9190" for a github pull, the host for any other. */
+export function shortenUrls(text: string): string {
+  return text.replace(/https?:\/\/[^\s<>)]+/g, (raw) => {
+    const url = raw.replace(/[.,;:!?]+$/, "");
+    const tail = raw.slice(url.length);
+    try {
+      const u = new URL(url);
+      const pr = /^\/[^/]+\/[^/]+\/pull\/(\d+)/.exec(u.pathname);
+      return (u.hostname === "github.com" && pr ? `PR ${pr[1]}` : u.hostname) + tail;
+    } catch {
+      return raw;
+    }
+  });
+}
+
+/** withoutTitle drops a leading "Title:" (or its first part before a colon) the toast already says after "in". */
+function withoutTitle(text: string, title?: string | null): string {
+  for (const t of title ? [title, title.split(":")[0]!.trim()] : []) {
+    if (t && text.toLowerCase().startsWith(`${t.toLowerCase()}:`)) return text.slice(t.length + 1).trim() || text;
+  }
+  return text;
+}
+
+/** newMessagesLine is the one toast for the news of a moment: the line itself for one message, else a count and the latest author and chat. */
+export function newMessagesLine(news: { line: string; who: string }[]): string {
+  return news.length === 1 ? news[0]!.line : `${news.length} new messages · latest: ${news[news.length - 1]!.who}`;
 }
 
 /** messageHref is the app path that opens the message in its conversation (the same link "Copy link" gives). */

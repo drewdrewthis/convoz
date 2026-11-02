@@ -39,12 +39,30 @@ export interface ComposerProps {
 export function Composer({ agent, label, conversationId, attachments, onSend, textRef, mentions }: ComposerProps) {
   const [text, setText] = useState(() => loadDraft(appPath()));
   const picker = useRef<HTMLInputElement>(null);
+  const compose = useRef<HTMLDivElement>(null);
   const voice = useVoiceNote(conversationId, (sent) => onSend("", [sent]));
   const files = attachments.items;
   const empty = text.trim() === "" && files.length === 0;
   // A crew agent typed by hand (outside code and quotes) counts like a pick: the server brings it in when the message arrives (I-18).
   const named = Boolean(mentions) && mentionsOf(text).some((h) => mentions!.crew.some((p) => p.handle === h));
   const canSend = (Boolean(agent) || named) && !empty && files.every((f) => f.state === "done" || f.state === "held");
+
+  // The toast sits above this box, never over it: --compose-top is the gap from the screen bottom to the box's top edge.
+  useEffect(() => {
+    const el = compose.current;
+    if (!el) return;
+    const root = document.documentElement.style;
+    const measure = () => root.setProperty("--compose-top", `${Math.max(0, window.innerHeight - el.getBoundingClientRect().top)}px`);
+    measure();
+    const watch = new ResizeObserver(measure);
+    watch.observe(el);
+    window.addEventListener("resize", measure);
+    return () => {
+      watch.disconnect();
+      window.removeEventListener("resize", measure);
+      root.removeProperty("--compose-top");
+    };
+  }, []);
 
   // Every change is kept at once: an update can reload the page at any moment (sw/index.ts), and the box is filled again from it.
   useEffect(() => saveDraft(appPath(), text), [text]);
@@ -74,7 +92,7 @@ export function Composer({ agent, label, conversationId, attachments, onSend, te
   };
 
   return (
-    <div className="compose">
+    <div className="compose" ref={compose}>
       {mentions ? <MentionMenu mention={mention} crew={mentions.crew} invites={Boolean(mentions.onInvite)} /> : null}
       <AttachmentList attachments={attachments} />
       {voice.bar}
