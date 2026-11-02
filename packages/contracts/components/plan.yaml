@@ -116,6 +116,11 @@ PlanBoard:
     asks: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/OpenAsk" } }
     attention: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/PlanAttention" }, description: One line per conversation with something to show. }
     next_change_at: { type: integer, format: int64 }
+PlanList:
+  type: object
+  required: [plans]
+  properties:
+    plans: { type: array, items: { $ref: "../openapi.yaml#/components/schemas/Plan" }, description: One plan per agent that has one in the conversation. }
 Delivery:
   type: object
   required: [conversation_id, title, identity_id, handle, text, due, since, state, stale, doing, waiting, plan_updated_at]

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -78,7 +79,10 @@ func Plan(args []string, io IO) int {
 	f.fs.Var(&waiting, "waiting", "what only the owner must do, as one plain sentence that tells the owner what to do, like \"Approve the prod deploy of PR 240.\" (3 or more words, no markdown, no status word first, no name prefix); up to 5 times, and something new pushes the owner")
 	f.fs.Var(&done, "done", "an item you finished (up to 5 times); a quiet line tells the owner")
 	clientID := f.fs.String("client-id", "", "the id that makes a retry safe; random when not given")
-	usage := "usage: convoz plan <conv> [--doing D [--step N/M] [--eta 30m|HH:MM]]... [--deliver X --due 2d|HH:MM]... [--blocked B] [--next N]... [--waiting W]... [--done D]..."
+	show := f.fs.Bool("show", false, "read a plan, never write: your own, or another agent's with --agent")
+	agent := f.fs.String("agent", "", "with --show: the handle of the agent whose plan to read (yours when not given)")
+	clear := f.fs.Bool("clear", false, "empty your plan in this conversation (the only way to write a plan with no items)")
+	usage := "usage: convoz plan <conv> --show [--agent H] [--json]  |  convoz plan <conv> --clear  |  convoz plan <conv> [--doing D [--step N/M] [--eta 30m|HH:MM]]... [--deliver X --due 2d|HH:MM]... [--blocked B] [--next N]... [--waiting W]... [--done D]..."
 	pos, ok := f.parse(args, io)
 	if !ok {
 		return ExitUsage
@@ -92,6 +96,17 @@ func Plan(args []string, io IO) int {
 	}
 	if now.bad != "" {
 		return usageError(io, now.bad)
+	}
+	hasItems := len(now.items) > 0 || len(deliver.items) > 0 || *blocked != "" || len(next)+len(waiting)+len(done) > 0
+	switch {
+	case *show && (hasItems || *clear):
+		return usageError(io, "--show only reads: give it no item flags and no --clear")
+	case *show:
+		return showPlan(f, io, conv, *agent)
+	case *clear && hasItems:
+		return usageError(io, "--clear gives no item flags: it empties the plan")
+	case !*clear && !hasItems && deliver.problem() == "":
+		return usageError(io, "a plan with no items would empty your plan: use --show to read it, give item flags (--doing, --next, ...) to write it, or --clear to empty it")
 	}
 	if bad := deliver.problem(); bad != "" {
 		return usageError(io, bad)
@@ -139,6 +154,41 @@ func Plan(args []string, io IO) int {
 		k.printJSON(stored)
 	} else {
 		fmt.Fprint(k.io.Stdout, planText(stored))
+	}
+	return ExitOK
+}
+
+// showPlan runs `convoz plan <conv> --show`: it reads the conversation's plans and prints one, the caller's own or the --agent's.
+// With --json it prints that one plan, as the write prints it. It only reads: nothing is sent but a GET.
+func showPlan(f *chatFlags, io IO, conv int64, agent string) int {
+	k, code := f.open(io)
+	if k == nil {
+		return code
+	}
+	handle := strings.TrimPrefix(agent, "@")
+	if handle == "" {
+		sess, err := loadSession(k.dir, k.sid)
+		if err != nil {
+			return sessionEnded(io, err)
+		}
+		handle = sess.Identity
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), k.timeout)
+	defer cancel()
+	var list wire.PlanList
+	if err := k.call(ctx, "GET", convPath(conv, "plan"), nil, &list); err != nil {
+		return k.fail(err)
+	}
+	mine := wire.Plan{ConversationID: conv, Handle: handle, Now: []wire.PlanNow{}, Next: []string{}, Waiting: []wire.PlanWaiting{}, Done: []wire.PlanDone{}, Deliver: []wire.PlanDeliver{}}
+	for _, p := range list.Plans {
+		if p.Handle == handle {
+			mine = p
+		}
+	}
+	if k.asJSON {
+		k.printJSON(mine)
+	} else {
+		fmt.Fprint(io.Stdout, planText(mine))
 	}
 	return ExitOK
 }

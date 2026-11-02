@@ -436,6 +436,7 @@ components:
     Plan: { $ref: "components/plan.yaml#/Plan" }
     PlanAgent: { $ref: "components/plan.yaml#/PlanAgent" }
     PlanAttention: { $ref: "components/plan.yaml#/PlanAttention" }
+    PlanList: { $ref: "components/plan.yaml#/PlanList" }
     PlanBoard: { $ref: "components/plan.yaml#/PlanBoard" }
     PlanChangedFrame: { $ref: "components/plan.yaml#/PlanChangedFrame" }
     ConversationChangedFrame: { $ref: "components/conversation.yaml#/ConversationChangedFrame" }

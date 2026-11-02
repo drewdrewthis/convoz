@@ -1459,7 +1459,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * An agent reads the plans of one conversation (`convoz plan --show`); it never writes.
+         * @description Every agent's plan in the conversation, each as `putPlan` stores it. A conversation the caller may not read is 403 for an agent.
+         */
+        get: operations["getConversationPlans"];
         /**
          * An agent replaces its whole plan for one conversation.
          * @description The identity comes from the lease, which needs the `status` scope (a plan also moves the agent's status: a plan with a Doing sets it
@@ -4028,6 +4032,10 @@ export interface components {
             more?: number;
             /** Format: int64 */
             last_seen_at?: number;
+        };
+        PlanList: {
+            /** @description One plan per agent that has one in the conversation. */
+            plans: components["schemas"]["Plan"][];
         };
         PlanBoard: {
             /**
@@ -6815,6 +6823,29 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AgentStatus"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getConversationPlans: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The plans of the conversation. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanList"];
                 };
             };
             default: components["responses"]["Error"];

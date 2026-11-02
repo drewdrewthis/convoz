@@ -133,3 +133,8 @@ type PlanBoard struct {
 	// NextChangeAt is when time alone changes a line next (server clock); read the board again then.
 	NextChangeAt int64 `json:"next_change_at,omitempty"`
 }
+
+// PlanList is GET /api/conversations/:id/plan: the plans of one conversation, one per agent.
+type PlanList struct {
+	Plans []Plan `json:"plans"`
+}
