@@ -8,7 +8,7 @@ const (
 	ScopeStatus                   // 8
 	ScopeUpload                   // 16
 	// ScopePage reads and screenshots the tab the owner shares with a conversation (page-share.feature). Its bit was "pickup"
-	// (removed: nothing claims conversations); migration 0042 cleared it from every machine and lease, so an old grant never
+	// (removed: nothing claims conversations); migration 0053 cleared it from every machine and lease, so an old grant never
 	// becomes this one. The scopes column allows bits up to 64, so the free bit was the one to take.
 	ScopePage           // 32
 	ScopeCreateIdentity // 64

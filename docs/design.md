@@ -93,7 +93,7 @@ Conventions:
 
 | Credential | Scopes (bitmask) | Default |
 |---|---|---|
-| Machine (and the leases it mints) | `read`=1 `post`=2 `ask`=4 `status`=8 `upload`=16 `page`=32 (was `pickup`, removed; migration 0042 cleared it from every machine and lease before `page` took it) `create_identity`=64 | all except `create_identity`; `page` only for machines approved after it existed (§13.4) |
+| Machine (and the leases it mints) | `read`=1 `post`=2 `ask`=4 `status`=8 `upload`=16 `page`=32 (was `pickup`, removed; migration 0053 cleared it from every machine and lease before `page` took it) `create_identity`=64 | all except `create_identity`; `page` only for machines approved after it existed (§13.4) |
 
 A lease's scopes = its machine's scopes at mint time; a scope removed from the machine applies on the next request (the auth cache is invalidated). Routes declare the scope they need (I-6).
 
