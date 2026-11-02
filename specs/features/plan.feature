@@ -34,6 +34,18 @@ Feature: Plans: what each agent is doing, what is next and what waits on the own
       And the plan of "docs" in conversation 41 is still empty
 
     @v1 @cli
+    Scenario: An agent reads a plan with --show and a bare plan command refuses to write
+      Given "devtool" has the plan Doing "Building invites" and Next "Reply chip" in conversation 41
+      When "devtool" runs "convoz plan 41 --show"
+      Then the command prints "Doing: Building invites" and "Next: Reply chip", and the plan is not changed
+      When "devtool" runs "convoz plan 41 --show --agent docs"
+      Then the command prints the plan of "docs"
+      When "devtool" runs "convoz plan 41"
+      Then the command fails with a usage error that names --show and --clear, and the plan is not changed
+      When "devtool" runs "convoz plan 41 --clear"
+      Then the plan of "devtool" in conversation 41 is empty
+
+    @v1 @cli
     Scenario: A plan keeps its limits
       When "devtool" runs "convoz plan 41" with 6 "--next" items
       Then it exits 2 and says "--next is at most 5 items"
