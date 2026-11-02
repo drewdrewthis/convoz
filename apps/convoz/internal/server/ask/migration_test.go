@@ -12,8 +12,7 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/dbtest"
 )
 
-// The migration that adds the permission columns is the newest one (the coder picks the next free number; 0042 is taken by an open PR).
-// The test migrates to the one before it, writes an ask in the old shape and migrates up.
+// Migration 0042 adds the permission columns. The test migrates to the one before it, writes an ask in the old shape and migrates up.
 func TestMigration_AnAskFromBeforeThePermissionColumnsReadsAsADecision(t *testing.T) {
 	ctx := context.Background()
 	s, err := pdb.Open(filepath.Join(t.TempDir(), "t.db"), append([]byte("TESTONLY"), make([]byte, 24)...))
@@ -25,7 +24,7 @@ func TestMigration_AnAskFromBeforeThePermissionColumnsReadsAsADecision(t *testin
 	if err := os.WriteFile(filepath.Join(dataDir, "keyring.json"), []byte("{}"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	opts := platform.MigrateOptions{DataDir: dataDir, Clock: platform.SystemClock{}, MaxVersion: platform.LatestVersion() - 1}
+	opts := platform.MigrateOptions{DataDir: dataDir, Clock: platform.SystemClock{}, MaxVersion: 41}
 	if err := platform.Migrate(ctx, s, opts); err != nil {
 		t.Fatal(err)
 	}

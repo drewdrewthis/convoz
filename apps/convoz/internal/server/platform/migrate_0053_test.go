@@ -11,8 +11,10 @@ import (
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/dbtest"
 )
 
-// Migration 0042 gives bit 32 (once "pickup") to "page": no old grant may come out of it as page access.
-func TestMigration0042ClearsTheOldPickupBit(t *testing.T) {
+// Migration 0053 gives bit 32 (once "pickup") to "page": no old grant may come out of it as page access. It starts from schema
+// 52, where prod stood when the step shipped: as 0042 it shared a number with ask_permission, so every database at 42 or above
+// skipped it (conv 587 msg 15671).
+func TestMigration0053ClearsTheOldPickupBit(t *testing.T) {
 	ctx := context.Background()
 	key := append([]byte("TESTONLY"), make([]byte, 24)...)
 	s, err := pdb.Open(filepath.Join(t.TempDir(), "t.db"), key)
@@ -31,7 +33,7 @@ func TestMigration0042ClearsTheOldPickupBit(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	migrate(41)
+	migrate(52)
 	// machine 1: default scopes plus pickup; machine 2: pickup only; machine 3: no pickup. One lease of each.
 	dbtest.Exec(t, s,
 		`INSERT INTO identities (id, kind, handle, display_name, display_skeleton, avatar_letter, avatar_palette, created_at) VALUES
