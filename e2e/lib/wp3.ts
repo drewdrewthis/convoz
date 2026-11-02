@@ -6,6 +6,7 @@ import { agentPost, startSession, chatWorld } from "./chat.ts";
 import { send, type Res } from "./http.ts";
 import type { ServerHandle, ServerOptions } from "./fixtures.ts";
 import { bootstrapOwner, must, type Owner } from "./owner.ts";
+import { EXTENSION_ORIGIN } from "./extension.ts";
 
 /**
  * Helpers for the WP3 scenarios: conversations, participants and trash. The routes they call are
@@ -100,10 +101,16 @@ export type World = Awaited<ReturnType<typeof chatWorld>>;
  */
 export async function world(
   server: (o?: ServerOptions) => Promise<ServerHandle>,
-  o: { agents?: string[]; plaintext?: boolean } = {},
+  o: { agents?: string[]; plaintext?: boolean; extension?: boolean } = {},
 ): Promise<World> {
   const agents = o.agents ?? ["devtool", "docs", "release-bot"];
-  const srv = await server({ host: "localhost", adminSocket: true, env: { CONVOZ_TEST_POLL_MS: "250", ...(o.plaintext ? { CONVOZ_TEST_PLAINTEXT: "1" } : {}) } });
+  const srv = await server({
+    host: "localhost",
+    adminSocket: true,
+    env: { CONVOZ_TEST_POLL_MS: "250", ...(o.plaintext ? { CONVOZ_TEST_PLAINTEXT: "1" } : {}) },
+    // with the extension named, the page-sharing routes exist; without it they answer 404 to everyone (contracts/page-share.feature)
+    extraArgs: o.extension ? ["--extension-origin", EXTENSION_ORIGIN] : [],
+  });
   const owner = await bootstrapOwner(srv);
   await createAgents(owner, ...agents);
   const box2 = await loginMachine(srv, owner, "box-2", allow(...agents));

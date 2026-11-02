@@ -67,7 +67,8 @@ scenario("Every route enforces the auth, scope and role its contract declares", 
   info.setTimeout(120_000);
   // Background: owner "drew", machines "box-2" (the default scopes) and "laptop-1" with allow-list "devtool"; and a machine
   // with the create_identity scope only, so there is a lease that lacks every other scope
-  const w = await world(server, { agents: ["devtool"], plaintext: true });
+  // the extension is named, so the page-sharing routes exist and meet the same matrix as every other route
+  const w = await world(server, { agents: ["devtool"], plaintext: true, extension: true });
   await loginMachine(w.srv, w.owner, "laptop-1", allow("devtool"));
   const narrowMachine = await loginMachine(w.srv, w.owner, "narrow-only", allow("devtool"), { scopes: ["create_identity"] });
   const lease = (key: string, label: string) => mintLease(w.srv, key, { as: "devtool", label });

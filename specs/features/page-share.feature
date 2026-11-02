@@ -3,11 +3,13 @@
 # The side panel of the Chrome extension shows the Convoz web app. The owner shares one tab with the conversation open in it; the
 # agents of that conversation can read that tab and take a screenshot of it, and nothing else. What an agent gets is what the page
 # renders, marked as content and not instructions: never a cookie, storage, network data, or the value of a field (a password,
-# hidden or one-time code field shows "[hidden]", a text field only "filled"). The page's words never become a message, so a page
-# cannot mention or add anyone. The value rules and the address masking are unit tests in apps/extension (page.test.ts).
-# The UX review of PR 102 (conv 310): the share shows wherever the owner looks (a line in the conversation when it starts and when
-# it ends, under the conversation's title, on the Convoz button), ends the moment the owner leaves the tab, and warns that a screenshot
-# shows what the read hides.
+# hidden or one-time code field shows "[hidden]", a text field only "filled"). The page's text never becomes a message; the share's
+# message quotes only the tab's title and masked address, in code, so a page cannot mention or add anyone. The value rules and the
+# address masking are unit tests in apps/extension (page.test.ts).
+# The UX reviews of PR 102 (conv 310): the share shows wherever the owner looks (the owner's message when it starts, a line when it
+# ends, under the conversation's title, on the Convoz button) and warns that a screenshot shows what the read hides. The second review:
+# share and ask are one step (a normal message, so the agents wake), the share lives while the owner looks at other tabs, the owner
+# sees what the agent read, and the panel opens on the last conversation with "Share this tab" in its header.
 
 Feature: Share a browser tab with the agents of a conversation
   As the owner
@@ -17,16 +19,21 @@ Feature: Share a browser tab with the agents of a conversation
   Rule: The panel is Convoz next to the page, and shares one tab with the open conversation
 
     @v1 @browser
-    Scenario: The panel shows the signed-in chat and shares the tab with the open conversation
+    Scenario: The panel shows the signed-in chat and shares the tab with the open conversation and the owner's question
       Given a Convoz server that allows the extension, the owner signed in in Chrome, and a conversation "Checkout bug" with @scout
-      When the owner opens the panel next to a web page
-      Then the panel shows the owner's conversations, signed in, and "Share this tab" is off and says "Open a conversation to share this tab."
-      When the owner opens "Checkout bug" in the panel and clicks "Share this tab"
+      When the owner opens the panel next to a web page for the first time
+      Then the panel shows the owner's conversations, signed in, and says "Open a conversation, then click Share this tab under its title."
+      When the owner opens "Checkout bug" in the panel and clicks "Share this tab" under its title
+      Then the panel asks "What should they look at?"
+      When the owner types "Why does Pay now fail?" and clicks Send
       Then the panel says "Shared with Checkout bug" with the members @drew and @scout and a Stop button
       And the panel warns "A screenshot shows what is on screen, including text the read hides."
-      And "Checkout bug" shows "@drew shared a tab (shop.test)", with the host of the tab and nothing more of its address
+      And "Checkout bug" shows the owner's message "Why does Pay now fail?" with the tab's title and masked address and how to read it
+      And @scout gets that message in its inbox
       And "Checkout bug" says "● Tab shared · shop.test" under its title
       And the Convoz button on the shared tab shows "ON"
+      When the owner closes the panel and opens it again
+      Then the panel opens on "Checkout bug"
 
   Rule: An agent of the conversation reads the shared tab, and never its secrets
 
@@ -41,14 +48,15 @@ Feature: Share a browser tab with the agents of a conversation
       And the output has the address with its query values and fragment as "*", "Checkout is broken" and the label of the password field
       And the password and code fields show "[hidden]" and the text field and notes box show "filled"
       And no secret is anywhere in the output, as text or as JSON
-      And "Checkout bug" shows "@scout read the shared page", and no one joined, was mentioned or got a message
+      And "Checkout bug" shows "@scout read the shared page" and "Read: Checkout" with its word count, and no one joined or was mentioned
+      And a tap on "Read: Checkout" shows the read exactly as @scout got it
 
     @v1 @browser
     Scenario: An agent takes a screenshot of the shared tab
       Given the owner shared a tab with "Checkout bug", which has @scout
       When @scout runs "convoz page shot --out shot.png"
       Then shot.png is a PNG image and the CLI prints its path
-      And "Checkout bug" shows "@scout took a screenshot of the shared page" with the screenshot as an image
+      And "Checkout bug" shows "@scout took a screenshot of the shared page" with the screenshot as an image that opens full size
 
     @v1 @browser
     Scenario: An agent outside the conversation cannot read the shared tab
@@ -57,17 +65,26 @@ Feature: Share a browser tab with the agents of a conversation
       Then the CLI says @other is not a participant of that conversation
       And "convoz page status" lists the shared tab for @scout and nothing for @other
 
-  Rule: The share ends the moment the owner leaves the tab, stops it or closes the panel, and the conversation says why
+  Rule: The share lives while the owner looks at other tabs, ends on Stop, when the tab closes or leaves its site, or when the panel closes, and the conversation says why
 
     @v1 @browser
-    Scenario: Switching to another tab ends the share
+    Scenario: Switching to another tab keeps the share, and a screenshot asks to bring the tab forward
       Given the owner shared a tab with "Checkout bug", which has @scout
       When the owner switches to a tab of another site
-      Then within 3 seconds, with no agent asking, the panel offers "Share this tab" again
+      Then the panel still says "Shared with Checkout bug" and "convoz page read" still reads the shared tab
+      And "convoz page shot" says "The shared tab is not in front. Ask @drew to bring it forward."
+      When the owner goes back to the shared tab
+      Then "convoz page shot" writes a PNG
+
+    @v1 @browser
+    Scenario: The shared tab going to another site ends the share
+      Given the owner shared a tab with "Checkout bug", which has @scout
+      When the shared tab goes to another site
+      Then within 3 seconds, with no agent asking, the panel says "Sharing ended: the shared tab left shop.test."
       And "convoz page status" lists no shared tab for @scout
-      And "Checkout bug" shows "Tab sharing ended: the shared tab was closed or left"
+      And "Checkout bug" shows "Tab sharing ended: the shared tab was closed or left its site"
       And the Convoz button on the shared tab shows nothing
-      And after the owner goes back to the shared tab, "convoz page read" still says "no shared tab"
+      And after the tab goes back to the shop, "convoz page read" still says "no shared tab"
 
     @v1 @browser
     Scenario: Stop ends the share

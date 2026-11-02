@@ -49,12 +49,14 @@ export const SHOP_HTML = `<!doctype html>
 
 /** The panel's warning while a tab is shared. */
 export const SHOT_WARNING = "A screenshot shows what is on screen, including text the read hides.";
-/** The disabled "Share this tab" button's description while no conversation is open. */
-export const OPEN_A_CONVERSATION = "Open a conversation to share this tab.";
-/** The conversation's lines when a share starts and ends, and its header while it is live. */
-export const SHARED_LINE = `@drew shared a tab (${SHOP_HOST})`;
+/** What the panel says while no conversation is open. */
+export const OPEN_A_CONVERSATION = "Open a conversation, then click Share this tab under its title.";
+/** The panel's question when the owner clicks "Share this tab", and the owner's answer, which becomes the share's message. */
+export const ASK_LABEL = "What should they look at?";
+export const ASK = "Why does Pay now fail?";
+/** The conversation's lines when a share ends, and its header while it is live. */
 export const STOPPED_LINE = "@drew stopped sharing the tab";
-export const LEFT_LINE = "Tab sharing ended: the shared tab was closed or left";
+export const LEFT_LINE = "Tab sharing ended: the shared tab was closed or left its site";
 export const CLOSED_LINE = "Tab sharing ended: the panel was closed";
 export const SHARED_HEADER = `● Tab shared · ${SHOP_HOST}`;
 
@@ -108,6 +110,16 @@ export async function openInPanel(panel: Page, title: string): Promise<void> {
   await appIn(panel).getByRole("list", { name: "Conversations" }).getByText(title).click();
 }
 
+/** The open conversation's "Share this tab", under its title in the panel's web app. */
+export const shareButton = (panel: Page) => appIn(panel).getByRole("button", { name: "Share this tab" });
+
+/** The owner clicks "Share this tab", answers "What should they look at?" with `ask` and clicks Send. */
+export async function shareWithAsk(panel: Page, ask = ASK): Promise<void> {
+  await shareButton(panel).click();
+  await panel.getByLabel(ASK_LABEL).fill(ask);
+  await panel.getByRole("button", { name: "Send" }).click();
+}
+
 export interface Shared {
   context: BrowserContext;
   panel: Page;
@@ -117,7 +129,7 @@ export interface Shared {
 
 /**
  * The owner, signed in in Chrome, opens the panel, clicks the Convoz button on the shop page (Chrome's activeTab on it), opens
- * "Checkout bug" in the panel and clicks "Share this tab". Host access to the server and to the shop is granted first, as the owner's
+ * "Checkout bug" in the panel, clicks "Share this tab" under its title and sends ASK. Host access to the server and to the shop is granted first, as the owner's
  * "Allow" would (lib/extension.ts): each grant opens and closes a chrome://extensions tab, so they all come before the shop tab.
  * The caller closes `context`.
  */
@@ -132,7 +144,7 @@ export async function shareShop(w: PageWorld): Promise<Shared> {
     const tab = await openWebPage(context, SHOP_URL, SHOP_HTML);
     await clickConvozButton(context, tab);
     await openInPanel(panel, "Checkout bug");
-    await panel.getByRole("button", { name: "Share this tab" }).click();
+    await shareWithAsk(panel);
     await expect(panel.getByRole("status")).toContainText("Shared with Checkout bug", { timeout: 10_000 });
     return { context, panel, tab };
   } catch (err) {
