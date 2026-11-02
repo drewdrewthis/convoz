@@ -319,8 +319,9 @@ export function Conversation() {
         </div>
         {/* not gated on isNew: that is the URL at mount, and the first send makes /chats/new a real conversation without a reload (issue 62) */}
         {/* in the extension's panel, the open conversation offers its own share: the panel then asks what to look at (page-share.feature) */}
+        {/* the bar lets clicks through to the log under it (.chatbar pointer-events: none): the button takes them back, as the float buttons do */}
         {conversation && !conversation.shared_tab && inPanel() ? (
-          <Button variant="text" size="inline" onClick={() => askPanelToShare(convId)}>
+          <Button variant="text" size="inline" className="pointer-events-auto" onClick={() => askPanelToShare(convId)}>
             Share this tab
           </Button>
         ) : null}
