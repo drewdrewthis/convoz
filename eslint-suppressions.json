@@ -146,11 +146,6 @@
       "count": 1
     }
   },
-  "apps/web/src/features/pins-stars/Toast.tsx": {
-    "convoz/no-raw-button": {
-      "count": 1
-    }
-  },
   "apps/web/src/features/rail/Logo.tsx": {
     "convoz/no-style-prop": {
       "count": 1
