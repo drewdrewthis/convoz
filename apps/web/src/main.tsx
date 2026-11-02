@@ -8,6 +8,7 @@ import { Root } from "./app/Root.tsx";
 import { route } from "./app/routes.tsx";
 import { call, client } from "./shared/api.ts";
 import { dropEarly } from "./shared/early.ts";
+import { tellPanel } from "./shared/frame.ts";
 import { afterFirstScreen, noFirstScreen } from "./shared/perf.ts";
 import { pullToRefresh } from "./shared/pull.ts";
 import { refreshApp, registerServiceWorker } from "./sw/index.ts";
@@ -21,6 +22,7 @@ watchErrors(); // before anything else runs, so a failure while the app starts i
 reloadOnStaleChunk(); // a tab on an old build reloads once when a deploy has replaced its chunks
 const def = route(appPath(), document.documentElement.dataset.status);
 prepare(def);
+tellPanel(null); // a page loads with no conversation open; the conversation page says its own when it draws
 if (!def.useful) noFirstScreen();
 registerServiceWorker();
 pullToRefresh(() => void refreshApp());

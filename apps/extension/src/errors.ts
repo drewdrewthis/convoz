@@ -15,10 +15,10 @@ export class ApiFailure extends Error {
 const sentence = (text: string) => (/[.!?]$/.test(text) ? text : text + ".");
 
 /**
- * describe says in plain words what went wrong, for the panel, as a sentence. `action` names what failed ("Send", "Loading").
+ * describe says in plain words what went wrong, for the panel, as a sentence. `action` names what failed ("Sharing", "Loading").
  * Anything that is not a server failure shows its own message.
  */
-export function describe(err: unknown, server: string, action = "Send"): string {
+export function describe(err: unknown, server: string, action = "Sharing"): string {
   if (!(err instanceof ApiFailure)) return sentence(err instanceof Error ? err.message : String(err));
   if (err.status === null) return `Cannot reach ${server}.`;
   if (err.status === 401) return "Signed out. Sign in to Convoz again.";

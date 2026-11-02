@@ -7,11 +7,11 @@ import (
 )
 
 func TestScopeMaskRoundTrip(t *testing.T) {
-	mask, ok := ScopeMask([]string{"read", "post", "ask", "status", "upload"})
+	mask, ok := ScopeMask([]string{"read", "post", "ask", "status", "upload", "page"})
 	if !ok || mask != DefaultScopes {
 		t.Fatalf("default scopes: %d %v", mask, ok)
 	}
-	if got := ScopeNames(mask | ScopeCreateIdentity); len(got) != 6 || got[5] != "create_identity" {
+	if got := ScopeNames(mask | ScopeCreateIdentity); len(got) != 7 || got[5] != "page" || got[6] != "create_identity" {
 		t.Fatalf("names: %v", got)
 	}
 	for _, bad := range [][]string{nil, {}, {"read", "root"}} {

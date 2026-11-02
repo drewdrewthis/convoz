@@ -103,7 +103,7 @@ jobs:
       - if: needs.changes.outputs.web == 'true'
         name: Web unit tests
         run: pnpm --filter @convoz/web test
-      # The Chrome extension: its typecheck and unit tests (least access, message body). The e2e job loads its build.
+      # The Chrome extension: its typecheck and unit tests (least access, the secrets boundary). The e2e job loads its build.
       - if: needs.changes.outputs.web == 'true'
         name: Extension typecheck and unit tests
         run: pnpm --filter @convoz/extension typecheck && pnpm --filter @convoz/extension test

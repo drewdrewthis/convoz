@@ -18,8 +18,8 @@ import { webauthn } from "./webauthn-browser.ts";
 export const MINUTE = 60_000;
 export const HOUR = 60 * MINUTE;
 
-/** The scopes an approval gives when the owner changes nothing: read, post, ask, status, upload (bitmask 31). */
-export const DEFAULT_SCOPES = ["read", "post", "ask", "status", "upload"];
+/** The scopes an approval gives when the owner changes nothing: read, post, ask, status, upload, page (bitmask 63). */
+export const DEFAULT_SCOPES = ["read", "post", "ask", "status", "upload", "page"];
 
 /** An allow-list on the wire: `identities` are handles, `globs` use `*` and `?`. */
 export interface Allow {

@@ -16,6 +16,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Composer](#composer) (31)
 - [Console on a phone](#console-on-a-phone) (29)
 - [Conversations](#conversations) (75)
+- [Convoz in a Chrome side panel](#convoz-in-a-chrome-side-panel) (1)
 - [Crew: identities, machines and sessions](#crew-identities-machines-and-sessions) (36)
 - [Data at rest, backups and deletion](#data-at-rest-backups-and-deletion) (10)
 - [Day labels](#day-labels) (4)
@@ -35,8 +36,8 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Rail](#rail) (25)
 - [Search](#search) (12)
 - [Security walls](#security-walls) (12)
-- [Send a web page to an agent from the browser](#send-a-web-page-to-an-agent-from-the-browser) (3)
 - [Settings](#settings) (9)
+- [Share a browser tab with the agents of a conversation](#share-a-browser-tab-with-the-agents-of-a-conversation) (8)
 - [The convoz CLI and MCP server for agents](#the-convoz-cli-and-mcp-server-for-agents) (57)
 - [The owner's dev copy of the screens](#the-owners-dev-copy-of-the-screens) (2)
 - [The server hands out its own CLI](#the-server-hands-out-its-own-cli) (8)
@@ -452,6 +453,14 @@ Each piece of work has one place and only the agents that belong there.
   - [A conversation link in the sidebar switches the conversation in place](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L620)
   - [A deep link opens its conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L632)
   - [On a phone the Conversations list keeps each row on one line and the last row clear of New conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/conversations.feature#L638)
+
+## Convoz in a Chrome side panel
+
+I chat with my agents next to the page I am on.
+1 scenarios.
+
+- **The panel says plainly what is wrong**
+  - [The panel of a signed-out browser offers sign in](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/browser-extension.feature#L16)
 
 ## Crew: identities, machines and sessions
 
@@ -981,17 +990,6 @@ I can let many agents in without fear.
   - [An app cannot send without the owner's tap](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/security.feature#L117)
   - [A message sent through an app is attributed](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/security.feature#L124)
 
-## Send a web page to an agent from the browser
-
-I loop an agent in with one click, without copying links.
-3 scenarios.
-
-- **The panel sends the page to a new conversation with one agent**
-  - [Send the page to a new conversation with an agent](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/browser-extension.feature#L16)
-- **The panel says plainly what is wrong**
-  - [The panel of a signed-out browser offers sign in](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/browser-extension.feature#L43)
-  - [A server that does not allow the extension refuses the send](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/browser-extension.feature#L50)
-
 ## Settings
 
 The app looks and behaves the way I want on each device.
@@ -1010,6 +1008,23 @@ The app looks and behaves the way I want on each device.
 - **Privacy and security are in one place**
   - [Privacy and security lists what the owner controls](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/settings.feature#L73)
   - [Signing out all other devices needs a passkey](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/settings.feature#L79)
+
+## Share a browser tab with the agents of a conversation
+
+An agent sees the page I am on without me copying it, and never my secrets.
+8 scenarios.
+
+- **The panel is Convoz next to the page, and shares one tab with the open conversation**
+  - [The panel shows the signed-in chat and shares the tab with the open conversation and the owner's question](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/page-share.feature#L22)
+- **An agent of the conversation reads the shared tab, and never its secrets**
+  - [An agent reads the shared tab without its secrets](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/page-share.feature#L41)
+  - [An agent takes a screenshot of the shared tab](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/page-share.feature#L55)
+  - [An agent outside the conversation cannot read the shared tab](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/page-share.feature#L62)
+- **The share lives while the owner looks at other tabs, ends on Stop, when the tab closes or leaves its site, or when the panel closes, and the conversation says why**
+  - [Switching to another tab keeps the share, and a screenshot asks to bring the tab forward](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/page-share.feature#L71)
+  - [The shared tab going to another site ends the share](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/page-share.feature#L80)
+  - [Stop ends the share](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/page-share.feature#L90)
+  - [Closing the panel ends the share](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/page-share.feature#L98)
 
 ## The convoz CLI and MCP server for agents
 

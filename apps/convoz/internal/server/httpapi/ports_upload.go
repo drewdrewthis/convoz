@@ -153,8 +153,8 @@ func transcribing(list []attachment) bool {
 func attachUploads(ctx context.Context, d pdb.DBTX, msgs []*wire.Message) error {
 	var ids []int64
 	for _, m := range msgs {
-		if m.ID != 0 && !m.Deleted && m.Kind != "system" {
-			ids = append(ids, m.ID)
+		if m.ID != 0 && !m.Deleted {
+			ids = append(ids, m.ID) // a system line too: the screenshot of a page.shot line is its image
 		}
 	}
 	by, err := attachmentsOf(ctx, d, ids)
@@ -168,6 +168,9 @@ func attachUploads(ctx context.Context, d pdb.DBTX, msgs []*wire.Message) error 
 		}
 		for _, a := range list {
 			m.Uploads = append(m.Uploads, a.wire())
+		}
+		if m.Kind == "system" {
+			continue // its words are the line's own, whatever it carries
 		}
 		ups, words := projection(list)
 		m.Text = message.Project(message.Projectable{Format: m.Format, Body: m.Body, Uploads: ups, Transcript: words}, message.Long)

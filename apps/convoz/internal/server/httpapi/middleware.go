@@ -23,6 +23,7 @@ var credentialInURL = regexp.MustCompile(`cvz_[a-z]_`)
 func (s *Server) chain(next http.Handler) http.Handler {
 	h := rejectForeignCredential(next)
 	h = s.csrf(h)
+	h = s.pagesOff(h)
 	h = s.stripUntrusted(h)
 	h = rejectCredentialInURL(h)
 	h = s.rejectFunnel(h)
@@ -118,6 +119,19 @@ func (s *Server) stripUntrusted(next http.Handler) http.Handler {
 	})
 }
 
+// pagesOff answers 404 for every page route while the owner names no extension, before the CSRF wall would answer a write from the
+// extension's Origin with 403: page sharing then does not exist here at all. The handlers check again for the agent listener,
+// which has no CSRF wall.
+func (s *Server) pagesOff(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.Cfg.ExtensionOrigin == "" && strings.HasPrefix(r.URL.Path, "/api/page/") {
+			writeErr(w, http.StatusNotFound, "not_found", "No such route.")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // csrf guards every write under /api: the exact Origin (the app's own, or the one owner-set extension origin; a missing one is refused), the Convoz header and a
 // JSON body type. A request with an Authorization header is not cookie-borne and is judged by its credential.
 // The routes marked NoCSRF (the device flow: a CLI with no cookie and no credential) are the only other exception.
@@ -146,16 +160,20 @@ func (s *Server) originOK(r *http.Request) bool {
 	return s.Cfg.ExtensionOrigin != "" && origin == s.Cfg.ExtensionOrigin && extensionMayWrite(r.Method, r.URL.Path)
 }
 
-// extensionMayWrite is true for the three things the extension does: create a conversation, post a message, upload a file (start, then chunks).
+// extensionMayWrite is true for the three writes of the panel's page share: share a tab, end the share, answer a request. The chat
+// in the panel is the web app in a frame, which writes with the app's own Origin.
 func extensionMayWrite(method, path string) bool {
-	seg := strings.Split(strings.Trim(path, "/"), "/") // "api", ...
+	seg := strings.Split(strings.Trim(path, "/"), "/") // "api", "page", ...
+	if len(seg) < 3 || seg[1] != "page" {
+		return false
+	}
 	switch {
-	case method == http.MethodPost && len(seg) == 2:
-		return seg[1] == "conversations" || seg[1] == "uploads"
-	case method == http.MethodPost && len(seg) == 4:
-		return seg[1] == "conversations" && seg[2] != "" && seg[3] == "messages"
-	case method == http.MethodPatch && len(seg) == 3:
-		return seg[1] == "uploads" && seg[2] != ""
+	case method == http.MethodPost && len(seg) == 3:
+		return seg[2] == "shares"
+	case method == http.MethodDelete && len(seg) == 4:
+		return seg[2] == "shares" && seg[3] != ""
+	case method == http.MethodPost && len(seg) == 5:
+		return seg[2] == "requests" && seg[3] != "" && seg[4] == "result"
 	}
 	return false
 }

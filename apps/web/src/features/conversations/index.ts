@@ -49,6 +49,11 @@ const reloadRow = debouncePer((id: number) => data.loadConversation(id).then(() 
 const refreshAsks = debouncePer((id: number) => sync.refreshAsks(id), BURST_MS);
 registerResync(() => void useConversations.getState().drainOutbox());
 
+registerHandler("conversation.changed", (frame) => {
+  // The row changed without a line (a tab share started, an agent marked it stale): the open conversation's header follows.
+  if (frame.name === "conversation.changed" && data.store.getState().rows[frame.data.conversation_id]) reloadRow(frame.data.conversation_id);
+});
+
 registerHandler("pin.", (frame) => {
   // Another device of the owner pinned or unpinned: the row that holds the pins is read again.
   if (frame.name === "pin.changed" && data.store.getState().rows[frame.data.conversation_id]) void data.loadConversation(frame.data.conversation_id).catch(() => {});

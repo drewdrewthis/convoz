@@ -71,8 +71,9 @@ Conversation:
     back_at: { type: integer, format: int64, description: "When the owner last brought it back from Older (`reopen`). The rail's 48 hour quiet clock starts at the later of this and last_activity_at. Absent when never, or when it was marked stale since." }
     deleted_at: { type: integer, format: int64, description: In the trash since. }
     purges_at: { type: integer, format: int64, description: When the trash removes it for good. }
+    shared_tab: { $ref: "../openapi.yaml#/components/schemas/SharedTab", description: "The owner shares a browser tab with it now (page-share.feature). Absent when not." }
 ConversationChangedFrame:
-  description: SSE conversation.changed (people who can see the conversation); its row changed, for one an agent marked it stale. Read the list again.
+  description: SSE conversation.changed (people who can see the conversation); its row changed without a line, as when an agent marked it stale or the owner started sharing a tab with it. Read the list and the row again.
   type: object
   required: [conversation_id]
   properties:

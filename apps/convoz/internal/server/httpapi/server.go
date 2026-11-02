@@ -12,6 +12,7 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/auth"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/console"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/notify"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/ops"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform"
@@ -29,7 +30,8 @@ type Config struct {
 	Unix       bool   // the public listener is the unix socket behind `tailscale serve`
 	Version    string
 
-	// ExtensionOrigin is the one extra exact Origin (a Chrome extension) allowed to write; empty means none.
+	// ExtensionOrigin is the one extra exact Origin (a Chrome extension) allowed to write, frame the pages and share a tab
+	// (page-share.feature); empty means none, and then the page routes are not there.
 	ExtensionOrigin string
 
 	// TailscaleBin is the tailscale command; TailscaleOn says whether to ask it who a source address is.
@@ -97,6 +99,8 @@ type Server struct {
 	stale                                                                              staleMemo            // the updated_at of each started feed item its agent was reminded for (item_stale.go)
 	runners                                                                            runnerSet            // which session runs `convoz run` for an agent (handlers_runner.go)
 	voice                                                                              voiceState           // the voice call's key, token minter and hourly budget (voice.go)
+	pages                                                                              pageRelay            // the shared tabs and the agents' requests for them (page_relay.go); the zero value is ready
+	pageWait                                                                           time.Duration        // how long an agent's page request waits for the extension; pageWaitMax unless a test shortens it
 	Telemetry                                                                          *telemetry.Telemetry // numbers-only metrics and traces; nil is off
 }
 
@@ -114,6 +118,7 @@ func NewServer(store *db.Store, clock platform.Clock, wa *webauthn.WebAuthn, key
 			exempt[r.Method+" "+r.Pattern] = true
 		}
 	}
+	console.SetExtensionOrigin(cfg.ExtensionOrigin)
 	if len(cfg.BlobKey) == 32 && cfg.DataDir != "" {
 		if blobs, err := upload.NewBlobs(cfg.DataDir, cfg.BlobKey); err != nil {
 			logger.Printf("uploads are off: %v", err)
@@ -140,6 +145,7 @@ func NewServer(store *db.Store, clock platform.Clock, wa *webauthn.WebAuthn, key
 		dayIdentityLimit:   auth.Limiter{Window: 24 * time.Hour, Max: dayMessagesIdentity},
 		dayMachineLimit:    auth.Limiter{Window: 24 * time.Hour, Max: dayMessagesMachine},
 		voice:              voiceState{limit: auth.Limiter{Window: time.Hour, Max: voiceTokensPerHour}},
+		pageWait:           pageWaitMax,
 	}
 }
 

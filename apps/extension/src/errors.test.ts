@@ -8,12 +8,12 @@ test("each failure reads in plain words, as a sentence", () => {
   assert.equal(describe(new ApiFailure(null), server), "Cannot reach https://convoz.example.ts.net.");
   assert.equal(describe(new ApiFailure(401, "unauthenticated", "Sign in."), server), "Signed out. Sign in to Convoz again.");
   assert.equal(describe(new ApiFailure(403, "csrf", "This request did not come from the Convoz app."), server), "Not allowed (403): set CONVOZ_EXTENSION_ORIGIN on the server.");
-  assert.equal(describe(new ApiFailure(400, "invalid_request", "A title has 1 to 120 characters."), server), "Send failed: A title has 1 to 120 characters.");
-  assert.equal(describe(new ApiFailure(500), server), "Send failed: HTTP 500.");
+  assert.equal(describe(new ApiFailure(400, "invalid_request", "A title has 1 to 120 characters."), server), "Sharing failed: A title has 1 to 120 characters.");
+  assert.equal(describe(new ApiFailure(500), server), "Sharing failed: HTTP 500.");
 });
 
 test("a 403 that is not the CSRF check says the server's own reason", () => {
-  assert.equal(describe(new ApiFailure(403, "forbidden", "That agent is disabled."), server), "Send failed: That agent is disabled.");
+  assert.equal(describe(new ApiFailure(403, "forbidden", "That agent is disabled."), server), "Sharing failed: That agent is disabled.");
 });
 
 test("a load failure and a panel error keep their own words", () => {
