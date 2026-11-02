@@ -9,7 +9,7 @@ type System struct {
 	Via      string  `json:"via,omitempty"`
 	History  string  `json:"history,omitempty"`
 	Streak   int     `json:"streak,omitempty"`
-	Title    string  `json:"title,omitempty"` // conversation.renamed: the title the line quotes
+	Title    string  `json:"title,omitempty"` // conversation.renamed: the title the line quotes; page.read: the page's title
 	// From and To are the handles of a member.renamed line (I-51).
 	From string `json:"from,omitempty"`
 	To   string `json:"to,omitempty"`
@@ -19,7 +19,8 @@ type System struct {
 	Next     string `json:"next,omitempty"`
 	Waiting  string `json:"waiting,omitempty"`
 	Liveness string `json:"liveness,omitempty"`
-	Host     string `json:"host,omitempty"` // page.shared: the host of the shared tab
+	Host     string `json:"host,omitempty"`  // page.shared: the host of the shared tab
+	Words    int    `json:"words,omitempty"` // page.read: the number of words of the page's text
 }
 
 // EditRequest is PATCH /api/messages/:id. Only the text changes; any other field is refused (I-8).

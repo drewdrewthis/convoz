@@ -20,18 +20,26 @@ const (
 	PageOpShot = "shot"
 )
 
-// CodeNoSharedTab is the 409 of a request for a conversation with no live share, or one whose tab is gone, not in front or on
-// another site.
+// CodeNoSharedTab is the 409 of a request for a conversation with no live share, or one whose tab is gone or on another site.
 const CodeNoSharedTab = "no_shared_tab"
 
-// PageShareRequest is POST /api/page/shares: the tab's origin (scheme://host[:port]) and the conversation it is shared with.
+// CodeTabNotInFront is the 409 of a screenshot of a shared tab the owner has behind another tab: only the tab in front can be
+// captured. The share lives on, and a read still works.
+const CodeTabNotInFront = "tab_not_in_front"
+
+// PageShareRequest is POST /api/page/shares: the tab's origin (scheme://host[:port]) and the conversation it is shared with. The
+// share posts the owner's message Ask in the conversation (share and ask in one step), with the tab's title and its address as the
+// extension masks it (TabURL, on TabOrigin), so every agent of the conversation gets it in its inbox.
 type PageShareRequest struct {
 	ConversationID int64  `json:"conversation_id"`
 	TabOrigin      string `json:"tab_origin"`
+	Ask            string `json:"ask,omitempty"`
+	TabTitle       string `json:"tab_title,omitempty"`
+	TabURL         string `json:"tab_url,omitempty"`
 }
 
-// Why the extension ends a share (DELETE /api/page/shares/:id): the owner's Stop, the tab closed, went behind another tab or left
-// its site, or the panel closed. The conversation's line says which.
+// Why the extension ends a share (DELETE /api/page/shares/:id): the owner's Stop, the tab closed or left its site, or the panel
+// closed. The conversation's line says which.
 const (
 	PageEndStopped = "stopped"
 	PageEndLeft    = "left"

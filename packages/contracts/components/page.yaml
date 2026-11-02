@@ -6,6 +6,9 @@ PageShareRequest:
   properties:
     conversation_id: { type: integer, format: int64 }
     tab_origin: { type: string, description: "The tab's origin, like https://example.com." }
+    ask: { type: string, description: "The owner's words to the agents: what to look at. Empty is \"Look at this tab.\"" }
+    tab_title: { type: string, description: "The tab's title; the message quotes at most 120 characters of it, in code." }
+    tab_url: { type: string, description: "The tab's address on tab_origin, as the extension masks it (query values and the fragment as *)." }
 PageEndRequest:
   type: object
   additionalProperties: false
@@ -13,7 +16,7 @@ PageEndRequest:
     reason:
       type: string
       enum: [stopped, left, closed]
-      description: "stopped: the owner's Stop (also no body); left: the tab closed, went behind another tab or left its site; closed: the panel closed."
+      description: "stopped: the owner's Stop (also no body); left: the tab closed or left its site; closed: the panel closed."
 SharedTab:
   type: object
   required: [host]

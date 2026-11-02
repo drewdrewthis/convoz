@@ -1,3 +1,4 @@
+import { Button } from "@convoz/ui/Button";
 import { IconButton } from "@convoz/ui/IconButton";
 import { mentionsOf } from "@convoz/markdown";
 import type { Identity, Message, Upload } from "@convoz/api-client";
@@ -6,7 +7,7 @@ import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { ApiError } from "../../shared/api.ts";
 import { initials, newId, paletteOf, setRegistry, stripCf } from "../../shared/chat.ts";
 import { data, offlineReady, useData, useLive } from "../../shared/data.ts";
-import { tellPanel } from "../../shared/frame.ts";
+import { askPanelToShare, inPanel, tellPanel } from "../../shared/frame.ts";
 import { navigatedInApp } from "../../shared/navigate.ts";
 import { CallBar, CallButton } from "../call/index.ts";
 import { Composer, useAttachments, useFileDrop } from "../composer/index.ts";
@@ -317,6 +318,12 @@ export function Conversation() {
           {conversation?.shared_tab ? <p className="subtitle">{`● Tab shared · ${conversation.shared_tab.host}`}</p> : null}
         </div>
         {/* not gated on isNew: that is the URL at mount, and the first send makes /chats/new a real conversation without a reload (issue 62) */}
+        {/* in the extension's panel, the open conversation offers its own share: the panel then asks what to look at (page-share.feature) */}
+        {conversation && !conversation.shared_tab && inPanel() ? (
+          <Button variant="text" size="inline" onClick={() => askPanelToShare(convId)}>
+            Share this tab
+          </Button>
+        ) : null}
         {conversation ? <CallButton conversationId={convId} /> : null}
         {conversation ? <StarButton id={convId} starred={conversation.starred} /> : null}
         {conversation ? (

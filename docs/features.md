@@ -37,7 +37,7 @@ Each scenario links to its spec line. Scenarios tagged `@later` are not listed.
 - [Search](#search) (12)
 - [Security walls](#security-walls) (12)
 - [Settings](#settings) (9)
-- [Share a browser tab with the agents of a conversation](#share-a-browser-tab-with-the-agents-of-a-conversation) (7)
+- [Share a browser tab with the agents of a conversation](#share-a-browser-tab-with-the-agents-of-a-conversation) (8)
 - [The convoz CLI and MCP server for agents](#the-convoz-cli-and-mcp-server-for-agents) (57)
 - [The owner's dev copy of the screens](#the-owners-dev-copy-of-the-screens) (2)
 - [The server hands out its own CLI](#the-server-hands-out-its-own-cli) (8)
@@ -1012,18 +1012,19 @@ The app looks and behaves the way I want on each device.
 ## Share a browser tab with the agents of a conversation
 
 An agent sees the page I am on without me copying it, and never my secrets.
-7 scenarios.
+8 scenarios.
 
 - **The panel is Convoz next to the page, and shares one tab with the open conversation**
-  - [The panel shows the signed-in chat and shares the tab with the open conversation](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/page-share.feature#L20)
+  - [The panel shows the signed-in chat and shares the tab with the open conversation and the owner's question](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/page-share.feature#L22)
 - **An agent of the conversation reads the shared tab, and never its secrets**
-  - [An agent reads the shared tab without its secrets](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/page-share.feature#L34)
-  - [An agent takes a screenshot of the shared tab](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/page-share.feature#L47)
-  - [An agent outside the conversation cannot read the shared tab](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/page-share.feature#L54)
-- **The share ends the moment the owner leaves the tab, stops it or closes the panel, and the conversation says why**
-  - [Switching to another tab ends the share](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/page-share.feature#L63)
-  - [Stop ends the share](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/page-share.feature#L73)
-  - [Closing the panel ends the share](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/page-share.feature#L81)
+  - [An agent reads the shared tab without its secrets](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/page-share.feature#L41)
+  - [An agent takes a screenshot of the shared tab](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/page-share.feature#L55)
+  - [An agent outside the conversation cannot read the shared tab](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/page-share.feature#L62)
+- **The share lives while the owner looks at other tabs, ends on Stop, when the tab closes or leaves its site, or when the panel closes, and the conversation says why**
+  - [Switching to another tab keeps the share, and a screenshot asks to bring the tab forward](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/page-share.feature#L71)
+  - [The shared tab going to another site ends the share](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/page-share.feature#L80)
+  - [Stop ends the share](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/page-share.feature#L90)
+  - [Closing the panel ends the share](https://github.com/drewdrewthis/convoz/blob/feat/web-react/specs/features/page-share.feature#L98)
 
 ## The convoz CLI and MCP server for agents
 

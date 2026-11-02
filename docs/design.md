@@ -1819,28 +1819,36 @@ fine". Off unless the owner names the extension (`--extension-origin`, `CONVOZ_E
 404 and the app may not be framed (`frame-ancestors 'none'`). With it, the app's `frame-ancestors` names that one extension, and its
 side panel shows the web app in a frame with the browser's own sign-in.
 
-- **Share.** The owner opens a conversation in the panel and clicks "Share this tab" (off, with the tooltip "Open a conversation to
-  share this tab.", until one is open): Chrome asks for that tab's origin only, and `POST /api/page/shares` binds the share to that
-  conversation, tab and origin. One live share per conversation; a new one replaces the old. Shares live in memory: a restart ends
-  them all.
-- **Lifecycle.** While a share lives, the owner sees it in four places: the line "@drew shared a tab (shop.test)" (`page.shared`, the
-  tab's host and never its path or query), "● Tab shared · shop.test" under the conversation's title (the conversation's
-  `shared_tab: {host}`, so the desktop app shows it too), the panel's status with the warning "A screenshot shows what is on screen,
-  including text the read hides.", and the badge "ON" on the Convoz button of the shared tab. It ends, with one line each:
-  Stop ("@drew stopped sharing the tab", `page.stopped`); the tab closing, another tab coming in front in its window, or the tab
-  going to another site ("Tab sharing ended: the shared tab was closed or left", `page.left`): the panel checks the tab on each
-  `tabs.onActivated`, `onRemoved` and `onUpdated`, so no agent has to ask first; the panel closing ("Tab sharing ended: the panel
-  was closed", `page.closed`: the worker holds a port to the panel and sends the DELETE); and 45 s without a poll ("Tab sharing
-  ended: the browser stopped answering", `page.timeout`, written by the next request or poll that finds it). The panel's DELETE
-  carries `{reason: stopped|left|closed}`. A request that still finds the tab gone or behind another is answered "no shared tab" and
-  ends the share too.
+- **Share.** The panel opens on the conversation the owner used last (`lastConversation` in the extension's storage), else the list.
+  The open conversation shows "Share this tab" under its title (only inside the panel: the web app posts `convoz:share` to it). The
+  panel asks "What should they look at?" about the tab in front; Send asks Chrome for that tab's origin only, and
+  `POST /api/page/shares {conversation_id, tab_origin, ask, tab_title, tab_url}` binds the share to that conversation, tab and origin
+  and posts the owner's words as a normal message: the ask (or "Look at this tab."), the tab's title and masked address in code (so
+  they mention no one), and `convoz page read|shot --conv N`. A normal message reaches every agent's inbox, which a system line
+  never does (UX review 2 of PR 102: share and ask are one step). One live share per conversation; a new one replaces the old.
+  Shares live in memory: a restart ends them all.
+- **Lifecycle.** While a share lives, the owner sees it in four places: the share's message, "● Tab shared · shop.test" under the
+  conversation's title (the conversation's `shared_tab: {host}`, so the desktop app shows it too), the panel's status with the
+  warning "A screenshot shows what is on screen, including text the read hides.", and the badge "ON" on the Convoz button of the
+  shared tab. The owner may look at other tabs meanwhile: a read works on a tab behind another, and a screenshot of it is
+  409 `tab_not_in_front` ("The shared tab is not in front. Ask @drew to bring it forward."), since Chrome captures the tab in front
+  only. It ends, with one line each and the exact reason in the panel: Stop ("@drew stopped sharing the tab", `page.stopped`); the
+  tab closing or going to another site ("Tab sharing ended: the shared tab was closed or left its site", `page.left`): the panel
+  checks the tab on each `tabs.onRemoved` and `onUpdated`, so no agent has to ask first; the panel closing ("Tab sharing ended: the
+  panel was closed", `page.closed`: the worker holds a port to the panel and sends the DELETE); and 45 s without a poll ("Tab
+  sharing ended: the browser stopped answering", `page.timeout`, written by the next request or poll that finds it). The panel's
+  DELETE carries `{reason: stopped|left|closed}`. A request that still finds the tab gone or on another site is answered "no shared
+  tab" and ends the share too.
 - **Relay.** An agent of the conversation (lease scope `page`) sends `POST /api/page/requests {conversation_id, op: read|shot}`; the
   panel's long poll (`GET /api/page/shares/:id/next`) takes it and answers `POST /api/page/requests/:id/result`. One request at a
   time per share, one shot in 2 s, a 25 s wait (504), a read of at most 256 KB and a PNG of at most 5 MB (413). The panel's calls
   must come from the extension: its Origin, or for a GET (where Chrome sends no Origin) `Sec-Fetch-Site: none` with
   `Sec-Fetch-Mode: cors`, which no page can send.
-- **Audit.** Each read and shot writes a system line (`page.read`, `page.shot`: "@scout read the shared page"); a shot's PNG is an
-  image upload of the agent on that line. The page's words never become a message, so a page cannot mention or add anyone.
+- **Audit.** Each read and shot writes a system line (`page.read`, `page.shot`: "@scout read the shared page") with what the agent
+  got as an upload of the agent on that line, when the server keeps files: the PNG, or the read as `page-read.json`. A `page.read`
+  line also quotes the page's title (120 characters at most) and counts its words, so the web app shows "Read: Checkout, 3 words"
+  and, on a tap, the read as the agent got it. The page's text never becomes a message; only its title and masked address are
+  quoted, in code, so a page cannot mention or add anyone.
 - **The secrets boundary** is one module, `apps/extension/src/page.ts`, with unit tests. One fixed function runs in the tab
   (isolated world, top frame only); nothing an agent sends becomes code, and there is no verb for eval, navigate, cookies or network.
   In: the title, the address with query values and fragment as `*` (no user name or password), the body's rendered text (200 KB),

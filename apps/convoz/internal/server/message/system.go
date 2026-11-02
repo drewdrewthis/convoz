@@ -38,6 +38,9 @@ type SystemLine struct {
 	// page.shared: the host of the shared tab (shop.test, localhost:8080), never its path or query: the line must not leak what the
 	// address holds.
 	Host string
+	// page.read: the page's title is Title (optional, quotable like a conversation title) and Words the number of words of its text,
+	// so the owner sees what the agent read without opening it.
+	Words int
 }
 
 // handleRE is a handle as the identities table allows it.
@@ -53,8 +56,8 @@ var (
 	byOnly = []string{"conversation.renamed", "conversation.resumed", "conversation.restored"}
 	// page.read and page.shot: the subject read or took a screenshot of the tab the owner shares (page-share.feature). The line
 	// names the act only: the page's words never become a message.
-	subjectOnly = []string{"member.left", "member.disabled", "page.read", "page.shot", "page.stopped"}
-	// The shared tab's share ended on its own: the tab was closed or left (page.left), the panel was closed (page.closed), the
+	subjectOnly = []string{"member.left", "member.disabled", "page.shot", "page.stopped"}
+	// The shared tab's share ended on its own: the tab was closed or left its site (page.left), the panel was closed (page.closed), the
 	// browser stopped polling (page.timeout). No one did it, so the line names no one.
 	pageEnded = []string{"page.left", "page.closed", "page.timeout"}
 	subjectBy = []string{"member.requested", "member.removed", "member.approved", "member.declined"}
@@ -95,6 +98,10 @@ func (l SystemLine) Valid() error {
 		}
 	case l.T == "agent.unresponsive":
 		if l.Identity <= 0 || l.Liveness != "not_responding" && l.Liveness != "logged_out" {
+			return bad()
+		}
+	case l.T == "page.read":
+		if l.Identity <= 0 || l.Words < 0 || l.Title != "" && !quotableTitle(l.Title) {
 			return bad()
 		}
 	case l.T == "page.shared":
@@ -145,7 +152,8 @@ func (l SystemLine) JSON() (string, error) {
 		Waiting  string `json:"waiting,omitempty"`
 		Liveness string `json:"liveness,omitempty"`
 		Host     string `json:"host,omitempty"`
-	}{1, l.T, l.Identity, l.By, l.Via, l.History, l.Streak, l.Title, l.From, l.To, l.Done, l.Now, l.Next, l.Waiting, l.Liveness, l.Host}
+		Words    int    `json:"words,omitempty"`
+	}{1, l.T, l.Identity, l.By, l.Via, l.History, l.Streak, l.Title, l.From, l.To, l.Done, l.Now, l.Next, l.Waiting, l.Liveness, l.Host, l.Words}
 	raw, err := json.Marshal(doc)
 	return string(raw), err
 }
@@ -168,12 +176,13 @@ func ParseSystem(raw string) (SystemLine, bool) {
 		Waiting  string `json:"waiting"`
 		Liveness string `json:"liveness"`
 		Host     string `json:"host"`
+		Words    int    `json:"words"`
 	}
 	if json.Unmarshal([]byte(raw), &doc) != nil || doc.T == "" {
 		return SystemLine{}, false
 	}
 	return SystemLine{T: doc.T, Identity: doc.Identity, By: doc.By, Via: doc.Via, History: doc.History, Streak: doc.Streak, Title: doc.Title, From: doc.From, To: doc.To,
-		Done: doc.Done, Now: doc.Now, Next: doc.Next, Waiting: doc.Waiting, Liveness: doc.Liveness, Host: doc.Host}, true
+		Done: doc.Done, Now: doc.Now, Next: doc.Next, Waiting: doc.Waiting, Liveness: doc.Liveness, Host: doc.Host, Words: doc.Words}, true
 }
 
 // WriteSystem writes a system line in the transaction of the action that caused it (M-4). It is not a post: it moves no

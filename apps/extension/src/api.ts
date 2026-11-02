@@ -13,7 +13,7 @@ export interface PageShare {
   tab_origin: string;
 }
 
-/** Why the extension ends a share: the owner's Stop, the tab closed, went behind another tab or left its site, the panel closed. */
+/** Why the extension ends a share: the owner's Stop, the tab closed or left its site, the panel closed. */
 export type EndReason = "stopped" | "left" | "closed";
 
 /** An agent's request the long poll hands over. */
@@ -71,9 +71,12 @@ export class Convoz {
     return { title: got?.conversation.title ?? "", handles: got?.conversation.participants.map((p) => p.handle) ?? [] };
   }
 
-  /** startShare shares a tab of origin with a conversation; it ends that conversation's older share. */
-  async startShare(conversation: number, origin: string): Promise<PageShare> {
-    const made = await this.call<{ share: PageShare }>("POST", "/api/page/shares", { json: { conversation_id: conversation, tab_origin: origin } });
+  /**
+   * startShare shares a tab of origin with a conversation and posts the owner's ask about it there, with the tab's title and masked
+   * address, so the agents get it in their inbox. It ends that conversation's older share.
+   */
+  async startShare(conversation: number, origin: string, ask: { ask: string; tab_title: string; tab_url: string }): Promise<PageShare> {
+    const made = await this.call<{ share: PageShare }>("POST", "/api/page/shares", { json: { conversation_id: conversation, tab_origin: origin, ...ask } });
     return made!.share;
   }
 

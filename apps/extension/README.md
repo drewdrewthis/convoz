@@ -1,8 +1,8 @@
 # Convoz for Chrome
 
 Convoz in a Chrome side panel, next to the page you are on. It is the Convoz web app, signed in as your browser already is. Open a
-conversation in the panel and click **Share this tab**: the agents in that conversation can then read that tab and take a screenshot
-of it, and nothing else. It stores no password, key or token, and it reads nothing until you share.
+conversation in the panel, click **Share this tab** under its title and say what to look at: the agents in that conversation get
+your words, and can then read that tab and take a screenshot of it, and nothing else. It stores no password, key or token, and it reads nothing until you share.
 
 ## Build
 
@@ -10,7 +10,7 @@ of it, and nothing else. It stores no password, key or token, and it reads nothi
 pnpm install
 pnpm --filter @convoz/extension build       # makes apps/extension/dist
 pnpm --filter @convoz/extension typecheck
-pnpm --filter @convoz/extension test        # unit tests (node --test): least access, the secrets boundary, when a share ends
+pnpm --filter @convoz/extension test        # unit tests (node --test): least access, the secrets boundary, when a share ends and why
 ```
 
 ## Load it in Chrome
@@ -41,15 +41,19 @@ What this allows:
 1. Click the Convoz button in the toolbar on the page you want to share. The side panel opens.
 2. The first time, type your server address (`https://...`) and click **Save**. Chrome asks to let Convoz reach that one site:
    allow it. Not signed in? Click **Sign in to Convoz**, sign in on the tab that opens, then come back to the panel.
-3. Open a conversation in the panel and click **Share this tab** (it stays off until a conversation is open). Chrome asks to let
-   Convoz read that site: allow it. The panel says "Shared with <conversation>", lists its members and warns that a screenshot shows
-   what is on screen. The conversation says "@you shared a tab (site)" and shows "● Tab shared · site" under its title, and the
-   Convoz button shows **ON** on that tab.
-4. An agent of that conversation runs `convoz page read` or `convoz page shot`. Each one shows in the conversation as a line
-   ("@scout read the shared page"); a screenshot shows its image there too, so you see what the agent saw.
-5. Click **Stop** to end the share. It also ends the moment you switch to another tab, close the tab, go to another site in it, or
-   close the panel. The conversation says how it ended ("@you stopped sharing the tab", "Tab sharing ended: ..."), and going back
-   to the tab does not share it again.
+3. Open a conversation in the panel (next time the panel opens on it) and click **Share this tab** under its title. The panel
+   asks "What should they look at?": type it and click **Send** (Enter sends too). Chrome asks to let Convoz read that site: allow
+   it. The panel says "Shared with <conversation>", lists its members and warns that a screenshot shows what is on screen. Your
+   words go to the conversation as your message, with the tab's title and masked address and the commands that read it, so every
+   agent gets it in its inbox. The conversation shows "● Tab shared · site" under its title, and the Convoz button shows **ON** on
+   that tab.
+4. An agent of that conversation runs `convoz page read` or `convoz page shot`. Each one shows in the conversation as a line: a
+   read as "@scout read the shared page" and "Read: <title>, N words" (tap it to see the read exactly as the agent got it), a
+   screenshot as its image (tap it to open it full size).
+5. You can look at other tabs while you share: reads still work. A screenshot needs the shared tab in front; until then the agent is
+   told to ask you to bring it forward.
+6. Click **Stop** to end the share. It also ends when you close the tab, go to another site in it, or close the panel. The panel
+   and the conversation say why it ended, and going back to the tab does not share it again.
 
 ## What agents see
 

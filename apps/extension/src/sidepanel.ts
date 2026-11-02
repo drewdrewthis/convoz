@@ -1,10 +1,10 @@
 // The side panel: Convoz itself (the web app in a frame, with the browser's own sign-in) and a bar that shares the tab the owner is
-// on with the conversation open in the frame (page-share.feature). It sets the server once and reads nothing until the owner shares.
+// on with the conversation open in the frame, with the owner's words about it (page-share.feature). It sets the server once and reads nothing until the owner shares.
 import { Convoz } from "./api.ts";
 import { ApiFailure, describe } from "./errors.ts";
-import { serverOrigin } from "./server.ts";
-import type { EndReason } from "./api.ts";
-import { runShare, stillShared, webOrigin, type Ended, type SharedTab } from "./share.ts";
+import { maskUrl } from "./page.ts";
+import { chatsUrl, serverOrigin } from "./server.ts";
+import { checkShared, endedText, runShare, webOrigin, type Ended, type SharedTab } from "./share.ts";
 
 const app = document.getElementById("app")!;
 const bar = document.getElementById("controls")!;
@@ -89,7 +89,7 @@ async function load(server: string): Promise<void> {
     );
     return;
   }
-  chat(api);
+  await chat(api);
 }
 
 function signedOut(api: Convoz): void {
@@ -109,88 +109,119 @@ function signedOut(api: Convoz): void {
 
 // the read hides field values; a screenshot cannot, so the owner hears it once per share, next to the status
 const SHOT_WARNING = "A screenshot shows what is on screen, including text the read hides.";
-const OPEN_A_CONVERSATION = "Open a conversation to share this tab.";
+const OPEN_A_CONVERSATION = "Open a conversation, then click Share this tab under its title.";
+const GO_TO_THE_TAB = "Go to the tab you want to share, then click Share.";
 /** The badge on the Convoz button of the shared tab while the share lives. */
 const BADGE = "ON";
 const badge = (tabId: number, text: string) => void chrome.action.setBadgeText({ tabId, text }).catch(() => {});
 
-const ENDED: Record<Ended, string> = {
-  stopped: "Sharing stopped.",
-  left: "Sharing ended: the tab was closed, left its site or is not in front.",
-  gone: "Sharing ended.",
-};
+type Open = { id: number; title: string };
 
-/** chat shows the web app and the share bar. The frame says which conversation is open; only that one can be shared with. */
-function chat(api: Convoz): void {
-  const frame = h("iframe", { title: "Convoz", src: `${api.server}/chats` });
+/**
+ * chat shows the web app, opened on the conversation the owner used last, and the share bar. "Share this tab" is in the open
+ * conversation's header (the web app asks the panel with convoz:share); the bar then asks "What should they look at?", and Send shares
+ * the tab and posts those words in the conversation, so the agents get it in their inbox.
+ */
+async function chat(api: Convoz): Promise<void> {
+  const { lastConversation } = await chrome.storage.local.get("lastConversation");
+  const frame = h("iframe", { title: "Convoz", src: chatsUrl(api.server, lastConversation) });
   const status = statusLine();
-  const shareButton = h("button", { type: "button", textContent: "Share this tab", disabled: true });
-  let open: { id: number; title: string } | null = null;
-  let sharing: { stop(): void } | null = null;
+  let open: Open | null = null;
+  let busy = false; // composing or sharing: the bar is taken
 
   window.addEventListener("message", (event: MessageEvent) => {
     const data = event.data as { type?: unknown; id?: unknown; title?: unknown } | null;
-    if (event.source !== frame.contentWindow || event.origin !== api.server || data?.type !== "convoz:conversation") return;
-    open = typeof data.id === "number" ? { id: data.id, title: typeof data.title === "string" ? data.title : "" } : null;
-    offer();
+    if (event.source !== frame.contentWindow || event.origin !== api.server) return;
+    if (data?.type === "convoz:conversation") {
+      open = typeof data.id === "number" ? { id: data.id, title: typeof data.title === "string" ? data.title : "" } : null;
+      if (open) void chrome.storage.local.set({ lastConversation: open.id });
+      if (!busy) idle();
+    } else if (data?.type === "convoz:share" && open && data.id === open.id) {
+      if (busy) status.textContent = "Stop the share that is on first.";
+      else void compose(open);
+    }
   });
 
-  // the button says why it is off: its title is its description to a screen reader and a tooltip to the eye
-  const offer = () => {
-    shareButton.disabled = !open;
-    shareButton.title = open ? "" : OPEN_A_CONVERSATION;
-  };
-
   const idle = (message = "") => {
-    sharing = null;
+    busy = false;
     tellWorker(null);
-    offer();
-    status.textContent = message;
-    bar.replaceChildren(shareButton, status);
+    status.textContent = message || (open ? "" : OPEN_A_CONVERSATION);
+    bar.replaceChildren(status);
   };
 
-  shareButton.onclick = async () => {
-    const conversation = open;
-    if (!conversation || sharing) return;
-    shareButton.disabled = true;
+  // The tab is the one in front when the owner clicks Share; the owner says what to look at, and Send shares it.
+  const compose = async (conversation: Open) => {
+    busy = true;
     try {
       const win = await chrome.windows.getLastFocused({ windowTypes: ["normal"] });
       const [tab] = win.id === undefined ? [] : await chrome.tabs.query({ active: true, windowId: win.id });
       const origin = webOrigin(tab?.url);
-      if (tab?.id === undefined || !origin) return idle("Click the Convoz button on the web page you want to share, then Share.");
-      if (!(await chrome.permissions.request({ origins: [origin + "/*"] }))) return idle(`Convoz needs access to ${origin} to share it.`);
-      const share = await api.startShare(conversation.id, origin);
-      const { title, handles } = await api.conversation(conversation.id);
-      const shared: SharedTab = { id: share.id, tabId: tab.id, origin };
-      const stop = new AbortController();
-      let reason: Extract<EndReason, Ended> = "stopped";
-      const end = (why: typeof reason) => {
-        if (stop.signal.aborted) return;
-        reason = why;
-        stop.abort();
-        void api.stopShare(share.id, why).catch(() => {});
+      if (tab?.id === undefined || !origin) return idle(GO_TO_THE_TAB);
+      const ask = h("textarea", { id: "ask", rows: 3, placeholder: "The error after Pay now" });
+      const send = h("button", { type: "submit", textContent: "Send" });
+      const cancel = h("button", { type: "button", className: "quiet", textContent: "Cancel", onclick: () => idle() });
+      const form = h(
+        "form",
+        { className: "ask" },
+        h("p", { className: "note", textContent: `Share ${tab.title || new URL(origin).host} with ${conversation.title || "this conversation"}` }),
+        h("label", { htmlFor: "ask", textContent: "What should they look at?" }),
+        ask,
+        h("span", { className: "row" }, send, cancel),
+      );
+      // Enter sends, Shift+Enter is a new line, as in the chat
+      ask.onkeydown = (e) => {
+        if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+          e.preventDefault();
+          form.requestSubmit();
+        }
       };
-      sharing = { stop: () => end("stopped") };
-      const stopButton = h("button", { type: "button", textContent: "Stop", onclick: () => end("stopped") });
-      // another tab in front, the tab closing or going to another site ends the share at once, before any agent asks
-      const check = () => void stillShared(shared).then((still) => still || end("left"));
-      const onRemoved = (tabId: number) => tabId === shared.tabId && check();
-      const onUpdated = (tabId: number) => tabId === shared.tabId && check();
-      chrome.tabs.onActivated.addListener(check);
-      chrome.tabs.onRemoved.addListener(onRemoved);
-      chrome.tabs.onUpdated.addListener(onUpdated);
-      status.textContent = `Shared with ${title || conversation.title || "this conversation"} · ${handles.map((x) => "@" + x).join(" ")}`;
-      bar.replaceChildren(stopButton, status, h("p", { className: "note", textContent: SHOT_WARNING }));
-      badge(shared.tabId, BADGE);
-      const ended = await runShare(api, shared, stop.signal, () => tellWorker({ server: api.server, share: share.id, tabId: shared.tabId }));
-      chrome.tabs.onActivated.removeListener(check);
-      chrome.tabs.onRemoved.removeListener(onRemoved);
-      chrome.tabs.onUpdated.removeListener(onUpdated);
-      badge(shared.tabId, "");
-      idle(ENDED[ended === "stopped" ? reason : ended]);
+      form.onsubmit = (e) => {
+        e.preventDefault();
+        send.disabled = true;
+        // asked before any other await: Chrome shows its prompt only while the click still counts as the owner's gesture
+        void chrome.permissions
+          .request({ origins: [origin + "/*"] })
+          .then((granted) => (granted ? share(conversation, tab.id!, origin, ask.value) : idle(`Convoz needs access to ${origin} to share it.`)))
+          .catch((err: unknown) => idle(describe(err, api.server, "Sharing")));
+      };
+      status.textContent = "";
+      bar.replaceChildren(form, status);
+      ask.focus();
     } catch (err) {
       idle(describe(err, api.server, "Sharing"));
     }
+  };
+
+  const share = async (conversation: Open, tabId: number, origin: string, words: string) => {
+    const tab = await chrome.tabs.get(tabId).catch(() => null);
+    if (!tab || webOrigin(tab.url) !== origin) return idle(`The tab was closed or left its site. ${GO_TO_THE_TAB}`);
+    const host = new URL(origin).host;
+    const made = await api.startShare(conversation.id, origin, { ask: words.trim(), tab_title: tab.title ?? "", tab_url: maskUrl(tab.url ?? origin) });
+    const { title, handles } = await api.conversation(conversation.id);
+    const shared: SharedTab = { id: made.id, tabId, origin };
+    const stop = new AbortController();
+    let reason: Ended = "stopped";
+    const end = (why: Ended) => {
+      if (stop.signal.aborted) return;
+      reason = why;
+      stop.abort();
+      void api.stopShare(made.id, why === "stopped" ? "stopped" : "left").catch(() => {});
+    };
+    const stopButton = h("button", { type: "button", textContent: "Stop", onclick: () => end("stopped") });
+    // the tab closing or going to another site ends the share at once, before any agent asks; other tabs in front do not
+    const check = () => void checkShared(shared).then((now) => "ended" in now && end(now.ended));
+    const onRemoved = (id: number) => id === tabId && check();
+    const onUpdated = (id: number) => id === tabId && check();
+    chrome.tabs.onRemoved.addListener(onRemoved);
+    chrome.tabs.onUpdated.addListener(onUpdated);
+    status.textContent = `Shared with ${title || conversation.title || "this conversation"} · ${handles.map((x) => "@" + x).join(" ")}`;
+    bar.replaceChildren(stopButton, status, h("p", { className: "note", textContent: SHOT_WARNING }));
+    badge(tabId, BADGE);
+    const ended = await runShare(api, shared, stop.signal, () => tellWorker({ server: api.server, share: made.id, tabId }));
+    chrome.tabs.onRemoved.removeListener(onRemoved);
+    chrome.tabs.onUpdated.removeListener(onUpdated);
+    badge(tabId, "");
+    idle(endedText(ended === "stopped" ? reason : ended, host));
   };
 
   idle();

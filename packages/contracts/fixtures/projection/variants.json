@@ -598,7 +598,7 @@
   "long": "@drew stopped sharing the tab"
  },
  {
-  "name": "system: the shared tab was closed or left",
+  "name": "system: the shared tab was closed or left its site",
   "message": {
    "system": {
     "t": "page.left",
@@ -612,8 +612,8 @@
     }
    }
   },
-  "short": "Tab sharing ended: the shared tab was closed or left",
-  "long": "Tab sharing ended: the shared tab was closed or left"
+  "short": "Tab sharing ended: the shared tab was closed or left its site",
+  "long": "Tab sharing ended: the shared tab was closed or left its site"
  },
  {
   "name": "system: the panel of the shared tab was closed",

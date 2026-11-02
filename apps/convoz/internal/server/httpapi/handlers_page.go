@@ -7,13 +7,18 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/conversation"
+	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/identity"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/message"
 	pdb "github.com/drewdrewthis/convoz/apps/convoz/internal/server/platform/db"
 	"github.com/drewdrewthis/convoz/apps/convoz/internal/server/upload"
@@ -29,6 +34,9 @@ const (
 )
 
 const noSharedTab = "no shared tab"
+
+// tabNotInFront is the extension's answer to a screenshot of a shared tab the owner has behind another tab.
+const tabNotInFront = "tab not in front"
 
 // pageOff answers 404 when the owner named no extension: then page sharing does not exist on this server.
 func (s *Server) pageOff(w http.ResponseWriter) bool {
@@ -84,8 +92,21 @@ func tabOrigin(raw string) string {
 	return ""
 }
 
-// startPageShare is POST /api/page/shares: the owner's extension shares a tab with a conversation the owner sees. A conversation has
-// one live share: a new one ends the old.
+// tabAddress is the shared tab's address as the extension masked it, when it is on origin; origin itself when the extension sent
+// none. ok is false for an address on another site or with a user name.
+func tabAddress(raw, origin string) (address string, ok bool) {
+	if raw == "" {
+		return origin, true
+	}
+	u, err := url.Parse(raw)
+	if err != nil || len(raw) > 2048 || u.User != nil || u.Scheme+"://"+u.Host != origin {
+		return "", false
+	}
+	return raw, true
+}
+
+// startPageShare is POST /api/page/shares: the owner's extension shares a tab with a conversation the owner sees, and posts the
+// owner's ask about it (share and ask in one step). A conversation has one live share: a new one ends the old.
 func (s *Server) startPageShare(w http.ResponseWriter, r *http.Request, c *call) {
 	if s.pageOff(w) || !s.fromExtension(w, r) {
 		return
@@ -99,13 +120,72 @@ func (s *Server) startPageShare(w http.ResponseWriter, r *http.Request, c *call)
 		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "tab_origin", "The tab's origin is an http or https origin, like https://example.com.")
 		return
 	}
+	address, ok := tabAddress(in.TabURL, origin)
+	if !ok {
+		writeFieldErr(w, http.StatusBadRequest, "invalid_request", "tab_url", "The tab's address is on tab_origin and has no user name.")
+		return
+	}
 	if !s.seesConversation(w, r, c, in.ConversationID) {
 		return
 	}
 	share := s.pages.start(in.ConversationID, c.p.HumanID, c.p.Identity(), origin, s.Clock.Now())
-	// after the start: the line makes the web app read the conversation again, and its shared_tab must be there by then
-	s.sayPage(r.Context(), c.p.Identity(), in.ConversationID, message.SystemLine{T: "page.shared", Identity: c.p.Identity(), Host: hostOf(origin)})
+	// after the start: the message makes the web app read the conversation again, and its shared_tab must be there by then
+	if !s.postShareAsk(w, r, c, share, shareAsk(in.Ask, in.TabTitle, address, in.ConversationID)) {
+		s.pages.stop(share.ID, c.p.HumanID) // no ask, no share: the owner sees the error and shares again
+		return
+	}
 	writeJSON(w, http.StatusCreated, wire.PageShareResponse{Share: share})
+}
+
+// postShareAsk posts the owner's message that starts a share, as a normal message: it reaches the inbox of every agent of the
+// conversation, which a system line never does. It writes the error itself and reports whether the message was posted.
+func (s *Server) postShareAsk(w http.ResponseWriter, r *http.Request, c *call, share wire.PageShare, body string) bool {
+	draft := message.Draft{Conversation: share.ConversationID, Author: c.p.Identity(), Device: c.dev.ID, ClientID: "page-share-" + share.ID, Body: body}
+	var posted message.Posted
+	err := s.Store.Writer.Tx(r.Context(), func(ctx context.Context, tx *pdb.Tx) (err error) {
+		posted, err = message.Post(ctx, tx.DBTX(), triagePorts(c.p), s.Clock.Now(), draft)
+		return err
+	})
+	if s.messageRefused(w, err) {
+		return false
+	}
+	if err != nil {
+		s.internalError(w, r, err)
+		return false
+	}
+	s.Bus.Notify(posted.Wake...)
+	return true
+}
+
+// shareAsk is the body of the message that starts a share: the owner's words (or "Look at this tab."), the tab, and the commands an
+// agent runs to see it. The title and address are the page's words, so they go in code, where they mention no one.
+func shareAsk(ask, title, address string, conv int64) string {
+	ask = strings.TrimSpace(ask)
+	if ask == "" {
+		ask = "Look at this tab."
+	}
+	tab := "`" + inCode(address) + "`"
+	if t := pageTitle(title); t != "" {
+		tab = "`" + inCode(t) + "` " + tab
+	}
+	return fmt.Sprintf("%s\n\n- Shared tab: %s\n- Read it: `convoz page read --conv %d`\n- Screenshot: `convoz page shot --conv %d`", ask, tab, conv, conv)
+}
+
+// inCode keeps text inside one code span: a backtick would end it.
+func inCode(s string) string { return strings.ReplaceAll(s, "`", "'") }
+
+// pageTitle is a page's title as a line or a message quotes it: one line, no control characters, at most 120 characters.
+func pageTitle(raw string) string {
+	t := strings.Join(strings.Fields(strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return ' '
+		}
+		return r
+	}, raw)), " ")
+	if utf8.RuneCountInString(t) > 120 {
+		t = strings.TrimSpace(string([]rune(t)[:120]))
+	}
+	return t
 }
 
 // hostOf is the host of an origin tabOrigin accepted.
@@ -352,10 +432,11 @@ func (s *Server) askPage(w http.ResponseWriter, r *http.Request, c *call) {
 		writeErr(w, http.StatusBadGateway, "page_too_large", "The shared page is too big to send.")
 	case !out.result.OK && out.result.Error == noSharedTab:
 		writeErr(w, http.StatusConflict, wire.CodeNoSharedTab, noSharedTab)
+	case !out.result.OK && out.result.Error == tabNotInFront:
+		writeErr(w, http.StatusConflict, wire.CodeTabNotInFront, "The shared tab is not in front. Ask "+s.ownerRef(r.Context(), req.share.by)+" to bring it forward.")
 	case !out.result.OK:
 		writeErr(w, http.StatusBadGateway, "page_failed", "The shared tab could not be read: "+clipTo(out.result.Error, 200))
 	default:
-		s.auditPage(r.Context(), c, in, out.result)
 		answer := wire.PageAnswer{Shot: out.result.Shot}
 		if in.Op == wire.PageOpRead {
 			read := *out.result.Read
@@ -365,32 +446,53 @@ func (s *Server) askPage(w http.ResponseWriter, r *http.Request, c *call) {
 			}
 			answer = wire.PageAnswer{Read: &read}
 		}
+		s.auditPage(r.Context(), c, in, answer)
 		writeJSON(w, http.StatusOK, answer)
 	}
 }
 
-// auditPage writes the system line of a read or shot, with the screenshot as its image when the server keeps files. A failure is
-// logged and never fails the agent's request: the extension has answered by then.
-func (s *Server) auditPage(ctx context.Context, c *call, in wire.PageRequest, res wire.PageResult) {
+// ownerRef is "@handle" of the person who shares the tab, or "the owner" when it cannot be read.
+func (s *Server) ownerRef(ctx context.Context, id int64) string {
+	if h, err := identity.Get(ctx, s.reader(), id); err == nil && h.Handle != "" {
+		return "@" + h.Handle
+	}
+	return "the owner"
+}
+
+// auditPage writes the system line of a read or shot, with what the agent got as its file when the server keeps files: the
+// screenshot as an image, the read as page-read.json (and its title and word count on the line), so the owner sees what the agent
+// saw. A failure is logged and never fails the agent's request: the extension has answered by then.
+func (s *Server) auditPage(ctx context.Context, c *call, in wire.PageRequest, answer wire.PageAnswer) {
 	ctx = context.WithoutCancel(ctx)
 	agent, now := c.p.Identity(), s.Clock.Now()
 	line := message.SystemLine{T: "page.read", Identity: agent}
-	var shot []string
+	kind, name := upload.KindFile, "page-read.json"
+	var data []byte
+	var err error
 	if in.Op == wire.PageOpShot {
-		line.T = "page.shot"
-		if id, err := s.storeShot(ctx, c, in.ConversationID, res.Shot.PNGBase64); err != nil {
-			s.Log.Printf("page shot: the image is not kept: %v", err)
-		} else if id != "" {
-			shot = []string{id}
+		line.T, kind, name = "page.shot", upload.KindImage, "screenshot.png"
+		data, err = base64.StdEncoding.DecodeString(answer.Shot.PNGBase64)
+	} else {
+		line.Title, line.Words = pageTitle(answer.Read.Title), len(strings.Fields(answer.Read.Text))
+		data, err = json.Marshal(answer.Read)
+	}
+	var kept []string
+	if err == nil {
+		var id string
+		if id, err = s.storeFile(ctx, c, in.ConversationID, kind, name, data); id != "" {
+			kept = []string{id}
 		}
 	}
-	err := s.Store.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) error {
+	if err != nil {
+		s.Log.Printf("page %s: the file is not kept: %v", in.Op, err)
+	}
+	err = s.Store.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) error {
 		d := tx.DBTX()
 		lineID, _, err := sayLine(ctx, d, now, agent, in.ConversationID, line)
-		if err != nil || shot == nil {
+		if err != nil || kept == nil {
 			return err
 		}
-		_, err = upload.Bind(ctx, d, now, upload.BindArgs{MessageID: lineID, ConversationID: in.ConversationID, Author: agent, PublicIDs: shot})
+		_, err = upload.Bind(ctx, d, now, upload.BindArgs{MessageID: lineID, ConversationID: in.ConversationID, Author: agent, PublicIDs: kept})
 		return err
 	})
 	if err != nil {
@@ -400,31 +502,27 @@ func (s *Server) auditPage(ctx context.Context, c *call, in wire.PageRequest, re
 	s.Bus.Notify()
 }
 
-// storeShot keeps the screenshot as a finished image upload of the agent in the conversation and returns its public id; "" when
-// this server keeps no files.
-func (s *Server) storeShot(ctx context.Context, c *call, conv int64, b64 string) (string, error) {
+// storeFile keeps data as a finished upload of the agent in the conversation and returns its public id; "" when this server keeps
+// no files.
+func (s *Server) storeFile(ctx context.Context, c *call, conv int64, kind, name string, data []byte) (string, error) {
 	svc := files.Load()
 	if svc == nil {
 		return "", nil
 	}
-	png, err := base64.StdEncoding.DecodeString(b64)
-	if err != nil {
-		return "", err
-	}
-	sum := sha256.Sum256(png)
+	sum := sha256.Sum256(data)
 	var row upload.Row
-	err = s.Store.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) (err error) {
+	err := s.Store.Writer.Tx(ctx, func(ctx context.Context, tx *pdb.Tx) (err error) {
 		row, err = svc.Create(ctx, tx.DBTX(), s.Clock.Now(), upload.NewRequest{
-			Uploader: c.p.Identity(), Session: c.p.SessionID, Conversation: conv, Kind: upload.KindImage, Filename: "screenshot.png", Size: int64(len(png)), SHA256: sum[:],
+			Uploader: c.p.Identity(), Session: c.p.SessionID, Conversation: conv, Kind: kind, Filename: name, Size: int64(len(data)), SHA256: sum[:],
 		}, c.lease.MachineID)
 		return err
 	})
 	if err != nil {
 		return "", err
 	}
-	prog, err := svc.Receive(row, upload.Chunk{}, bytes.NewReader(png))
+	prog, err := svc.Receive(row, upload.Chunk{}, bytes.NewReader(data))
 	if err == nil && prog.Finished == nil {
-		err = errors.New("the screenshot did not finish")
+		err = errors.New("the file did not finish")
 	}
 	if err == nil {
 		err = s.persistUpload(ctx, row, prog)

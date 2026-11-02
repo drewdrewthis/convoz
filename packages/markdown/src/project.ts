@@ -81,7 +81,7 @@ function systemText(s: NonNullable<Projectable["system"]>): string {
     case "page.stopped":
       return `${ref(s.identity)} stopped sharing the tab`;
     case "page.left":
-      return "Tab sharing ended: the shared tab was closed or left";
+      return "Tab sharing ended: the shared tab was closed or left its site";
     case "page.closed":
       return "Tab sharing ended: the panel was closed";
     case "page.timeout":

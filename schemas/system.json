@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.convoz.dev/v1/system.json",
   "title": "messages.system_json v1",
-  "description": "Ids and enums only (no text: names and titles are looked up at render time, so a rename or a scrub never leaves stale text), except the title of conversation.renamed, the two handles of member.renamed (an agent's handles are never scrubbed and a retired one is never reused, I-51), the plan items a plan.changed line quotes (what the line said must not change when the plan does) and the host of the tab a page.shared line names (the host only, never the path or query). <= 2048 bytes (DB CHECK). Written only by the server.",
+  "description": "Ids and enums only (no text: names and titles are looked up at render time, so a rename or a scrub never leaves stale text), except the title of conversation.renamed, the two handles of member.renamed (an agent's handles are never scrubbed and a retired one is never reused, I-51), the plan items a plan.changed line quotes (what the line said must not change when the plan does) the host of the tab a page.shared line names (the host only, never the path or query) and the page title a page.read line quotes. <= 2048 bytes (DB CHECK). Written only by the server.",
   "type": "object",
   "oneOf": [
     {
@@ -31,6 +31,9 @@
     },
     {
       "$ref": "#/$defs/unresponsive"
+    },
+    {
+      "$ref": "#/$defs/pageRead"
     },
     {
       "$ref": "#/$defs/pageShared"
@@ -83,7 +86,6 @@
           "enum": [
             "member.left",
             "member.disabled",
-            "page.read",
             "page.shot",
             "page.stopped"
           ]
@@ -325,6 +327,38 @@
         }
       }
     },
+    "pageRead": {
+      "type": "object",
+      "required": [
+        "v",
+        "t",
+        "identity"
+      ],
+      "additionalProperties": false,
+      "description": "An agent read the shared tab. The line quotes the page's title and counts the words of its text, so the owner sees what the agent read; the read itself is a file on the line.",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "t": {
+          "const": "page.read"
+        },
+        "identity": {
+          "$ref": "#/$defs/ref"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "The page's title, cleaned and cut to 120 characters."
+        },
+        "words": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "The number of words of the page's text."
+        }
+      }
+    },
     "pageShared": {
       "type": "object",
       "required": [
@@ -358,7 +392,7 @@
         "t"
       ],
       "additionalProperties": false,
-      "description": "A share ended on its own: the tab was closed or left, the panel was closed, the browser stopped polling.",
+      "description": "A share ended on its own: the tab was closed or left its site, the panel was closed, the browser stopped polling.",
       "properties": {
         "v": {
           "const": 1

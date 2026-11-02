@@ -2276,7 +2276,9 @@ export interface paths {
          * The extension shares a tab with a conversation the owner sees.
          * @description tab_origin is the tab's http or https origin (no path; 400 otherwise). A conversation the owner cannot see is 404. A conversation
          *     has one live share: a new one ends the old. The share lives in memory: a restart ends it, and so do 45 s without a poll (the
-         *     line page.timeout). It writes the line page.shared with the tab's host, and while it lives the conversation carries shared_tab.
+         *     line page.timeout). It posts the owner's message `ask` (or "Look at this tab.") as a normal message, with the tab's title and
+         *     tab_url in code and the `convoz page read|shot --conv N` commands, so every agent of the conversation gets an inbox item; a
+         *     tab_url not on tab_origin, or with a user name, is 400. While the share lives the conversation carries shared_tab.
          */
         post: operations["startPageShare"];
         delete?: never;
@@ -2342,10 +2344,12 @@ export interface paths {
         put?: never;
         /**
          * An agent of the conversation reads the shared tab or takes a screenshot of it.
-         * @description Waits up to 25 s for the extension. 409 `no_shared_tab` when no tab is shared, or the tab is gone, not in front or on another
-         *     site; 403 for an agent outside the conversation; 400 for an op that is not read or shot; 429 while another request of the share
-         *     runs, or for a second screenshot within 2 s; 504 when the extension does not answer in time. Each read and shot writes a system
-         *     line (page.read, page.shot); a shot also puts the image in the conversation. The page's words never become a message.
+         * @description Waits up to 25 s for the extension. 409 `no_shared_tab` when no tab is shared, or the tab is gone or on another site; 409
+         *     `tab_not_in_front` for a screenshot of a shared tab behind another tab (the share lives on, and a read works: ask the owner to
+         *     bring it forward); 403 for an agent outside the conversation; 400 for an op that is not read or shot; 429 while another request
+         *     of the share runs, or for a second screenshot within 2 s; 504 when the extension does not answer in time. Each read and shot
+         *     writes a system line (page.read with the page's title and word count, page.shot) with what the agent got as its file when the
+         *     server keeps files (page-read.json, screenshot.png). The page's text never becomes a message.
          */
         post: operations["askPage"];
         delete?: never;
@@ -3643,6 +3647,12 @@ export interface components {
             conversation_id: number;
             /** @description The tab's origin, like https://example.com. */
             tab_origin: string;
+            /** @description The owner's words to the agents: what to look at. Empty is "Look at this tab." */
+            ask?: string;
+            /** @description The tab's title; the message quotes at most 120 characters of it, in code. */
+            tab_title?: string;
+            /** @description The tab's address on tab_origin, as the extension masks it (query values and the fragment as *). */
+            tab_url?: string;
         };
         PageShare: {
             id: string;
@@ -3705,7 +3715,7 @@ export interface components {
         };
         PageEndRequest: {
             /**
-             * @description stopped: the owner's Stop (also no body); left: the tab closed, went behind another tab or left its site; closed: the panel closed.
+             * @description stopped: the owner's Stop (also no body); left: the tab closed or left its site; closed: the panel closed.
              * @enum {string}
              */
             reason?: "stopped" | "left" | "closed";
