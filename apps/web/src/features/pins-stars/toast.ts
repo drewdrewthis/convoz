@@ -57,3 +57,8 @@ export function runUndo(): void {
   end();
   if (undo) void undo();
 }
+
+/** dismiss takes the toast down without running its action (the close button). */
+export function dismiss(): void {
+  end();
+}

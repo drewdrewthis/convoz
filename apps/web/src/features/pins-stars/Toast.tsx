@@ -1,4 +1,4 @@
-import { runUndo, useToast } from "./toast.ts";
+import { dismiss, runUndo, useToast } from "./toast.ts";
 
 /** ToastHost draws the toast, if there is one. It is a polite live region, so a screen reader says it too; an error is an alert, said at once. */
 export function ToastHost() {
@@ -11,12 +11,17 @@ export function ToastHost() {
     <div className="toastbox" role={alert ? "alert" : "status"} aria-live={alert ? "assertive" : "polite"}>
       {text ? (
         <div className="toast">
-          <span>{text}</span>
+          <span className="toasttext">{text}</span>
           {undo ? (
             <button type="button" className="toastact" onClick={runUndo}>
               {label}
             </button>
           ) : null}
+          <button type="button" className="toastx" aria-label="Dismiss" onClick={dismiss}>
+            <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
+              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+          </button>
         </div>
       ) : null}
     </div>

@@ -104,10 +104,13 @@
   .listgrab { flex: none; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--color-muted); touch-action: none; cursor: grab; }
   .appbar-end .donebtn { order: -1; min-height: 44px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; color: var(--color-accent); font-size: 16px; font-weight: 600; }
 
-  .toastbox { position: fixed; left: 0; right: 0; bottom: calc(88px + var(--bottom)); z-index: 70; display: flex; justify-content: center; pointer-events: none; }
-  body[data-desk] .toastbox { bottom: 24px; }
-  .toast { display: flex; align-items: center; gap: 12px; pointer-events: auto; max-width: min(90vw, 28rem); padding: 12px 18px; border-radius: 999px; background: var(--color-raised); color: var(--color-text); border: 1px solid var(--color-border); box-shadow: var(--float); font-size: 14px; font-weight: 500; }
-  .toastact { min-height: 32px; padding: 0 4px; border: 0; background: transparent; color: var(--color-accent); font: inherit; font-weight: 600; }
+  /* The toast rides just above the composer (--compose-top, set by the Composer); with no composer it keeps to the bottom. It never covers the box. */
+  .toastbox { position: fixed; left: 0; right: 0; bottom: calc(var(--compose-top, calc(80px + var(--bottom))) + 8px); z-index: 70; display: flex; justify-content: center; padding: 0 12px; pointer-events: none; }
+  body[data-desk] .toastbox { bottom: calc(var(--compose-top, 16px) + 8px); }
+  .toast { display: flex; align-items: center; gap: 8px; pointer-events: auto; box-sizing: border-box; max-width: min(100%, 40rem); padding: 6px 6px 6px 14px; border-radius: 14px; background: var(--color-raised); color: var(--color-text); border: 1px solid var(--color-border); box-shadow: var(--float); font-size: 13px; line-height: 1.35; font-weight: 500; }
+  .toasttext { min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+  .toastact { flex: 0 0 auto; white-space: nowrap; min-height: 32px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: var(--color-accent); font: inherit; font-weight: 600; }
+  .toastx { flex: 0 0 auto; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--color-muted); }
 
   .keys { margin: 0; display: flex; flex-direction: column; }
   .keyrow { display: flex; align-items: baseline; gap: 16px; padding: 8px 0; border-top: 1px solid var(--color-border); }

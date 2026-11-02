@@ -2,9 +2,8 @@
 import { debouncePer, registerHandler, registerResync, type MessageCreatedFrame } from "@convoz/api-client";
 import { appPath, withBase } from "../../shared/base.ts";
 import { data, sync } from "../../shared/data.ts";
-import { arrivalToast } from "../now/index.ts";
 import { notify } from "../pins-stars/index.ts";
-import { batch, messageHref, messageLine } from "./messageToast.ts";
+import { batch, messageHref, messageLine, newMessagesLine, whoWhere } from "./messageToast.ts";
 import "../../shared/presence.ts"; // takes the working and seen frames in
 import { useConversations } from "./store.ts";
 
@@ -30,10 +29,9 @@ registerHandler("message.", (frame) => {
     if (frame.data.system?.t !== "plan.changed") refreshAsks(id);
   }
 });
-/** The messages of one second share one toast; its Open goes to the first, the one the toast names. */
-const toastBatch = batch<{ line: string; href: string }>(1000, (news) => {
-  const text = arrivalToast(news.map((n) => n.line));
-  if (text) notify(text, () => location.assign(withBase(news[0]!.href)), "Open");
+/** The messages of one second share one toast; its Open goes to the latest, the one the toast names. */
+const toastBatch = batch<{ line: string; who: string; href: string }>(1000, (news) => {
+  notify(newMessagesLine(news), () => location.assign(withBase(news[news.length - 1]!.href)), "Open");
 });
 /** toastMessage queues the toast line of a new message from someone else, unless its conversation is open on screen or muted (messageLine). */
 function toastMessage(m: MessageCreatedFrame): void {
@@ -43,7 +41,7 @@ function toastMessage(m: MessageCreatedFrame): void {
   const row = rows[m.conversation_id];
   const muted = (row?.muted_until ?? 0) > Date.now();
   const line = messageLine(m, { me: me.identity.handle, open: open ? Number(open[1]) : null, title: row?.title, muted });
-  if (line) toastBatch({ line, href: messageHref(m) });
+  if (line) toastBatch({ line, who: whoWhere(m, row?.title), href: messageHref(m) });
 }
 /** A catch-up brings many system lines at once, and a slow one spreads them: the row and the asks are read once, after the burst. */
 const BURST_MS = 200;
